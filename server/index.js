@@ -12,7 +12,11 @@ const adminRoutes = require('./routes/admin');
 const { initBot } = require('./bot/bot');
 
 const app = express();
+// Railway автоматически устанавливает PORT, используем его
 const PORT = process.env.PORT || 3000;
+
+// Логируем какой порт используется
+console.log(`📌 PORT from environment: ${process.env.PORT || 'not set, using default 3000'}`);
 
 // Middleware
 app.use(helmet({
