@@ -29,6 +29,17 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
 }
 
+// Telegram webhook route (must be before other routes)
+const { getBot } = require('./bot/bot');
+app.use('/api/telegram/webhook', express.json());
+app.post('/api/telegram/webhook', (req, res) => {
+  const bot = getBot();
+  if (bot) {
+    bot.processUpdate(req.body);
+  }
+  res.sendStatus(200);
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);

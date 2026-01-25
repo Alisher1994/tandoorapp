@@ -13,9 +13,32 @@ function initBot() {
     return;
   }
   
-  bot = new TelegramBot(token, { polling: true });
+  // Use webhook in production, polling in development
+  const isProduction = process.env.NODE_ENV === 'production';
+  const webAppUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
   
-  console.log('🤖 Telegram bot initialized');
+  if (isProduction && webAppUrl) {
+    // Use webhook for production
+    const webhookPath = '/api/telegram/webhook';
+    const webhookUrl = `${webAppUrl}${webhookPath}`;
+    
+    bot = new TelegramBot(token);
+    
+    // Set webhook
+    bot.setWebHook(webhookUrl).then(() => {
+      console.log(`🤖 Telegram bot initialized with webhook: ${webhookUrl}`);
+    }).catch((error) => {
+      console.error('❌ Error setting webhook:', error);
+      // Fallback to polling if webhook fails
+      console.log('⚠️  Falling back to polling mode');
+      bot = new TelegramBot(token, { polling: true });
+      console.log('🤖 Telegram bot initialized with polling (fallback)');
+    });
+  } else {
+    // Use polling for development
+    bot = new TelegramBot(token, { polling: true });
+    console.log('🤖 Telegram bot initialized with polling');
+  }
   
   // Start command
   bot.onText(/\/start/, async (msg) => {
@@ -171,7 +194,16 @@ function initBot() {
   
   // Error handling
   bot.on('polling_error', (error) => {
-    console.error('Telegram polling error:', error);
+    if (error.response && error.response.body && error.response.body.error_code === 409) {
+      console.warn('⚠️  Telegram bot conflict: Another instance is running. This is normal if using webhook.');
+      // Don't exit, just log the warning
+    } else {
+      console.error('Telegram polling error:', error);
+    }
+  });
+  
+  bot.on('webhook_error', (error) => {
+    console.error('Telegram webhook error:', error);
   });
 }
 
