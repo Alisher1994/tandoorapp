@@ -1,0 +1,1989 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <style>
+    :root {
+      --md-primary-color: #2e2982;
+      --md-primary-dark: #25216b;
+      --md-primary-light: #3a34a0;
+      --md-accent-color: #424242;
+      --md-background-color: #F5F5F5;
+      --md-surface-color: #FFFFFF;
+      --md-text-color: #212121;
+      --md-text-secondary: #757575;
+      --md-border-color: #E0E0E0;
+      --md-shadow-color: rgba(0, 0, 0, 0.12);
+      --md-shadow-hover: rgba(0, 0, 0, 0.18);
+    }
+
+    body {
+      background-color: var(--md-background-color);
+      color: var(--md-text-color);
+      font-family: 'Roboto', sans-serif;
+    }
+
+    .form-control, .select2-container--default .select2-selection--single {
+      border-radius: 8px;
+      border: 1px solid var(--md-border-color);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+      padding: 0.5rem 1rem;
+      height: calc(1.5em + 1rem + 2px);
+      font-size: 1rem;
+      background-color: var(--md-surface-color);
+      color: var(--md-text-color);
+    }
+
+    .form-control:focus, .select2-container--default.select2-container--focus .select2-selection--single {
+      border-color: var(--md-primary-light);
+      box-shadow: 0 0 0 0.25rem rgba(46, 41, 130, 0.25);
+    }
+
+    .select2-container--default .select2-selection--single {
+      line-height: calc(1.5em + 1rem + 2px);
+      padding: 0 1rem;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+      line-height: calc(1.5em + 1rem + 2px);
+      color: var(--md-text-color);
+      padding-left: 0;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+      height: calc(1.5em + 1rem + 2px);
+      right: 12px;
+      top: 0;
+      width: 20px;
+    }
+
+    .select2-container {
+      width: 100% !important;
+    }
+
+    .select2-dropdown {
+      z-index: 9999 !important;
+    }
+
+    .category-card {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--md-border-color);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      text-align: center;
+      background: var(--md-surface-color);
+      box-shadow: 0 4px 8px var(--md-shadow-color);
+      height: 100%;
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      cursor: pointer;
+    }
+
+    .category-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px var(--md-shadow-hover);
+    }
+
+    .category-image {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      background: var(--md-background-color);
+      margin-bottom: 10px;
+    }
+
+    .category-name {
+      font-size: 1.1rem;
+      line-height: 1.4em;
+      font-weight: 600;
+      color: var(--md-text-color);
+      margin: 0;
+    }
+
+    .product-card {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--md-border-color);
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 10px;
+      text-align: center;
+      background: var(--md-surface-color);
+      box-shadow: 0 2px 4px var(--md-shadow-color);
+      height: 100%;
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      position: relative;
+      overflow: hidden; /* Добавлено для обрезки выходящих за границы элементов */
+    }
+
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px var(--md-shadow-hover);
+    }
+
+
+    .product-image-container {
+      position: relative;
+      width: 100%;
+      height: 100px;
+      margin-bottom: 8px;
+    }
+    
+    .product-image {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 6px;
+      background: var(--md-background-color);
+      cursor: pointer;
+    }
+
+    .product-name {
+      font-size: 0.85rem;
+      line-height: 1.2em;
+      height: calc(1.2em * 2);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-top: 8px;
+      margin-bottom: 5px;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+
+    .product-price {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: white;
+      background-color: var(--md-primary-color);
+      margin-top: 5px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 30px;
+      transition: background-color 0.2s;
+      border: none;
+    }
+
+    .product-price:hover {
+      background-color: var(--md-primary-dark);
+    }
+
+    .unit-badge {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      background-color: #dc3545;
+      color: white;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      font-weight: bold;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      z-index: 2;
+    }
+
+    .quantity-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 5px;
+    }
+
+    .quantity-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background-color: var(--md-primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .quantity-btn:hover {
+      background-color: var(--md-primary-dark);
+    }
+
+    .quantity-btn:disabled {
+      background-color: var(--md-text-secondary);
+      cursor: not-allowed;
+    }
+
+    .quantity-input {
+      width: 60px;
+      height: 32px;
+      border: 1px solid var(--md-border-color);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .quantity-input:focus {
+      outline: none;
+      border-color: var(--md-primary-light);
+      box-shadow: 0 0 0 0.2rem rgba(46, 41, 130, 0.25);
+    }
+
+    .fixed-header {
+      position: sticky;
+      top: 0;
+      background-color: var(--md-surface-color);
+      z-index: 1020;
+      padding: 15px;
+      border-bottom: 1px solid var(--md-border-color);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-mobile {
+      display: none;
+      text-align: center;
+      margin: 0 auto;
+    }
+
+    .logo-desktop {
+      display: flex;
+      align-items: center;
+    }
+
+    .language-switcher {
+      margin-left: 15px;
+    }
+
+    .lang-btn {
+      background: none;
+      border: 1px solid var(--md-border-color);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+
+    .lang-btn.active {
+      background-color: var(--md-primary-color);
+      color: white;
+      border-color: var(--md-primary-color);
+    }
+
+    .lang-btn:not(.active):hover {
+      background-color: var(--md-background-color);
+    }
+
+    .back-arrow {
+      background-color: var(--md-primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-right: 15px;
+      transition: all 0.3s ease;
+    }
+
+    .back-arrow:hover {
+      background-color: var(--md-primary-dark);
+      transform: translateY(-1px);
+    }
+
+    .back-arrow.hidden {
+      display: none;
+    }
+
+    .btn-primary {
+        background-color: var(--md-primary-color);
+        border-color: var(--md-primary-color);
+        color: white;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        padding: 0.65rem 1.5rem;
+        font-size: 1.05rem;
+    }
+
+    .btn-primary:hover {
+        background-color: var(--md-primary-dark);
+        border-color: var(--md-primary-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(46, 41, 130, 0.2);
+    }
+    
+    .btn-secondary {
+        background-color: var(--md-accent-color);
+        border-color: var(--md-accent-color);
+        color: white;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        padding: 0.65rem 1.5rem;
+        font-size: 1.05rem;
+    }
+    .btn-secondary:hover {
+        background-color: #5A5A5A;
+        border-color: #5A5A5A;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(66, 66, 66, 0.2);
+    }
+
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: white;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        padding: 0.65rem 1.5rem;
+        font-size: 1.05rem;
+    }
+    .btn-success:hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+    }
+
+    .cart-button {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      width: 65px;
+      height: 65px;
+      border-radius: 12px;
+      background-color: var(--md-primary-color);
+      border: none;
+      color: white;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 12px rgba(46, 41, 130, 0.4);
+      z-index: 1000;
+      transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    }
+    .cart-button:hover {
+      background-color: var(--md-primary-dark);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 16px rgba(46, 41, 130, 0.5);
+    }
+
+    .cart-total-badge {
+      position: fixed;
+      bottom: 85px;
+      right: 25px;
+      background-color: #ff4444;
+      color: white;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+    }
+
+    .modal-content {
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    .modal-header {
+      border-bottom: 1px solid var(--md-border-color);
+      padding: 1rem 1.5rem;
+    }
+    .modal-title {
+      font-weight: 600;
+      color: var(--md-text-color);
+    }
+    .modal-footer {
+      border-top: 1px solid var(--md-border-color);
+      padding: 1rem 1.5rem;
+    }
+    .btn-close {
+        font-size: 0.9rem;
+    }
+
+    .page-state {
+      display: none;
+    }
+
+    .page-state.active {
+      display: block;
+    }
+
+    .order-form-section {
+      background-color: var(--md-surface-color);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px var(--md-shadow-color);
+    }
+    
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: var(--md-primary-color);
+      border-bottom: 2px solid var(--md-primary-light);
+      padding-bottom: 8px;
+    }
+    
+    .location-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    
+    .location-btn {
+      flex: 1;
+    }
+    
+    #locationMap {
+      width: 100%;
+      height: 300px;
+      border-radius: 8px;
+      border: 1px solid var(--md-border-color);
+      margin-top: 10px;
+      display: none;
+    }
+    
+    .map-controls {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    
+    .cart-summary {
+      background-color: var(--md-surface-color);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px var(--md-shadow-color);
+    }
+    
+    .total-amount {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--md-primary-color);
+      text-align: right;
+    }
+
+    .delivery-note-red {
+      color: #dc3545;
+      font-weight: 500;
+    }
+
+    .cart-item {
+      border-bottom: 1px solid var(--md-border-color);
+      padding: 10px 0;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+    }
+    .cart-item:last-child {
+      border-bottom: none;
+    }
+    .cart-item-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .cart-item-image {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-right: 15px;
+    }
+    .cart-item-name {
+      font-size: 1rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .cart-item-details {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cart-item-price {
+      font-weight: 600;
+      color: var(--md-primary-color);
+    }
+    .cart-item-quantity {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cart-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .cart-quantity-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background-color: var(--md-primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      font-size: 1rem;
+    }
+
+    .cart-quantity-btn:hover {
+      background-color: var(--md-primary-dark);
+    }
+
+    .cart-quantity-btn:disabled {
+      background-color: var(--md-text-secondary);
+      cursor: not-allowed;
+    }
+
+    .cart-quantity-input {
+      width: 70px;
+      height: 28px;
+      border: 1px solid var(--md-border-color);
+      border-radius: 6px;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .cart-quantity-input:focus {
+      outline: none;
+      border-color: var(--md-primary-light);
+      box-shadow: 0 0 0 0.2rem rgba(46, 41, 130, 0.25);
+    }
+
+    .remove-item-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-left: auto;
+    }
+
+    .remove-item-btn:hover {
+      background-color: #c82333;
+    }
+
+    .payment-methods-container {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .payment-method {
+      border: 2px solid var(--md-border-color);
+      border-radius: 8px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .payment-method:hover {
+      border-color: var(--md-primary-light);
+    }
+
+    .payment-method.selected {
+      border-color: var(--md-primary-color);
+      background-color: rgba(46, 41, 130, 0.05);
+    }
+
+    .payment-method input[type="radio"] {
+      margin-right: 10px;
+    }
+
+    .required-field::after {
+      content: " *";
+      color: #dc3545;
+    }
+
+    .category-grid {
+      display: grid;
+      gap: 15px;
+      padding: 10px 0;
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    .product-grid {
+      display: grid;
+      gap: 8px;
+      padding: 10px 0;
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    .success-modal .modal-content {
+      text-align: center;
+      padding: 20px;
+    }
+    .success-icon {
+      font-size: 4rem;
+      color: #28a745;
+      margin-bottom: 20px;
+    }
+
+    .location-help {
+      margin-top: 10px;
+    }
+
+    .alert-info {
+      border-radius: 8px;
+      border: 1px solid #b6d4fe;
+    }
+
+    @media (max-width: 1200px) {
+      .category-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .product-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    @media (max-width: 992px) {
+      .category-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .product-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 767px) {
+      .container {
+        padding: 0 5px !important;
+      }
+      
+      .fixed-header {
+        padding: 10px;
+      }
+      
+      .category-grid {
+        gap: 10px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .product-grid {
+        gap: 5px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .category-card {
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+      
+      .category-image {
+        height: 80px;
+        margin-bottom: 8px;
+      }
+      
+      .category-name {
+        font-size: 0.95rem;
+      }
+      
+      .product-card {
+        padding: 5px;
+        margin-bottom: 5px;
+        border-radius: 6px;
+      }
+      
+      .product-image {
+        height: 70px;
+        border-radius: 4px;
+      }
+      
+      .product-name {
+        font-size: 0.75rem;
+        line-height: 1.1em;
+        height: calc(1.1em * 2);
+        margin-top: 5px;
+        margin-bottom: 3px;
+        -webkit-line-clamp: 2;
+      }
+      
+      .product-price {
+        font-size: 0.7rem;
+        padding: 6px;
+      }
+      
+      .unit-badge {
+        bottom: 55px;
+        right: 10px;
+        width: 25px;
+        height: 25px;
+        font-size: 0.6rem;
+      }
+      
+      .quantity-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 14px;
+        border-radius: 4px;
+      }
+      
+      .quantity-input {
+        width: 50px;
+        height: 24px;
+        font-size: 0.8rem;
+      }
+      
+      .back-arrow {
+        width: 35px;
+        height: 35px;
+        font-size: 18px;
+        margin-right: 10px;
+      }
+
+      .logo-desktop {
+        display: none;
+      }
+      
+      .logo-mobile {
+        display: block;
+        flex: 1;
+        text-align: center;
+      }
+      
+      .header-content h4 {
+        font-size: 1.1rem;
+        display: none;
+      }
+
+      .order-form-section {
+        padding: 15px;
+      }
+
+      .location-buttons {
+        flex-direction: column;
+      }
+      
+      #locationMap {
+        height: 250px;
+      }
+
+      .cart-total-badge {
+        bottom: 75px;
+        right: 20px;
+        font-size: 0.8rem;
+        padding: 6px 10px;
+      }
+
+      .cart-button {
+        width: 55px;
+        height: 55px;
+        font-size: 24px;
+        bottom: 20px;
+        right: 20px;
+      }
+
+      .cart-item-image {
+        width: 50px;
+        height: 50px;
+        margin-right: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .category-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .product-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container my-3">
+    <div class="fixed-header">
+      <div class="header-content">
+        <div class="header-left">
+          <button class="back-arrow hidden" id="backArrow" onclick="showCategoriesPage()">
+            <i class="bi bi-arrow-left"></i>
+          </button>
+          <div class="logo-desktop">
+            <img src="https://iili.io/KXB1Kut.png" alt="Логотип" style="height: 40px;">
+          </div>
+          <div class="logo-mobile">
+            <img src="https://iili.io/KXB1Kut.png" alt="Логотип" style="height: 35px;">
+          </div>
+        </div>
+        <div class="language-switcher">
+          <button class="lang-btn active" id="langRu" onclick="switchLanguage('ru')">RU</button>
+          <button class="lang-btn" id="langUz" onclick="switchLanguage('uz')">UZ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Categories Page -->
+    <div id="categoriesPage" class="page-state active">
+      <div id="categoriesContent"></div>
+    </div>
+
+    <!-- Products Page -->
+    <div id="productsPage" class="page-state">
+      <div id="productsContent"></div>
+    </div>
+  </div>
+
+  <!-- Cart Total Badge -->
+  <div class="cart-total-badge" id="cartTotalBadge" style="display: none;">
+    <span id="totalText">Итого:</span> <span id="totalAmountBadge">0</span> <span id="currencyText">сум</span>
+  </div>
+
+  <button class="cart-button" onclick="openCart()">
+    <i class="bi bi-cart-fill"></i>
+  </button>
+
+  <!-- Cart Modal -->
+  <div class="modal fade" id="cartModal" tabindex="-1" aria-labelledby="cartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="cartModalLabel">Оформление заказа</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Блок 1: Дата и время заказа -->
+          <div class="order-form-section">
+            <h6 class="section-title"><span id="dateTimeTitle">Дата и время заказа</span></h6>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="orderDate" class="form-label required-field"><span id="orderDateLabel">Дата заказа</span></label>
+                <input type="date" class="form-control" id="orderDate" required min="" max="">
+              </div>
+              <div class="col-md-6">
+                <label for="orderTime" class="form-label required-field"><span id="orderTimeLabel">Время заказа</span></label>
+                <input type="time" class="form-control" id="orderTime" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- Блок 2: Список товаров -->
+          <div class="order-form-section">
+            <h6 class="section-title"><span id="yourOrderTitle">Ваш заказ</span></h6>
+            <div id="cartItems"></div>
+            <div class="cart-summary">
+              <div class="total-amount" id="totalAmount"><span id="totalTextModal">Итого:</span> 0 <span id="currencyTextModal">сум</span></div>
+              <div class="small mt-2 delivery-note-red">* <span id="deliveryNote">🚕 Стоимость доставки не включена и будет выставлена отдельно</span></div>
+            </div>
+          </div>
+
+          <!-- Блок 3: Контактные данные -->
+          <div class="order-form-section">
+            <h6 class="section-title"><span id="contactDetailsTitle">Контактные данные</span></h6>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="customerPhone" class="form-label required-field"><span id="phoneLabel">Номер телефона</span></label>
+                <input type="tel" class="form-control" id="customerPhone" placeholder="+998 __ ___ __ __" required>
+              </div>
+              <div class="col-md-6">
+                <label for="customerName" class="form-label required-field"><span id="nameLabel">Как вас зовут (ФИО)</span></label>
+                <input type="text" class="form-control" id="customerName" placeholder="" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- Блок 4: Локация -->
+          <div class="order-form-section">
+            <h6 class="section-title"><span id="locationTitle">Локация доставки</span></h6>
+            <div class="location-buttons">
+              <button type="button" class="btn btn-outline-secondary location-btn" onclick="showLocationMap()">
+                <i class="bi bi-map"></i> <span id="mapButtonText">Выбрать на карте</span>
+              </button>
+            </div>
+            <textarea class="form-control" id="customerLocation" placeholder="" rows="3" required readonly></textarea>
+            <div id="locationMap"></div>
+            <div class="map-controls" id="mapControls" style="display: none;">
+              <button type="button" class="btn btn-success btn-sm" onclick="confirmLocation()">
+                <i class="bi bi-check-lg"></i> <span id="confirmAddressText">Подтвердить адрес</span>
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="hideLocationMap()">
+                <i class="bi bi-x-lg"></i> <span id="hideMapText">Скрыть карту</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Блок 5: Способ оплаты -->
+          <div class="order-form-section">
+            <h6 class="section-title"><span id="paymentTitle">Способ оплаты</span></h6>
+            <div class="payment-methods-container">
+              <div class="payment-method" id="cardPaymentMethod" onclick="selectPaymentMethod('card')">
+                <input type="radio" id="cardPayment" name="paymentMethod" value="card" checked>
+                <label for="cardPayment" class="form-check-label">💳 <span id="cardPaymentText">По карте</span></label>
+              </div>
+              <div class="payment-method" id="cashPaymentMethod" onclick="selectPaymentMethod('cash')">
+                <input type="radio" id="cashPayment" name="paymentMethod" value="cash">
+                <label for="cashPayment" class="form-check-label">💵 <span id="cashPaymentText">Наличными</span></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Блок 6: Комментарий -->
+          <div class="order-form-section">
+            <h6 class="section-title"><span id="commentTitle">Комментарий к заказу</span></h6>
+            <textarea class="form-control" id="orderComment" placeholder="" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span id="closeText">Закрыть</span></button>
+          <button type="button" class="btn btn-primary" id="submitOrderBtn" onclick="submitOrder()"><span id="orderButtonText">Заказать</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div class="modal fade success-modal" id="successModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center py-4">
+          <div class="success-icon">
+            <i class="bi bi-check-circle-fill"></i>
+          </div>
+          <h4><span id="successTitle">Заказ принят!</span></h4>
+          <p id="successOrderNumber" class="fw-bold"></p>
+          <p><span id="successMessage">Ваш заказ успешно оформлен и передан на обработку.</span></p>
+          <button type="button" class="btn btn-primary" onclick="closeSuccessModal()">
+            <span id="successButtonText">OK</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <!-- Яндекс Карты API -->
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=9c06bad6-a1bb-4c9e-a149-de860268d435&lang=ru_RU" type="text/javascript"></script>
+  <script>
+    let cart = {};
+    let allProducts = [];
+    let categoryImages = {};
+    let categoryNamesRU = {};
+    let categoryNamesUZ = {};
+    let currentCategory = null;
+    let currentLanguage = 'ru';
+    let cartModalInstance = null;
+    let successModalInstance = null;
+    let map = null;
+    let placemark = null;
+    let selectedLocation = null;
+
+    // Тексты для перевода
+    const translations = {
+      ru: {
+        total: 'Итого:',
+        currency: 'сум',
+        categories: 'Категории',
+        products: 'Товары',
+        order: 'Заказ',
+        dateTime: 'Дата и время заказа',
+        orderDate: 'Дата заказа',
+        orderTime: 'Время заказа',
+        yourOrder: 'Ваш заказ',
+        contactDetails: 'Контактные данные',
+        phone: 'Номер телефона',
+        name: 'Как вас зовут (ФИО)',
+        location: 'Локация доставки',
+        mapButton: 'Выбрать на карте',
+        confirmAddress: 'Подтвердить адрес',
+        hideMap: 'Скрыть карту',
+        payment: 'Способ оплаты',
+        cardPayment: 'По карте',
+        cashPayment: 'Наличными',
+        comment: 'Комментарий к заказу',
+        removeItem: 'Удалить',
+        close: 'Закрыть',
+        orderButton: 'Заказать',
+        deliveryNote: '🚕 Стоимость доставки не включена и будет выставлена отдельно',
+        successTitle: 'Заказ принят!',
+        successMessage: 'Ваш заказ успешно оформлен и передан на обработку.',
+        successButton: 'OK',
+        emptyCart: 'Корзина пуста',
+        requiredField: 'Обязательное поле'
+      },
+      uz: {
+        total: 'Jami:',
+        currency: 'soʻm',
+        categories: 'Kategoriyalar',
+        products: 'Mahsulotlar',
+        order: 'Buyurtma',
+        dateTime: 'Buyurtma sanasi va vaqti',
+        orderDate: 'Buyurtma sanasi',
+        orderTime: 'Buyurtma vaqti',
+        yourOrder: 'Sizning buyurtmangiz',
+        contactDetails: 'Aloqa ma\'lumotlari',
+        phone: 'Telefon raqami',
+        name: 'Ismingiz (F.I.SH)',
+        location: 'Yetkazib berish manzili',
+        mapButton: 'Xaritadan tanlang',
+        confirmAddress: 'Manzilni tasdiqlang',
+        hideMap: 'Xaritani yashirish',
+        payment: 'To\'lov usuli',
+        cardPayment: 'Kartaga orqali',
+        cashPayment: 'Naqd pul',
+        comment: 'Buyurtma uchun izoh',
+        removeItem: 'O\'chirish',
+        close: 'Yopish',
+        orderButton: 'Buyurtma berish',
+        deliveryNote: '🚕 Yetkazib berish narxi kiritilmagan va alohida hisoblanadi',
+        successTitle: 'Buyurtma qabul qilindi!',
+        successMessage: 'Sizning buyurtmangiz muvaffaqiyatli rasmiylashtirildi va qayta ishlash uchun topshirildi.',
+        successButton: 'OK',
+        emptyCart: 'Savat bo\'sh',
+        requiredField: 'Majburiy maydon'
+      }
+    };
+
+    $(document).ready(function() {
+      console.log('DOM загружен, инициализация приложения...');
+      
+      cartModalInstance = new bootstrap.Modal(document.getElementById('cartModal'), {
+        backdrop: 'static',
+        keyboard: false
+      });
+
+      successModalInstance = new bootstrap.Modal(document.getElementById('successModal'));
+
+      // Устанавливаем дату и время по умолчанию
+      setDefaultDateTime();
+      
+      // Загружаем данные приложения
+      google.script.run.withSuccessHandler(initializeAppData).getAppData();
+      
+      // Инициализируем карту
+      ymaps.ready(initMap);
+    });
+
+    function switchLanguage(lang) {
+      currentLanguage = lang;
+      
+      // Обновляем активную кнопку языка
+      document.getElementById('langRu').classList.toggle('active', lang === 'ru');
+      document.getElementById('langUz').classList.toggle('active', lang === 'uz');
+      
+      // Обновляем все тексты
+      updateAllTexts();
+      
+      // Обновляем отображение категорий и товаров
+      if (currentCategory) {
+        updateProductsDisplay();
+      } else {
+        updateCategoriesDisplay();
+      }
+      
+      // Обновляем корзину если открыта
+      if (document.getElementById('cartModal').classList.contains('show')) {
+        updateCartDisplay();
+      }
+    }
+
+    function updateAllTexts() {
+      const t = translations[currentLanguage];
+      
+      // Обновляем тексты в интерфейсе
+      document.getElementById('totalText').textContent = t.total;
+      document.getElementById('currencyText').textContent = t.currency;
+      document.getElementById('totalTextModal').textContent = t.total;
+      document.getElementById('currencyTextModal').textContent = t.currency;
+      document.getElementById('cartModalLabel').textContent = t.order;
+      document.getElementById('dateTimeTitle').textContent = t.dateTime;
+      document.getElementById('orderDateLabel').textContent = t.orderDate;
+      document.getElementById('orderTimeLabel').textContent = t.orderTime;
+      document.getElementById('yourOrderTitle').textContent = t.yourOrder;
+      document.getElementById('contactDetailsTitle').textContent = t.contactDetails;
+      document.getElementById('phoneLabel').textContent = t.phone;
+      document.getElementById('nameLabel').textContent = t.name;
+      document.getElementById('locationTitle').textContent = t.location;
+      document.getElementById('mapButtonText').textContent = t.mapButton;
+      document.getElementById('confirmAddressText').textContent = t.confirmAddress;
+      document.getElementById('hideMapText').textContent = t.hideMap;
+      document.getElementById('paymentTitle').textContent = t.payment;
+      document.getElementById('cardPaymentText').textContent = t.cardPayment;
+      document.getElementById('cashPaymentText').textContent = t.cashPayment;
+      document.getElementById('commentTitle').textContent = t.comment;
+      document.getElementById('closeText').textContent = t.close;
+      document.getElementById('orderButtonText').textContent = t.orderButton;
+      document.getElementById('deliveryNote').textContent = t.deliveryNote;
+      document.getElementById('successTitle').textContent = t.successTitle;
+      document.getElementById('successMessage').textContent = t.successMessage;
+      document.getElementById('successButtonText').textContent = t.successButton;
+      
+      // Обновляем плейсхолдеры
+      document.getElementById('customerPhone').placeholder = currentLanguage === 'ru' ? '+998 __ ___ __ __' : '+998 __ ___ __ __';
+      document.getElementById('customerName').placeholder = currentLanguage === 'ru' ? 'Введите ваше ФИО' : 'Ismingizni kiriting (F.I.SH)';
+      document.getElementById('customerLocation').placeholder = currentLanguage === 'ru' ? 'Выберите адрес на карте' : 'Xaritadan manzilni tanlang';
+      document.getElementById('orderComment').placeholder = currentLanguage === 'ru' ? 'Дополнительные пожелания, особенности доставки и т.д.' : 'Qo\'shimcha istaklar, yetkazib berish xususiyatlari va h.k.';
+    }
+
+    function setDefaultDateTime() {
+      const now = new Date();
+      
+      // Устанавливаем максимальную дату (через неделю)
+      const maxDate = new Date(now);
+      maxDate.setDate(now.getDate() + 7);
+      const maxDateString = maxDate.toISOString().split('T')[0];
+      document.getElementById('orderDate').max = maxDateString;
+      
+      // Устанавливаем минимальную дату (сегодня)
+      const today = now.toISOString().split('T')[0];
+      document.getElementById('orderDate').min = today;
+      document.getElementById('orderDate').value = today;
+      
+      // Устанавливаем время (текущее время + 1 час)
+      const futureTime = new Date(now.getTime() + 60 * 60 * 1000);
+      const timeString = futureTime.toTimeString().substring(0, 5);
+      document.getElementById('orderTime').value = timeString;
+      
+      // Обновляем минимальное время
+      updateMinTime();
+    }
+
+    function updateMinTime() {
+      const orderDate = document.getElementById('orderDate').value;
+      const today = new Date().toISOString().split('T')[0];
+      
+      if (orderDate === today) {
+        const now = new Date();
+        const futureTime = new Date(now.getTime() + 60 * 60 * 1000); // +1 час
+        const minTime = futureTime.toTimeString().substring(0, 5);
+        document.getElementById('orderTime').min = minTime;
+        
+        const selectedTime = document.getElementById('orderTime').value;
+        if (selectedTime < minTime) {
+          document.getElementById('orderTime').value = minTime;
+        }
+      } else {
+        document.getElementById('orderTime').min = '00:00';
+      }
+    }
+
+    function selectPaymentMethod(method) {
+      // Обновляем радиокнопки
+      document.getElementById('cashPayment').checked = method === 'cash';
+      document.getElementById('cardPayment').checked = method === 'card';
+      
+      // Обновляем стили выбранного метода
+      document.querySelectorAll('.payment-method').forEach(el => {
+        el.classList.remove('selected');
+      });
+      
+      if (method === 'cash') {
+        document.getElementById('cashPaymentMethod').classList.add('selected');
+      } else {
+        document.getElementById('cardPaymentMethod').classList.add('selected');
+      }
+    }
+
+    function initializeAppData(data) {
+      if (data.message) {
+        document.getElementById('categoriesContent').innerHTML = '<h3>' + data.message + '</h3>';
+        return;
+      }
+      allProducts = data.products;
+      categoryImages = data.categoryImages;
+      categoryNamesRU = data.categoryNamesRU || {};
+      categoryNamesUZ = data.categoryNamesUZ || {};
+      
+      // По умолчанию выбираем оплату картой
+      selectPaymentMethod('card');
+      
+      showCategoriesPage();
+    }
+
+    function showCategoriesPage() {
+      currentCategory = null;
+      document.getElementById('categoriesPage').classList.add('active');
+      document.getElementById('productsPage').classList.remove('active');
+      document.getElementById('backArrow').classList.add('hidden');
+      
+      window.scrollTo(0, 0);
+      updateCategoriesDisplay();
+    }
+
+    function showProductsPage(categoryName) {
+      currentCategory = categoryName;
+      document.getElementById('categoriesPage').classList.remove('active');
+      document.getElementById('productsPage').classList.add('active');
+      document.getElementById('backArrow').classList.remove('hidden');
+      
+      updateProductsDisplay();
+    }
+
+    function updateCategoriesDisplay() {
+      const content = document.getElementById('categoriesContent');
+      content.innerHTML = '';
+      
+      const allAvailableCategories = [];
+      const seenCategories = new Set();
+      allProducts.forEach(function(product) {
+        if (product.category && !seenCategories.has(product.category)) {
+          allAvailableCategories.push(product.category);
+          seenCategories.add(product.category);
+        }
+      });
+      allAvailableCategories.sort();
+      
+      if (allAvailableCategories.length === 0) {
+        content.innerHTML = '<p>' + (currentLanguage === 'ru' ? 'Нет доступных категорий товаров.' : 'Mavjud mahsulot kategoriyalari yo\'q.') + '</p>';
+        return;
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'category-grid';
+      content.appendChild(grid);
+
+      allAvailableCategories.forEach(function(category) {
+        const card = document.createElement('div');
+        card.className = 'category-card';
+        card.dataset.categoryName = category;
+
+        const categoryImage = categoryImages[category] || 'https://www.landuse-ca.org/wp-content/uploads/2019/04/no-photo-available.png';
+        
+        const img = document.createElement('img');
+        img.src = categoryImage;
+        img.className = 'category-image';
+        img.alt = category;
+        img.onerror = function() {
+          this.src = 'https://www.landuse-ca.org/wp-content/uploads/2019/04/no-photo-available.png';
+        };
+        
+        const nameEl = document.createElement('h5');
+        nameEl.className = 'category-name';
+        nameEl.textContent = currentLanguage === 'ru' ? 
+          (categoryNamesRU[category] || category) : 
+          (categoryNamesUZ[category] || category);
+        
+        card.appendChild(img);
+        card.appendChild(nameEl);
+        
+        card.addEventListener('click', function() {
+          showProductsPage(category);
+        });
+        
+        grid.appendChild(card);
+      });
+    }
+
+    function updateProductsDisplay() {
+      const content = document.getElementById('productsContent');
+      content.innerHTML = '';
+      
+      if (!currentCategory) {
+        content.innerHTML = '<p>' + (currentLanguage === 'ru' ? 'Категория не выбрана.' : 'Kategoriya tanlanmagan.') + '</p>';
+        return;
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'product-grid';
+      content.appendChild(grid);
+
+      let categoryProducts = allProducts.filter(function(p) {
+        return p.category === currentCategory;
+      });
+      categoryProducts.sort(function(a, b) {
+        const nameA = currentLanguage === 'ru' ? a.nameRU : a.nameUZ;
+        const nameB = currentLanguage === 'ru' ? b.nameRU : b.nameUZ;
+        return nameA.localeCompare(nameB);
+      });
+      
+      if (categoryProducts.length === 0) {
+        content.innerHTML = '<p>' + (currentLanguage === 'ru' ? 'Нет товаров в категории "' : 'Kategoriyada mahsulot yo\'q "') + currentCategory + '".</p>';
+        return;
+      }
+
+      categoryProducts.forEach(function(product) {
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.dataset.productName = product.nameRU;
+
+        const img = document.createElement('img');
+        img.src = product.image || 'https://www.landuse-ca.org/wp-content/uploads/2019/04/no-photo-available.png';
+        img.className = 'product-image';
+        img.alt = currentLanguage === 'ru' ? product.nameRU : product.nameUZ;
+        img.onerror = function() {
+          this.src = 'https://www.landuse-ca.org/wp-content/uploads/2019/04/no-photo-available.png';
+        };
+        
+        // Бейдж с единицей измерения
+        if (product.unit) {
+          const unitBadge = document.createElement('div');
+          unitBadge.className = 'unit-badge';
+          unitBadge.textContent = product.unit;
+          card.appendChild(unitBadge);
+        }
+        
+        // Обработчик клика по фото
+        img.addEventListener('click', function() {
+          const priceElement = card.querySelector('.product-price');
+          if (priceElement && priceElement.style.display !== 'none') {
+            showQuantityControls(priceElement, product);
+          } else {
+            const existingControls = card.querySelector('.quantity-controls');
+            if (existingControls) {
+              const quantityElement = existingControls.querySelector('.quantity-input');
+              const currentQty = parseFloat(quantityElement.value.replace(',', '.'));
+              quantityElement.value = (currentQty + 1).toString().replace('.', ',');
+              updateQuantity(product.nameRU, currentQty + 1, product.unit);
+            }
+          }
+        });
+        
+        const nameEl = document.createElement('h5');
+        nameEl.className = 'product-name';
+        nameEl.textContent = currentLanguage === 'ru' ? product.nameRU : (product.nameUZ || product.nameRU);
+        
+        const priceEl = document.createElement('button');
+        priceEl.className = 'product-price';
+        priceEl.textContent = product.price ? formatPrice(product.price) + ' ' + translations[currentLanguage].currency : (currentLanguage === 'ru' ? 'Цена не указана' : 'Narx ko\'rsatilmagan');
+        
+        card.appendChild(img);
+        card.appendChild(nameEl);
+        card.appendChild(priceEl);
+        
+        priceEl.addEventListener('click', function() {
+          showQuantityControls(priceEl, product);
+        });
+        
+        grid.appendChild(card);
+      });
+    }
+
+    function showQuantityControls(priceElement, product) {
+      const card = priceElement.parentElement;
+      const existingControls = card.querySelector('.quantity-controls');
+      
+      if (existingControls) {
+        return;
+      }
+
+      const controls = document.createElement('div');
+      controls.className = 'quantity-controls';
+
+      const minusBtn = document.createElement('button');
+      minusBtn.className = 'quantity-btn';
+      minusBtn.innerHTML = '<i class="bi bi-dash"></i>';
+
+      const quantityInput = document.createElement('input');
+      quantityInput.type = 'text';
+      quantityInput.className = 'quantity-input';
+      quantityInput.value = '1';
+      quantityInput.inputMode = 'decimal';
+
+      const plusBtn = document.createElement('button');
+      plusBtn.className = 'quantity-btn';
+      plusBtn.innerHTML = '<i class="bi bi-plus"></i>';
+
+      controls.appendChild(minusBtn);
+      controls.appendChild(quantityInput);
+      controls.appendChild(plusBtn);
+
+      priceElement.style.display = 'none';
+      card.appendChild(controls);
+
+      addToCart(product.nameRU, 1, product.unit, product.price);
+
+      // Обработчик ввода количества
+      quantityInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(',', '.');
+        
+        // Разрешаем только числа и точку/запятую
+        value = value.replace(/[^\d.,]/g, '');
+        
+        // Заменяем точку на запятую
+        e.target.value = value.replace('.', ',');
+        
+        const quantity = parseFloat(value) || 0;
+        if (quantity > 0) {
+          updateQuantity(product.nameRU, quantity, product.unit);
+        }
+      });
+
+      // Обработчик потери фокуса
+      quantityInput.addEventListener('blur', function() {
+        let value = parseFloat(this.value.replace(',', '.')) || 0;
+        if (value <= 0) {
+          value = 1;
+          this.value = '1';
+          updateQuantity(product.nameRU, 1, product.unit);
+        }
+      });
+
+      plusBtn.addEventListener('click', function() {
+        let currentQty = parseFloat(quantityInput.value.replace(',', '.')) || 0;
+        currentQty++;
+        quantityInput.value = currentQty.toString().replace('.', ',');
+        updateQuantity(product.nameRU, currentQty, product.unit);
+      });
+
+      minusBtn.addEventListener('click', function() {
+        let currentQty = parseFloat(quantityInput.value.replace(',', '.')) || 0;
+        currentQty--;
+        
+        if (currentQty <= 0) {
+          card.removeChild(controls);
+          priceElement.style.display = 'block';
+          removeFromCart(product.nameRU);
+        } else {
+          quantityInput.value = currentQty.toString().replace('.', ',');
+          updateQuantity(product.nameRU, currentQty, product.unit);
+        }
+      });
+
+      quantityInput.focus();
+    }
+
+    function formatPrice(price) {
+      return new Intl.NumberFormat('ru-RU').format(price);
+    }
+
+    function addToCart(name, qty, unit, price) {
+      cart[name] = {
+        quantity: qty,
+        unit: unit,
+        price: price
+      };
+      updateCartBadge();
+    }
+
+    function updateQuantity(name, newQty, unit) {
+      if (cart[name]) {
+        cart[name].quantity = newQty;
+        updateCartBadge();
+      }
+    }
+
+    function removeFromCart(name) {
+      delete cart[name];
+      updateCartBadge();
+    }
+
+    function calculateTotal() {
+      let total = 0;
+      Object.keys(cart).forEach(function(name) {
+        const item = cart[name];
+        if (item && item.price) {
+          total += item.quantity * item.price;
+        }
+      });
+      return total;
+    }
+
+    function updateCartBadge() {
+      const total = calculateTotal();
+      const badge = document.getElementById('cartTotalBadge');
+      const badgeAmount = document.getElementById('totalAmountBadge');
+      
+      badgeAmount.textContent = formatPrice(total);
+      
+      if (Object.keys(cart).length > 0) {
+        badge.style.display = 'block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    function openCart() {
+      updateCartDisplay();
+      cartModalInstance.show();
+    }
+
+    function updateCartDisplay() {
+      const cartItems = document.getElementById('cartItems');
+      const t = translations[currentLanguage];
+      
+      cartItems.innerHTML = '';
+      
+      if (Object.keys(cart).length === 0) {
+        cartItems.innerHTML = '<p>' + t.emptyCart + '</p>';
+      } else {
+        const itemsInCart = Object.keys(cart).map(function(name) {
+          const item = cart[name];
+          const product = allProducts.find(function(p) {
+            return p.nameRU === name;
+          });
+          return { 
+            name: name, 
+            quantity: item.quantity, 
+            unit: item.unit,
+            price: item.price,
+            image: product ? product.image : 'https://www.landuse-ca.org/wp-content/uploads/2019/04/no-photo-available.png',
+            nameUZ: product ? product.nameUZ : name
+          };
+        });
+        itemsInCart.sort(function(a, b) {
+          const nameA = currentLanguage === 'ru' ? a.name : a.nameUZ;
+          const nameB = currentLanguage === 'ru' ? b.name : b.nameUZ;
+          return nameA.localeCompare(nameB);
+        });
+        
+        itemsInCart.forEach(function(item, index) {
+          const itemElement = document.createElement('div');
+          itemElement.className = 'cart-item';
+          
+          const img = document.createElement('img');
+          img.src = item.image;
+          img.className = 'cart-item-image';
+          img.alt = currentLanguage === 'ru' ? item.name : item.nameUZ;
+          img.onerror = function() {
+            this.src = 'https://www.landuse-ca.org/wp-content/uploads/2019/04/no-photo-available.png';
+          };
+          
+          const itemContent = document.createElement('div');
+          itemContent.className = 'cart-item-content';
+          
+          const nameDiv = document.createElement('div');
+          nameDiv.className = 'cart-item-name';
+          nameDiv.textContent = (index + 1) + '. ' + (currentLanguage === 'ru' ? item.name : (item.nameUZ || item.name));
+          
+          const detailsDiv = document.createElement('div');
+          detailsDiv.className = 'cart-item-details';
+          
+          const priceSpan = document.createElement('span');
+          priceSpan.className = 'cart-item-price';
+          priceSpan.textContent = formatPrice(item.price * item.quantity) + ' ' + t.currency;
+          
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'remove-item-btn';
+          removeBtn.textContent = t.removeItem;
+          removeBtn.onclick = function() {
+            removeFromCart(item.name);
+          };
+          
+          detailsDiv.appendChild(priceSpan);
+          detailsDiv.appendChild(removeBtn);
+          
+          // Создаем элементы управления количеством
+          const controlsDiv = document.createElement('div');
+          controlsDiv.className = 'cart-controls';
+          
+          const minusBtn = document.createElement('button');
+          minusBtn.className = 'cart-quantity-btn';
+          minusBtn.textContent = '-';
+          minusBtn.onclick = function() {
+            updateCartItemQuantity(item.name, item.quantity - 1);
+          };
+          
+          const quantityInput = document.createElement('input');
+          quantityInput.type = 'text';
+          quantityInput.className = 'cart-quantity-input';
+          quantityInput.value = item.quantity + ' ' + item.unit;
+          quantityInput.readOnly = false;
+          quantityInput.onchange = function() {
+            const newQty = parseFloat(this.value);
+            if (!isNaN(newQty) && newQty > 0) {
+              updateCartItemQuantity(item.name, newQty);
+            } else {
+              this.value = item.quantity + ' ' + item.unit;
+            }
+          };
+          
+          const plusBtn = document.createElement('button');
+          plusBtn.className = 'cart-quantity-btn';
+          plusBtn.textContent = '+';
+          plusBtn.onclick = function() {
+            updateCartItemQuantity(item.name, item.quantity + 1);
+          };
+          
+          controlsDiv.appendChild(minusBtn);
+          controlsDiv.appendChild(quantityInput);
+          controlsDiv.appendChild(plusBtn);
+          
+          itemContent.appendChild(nameDiv);
+          itemContent.appendChild(detailsDiv);
+          itemContent.appendChild(controlsDiv);
+          
+          itemElement.appendChild(img);
+          itemElement.appendChild(itemContent);
+          
+          cartItems.appendChild(itemElement);
+        });
+      }
+      
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const total = calculateTotal();
+      document.getElementById('totalAmount').innerHTML = '<span id="totalTextModal">' + translations[currentLanguage].total + '</span> ' + formatPrice(total) + ' <span id="currencyTextModal">' + translations[currentLanguage].currency + '</span>';
+    }
+
+    function removeFromCart(productName) {
+      if (cart[productName]) {
+        delete cart[productName];
+        updateCartDisplay();
+        updateCartBadge();
+      }
+    }
+
+    function updateCartItemQuantity(productName, newQuantity) {
+      if (cart[productName]) {
+        if (newQuantity <= 0) {
+          removeFromCart(productName);
+        } else {
+          cart[productName].quantity = newQuantity;
+          updateCartDisplay();
+          updateCartBadge();
+        }
+      }
+    }
+
+    // Функции для работы с картой (оставлены без изменений)
+    function initMap() {
+        if (typeof ymaps === 'undefined') {
+            console.error('Yandex Maps API не загружена');
+            return;
+        }
+        map = new ymaps.Map('locationMap', {
+            center: [41.311081, 69.240562],
+            zoom: 10
+        }, {
+            searchControlProvider: 'yandex#search'
+        });
+        const geolocationControl = new ymaps.control.GeolocationControl({
+            options: {
+                noPlacemark: true,
+                position: {
+                    right: 10,
+                    top: 10
+                }
+            }
+        });
+        map.controls.add(geolocationControl);
+        geolocationControl.events.add('locationchange', function (e) {
+            const position = e.get('position');
+            setUserLocation(position);
+        });
+        geolocationControl.events.add('locationerror', function (e) {
+            console.error('Ошибка определения местоположения:', e.get('error'));
+            determineLocationByIP();
+        });
+        map.events.add('click', function(e) {
+            const coords = e.get('coords');
+            setUserLocation(coords);
+        });
+    }
+
+    function determineLocationByIP() {
+        fetch('https://ipapi.co/json/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.latitude && data.longitude) {
+                    const coords = [data.latitude, data.longitude];
+                    setUserLocation(coords);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка определения по IP:', error);
+            });
+    }
+
+    function setUserLocation(coords) {
+        if (!map) return;
+        if (placemark) {
+            map.geoObjects.remove(placemark);
+        }
+        placemark = new ymaps.Placemark(coords, {
+            balloonContent: currentLanguage === 'ru' ? 'Ваше местоположение' : 'Sizning joylashuvingiz'
+        }, {
+            preset: 'islands#blueCircleDotIcon',
+            draggable: true
+        });
+        map.geoObjects.add(placemark);
+        map.setCenter(coords, 15);
+        ymaps.geocode(coords).then(function(res) {
+            const firstGeoObject = res.geoObjects.get(0);
+            let address = firstGeoObject.getAddressLine();
+            if (address.length > 100) {
+                address = firstGeoObject.getThoroughfare() || firstGeoObject.getPremise() || address;
+            }
+            document.getElementById('customerLocation').value = address;
+            selectedLocation = {
+                address: address,
+                coordinates: coords,
+                latitude: coords[0].toFixed(6),
+                longitude: coords[1].toFixed(6)
+            };
+        }).catch(function(error) {
+            const address = (currentLanguage === 'ru' ? 'Широта: ' : 'Kenglik: ') + coords[0].toFixed(6) + ', ' + (currentLanguage === 'ru' ? 'Долгота: ' : 'Uzunlik: ') + coords[1].toFixed(6);
+            document.getElementById('customerLocation').value = address;
+            selectedLocation = {
+                address: address,
+                coordinates: coords,
+                latitude: coords[0].toFixed(6),
+                longitude: coords[1].toFixed(6)
+            };
+        });
+        placemark.events.add('dragend', function (e) {
+            const newCoords = placemark.geometry.getCoordinates();
+            ymaps.geocode(newCoords).then(function(res) {
+                const firstGeoObject = res.geoObjects.get(0);
+                const address = firstGeoObject.getAddressLine();
+                document.getElementById('customerLocation').value = address;
+                selectedLocation = {
+                    address: address,
+                    coordinates: newCoords,
+                    latitude: newCoords[0].toFixed(6),
+                    longitude: newCoords[1].toFixed(6)
+                };
+            });
+        });
+    }
+
+    function showLocationMap() {
+        const mapElement = document.getElementById('locationMap');
+        const mapControls = document.getElementById('mapControls');
+        mapElement.style.display = 'block';
+        mapControls.style.display = 'flex';
+        if (!map) {
+            createMap();
+        } else {
+            setTimeout(() => {
+                determineUserLocation();
+            }, 500);
+        }
+    }
+
+    function determineUserLocation() {
+        if (!map) return;
+        if (navigator.geolocation) {
+            const locationBtn = document.querySelector('.location-btn');
+            const originalText = locationBtn.innerHTML;
+            locationBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + (currentLanguage === 'ru' ? 'Поиск...' : 'Qidirilmoqda...');
+            locationBtn.disabled = true;
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const coords = [position.coords.latitude, position.coords.longitude];
+                    setUserLocation(coords);
+                    locationBtn.innerHTML = originalText;
+                    locationBtn.disabled = false;
+                },
+                function(error) {
+                    console.error('Ошибка геолокации:', error);
+                    determineLocationByIP();
+                    locationBtn.innerHTML = originalText;
+                    locationBtn.disabled = false;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                }
+            );
+        } else {
+            determineLocationByIP();
+        }
+    }
+
+    function hideLocationMap() {
+        const mapElement = document.getElementById('locationMap');
+        const mapControls = document.getElementById('mapControls');
+        mapElement.style.display = 'none';
+        mapControls.style.display = 'none';
+        const helpElement = document.querySelector('.location-help');
+        if (helpElement) {
+            helpElement.remove();
+        }
+    }
+
+    function confirmLocation() {
+        if (selectedLocation && selectedLocation.address) {
+            document.getElementById('customerLocation').value = selectedLocation.address;
+            hideLocationMap();
+        } else {
+            alert(currentLanguage === 'ru' ? 'Пожалуйста, выберите точку на карте, кликнув по ней, или используйте поиск на карте.' : 'Iltimos, xaritada nuqtani tanlang yoki xaritadan qidiruvdan foydalaning.');
+        }
+    }
+
+    function submitOrder() {
+      const orderDate = document.getElementById('orderDate').value;
+      const orderTime = document.getElementById('orderTime').value;
+      const phone = document.getElementById('customerPhone').value;
+      const customerName = document.getElementById('customerName').value;
+      const location = document.getElementById('customerLocation').value;
+      const comment = document.getElementById('orderComment').value;
+      const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+      
+      // Валидация обязательных полей
+      if (!orderDate) {
+        alert(currentLanguage === 'ru' ? 'Пожалуйста, выберите дату заказа' : 'Iltimos, buyurtma sanasini tanlang');
+        return;
+      }
+      if (!orderTime) {
+        alert(currentLanguage === 'ru' ? 'Пожалуйста, выберите время заказа' : 'Iltimos, buyurtma vaqtini tanlang');
+        return;
+      }
+      if (!phone) {
+        alert(currentLanguage === 'ru' ? 'Пожалуйста, введите номер телефона' : 'Iltimos, telefon raqamingizni kiriting');
+        return;
+      }
+      if (!customerName) {
+        alert(currentLanguage === 'ru' ? 'Пожалуйста, введите ваше ФИО' : 'Iltimos, ismingizni kiriting (F.I.SH)');
+        return;
+      }
+      if (!location) {
+        alert(currentLanguage === 'ru' ? 'Пожалуйста, укажите локацию доставки' : 'Iltimos, yetkazib berish manzilini ko\'rsating');
+        return;
+      }
+      if (Object.keys(cart).length === 0) {
+        alert(currentLanguage === 'ru' ? 'Корзина пуста' : 'Savat bo\'sh');
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitOrderBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + (currentLanguage === 'ru' ? 'Отправка...' : 'Yuborilmoqda...');
+
+      const orderDateTime = `${orderDate} ${orderTime}`;
+      const formattedDate = new Date(orderDateTime).toLocaleDateString('ru-RU');
+      const formattedTime = new Date(orderDateTime).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+
+      const order = {
+        date: orderDate,
+        time: orderTime,
+        formattedDate: formattedDate,
+        formattedTime: formattedTime,
+        department: 'Доставка',
+        phone: phone,
+        customerName: customerName,
+        location: location,
+        coordinates: selectedLocation ? `${selectedLocation.latitude}, ${selectedLocation.longitude}` : '',
+        comment: comment,
+        paymentMethod: paymentMethod,
+        items: Object.keys(cart).map(function(name) {
+          const item = cart[name];
+          const product = allProducts.find(function(p) {
+            return p.nameRU === name;
+          });
+          return { 
+            name: name, 
+            quantity: item.quantity, 
+            unit: item.unit,
+            price: item.price,
+            supplier: product ? product.supplier : 'Неизвестен' 
+          };
+        }),
+        total: calculateTotal()
+      };
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            document.getElementById('successOrderNumber').textContent = (currentLanguage === 'ru' ? 'Ваш заказ №' : 'Sizning buyurtmangiz №') + result.orderNumber;
+            cart = {};
+            updateCartBadge();
+            document.getElementById('customerPhone').value = '';
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerLocation').value = '';
+            document.getElementById('orderComment').value = '';
+            selectedLocation = null;
+            setDefaultDateTime();
+            if (currentCategory) {
+              updateProductsDisplay();
+            } else {
+              updateCategoriesDisplay();
+            }
+            cartModalInstance.hide();
+            successModalInstance.show();
+          } else {
+            alert(result.message);
+          }
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span id="orderButtonText">' + translations[currentLanguage].orderButton + '</span>';
+        })
+        .withFailureHandler(function(error) {
+          alert((currentLanguage === 'ru' ? 'Произошла ошибка: ' : 'Xatolik yuz berdi: ') + error.message);
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span id="orderButtonText">' + translations[currentLanguage].orderButton + '</span>';
+        })
+        .submitOrder(order);
+    }
+
+    function closeSuccessModal() {
+      successModalInstance.hide();
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => {
+        backdrop.remove();
+      });
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      showCategoriesPage();
+    }
+
+    // Добавляем обработчик изменения даты
+    document.getElementById('orderDate').addEventListener('change', updateMinTime);
+    document.getElementById('orderTime').addEventListener('change', function() {
+      updateMinTime();
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const existingBackdrops = document.querySelectorAll('.modal-backdrop');
+      existingBackdrops.forEach(function(backdrop) {
+        backdrop.remove();
+      });
+    });
+  </script>
+</body>
+</html>
