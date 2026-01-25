@@ -47,14 +47,30 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Initialize Telegram bot
-initBot();
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Run migrations on startup (only in production or if RUN_MIGRATIONS is set)
+    if (process.env.NODE_ENV === 'production' || process.env.RUN_MIGRATIONS === 'true') {
+      console.log('🔄 Running database migrations on startup...');
+      const migrate = require('./database/migrate');
+      await migrate();
+    }
+  } catch (error) {
+    console.error('⚠️  Migration error (server will continue):', error.message);
+  }
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+  // Initialize Telegram bot
+  initBot();
+
+  // Start server
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+}
+
+startServer();
 
 module.exports = app;
 

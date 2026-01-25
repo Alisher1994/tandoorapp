@@ -36,12 +36,20 @@ async function migrate() {
     }
     
     console.log('✅ Migration completed successfully');
-    process.exit(0);
+    return true;
   } catch (error) {
     console.error('❌ Migration error:', error);
-    process.exit(1);
+    // Don't throw, just log - allow server to start anyway
+    return false;
   }
 }
 
-migrate();
+// If called directly (npm run migrate), exit after migration
+if (require.main === module) {
+  migrate().then(success => {
+    process.exit(success ? 0 : 1);
+  });
+}
+
+module.exports = migrate;
 
