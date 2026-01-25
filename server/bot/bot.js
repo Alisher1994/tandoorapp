@@ -54,12 +54,26 @@ function initBot() {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
-        bot.sendMessage(chatId, 
-          `👋 Добро пожаловать, ${user.full_name || user.username}!\n\n` +
-          `Ваш логин: ${user.username}\n` +
-          `Для входа в систему используйте ваш пароль.\n\n` +
-          `🌐 Откройте веб-приложение: ${process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app'}`
-        );
+        const webAppUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app';
+        
+        if (user.role === 'admin') {
+          bot.sendMessage(chatId, 
+            `👋 Добро пожаловать, администратор!\n\n` +
+            `⚠️ <b>Внимание:</b> Администраторы должны использовать отдельный логин для входа в админ-панель.\n\n` +
+            `🌐 Админ-панель: ${webAppUrl}/admin\n\n` +
+            `ℹ️ Используйте логин администратора (не через бота).`,
+            { parse_mode: 'HTML' }
+          );
+        } else {
+          bot.sendMessage(chatId, 
+            `👋 Добро пожаловать, ${user.full_name || user.username}!\n\n` +
+            `👤 Ваш логин: <code>${user.username}</code>\n` +
+            `🔑 Для входа используйте ваш пароль (если забыли, обратитесь к администратору).\n\n` +
+            `🌐 Откройте веб-приложение: ${webAppUrl}\n\n` +
+            `ℹ️ <i>Примечание: Администраторы используют отдельный логин.</i>`,
+            { parse_mode: 'HTML' }
+          );
+        }
       } else {
         // Start registration
         bot.sendMessage(chatId,
@@ -79,12 +93,23 @@ function initBot() {
               if (phoneMsg.text && !phoneMsg.text.startsWith('/')) {
                 const phone = phoneMsg.text;
                 
-                // Generate username and password
+                // Generate username and password (ensure it doesn't conflict with admin)
                 const username = `user_${userId}`;
-                const password = Math.random().toString(36).slice(-8);
+                const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
                 const hashedPassword = await bcrypt.hash(password, 10);
                 
                 try {
+                  // Check if username already exists (shouldn't happen, but just in case)
+                  const existingUser = await pool.query(
+                    'SELECT id FROM users WHERE username = $1',
+                    [username]
+                  );
+                  
+                  if (existingUser.rows.length > 0) {
+                    bot.sendMessage(chatId, '❌ Пользователь с таким логином уже существует. Обратитесь к администратору.');
+                    return;
+                  }
+                  
                   await pool.query(
                     `INSERT INTO users (telegram_id, username, password, full_name, phone, role)
                      VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -93,11 +118,13 @@ function initBot() {
                   
                   bot.sendMessage(chatId,
                     `✅ Регистрация успешна!\n\n` +
-                    `📝 Ваши данные для входа:\n` +
-                    `Логин: ${username}\n` +
-                    `Пароль: ${password}\n\n` +
-                    `⚠️ Сохраните эти данные!\n\n` +
-                    `🌐 Откройте веб-приложение: ${process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app'}`
+                    `📝 Ваши данные для входа в систему:\n` +
+                    `👤 Логин: <code>${username}</code>\n` +
+                    `🔑 Пароль: <code>${password}</code>\n\n` +
+                    `⚠️ <b>ВАЖНО:</b> Сохраните эти данные! Они нужны для входа в веб-приложение.\n\n` +
+                    `🌐 Откройте веб-приложение: ${process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app'}\n\n` +
+                    `ℹ️ <i>Примечание: Администраторы используют отдельный логин.</i>`,
+                    { parse_mode: 'HTML' }
                   );
                 } catch (error) {
                   console.error('Registration error:', error);

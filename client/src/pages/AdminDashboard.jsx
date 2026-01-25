@@ -11,6 +11,8 @@ import Navbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
 import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/Tab';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -23,6 +25,21 @@ function AdminDashboard() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productForm, setProductForm] = useState({
+    category_id: '',
+    name_ru: '',
+    name_uz: '',
+    description_ru: '',
+    description_uz: '',
+    image_url: '',
+    price: '',
+    unit: 'шт',
+    barcode: '',
+    in_stock: true,
+    sort_order: 0
+  });
   const { logout } = useAuth();
 
   useEffect(() => {
@@ -56,6 +73,78 @@ function AdminDashboard() {
       setShowOrderModal(false);
     } catch (error) {
       alert('Ошибка обновления статуса');
+    }
+  };
+
+  const openProductModal = (product = null) => {
+    if (product) {
+      setSelectedProduct(product);
+      setProductForm({
+        category_id: product.category_id || '',
+        name_ru: product.name_ru || '',
+        name_uz: product.name_uz || '',
+        description_ru: product.description_ru || '',
+        description_uz: product.description_uz || '',
+        image_url: product.image_url || '',
+        price: product.price || '',
+        unit: product.unit || 'шт',
+        barcode: product.barcode || '',
+        in_stock: product.in_stock !== false,
+        sort_order: product.sort_order || 0
+      });
+    } else {
+      setSelectedProduct(null);
+      setProductForm({
+        category_id: '',
+        name_ru: '',
+        name_uz: '',
+        description_ru: '',
+        description_uz: '',
+        image_url: '',
+        price: '',
+        unit: 'шт',
+        barcode: '',
+        in_stock: true,
+        sort_order: 0
+      });
+    }
+    setShowProductModal(true);
+  };
+
+  const handleProductSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const productData = {
+        ...productForm,
+        price: parseFloat(productForm.price),
+        sort_order: parseInt(productForm.sort_order) || 0
+      };
+
+      if (selectedProduct) {
+        await axios.put(`${API_URL}/admin/products/${selectedProduct.id}`, productData);
+      } else {
+        await axios.post(`${API_URL}/admin/products`, productData);
+      }
+      
+      setShowProductModal(false);
+      fetchData();
+    } catch (error) {
+      console.error('Product save error:', error);
+      alert('Ошибка сохранения товара: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этот товар?')) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`${API_URL}/admin/products/${productId}`);
+      fetchData();
+    } catch (error) {
+      console.error('Delete product error:', error);
+      alert('Ошибка удаления товара');
     }
   };
 
@@ -168,7 +257,9 @@ function AdminDashboard() {
               <Card.Body>
                 <div className="d-flex justify-content-between mb-3">
                   <h5>Товары</h5>
-                  <Button variant="primary">Добавить товар</Button>
+                  <Button variant="primary" onClick={() => openProductModal()}>
+                    Добавить товар
+                  </Button>
                 </div>
                 <Table responsive>
                   <thead>
@@ -194,10 +285,19 @@ function AdminDashboard() {
                           )}
                         </td>
                         <td>
-                          <Button variant="outline-primary" size="sm" className="me-2">
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            className="me-2"
+                            onClick={() => openProductModal(product)}
+                          >
                             Редактировать
                           </Button>
-                          <Button variant="outline-danger" size="sm">
+                          <Button 
+                            variant="outline-danger" 
+                            size="sm"
+                            onClick={() => handleDeleteProduct(product.id)}
+                          >
                             Удалить
                           </Button>
                         </td>
@@ -309,6 +409,153 @@ function AdminDashboard() {
               Закрыть
             </Button>
           </Modal.Footer>
+        </Modal>
+
+        {/* Product Modal */}
+        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {selectedProduct ? 'Редактировать товар' : 'Добавить товар'}
+            </Modal.Title>
+          </Modal.Header>
+          <Form onSubmit={handleProductSubmit}>
+            <Modal.Body>
+              <Form.Group className="mb-3">
+                <Form.Label>Категория *</Form.Label>
+                <Form.Select
+                  required
+                  value={productForm.category_id}
+                  onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
+                >
+                  <option value="">Выберите категорию</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name_ru}</option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Название (RU) *</Form.Label>
+                <Form.Control
+                  required
+                  type="text"
+                  value={productForm.name_ru}
+                  onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Название (UZ)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={productForm.name_uz}
+                  onChange={(e) => setProductForm({ ...productForm, name_uz: e.target.value })}
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Описание (RU)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={2}
+                  value={productForm.description_ru}
+                  onChange={(e) => setProductForm({ ...productForm, description_ru: e.target.value })}
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Описание (UZ)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={2}
+                  value={productForm.description_uz}
+                  onChange={(e) => setProductForm({ ...productForm, description_uz: e.target.value })}
+                />
+              </Form.Group>
+
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Цена (сум) *</Form.Label>
+                    <Form.Control
+                      required
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={productForm.price}
+                      onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Единица измерения *</Form.Label>
+                    <Form.Select
+                      required
+                      value={productForm.unit}
+                      onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                    >
+                      <option value="шт">шт</option>
+                      <option value="кг">кг</option>
+                      <option value="л">л</option>
+                      <option value="г">г</option>
+                      <option value="мл">мл</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Form.Group className="mb-3">
+                <Form.Label>URL изображения</Form.Label>
+                <Form.Control
+                  type="url"
+                  value={productForm.image_url}
+                  onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </Form.Group>
+
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Штрих-код</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={productForm.barcode}
+                      onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value })}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Порядок сортировки</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={productForm.sort_order}
+                      onChange={(e) => setProductForm({ ...productForm, sort_order: parseInt(e.target.value) || 0 })}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Form.Group className="mb-3">
+                <Form.Check
+                  type="checkbox"
+                  label="В наличии"
+                  checked={productForm.in_stock}
+                  onChange={(e) => setProductForm({ ...productForm, in_stock: e.target.checked })}
+                />
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={() => setShowProductModal(false)}>
+                Отмена
+              </Button>
+              <Button variant="primary" type="submit">
+                {selectedProduct ? 'Сохранить' : 'Добавить'}
+              </Button>
+            </Modal.Footer>
+          </Form>
         </Modal>
       </Container>
     </>

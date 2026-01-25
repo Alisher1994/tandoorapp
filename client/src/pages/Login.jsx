@@ -83,7 +83,12 @@ function Login() {
 
           <div className="text-center mt-3">
             <small className="text-muted">
-              Получите логин и пароль через Telegram бота
+              <div className="mb-2">
+                <strong>Клиенты:</strong> Получите логин и пароль через Telegram бота
+              </div>
+              <div>
+                <strong>Администраторы:</strong> Используйте отдельный логин администратора
+              </div>
             </small>
           </div>
         </Card.Body>

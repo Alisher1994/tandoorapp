@@ -6,13 +6,18 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Register
+// Register (only for customers via Telegram bot)
 router.post('/register', async (req, res) => {
   try {
     const { username, password, full_name, phone, telegram_id } = req.body;
     
     if (!username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
+    }
+    
+    // Prevent registration with admin username
+    if (username.toLowerCase() === 'admin' || username.toLowerCase().startsWith('admin_')) {
+      return res.status(400).json({ error: 'Этот логин зарезервирован для администраторов' });
     }
     
     // Check if user exists
@@ -27,6 +32,7 @@ router.post('/register', async (req, res) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     
+    // Only allow customer role registration via API
     const result = await pool.query(
       `INSERT INTO users (username, password, full_name, phone, telegram_id, role) 
        VALUES ($1, $2, $3, $4, $5, $6) 
