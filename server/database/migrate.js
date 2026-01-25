@@ -7,6 +7,15 @@ async function migrate() {
   try {
     console.log('🔄 Starting database migration...');
     
+    // Check DATABASE_URL
+    if (!process.env.DATABASE_URL) {
+      console.error('❌ DATABASE_URL is not set! Cannot run migrations.');
+      console.error('Please ensure PostgreSQL is connected to your service in Railway.');
+      return false;
+    }
+    
+    console.log('📊 DATABASE_URL is set, connecting...');
+    
     // Read and execute schema
     const schemaPath = path.join(__dirname, 'schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf8');
