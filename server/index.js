@@ -15,14 +15,22 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Allow inline scripts for React
+  crossOriginEmbedderPolicy: false
+}));
 app.use(morgan('combined'));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  origin: process.env.FRONTEND_URL || '*',
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Root route for Railway health check
+app.get('/', (req, res) => {
+  res.redirect('/login');
+});
 
 // Health check (before other routes)
 app.get('/api/health', (req, res) => {
@@ -88,10 +96,11 @@ async function startServer() {
     console.error('⚠️  Migration error (server will continue):', error.message);
   }
 
-  // Start server first
-  app.listen(PORT, async () => {
+  // Start server first - listen on 0.0.0.0 for Railway
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Listening on 0.0.0.0:${PORT}`);
     
     // Initialize Telegram bot after server is running (for webhook)
     initBot();
