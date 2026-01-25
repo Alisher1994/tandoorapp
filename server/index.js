@@ -29,17 +29,6 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
 }
 
-// Telegram webhook route (must be before other routes)
-const { getBot } = require('./bot/bot');
-app.use('/api/telegram/webhook', express.json());
-app.post('/api/telegram/webhook', (req, res) => {
-  const bot = getBot();
-  if (bot) {
-    bot.processUpdate(req.body);
-  }
-  res.sendStatus(200);
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -58,6 +47,16 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Telegram webhook route (must be registered before bot initialization)
+const { getBot } = require('./bot/bot');
+app.post('/api/telegram/webhook', express.json(), (req, res) => {
+  const bot = getBot();
+  if (bot) {
+    bot.processUpdate(req.body);
+  }
+  res.sendStatus(200);
+});
+
 // Initialize database and start server
 async function startServer() {
   try {
@@ -71,13 +70,13 @@ async function startServer() {
     console.error('⚠️  Migration error (server will continue):', error.message);
   }
 
-  // Initialize Telegram bot
-  initBot();
-
-  // Start server
-  app.listen(PORT, () => {
+  // Start server first
+  app.listen(PORT, async () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Initialize Telegram bot after server is running (for webhook)
+    initBot();
   });
 }
 
