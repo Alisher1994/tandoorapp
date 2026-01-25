@@ -34,10 +34,13 @@ function Catalog() {
         axios.get(`${API_URL}/products`)
       ]);
       
-      setCategories(categoriesRes.data);
-      setProducts(productsRes.data);
+      setCategories(categoriesRes.data || []);
+      setProducts(productsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Устанавливаем пустые массивы при ошибке
+      setCategories([]);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -153,9 +156,18 @@ function Catalog() {
           ))}
         </Row>
 
-        {filteredProducts.length === 0 && (
+        {filteredProducts.length === 0 && !loading && (
           <div className="text-center py-5">
-            <p className="text-muted">Товары не найдены</p>
+            <p className="text-muted">
+              {products.length === 0 
+                ? 'Товары пока не добавлены. Войдите в админ-панель для добавления товаров.' 
+                : 'Товары не найдены в выбранной категории'}
+            </p>
+            {user?.role === 'admin' && (
+              <Button variant="primary" onClick={() => navigate('/admin')}>
+                Перейти в админ-панель
+              </Button>
+            )}
           </div>
         )}
       </Container>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
 import Login from './pages/Login';
 import Catalog from './pages/Catalog';
 import Cart from './pages/Cart';
@@ -12,7 +13,8 @@ import AdminRoute from './components/AdminRoute';
 function App() {
   return (
     <AuthProvider>
-      <Routes>
+      <CartProvider>
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route
           path="/"
@@ -47,7 +49,8 @@ function App() {
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </CartProvider>
     </AuthProvider>
   );
 }
