@@ -24,30 +24,12 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from React app
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-}
-
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/admin', adminRoutes);
-
-// Health check
+// Health check (before other routes)
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve React app in production
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build/index.html'));
-  });
-}
-
-// Telegram webhook route (must be registered before bot initialization)
+// Telegram webhook route (must be before catch-all routes)
 const { getBot } = require('./bot/bot');
 app.post('/api/telegram/webhook', express.json(), (req, res) => {
   const bot = getBot();
@@ -56,6 +38,42 @@ app.post('/api/telegram/webhook', express.json(), (req, res) => {
   }
   res.sendStatus(200);
 });
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Serve static files from React app (must be after API routes)
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(__dirname, '../client/build');
+  const fs = require('fs');
+  
+  if (fs.existsSync(buildPath)) {
+    app.use(express.static(buildPath));
+    console.log('✅ Static files served from:', buildPath);
+    
+    // Serve React app (catch-all route must be last)
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(buildPath, 'index.html'));
+    });
+  } else {
+    console.warn('⚠️  Client build directory not found:', buildPath);
+    console.warn('⚠️  Make sure to run: npm run build');
+    app.get('*', (req, res) => {
+      res.send(`
+        <html>
+          <body>
+            <h1>Application is starting...</h1>
+            <p>Client build not found. Please wait for the build to complete.</p>
+            <p>If this persists, check the build logs in Railway.</p>
+          </body>
+        </html>
+      `);
+    });
+  }
+}
 
 // Initialize database and start server
 async function startServer() {

@@ -1,7 +1,16 @@
 const TelegramBot = require('node-telegram-bot-api');
-const { getBot } = require('./bot');
 
 const ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+// Lazy import to avoid circular dependency
+function getBot() {
+  try {
+    const { getBot: getBotInstance } = require('./bot');
+    return getBotInstance();
+  } catch (error) {
+    return null;
+  }
+}
 
 async function sendOrderNotification(order, items) {
   if (!ADMIN_CHAT_ID) {
@@ -48,7 +57,10 @@ async function sendOrderUpdateToUser(telegramId, order, status) {
   if (!telegramId) return;
   
   const bot = getBot();
-  if (!bot) return;
+  if (!bot) {
+    console.warn('⚠️  Bot not initialized, cannot send update');
+    return;
+  }
   
   try {
     const statusMessages = {
