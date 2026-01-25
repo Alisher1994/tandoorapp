@@ -217,16 +217,21 @@ function AdminDashboard() {
   const handleImageUpload = async (file, setImageUrl) => {
     if (!file) return;
     
+    // Проверка размера файла (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Файл слишком большой. Максимальный размер: 5MB');
+      return;
+    }
+    
     setUploadingImage(true);
     try {
       const formData = new FormData();
       formData.append('image', file);
       
-      const token = localStorage.getItem('token');
+      // axios.defaults.headers уже содержит Authorization токен
       const response = await axios.post(`${API_URL}/upload/image`, formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          ...(token && { 'Authorization': `Bearer ${token}` })
+          'Content-Type': 'multipart/form-data'
         }
       });
       
