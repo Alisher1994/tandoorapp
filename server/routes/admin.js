@@ -224,5 +224,58 @@ router.post('/categories', async (req, res) => {
   }
 });
 
+router.put('/categories/:id', async (req, res) => {
+  try {
+    const { name_ru, name_uz, image_url, sort_order } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE categories SET
+        name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4
+      WHERE id = $5
+      RETURNING *`,
+      [name_ru, name_uz, image_url, sort_order || 0, req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update category error:', error);
+    res.status(500).json({ error: 'Ошибка обновления категории' });
+  }
+});
+
+router.delete('/categories/:id', async (req, res) => {
+  try {
+    // Проверяем, есть ли товары в этой категории
+    const productsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM products WHERE category_id = $1',
+      [req.params.id]
+    );
+    
+    if (parseInt(productsCheck.rows[0].count) > 0) {
+      return res.status(400).json({ 
+        error: 'Нельзя удалить категорию, в которой есть товары. Сначала удалите или переместите товары.' 
+      });
+    }
+    
+    const result = await pool.query(
+      'DELETE FROM categories WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    
+    res.json({ message: 'Категория удалена' });
+  } catch (error) {
+    console.error('Delete category error:', error);
+    res.status(500).json({ error: 'Ошибка удаления категории' });
+  }
+});
+
 module.exports = router;
 

@@ -40,6 +40,15 @@ function AdminDashboard() {
     in_stock: true,
     sort_order: 0
   });
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categoryForm, setCategoryForm] = useState({
+    name_ru: '',
+    name_uz: '',
+    image_url: '',
+    sort_order: 0
+  });
+  const [uploadingImage, setUploadingImage] = useState(false);
   const { logout } = useAuth();
 
   useEffect(() => {
@@ -145,6 +154,90 @@ function AdminDashboard() {
     } catch (error) {
       console.error('Delete product error:', error);
       alert('Ошибка удаления товара');
+    }
+  };
+
+  const openCategoryModal = (category = null) => {
+    if (category) {
+      setSelectedCategory(category);
+      setCategoryForm({
+        name_ru: category.name_ru || '',
+        name_uz: category.name_uz || '',
+        image_url: category.image_url || '',
+        sort_order: category.sort_order || 0
+      });
+    } else {
+      setSelectedCategory(null);
+      setCategoryForm({
+        name_ru: '',
+        name_uz: '',
+        image_url: '',
+        sort_order: 0
+      });
+    }
+    setShowCategoryModal(true);
+  };
+
+  const handleCategorySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const categoryData = {
+        ...categoryForm,
+        sort_order: parseInt(categoryForm.sort_order) || 0
+      };
+
+      if (selectedCategory) {
+        await axios.put(`${API_URL}/admin/categories/${selectedCategory.id}`, categoryData);
+      } else {
+        await axios.post(`${API_URL}/admin/categories`, categoryData);
+      }
+      
+      setShowCategoryModal(false);
+      fetchData();
+    } catch (error) {
+      console.error('Category save error:', error);
+      alert('Ошибка сохранения категории: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    if (!window.confirm('Вы уверены, что хотите удалить эту категорию? Товары в этой категории должны быть удалены или перемещены.')) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`${API_URL}/admin/categories/${categoryId}`);
+      fetchData();
+    } catch (error) {
+      console.error('Delete category error:', error);
+      alert(error.response?.data?.error || 'Ошибка удаления категории');
+    }
+  };
+
+  const handleImageUpload = async (file, setImageUrl) => {
+    if (!file) return;
+    
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      // Получаем полный URL
+      const fullUrl = window.location.origin + response.data.url;
+      setImageUrl(fullUrl);
+    } catch (error) {
+      console.error('Image upload error:', error);
+      alert('Ошибка загрузки изображения: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -297,6 +390,65 @@ function AdminDashboard() {
                             variant="outline-danger" 
                             size="sm"
                             onClick={() => handleDeleteProduct(product.id)}
+                          >
+                            Удалить
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Card.Body>
+            </Card>
+          </Tab>
+
+          <Tab eventKey="categories" title="Категории">
+            <Card>
+              <Card.Body>
+                <div className="d-flex justify-content-between mb-3">
+                  <h5>Категории</h5>
+                  <Button variant="primary" onClick={() => openCategoryModal()}>
+                    Добавить категорию
+                  </Button>
+                </div>
+                <Table responsive>
+                  <thead>
+                    <tr>
+                      <th>Название (RU)</th>
+                      <th>Название (UZ)</th>
+                      <th>Изображение</th>
+                      <th>Порядок</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categories.map(category => (
+                      <tr key={category.id}>
+                        <td>{category.name_ru}</td>
+                        <td>{category.name_uz || '-'}</td>
+                        <td>
+                          {category.image_url && (
+                            <img 
+                              src={category.image_url} 
+                              alt={category.name_ru}
+                              style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                            />
+                          )}
+                        </td>
+                        <td>{category.sort_order}</td>
+                        <td>
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            className="me-2"
+                            onClick={() => openCategoryModal(category)}
+                          >
+                            Редактировать
+                          </Button>
+                          <Button 
+                            variant="outline-danger" 
+                            size="sm"
+                            onClick={() => handleDeleteCategory(category.id)}
                           >
                             Удалить
                           </Button>
@@ -506,12 +658,51 @@ function AdminDashboard() {
               </Row>
 
               <Form.Group className="mb-3">
-                <Form.Label>URL изображения</Form.Label>
+                <Form.Label>Изображение</Form.Label>
+                <Form.Control
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      handleImageUpload(file, (url) => {
+                        setProductForm({ ...productForm, image_url: url });
+                      });
+                    }
+                  }}
+                  disabled={uploadingImage}
+                />
+                {productForm.image_url && (
+                  <div className="mt-2">
+                    <img 
+                      src={productForm.image_url} 
+                      alt="Preview" 
+                      style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
+                      className="img-thumbnail"
+                    />
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => setProductForm({ ...productForm, image_url: '' })}
+                    >
+                      Удалить изображение
+                    </Button>
+                  </div>
+                )}
+                {uploadingImage && (
+                  <div className="text-muted mt-2">
+                    <small>Загрузка изображения...</small>
+                  </div>
+                )}
+                <Form.Text className="text-muted">
+                  Или введите URL изображения:
+                </Form.Text>
                 <Form.Control
                   type="url"
                   value={productForm.image_url}
                   onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
                   placeholder="https://example.com/image.jpg"
+                  className="mt-1"
                 />
               </Form.Group>
 
@@ -527,14 +718,23 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
                 <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Порядок сортировки</Form.Label>
-                    <Form.Control
-                      type="number"
-                      value={productForm.sort_order}
-                      onChange={(e) => setProductForm({ ...productForm, sort_order: parseInt(e.target.value) || 0 })}
-                    />
-                  </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>
+                  Порядок сортировки
+                  <Form.Text className="text-muted ms-2">
+                    (Число: чем меньше, тем выше в списке. Например: 1, 2, 3...)
+                  </Form.Text>
+                </Form.Label>
+                <Form.Control
+                  type="number"
+                  min="0"
+                  value={productForm.sort_order}
+                  onChange={(e) => setProductForm({ ...productForm, sort_order: parseInt(e.target.value) || 0 })}
+                />
+                <Form.Text className="text-muted">
+                  Товары с меньшим числом отображаются первыми в категории.
+                </Form.Text>
+              </Form.Group>
                 </Col>
               </Row>
 
@@ -553,6 +753,113 @@ function AdminDashboard() {
               </Button>
               <Button variant="primary" type="submit">
                 {selectedProduct ? 'Сохранить' : 'Добавить'}
+              </Button>
+            </Modal.Footer>
+          </Form>
+        </Modal>
+
+        {/* Category Modal */}
+        <Modal show={showCategoryModal} onHide={() => setShowCategoryModal(false)}>
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {selectedCategory ? 'Редактировать категорию' : 'Добавить категорию'}
+            </Modal.Title>
+          </Modal.Header>
+          <Form onSubmit={handleCategorySubmit}>
+            <Modal.Body>
+              <Form.Group className="mb-3">
+                <Form.Label>Название (RU) *</Form.Label>
+                <Form.Control
+                  required
+                  type="text"
+                  value={categoryForm.name_ru}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name_ru: e.target.value })}
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Название (UZ)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={categoryForm.name_uz}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name_uz: e.target.value })}
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Изображение</Form.Label>
+                <Form.Control
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      handleImageUpload(file, (url) => {
+                        setCategoryForm({ ...categoryForm, image_url: url });
+                      });
+                    }
+                  }}
+                  disabled={uploadingImage}
+                />
+                {categoryForm.image_url && (
+                  <div className="mt-2">
+                    <img 
+                      src={categoryForm.image_url} 
+                      alt="Preview" 
+                      style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
+                      className="img-thumbnail"
+                    />
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => setCategoryForm({ ...categoryForm, image_url: '' })}
+                    >
+                      Удалить изображение
+                    </Button>
+                  </div>
+                )}
+                {uploadingImage && (
+                  <div className="text-muted mt-2">
+                    <small>Загрузка изображения...</small>
+                  </div>
+                )}
+                <Form.Text className="text-muted">
+                  Или введите URL изображения:
+                </Form.Text>
+                <Form.Control
+                  type="url"
+                  value={categoryForm.image_url}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, image_url: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                  className="mt-1"
+                />
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label>
+                  Порядок сортировки *
+                  <Form.Text className="text-muted ms-2">
+                    (Число: чем меньше, тем выше в списке. Например: 1, 2, 3...)
+                  </Form.Text>
+                </Form.Label>
+                <Form.Control
+                  required
+                  type="number"
+                  min="0"
+                  value={categoryForm.sort_order}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, sort_order: parseInt(e.target.value) || 0 })}
+                />
+                <Form.Text className="text-muted">
+                  Категории с меньшим числом отображаются первыми в каталоге.
+                </Form.Text>
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={() => setShowCategoryModal(false)}>
+                Отмена
+              </Button>
+              <Button variant="primary" type="submit">
+                {selectedCategory ? 'Сохранить' : 'Добавить'}
               </Button>
             </Modal.Footer>
           </Form>

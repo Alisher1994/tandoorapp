@@ -29,3 +29,7 @@ Thumbs.db
 # Railway
 .railway/
 
+# Uploads (keep folder structure)
+uploads/*
+!uploads/.gitkeep
+
