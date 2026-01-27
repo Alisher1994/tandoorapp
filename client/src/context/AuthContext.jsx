@@ -10,14 +10,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    initializeAuth();
+  }, []);
+
+  const initializeAuth = async () => {
+    // Check for token in URL first (auto-login from Telegram)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    
+    if (tokenFromUrl) {
+      // Save token from URL and try to authenticate
+      localStorage.setItem('token', tokenFromUrl);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${tokenFromUrl}`;
+      
+      // Remove token from URL to clean up
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      await fetchUser();
+      return;
+    }
+    
+    // Check for existing token in localStorage
     const token = localStorage.getItem('token');
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUser();
+      await fetchUser();
     } else {
       setLoading(false);
     }
-  }, []);
+  };
 
   const fetchUser = async () => {
     try {

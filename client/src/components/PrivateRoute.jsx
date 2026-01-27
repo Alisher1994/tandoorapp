@@ -1,9 +1,8 @@
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  const [searchParams] = useSearchParams();
 
   if (loading) {
     return (
@@ -16,10 +15,7 @@ function PrivateRoute({ children }) {
   }
 
   if (!user) {
-    // Preserve token in URL when redirecting to login
-    const token = searchParams.get('token');
-    const loginUrl = token ? `/login?token=${token}` : '/login';
-    return <Navigate to={loginUrl} replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return children;
