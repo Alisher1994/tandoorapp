@@ -32,6 +32,8 @@ async function migrate() {
         logo_url TEXT,
         telegram_bot_token VARCHAR(255),
         telegram_group_id VARCHAR(100),
+        open_time VARCHAR(5),
+        close_time VARCHAR(5),
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -46,6 +48,12 @@ async function migrate() {
     // Add delivery_zone column for storing polygon coordinates
     try {
       await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_zone JSONB`);
+    } catch (e) {}
+
+    // Add working hours columns
+    try {
+      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS open_time VARCHAR(5)`);
+      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS close_time VARCHAR(5)`);
     } catch (e) {}
     
     console.log('✅ Restaurants table ready');

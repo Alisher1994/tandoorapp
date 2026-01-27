@@ -46,7 +46,7 @@ function isPointInPolygon(point, polygon) {
 async function findRestaurantByLocation(lat, lng) {
   try {
     const result = await pool.query(`
-      SELECT id, name, delivery_zone, logo_url
+      SELECT id, name, delivery_zone, logo_url, open_time, close_time
       FROM restaurants 
       WHERE is_active = true AND delivery_zone IS NOT NULL
     `);
@@ -69,6 +69,22 @@ async function findRestaurantByLocation(lat, lng) {
     console.error('Find restaurant error:', error);
     return null;
   }
+}
+
+function isRestaurantOpen(openTime, closeTime) {
+  if (!openTime || !closeTime) return true;
+  const now = new Date();
+  const [openH, openM] = openTime.split(':').map(Number);
+  const [closeH, closeM] = closeTime.split(':').map(Number);
+  const openMinutes = openH * 60 + openM;
+  const closeMinutes = closeH * 60 + closeM;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  if (openMinutes === closeMinutes) return true;
+  if (openMinutes < closeMinutes) {
+    return nowMinutes >= openMinutes && nowMinutes < closeMinutes;
+  }
+  return nowMinutes >= openMinutes || nowMinutes < closeMinutes;
 }
 
 function initBot() {
@@ -238,6 +254,13 @@ function initBot() {
       const restaurant = await findRestaurantByLocation(location.latitude, location.longitude);
       
       if (restaurant) {
+        if (!isRestaurantOpen(restaurant.open_time, restaurant.close_time)) {
+          bot.sendMessage(chatId,
+            `😔 Извините, данный ресторан работает с ${restaurant.open_time || '??:??'} по ${restaurant.close_time || '??:??'}.`,
+            { reply_markup: { remove_keyboard: true } }
+          );
+          return;
+        }
         const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
         
         // Check if this is existing user checking location for new order

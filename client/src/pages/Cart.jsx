@@ -31,7 +31,7 @@ function Cart() {
     customer_phone: user?.phone || '',
     payment_method: 'cash',
     comment: '',
-    delivery_date: '',
+    delivery_date: new Date().toISOString().split('T')[0],
     delivery_time: ''
   });
   
@@ -67,7 +67,8 @@ function Cart() {
           price: item.price
         })),
         restaurant_id,
-        ...formData
+        ...formData,
+        delivery_date: formData.delivery_date || new Date().toISOString().split('T')[0]
       };
 
       const response = await axios.post(`${API_URL}/orders`, orderData);
@@ -223,15 +224,7 @@ function Cart() {
                   )}
                 </Form.Group>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Дата доставки</Form.Label>
-                  <Form.Control
-                    type="date"
-                    value={formData.delivery_date}
-                    onChange={(e) => setFormData({ ...formData, delivery_date: e.target.value })}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </Form.Group>
+                <input type="hidden" value={formData.delivery_date} readOnly />
 
                 <Form.Group className="mb-3">
                   <Form.Label>Время доставки</Form.Label>

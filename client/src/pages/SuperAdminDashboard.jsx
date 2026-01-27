@@ -37,7 +37,15 @@ function SuperAdminDashboard() {
   
   // Forms
   const [restaurantForm, setRestaurantForm] = useState({
-    name: '', address: '', phone: '', logo_url: '', delivery_zone: null, telegram_bot_token: '', telegram_group_id: ''
+    name: '',
+    address: '',
+    phone: '',
+    logo_url: '',
+    delivery_zone: null,
+    telegram_bot_token: '',
+    telegram_group_id: '',
+    open_time: '',
+    close_time: ''
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -239,12 +247,22 @@ function SuperAdminDashboard() {
         logo_url: restaurant.logo_url || '',
         delivery_zone: restaurant.delivery_zone || null,
         telegram_bot_token: restaurant.telegram_bot_token || '',
-        telegram_group_id: restaurant.telegram_group_id || ''
+        telegram_group_id: restaurant.telegram_group_id || '',
+        open_time: restaurant.open_time || '',
+        close_time: restaurant.close_time || ''
       });
     } else {
       setEditingRestaurant(null);
       setRestaurantForm({
-        name: '', address: '', phone: '', logo_url: '', delivery_zone: null, telegram_bot_token: '', telegram_group_id: ''
+        name: '',
+        address: '',
+        phone: '',
+        logo_url: '',
+        delivery_zone: null,
+        telegram_bot_token: '',
+        telegram_group_id: '',
+        open_time: '',
+        close_time: ''
       });
     }
     setShowRestaurantModal(true);
@@ -858,6 +876,32 @@ function SuperAdminDashboard() {
                 placeholder="Адрес ресторана"
               />
             </Form.Group>
+            <hr />
+            <h6>Время работы ресторана</h6>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Начало работы</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={restaurantForm.open_time}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, open_time: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Окончание работы</Form.Label>
+                  <Form.Control
+                    type="time"
+                    value={restaurantForm.close_time}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, close_time: e.target.value })}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Text className="text-muted">Если не указано, ресторан считается открытым всегда.</Form.Text>
+            
             <hr />
             <h6>Настройки Telegram</h6>
             <Form.Group className="mb-3">
