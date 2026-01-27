@@ -41,7 +41,7 @@ function formatPrice(price) {
 }
 
 /**
- * Send order notification to admin group
+ * Send order notification to admin group with action buttons
  */
 async function sendOrderNotification(order, items, chatId = null, botToken = null) {
   const targetChatId = chatId || DEFAULT_ADMIN_CHAT_ID;
@@ -66,34 +66,52 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       return `${index + 1}. ${item.product_name}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
     }).join('\n\n');
     
-    // Build location link - "Адрес доставки" is clickable link to map
+    // Build location link
     let locationLine = '';
     if (order.delivery_coordinates) {
       const coords = order.delivery_coordinates.split(',').map(c => c.trim());
       if (coords.length === 2) {
         const [lat, lng] = coords;
         const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        locationLine = `<a href="${mapUrl}">Адрес доставки</a>: 🗺 На карте`;
+        locationLine = `<a href="${mapUrl}">📍 Адрес доставки</a>`;
       }
     } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
-      locationLine = `Адрес доставки: 📍 ${order.delivery_address}`;
+      locationLine = `📍 Адрес: ${order.delivery_address}`;
     }
+    
+    // Delivery time
+    const deliveryTime = order.delivery_time && order.delivery_time !== 'asap' 
+      ? order.delivery_time 
+      : 'Как можно быстрее';
     
     // Calculate total
     const productsTotal = parseFloat(order.total_amount);
     
     const message = 
-      `<b>ID: ${order.order_number}</b> #новый\n\n` +
+      `<b>ID: ${order.order_number}</b>\n` +
+      `Статус: 🆕 Новый\n\n` +
       (locationLine ? `${locationLine}\n` : '') +
-      `Телефон: ${order.customer_phone}\n\n` +
+      `👤 Клиент: ${order.customer_name}\n` +
+      `📞 Телефон: ${order.customer_phone}\n` +
+      `🕐 К времени: ${deliveryTime}\n\n` +
       `<b>Товары</b>\n\n${itemsList}\n\n` +
-      (order.comment ? `Комментарий: ${order.comment}\n\n` : 'Комментарий: Не указан\n\n') +
       `<b>Итого: ${formatPrice(productsTotal)} сум</b>\n\n` +
-      `Получатель: ${order.customer_name}`;
+      (order.comment ? `💬 Комментарий: ${order.comment}` : '💬 Комментарий: —');
+    
+    // Add action buttons
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: '✅ Подтвердить', callback_data: `confirm_order_${order.id}` },
+          { text: '❌ Отказать', callback_data: `reject_order_${order.id}` }
+        ]
+      ]
+    };
     
     await bot.sendMessage(targetChatId, message, { 
       parse_mode: 'HTML',
-      disable_web_page_preview: true 
+      disable_web_page_preview: true,
+      reply_markup: keyboard
     });
     console.log(`✅ Order notification sent to ${targetChatId}`);
   } catch (error) {

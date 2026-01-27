@@ -548,8 +548,10 @@ function initBot() {
   // =====================================================
   bot.on('callback_query', async (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
+    const messageId = callbackQuery.message.message_id;
     const userId = callbackQuery.from.id;
     const data = callbackQuery.data;
+    const operatorName = callbackQuery.from.first_name || 'Оператор';
     
     // Answer callback to remove loading state
     bot.answerCallbackQuery(callbackQuery.id);
@@ -574,6 +576,165 @@ function initBot() {
           }
         }
       );
+    }
+    
+    // Confirm order
+    else if (data.startsWith('confirm_order_')) {
+      const orderId = data.replace('confirm_order_', '');
+      
+      try {
+        // Update order status in database
+        await pool.query(
+          `UPDATE orders SET status = 'preparing', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [orderId]
+        );
+        
+        // Add to status history
+        await pool.query(
+          'INSERT INTO order_status_history (order_id, status, comment) VALUES ($1, $2, $3)',
+          [orderId, 'preparing', `Подтверждено оператором ${operatorName}`]
+        );
+        
+        // Get order details for notification
+        const orderResult = await pool.query(
+          `SELECT o.*, u.telegram_id FROM orders o 
+           LEFT JOIN users u ON o.user_id = u.id 
+           WHERE o.id = $1`,
+          [orderId]
+        );
+        
+        if (orderResult.rows.length > 0) {
+          const order = orderResult.rows[0];
+          
+          // Notify customer
+          if (order.telegram_id) {
+            const { sendOrderUpdateToUser } = require('./notifications');
+            await sendOrderUpdateToUser(order.telegram_id, order, 'preparing');
+          }
+          
+          // Update message in group
+          const newText = callbackQuery.message.text.replace(
+            'Статус: 🆕 Новый',
+            `Статус: 👨‍🍳 Готовится\n✅ Подтвердил: ${operatorName}`
+          );
+          
+          bot.editMessageText(newText, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true
+          });
+        }
+        
+        bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Заказ подтвержден!' });
+      } catch (error) {
+        console.error('Confirm order error:', error);
+        bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Ошибка', show_alert: true });
+      }
+    }
+    
+    // Reject order - ask for reason
+    else if (data.startsWith('reject_order_')) {
+      const orderId = data.replace('reject_order_', '');
+      
+      // Store state to wait for rejection reason
+      registrationStates.set(`reject_${chatId}_${messageId}`, {
+        step: 'waiting_reject_reason',
+        orderId: orderId,
+        operatorName: operatorName,
+        originalMessageId: messageId
+      });
+      
+      bot.sendMessage(chatId,
+        `❌ <b>Отмена заказа #${orderId}</b>\n\n` +
+        `Напишите причину отказа:`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            force_reply: true,
+            selective: true
+          }
+        }
+      );
+    }
+  });
+  
+  // =====================================================
+  // Handle rejection reason (reply)
+  // =====================================================
+  bot.on('message', async (msg) => {
+    if (!msg.reply_to_message) return;
+    
+    const chatId = msg.chat.id;
+    const text = msg.text;
+    
+    // Find rejection state
+    for (const [key, state] of registrationStates.entries()) {
+      if (key.startsWith(`reject_${chatId}_`) && state.step === 'waiting_reject_reason') {
+        const { orderId, operatorName, originalMessageId } = state;
+        
+        try {
+          // Update order status
+          await pool.query(
+            `UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [orderId]
+          );
+          
+          // Add to status history with reason
+          await pool.query(
+            'INSERT INTO order_status_history (order_id, status, comment) VALUES ($1, $2, $3)',
+            [orderId, 'cancelled', `Отказано: ${text} (${operatorName})`]
+          );
+          
+          // Get order details
+          const orderResult = await pool.query(
+            `SELECT o.*, u.telegram_id FROM orders o 
+             LEFT JOIN users u ON o.user_id = u.id 
+             WHERE o.id = $1`,
+            [orderId]
+          );
+          
+          if (orderResult.rows.length > 0) {
+            const order = orderResult.rows[0];
+            
+            // Notify customer with reason
+            if (order.telegram_id) {
+              const bot = getDefaultBot();
+              if (bot) {
+                bot.sendMessage(order.telegram_id,
+                  `❌ <b>Заказ #${order.order_number} отменен</b>\n\n` +
+                  `Причина: ${text}\n\n` +
+                  `Приносим извинения за неудобства.`,
+                  {
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                      inline_keyboard: [
+                        [{ text: '🛒 Сделать новый заказ', callback_data: 'new_order' }]
+                      ]
+                    }
+                  }
+                );
+              }
+            }
+          }
+          
+          // Update original message
+          bot.sendMessage(chatId,
+            `❌ <b>Заказ #${orderId} отменен</b>\n\n` +
+            `Причина: ${text}\n` +
+            `Оператор: ${operatorName}`,
+            { parse_mode: 'HTML' }
+          );
+          
+          // Clear state
+          registrationStates.delete(key);
+        } catch (error) {
+          console.error('Reject order error:', error);
+          bot.sendMessage(chatId, '❌ Ошибка при отмене заказа');
+        }
+        
+        break;
+      }
     }
   });
 
