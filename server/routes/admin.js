@@ -688,4 +688,114 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// =====================================================
+// РАССЫЛКА УВЕДОМЛЕНИЙ
+// =====================================================
+
+// Send broadcast message to all customers of the restaurant
+router.post('/broadcast', async (req, res) => {
+  try {
+    const { message, image_url } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Текст сообщения обязателен' });
+    }
+    
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Не выбран ресторан' });
+    }
+    
+    // Get restaurant info and bot token
+    const restaurantResult = await pool.query(
+      'SELECT name, telegram_bot_token FROM restaurants WHERE id = $1',
+      [restaurantId]
+    );
+    
+    if (restaurantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+    
+    const restaurant = restaurantResult.rows[0];
+    const botToken = restaurant.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+    
+    if (!botToken) {
+      return res.status(400).json({ error: 'Telegram бот не настроен для этого ресторана' });
+    }
+    
+    // Get all customers who have ordered from this restaurant
+    const customersResult = await pool.query(`
+      SELECT DISTINCT u.telegram_id, u.full_name
+      FROM users u
+      INNER JOIN orders o ON u.id = o.user_id
+      WHERE o.restaurant_id = $1 
+        AND u.telegram_id IS NOT NULL 
+        AND u.is_active = true
+    `, [restaurantId]);
+    
+    const customers = customersResult.rows;
+    
+    if (customers.length === 0) {
+      return res.status(400).json({ error: 'Нет клиентов для рассылки' });
+    }
+    
+    // Create bot instance
+    const TelegramBot = require('node-telegram-bot-api');
+    const bot = new TelegramBot(botToken);
+    
+    // Send messages
+    let sent = 0;
+    let failed = 0;
+    
+    const broadcastMessage = `📢 <b>${restaurant.name}</b>\n\n${message}`;
+    
+    for (const customer of customers) {
+      try {
+        if (image_url) {
+          // Send photo with caption
+          await bot.sendPhoto(customer.telegram_id, image_url, {
+            caption: broadcastMessage,
+            parse_mode: 'HTML'
+          });
+        } else {
+          // Send text only
+          await bot.sendMessage(customer.telegram_id, broadcastMessage, {
+            parse_mode: 'HTML'
+          });
+        }
+        sent++;
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (err) {
+        console.error(`Failed to send to ${customer.telegram_id}:`, err.message);
+        failed++;
+      }
+    }
+    
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      restaurantId: restaurantId,
+      actionType: 'broadcast',
+      entityType: 'notification',
+      entityId: null,
+      entityName: 'Рассылка',
+      newValues: { message, sent, failed, total: customers.length },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.json({
+      message: 'Рассылка завершена',
+      sent,
+      failed,
+      total: customers.length
+    });
+  } catch (error) {
+    console.error('Broadcast error:', error);
+    res.status(500).json({ error: 'Ошибка рассылки: ' + error.message });
+  }
+});
+
 module.exports = router;

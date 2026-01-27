@@ -57,6 +57,12 @@ function AdminDashboard() {
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
+  
+  // Broadcast state
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastForm, setBroadcastForm] = useState({ message: '', image_url: '' });
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [broadcastImageFile, setBroadcastImageFile] = useState(null);
   const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
 
   useEffect(() => {
@@ -149,6 +155,54 @@ function AdminDashboard() {
       alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message));
     } finally {
       setSavingItems(false);
+    }
+  };
+
+  // Broadcast functions
+  const handleBroadcastImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setBroadcastImageFile(file);
+    
+    // Upload image
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+      const res = await axios.post(`${API_URL}/upload`, formData);
+      setBroadcastForm({ ...broadcastForm, image_url: res.data.imageUrl });
+    } catch (error) {
+      alert('Ошибка загрузки изображения');
+    }
+  };
+
+  const sendBroadcast = async () => {
+    if (!broadcastForm.message.trim()) {
+      alert('Введите текст сообщения');
+      return;
+    }
+    
+    if (!window.confirm('Отправить рассылку всем клиентам?')) return;
+    
+    setBroadcastLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/admin/broadcast`, {
+        message: broadcastForm.message,
+        image_url: broadcastForm.image_url ? `${window.location.origin}${broadcastForm.image_url}` : null
+      });
+      
+      setAlertMessage({ 
+        type: 'success', 
+        text: `Рассылка завершена! Отправлено: ${res.data.sent}, Ошибок: ${res.data.failed}` 
+      });
+      setShowBroadcastModal(false);
+      setBroadcastForm({ message: '', image_url: '' });
+      setBroadcastImageFile(null);
+    } catch (error) {
+      alert('Ошибка рассылки: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setBroadcastLoading(false);
     }
   };
 
@@ -383,6 +437,11 @@ function AdminDashboard() {
                   ))}
                 </NavDropdown>
               )}
+              
+              {/* Broadcast button */}
+              <Nav.Link onClick={() => setShowBroadcastModal(true)}>
+                📢 Рассылка
+              </Nav.Link>
               
               {/* Super Admin Link */}
               {isSuperAdmin() && (
@@ -1131,6 +1190,96 @@ function AdminDashboard() {
               </Button>
             </Modal.Footer>
           </Form>
+        </Modal>
+
+        {/* Broadcast Modal */}
+        <Modal show={showBroadcastModal} onHide={() => setShowBroadcastModal(false)} size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>📢 Рассылка уведомлений</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="info">
+              Сообщение будет отправлено всем клиентам, которые делали заказы в вашем ресторане.
+            </Alert>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Фото (необязательно)</Form.Label>
+              <Form.Control
+                type="file"
+                accept="image/*"
+                onChange={handleBroadcastImageUpload}
+              />
+              {broadcastForm.image_url && (
+                <div className="mt-2">
+                  <img 
+                    src={broadcastForm.image_url} 
+                    alt="Preview" 
+                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }}
+                    className="img-thumbnail"
+                  />
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="d-block"
+                    onClick={() => {
+                      setBroadcastForm({ ...broadcastForm, image_url: '' });
+                      setBroadcastImageFile(null);
+                    }}
+                  >
+                    Удалить фото
+                  </Button>
+                </div>
+              )}
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Текст сообщения *</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={5}
+                value={broadcastForm.message}
+                onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
+                placeholder="Напишите текст рассылки...&#10;&#10;Например:&#10;🎉 Скидка 20% на всё меню!&#10;Только сегодня!"
+              />
+              <Form.Text className="text-muted">
+                Поддерживается форматирование: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;
+              </Form.Text>
+            </Form.Group>
+
+            <Card className="bg-light">
+              <Card.Body>
+                <small className="text-muted">Предпросмотр:</small>
+                <div className="mt-2 p-2 bg-white rounded">
+                  {broadcastForm.image_url && (
+                    <img 
+                      src={broadcastForm.image_url} 
+                      alt="Preview" 
+                      style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'contain' }}
+                      className="mb-2"
+                    />
+                  )}
+                  <div>
+                    <strong>📢 {user?.active_restaurant_name || 'Ресторан'}</strong>
+                  </div>
+                  <div className="mt-1" style={{ whiteSpace: 'pre-wrap' }}>
+                    {broadcastForm.message || 'Текст сообщения...'}
+                  </div>
+                </div>
+              </Card.Body>
+            </Card>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowBroadcastModal(false)}>
+              Отмена
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={sendBroadcast}
+              disabled={broadcastLoading || !broadcastForm.message.trim()}
+            >
+              {broadcastLoading ? 'Отправка...' : '📢 Отправить рассылку'}
+            </Button>
+          </Modal.Footer>
         </Modal>
       </Container>
     </>

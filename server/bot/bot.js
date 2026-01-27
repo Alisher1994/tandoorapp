@@ -328,8 +328,28 @@ function initBot() {
     const userId = msg.from.id;
     const location = msg.location;
     
-    const state = registrationStates.get(userId);
-    if (!state || (state.step !== 'waiting_location' && state.step !== 'waiting_location_for_order')) return;
+    let state = registrationStates.get(userId);
+    
+    // If no state but user exists, treat as order location
+    if (!state) {
+      const userCheck = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
+      if (userCheck.rows.length > 0) {
+        // Existing user sending location - treat as new order
+        state = { step: 'waiting_location_for_order', isExistingUser: true };
+        registrationStates.set(userId, state);
+        console.log(`📍 Auto-set state for existing user ${userId}`);
+      } else {
+        // Unknown user - tell them to /start
+        bot.sendMessage(chatId, '❌ Пожалуйста, сначала нажмите /start для регистрации');
+        return;
+      }
+    }
+    
+    if (state.step !== 'waiting_location' && state.step !== 'waiting_location_for_order') {
+      // Wrong state - reset and treat as order
+      state = { step: 'waiting_location_for_order', isExistingUser: true };
+      registrationStates.set(userId, state);
+    }
     
     try {
       // Check if location is in any delivery zone
