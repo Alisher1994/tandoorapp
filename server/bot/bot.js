@@ -637,19 +637,21 @@ function initBot() {
         isExistingUser: true 
       });
       
-      bot.sendMessage(chatId,
-        '🛒 <b>Новый заказ</b>\n\n📍 Отправьте локацию для доставки:',
+      // First send text message
+      await bot.sendMessage(chatId,
+        '🛒 <b>Новый заказ</b>\n\n📍 Нажмите кнопку ниже, чтобы отправить локацию:',
         {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: [
-              [{ text: '📍 Отправить локацию', request_location: true }],
-              [{ text: '📋 Мои заказы' }, { text: '❓ Помощь' }]
+              [{ text: '📍 Отправить локацию', request_location: true }]
             ],
-            resize_keyboard: true
+            resize_keyboard: true,
+            one_time_keyboard: false
           }
         }
       );
+      return;
     }
     
     // Confirm order
