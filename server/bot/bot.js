@@ -111,22 +111,24 @@ function initBot() {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
-        const appUrl = webAppUrl || 'https://tandoorapp-production.up.railway.app';
         
-        // Generate auto-login token
-        const token = generateLoginToken(user.id, user.username);
-        const loginUrl = `${appUrl}?token=${token}`;
+        // User already registered - always ask for location first
+        registrationStates.set(userId, { 
+          step: 'waiting_location_for_order',
+          isExistingUser: true 
+        });
         
-        // User already registered - show menu button with auto-login
         bot.sendMessage(chatId, 
-          `👋 С возвращением, ${user.full_name}!`,
+          `👋 С возвращением, ${user.full_name}!\n\n` +
+          `📍 Укажите адрес доставки:`,
           {
             parse_mode: 'HTML',
             reply_markup: {
-              inline_keyboard: [
-                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
-                [{ text: '📍 Начать заказ (указать адрес)', callback_data: 'new_order_location' }]
-              ]
+              keyboard: [[
+                { text: '📍 Отправить локацию', request_location: true }
+              ]],
+              resize_keyboard: true,
+              one_time_keyboard: true
             }
           }
         );
@@ -342,7 +344,7 @@ function initBot() {
   });
   
   // =====================================================
-  // /menu command
+  // /menu command - same as /start for registered users
   // =====================================================
   bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
@@ -359,23 +361,21 @@ function initBot() {
         return;
       }
       
-      const user = userResult.rows[0];
-      const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
-      
-      // Generate auto-login token
-      const token = generateLoginToken(user.id, user.username);
-      const loginUrl = `${appUrl}?token=${token}`;
+      // Always ask for location first
+      registrationStates.set(telegramUserId, { 
+        step: 'waiting_location_for_order',
+        isExistingUser: true 
+      });
       
       bot.sendMessage(chatId,
-        '🍽️ Нажмите кнопку ниже чтобы открыть меню:',
+        '📍 Укажите адрес доставки:',
         {
           reply_markup: {
-            inline_keyboard: [[
-              { 
-                text: '🍽️ Открыть меню', 
-                web_app: { url: loginUrl }
-              }
-            ]]
+            keyboard: [[
+              { text: '📍 Отправить локацию', request_location: true }
+            ]],
+            resize_keyboard: true,
+            one_time_keyboard: true
           }
         }
       );
@@ -452,41 +452,6 @@ function initBot() {
     } catch (error) {
       console.error('Orders command error:', error);
       bot.sendMessage(chatId, '❌ Ошибка получения заказов');
-    }
-  });
-  
-  // =====================================================
-  // Callback query handler (for inline buttons)
-  // =====================================================
-  bot.on('callback_query', async (query) => {
-    const chatId = query.message.chat.id;
-    const userId = query.from.id;
-    const data = query.data;
-    
-    // Answer callback to remove loading state
-    bot.answerCallbackQuery(query.id);
-    
-    if (data === 'new_order_location') {
-      // User wants to start new order - ask for location
-      // Store state for location check (reuse existing flow)
-      registrationStates.set(userId, { 
-        step: 'waiting_location_for_order',
-        isExistingUser: true 
-      });
-      
-      bot.sendMessage(chatId,
-        '📍 Укажите адрес доставки.\n\n' +
-        'Отправьте вашу геолокацию, чтобы мы проверили зону доставки:',
-        {
-          reply_markup: {
-            keyboard: [[
-              { text: '📍 Отправить локацию', request_location: true }
-            ]],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          }
-        }
-      );
     }
   });
   
