@@ -123,6 +123,16 @@ async function migrate() {
         if (e.code !== '42701') console.log(`ℹ️  Column orders.${col.name}: ${e.message}`);
       }
     }
+    
+    // Fix column sizes - order_number and customer_phone were too small
+    try {
+      await client.query(`ALTER TABLE orders ALTER COLUMN order_number TYPE VARCHAR(50)`);
+      await client.query(`ALTER TABLE orders ALTER COLUMN customer_phone TYPE VARCHAR(50)`);
+      console.log('✅ Orders columns resized');
+    } catch (e) {
+      console.log(`ℹ️  Orders resize: ${e.message}`);
+    }
+    
     console.log('✅ Orders table updated');
     
     // =====================================================
