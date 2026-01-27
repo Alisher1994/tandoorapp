@@ -581,8 +581,21 @@ function initBot() {
     // Confirm order
     else if (data.startsWith('confirm_order_')) {
       const orderId = data.replace('confirm_order_', '');
+      console.log(`📋 Confirm order ${orderId} by ${operatorName}`);
       
       try {
+        // Check current status first
+        const checkResult = await pool.query('SELECT status FROM orders WHERE id = $1', [orderId]);
+        if (checkResult.rows.length === 0) {
+          bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Заказ не найден', show_alert: true });
+          return;
+        }
+        
+        if (checkResult.rows[0].status !== 'new') {
+          bot.answerCallbackQuery(callbackQuery.id, { text: '⚠️ Заказ уже обработан', show_alert: true });
+          return;
+        }
+        
         // Update order status in database
         await pool.query(
           `UPDATE orders SET status = 'preparing', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -592,7 +605,7 @@ function initBot() {
         // Add to status history
         await pool.query(
           'INSERT INTO order_status_history (order_id, status, comment) VALUES ($1, $2, $3)',
-          [orderId, 'preparing', `Подтверждено оператором ${operatorName}`]
+          [orderId, 'preparing', `Подтверждено: ${operatorName}`]
         );
         
         // Get order details for notification
@@ -612,24 +625,25 @@ function initBot() {
             await sendOrderUpdateToUser(order.telegram_id, order, 'preparing');
           }
           
-          // Update message in group
+          // Update message in group - remove buttons
           const newText = callbackQuery.message.text.replace(
             'Статус: 🆕 Новый',
             `Статус: 👨‍🍳 Готовится\n✅ Подтвердил: ${operatorName}`
           );
           
-          bot.editMessageText(newText, {
+          await bot.editMessageText(newText, {
             chat_id: chatId,
             message_id: messageId,
             parse_mode: 'HTML',
-            disable_web_page_preview: true
+            disable_web_page_preview: true,
+            reply_markup: { inline_keyboard: [] } // Remove buttons
           });
         }
         
         bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Заказ подтвержден!' });
       } catch (error) {
         console.error('Confirm order error:', error);
-        bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Ошибка', show_alert: true });
+        bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Ошибка: ' + error.message, show_alert: true });
       }
     }
     

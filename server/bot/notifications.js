@@ -108,12 +108,15 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       ]
     };
     
-    await bot.sendMessage(targetChatId, message, { 
+    console.log(`📤 Sending order ${order.id} notification to ${targetChatId} with buttons`);
+    
+    const result = await bot.sendMessage(targetChatId, message, { 
       parse_mode: 'HTML',
       disable_web_page_preview: true,
       reply_markup: keyboard
     });
-    console.log(`✅ Order notification sent to ${targetChatId}`);
+    
+    console.log(`✅ Order notification sent, message_id: ${result.message_id}`);
   } catch (error) {
     console.error('Send order notification error:', error);
   }
