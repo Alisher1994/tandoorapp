@@ -47,8 +47,25 @@ app.get('/', (req, res) => {
 });
 
 // Health check (before other routes)
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (req, res) => {
+  try {
+    const pool = require('./database/connection');
+    const dbResult = await pool.query('SELECT NOW() as time, COUNT(*) as users FROM users');
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      db_time: dbResult.rows[0]?.time,
+      users_count: dbResult.rows[0]?.users
+    });
+  } catch (error) {
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: 'error',
+      error: error.message
+    });
+  }
 });
 
 // Telegram webhook route (must be before catch-all routes)
@@ -101,15 +118,19 @@ if (process.env.NODE_ENV === 'production') {
 
 // Initialize database and start server
 async function startServer() {
-  try {
-    // Run migrations on startup (only in production or if RUN_MIGRATIONS is set)
-    if (process.env.NODE_ENV === 'production' || process.env.RUN_MIGRATIONS === 'true') {
+  // Always run migrations on Railway (DATABASE_URL is set)
+  if (process.env.DATABASE_URL) {
+    try {
       console.log('🔄 Running database migrations on startup...');
       const migrate = require('./database/migrate');
       await migrate();
+      console.log('✅ Migrations completed');
+    } catch (error) {
+      console.error('⚠️  Migration error:', error.message);
+      console.error(error);
     }
-  } catch (error) {
-    console.error('⚠️  Migration error (server will continue):', error.message);
+  } else {
+    console.warn('⚠️  DATABASE_URL not set, skipping migrations');
   }
 
   // Start server first - listen on 0.0.0.0 for Railway
