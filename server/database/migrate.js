@@ -12,7 +12,6 @@ async function migrate() {
     // Check DATABASE_URL
     if (!process.env.DATABASE_URL) {
       console.error('❌ DATABASE_URL is not set! Cannot run migrations.');
-      console.error('Please ensure PostgreSQL is connected to your service in Railway.');
       return false;
     }
     
@@ -20,25 +19,147 @@ async function migrate() {
     
     await client.query('BEGIN');
     
-    // Read and execute schema
-    const schemaPath = path.join(__dirname, 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
-    
-    await client.query(schema);
-    console.log('✅ Database schema created');
-    
     // =====================================================
-    // Migrate existing data if needed
+    // Step 1: Create restaurants table FIRST (before users references it)
     // =====================================================
     
-    // Update old 'admin' role to 'superadmin'
     await client.query(`
-      UPDATE users SET role = 'superadmin' WHERE role = 'admin'
+      CREATE TABLE IF NOT EXISTS restaurants (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        address TEXT,
+        phone VARCHAR(20),
+        telegram_bot_token VARCHAR(255),
+        telegram_group_id VARCHAR(100),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('✅ Updated admin roles to superadmin');
+    console.log('✅ Restaurants table ready');
     
     // =====================================================
-    // Create default restaurant if none exists
+    // Step 2: Add new columns to existing tables
+    // =====================================================
+    
+    // Add columns to users table
+    const userColumns = [
+      { name: 'active_restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
+      { name: 'is_active', type: 'BOOLEAN DEFAULT true' }
+    ];
+    
+    for (const col of userColumns) {
+      try {
+        await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+        console.log(`✅ Added column users.${col.name}`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`ℹ️  Column users.${col.name}: ${e.message}`);
+      }
+    }
+    
+    // Add columns to categories table
+    const categoryColumns = [
+      { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
+      { name: 'is_active', type: 'BOOLEAN DEFAULT true' },
+      { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
+    ];
+    
+    for (const col of categoryColumns) {
+      try {
+        await client.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`ℹ️  Column categories.${col.name}: ${e.message}`);
+      }
+    }
+    console.log('✅ Categories table updated');
+    
+    // Add columns to products table  
+    const productColumns = [
+      { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' }
+    ];
+    
+    for (const col of productColumns) {
+      try {
+        await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`ℹ️  Column products.${col.name}: ${e.message}`);
+      }
+    }
+    console.log('✅ Products table updated');
+    
+    // Add columns to orders table
+    const orderColumns = [
+      { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
+      { name: 'processed_by', type: 'INTEGER REFERENCES users(id) ON DELETE SET NULL' },
+      { name: 'processed_at', type: 'TIMESTAMP' }
+    ];
+    
+    for (const col of orderColumns) {
+      try {
+        await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`ℹ️  Column orders.${col.name}: ${e.message}`);
+      }
+    }
+    console.log('✅ Orders table updated');
+    
+    // =====================================================
+    // Step 3: Create operator_restaurants junction table
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS operator_restaurants (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, restaurant_id)
+      )
+    `);
+    console.log('✅ Operator_restaurants table ready');
+    
+    // =====================================================
+    // Step 4: Create activity_logs table
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL,
+        action_type VARCHAR(50) NOT NULL,
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id INTEGER,
+        entity_name VARCHAR(255),
+        old_values JSONB,
+        new_values JSONB,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Activity_logs table ready');
+    
+    // =====================================================
+    // Step 5: Update user roles - change 'admin' to 'superadmin'
+    // =====================================================
+    
+    await client.query(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`);
+    
+    // Fix role constraint if exists
+    try {
+      await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
+      await client.query(`
+        ALTER TABLE users ADD CONSTRAINT users_role_check 
+        CHECK (role IN ('superadmin', 'operator', 'customer'))
+      `);
+    } catch (e) {
+      // Constraint might not exist or already correct
+    }
+    console.log('✅ User roles updated');
+    
+    // =====================================================
+    // Step 6: Create default restaurant
     // =====================================================
     
     const restaurantCheck = await client.query('SELECT id FROM restaurants LIMIT 1');
@@ -59,11 +180,11 @@ async function migrate() {
       console.log(`✅ Default restaurant created with ID: ${defaultRestaurantId}`);
     } else {
       defaultRestaurantId = restaurantCheck.rows[0].id;
-      console.log(`ℹ️  Restaurant already exists with ID: ${defaultRestaurantId}`);
+      console.log(`ℹ️  Restaurant exists with ID: ${defaultRestaurantId}`);
     }
     
     // =====================================================
-    // Create superadmin user
+    // Step 7: Create or update superadmin
     // =====================================================
     
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
@@ -75,77 +196,83 @@ async function migrate() {
       [adminUsername]
     );
     
+    let adminId;
+    
     if (adminCheck.rows.length === 0) {
       const adminResult = await client.query(`
-        INSERT INTO users (username, password, full_name, role, is_active) 
-        VALUES ($1, $2, $3, 'superadmin', true)
+        INSERT INTO users (username, password, full_name, role, is_active, active_restaurant_id) 
+        VALUES ($1, $2, 'Super Administrator', 'superadmin', true, $3)
         RETURNING id
-      `, [adminUsername, hashedPassword, 'Super Administrator']);
+      `, [adminUsername, hashedPassword, defaultRestaurantId]);
       
+      adminId = adminResult.rows[0].id;
       console.log(`✅ Superadmin created: ${adminUsername}`);
-      
-      // Link superadmin to default restaurant
-      await client.query(`
-        INSERT INTO operator_restaurants (user_id, restaurant_id)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-      `, [adminResult.rows[0].id, defaultRestaurantId]);
-      
-      // Set active restaurant for superadmin
-      await client.query(`
-        UPDATE users SET active_restaurant_id = $1 WHERE id = $2
-      `, [defaultRestaurantId, adminResult.rows[0].id]);
-      
     } else {
-      // Update existing admin to superadmin if needed
-      if (adminCheck.rows[0].role !== 'superadmin') {
-        await client.query(`
-          UPDATE users SET role = 'superadmin' WHERE id = $1
-        `, [adminCheck.rows[0].id]);
-        console.log(`✅ Updated ${adminUsername} to superadmin`);
-      }
+      adminId = adminCheck.rows[0].id;
       
-      // Ensure superadmin has access to default restaurant
+      // Update to superadmin role and set active restaurant
       await client.query(`
-        INSERT INTO operator_restaurants (user_id, restaurant_id)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-      `, [adminCheck.rows[0].id, defaultRestaurantId]);
+        UPDATE users 
+        SET role = 'superadmin', 
+            is_active = true,
+            active_restaurant_id = COALESCE(active_restaurant_id, $1)
+        WHERE id = $2
+      `, [defaultRestaurantId, adminId]);
       
-      // Set active restaurant if not set
-      await client.query(`
-        UPDATE users SET active_restaurant_id = $1 
-        WHERE id = $2 AND active_restaurant_id IS NULL
-      `, [defaultRestaurantId, adminCheck.rows[0].id]);
-      
-      console.log('ℹ️  Superadmin already exists');
+      console.log(`✅ Superadmin updated: ${adminUsername}`);
     }
     
+    // Link superadmin to default restaurant
+    await client.query(`
+      INSERT INTO operator_restaurants (user_id, restaurant_id)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id, restaurant_id) DO NOTHING
+    `, [adminId, defaultRestaurantId]);
+    
     // =====================================================
-    // Migrate existing products and categories to default restaurant
+    // Step 8: Migrate existing data to default restaurant
     // =====================================================
     
-    await client.query(`
-      UPDATE categories SET restaurant_id = $1 WHERE restaurant_id IS NULL
-    `, [defaultRestaurantId]);
+    await client.query(`UPDATE categories SET restaurant_id = $1 WHERE restaurant_id IS NULL`, [defaultRestaurantId]);
+    await client.query(`UPDATE products SET restaurant_id = $1 WHERE restaurant_id IS NULL`, [defaultRestaurantId]);
+    await client.query(`UPDATE orders SET restaurant_id = $1 WHERE restaurant_id IS NULL`, [defaultRestaurantId]);
     
-    await client.query(`
-      UPDATE products SET restaurant_id = $1 WHERE restaurant_id IS NULL
-    `, [defaultRestaurantId]);
+    console.log('✅ Existing data migrated to default restaurant');
     
-    await client.query(`
-      UPDATE orders SET restaurant_id = $1 WHERE restaurant_id IS NULL
-    `, [defaultRestaurantId]);
+    // =====================================================
+    // Step 9: Create indexes
+    // =====================================================
     
-    console.log('✅ Migrated existing data to default restaurant');
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_users_active_restaurant ON users(active_restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_operator_restaurants_user ON operator_restaurants(user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_operator_restaurants_restaurant ON operator_restaurants(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_categories_restaurant ON categories(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_products_restaurant ON products(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON orders(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_orders_processed_by ON orders(processed_by)',
+      'CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_activity_logs_restaurant ON activity_logs(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC)'
+    ];
+    
+    for (const idx of indexes) {
+      try {
+        await client.query(idx);
+      } catch (e) {
+        // Index might already exist
+      }
+    }
+    console.log('✅ Indexes created');
     
     await client.query('COMMIT');
-    console.log('✅ Migration completed successfully');
+    console.log('✅ Migration completed successfully!');
     return true;
     
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Migration error:', error);
+    console.error('❌ Migration error:', error.message);
+    console.error(error);
     return false;
   } finally {
     client.release();
