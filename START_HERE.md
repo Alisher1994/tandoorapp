@@ -28,7 +28,7 @@
 git commit -m "Initial commit: Order management system"
 
 # Создайте репозиторий на github.com:
-# 1. Зайдите на github.com
+# 1. Зайдите на github.comизмени 
 # 2. Нажмите "New repository"
 # 3. Введите имя (например: order-system)
 # 4. НЕ добавляйте README, .gitignore, license

@@ -97,10 +97,11 @@ function initBot() {
   
   const isProduction = process.env.NODE_ENV === 'production';
   const webAppUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
+  const webhookBaseUrl = process.env.TELEGRAM_WEBHOOK_URL || process.env.BACKEND_URL || process.env.FRONTEND_URL || webAppUrl;
   
-  if (isProduction && webAppUrl) {
+  if (isProduction && webhookBaseUrl) {
     const webhookPath = '/api/telegram/webhook';
-    const webhookUrl = `${webAppUrl}${webhookPath}`;
+    const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
     
     bot = new TelegramBot(token);
     
