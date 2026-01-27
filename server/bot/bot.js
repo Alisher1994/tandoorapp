@@ -498,7 +498,16 @@ function initBot() {
       );
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов.\n\nИспользуйте /menu чтобы сделать заказ.');
+        bot.sendMessage(chatId, 
+          '📦 У вас пока нет заказов.',
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🛒 Сделать заказ', callback_data: 'new_order' }]
+              ]
+            }
+          }
+        );
         return;
       }
       
@@ -520,13 +529,54 @@ function initBot() {
         message += `Статус: ${getStatusText(order.status)}\n\n`;
       });
       
-      bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+      bot.sendMessage(chatId, message, { 
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🛒 Начать новый заказ', callback_data: 'new_order' }]
+          ]
+        }
+      });
     } catch (error) {
       console.error('Orders command error:', error);
       bot.sendMessage(chatId, '❌ Ошибка получения заказов');
     }
   });
   
+  // =====================================================
+  // Callback query handler (inline buttons)
+  // =====================================================
+  bot.on('callback_query', async (callbackQuery) => {
+    const chatId = callbackQuery.message.chat.id;
+    const userId = callbackQuery.from.id;
+    const data = callbackQuery.data;
+    
+    // Answer callback to remove loading state
+    bot.answerCallbackQuery(callbackQuery.id);
+    
+    if (data === 'new_order') {
+      // Start new order flow - ask for location
+      registrationStates.set(userId, { 
+        step: 'waiting_location_for_order',
+        isExistingUser: true 
+      });
+      
+      bot.sendMessage(chatId,
+        '🛒 <b>Новый заказ</b>\n\n📍 Укажите адрес доставки:',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            keyboard: [[
+              { text: '📍 Отправить локацию', request_location: true }
+            ]],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
+    }
+  });
+
   // Error handling
   bot.on('polling_error', (error) => {
     if (error.response?.body?.error_code === 409) {

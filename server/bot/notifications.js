@@ -138,7 +138,19 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null)
       `${statusText}\n\n` +
       `Сумма: ${formatPrice(order.total_amount)} сум`;
     
-    await bot.sendMessage(telegramId, message, { parse_mode: 'HTML' });
+    // Add "New Order" button for delivered/cancelled orders
+    const showNewOrderButton = status === 'delivered' || status === 'cancelled' || status === 'new';
+    
+    const options = { 
+      parse_mode: 'HTML',
+      reply_markup: showNewOrderButton ? {
+        inline_keyboard: [
+          [{ text: '🛒 Начать новый заказ', callback_data: 'new_order' }]
+        ]
+      } : undefined
+    };
+    
+    await bot.sendMessage(telegramId, message, options);
     console.log(`✅ Order update sent to user ${telegramId}`);
   } catch (error) {
     console.error('Send order update error:', error);
