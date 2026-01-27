@@ -14,6 +14,11 @@ function generateLoginToken(userId, username) {
   );
 }
 
+function buildCatalogUrl(appUrl, token) {
+  const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+  return `${trimmed}/catalog?token=${token}`;
+}
+
 // Store for registration states
 const registrationStates = new Map();
 
@@ -254,7 +259,7 @@ function initBot() {
             `, [location.latitude, location.longitude, restaurant.id, user.id]);
             
             const token = generateLoginToken(user.id, user.username);
-            const loginUrl = `${appUrl}?token=${token}`;
+            const loginUrl = buildCatalogUrl(appUrl, token);
             
             // Clear state
             registrationStates.delete(userId);
@@ -301,7 +306,7 @@ function initBot() {
         
         // Generate auto-login token
         const token = generateLoginToken(newUserId, username);
-        const loginUrl = `${appUrl}?token=${token}`;
+        const loginUrl = buildCatalogUrl(appUrl, token);
         
         bot.sendMessage(chatId,
           `✅ Регистрация успешна!\n\n` +
