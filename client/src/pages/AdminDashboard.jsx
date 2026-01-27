@@ -547,13 +547,84 @@ function AdminDashboard() {
                   <strong>Клиент:</strong> {selectedOrder.customer_name}
                 </div>
                 <div className="mb-3">
-                  <strong>Телефон:</strong> {selectedOrder.customer_phone}
+                  <strong>Телефон:</strong>{' '}
+                  <a href={`tel:${selectedOrder.customer_phone}`} className="text-decoration-none">
+                    {selectedOrder.customer_phone}
+                  </a>
+                  <a 
+                    href={`tel:${selectedOrder.customer_phone}`} 
+                    className="btn btn-success btn-sm ms-2"
+                  >
+                    📞 Позвонить
+                  </a>
                 </div>
                 <div className="mb-3">
                   <strong>Адрес:</strong> {selectedOrder.delivery_address}
+                  
+                  {/* Map and location links */}
+                  {selectedOrder.delivery_coordinates && (() => {
+                    const coords = selectedOrder.delivery_coordinates.split(',').map(c => c.trim());
+                    if (coords.length === 2) {
+                      const [lat, lng] = coords;
+                      const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
+                      const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
+                      const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
+                      const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+                      
+                      return (
+                        <div className="mt-2">
+                          {/* Embedded map */}
+                          <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #ddd' }}>
+                            <iframe
+                              title="delivery-map"
+                              src={`https://yandex.ru/map-widget/v1/?pt=${lng},${lat}&z=16&l=map`}
+                              width="100%"
+                              height="200"
+                              frameBorder="0"
+                            />
+                          </div>
+                          
+                          {/* Action buttons */}
+                          <div className="d-flex gap-2 flex-wrap">
+                            <a 
+                              href={yandexMapUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="btn btn-outline-primary btn-sm"
+                            >
+                              🗺 Яндекс.Карты
+                            </a>
+                            <a 
+                              href={googleMapsUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="btn btn-outline-secondary btn-sm"
+                            >
+                              📍 Google Maps
+                            </a>
+                            <a 
+                              href={yandexTaxiUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="btn btn-warning btn-sm"
+                            >
+                              🚕 Яндекс.Такси
+                            </a>
+                            <a 
+                              href={yandexNaviUrl} 
+                              className="btn btn-outline-info btn-sm"
+                            >
+                              🧭 Навигатор
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div className="mb-3">
-                  <strong>Сумма:</strong> {selectedOrder.total_amount} сум
+                  <strong>Сумма:</strong> {parseFloat(selectedOrder.total_amount).toLocaleString()} сум
                 </div>
                 <div className="mb-3">
                   <strong>Статус:</strong> {getStatusBadge(selectedOrder.status)}
