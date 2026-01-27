@@ -21,12 +21,10 @@ function getRestaurantBot(botToken) {
     return getDefaultBot();
   }
   
-  // Check if we already have a bot instance for this token
   if (restaurantBots.has(botToken)) {
     return restaurantBots.get(botToken);
   }
   
-  // Create new bot instance for this restaurant
   try {
     const bot = new TelegramBot(botToken);
     restaurantBots.set(botToken, bot);
@@ -37,12 +35,13 @@ function getRestaurantBot(botToken) {
   }
 }
 
+// Format price with thousands separator
+function formatPrice(price) {
+  return parseFloat(price).toLocaleString('ru-RU');
+}
+
 /**
  * Send order notification to admin group
- * @param {Object} order - Order object
- * @param {Array} items - Order items
- * @param {string} chatId - Optional restaurant-specific chat ID
- * @param {string} botToken - Optional restaurant-specific bot token
  */
 async function sendOrderNotification(order, items, chatId = null, botToken = null) {
   const targetChatId = chatId || DEFAULT_ADMIN_CHAT_ID;
@@ -59,32 +58,42 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
   }
   
   try {
-    const itemsList = items.map((item, index) => 
-      `${index + 1}. ${item.product_name} - ${item.quantity} ${item.unit || 'шт'} × ${item.price} = ${(item.quantity * item.price).toFixed(2)} сум`
-    ).join('\n');
+    // Build items list
+    const itemsList = items.map((item, index) => {
+      const qty = parseFloat(item.quantity);
+      const price = parseFloat(item.price);
+      const total = qty * price;
+      return `${index + 1}. ${item.product_name}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
+    }).join('\n\n');
     
-    const paymentEmoji = order.payment_method === 'card' ? '💳' : '💵';
-    const paymentText = order.payment_method === 'card' ? 'Карта' : 'Наличные';
-    
-    let locationLink = order.delivery_address || 'Не указан';
+    // Build location link
+    let locationText = '';
     if (order.delivery_coordinates) {
-      const [lat, lng] = order.delivery_coordinates.split(',').map(c => c.trim());
-      const yandexMapsUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
-      locationLink = `<a href="${yandexMapsUrl}">${order.delivery_address || 'Открыть карту'}</a>`;
+      const coords = order.delivery_coordinates.split(',').map(c => c.trim());
+      if (coords.length === 2) {
+        const [lat, lng] = coords;
+        locationText = `🗺 <a href="https://www.google.com/maps?q=${lat},${lng}">Открыть на карте</a>`;
+      }
+    } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
+      locationText = `📍 ${order.delivery_address}`;
     }
     
-    const message = 
-      `🛒 <b>Новый заказ #${order.order_number}</b>\n\n` +
-      `👤 <b>Клиент:</b> ${order.customer_name}\n` +
-      `📞 <b>Телефон:</b> <a href="tel:${order.customer_phone}">${order.customer_phone}</a>\n` +
-      `📍 <b>Адрес:</b> ${locationLink}\n` +
-      `${paymentEmoji} <b>Оплата:</b> ${paymentText}\n` +
-      `💰 <b>Сумма:</b> ${order.total_amount} сум\n\n` +
-      `🛍️ <b>Состав заказа:</b>\n${itemsList}\n\n` +
-      (order.comment ? `💬 <b>Комментарий:</b> ${order.comment}\n\n` : '') +
-      `📅 <b>Дата доставки:</b> ${order.delivery_date || 'Не указана'} ${order.delivery_time || ''}`;
+    // Calculate total
+    const productsTotal = parseFloat(order.total_amount);
     
-    await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
+    const message = 
+      `<b>ID: ${order.order_number}</b> #новый\n\n` +
+      (locationText ? `Адрес доставки: ${locationText}\n` : '') +
+      `Телефон: ${order.customer_phone}\n\n` +
+      `<b>Товары</b>\n\n${itemsList}\n\n` +
+      (order.comment ? `Комментарий: ${order.comment}\n\n` : 'Комментарий: Не указан\n\n') +
+      `<b>Итого: ${formatPrice(productsTotal)} сум</b>\n\n` +
+      `Получатель: ${order.customer_name}`;
+    
+    await bot.sendMessage(targetChatId, message, { 
+      parse_mode: 'HTML',
+      disable_web_page_preview: true 
+    });
     console.log(`✅ Order notification sent to ${targetChatId}`);
   } catch (error) {
     console.error('Send order notification error:', error);
@@ -93,10 +102,6 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
 
 /**
  * Send order status update to user
- * @param {number} telegramId - User's Telegram ID
- * @param {Object} order - Order object
- * @param {string} status - New status
- * @param {string} botToken - Optional restaurant-specific bot token
  */
 async function sendOrderUpdateToUser(telegramId, order, status, botToken = null) {
   if (!telegramId) return;
@@ -108,36 +113,35 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null)
   }
   
   try {
-    const statusMessages = {
-      'new': '🆕 Ваш заказ принят и обрабатывается',
-      'preparing': '👨‍🍳 Ваш заказ готовится',
-      'delivering': '🚚 Ваш заказ доставляется',
-      'delivered': '✅ Ваш заказ доставлен',
-      'cancelled': '❌ Ваш заказ отменен'
+    const statusTags = {
+      'new': '#новый',
+      'preparing': '#готовится',
+      'delivering': '#доставляется',
+      'delivered': '#доставлен',
+      'cancelled': '#отменен'
     };
     
-    const message = 
-      `${statusMessages[status] || '📦 Обновление заказа'}\n\n` +
-      `Заказ #${order.order_number}\n` +
-      `Сумма: ${order.total_amount} сум\n` +
-      `Статус: ${getStatusText(status)}`;
+    const statusMessages = {
+      'new': '✅ Ваш заказ принят!',
+      'preparing': '👨‍🍳 Ваш заказ готовится',
+      'delivering': '🚗 Ваш заказ в пути',
+      'delivered': '✅ Ваш заказ доставлен!',
+      'cancelled': '❌ Заказ отменен'
+    };
     
-    await bot.sendMessage(telegramId, message);
+    const tag = statusTags[status] || '#обновлен';
+    const statusText = statusMessages[status] || 'Обновление заказа';
+    
+    const message = 
+      `<b>ID: ${order.order_number}</b> ${tag}\n\n` +
+      `${statusText}\n\n` +
+      `Сумма: ${formatPrice(order.total_amount)} сум`;
+    
+    await bot.sendMessage(telegramId, message, { parse_mode: 'HTML' });
     console.log(`✅ Order update sent to user ${telegramId}`);
   } catch (error) {
     console.error('Send order update error:', error);
   }
-}
-
-function getStatusText(status) {
-  const statusMap = {
-    'new': 'Новый',
-    'preparing': 'Готовится',
-    'delivering': 'Доставляется',
-    'delivered': 'Доставлен',
-    'cancelled': 'Отменен'
-  };
-  return statusMap[status] || status;
 }
 
 module.exports = { sendOrderNotification, sendOrderUpdateToUser };
