@@ -10,6 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import Spinner from 'react-bootstrap/Spinner';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import OrderReceipt from '../components/OrderReceipt';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -38,6 +39,9 @@ function Cart() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [error, setError] = useState('');
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState(null);
+  const [orderItems, setOrderItems] = useState([]);
 
   const availableTimes = useMemo(() => {
     const now = new Date();
@@ -158,8 +162,11 @@ function Cart() {
       const response = await axios.post(`${API_URL}/orders`, orderData);
       console.log('✅ Order created:', response.data);
       
+      // Save order info for receipt
+      setCreatedOrder(response.data.order);
+      setOrderItems(orderData.items);
+      setShowReceipt(true);
       clearCart();
-      navigate('/orders', { state: { orderCreated: true } });
     } catch (err) {
       console.error('❌ Order error:', err);
       console.error('❌ Response:', err.response?.data);
@@ -472,6 +479,15 @@ function Cart() {
           )}
         </Card.Body>
       </Card>
+
+      {/* Receipt animation */}
+      {showReceipt && (
+        <OrderReceipt 
+          order={createdOrder} 
+          items={orderItems}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
 
       {/* Модалка для локации */}
       <Modal show={showLocationModal} onHide={() => setShowLocationModal(false)} centered>
