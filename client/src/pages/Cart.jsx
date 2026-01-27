@@ -120,8 +120,13 @@ function Cart() {
       return;
     }
 
-    if (!formData.delivery_address || !formData.customer_phone) {
-      setError('Заполните адрес и телефон');
+    if (!formData.customer_phone) {
+      setError('Укажите номер телефона');
+      return;
+    }
+    
+    if (!hasLocation && !formData.delivery_address) {
+      setError('Укажите адрес доставки');
       return;
     }
 
@@ -129,6 +134,10 @@ function Cart() {
 
     try {
       const restaurant_id = cart[0]?.restaurant_id || user?.active_restaurant_id;
+      
+      // Если нет адреса но есть локация - используем координаты
+      const deliveryAddress = formData.delivery_address || 
+        (hasLocation ? `Локация: ${mapCoordinates.lat.toFixed(6)}, ${mapCoordinates.lng.toFixed(6)}` : '');
       
       const orderData = {
         items: cart.map(item => ({
@@ -140,6 +149,7 @@ function Cart() {
         })),
         restaurant_id,
         ...formData,
+        delivery_address: deliveryAddress,
         customer_name: formData.customer_name || user?.full_name || 'Клиент',
         delivery_date: new Date().toISOString().split('T')[0]
       };
@@ -321,21 +331,23 @@ function Cart() {
                 </Button>
               )}
 
-              {/* Адрес */}
-              <Form.Group className="mb-3">
-                <Form.Label className="small text-muted mb-1">
-                  Адрес доставки <span className="text-danger">*</span>
-                </Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formData.delivery_address}
-                  onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
-                  placeholder="Улица, дом, подъезд, квартира"
-                  className="border-0 bg-light"
-                  required
-                />
-              </Form.Group>
+              {/* Адрес - только если нет локации */}
+              {!hasLocation && (
+                <Form.Group className="mb-3">
+                  <Form.Label className="small text-muted mb-1">
+                    Адрес доставки <span className="text-danger">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formData.delivery_address}
+                    onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
+                    placeholder="Улица, дом, подъезд, квартира"
+                    className="border-0 bg-light"
+                    required
+                  />
+                </Form.Group>
+              )}
 
               {/* Телефон */}
               <Form.Group className="mb-3">
@@ -475,7 +487,7 @@ function Cart() {
             {locationLoading ? (
               <><Spinner size="sm" className="me-2" />Определение...</>
             ) : (
-              '📍 Определить местоположение'
+              '📍 Определить'
             )}
           </Button>
           <Button 
