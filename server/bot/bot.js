@@ -1,9 +1,60 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
-const { sendOrderNotification, sendOrderUpdateToUser } = require('./notifications');
 
 let bot = null;
+
+// Store for registration states
+const registrationStates = new Map();
+
+// Check if point is inside polygon (ray casting algorithm)
+function isPointInPolygon(point, polygon) {
+  if (!polygon || polygon.length < 3) return false;
+  
+  const [lat, lng] = point;
+  let inside = false;
+  
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [lat_i, lng_i] = polygon[i];
+    const [lat_j, lng_j] = polygon[j];
+    
+    if (((lng_i > lng) !== (lng_j > lng)) &&
+        (lat < (lat_j - lat_i) * (lng - lng_i) / (lng_j - lng_i) + lat_i)) {
+      inside = !inside;
+    }
+  }
+  
+  return inside;
+}
+
+// Find restaurant by delivery zone
+async function findRestaurantByLocation(lat, lng) {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, delivery_zone, logo_url
+      FROM restaurants 
+      WHERE is_active = true AND delivery_zone IS NOT NULL
+    `);
+    
+    for (const restaurant of result.rows) {
+      let zone = restaurant.delivery_zone;
+      
+      // Parse if string
+      if (typeof zone === 'string') {
+        zone = JSON.parse(zone);
+      }
+      
+      if (zone && isPointInPolygon([lat, lng], zone)) {
+        return restaurant;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Find restaurant error:', error);
+    return null;
+  }
+}
 
 function initBot() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -13,34 +64,30 @@ function initBot() {
     return;
   }
   
-  // Use webhook in production, polling in development
   const isProduction = process.env.NODE_ENV === 'production';
   const webAppUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
   
   if (isProduction && webAppUrl) {
-    // Use webhook for production
     const webhookPath = '/api/telegram/webhook';
     const webhookUrl = `${webAppUrl}${webhookPath}`;
     
     bot = new TelegramBot(token);
     
-    // Set webhook
     bot.setWebHook(webhookUrl).then(() => {
       console.log(`🤖 Telegram bot initialized with webhook: ${webhookUrl}`);
     }).catch((error) => {
       console.error('❌ Error setting webhook:', error);
-      // Fallback to polling if webhook fails
       console.log('⚠️  Falling back to polling mode');
       bot = new TelegramBot(token, { polling: true });
-      console.log('🤖 Telegram bot initialized with polling (fallback)');
     });
   } else {
-    // Use polling for development
     bot = new TelegramBot(token, { polling: true });
     console.log('🤖 Telegram bot initialized with polling');
   }
   
-  // Start command
+  // =====================================================
+  // /start command
+  // =====================================================
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -54,86 +101,39 @@ function initBot() {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
-        const webAppUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app';
         
-        if (user.role === 'admin') {
-          bot.sendMessage(chatId, 
-            `👋 Добро пожаловать, администратор!\n\n` +
-            `⚠️ <b>Внимание:</b> Администраторы должны использовать отдельный логин для входа в админ-панель.\n\n` +
-            `🌐 Админ-панель: ${webAppUrl}/admin\n\n` +
-            `ℹ️ Используйте логин администратора (не через бота).`,
-            { parse_mode: 'HTML' }
-          );
-        } else {
-          bot.sendMessage(chatId, 
-            `👋 Добро пожаловать, ${user.full_name || user.username}!\n\n` +
-            `👤 Ваш логин: <code>${user.username}</code>\n` +
-            `🔑 Для входа используйте ваш пароль (если забыли, обратитесь к администратору).\n\n` +
-            `🌐 Откройте веб-приложение: ${webAppUrl}\n\n` +
-            `ℹ️ <i>Примечание: Администраторы используют отдельный логин.</i>`,
-            { parse_mode: 'HTML' }
-          );
-        }
+        // User already registered - show menu button
+        bot.sendMessage(chatId, 
+          `👋 С возвращением, ${user.full_name}!\n\n` +
+          `📱 Нажмите кнопку ниже чтобы открыть меню:`,
+          {
+            reply_markup: {
+              inline_keyboard: [[
+                { 
+                  text: '🍽️ Открыть меню', 
+                  web_app: { url: webAppUrl || 'https://tandoorapp-production.up.railway.app' }
+                }
+              ]]
+            }
+          }
+        );
       } else {
-        // Start registration
+        // Start registration - ask for contact
+        registrationStates.set(userId, { step: 'waiting_contact' });
+        
         bot.sendMessage(chatId,
           '👋 Добро пожаловать!\n\n' +
-          'Для использования системы необходимо зарегистрироваться.\n\n' +
-          'Введите ваше имя:'
-        );
-        
-        // Store registration state
-        bot.once('message', async (msg) => {
-          if (msg.text && !msg.text.startsWith('/')) {
-            const fullName = msg.text;
-            
-            bot.sendMessage(chatId, 'Введите номер телефона (например: +998901234567):');
-            
-            bot.once('message', async (phoneMsg) => {
-              if (phoneMsg.text && !phoneMsg.text.startsWith('/')) {
-                const phone = phoneMsg.text;
-                
-                // Generate username and password (ensure it doesn't conflict with admin)
-                const username = `user_${userId}`;
-                const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
-                const hashedPassword = await bcrypt.hash(password, 10);
-                
-                try {
-                  // Check if username already exists (shouldn't happen, but just in case)
-                  const existingUser = await pool.query(
-                    'SELECT id FROM users WHERE username = $1',
-                    [username]
-                  );
-                  
-                  if (existingUser.rows.length > 0) {
-                    bot.sendMessage(chatId, '❌ Пользователь с таким логином уже существует. Обратитесь к администратору.');
-                    return;
-                  }
-                  
-                  await pool.query(
-                    `INSERT INTO users (telegram_id, username, password, full_name, phone, role)
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [userId, username, hashedPassword, fullName, phone, 'customer']
-                  );
-                  
-                  bot.sendMessage(chatId,
-                    `✅ Регистрация успешна!\n\n` +
-                    `📝 Ваши данные для входа в систему:\n` +
-                    `👤 Логин: <code>${username}</code>\n` +
-                    `🔑 Пароль: <code>${password}</code>\n\n` +
-                    `⚠️ <b>ВАЖНО:</b> Сохраните эти данные! Они нужны для входа в веб-приложение.\n\n` +
-                    `🌐 Откройте веб-приложение: ${process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app'}\n\n` +
-                    `ℹ️ <i>Примечание: Администраторы используют отдельный логин.</i>`,
-                    { parse_mode: 'HTML' }
-                  );
-                } catch (error) {
-                  console.error('Registration error:', error);
-                  bot.sendMessage(chatId, '❌ Ошибка регистрации. Попробуйте позже.');
-                }
-              }
-            });
+          '📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
+          {
+            reply_markup: {
+              keyboard: [[
+                { text: '📱 Поделиться контактом', request_contact: true }
+              ]],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            }
           }
-        });
+        );
       }
     } catch (error) {
       console.error('Start command error:', error);
@@ -141,19 +141,197 @@ function initBot() {
     }
   });
   
-  // Help command
+  // =====================================================
+  // Handle contact sharing
+  // =====================================================
+  bot.on('contact', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const contact = msg.contact;
+    
+    const state = registrationStates.get(userId);
+    if (!state || state.step !== 'waiting_contact') return;
+    
+    // Save contact and ask for name
+    state.phone = contact.phone_number;
+    state.step = 'waiting_name';
+    registrationStates.set(userId, state);
+    
+    bot.sendMessage(chatId, 
+      '✅ Спасибо!\n\n' +
+      '👤 Теперь введите ваше имя:',
+      {
+        reply_markup: { remove_keyboard: true }
+      }
+    );
+  });
+  
+  // =====================================================
+  // Handle text messages (for name input)
+  // =====================================================
+  bot.on('text', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const text = msg.text;
+    
+    // Skip commands
+    if (text.startsWith('/')) return;
+    
+    const state = registrationStates.get(userId);
+    if (!state) return;
+    
+    if (state.step === 'waiting_name') {
+      // Save name and ask for location
+      state.name = text;
+      state.step = 'waiting_location';
+      registrationStates.set(userId, state);
+      
+      bot.sendMessage(chatId,
+        `👋 Приятно познакомиться, ${text}!\n\n` +
+        '📍 Теперь поделитесь вашей геолокацией, чтобы мы проверили зону доставки:',
+        {
+          reply_markup: {
+            keyboard: [[
+              { text: '📍 Поделиться локацией', request_location: true }
+            ]],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
+    }
+  });
+  
+  // =====================================================
+  // Handle location sharing
+  // =====================================================
+  bot.on('location', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const location = msg.location;
+    
+    const state = registrationStates.get(userId);
+    if (!state || state.step !== 'waiting_location') return;
+    
+    try {
+      // Check if location is in any delivery zone
+      const restaurant = await findRestaurantByLocation(location.latitude, location.longitude);
+      
+      if (restaurant) {
+        // Location is in delivery zone - complete registration
+        const username = `user_${userId}`;
+        const password = Math.random().toString(36).slice(-8);
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Save user
+        await pool.query(`
+          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active)
+          VALUES ($1, $2, $3, $4, $5, 'customer', true)
+          ON CONFLICT (telegram_id) DO UPDATE SET
+            full_name = EXCLUDED.full_name,
+            phone = EXCLUDED.phone
+        `, [userId, username, hashedPassword, state.name, state.phone]);
+        
+        // Clear registration state
+        registrationStates.delete(userId);
+        
+        const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
+        
+        bot.sendMessage(chatId,
+          `✅ Отлично! Доставка в ваш район доступна!\n\n` +
+          `🏪 Ближайший ресторан: <b>${restaurant.name}</b>\n\n` +
+          `📝 Ваши данные для входа:\n` +
+          `👤 Логин: <code>${username}</code>\n` +
+          `🔑 Пароль: <code>${password}</code>\n\n` +
+          `⚠️ Сохраните эти данные!\n\n` +
+          `🍽️ Нажмите кнопку ниже чтобы открыть меню:`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              remove_keyboard: true,
+              inline_keyboard: [[
+                { 
+                  text: '🍽️ Открыть меню', 
+                  web_app: { url: appUrl }
+                }
+              ]]
+            }
+          }
+        );
+      } else {
+        // Location is NOT in any delivery zone
+        bot.sendMessage(chatId,
+          '😔 Извините!\n\n' +
+          'К сожалению, доставка по вашему адресу пока не осуществляется.\n\n' +
+          '📍 Попробуйте отправить другую локацию или свяжитесь с нами для уточнения.',
+          {
+            reply_markup: {
+              keyboard: [[
+                { text: '📍 Отправить другую локацию', request_location: true }
+              ]],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            }
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Location handling error:', error);
+      bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+    }
+  });
+  
+  // =====================================================
+  // /help command
+  // =====================================================
   bot.onText(/\/help/, (msg) => {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId,
       '📖 Справка:\n\n' +
-      '/start - Начать/Войти\n' +
-      '/help - Показать справку\n' +
-      '/orders - Мои заказы\n\n' +
-      `🌐 Веб-приложение: ${process.env.TELEGRAM_WEB_APP_URL || 'https://your-app.railway.app'}`
+      '/start - Начать регистрацию\n' +
+      '/menu - Открыть меню\n' +
+      '/orders - Мои заказы\n' +
+      '/help - Показать справку'
     );
   });
   
-  // My orders command
+  // =====================================================
+  // /menu command
+  // =====================================================
+  bot.onText(/\/menu/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE telegram_id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Используйте /start');
+      return;
+    }
+    
+    const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
+    
+    bot.sendMessage(chatId,
+      '🍽️ Нажмите кнопку ниже чтобы открыть меню:',
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { 
+              text: '🍽️ Открыть меню', 
+              web_app: { url: appUrl }
+            }
+          ]]
+        }
+      }
+    );
+  });
+  
+  // =====================================================
+  // /orders command
+  // =====================================================
   bot.onText(/\/orders/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -170,7 +348,7 @@ function initBot() {
       }
       
       const ordersResult = await pool.query(
-        `SELECT o.*, 
+        `SELECT o.*, r.name as restaurant_name,
                 COALESCE(
                   json_agg(
                     json_build_object(
@@ -182,22 +360,23 @@ function initBot() {
                   '[]'
                 ) as items
          FROM orders o
+         LEFT JOIN restaurants r ON o.restaurant_id = r.id
          LEFT JOIN order_items oi ON o.id = oi.order_id
          WHERE o.user_id = $1
-         GROUP BY o.id
+         GROUP BY o.id, r.name
          ORDER BY o.created_at DESC
-         LIMIT 10`,
+         LIMIT 5`,
         [userResult.rows[0].id]
       );
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов');
+        bot.sendMessage(chatId, '📦 У вас пока нет заказов.\n\nИспользуйте /menu чтобы сделать заказ.');
         return;
       }
       
-      let message = '📦 Ваши последние заказы:\n\n';
+      let message = '📦 <b>Ваши последние заказы:</b>\n\n';
       
-      ordersResult.rows.forEach((order, index) => {
+      ordersResult.rows.forEach((order) => {
         const statusEmoji = {
           'new': '🆕',
           'preparing': '👨‍🍳',
@@ -206,13 +385,14 @@ function initBot() {
           'cancelled': '❌'
         };
         
-        message += `${statusEmoji[order.status] || '📦'} Заказ #${order.order_number}\n`;
-        message += `Статус: ${getStatusText(order.status)}\n`;
-        message += `Сумма: ${order.total_amount} сум\n`;
-        message += `Дата: ${new Date(order.created_at).toLocaleDateString('ru-RU')}\n\n`;
+        message += `${statusEmoji[order.status] || '📦'} <b>Заказ #${order.order_number}</b>\n`;
+        if (order.restaurant_name) message += `🏪 ${order.restaurant_name}\n`;
+        message += `💰 ${order.total_amount} сум\n`;
+        message += `📅 ${new Date(order.created_at).toLocaleDateString('ru-RU')}\n`;
+        message += `Статус: ${getStatusText(order.status)}\n\n`;
       });
       
-      bot.sendMessage(chatId, message);
+      bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
     } catch (error) {
       console.error('Orders command error:', error);
       bot.sendMessage(chatId, '❌ Ошибка получения заказов');
@@ -221,11 +401,10 @@ function initBot() {
   
   // Error handling
   bot.on('polling_error', (error) => {
-    if (error.response && error.response.body && error.response.body.error_code === 409) {
-      console.warn('⚠️  Telegram bot conflict: Another instance is running. This is normal if using webhook.');
-      // Don't exit, just log the warning
+    if (error.response?.body?.error_code === 409) {
+      console.warn('⚠️  Telegram bot conflict: Another instance is running');
     } else {
-      console.error('Telegram polling error:', error);
+      console.error('Telegram polling error:', error.message);
     }
   });
   
@@ -250,4 +429,3 @@ function getBot() {
 }
 
 module.exports = { initBot, getBot };
-
