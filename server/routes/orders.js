@@ -108,14 +108,16 @@ router.post('/', authenticate, async (req, res) => {
     // Check restaurant working hours (block orders outside schedule)
     if (finalRestaurantId) {
       const hoursResult = await client.query(
-        'SELECT open_time, close_time FROM restaurants WHERE id = $1',
+        'SELECT start_time, end_time FROM restaurants WHERE id = $1',
         [finalRestaurantId]
       );
       const hours = hoursResult.rows[0];
-      if (hours?.open_time && hours?.close_time) {
+      if (hours?.start_time && hours?.end_time) {
         const now = new Date();
-        const [openH, openM] = hours.open_time.split(':').map(Number);
-        const [closeH, closeM] = hours.close_time.split(':').map(Number);
+        const startTime = hours.start_time.substring(0, 5); // "HH:MM"
+        const endTime = hours.end_time.substring(0, 5);
+        const [openH, openM] = startTime.split(':').map(Number);
+        const [closeH, closeM] = endTime.split(':').map(Number);
         const openMinutes = openH * 60 + openM;
         const closeMinutes = closeH * 60 + closeM;
         const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -126,7 +128,7 @@ router.post('/', authenticate, async (req, res) => {
         if (!isOpen) {
           await client.query('ROLLBACK');
           return res.status(400).json({
-            error: `Ресторан работает с ${hours.open_time} по ${hours.close_time}`
+            error: `Ресторан работает с ${startTime} по ${endTime}`
           });
         }
       }

@@ -46,7 +46,7 @@ function isPointInPolygon(point, polygon) {
 async function findRestaurantByLocation(lat, lng) {
   try {
     const result = await pool.query(`
-      SELECT id, name, delivery_zone, logo_url, open_time, close_time
+      SELECT id, name, delivery_zone, logo_url, start_time, end_time
       FROM restaurants 
       WHERE is_active = true AND delivery_zone IS NOT NULL
     `);
@@ -255,11 +255,16 @@ function initBot() {
       const restaurant = await findRestaurantByLocation(location.latitude, location.longitude);
       
       if (restaurant) {
-        if (!isRestaurantOpen(restaurant.open_time, restaurant.close_time)) {
+        // Check working hours
+        const startTime = restaurant.start_time ? restaurant.start_time.substring(0, 5) : null;
+        const endTime = restaurant.end_time ? restaurant.end_time.substring(0, 5) : null;
+        
+        if (!isRestaurantOpen(startTime, endTime)) {
           bot.sendMessage(chatId,
-            `😔 Извините, данный ресторан работает с ${restaurant.open_time || '??:??'} по ${restaurant.close_time || '??:??'}.`,
+            `😔 Извините, данный ресторан работает с ${startTime || '??:??'} по ${endTime || '??:??'}.\n\nПопробуйте позже!`,
             { reply_markup: { remove_keyboard: true } }
           );
+          registrationStates.delete(userId);
           return;
         }
         const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
