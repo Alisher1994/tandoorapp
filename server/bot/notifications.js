@@ -66,16 +66,17 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       return `${index + 1}. ${item.product_name}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
     }).join('\n\n');
     
-    // Build location link
-    let locationText = '';
+    // Build location link - "Адрес доставки" is clickable link to map
+    let locationLine = '';
     if (order.delivery_coordinates) {
       const coords = order.delivery_coordinates.split(',').map(c => c.trim());
       if (coords.length === 2) {
         const [lat, lng] = coords;
-        locationText = `🗺 <a href="https://www.google.com/maps?q=${lat},${lng}">Открыть на карте</a>`;
+        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+        locationLine = `<a href="${mapUrl}">Адрес доставки</a>: 🗺 На карте`;
       }
     } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
-      locationText = `📍 ${order.delivery_address}`;
+      locationLine = `Адрес доставки: 📍 ${order.delivery_address}`;
     }
     
     // Calculate total
@@ -83,7 +84,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
     
     const message = 
       `<b>ID: ${order.order_number}</b> #новый\n\n` +
-      (locationText ? `Адрес доставки: ${locationText}\n` : '') +
+      (locationLine ? `${locationLine}\n` : '') +
       `Телефон: ${order.customer_phone}\n\n` +
       `<b>Товары</b>\n\n${itemsList}\n\n` +
       (order.comment ? `Комментарий: ${order.comment}\n\n` : 'Комментарий: Не указан\n\n') +
