@@ -66,7 +66,27 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single product
+// Get restaurant by id (public - for receipt/logo)
+router.get('/restaurant/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, address, phone, logo_url 
+       FROM restaurants 
+       WHERE id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Restaurant error:', error);
+    res.status(500).json({ error: 'Ошибка получения ресторана' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const result = await pool.query(`
