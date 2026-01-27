@@ -105,6 +105,33 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
     
+    // Check restaurant working hours (block orders outside schedule)
+    if (finalRestaurantId) {
+      const hoursResult = await client.query(
+        'SELECT open_time, close_time FROM restaurants WHERE id = $1',
+        [finalRestaurantId]
+      );
+      const hours = hoursResult.rows[0];
+      if (hours?.open_time && hours?.close_time) {
+        const now = new Date();
+        const [openH, openM] = hours.open_time.split(':').map(Number);
+        const [closeH, closeM] = hours.close_time.split(':').map(Number);
+        const openMinutes = openH * 60 + openM;
+        const closeMinutes = closeH * 60 + closeM;
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const isOpen = openMinutes < closeMinutes
+          ? nowMinutes >= openMinutes && nowMinutes < closeMinutes
+          : nowMinutes >= openMinutes || nowMinutes < closeMinutes;
+
+        if (!isOpen) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: `Ресторан работает с ${hours.open_time} по ${hours.close_time}`
+          });
+        }
+      }
+    }
+
     // Calculate total
     const totalAmount = items.reduce((sum, item) => {
       return sum + (parseFloat(item.price) * parseFloat(item.quantity));

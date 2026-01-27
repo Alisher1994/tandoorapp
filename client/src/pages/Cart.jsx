@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -36,6 +36,7 @@ function Cart() {
   });
 
   const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
+  const [step, setStep] = useState(1);
 
   const availableTimes = useMemo(() => {
     const now = new Date();
@@ -73,19 +74,6 @@ function Cart() {
       }));
     }
   }, [deliveryTimeMode, availableTimes]);
-
-  const startHold = () => {
-    holdTimerRef.current = setTimeout(() => {
-      setShowLocationModal(true);
-    }, 600);
-  };
-
-  const cancelHold = () => {
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-  };
 
   const applyCoordinates = (lat, lng) => {
     if (Number.isNaN(lat) || Number.isNaN(lng)) return;
@@ -125,7 +113,6 @@ function Cart() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [manualLat, setManualLat] = useState('');
   const [manualLng, setManualLng] = useState('');
-  const holdTimerRef = useRef(null);
 
   const mapCoordinates = useMemo(() => {
     if (formData.delivery_coordinates) {
@@ -155,7 +142,7 @@ function Cart() {
       return;
     }
 
-    if (!formData.delivery_address || !formData.customer_name || !formData.customer_phone) {
+    if (!formData.delivery_address || !formData.customer_phone) {
       setError('Заполните все обязательные поля');
       return;
     }
@@ -272,141 +259,150 @@ function Cart() {
               {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
 
               <Form onSubmit={handleSubmit} className="mt-3">
-                <Form.Group className="mb-3">
-                  <Form.Label>Имя <span className="text-danger">*</span></Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={formData.customer_name}
-                    onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                    required
-                  />
-                </Form.Group>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <Badge bg={step === 1 ? 'primary' : 'secondary'}>Шаг 1</Badge>
+                  <span className={step === 1 ? 'fw-semibold' : 'text-muted'}>Товары и комментарии</span>
+                  <Badge bg={step === 2 ? 'primary' : 'secondary'}>Шаг 2</Badge>
+                  <span className={step === 2 ? 'fw-semibold' : 'text-muted'}>Адрес и оплата</span>
+                </div>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Телефон <span className="text-danger">*</span></Form.Label>
-                  <Form.Control
-                    type="tel"
-                    value={formData.customer_phone}
-                    onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
-                    required
-                  />
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label>Адрес доставки <span className="text-danger">*</span></Form.Label>
-                  {hasLocation && (
-                    <Alert variant="success" className="py-2 mb-2">
-                      <small>
-                        📍 Локация получена из Telegram
-                        <br />
-                        <a 
-                          href={`https://yandex.ru/maps/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=17&l=map`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Посмотреть на карте →
-                        </a>
-                      </small>
-                    </Alert>
-                  )}
-                  {hasLocation && (
-                    <div
-                      className="mb-2 rounded overflow-hidden"
-                      style={{ border: '1px solid #eee' }}
-                      onMouseDown={startHold}
-                      onMouseUp={cancelHold}
-                      onMouseLeave={cancelHold}
-                      onTouchStart={startHold}
-                      onTouchEnd={cancelHold}
-                    >
-                      <iframe
-                        title="delivery-map"
-                        src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
-                        width="100%"
-                        height="200"
-                        frameBorder="0"
+                {step === 1 && (
+                  <>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Комментарий</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={2}
+                        value={formData.comment}
+                        onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                       />
-                    </div>
-                  )}
-                  {hasLocation && (
-                    <Form.Text className="text-muted">
-                      Нажмите и удерживайте карту, чтобы изменить точку доставки.
-                    </Form.Text>
-                  )}
-                  <Form.Control
-                    as="textarea"
-                    rows={2}
-                    value={formData.delivery_address}
-                    onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
-                    placeholder={hasLocation ? "Уточните адрес (дом, подъезд, квартира)" : "Введите полный адрес доставки"}
-                    required
-                  />
-                  {hasLocation && (
-                    <Form.Text className="text-muted">
-                      Уточните адрес: номер дома, подъезд, квартира
-                    </Form.Text>
-                  )}
-                </Form.Group>
-
-                <input type="hidden" value={formData.delivery_date} readOnly />
-
-                <Form.Group className="mb-3">
-                  <Form.Label>Время доставки</Form.Label>
-                  <div className="d-flex gap-2">
-                    <Form.Check
-                      type="radio"
-                      id="time-asap"
-                      label="Как можно быстрее"
-                      checked={deliveryTimeMode === 'asap'}
-                      onChange={() => setDeliveryTimeMode('asap')}
-                    />
-                    <Form.Check
-                      type="radio"
-                      id="time-scheduled"
-                      label="Выбрать время"
-                      checked={deliveryTimeMode === 'scheduled'}
-                      onChange={() => setDeliveryTimeMode('scheduled')}
-                    />
-                  </div>
-                  {deliveryTimeMode === 'scheduled' && (
-                    <Form.Select
-                      className="mt-2"
-                      value={formData.delivery_time}
-                      onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
+                    </Form.Group>
+                    <Button
+                      variant="primary"
+                      className="w-100"
+                      onClick={() => setStep(2)}
                     >
-                      {availableTimes.length === 0 && (
-                        <option value="">Нет доступного времени на сегодня</option>
+                      Далее
+                    </Button>
+                  </>
+                )}
+
+                {step === 2 && (
+                  <>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Телефон <span className="text-danger">*</span></Form.Label>
+                      <Form.Control
+                        type="tel"
+                        value={formData.customer_phone}
+                        onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                        required
+                      />
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label>Адрес доставки <span className="text-danger">*</span></Form.Label>
+                      {hasLocation && (
+                        <div className="mb-2 rounded overflow-hidden" style={{ border: '1px solid #eee' }}>
+                          <iframe
+                            title="delivery-map"
+                            src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
+                            width="100%"
+                            height="200"
+                            frameBorder="0"
+                          />
+                        </div>
                       )}
-                      {availableTimes.map(time => (
-                        <option key={time} value={time}>{time}</option>
-                      ))}
-                    </Form.Select>
-                  )}
-                  <Form.Text className="text-muted">
-                    Минимальное время: 45 минут от текущего.
-                  </Form.Text>
-                </Form.Group>
+                      {hasLocation && (
+                        <div className="d-flex gap-2 mb-2">
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            onClick={() => setShowLocationModal(true)}
+                          >
+                            Изменить точку
+                          </Button>
+                        </div>
+                      )}
+                      <Form.Control
+                        as="textarea"
+                        rows={2}
+                        value={formData.delivery_address}
+                        onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
+                        placeholder={hasLocation ? "Уточните адрес (дом, подъезд, квартира)" : "Введите полный адрес доставки"}
+                        required
+                      />
+                      {hasLocation && (
+                        <Form.Text className="text-muted">
+                          Уточните адрес: номер дома, подъезд, квартира
+                        </Form.Text>
+                      )}
+                    </Form.Group>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Способ оплаты</Form.Label>
-                  <Form.Select
-                    value={formData.payment_method}
-                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                  >
-                    <option value="cash">Наличные</option>
-                    <option value="card">Карта</option>
-                  </Form.Select>
-                </Form.Group>
+                    <input type="hidden" value={formData.delivery_date} readOnly />
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Комментарий</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={2}
-                    value={formData.comment}
-                    onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-                  />
-                </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Время доставки</Form.Label>
+                      <div className="d-flex gap-2">
+                        <Form.Check
+                          type="radio"
+                          id="time-asap"
+                          label="Как можно быстрее"
+                          checked={deliveryTimeMode === 'asap'}
+                          onChange={() => setDeliveryTimeMode('asap')}
+                        />
+                        <Form.Check
+                          type="radio"
+                          id="time-scheduled"
+                          label="Выбрать время"
+                          checked={deliveryTimeMode === 'scheduled'}
+                          onChange={() => setDeliveryTimeMode('scheduled')}
+                        />
+                      </div>
+                      {deliveryTimeMode === 'scheduled' && (
+                        <Form.Select
+                          className="mt-2"
+                          value={formData.delivery_time}
+                          onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
+                        >
+                          {availableTimes.length === 0 && (
+                            <option value="">Нет доступного времени на сегодня</option>
+                          )}
+                          {availableTimes.map(time => (
+                            <option key={time} value={time}>{time}</option>
+                          ))}
+                        </Form.Select>
+                      )}
+                      <Form.Text className="text-muted">
+                        Минимальное время: 45 минут от текущего.
+                      </Form.Text>
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label>Способ оплаты</Form.Label>
+                      <Form.Select
+                        value={formData.payment_method}
+                        onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                      >
+                        <option value="cash">Наличные</option>
+                        <option value="card">Карта</option>
+                      </Form.Select>
+                    </Form.Group>
+
+                    <div className="d-flex gap-2">
+                      <Button variant="outline-secondary" className="w-50" onClick={() => setStep(1)}>
+                        Назад
+                      </Button>
+                      <Button
+                        variant="primary"
+                        type="submit"
+                        className="w-50"
+                        disabled={loading}
+                      >
+                        {loading ? 'Оформление...' : 'Оформить заказ'}
+                      </Button>
+                    </div>
+                  </>
+                )}
 
                 <div className="border-top pt-3 mb-3">
                   <div className="d-flex justify-content-between mb-2">
@@ -415,14 +411,6 @@ function Cart() {
                   </div>
                 </div>
 
-                <Button
-                  variant="primary"
-                  type="submit"
-                  className="w-100"
-                  disabled={loading}
-                >
-                  {loading ? 'Оформление...' : 'Оформить заказ'}
-                </Button>
               </Form>
             </Card.Body>
           </Card>
@@ -435,8 +423,7 @@ function Cart() {
         </Modal.Header>
         <Modal.Body>
           <Alert variant="info">
-            Долгое нажатие по карте открыло это окно. Вы можете использовать текущую
-            геолокацию или ввести координаты вручную.
+            Вы можете использовать текущее местоположение или ввести координаты вручную.
           </Alert>
           <div className="d-grid gap-2 mb-3">
             <Button variant="primary" onClick={useCurrentLocation}>
