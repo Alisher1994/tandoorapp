@@ -3,10 +3,9 @@ import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Badge from 'react-bootstrap/Badge';
-import Navbar from 'react-bootstrap/Navbar';
-import Nav from 'react-bootstrap/Nav';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -87,42 +86,24 @@ function Orders() {
 
   return (
     <>
-      <Navbar bg="white" expand="lg" className="shadow-sm mb-4">
-        <Container>
-          <Navbar.Brand className="d-flex align-items-center">
-            {restaurant?.logo_url ? (
+      {/* Simple header */}
+      <div className="bg-white shadow-sm py-3 mb-3">
+        <Container style={{ maxWidth: '600px' }}>
+          <div className="d-flex align-items-center justify-content-between">
+            <h5 className="mb-0">📋 Мои заказы</h5>
+            {restaurant?.logo_url && (
               <img 
                 src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`} 
                 alt="Logo" 
-                height="40" 
+                height="32" 
                 style={{ objectFit: 'contain' }}
               />
-            ) : (
-              <span className="fw-bold">{restaurant?.name || 'Заказы'}</span>
             )}
-          </Navbar.Brand>
-          <Navbar.Toggle />
-          <Navbar.Collapse className="justify-content-end">
-            <Nav>
-              <Nav.Link onClick={() => navigate('/')}>
-                <i className="bi bi-shop me-1"></i>
-                Каталог
-              </Nav.Link>
-              <Nav.Link onClick={() => navigate('/cart')}>
-                <i className="bi bi-cart me-1"></i>
-                Корзина
-              </Nav.Link>
-              <Nav.Link onClick={logout}>
-                <i className="bi bi-box-arrow-right me-1"></i>
-                Выход
-              </Nav.Link>
-            </Nav>
-          </Navbar.Collapse>
+          </div>
         </Container>
-      </Navbar>
+      </div>
 
       <Container style={{ maxWidth: '600px' }}>
-        <h5 className="mb-4">Мои заказы</h5>
 
         {orders.length === 0 ? (
           <Card className="border-0 shadow-sm text-center py-5">
@@ -190,7 +171,13 @@ function Orders() {
             </Card>
           ))
         )}
+        
+        {/* Spacer for bottom nav */}
+        <div style={{ height: '70px' }} />
       </Container>
+      
+      {/* Bottom navigation */}
+      <BottomNav />
     </>
   );
 }

@@ -11,6 +11,7 @@ import Spinner from 'react-bootstrap/Spinner';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import OrderReceipt from '../components/OrderReceipt';
+import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -539,6 +540,12 @@ function Cart() {
           </Button>
         </Modal.Body>
       </Modal>
+      
+      {/* Bottom navigation */}
+      <BottomNav />
+      
+      {/* Spacer for bottom nav */}
+      <div style={{ height: '70px' }} />
     </Container>
   );
 }

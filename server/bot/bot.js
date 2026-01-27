@@ -169,15 +169,15 @@ function initBot() {
         
         bot.sendMessage(chatId, 
           `👋 С возвращением, ${user.full_name}!\n\n` +
-          `📍 Укажите адрес доставки:`,
+          `📍 Отправьте локацию для доставки:`,
           {
             parse_mode: 'HTML',
             reply_markup: {
-              keyboard: [[
-                { text: '📍 Отправить локацию', request_location: true }
-              ]],
-              resize_keyboard: true,
-              one_time_keyboard: true
+              keyboard: [
+                [{ text: '📍 Отправить локацию', request_location: true }],
+                [{ text: '📋 Мои заказы' }, { text: '❓ Помощь' }]
+              ],
+              resize_keyboard: true
             }
           }
         );
@@ -231,7 +231,7 @@ function initBot() {
   });
   
   // =====================================================
-  // Handle text messages (for name input)
+  // Handle text messages (for name input and menu buttons)
   // =====================================================
   bot.on('text', async (msg) => {
     const chatId = msg.chat.id;
@@ -240,6 +240,60 @@ function initBot() {
     
     // Skip commands
     if (text.startsWith('/')) return;
+    
+    // Handle menu buttons
+    if (text === '📋 Мои заказы') {
+      // Trigger /orders command
+      const userResult = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
+      if (userResult.rows.length === 0) {
+        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+        return;
+      }
+      
+      const ordersResult = await pool.query(`
+        SELECT o.order_number, o.status, o.total_amount, o.created_at
+        FROM orders o WHERE o.user_id = $1
+        ORDER BY o.created_at DESC LIMIT 5
+      `, [userResult.rows[0].id]);
+      
+      if (ordersResult.rows.length === 0) {
+        bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
+          reply_markup: {
+            inline_keyboard: [[{ text: '🛒 Сделать заказ', callback_data: 'new_order' }]]
+          }
+        });
+        return;
+      }
+      
+      let message = '📦 <b>Ваши заказы:</b>\n\n';
+      const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
+      
+      ordersResult.rows.forEach((order) => {
+        message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум\n`;
+      });
+      
+      bot.sendMessage(chatId, message, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
+        }
+      });
+      return;
+    }
+    
+    if (text === '❓ Помощь') {
+      bot.sendMessage(chatId,
+        '📖 <b>Помощь</b>\n\n' +
+        '📍 <b>Отправить локацию</b> — начать заказ\n' +
+        '📋 <b>Мои заказы</b> — история заказов\n\n' +
+        'Команды:\n' +
+        '/start — начать\n' +
+        '/menu — открыть меню\n' +
+        '/orders — мои заказы',
+        { parse_mode: 'HTML' }
+      );
+      return;
+    }
     
     const state = registrationStates.get(userId);
     if (!state) return;
@@ -564,15 +618,15 @@ function initBot() {
       });
       
       bot.sendMessage(chatId,
-        '🛒 <b>Новый заказ</b>\n\n📍 Укажите адрес доставки:',
+        '🛒 <b>Новый заказ</b>\n\n📍 Отправьте локацию для доставки:',
         {
           parse_mode: 'HTML',
           reply_markup: {
-            keyboard: [[
-              { text: '📍 Отправить локацию', request_location: true }
-            ]],
-            resize_keyboard: true,
-            one_time_keyboard: true
+            keyboard: [
+              [{ text: '📍 Отправить локацию', request_location: true }],
+              [{ text: '📋 Мои заказы' }, { text: '❓ Помощь' }]
+            ],
+            resize_keyboard: true
           }
         }
       );

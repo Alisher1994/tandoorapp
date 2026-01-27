@@ -12,6 +12,7 @@ import Nav from 'react-bootstrap/Nav';
 import Form from 'react-bootstrap/Form';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -348,21 +349,11 @@ function Catalog() {
         )}
       </Container>
 
-      {/* Fixed cart button for mobile */}
-      {cartCount > 0 && (
-        <div 
-          className="d-lg-none position-fixed bottom-0 start-0 end-0 p-3 bg-white shadow-lg"
-          style={{ zIndex: 1000 }}
-        >
-          <Button 
-            variant="primary" 
-            className="w-100 py-2"
-            onClick={() => navigate('/cart')}
-          >
-            🛒 Корзина ({cartCount})
-          </Button>
-        </div>
-      )}
+      {/* Bottom navigation */}
+      {!isOperator() && <BottomNav />}
+      
+      {/* Spacer for bottom nav */}
+      {!isOperator() && <div style={{ height: '70px' }} />}
     </>
   );
 }
