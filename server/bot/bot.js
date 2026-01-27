@@ -378,36 +378,55 @@ function initBot() {
             [userId]
           );
           
-          if (userResult.rows.length > 0) {
-            const user = userResult.rows[0];
-            
-            // Save location to database
-            await pool.query(`
-              UPDATE users 
-              SET last_latitude = $1, last_longitude = $2, active_restaurant_id = $3
-              WHERE id = $4
-            `, [location.latitude, location.longitude, restaurant.id, user.id]);
-            
-            const token = generateLoginToken(user.id, user.username);
-            const loginUrl = buildCatalogUrl(appUrl, token);
-            
-            // Clear state
+          if (userResult.rows.length === 0) {
             registrationStates.delete(userId);
-            
+            bot.sendMessage(chatId, '❌ Профиль не найден. Нажмите /start для регистрации.');
+            return;
+          }
+
+          const user = userResult.rows[0];
+          
+          // Save location to database
+          await pool.query(`
+            UPDATE users 
+            SET last_latitude = $1, last_longitude = $2, active_restaurant_id = $3
+            WHERE id = $4
+          `, [location.latitude, location.longitude, restaurant.id, user.id]);
+          
+          let loginUrl = null;
+          try {
+            const token = generateLoginToken(user.id, user.username);
+            loginUrl = buildCatalogUrl(appUrl, token);
+          } catch (tokenError) {
+            console.error('Login token error:', tokenError);
+          }
+          
+          // Clear state
+          registrationStates.delete(userId);
+          
+          if (!loginUrl) {
             bot.sendMessage(chatId,
               `✅ Отлично! Доставка доступна!\n\n` +
-              `🏪 Ресторан: <b>${restaurant.name}</b>`,
-              {
-                parse_mode: 'HTML',
-                reply_markup: {
-                  remove_keyboard: true,
-                  inline_keyboard: [
-                    [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
-                  ]
-                }
-              }
+              `🏪 Ресторан: <b>${restaurant.name}</b>\n\n` +
+              `⚠️ Ошибка выдачи ссылки. Попробуйте команду /menu.`,
+              { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
             );
+            return;
           }
+          
+          bot.sendMessage(chatId,
+            `✅ Отлично! Доставка доступна!\n\n` +
+            `🏪 Ресторан: <b>${restaurant.name}</b>`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                remove_keyboard: true,
+                inline_keyboard: [
+                  [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
+                ]
+              }
+            }
+          );
           return;
         }
         
