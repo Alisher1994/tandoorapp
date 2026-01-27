@@ -13,6 +13,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(null);
   const [restaurant, setRestaurant] = useState(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -44,6 +45,20 @@ function Orders() {
       } catch (error) {
         console.error('Error fetching restaurant:', error);
       }
+    }
+  };
+
+  const cancelOrder = async (orderId) => {
+    if (!window.confirm('Вы уверены, что хотите отменить заказ?')) return;
+    
+    setCancelling(orderId);
+    try {
+      await axios.post(`${API_URL}/orders/${orderId}/cancel`);
+      fetchOrders(); // Refresh orders
+    } catch (error) {
+      alert(error.response?.data?.error || 'Ошибка отмены заказа');
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -156,9 +171,20 @@ function Orders() {
                 )}
 
                 {order.comment && (
-                  <div className="text-muted small">
+                  <div className="text-muted small mb-2">
                     <strong>Комментарий:</strong> {order.comment}
                   </div>
+                )}
+
+                {/* Cancel button - only for 'new' status */}
+                {order.status === 'new' && (
+                  <button
+                    className="btn btn-outline-danger btn-sm w-100 mt-2"
+                    onClick={() => cancelOrder(order.id)}
+                    disabled={cancelling === order.id}
+                  >
+                    {cancelling === order.id ? 'Отмена...' : '❌ Отменить заказ'}
+                  </button>
                 )}
               </Card.Body>
             </Card>

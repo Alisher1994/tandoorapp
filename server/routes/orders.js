@@ -262,4 +262,60 @@ router.post('/', authenticate, async (req, res) => {
   }
 });
 
+// Cancel order (only if status is 'new')
+router.post('/:id/cancel', authenticate, async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Check if order exists and belongs to user
+    const orderResult = await client.query(
+      'SELECT * FROM orders WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    
+    if (orderResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+    
+    const order = orderResult.rows[0];
+    
+    // Can only cancel if status is 'new'
+    if (order.status !== 'new') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Заказ уже обрабатывается, отмена невозможна' });
+    }
+    
+    // Update status to cancelled
+    await client.query(
+      'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['cancelled', req.params.id]
+    );
+    
+    // Add to status history
+    await client.query(
+      'INSERT INTO order_status_history (order_id, status, changed_by) VALUES ($1, $2, $3)',
+      [req.params.id, 'cancelled', req.user.id]
+    );
+    
+    await client.query('COMMIT');
+    
+    // Notify user
+    if (req.user.telegram_id) {
+      const { sendOrderUpdateToUser } = require('../bot/notifications');
+      await sendOrderUpdateToUser(req.user.telegram_id, { ...order, status: 'cancelled' }, 'cancelled');
+    }
+    
+    res.json({ message: 'Заказ отменен', order: { ...order, status: 'cancelled' } });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Cancel order error:', error);
+    res.status(500).json({ error: 'Ошибка отмены заказа' });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
