@@ -26,10 +26,17 @@ function Catalog() {
   const { addToCart, cartCount, clearCart } = useCart();
   const navigate = useNavigate();
 
-  // Load restaurants first
+  // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
     fetchRestaurants();
   }, []);
+
+  // For customers: lock to active_restaurant_id from bot
+  useEffect(() => {
+    if (!isOperator() && user?.active_restaurant_id) {
+      setSelectedRestaurant(user.active_restaurant_id);
+    }
+  }, [user]);
 
   // Load products when restaurant changes
   useEffect(() => {
@@ -45,12 +52,13 @@ function Catalog() {
       const response = await axios.get(`${API_URL}/products/restaurants/list`);
       setRestaurants(response.data || []);
       
-      // Auto-select if only one restaurant
-      if (response.data?.length === 1) {
-        setSelectedRestaurant(response.data[0].id);
-      } else if (response.data?.length > 0) {
-        // Use first restaurant as default
-        setSelectedRestaurant(response.data[0].id);
+      // Auto-select for operators if not set
+      if (isOperator()) {
+        if (response.data?.length === 1) {
+          setSelectedRestaurant(response.data[0].id);
+        } else if (response.data?.length > 0 && !selectedRestaurant) {
+          setSelectedRestaurant(response.data[0].id);
+        }
       }
     } catch (error) {
       console.error('Error fetching restaurants:', error);
@@ -129,7 +137,7 @@ function Catalog() {
             ) : (
               <span style={{ fontSize: '1.5rem' }} className="me-2">🍽️</span>
             )}
-            {restaurants.length > 1 ? (
+            {isOperator() && restaurants.length > 1 ? (
               <Form.Select 
                 size="sm"
                 value={selectedRestaurant || ''}
