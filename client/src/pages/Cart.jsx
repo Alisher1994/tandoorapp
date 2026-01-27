@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -32,8 +32,47 @@ function Cart() {
     payment_method: 'cash',
     comment: '',
     delivery_date: new Date().toISOString().split('T')[0],
-    delivery_time: ''
+    delivery_time: 'asap'
   });
+
+  const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
+
+  const availableTimes = useMemo(() => {
+    const now = new Date();
+    const minDate = new Date(now.getTime() + 45 * 60000);
+    const stepMinutes = 15;
+    const times = [];
+
+    const start = new Date(minDate);
+    const minutes = start.getMinutes();
+    const rounded = Math.ceil(minutes / stepMinutes) * stepMinutes;
+    start.setMinutes(rounded, 0, 0);
+
+    const end = new Date(now);
+    end.setHours(23, 45, 0, 0);
+
+    for (let t = new Date(start); t <= end; t = new Date(t.getTime() + stepMinutes * 60000)) {
+      const hh = String(t.getHours()).padStart(2, '0');
+      const mm = String(t.getMinutes()).padStart(2, '0');
+      times.push(`${hh}:${mm}`);
+    }
+
+    return times;
+  }, []);
+
+  useEffect(() => {
+    if (deliveryTimeMode === 'scheduled') {
+      setFormData(prev => ({
+        ...prev,
+        delivery_time: availableTimes[0] || ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        delivery_time: 'asap'
+      }));
+    }
+  }, [deliveryTimeMode, availableTimes]);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -106,60 +145,52 @@ function Cart() {
         <Col md={8}>
           <Card className="mb-4">
             <Card.Body>
-              <Table responsive>
-                <thead>
-                  <tr>
-                    <th>Товар</th>
-                    <th>Цена</th>
-                    <th>Количество</th>
-                    <th>Сумма</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.map(item => (
-                    <tr key={item.id}>
-                      <td>
-                        <div>
-                          <strong>{item.name_ru}</strong>
-                          <br />
-                          <small className="text-muted">{item.unit}</small>
-                        </div>
-                      </td>
-                      <td>{item.price} сум</td>
-                      <td>
-                        <div className="d-flex align-items-center gap-2">
-                          <Button
-                            variant="outline-secondary"
-                            size="sm"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          >
-                            -
-                          </Button>
-                          <span>{item.quantity}</span>
-                          <Button
-                            variant="outline-secondary"
-                            size="sm"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </td>
-                      <td><strong>{item.price * item.quantity} сум</strong></td>
-                      <td>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => removeFromCart(item.id)}
-                        >
-                          <i className="bi bi-trash"></i>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
+              {cart.map(item => (
+                <div key={item.id} className="d-flex align-items-center justify-content-between mb-3">
+                  <div className="d-flex align-items-center">
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url.startsWith('http') ? item.image_url : `${API_URL.replace('/api', '')}${item.image_url}`}
+                        alt={item.name_ru}
+                        style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '12px', marginRight: '12px' }}
+                      />
+                    ) : (
+                      <div style={{ width: '72px', height: '72px', background: '#f1f1f1', borderRadius: '12px', marginRight: '12px' }} />
+                    )}
+                    <div>
+                      <div className="fw-semibold">{item.name_ru}</div>
+                      <div className="text-muted small">{item.unit}</div>
+                      <div className="fw-bold text-primary mt-1">{parseFloat(item.price).toLocaleString()} сум</div>
+                    </div>
+                  </div>
+                  <div className="d-flex align-items-center gap-3">
+                    <div className="d-flex align-items-center gap-2 bg-light px-2 py-1 rounded-pill">
+                      <Button
+                        variant="light"
+                        size="sm"
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      >
+                        -
+                      </Button>
+                      <span className="fw-semibold">{item.quantity}</span>
+                      <Button
+                        variant="light"
+                        size="sm"
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={() => removeFromCart(item.id)}
+                    >
+                      <i className="bi bi-trash"></i>
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </Card.Body>
           </Card>
         </Col>
@@ -209,6 +240,17 @@ function Cart() {
                       </small>
                     </Alert>
                   )}
+                  {hasLocation && (
+                    <div className="mb-2 rounded overflow-hidden" style={{ border: '1px solid #eee' }}>
+                      <iframe
+                        title="delivery-map"
+                        src={`https://yandex.ru/map-widget/v1/?pt=${user.last_longitude},${user.last_latitude}&z=16&l=map`}
+                        width="100%"
+                        height="200"
+                        frameBorder="0"
+                      />
+                    </div>
+                  )}
                   <Form.Control
                     as="textarea"
                     rows={2}
@@ -228,11 +270,39 @@ function Cart() {
 
                 <Form.Group className="mb-3">
                   <Form.Label>Время доставки</Form.Label>
-                  <Form.Control
-                    type="time"
-                    value={formData.delivery_time}
-                    onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
-                  />
+                  <div className="d-flex gap-2">
+                    <Form.Check
+                      type="radio"
+                      id="time-asap"
+                      label="Как можно быстрее"
+                      checked={deliveryTimeMode === 'asap'}
+                      onChange={() => setDeliveryTimeMode('asap')}
+                    />
+                    <Form.Check
+                      type="radio"
+                      id="time-scheduled"
+                      label="Выбрать время"
+                      checked={deliveryTimeMode === 'scheduled'}
+                      onChange={() => setDeliveryTimeMode('scheduled')}
+                    />
+                  </div>
+                  {deliveryTimeMode === 'scheduled' && (
+                    <Form.Select
+                      className="mt-2"
+                      value={formData.delivery_time}
+                      onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
+                    >
+                      {availableTimes.length === 0 && (
+                        <option value="">Нет доступного времени на сегодня</option>
+                      )}
+                      {availableTimes.map(time => (
+                        <option key={time} value={time}>{time}</option>
+                      ))}
+                    </Form.Select>
+                  )}
+                  <Form.Text className="text-muted">
+                    Минимальное время: 45 минут от текущего.
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
