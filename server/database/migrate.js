@@ -113,7 +113,9 @@ async function migrate() {
     const orderColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
       { name: 'processed_by', type: 'INTEGER REFERENCES users(id) ON DELETE SET NULL' },
-      { name: 'processed_at', type: 'TIMESTAMP' }
+      { name: 'processed_at', type: 'TIMESTAMP' },
+      { name: 'admin_message_id', type: 'BIGINT' },
+      { name: 'admin_chat_id', type: 'TEXT' }
     ];
     
     for (const col of orderColumns) {

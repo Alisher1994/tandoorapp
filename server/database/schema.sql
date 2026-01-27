@@ -90,6 +90,8 @@ CREATE TABLE IF NOT EXISTS orders (
   delivery_time TIME,
   processed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   processed_at TIMESTAMP,
+  admin_message_id BIGINT,
+  admin_chat_id TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

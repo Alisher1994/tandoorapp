@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
-const { sendOrderNotification, sendOrderUpdateToUser } = require('../bot/notifications');
+const { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel } = require('../bot/notifications');
 
 const router = express.Router();
 
@@ -306,6 +306,26 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
     if (req.user.telegram_id) {
       const { sendOrderUpdateToUser } = require('../bot/notifications');
       await sendOrderUpdateToUser(req.user.telegram_id, { ...order, status: 'cancelled' }, 'cancelled');
+    }
+
+    // Update group notification (remove buttons)
+    try {
+      let restaurant = null;
+      if (order.restaurant_id) {
+        const restaurantResult = await pool.query(
+          'SELECT telegram_bot_token, telegram_group_id FROM restaurants WHERE id = $1',
+          [order.restaurant_id]
+        );
+        restaurant = restaurantResult.rows[0];
+      }
+
+      await updateOrderNotificationForCustomerCancel(
+        { ...order, status: 'cancelled' },
+        restaurant?.telegram_bot_token,
+        restaurant?.telegram_group_id
+      );
+    } catch (error) {
+      console.error('Update group cancel message error:', error);
     }
     
     res.json({ message: 'Заказ отменен', order: { ...order, status: 'cancelled' } });

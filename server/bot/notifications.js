@@ -1,4 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
+const pool = require('../database/connection');
 
 const DEFAULT_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
@@ -116,6 +117,19 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       reply_markup: keyboard
     });
     
+    if (order?.id && result?.message_id) {
+      try {
+        await pool.query(
+          `UPDATE orders 
+           SET admin_message_id = $1, admin_chat_id = $2 
+           WHERE id = $3`,
+          [result.message_id, String(targetChatId), order.id]
+        );
+      } catch (e) {
+        console.error('Failed to store admin message id:', e.message);
+      }
+    }
+
     console.log(`✅ Order notification sent, message_id: ${result.message_id}`);
   } catch (error) {
     console.error('Send order notification error:', error);
@@ -178,4 +192,35 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null)
   }
 }
 
-module.exports = { sendOrderNotification, sendOrderUpdateToUser };
+async function updateOrderNotificationForCustomerCancel(order, botToken = null, fallbackChatId = null) {
+  const bot = getRestaurantBot(botToken);
+  if (!bot) {
+    console.warn('⚠️  Bot not initialized, cannot update group message');
+    return;
+  }
+
+  const targetChatId = order?.admin_chat_id || fallbackChatId || DEFAULT_ADMIN_CHAT_ID;
+  const messageId = order?.admin_message_id;
+
+  const message =
+    `❌ <b>Клиент отменил заказ #${order.order_number}</b>\n\n` +
+    `Статус: Отменен клиентом`;
+
+  try {
+    if (targetChatId && messageId) {
+      await bot.editMessageText(message, {
+        chat_id: targetChatId,
+        message_id: messageId,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: [] }
+      });
+    } else if (targetChatId) {
+      await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
+    }
+  } catch (error) {
+    console.error('Update group message error:', error);
+  }
+}
+
+module.exports = { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel };
