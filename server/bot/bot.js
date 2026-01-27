@@ -119,19 +119,14 @@ function initBot() {
         
         // User already registered - show menu button with auto-login
         bot.sendMessage(chatId, 
-          `👋 С возвращением, ${user.full_name}!\n\n` +
-          `🔗 Ваша персональная ссылка для входа (действует 30 дней):\n` +
-          `<a href="${loginUrl}">Открыть меню</a>\n\n` +
-          `📱 Или нажмите кнопку ниже:`,
+          `👋 С возвращением, ${user.full_name}!`,
           {
             parse_mode: 'HTML',
             reply_markup: {
-              inline_keyboard: [[
-                { 
-                  text: '🍽️ Открыть меню', 
-                  web_app: { url: loginUrl }
-                }
-              ]]
+              inline_keyboard: [
+                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
+                [{ text: '📍 Начать заказ (указать адрес)', callback_data: 'new_order_location' }]
+              ]
             }
           }
         );
@@ -229,14 +224,49 @@ function initBot() {
     const location = msg.location;
     
     const state = registrationStates.get(userId);
-    if (!state || state.step !== 'waiting_location') return;
+    if (!state || (state.step !== 'waiting_location' && state.step !== 'waiting_location_for_order')) return;
     
     try {
       // Check if location is in any delivery zone
       const restaurant = await findRestaurantByLocation(location.latitude, location.longitude);
       
       if (restaurant) {
-        // Location is in delivery zone - complete registration
+        const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
+        
+        // Check if this is existing user checking location for new order
+        if (state.isExistingUser) {
+          // Get existing user
+          const userResult = await pool.query(
+            'SELECT * FROM users WHERE telegram_id = $1',
+            [userId]
+          );
+          
+          if (userResult.rows.length > 0) {
+            const user = userResult.rows[0];
+            const token = generateLoginToken(user.id, user.username);
+            const loginUrl = `${appUrl}?token=${token}`;
+            
+            // Clear state
+            registrationStates.delete(userId);
+            
+            bot.sendMessage(chatId,
+              `✅ Отлично! Доставка доступна!\n\n` +
+              `🏪 Ресторан: <b>${restaurant.name}</b>`,
+              {
+                parse_mode: 'HTML',
+                reply_markup: {
+                  remove_keyboard: true,
+                  inline_keyboard: [
+                    [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
+                  ]
+                }
+              }
+            );
+          }
+          return;
+        }
+        
+        // New user registration - complete registration
         const username = `user_${userId}`;
         const password = Math.random().toString(36).slice(-8);
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -256,29 +286,21 @@ function initBot() {
         // Clear registration state
         registrationStates.delete(userId);
         
-        const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
-        
         // Generate auto-login token
         const token = generateLoginToken(newUserId, username);
         const loginUrl = `${appUrl}?token=${token}`;
         
         bot.sendMessage(chatId,
           `✅ Регистрация успешна!\n\n` +
-          `🏪 Ближайший ресторан: <b>${restaurant.name}</b>\n\n` +
-          `🔗 Ваша персональная ссылка для входа:\n` +
-          `<a href="${loginUrl}">Открыть меню</a>\n\n` +
-          `⚠️ Эта ссылка действует 30 дней. Используйте /start чтобы получить новую.\n\n` +
-          `🍽️ Нажмите кнопку ниже чтобы открыть меню:`,
+          `🏪 Ресторан: <b>${restaurant.name}</b>\n` +
+          `📍 Доставка по вашему адресу доступна!`,
           {
             parse_mode: 'HTML',
             reply_markup: {
               remove_keyboard: true,
-              inline_keyboard: [[
-                { 
-                  text: '🍽️ Открыть меню', 
-                  web_app: { url: loginUrl }
-                }
-              ]]
+              inline_keyboard: [
+                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
+              ]
             }
           }
         );
@@ -430,6 +452,41 @@ function initBot() {
     } catch (error) {
       console.error('Orders command error:', error);
       bot.sendMessage(chatId, '❌ Ошибка получения заказов');
+    }
+  });
+  
+  // =====================================================
+  // Callback query handler (for inline buttons)
+  // =====================================================
+  bot.on('callback_query', async (query) => {
+    const chatId = query.message.chat.id;
+    const userId = query.from.id;
+    const data = query.data;
+    
+    // Answer callback to remove loading state
+    bot.answerCallbackQuery(query.id);
+    
+    if (data === 'new_order_location') {
+      // User wants to start new order - ask for location
+      // Store state for location check (reuse existing flow)
+      registrationStates.set(userId, { 
+        step: 'waiting_location_for_order',
+        isExistingUser: true 
+      });
+      
+      bot.sendMessage(chatId,
+        '📍 Укажите адрес доставки.\n\n' +
+        'Отправьте вашу геолокацию, чтобы мы проверили зону доставки:',
+        {
+          reply_markup: {
+            keyboard: [[
+              { text: '📍 Отправить локацию', request_location: true }
+            ]],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
     }
   });
   
