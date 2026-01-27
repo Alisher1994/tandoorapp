@@ -70,6 +70,10 @@ router.get('/:id', authenticate, async (req, res) => {
 
 // Create order
 router.post('/', authenticate, async (req, res) => {
+  console.log('📦 ========== CREATE ORDER REQUEST ==========');
+  console.log('📦 User:', req.user?.id, req.user?.username);
+  console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+  
   const client = await pool.connect();
   
   try {
@@ -88,7 +92,16 @@ router.post('/', authenticate, async (req, res) => {
       restaurant_id
     } = req.body;
     
+    console.log('📦 Parsed data:', {
+      items_count: items?.length,
+      delivery_address,
+      customer_phone,
+      restaurant_id,
+      delivery_time
+    });
+    
     if (!items || items.length === 0) {
+      console.log('❌ Error: Empty cart');
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Корзина пуста' });
     }
@@ -96,6 +109,7 @@ router.post('/', authenticate, async (req, res) => {
     // If restaurant_id not provided, try to get it from first product
     let finalRestaurantId = restaurant_id;
     if (!finalRestaurantId && items[0]?.product_id) {
+      console.log('📦 No restaurant_id, getting from product:', items[0].product_id);
       const productResult = await client.query(
         'SELECT restaurant_id FROM products WHERE id = $1',
         [items[0].product_id]
@@ -105,6 +119,8 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
     
+    console.log('📦 Final restaurant_id:', finalRestaurantId);
+    
     // Check restaurant working hours (block orders outside schedule)
     if (finalRestaurantId) {
       const hoursResult = await client.query(
@@ -112,9 +128,11 @@ router.post('/', authenticate, async (req, res) => {
         [finalRestaurantId]
       );
       const hours = hoursResult.rows[0];
+      console.log('📦 Restaurant hours:', hours);
+      
       if (hours?.start_time && hours?.end_time) {
         const now = new Date();
-        const startTime = hours.start_time.substring(0, 5); // "HH:MM"
+        const startTime = hours.start_time.substring(0, 5);
         const endTime = hours.end_time.substring(0, 5);
         const [openH, openM] = startTime.split(':').map(Number);
         const [closeH, closeM] = endTime.split(':').map(Number);
@@ -125,7 +143,10 @@ router.post('/', authenticate, async (req, res) => {
           ? nowMinutes >= openMinutes && nowMinutes < closeMinutes
           : nowMinutes >= openMinutes || nowMinutes < closeMinutes;
 
+        console.log('📦 Time check:', { startTime, endTime, nowMinutes, openMinutes, closeMinutes, isOpen });
+
         if (!isOpen) {
+          console.log('❌ Restaurant closed');
           await client.query('ROLLBACK');
           return res.status(400).json({
             error: `Ресторан работает с ${startTime} по ${endTime}`
@@ -144,6 +165,16 @@ router.post('/', authenticate, async (req, res) => {
     
     // Handle delivery_time - convert "asap" to null for database
     const dbDeliveryTime = (delivery_time && delivery_time !== 'asap') ? delivery_time : null;
+    
+    console.log('📦 Creating order with:', {
+      finalRestaurantId,
+      userId: req.user.id,
+      totalAmount,
+      delivery_address,
+      customer_name: customer_name || req.user.full_name || 'Клиент',
+      customer_phone,
+      dbDeliveryTime
+    });
     
     // Create order
     const orderResult = await client.query(
@@ -220,8 +251,12 @@ router.post('/', authenticate, async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Create order error:', error);
-    res.status(500).json({ error: 'Ошибка создания заказа' });
+    console.error('❌ ========== CREATE ORDER ERROR ==========');
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error detail:', error.detail);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ error: 'Ошибка создания заказа: ' + error.message });
   } finally {
     client.release();
   }

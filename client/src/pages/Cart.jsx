@@ -154,13 +154,19 @@ function Cart() {
         delivery_date: new Date().toISOString().split('T')[0]
       };
 
-      await axios.post(`${API_URL}/orders`, orderData);
+      console.log('📦 Sending order:', JSON.stringify(orderData, null, 2));
+      
+      const response = await axios.post(`${API_URL}/orders`, orderData);
+      console.log('✅ Order created:', response.data);
       
       clearCart();
       navigate('/orders', { state: { orderCreated: true } });
     } catch (err) {
-      console.error('Order error:', err);
-      setError(err.response?.data?.error || 'Ошибка создания заказа');
+      console.error('❌ Order error:', err);
+      console.error('❌ Response:', err.response?.data);
+      console.error('❌ Status:', err.response?.status);
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Ошибка создания заказа';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
