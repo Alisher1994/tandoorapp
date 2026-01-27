@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
@@ -9,15 +10,18 @@ import Form from 'react-bootstrap/Form';
 import Modal from 'react-bootstrap/Modal';
 import Navbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
+import NavDropdown from 'react-bootstrap/NavDropdown';
 import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/Tab';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
+import Alert from 'react-bootstrap/Alert';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function AdminDashboard() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -49,13 +53,14 @@ function AdminDashboard() {
     sort_order: 0
   });
   const [uploadingImage, setUploadingImage] = useState(false);
-  const { logout } = useAuth();
+  const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
+  const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
 
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000); // Update every 10 seconds
     return () => clearInterval(interval);
-  }, [statusFilter]);
+  }, [statusFilter, user?.active_restaurant_id]);
 
   const fetchData = async () => {
     try {
@@ -274,21 +279,84 @@ function AdminDashboard() {
     );
   }
 
+  const handleSwitchRestaurant = async (restaurantId) => {
+    const result = await switchRestaurant(restaurantId);
+    if (result.success) {
+      setAlertMessage({ type: 'success', text: 'Ресторан переключен' });
+      fetchData();
+    } else {
+      setAlertMessage({ type: 'danger', text: result.error });
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <>
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
         <Container>
-          <Navbar.Brand>Админ-панель</Navbar.Brand>
+          <Navbar.Brand>
+            🍽️ Панель оператора
+            {user?.active_restaurant_name && (
+              <Badge bg="light" text="dark" className="ms-2">{user.active_restaurant_name}</Badge>
+            )}
+          </Navbar.Brand>
           <Navbar.Toggle />
           <Navbar.Collapse className="justify-content-end">
             <Nav>
-              <Nav.Link onClick={logout}>Выход</Nav.Link>
+              {/* Restaurant Switcher */}
+              {user?.restaurants?.length > 1 && (
+                <NavDropdown title="🏪 Переключить ресторан" id="restaurant-dropdown">
+                  {user.restaurants.map(r => (
+                    <NavDropdown.Item 
+                      key={r.id} 
+                      onClick={() => handleSwitchRestaurant(r.id)}
+                      active={r.id === user.active_restaurant_id}
+                    >
+                      {r.name}
+                    </NavDropdown.Item>
+                  ))}
+                </NavDropdown>
+              )}
+              
+              {/* Super Admin Link */}
+              {isSuperAdmin() && (
+                <Nav.Link onClick={() => navigate('/superadmin')}>
+                  🏢 Супер-админ
+                </Nav.Link>
+              )}
+              
+              <Nav.Link className="text-light">👤 {user?.full_name || user?.username}</Nav.Link>
+              <Nav.Link onClick={handleLogout}>Выход</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
       </Navbar>
 
       <Container>
+        {/* Alerts */}
+        {alertMessage.text && (
+          <Alert 
+            variant={alertMessage.type} 
+            dismissible 
+            onClose={() => setAlertMessage({ type: '', text: '' })}
+            className="mb-3"
+          >
+            {alertMessage.text}
+          </Alert>
+        )}
+        
+        {/* No restaurant selected warning */}
+        {!user?.active_restaurant_id && (
+          <Alert variant="warning" className="mb-3">
+            ⚠️ Выберите ресторан для работы. 
+            {user?.restaurants?.length > 0 && ' Используйте меню "Переключить ресторан" выше.'}
+          </Alert>
+        )}
+        
         <Tabs defaultActiveKey="orders" className="mb-4">
           <Tab eventKey="orders" title="Заказы">
             <Card>

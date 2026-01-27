@@ -9,36 +9,71 @@ import Button from 'react-bootstrap/Button';
 import Badge from 'react-bootstrap/Badge';
 import Navbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
+import Form from 'react-bootstrap/Form';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Catalog() {
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { user, logout } = useAuth();
-  const { addToCart, cartCount } = useCart();
+  const { user, logout, isOperator } = useAuth();
+  const { addToCart, cartCount, clearCart } = useCart();
   const navigate = useNavigate();
 
+  // Load restaurants first
   useEffect(() => {
-    fetchData();
+    fetchRestaurants();
   }, []);
 
+  // Load products when restaurant changes
+  useEffect(() => {
+    if (selectedRestaurant) {
+      fetchData();
+      // Clear cart when switching restaurants
+      clearCart();
+    }
+  }, [selectedRestaurant]);
+
+  const fetchRestaurants = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/products/restaurants/list`);
+      setRestaurants(response.data || []);
+      
+      // Auto-select if only one restaurant
+      if (response.data?.length === 1) {
+        setSelectedRestaurant(response.data[0].id);
+      } else if (response.data?.length > 0) {
+        // Use first restaurant as default
+        setSelectedRestaurant(response.data[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching restaurants:', error);
+      setRestaurants([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchData = async () => {
+    if (!selectedRestaurant) return;
+    
+    setLoading(true);
     try {
       const [categoriesRes, productsRes] = await Promise.all([
-        axios.get(`${API_URL}/products/categories`),
-        axios.get(`${API_URL}/products`)
+        axios.get(`${API_URL}/products/categories?restaurant_id=${selectedRestaurant}`),
+        axios.get(`${API_URL}/products?restaurant_id=${selectedRestaurant}`)
       ]);
       
       setCategories(categoriesRes.data || []);
       setProducts(productsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
-      // Устанавливаем пустые массивы при ошибке
       setCategories([]);
       setProducts([]);
     } finally {
@@ -46,11 +81,31 @@ function Catalog() {
     }
   };
 
+  const handleRestaurantChange = (e) => {
+    const restaurantId = parseInt(e.target.value);
+    setSelectedRestaurant(restaurantId);
+    setSelectedCategory(null);
+  };
+
+  const handleAddToCart = (product) => {
+    addToCart({
+      ...product,
+      restaurant_id: selectedRestaurant
+    });
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   const filteredProducts = selectedCategory
     ? products.filter(p => p.category_id === selectedCategory)
     : products;
 
-  if (loading) {
+  const currentRestaurant = restaurants.find(r => r.id === selectedRestaurant);
+
+  if (loading && restaurants.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
         <div className="spinner-border text-primary" role="status">
@@ -62,30 +117,46 @@ function Catalog() {
 
   return (
     <>
-      <Navbar bg="white" expand="lg" className="shadow-sm mb-4">
+      <Navbar bg="white" expand="lg" className="shadow-sm mb-4 sticky-top">
         <Container>
-          <Navbar.Brand>
-            <img src="https://iili.io/KXB1Kut.png" alt="Logo" height="40" />
+          <Navbar.Brand className="d-flex align-items-center">
+            <span style={{ fontSize: '1.5rem' }} className="me-2">🍽️</span>
+            {restaurants.length > 1 ? (
+              <Form.Select 
+                size="sm"
+                value={selectedRestaurant || ''}
+                onChange={handleRestaurantChange}
+                style={{ width: 'auto', minWidth: '150px' }}
+              >
+                {restaurants.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </Form.Select>
+            ) : (
+              <span>{currentRestaurant?.name || 'Каталог'}</span>
+            )}
           </Navbar.Brand>
           <Navbar.Toggle />
           <Navbar.Collapse className="justify-content-end">
             <Nav>
               <Nav.Link onClick={() => navigate('/orders')}>
-                <i className="bi bi-box-seam me-1"></i>
-                Мои заказы
+                📦 Заказы
               </Nav.Link>
               <Nav.Link onClick={() => navigate('/cart')} className="position-relative">
-                <i className="bi bi-cart-fill me-1"></i>
-                Корзина
+                🛒 Корзина
                 {cartCount > 0 && (
-                  <Badge bg="danger" className="position-absolute top-0 start-100 translate-middle rounded-pill" style={{ fontSize: '0.7rem' }}>
+                  <Badge bg="danger" className="ms-1 rounded-pill">
                     {cartCount}
                   </Badge>
                 )}
               </Nav.Link>
-              <Nav.Link onClick={logout}>
-                <i className="bi bi-box-arrow-right me-1"></i>
-                Выход
+              {isOperator() && (
+                <Nav.Link onClick={() => navigate('/admin')}>
+                  ⚙️ Админ
+                </Nav.Link>
+              )}
+              <Nav.Link onClick={handleLogout}>
+                🚪 Выход
               </Nav.Link>
             </Nav>
           </Navbar.Collapse>
@@ -93,87 +164,158 @@ function Catalog() {
       </Navbar>
 
       <Container>
-        <h2 className="mb-4">Каталог товаров</h2>
-
-        {/* Categories */}
-        <div className="mb-4">
-          <Button
-            variant={selectedCategory === null ? 'primary' : 'outline-primary'}
-            className="me-2 mb-2"
-            onClick={() => setSelectedCategory(null)}
-          >
-            Все
-          </Button>
-          {categories.map(category => (
-            <Button
-              key={category.id}
-              variant={selectedCategory === category.id ? 'primary' : 'outline-primary'}
-              className="me-2 mb-2"
-              onClick={() => setSelectedCategory(category.id)}
-            >
-              {category.name_ru}
-            </Button>
-          ))}
-        </div>
-
-        {/* Products */}
-        <Row>
-          {filteredProducts.map(product => (
-            <Col key={product.id} xs={6} sm={4} md={3} lg={2} className="mb-4">
-              <Card className="h-100">
-                {product.image_url && (
-                  <Card.Img
-                    variant="top"
-                    src={product.image_url}
-                    style={{ height: '150px', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/150';
-                    }}
-                  />
-                )}
-                <Card.Body className="d-flex flex-column">
-                  <Card.Title className="fs-6">{product.name_ru}</Card.Title>
-                  <Card.Text className="text-muted small mb-2">
-                    {product.unit}
-                  </Card.Text>
-                  <div className="mt-auto">
-                    <div className="fw-bold text-primary mb-2">
-                      {product.price} сум
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="w-100"
-                      onClick={() => addToCart(product)}
-                      disabled={!product.in_stock}
-                    >
-                      {product.in_stock ? 'В корзину' : 'Нет в наличии'}
-                    </Button>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-
-        {filteredProducts.length === 0 && !loading && (
+        {/* No restaurants */}
+        {restaurants.length === 0 && (
           <div className="text-center py-5">
+            <div style={{ fontSize: '4rem' }}>🏪</div>
+            <h4 className="mt-3">Рестораны не найдены</h4>
             <p className="text-muted">
-              {products.length === 0 
-                ? 'Товары пока не добавлены. Войдите в админ-панель для добавления товаров.' 
-                : 'Товары не найдены в выбранной категории'}
+              Пока нет активных ресторанов. Пожалуйста, попробуйте позже.
             </p>
-            {user?.role === 'admin' && (
-              <Button variant="primary" onClick={() => navigate('/admin')}>
-                Перейти в админ-панель
-              </Button>
-            )}
           </div>
         )}
+
+        {selectedRestaurant && (
+          <>
+            {/* Categories */}
+            {categories.length > 0 && (
+              <div className="mb-4 pb-2" style={{ overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                <Button
+                  variant={selectedCategory === null ? 'primary' : 'outline-primary'}
+                  className="me-2 mb-2"
+                  onClick={() => setSelectedCategory(null)}
+                >
+                  🍴 Все
+                </Button>
+                {categories.map(category => (
+                  <Button
+                    key={category.id}
+                    variant={selectedCategory === category.id ? 'primary' : 'outline-primary'}
+                    className="me-2 mb-2"
+                    onClick={() => setSelectedCategory(category.id)}
+                  >
+                    {category.name_ru}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {/* Loading */}
+            {loading && (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Загрузка...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Products */}
+            {!loading && (
+              <Row>
+                {filteredProducts.map(product => (
+                  <Col key={product.id} xs={6} sm={4} md={3} lg={2} className="mb-4">
+                    <Card className="h-100 shadow-sm border-0">
+                      <div style={{ position: 'relative' }}>
+                        {product.image_url ? (
+                          <Card.Img
+                            variant="top"
+                            src={product.image_url.startsWith('http') ? product.image_url : `${API_URL.replace('/api', '')}${product.image_url}`}
+                            style={{ height: '140px', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.target.src = 'https://via.placeholder.com/150?text=No+Image';
+                            }}
+                          />
+                        ) : (
+                          <div 
+                            style={{ height: '140px', background: '#f8f9fa' }} 
+                            className="d-flex align-items-center justify-content-center"
+                          >
+                            <span style={{ fontSize: '3rem', opacity: 0.3 }}>🍽️</span>
+                          </div>
+                        )}
+                        {!product.in_stock && (
+                          <div 
+                            style={{ 
+                              position: 'absolute', 
+                              top: 0, 
+                              left: 0, 
+                              right: 0, 
+                              bottom: 0, 
+                              background: 'rgba(0,0,0,0.5)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Badge bg="secondary">Нет в наличии</Badge>
+                          </div>
+                        )}
+                      </div>
+                      <Card.Body className="d-flex flex-column p-2">
+                        <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem' }}>
+                          {product.name_ru}
+                        </Card.Title>
+                        <Card.Text className="text-muted small mb-2" style={{ fontSize: '0.75rem' }}>
+                          {product.unit}
+                        </Card.Text>
+                        <div className="mt-auto">
+                          <div className="fw-bold text-primary mb-2" style={{ fontSize: '0.95rem' }}>
+                            {parseFloat(product.price).toLocaleString()} сум
+                          </div>
+                          <Button
+                            variant={product.in_stock ? 'primary' : 'secondary'}
+                            size="sm"
+                            className="w-100"
+                            onClick={() => handleAddToCart(product)}
+                            disabled={!product.in_stock}
+                          >
+                            {product.in_stock ? '+ В корзину' : 'Нет'}
+                          </Button>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            )}
+
+            {/* No products */}
+            {!loading && filteredProducts.length === 0 && (
+              <div className="text-center py-5">
+                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
+                <p className="text-muted mt-3">
+                  {products.length === 0 
+                    ? 'Товары пока не добавлены' 
+                    : 'Товары не найдены в выбранной категории'}
+                </p>
+                {isOperator() && products.length === 0 && (
+                  <Button variant="primary" onClick={() => navigate('/admin')}>
+                    Добавить товары
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </Container>
+
+      {/* Fixed cart button for mobile */}
+      {cartCount > 0 && (
+        <div 
+          className="d-lg-none position-fixed bottom-0 start-0 end-0 p-3 bg-white shadow-lg"
+          style={{ zIndex: 1000 }}
+        >
+          <Button 
+            variant="primary" 
+            className="w-100 py-2"
+            onClick={() => navigate('/cart')}
+          >
+            🛒 Корзина ({cartCount})
+          </Button>
+        </div>
+      )}
     </>
   );
 }
 
 export default Catalog;
-

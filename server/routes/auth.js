@@ -3,6 +3,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
+const { 
+  logActivity, 
+  getIpFromRequest, 
+  getUserAgentFromRequest,
+  ACTION_TYPES, 
+  ENTITY_TYPES 
+} = require('../services/activityLogger');
 
 const router = express.Router();
 
@@ -15,14 +22,15 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
     
-    // Prevent registration with admin username
-    if (username.toLowerCase() === 'admin' || username.toLowerCase().startsWith('admin_')) {
-      return res.status(400).json({ error: 'Этот логин зарезервирован для администраторов' });
+    // Prevent registration with admin/operator username patterns
+    const forbiddenPatterns = ['admin', 'superadmin', 'operator'];
+    if (forbiddenPatterns.some(p => username.toLowerCase().includes(p))) {
+      return res.status(400).json({ error: 'Этот логин зарезервирован' });
     }
     
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT id FROM users WHERE username = $1 OR telegram_id = $2',
+      'SELECT id FROM users WHERE username = $1 OR (telegram_id = $2 AND telegram_id IS NOT NULL)',
       [username, telegram_id]
     );
     
@@ -34,10 +42,10 @@ router.post('/register', async (req, res) => {
     
     // Only allow customer role registration via API
     const result = await pool.query(
-      `INSERT INTO users (username, password, full_name, phone, telegram_id, role) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
+      `INSERT INTO users (username, password, full_name, phone, telegram_id, role, is_active) 
+       VALUES ($1, $2, $3, $4, $5, 'customer', true) 
        RETURNING id, username, full_name, phone, role`,
-      [username, hashedPassword, full_name, phone, telegram_id || null, 'customer']
+      [username, hashedPassword, full_name, phone, telegram_id || null]
     );
     
     res.status(201).json({
@@ -59,16 +67,24 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
     
-    const result = await pool.query(
-      'SELECT * FROM users WHERE username = $1',
-      [username]
-    );
+    const result = await pool.query(`
+      SELECT u.*, r.name as active_restaurant_name
+      FROM users u
+      LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
+      WHERE u.username = $1
+    `, [username]);
     
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
     
     const user = result.rows[0];
+    
+    // Check if user is active
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Аккаунт деактивирован' });
+    }
+    
     const isValidPassword = await bcrypt.compare(password, user.password);
     
     if (!isValidPassword) {
@@ -81,6 +97,31 @@ router.post('/login', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
     
+    // Get restaurants for operators and superadmins
+    let restaurants = [];
+    if (user.role === 'superadmin' || user.role === 'operator') {
+      const restaurantsResult = await pool.query(`
+        SELECT r.id, r.name 
+        FROM restaurants r
+        INNER JOIN operator_restaurants opr ON r.id = opr.restaurant_id
+        WHERE opr.user_id = $1 AND r.is_active = true
+        ORDER BY r.name
+      `, [user.id]);
+      restaurants = restaurantsResult.rows;
+    }
+    
+    // Log login activity
+    await logActivity({
+      userId: user.id,
+      restaurantId: user.active_restaurant_id,
+      actionType: ACTION_TYPES.LOGIN,
+      entityType: ENTITY_TYPES.USER,
+      entityId: user.id,
+      entityName: user.full_name || user.username,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
     res.json({
       token,
       user: {
@@ -88,7 +129,10 @@ router.post('/login', async (req, res) => {
         username: user.username,
         full_name: user.full_name,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        active_restaurant_id: user.active_restaurant_id,
+        active_restaurant_name: user.active_restaurant_name,
+        restaurants
       }
     });
   } catch (error) {
@@ -106,7 +150,10 @@ router.get('/me', authenticate, async (req, res) => {
         username: req.user.username,
         full_name: req.user.full_name,
         phone: req.user.phone,
-        role: req.user.role
+        role: req.user.role,
+        active_restaurant_id: req.user.active_restaurant_id,
+        active_restaurant_name: req.user.active_restaurant_name,
+        restaurants: req.user.restaurants || []
       }
     });
   } catch (error) {
@@ -114,5 +161,25 @@ router.get('/me', authenticate, async (req, res) => {
   }
 });
 
-module.exports = router;
+// Logout (just log the action, token invalidation is client-side)
+router.post('/logout', authenticate, async (req, res) => {
+  try {
+    // Log logout activity
+    await logActivity({
+      userId: req.user.id,
+      restaurantId: req.user.active_restaurant_id,
+      actionType: ACTION_TYPES.LOGOUT,
+      entityType: ENTITY_TYPES.USER,
+      entityId: req.user.id,
+      entityName: req.user.full_name || req.user.username,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.json({ message: 'Выход выполнен' });
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка выхода' });
+  }
+});
 
+module.exports = router;

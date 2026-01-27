@@ -1,8 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-function PrivateRoute({ children }) {
-  const { user, loading } = useAuth();
+function SuperAdminRoute({ children }) {
+  const { user, loading, isSuperAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -14,10 +14,17 @@ function PrivateRoute({ children }) {
     );
   }
 
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Only allow superadmin role
+  if (!isSuperAdmin()) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
 }
 
-export default PrivateRoute;
-
-
+export default SuperAdminRoute;
 

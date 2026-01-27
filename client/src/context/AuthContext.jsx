@@ -51,14 +51,56 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await axios.post(`${API_URL}/auth/logout`);
+    } catch (error) {
+      // Ignore logout errors
+    }
     localStorage.removeItem('token');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
 
+  // Update active restaurant (for operators)
+  const switchRestaurant = async (restaurantId) => {
+    try {
+      const response = await axios.post(`${API_URL}/admin/switch-restaurant`, {
+        restaurant_id: restaurantId
+      });
+      
+      setUser(prev => ({
+        ...prev,
+        active_restaurant_id: response.data.active_restaurant_id,
+        active_restaurant_name: response.data.active_restaurant_name
+      }));
+      
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Ошибка переключения ресторана'
+      };
+    }
+  };
+
+  // Helper to check roles
+  const isSuperAdmin = () => user?.role === 'superadmin';
+  const isOperator = () => user?.role === 'operator' || user?.role === 'superadmin';
+  const isCustomer = () => user?.role === 'customer';
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      logout, 
+      switchRestaurant,
+      isSuperAdmin,
+      isOperator,
+      isCustomer,
+      fetchUser
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -67,4 +109,3 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-

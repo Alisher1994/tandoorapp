@@ -51,6 +51,9 @@ function Cart() {
     setLoading(true);
 
     try {
+      // Get restaurant_id from first cart item
+      const restaurant_id = cart[0]?.restaurant_id;
+      
       const orderData = {
         items: cart.map(item => ({
           product_id: item.id,
@@ -59,6 +62,7 @@ function Cart() {
           unit: item.unit,
           price: item.price
         })),
+        restaurant_id,
         ...formData
       };
 

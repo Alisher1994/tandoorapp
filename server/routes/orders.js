@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/my-orders', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT o.*, 
+      `SELECT o.*, r.name as restaurant_name,
               COALESCE(
                 json_agg(
                   json_build_object(
@@ -24,9 +24,10 @@ router.get('/my-orders', authenticate, async (req, res) => {
                 '[]'
               ) as items
        FROM orders o
+       LEFT JOIN restaurants r ON o.restaurant_id = r.id
        LEFT JOIN order_items oi ON o.id = oi.order_id
        WHERE o.user_id = $1
-       GROUP BY o.id
+       GROUP BY o.id, r.name
        ORDER BY o.created_at DESC`,
       [req.user.id]
     );
@@ -41,10 +42,12 @@ router.get('/my-orders', authenticate, async (req, res) => {
 // Get single order
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const orderResult = await pool.query(
-      'SELECT * FROM orders WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
+    const orderResult = await pool.query(`
+      SELECT o.*, r.name as restaurant_name
+      FROM orders o
+      LEFT JOIN restaurants r ON o.restaurant_id = r.id
+      WHERE o.id = $1 AND o.user_id = $2
+    `, [req.params.id, req.user.id]);
     
     if (orderResult.rows.length === 0) {
       return res.status(404).json({ error: 'Заказ не найден' });
@@ -81,12 +84,25 @@ router.post('/', authenticate, async (req, res) => {
       payment_method,
       comment,
       delivery_date,
-      delivery_time
+      delivery_time,
+      restaurant_id
     } = req.body;
     
     if (!items || items.length === 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Корзина пуста' });
+    }
+    
+    // If restaurant_id not provided, try to get it from first product
+    let finalRestaurantId = restaurant_id;
+    if (!finalRestaurantId && items[0]?.product_id) {
+      const productResult = await client.query(
+        'SELECT restaurant_id FROM products WHERE id = $1',
+        [items[0].product_id]
+      );
+      if (productResult.rows.length > 0) {
+        finalRestaurantId = productResult.rows[0].restaurant_id;
+      }
     }
     
     // Calculate total
@@ -100,13 +116,13 @@ router.post('/', authenticate, async (req, res) => {
     // Create order
     const orderResult = await client.query(
       `INSERT INTO orders (
-        user_id, order_number, total_amount, delivery_address, 
+        restaurant_id, user_id, order_number, total_amount, delivery_address, 
         delivery_coordinates, customer_name, customer_phone, 
         payment_method, comment, delivery_date, delivery_time, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
-        req.user.id, orderNumber, totalAmount, delivery_address,
+        finalRestaurantId, req.user.id, orderNumber, totalAmount, delivery_address,
         delivery_coordinates, customer_name, customer_phone,
         payment_method || 'cash', comment, delivery_date, delivery_time, 'new'
       ]
@@ -140,9 +156,28 @@ router.post('/', authenticate, async (req, res) => {
     
     await client.query('COMMIT');
     
-    // Send notifications
-    await sendOrderNotification(order, items);
-    await sendOrderUpdateToUser(req.user.telegram_id, order, 'new');
+    // Send notifications using restaurant's bot if configured
+    if (finalRestaurantId) {
+      const restaurantResult = await pool.query(
+        'SELECT telegram_bot_token, telegram_group_id FROM restaurants WHERE id = $1',
+        [finalRestaurantId]
+      );
+      const restaurant = restaurantResult.rows[0];
+      if (restaurant?.telegram_group_id) {
+        // Use restaurant-specific bot/group for notification
+        await sendOrderNotification(order, items, restaurant.telegram_group_id, restaurant.telegram_bot_token);
+      } else {
+        // Fall back to default notification
+        await sendOrderNotification(order, items);
+      }
+    } else {
+      await sendOrderNotification(order, items);
+    }
+    
+    // Send notification to user
+    if (req.user.telegram_id) {
+      await sendOrderUpdateToUser(req.user.telegram_id, order, 'new');
+    }
     
     res.status(201).json({
       message: 'Заказ создан успешно',
@@ -161,4 +196,3 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 module.exports = router;
-

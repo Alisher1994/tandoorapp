@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function AdminRoute({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isOperator } = useAuth();
 
   if (loading) {
     return (
@@ -18,7 +18,8 @@ function AdminRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role !== 'admin' && user.role !== 'operator') {
+  // Allow superadmin and operator roles
+  if (!isOperator()) {
     return <Navigate to="/" replace />;
   }
 
@@ -26,4 +27,3 @@ function AdminRoute({ children }) {
 }
 
 export default AdminRoute;
-

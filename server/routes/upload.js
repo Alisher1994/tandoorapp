@@ -62,3 +62,5 @@ router.post('/image', authenticate, requireAdmin, upload.single('image'), (req, 
 
 module.exports = router;
 
+
+

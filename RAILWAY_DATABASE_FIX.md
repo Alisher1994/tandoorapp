@@ -80,3 +80,5 @@ postgres://postgres:password@hostname:5432/postgres
 
 Должна открыться админ-панель!
 
+
+

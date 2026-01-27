@@ -86,3 +86,5 @@ INSERT INTO products (category_id, name_ru, name_uz, price, unit, in_stock, imag
 
 **Самый быстрый способ - Вариант 2 через SQL в Railway!**
 
+
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Container from 'react-bootstrap/Container';
@@ -12,8 +12,25 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      redirectBasedOnRole(user.role);
+    }
+  }, [user]);
+
+  const redirectBasedOnRole = (role) => {
+    if (role === 'superadmin') {
+      navigate('/superadmin');
+    } else if (role === 'operator') {
+      navigate('/admin');
+    } else {
+      navigate('/');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +40,7 @@ function Login() {
     const result = await login(username, password);
     
     if (result.success) {
-      navigate('/');
+      // Login will set user, useEffect will handle redirect
     } else {
       setError(result.error);
     }
@@ -33,14 +50,10 @@ function Login() {
 
   return (
     <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-      <Card style={{ width: '100%', maxWidth: '400px' }}>
+      <Card style={{ width: '100%', maxWidth: '400px' }} className="shadow">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
-            <img 
-              src="https://iili.io/KXB1Kut.png" 
-              alt="Logo" 
-              style={{ height: '50px', marginBottom: '20px' }}
-            />
+            <div className="mb-3" style={{ fontSize: '3rem' }}>🍽️</div>
             <h2>Вход в систему</h2>
             <p className="text-muted">Введите ваши данные для входа</p>
           </div>
@@ -81,13 +94,16 @@ function Login() {
             </Button>
           </Form>
 
-          <div className="text-center mt-3">
+          <div className="text-center mt-4 pt-3 border-top">
             <small className="text-muted">
               <div className="mb-2">
-                <strong>Клиенты:</strong> Получите логин и пароль через Telegram бота
+                <strong>👤 Клиенты:</strong> Получите логин через Telegram бота
+              </div>
+              <div className="mb-2">
+                <strong>👨‍💼 Операторы:</strong> Логин выдается супер-админом
               </div>
               <div>
-                <strong>Администраторы:</strong> Используйте отдельный логин администратора
+                <strong>🏢 Супер-админ:</strong> Используйте ADMIN_USERNAME
               </div>
             </small>
           </div>
@@ -98,4 +114,3 @@ function Login() {
 }
 
 export default Login;
-

@@ -1,15 +1,24 @@
 const express = require('express');
 const pool = require('../database/connection');
-const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get all categories
+// Get all categories (public - for customers, filtered by restaurant)
 router.get('/categories', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM categories ORDER BY sort_order, name_ru'
-    );
+    const { restaurant_id } = req.query;
+    
+    let query = 'SELECT * FROM categories WHERE is_active = true';
+    const params = [];
+    
+    if (restaurant_id) {
+      query += ' AND restaurant_id = $1';
+      params.push(restaurant_id);
+    }
+    
+    query += ' ORDER BY sort_order, name_ru';
+    
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Categories error:', error);
@@ -17,25 +26,37 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-// Get all products
+// Get all products (public - for customers, filtered by restaurant)
 router.get('/', async (req, res) => {
   try {
-    const { category_id, in_stock } = req.query;
-    let query = 'SELECT * FROM products WHERE 1=1';
+    const { category_id, in_stock, restaurant_id } = req.query;
+    
+    let query = `
+      SELECT p.*, c.name_ru as category_name 
+      FROM products p 
+      LEFT JOIN categories c ON p.category_id = c.id 
+      WHERE 1=1
+    `;
     const params = [];
     let paramCount = 1;
     
+    if (restaurant_id) {
+      query += ` AND p.restaurant_id = $${paramCount}`;
+      params.push(restaurant_id);
+      paramCount++;
+    }
+    
     if (category_id) {
-      query += ` AND category_id = $${paramCount}`;
+      query += ` AND p.category_id = $${paramCount}`;
       params.push(category_id);
       paramCount++;
     }
     
     if (in_stock === 'true') {
-      query += ` AND in_stock = true`;
+      query += ` AND p.in_stock = true`;
     }
     
-    query += ' ORDER BY sort_order, name_ru';
+    query += ' ORDER BY p.sort_order, p.name_ru';
     
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -48,10 +69,13 @@ router.get('/', async (req, res) => {
 // Get single product
 router.get('/:id', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM products WHERE id = $1',
-      [req.params.id]
-    );
+    const result = await pool.query(`
+      SELECT p.*, c.name_ru as category_name, r.name as restaurant_name
+      FROM products p 
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN restaurants r ON p.restaurant_id = r.id
+      WHERE p.id = $1
+    `, [req.params.id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Товар не найден' });
@@ -64,5 +88,20 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+// Get restaurants list (public - for customer app to select restaurant)
+router.get('/restaurants/list', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, address, phone 
+      FROM restaurants 
+      WHERE is_active = true 
+      ORDER BY name
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Restaurants list error:', error);
+    res.status(500).json({ error: 'Ошибка получения списка ресторанов' });
+  }
+});
 
+module.exports = router;
