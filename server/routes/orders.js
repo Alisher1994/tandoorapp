@@ -142,6 +142,9 @@ router.post('/', authenticate, async (req, res) => {
     // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
+    // Handle delivery_time - convert "asap" to null for database
+    const dbDeliveryTime = (delivery_time && delivery_time !== 'asap') ? delivery_time : null;
+    
     // Create order
     const orderResult = await client.query(
       `INSERT INTO orders (
@@ -152,8 +155,8 @@ router.post('/', authenticate, async (req, res) => {
       RETURNING *`,
       [
         finalRestaurantId, req.user.id, orderNumber, totalAmount, delivery_address,
-        delivery_coordinates, customer_name, customer_phone,
-        payment_method || 'cash', comment, delivery_date, delivery_time, 'new'
+        delivery_coordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
+        payment_method || 'cash', comment, delivery_date, dbDeliveryTime, 'new'
       ]
     );
     

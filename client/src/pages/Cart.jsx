@@ -18,7 +18,6 @@ function Cart() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // Use saved location from Telegram bot
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
   const savedCoordinates = hasSavedLocation ? `${user.last_latitude},${user.last_longitude}` : '';
   
@@ -65,15 +64,9 @@ function Cart() {
 
   useEffect(() => {
     if (deliveryTimeMode === 'scheduled') {
-      setFormData(prev => ({
-        ...prev,
-        delivery_time: availableTimes[0] || ''
-      }));
+      setFormData(prev => ({ ...prev, delivery_time: availableTimes[0] || '' }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        delivery_time: 'asap'
-      }));
+      setFormData(prev => ({ ...prev, delivery_time: 'asap' }));
     }
   }, [deliveryTimeMode, availableTimes]);
 
@@ -98,7 +91,7 @@ function Cart() {
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setError('Геолокация не поддерживается в этом браузере');
+      setError('Геолокация не поддерживается');
       return;
     }
     setLocationLoading(true);
@@ -166,13 +159,13 @@ function Cart() {
   if (cart.length === 0) {
     return (
       <Container className="py-4">
-        <Card className="text-center py-5">
+        <Card className="text-center py-5 border-0 shadow-sm">
           <Card.Body>
             <div style={{ fontSize: '4rem' }}>🛒</div>
             <h4 className="mt-3">Корзина пуста</h4>
             <p className="text-muted">Добавьте товары из каталога</p>
             <Button variant="primary" onClick={() => navigate('/')}>
-              В каталог
+              Перейти в каталог
             </Button>
           </Card.Body>
         </Card>
@@ -181,231 +174,296 @@ function Cart() {
   }
 
   return (
-    <Container className="py-4" style={{ maxWidth: '600px' }}>
-      <h4 className="mb-4">Корзина</h4>
+    <Container className="py-3" style={{ maxWidth: '500px' }}>
+      {/* Заголовок с номером шага */}
+      <div className="text-center mb-4">
+        <h5 className="mb-2">
+          {step === 1 ? '🛒 Ваш заказ' : '📍 Доставка'}
+        </h5>
+        <div className="d-flex justify-content-center gap-2">
+          <div 
+            className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 1 ? 'bg-primary text-white' : 'bg-light'}`}
+            style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
+          >
+            1
+          </div>
+          <div 
+            className="align-self-center" 
+            style={{ width: 40, height: 2, background: step >= 2 ? '#0d6efd' : '#dee2e6' }}
+          />
+          <div 
+            className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 2 ? 'bg-primary text-white' : 'bg-light'}`}
+            style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
+          >
+            2
+          </div>
+        </div>
+      </div>
 
-      {/* Список товаров - виден всегда */}
-      <Card className="mb-3">
-        <Card.Body className="p-0">
-          {cart.map((item, index) => (
-            <div 
-              key={item.id} 
-              className={`d-flex align-items-center p-3 ${index !== cart.length - 1 ? 'border-bottom' : ''}`}
-            >
-              {item.image_url ? (
-                <img
-                  src={item.image_url.startsWith('http') ? item.image_url : `${API_URL.replace('/api', '')}${item.image_url}`}
-                  alt={item.name_ru}
-                  style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '10px' }}
-                />
-              ) : (
-                <div style={{ width: '60px', height: '60px', background: '#f5f5f5', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  🍽️
+      {error && <Alert variant="danger" className="py-2 mb-3">{error}</Alert>}
+
+      {/* ШАГ 1: Список товаров */}
+      {step === 1 && (
+        <Card className="border-0 shadow-sm mb-3">
+          <Card.Body className="p-0">
+            {cart.map((item, index) => (
+              <div 
+                key={item.id} 
+                className={`d-flex align-items-center p-3 ${index !== cart.length - 1 ? 'border-bottom' : ''}`}
+              >
+                {item.image_url ? (
+                  <img
+                    src={item.image_url.startsWith('http') ? item.image_url : `${API_URL.replace('/api', '')}${item.image_url}`}
+                    alt={item.name_ru}
+                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10 }}
+                  />
+                ) : (
+                  <div 
+                    className="bg-light d-flex align-items-center justify-content-center"
+                    style={{ width: 56, height: 56, borderRadius: 10, fontSize: '1.5rem' }}
+                  >
+                    🍽️
+                  </div>
+                )}
+                <div className="flex-grow-1 ms-3">
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{item.name_ru}</div>
+                  <div className="text-primary fw-bold">{parseFloat(item.price).toLocaleString()} сум</div>
+                </div>
+                <div className="d-flex align-items-center">
+                  <div className="d-flex align-items-center bg-light rounded-pill">
+                    <Button 
+                      variant="link" 
+                      className="p-1 px-2 text-dark text-decoration-none" 
+                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                    >
+                      −
+                    </Button>
+                    <span className="mx-1 fw-semibold" style={{ minWidth: 20, textAlign: 'center' }}>
+                      {item.quantity}
+                    </span>
+                    <Button 
+                      variant="link" 
+                      className="p-1 px-2 text-dark text-decoration-none" 
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                    >
+                      +
+                    </Button>
+                  </div>
+                  <Button 
+                    variant="link" 
+                    className="text-danger p-1 ms-2" 
+                    onClick={() => removeFromCart(item.id)}
+                  >
+                    🗑️
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* Комментарий - только на шаге 1 */}
+      {step === 1 && (
+        <Card className="border-0 shadow-sm mb-3">
+          <Card.Body>
+            <Form.Group>
+              <Form.Label className="small text-muted mb-1">Комментарий к заказу</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                value={formData.comment}
+                onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                placeholder="Пожелания к заказу..."
+                className="border-0 bg-light"
+              />
+            </Form.Group>
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* ШАГ 2: Данные доставки */}
+      {step === 2 && (
+        <Form onSubmit={handleSubmit}>
+          <Card className="border-0 shadow-sm mb-3">
+            <Card.Body>
+              {/* Карта */}
+              {hasLocation && (
+                <div className="mb-3">
+                  <div className="small text-muted mb-1">Точка доставки</div>
+                  <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #eee' }}>
+                    <iframe
+                      title="map"
+                      src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
+                      width="100%"
+                      height="150"
+                      frameBorder="0"
+                    />
+                  </div>
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm" 
+                    className="w-100"
+                    onClick={() => setShowLocationModal(true)}
+                  >
+                    📍 Изменить точку
+                  </Button>
                 </div>
               )}
-              <div className="flex-grow-1 ms-3">
-                <div className="fw-semibold" style={{ fontSize: '0.95rem' }}>{item.name_ru}</div>
-                <div className="text-muted small">{item.unit}</div>
-                <div className="fw-bold text-primary">{parseFloat(item.price).toLocaleString()} сум</div>
-              </div>
-              <div className="d-flex align-items-center">
-                <div className="d-flex align-items-center bg-light rounded-pill px-2">
-                  <Button variant="link" className="p-1 text-dark" onClick={() => updateQuantity(item.id, item.quantity - 1)}>−</Button>
-                  <span className="mx-2 fw-semibold">{item.quantity}</span>
-                  <Button variant="link" className="p-1 text-dark" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
+
+              {!hasLocation && (
+                <Button 
+                  variant="outline-primary" 
+                  className="w-100 mb-3"
+                  onClick={() => setShowLocationModal(true)}
+                >
+                  📍 Указать местоположение
+                </Button>
+              )}
+
+              {/* Адрес */}
+              <Form.Group className="mb-3">
+                <Form.Label className="small text-muted mb-1">
+                  Адрес доставки <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={2}
+                  value={formData.delivery_address}
+                  onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
+                  placeholder="Улица, дом, подъезд, квартира"
+                  className="border-0 bg-light"
+                  required
+                />
+              </Form.Group>
+
+              {/* Телефон */}
+              <Form.Group className="mb-3">
+                <Form.Label className="small text-muted mb-1">
+                  Телефон <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  type="tel"
+                  value={formData.customer_phone}
+                  onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                  placeholder="+998 90 123 45 67"
+                  className="border-0 bg-light"
+                  required
+                />
+              </Form.Group>
+
+              {/* Время доставки */}
+              <Form.Group className="mb-3">
+                <Form.Label className="small text-muted mb-1">Время доставки</Form.Label>
+                <div className="d-flex gap-2 mb-2">
+                  <Button
+                    variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
+                    size="sm"
+                    className="flex-fill"
+                    onClick={() => setDeliveryTimeMode('asap')}
+                  >
+                    🚀 Быстрее
+                  </Button>
+                  <Button
+                    variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
+                    size="sm"
+                    className="flex-fill"
+                    onClick={() => setDeliveryTimeMode('scheduled')}
+                  >
+                    🕐 Ко времени
+                  </Button>
                 </div>
-                <Button variant="link" className="text-danger ms-2 p-1" onClick={() => removeFromCart(item.id)}>🗑️</Button>
-              </div>
-            </div>
-          ))}
-        </Card.Body>
-      </Card>
+                {deliveryTimeMode === 'scheduled' && (
+                  <Form.Select
+                    value={formData.delivery_time}
+                    onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
+                    className="border-0 bg-light"
+                  >
+                    {availableTimes.length === 0 ? (
+                      <option value="">Нет доступного времени</option>
+                    ) : (
+                      availableTimes.map(time => (
+                        <option key={time} value={time}>{time}</option>
+                      ))
+                    )}
+                  </Form.Select>
+                )}
+              </Form.Group>
 
-      {/* Оформление заказа */}
-      <Card>
+              {/* Способ оплаты */}
+              <Form.Group>
+                <Form.Label className="small text-muted mb-1">Способ оплаты</Form.Label>
+                <div className="d-flex gap-2">
+                  <Button
+                    variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
+                    size="sm"
+                    className="flex-fill"
+                    onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
+                  >
+                    💵 Наличные
+                  </Button>
+                  <Button
+                    variant={formData.payment_method === 'card' ? 'success' : 'outline-secondary'}
+                    size="sm"
+                    className="flex-fill"
+                    onClick={() => setFormData({ ...formData, payment_method: 'card' })}
+                  >
+                    💳 Карта
+                  </Button>
+                </div>
+              </Form.Group>
+            </Card.Body>
+          </Card>
+        </Form>
+      )}
+
+      {/* Итого и кнопки */}
+      <Card className="border-0 shadow-sm">
         <Card.Body>
-          <h5 className="mb-3">Оформление заказа</h5>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <span className="text-muted">Итого:</span>
+            <span className="fs-4 fw-bold text-primary">{cartTotal.toLocaleString()} сум</span>
+          </div>
           
-          {error && <Alert variant="danger" className="py-2">{error}</Alert>}
-
-          {/* Степпер */}
-          <div className="d-flex mb-4">
-            <div 
-              className={`flex-fill text-center py-2 rounded-start ${step === 1 ? 'bg-primary text-white' : 'bg-light text-muted'}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => setStep(1)}
-            >
-              <strong>1.</strong> Комментарий
-            </div>
-            <div 
-              className={`flex-fill text-center py-2 rounded-end ${step === 2 ? 'bg-primary text-white' : 'bg-light text-muted'}`}
-              style={{ cursor: 'pointer' }}
+          {step === 1 ? (
+            <Button 
+              variant="primary" 
+              size="lg" 
+              className="w-100"
               onClick={() => setStep(2)}
             >
-              <strong>2.</strong> Доставка
+              Далее →
+            </Button>
+          ) : (
+            <div className="d-flex gap-2">
+              <Button 
+                variant="outline-secondary" 
+                className="flex-fill"
+                onClick={() => setStep(1)}
+              >
+                ← Назад
+              </Button>
+              <Button 
+                variant="primary" 
+                className="flex-fill"
+                onClick={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? <Spinner size="sm" /> : 'Оформить'}
+              </Button>
             </div>
-          </div>
-
-          <Form onSubmit={handleSubmit}>
-            {/* ШАГ 1 - Комментарий */}
-            {step === 1 && (
-              <div>
-                <Form.Group className="mb-3">
-                  <Form.Label>Комментарий к заказу</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={3}
-                    value={formData.comment}
-                    onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-                    placeholder="Пожелания к заказу, особые инструкции..."
-                  />
-                </Form.Group>
-                <Button variant="primary" className="w-100" onClick={() => setStep(2)}>
-                  Далее →
-                </Button>
-              </div>
-            )}
-
-            {/* ШАГ 2 - Доставка и оплата */}
-            {step === 2 && (
-              <div>
-                {/* Карта */}
-                {hasLocation && (
-                  <div className="mb-3">
-                    <Form.Label>Точка доставки</Form.Label>
-                    <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #ddd' }}>
-                      <iframe
-                        title="delivery-map"
-                        src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
-                        width="100%"
-                        height="180"
-                        frameBorder="0"
-                      />
-                    </div>
-                    <Button 
-                      variant="outline-primary" 
-                      size="sm" 
-                      className="w-100"
-                      onClick={() => setShowLocationModal(true)}
-                    >
-                      📍 Изменить местоположение
-                    </Button>
-                  </div>
-                )}
-
-                {!hasLocation && (
-                  <div className="mb-3">
-                    <Button 
-                      variant="outline-primary" 
-                      className="w-100"
-                      onClick={() => setShowLocationModal(true)}
-                    >
-                      📍 Указать местоположение
-                    </Button>
-                  </div>
-                )}
-
-                {/* Адрес */}
-                <Form.Group className="mb-3">
-                  <Form.Label>Адрес доставки <span className="text-danger">*</span></Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={2}
-                    value={formData.delivery_address}
-                    onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
-                    placeholder="Улица, дом, подъезд, квартира"
-                    required
-                  />
-                </Form.Group>
-
-                {/* Телефон */}
-                <Form.Group className="mb-3">
-                  <Form.Label>Телефон <span className="text-danger">*</span></Form.Label>
-                  <Form.Control
-                    type="tel"
-                    value={formData.customer_phone}
-                    onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
-                    placeholder="+998 90 123 45 67"
-                    required
-                  />
-                </Form.Group>
-
-                {/* Время доставки */}
-                <Form.Group className="mb-3">
-                  <Form.Label>Время доставки</Form.Label>
-                  <div className="d-flex gap-3 mb-2">
-                    <Form.Check
-                      type="radio"
-                      id="time-asap"
-                      label="Как можно быстрее"
-                      checked={deliveryTimeMode === 'asap'}
-                      onChange={() => setDeliveryTimeMode('asap')}
-                    />
-                    <Form.Check
-                      type="radio"
-                      id="time-scheduled"
-                      label="Выбрать время"
-                      checked={deliveryTimeMode === 'scheduled'}
-                      onChange={() => setDeliveryTimeMode('scheduled')}
-                    />
-                  </div>
-                  {deliveryTimeMode === 'scheduled' && (
-                    <Form.Select
-                      value={formData.delivery_time}
-                      onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
-                    >
-                      {availableTimes.length === 0 ? (
-                        <option value="">Нет доступного времени</option>
-                      ) : (
-                        availableTimes.map(time => (
-                          <option key={time} value={time}>{time}</option>
-                        ))
-                      )}
-                    </Form.Select>
-                  )}
-                </Form.Group>
-
-                {/* Способ оплаты */}
-                <Form.Group className="mb-4">
-                  <Form.Label>Способ оплаты</Form.Label>
-                  <Form.Select
-                    value={formData.payment_method}
-                    onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                  >
-                    <option value="cash">💵 Наличные</option>
-                    <option value="card">💳 Карта</option>
-                  </Form.Select>
-                </Form.Group>
-
-                {/* Кнопки */}
-                <div className="d-flex gap-2">
-                  <Button variant="outline-secondary" className="flex-fill" onClick={() => setStep(1)}>
-                    ← Назад
-                  </Button>
-                  <Button variant="primary" type="submit" className="flex-fill" disabled={loading}>
-                    {loading ? <Spinner size="sm" /> : 'Оформить заказ'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Form>
-
-          {/* Итого */}
-          <div className="border-top mt-3 pt-3 d-flex justify-content-between align-items-center">
-            <span className="text-muted">Итого:</span>
-            <strong className="fs-4 text-primary">{cartTotal.toLocaleString()} сум</strong>
-          </div>
+          )}
         </Card.Body>
       </Card>
 
-      {/* Модалка для изменения локации - БЕЗ координат! */}
+      {/* Модалка для локации */}
       <Modal show={showLocationModal} onHide={() => setShowLocationModal(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>📍 Местоположение</Modal.Title>
+        <Modal.Header closeButton className="border-0">
+          <Modal.Title className="fs-5">📍 Местоположение</Modal.Title>
         </Modal.Header>
         <Modal.Body className="text-center py-4">
           <p className="text-muted mb-4">
-            Нажмите кнопку ниже, чтобы определить ваше текущее местоположение
+            Определим ваше текущее местоположение для доставки
           </p>
           <Button 
             variant="primary" 
@@ -415,16 +473,13 @@ function Cart() {
             disabled={locationLoading}
           >
             {locationLoading ? (
-              <>
-                <Spinner size="sm" className="me-2" />
-                Определение...
-              </>
+              <><Spinner size="sm" className="me-2" />Определение...</>
             ) : (
-              '📍 Определить моё местоположение'
+              '📍 Определить местоположение'
             )}
           </Button>
           <Button 
-            variant="outline-secondary" 
+            variant="light" 
             className="w-100"
             onClick={() => setShowLocationModal(false)}
           >
