@@ -23,13 +23,13 @@ function BottomNav() {
       bottom: 0,
       left: 0,
       right: 0,
-      background: '#fff',
-      borderTop: '1px solid #eee',
+      background: 'var(--surface-color)',
+      borderTop: '1px solid var(--border-color)',
       display: 'flex',
       justifyContent: 'space-around',
       padding: '8px 0 12px',
       zIndex: 1000,
-      boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+      boxShadow: '0 -6px 18px rgba(0,0,0,0.08)'
     }}>
       {navItems.map((item) => (
         <button
@@ -44,8 +44,8 @@ function BottomNav() {
             padding: '4px 16px',
             cursor: 'pointer',
             position: 'relative',
-            opacity: isActive(item.path) ? 1 : 0.6,
-            transform: isActive(item.path) ? 'scale(1.1)' : 'scale(1)',
+            opacity: isActive(item.path) ? 1 : 0.65,
+            transform: isActive(item.path) ? 'scale(1.05)' : 'scale(1)',
             transition: 'all 0.2s'
           }}
         >
@@ -55,7 +55,7 @@ function BottomNav() {
           <span style={{ 
             fontSize: '11px', 
             fontWeight: isActive(item.path) ? '600' : '400',
-            color: isActive(item.path) ? '#0d6efd' : '#666'
+            color: isActive(item.path) ? 'var(--accent-color)' : 'var(--text-secondary)'
           }}>
             {item.label}
           </span>
@@ -66,8 +66,8 @@ function BottomNav() {
               position: 'absolute',
               top: 0,
               right: 8,
-              background: '#dc3545',
-              color: '#fff',
+              background: 'var(--accent-color)',
+              color: '#1a1a1a',
               fontSize: '10px',
               fontWeight: 'bold',
               minWidth: '18px',

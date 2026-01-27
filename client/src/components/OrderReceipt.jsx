@@ -62,7 +62,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
           <div style={{ 
             padding: '24px 20px 16px',
             textAlign: 'center',
-            borderBottom: '2px dashed #ddd'
+            borderBottom: '2px dashed var(--border-color)'
           }}>
             {/* Restaurant logo */}
             {restaurantLogo ? (
@@ -87,12 +87,12 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
               </div>
             ) : null}
             
-            <div style={{ fontSize: '24px', marginBottom: '8px' }}>✅</div>
+            <div style={{ fontSize: '24px', marginBottom: '8px', color: 'var(--accent-color)' }}>✅</div>
             <h3 style={{ 
               margin: '0 0 4px', 
               fontSize: '18px',
               fontWeight: 'bold',
-              color: '#28a745'
+              color: 'var(--accent-color)'
             }}>
               Заказ принят!
             </h3>
@@ -109,7 +109,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
           <div style={{
             padding: '16px 20px',
             textAlign: 'center',
-            borderBottom: '1px dashed #ddd'
+            borderBottom: '1px dashed var(--border-color)'
           }}>
             <div style={{ fontSize: '12px', color: '#666' }}>НОМЕР ЗАКАЗА</div>
             <div style={{ 
@@ -123,7 +123,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
           </div>
 
           {/* Items */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px dashed #ddd' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px dashed var(--border-color)' }}>
             <div style={{ 
               fontSize: '11px', 
               color: '#666', 
@@ -175,10 +175,10 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
           {/* Payment method */}
           <div style={{
             padding: '12px 20px',
-            background: '#f8f9fa',
+            background: 'var(--accent-soft)',
             textAlign: 'center',
             fontSize: '12px',
-            color: '#666'
+            color: '#4a4438'
           }}>
             {order?.payment_method === 'card' ? '💳 Оплата картой' : '💵 Оплата наличными'}
           </div>
