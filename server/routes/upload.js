@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireOperator } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
     // Генерируем уникальное имя файла
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    cb(null, 'img-' + uniqueSuffix + ext);
   }
 });
 
@@ -41,8 +41,9 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-// Загрузка изображения (только для админов)
-router.post('/image', authenticate, requireAdmin, upload.single('image'), (req, res) => {
+// Загрузка изображения (для операторов и superadmin)
+// POST /api/upload - основной endpoint
+router.post('/', authenticate, requireOperator, upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Файл не загружен' });
@@ -51,6 +52,26 @@ router.post('/image', authenticate, requireAdmin, upload.single('image'), (req, 
     // Возвращаем URL для доступа к файлу
     const fileUrl = `/uploads/${req.file.filename}`;
     res.json({
+      imageUrl: fileUrl,
+      url: fileUrl,
+      filename: req.file.filename
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки файла' });
+  }
+});
+
+// Также поддерживаем /api/upload/image для обратной совместимости
+router.post('/image', authenticate, requireOperator, upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не загружен' });
+    }
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({
+      imageUrl: fileUrl,
       url: fileUrl,
       filename: req.file.filename
     });
@@ -61,6 +82,3 @@ router.post('/image', authenticate, requireAdmin, upload.single('image'), (req, 
 });
 
 module.exports = router;
-
-
-
