@@ -141,6 +141,40 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Verify token (for auto-login via URL)
+router.get('/verify-token', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.json({ valid: false, error: 'No token provided' });
+    }
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Check if user exists and is active
+    const userResult = await pool.query(
+      'SELECT id, username, is_active FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.json({ valid: false, error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    
+    if (!user.is_active) {
+      return res.json({ valid: false, error: 'User deactivated' });
+    }
+    
+    res.json({ valid: true, userId: user.id, username: user.username });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.json({ valid: false, error: 'Invalid or expired token' });
+  }
+});
+
 // Get current user
 router.get('/me', authenticate, async (req, res) => {
   try {

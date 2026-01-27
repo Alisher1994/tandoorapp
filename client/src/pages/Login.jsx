@@ -1,19 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
+import Spinner from 'react-bootstrap/Spinner';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [autoLoginLoading, setAutoLoginLoading] = useState(false);
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Check for auto-login token in URL
+  useEffect(() => {
+    const token = searchParams.get('token');
+    if (token && !user) {
+      handleAutoLogin(token);
+    }
+  }, [searchParams]);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -21,6 +35,37 @@ function Login() {
       redirectBasedOnRole(user.role);
     }
   }, [user]);
+
+  const handleAutoLogin = async (token) => {
+    setAutoLoginLoading(true);
+    setError('');
+    
+    try {
+      // Verify token and get user data
+      const response = await axios.get(`${API_URL}/auth/verify-token`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data.valid) {
+        // Save token and set user
+        localStorage.setItem('token', token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Fetch full user data
+        const userResponse = await axios.get(`${API_URL}/auth/me`);
+        
+        // Force page reload to update auth context
+        window.location.href = '/';
+      } else {
+        setError('Ссылка недействительна. Запросите новую в Telegram боте.');
+      }
+    } catch (err) {
+      console.error('Auto-login error:', err);
+      setError('Ссылка устарела или недействительна. Запросите новую через /start в Telegram боте.');
+    } finally {
+      setAutoLoginLoading(false);
+    }
+  };
 
   const redirectBasedOnRole = (role) => {
     if (role === 'superadmin') {
@@ -47,6 +92,16 @@ function Login() {
     
     setLoading(false);
   };
+
+  // Show loading screen during auto-login
+  if (autoLoginLoading) {
+    return (
+      <Container className="d-flex justify-content-center align-items-center flex-column" style={{ minHeight: '100vh' }}>
+        <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
+        <p className="mt-3 text-muted">Выполняется вход...</p>
+      </Container>
+    );
+  }
 
   return (
     <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
@@ -97,7 +152,7 @@ function Login() {
           <div className="text-center mt-4 pt-3 border-top">
             <small className="text-muted">
               <div className="mb-2">
-                <strong>👤 Клиенты:</strong> Получите логин через Telegram бота
+                <strong>👤 Клиенты:</strong> Вход по ссылке из Telegram бота
               </div>
               <div className="mb-2">
                 <strong>👨‍💼 Операторы:</strong> Логин выдается супер-админом

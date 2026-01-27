@@ -1,8 +1,18 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 let bot = null;
+
+// Generate login token for auto-login
+function generateLoginToken(userId, username) {
+  return jwt.sign(
+    { userId, username, autoLogin: true },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' } // Token valid for 30 days
+  );
+}
 
 // Store for registration states
 const registrationStates = new Map();
@@ -101,17 +111,25 @@ function initBot() {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
+        const appUrl = webAppUrl || 'https://tandoorapp-production.up.railway.app';
         
-        // User already registered - show menu button
+        // Generate auto-login token
+        const token = generateLoginToken(user.id, user.username);
+        const loginUrl = `${appUrl}?token=${token}`;
+        
+        // User already registered - show menu button with auto-login
         bot.sendMessage(chatId, 
           `👋 С возвращением, ${user.full_name}!\n\n` +
-          `📱 Нажмите кнопку ниже чтобы открыть меню:`,
+          `🔗 Ваша персональная ссылка для входа (действует 30 дней):\n` +
+          `<a href="${loginUrl}">Открыть меню</a>\n\n` +
+          `📱 Или нажмите кнопку ниже:`,
           {
+            parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [[
                 { 
                   text: '🍽️ Открыть меню', 
-                  web_app: { url: webAppUrl || 'https://tandoorapp-production.up.railway.app' }
+                  web_app: { url: loginUrl }
                 }
               ]]
             }
@@ -223,27 +241,33 @@ function initBot() {
         const password = Math.random().toString(36).slice(-8);
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Save user
-        await pool.query(`
+        // Save user and get ID
+        const userResult = await pool.query(`
           INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active)
           VALUES ($1, $2, $3, $4, $5, 'customer', true)
           ON CONFLICT (telegram_id) DO UPDATE SET
             full_name = EXCLUDED.full_name,
             phone = EXCLUDED.phone
+          RETURNING id
         `, [userId, username, hashedPassword, state.name, state.phone]);
+        
+        const newUserId = userResult.rows[0].id;
         
         // Clear registration state
         registrationStates.delete(userId);
         
         const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
         
+        // Generate auto-login token
+        const token = generateLoginToken(newUserId, username);
+        const loginUrl = `${appUrl}?token=${token}`;
+        
         bot.sendMessage(chatId,
-          `✅ Отлично! Доставка в ваш район доступна!\n\n` +
+          `✅ Регистрация успешна!\n\n` +
           `🏪 Ближайший ресторан: <b>${restaurant.name}</b>\n\n` +
-          `📝 Ваши данные для входа:\n` +
-          `👤 Логин: <code>${username}</code>\n` +
-          `🔑 Пароль: <code>${password}</code>\n\n` +
-          `⚠️ Сохраните эти данные!\n\n` +
+          `🔗 Ваша персональная ссылка для входа:\n` +
+          `<a href="${loginUrl}">Открыть меню</a>\n\n` +
+          `⚠️ Эта ссылка действует 30 дней. Используйте /start чтобы получить новую.\n\n` +
           `🍽️ Нажмите кнопку ниже чтобы открыть меню:`,
           {
             parse_mode: 'HTML',
@@ -252,7 +276,7 @@ function initBot() {
               inline_keyboard: [[
                 { 
                   text: '🍽️ Открыть меню', 
-                  web_app: { url: appUrl }
+                  web_app: { url: loginUrl }
                 }
               ]]
             }
@@ -300,33 +324,43 @@ function initBot() {
   // =====================================================
   bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
+    const telegramUserId = msg.from.id;
     
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE telegram_id = $1',
-      [userId]
-    );
-    
-    if (userResult.rows.length === 0) {
-      bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Используйте /start');
-      return;
-    }
-    
-    const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
-    
-    bot.sendMessage(chatId,
-      '🍽️ Нажмите кнопку ниже чтобы открыть меню:',
-      {
-        reply_markup: {
-          inline_keyboard: [[
-            { 
-              text: '🍽️ Открыть меню', 
-              web_app: { url: appUrl }
-            }
-          ]]
-        }
+    try {
+      const userResult = await pool.query(
+        'SELECT * FROM users WHERE telegram_id = $1',
+        [telegramUserId]
+      );
+      
+      if (userResult.rows.length === 0) {
+        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Используйте /start');
+        return;
       }
-    );
+      
+      const user = userResult.rows[0];
+      const appUrl = process.env.TELEGRAM_WEB_APP_URL || 'https://tandoorapp-production.up.railway.app';
+      
+      // Generate auto-login token
+      const token = generateLoginToken(user.id, user.username);
+      const loginUrl = `${appUrl}?token=${token}`;
+      
+      bot.sendMessage(chatId,
+        '🍽️ Нажмите кнопку ниже чтобы открыть меню:',
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { 
+                text: '🍽️ Открыть меню', 
+                web_app: { url: loginUrl }
+              }
+            ]]
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Menu command error:', error);
+      bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+    }
   });
   
   // =====================================================
