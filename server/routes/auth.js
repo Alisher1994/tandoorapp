@@ -187,7 +187,10 @@ router.get('/me', authenticate, async (req, res) => {
         role: req.user.role,
         active_restaurant_id: req.user.active_restaurant_id,
         active_restaurant_name: req.user.active_restaurant_name,
-        restaurants: req.user.restaurants || []
+        restaurants: req.user.restaurants || [],
+        last_latitude: req.user.last_latitude,
+        last_longitude: req.user.last_longitude,
+        last_address: req.user.last_address
       }
     });
   } catch (error) {

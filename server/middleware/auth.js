@@ -15,7 +15,7 @@ const authenticate = async (req, res, next) => {
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Get user from database with active restaurant info
+    // Get user from database with active restaurant info and location
     const userResult = await pool.query(`
       SELECT 
         u.id, 
@@ -26,6 +26,9 @@ const authenticate = async (req, res, next) => {
         u.telegram_id,
         u.active_restaurant_id,
         u.is_active,
+        u.last_latitude,
+        u.last_longitude,
+        u.last_address,
         r.name as active_restaurant_name
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id

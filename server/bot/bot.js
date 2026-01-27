@@ -245,6 +245,14 @@ function initBot() {
           
           if (userResult.rows.length > 0) {
             const user = userResult.rows[0];
+            
+            // Save location to database
+            await pool.query(`
+              UPDATE users 
+              SET last_latitude = $1, last_longitude = $2, active_restaurant_id = $3
+              WHERE id = $4
+            `, [location.latitude, location.longitude, restaurant.id, user.id]);
+            
             const token = generateLoginToken(user.id, user.username);
             const loginUrl = `${appUrl}?token=${token}`;
             
@@ -273,15 +281,18 @@ function initBot() {
         const password = Math.random().toString(36).slice(-8);
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Save user and get ID
+        // Save user with location and get ID
         const userResult = await pool.query(`
-          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active)
-          VALUES ($1, $2, $3, $4, $5, 'customer', true)
+          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id)
+          VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7, $8)
           ON CONFLICT (telegram_id) DO UPDATE SET
             full_name = EXCLUDED.full_name,
-            phone = EXCLUDED.phone
+            phone = EXCLUDED.phone,
+            last_latitude = EXCLUDED.last_latitude,
+            last_longitude = EXCLUDED.last_longitude,
+            active_restaurant_id = EXCLUDED.active_restaurant_id
           RETURNING id
-        `, [userId, username, hashedPassword, state.name, state.phone]);
+        `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurant.id]);
         
         const newUserId = userResult.rows[0].id;
         

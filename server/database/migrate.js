@@ -57,7 +57,10 @@ async function migrate() {
     // Add columns to users table
     const userColumns = [
       { name: 'active_restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
-      { name: 'is_active', type: 'BOOLEAN DEFAULT true' }
+      { name: 'is_active', type: 'BOOLEAN DEFAULT true' },
+      { name: 'last_latitude', type: 'DECIMAL(10, 8)' },
+      { name: 'last_longitude', type: 'DECIMAL(11, 8)' },
+      { name: 'last_address', type: 'TEXT' }
     ];
     
     for (const col of userColumns) {

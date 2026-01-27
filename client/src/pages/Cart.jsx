@@ -20,9 +20,13 @@ function Cart() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
+  // Use saved location from Telegram bot
+  const hasLocation = user?.last_latitude && user?.last_longitude;
+  const savedCoordinates = hasLocation ? `${user.last_latitude},${user.last_longitude}` : '';
+  
   const [formData, setFormData] = useState({
-    delivery_address: '',
-    delivery_coordinates: '',
+    delivery_address: user?.last_address || '',
+    delivery_coordinates: savedCoordinates,
     customer_name: user?.full_name || '',
     customer_phone: user?.phone || '',
     payment_method: 'cash',
@@ -189,13 +193,34 @@ function Cart() {
 
                 <Form.Group className="mb-3">
                   <Form.Label>Адрес доставки <span className="text-danger">*</span></Form.Label>
+                  {hasLocation && (
+                    <Alert variant="success" className="py-2 mb-2">
+                      <small>
+                        📍 Локация получена из Telegram
+                        <br />
+                        <a 
+                          href={`https://yandex.ru/maps/?pt=${user.last_longitude},${user.last_latitude}&z=17&l=map`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Посмотреть на карте →
+                        </a>
+                      </small>
+                    </Alert>
+                  )}
                   <Form.Control
                     as="textarea"
-                    rows={3}
+                    rows={2}
                     value={formData.delivery_address}
                     onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
+                    placeholder={hasLocation ? "Уточните адрес (дом, подъезд, квартира)" : "Введите полный адрес доставки"}
                     required
                   />
+                  {hasLocation && (
+                    <Form.Text className="text-muted">
+                      Уточните адрес: номер дома, подъезд, квартира
+                    </Form.Text>
+                  )}
                 </Form.Group>
 
                 <Form.Group className="mb-3">
