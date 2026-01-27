@@ -74,14 +74,16 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, open_time, close_time } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
     }
     
+    console.log('📍 Creating restaurant with delivery_zone:', delivery_zone);
+    
     const result = await pool.query(`
-      INSERT INTO restaurants (name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, open_time, close_time)
+      INSERT INTO restaurants (name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
@@ -92,8 +94,8 @@ router.post('/restaurants', async (req, res) => {
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       telegram_bot_token,
       telegram_group_id,
-      open_time,
-      close_time
+      start_time,
+      end_time
     ]);
     
     const restaurant = result.rows[0];
@@ -121,7 +123,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, open_time, close_time } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time } = req.body;
     
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -129,6 +131,8 @@ router.put('/restaurants/:id', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     const oldValues = oldResult.rows[0];
+    
+    console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
     
     const result = await pool.query(`
       UPDATE restaurants 
@@ -140,8 +144,8 @@ router.put('/restaurants/:id', async (req, res) => {
           telegram_bot_token = COALESCE($6, telegram_bot_token),
           telegram_group_id = COALESCE($7, telegram_group_id),
           is_active = COALESCE($8, is_active),
-          open_time = COALESCE($9, open_time),
-          close_time = COALESCE($10, close_time),
+          start_time = $9,
+          end_time = $10,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $11
       RETURNING *
@@ -154,8 +158,8 @@ router.put('/restaurants/:id', async (req, res) => {
       telegram_bot_token,
       telegram_group_id,
       is_active,
-      open_time,
-      close_time,
+      start_time || null,
+      end_time || null,
       req.params.id
     ]);
     

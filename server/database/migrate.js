@@ -32,29 +32,28 @@ async function migrate() {
         logo_url TEXT,
         telegram_bot_token VARCHAR(255),
         telegram_group_id VARCHAR(100),
-        open_time VARCHAR(5),
-        close_time VARCHAR(5),
+        delivery_zone JSONB,
+        start_time VARCHAR(5),
+        end_time VARCHAR(5),
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
-    // Add logo_url column if not exists
-    try {
-      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS logo_url TEXT`);
-    } catch (e) {}
+    // Add missing columns
+    const restaurantColumns = [
+      'logo_url TEXT',
+      'delivery_zone JSONB',
+      'start_time VARCHAR(5)',
+      'end_time VARCHAR(5)'
+    ];
     
-    // Add delivery_zone column for storing polygon coordinates
-    try {
-      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_zone JSONB`);
-    } catch (e) {}
-
-    // Add working hours columns
-    try {
-      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS open_time VARCHAR(5)`);
-      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS close_time VARCHAR(5)`);
-    } catch (e) {}
+    for (const col of restaurantColumns) {
+      try {
+        await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
+      } catch (e) {}
+    }
     
     console.log('✅ Restaurants table ready');
     

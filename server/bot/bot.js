@@ -45,25 +45,52 @@ function isPointInPolygon(point, polygon) {
 // Find restaurant by delivery zone
 async function findRestaurantByLocation(lat, lng) {
   try {
+    console.log(`🔍 Searching restaurant for location: ${lat}, ${lng}`);
+    
     const result = await pool.query(`
       SELECT id, name, delivery_zone, logo_url, start_time, end_time
       FROM restaurants 
-      WHERE is_active = true AND delivery_zone IS NOT NULL
+      WHERE is_active = true
     `);
+    
+    console.log(`📍 Found ${result.rows.length} active restaurants`);
     
     for (const restaurant of result.rows) {
       let zone = restaurant.delivery_zone;
       
-      // Parse if string
-      if (typeof zone === 'string') {
-        zone = JSON.parse(zone);
+      console.log(`🏪 Restaurant: ${restaurant.name}, zone type: ${typeof zone}, zone: ${zone ? 'exists' : 'null'}`);
+      
+      if (!zone) {
+        console.log(`   ⚠️ No delivery zone for ${restaurant.name}`);
+        continue;
       }
       
-      if (zone && isPointInPolygon([lat, lng], zone)) {
-        return restaurant;
+      // Parse if string
+      if (typeof zone === 'string') {
+        try {
+          zone = JSON.parse(zone);
+        } catch (e) {
+          console.log(`   ❌ Failed to parse zone: ${e.message}`);
+          continue;
+        }
+      }
+      
+      console.log(`   📐 Zone has ${zone?.length || 0} points`);
+      if (zone && zone.length > 0) {
+        console.log(`   📐 First point: ${JSON.stringify(zone[0])}`);
+      }
+      
+      if (zone && zone.length >= 3) {
+        const isInside = isPointInPolygon([lat, lng], zone);
+        console.log(`   🎯 Point [${lat}, ${lng}] inside zone: ${isInside}`);
+        
+        if (isInside) {
+          return restaurant;
+        }
       }
     }
     
+    console.log('❌ No matching restaurant found');
     return null;
   } catch (error) {
     console.error('Find restaurant error:', error);

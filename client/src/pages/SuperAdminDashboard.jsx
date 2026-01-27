@@ -44,8 +44,8 @@ function SuperAdminDashboard() {
     delivery_zone: null,
     telegram_bot_token: '',
     telegram_group_id: '',
-    open_time: '',
-    close_time: ''
+    start_time: '',
+    end_time: ''
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -248,8 +248,8 @@ function SuperAdminDashboard() {
         delivery_zone: restaurant.delivery_zone || null,
         telegram_bot_token: restaurant.telegram_bot_token || '',
         telegram_group_id: restaurant.telegram_group_id || '',
-        open_time: restaurant.open_time || '',
-        close_time: restaurant.close_time || ''
+        start_time: restaurant.start_time || '',
+        end_time: restaurant.end_time || ''
       });
     } else {
       setEditingRestaurant(null);
@@ -261,8 +261,8 @@ function SuperAdminDashboard() {
         delivery_zone: null,
         telegram_bot_token: '',
         telegram_group_id: '',
-        open_time: '',
-        close_time: ''
+        start_time: '',
+        end_time: ''
       });
     }
     setShowRestaurantModal(true);
@@ -884,8 +884,8 @@ function SuperAdminDashboard() {
                   <Form.Label>Начало работы</Form.Label>
                   <Form.Control
                     type="time"
-                    value={restaurantForm.open_time}
-                    onChange={(e) => setRestaurantForm({ ...restaurantForm, open_time: e.target.value })}
+                    value={restaurantForm.start_time}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, start_time: e.target.value })}
                   />
                 </Form.Group>
               </Col>
@@ -894,8 +894,8 @@ function SuperAdminDashboard() {
                   <Form.Label>Окончание работы</Form.Label>
                   <Form.Control
                     type="time"
-                    value={restaurantForm.close_time}
-                    onChange={(e) => setRestaurantForm({ ...restaurantForm, close_time: e.target.value })}
+                    value={restaurantForm.end_time}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, end_time: e.target.value })}
                   />
                 </Form.Group>
               </Col>
