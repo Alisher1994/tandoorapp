@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
@@ -6,6 +6,9 @@ import {
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner
 } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
+
+// Lazy load map component (heavy)
+const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -34,9 +37,10 @@ function SuperAdminDashboard() {
   
   // Forms
   const [restaurantForm, setRestaurantForm] = useState({
-    name: '', address: '', phone: '', logo_url: '', telegram_bot_token: '', telegram_group_id: ''
+    name: '', address: '', phone: '', logo_url: '', delivery_zone: null, telegram_bot_token: '', telegram_group_id: ''
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [showMapModal, setShowMapModal] = useState(false);
   const [operatorForm, setOperatorForm] = useState({
     username: '', password: '', full_name: '', phone: '', restaurant_ids: []
   });
@@ -160,13 +164,14 @@ function SuperAdminDashboard() {
         address: restaurant.address || '',
         phone: restaurant.phone || '',
         logo_url: restaurant.logo_url || '',
+        delivery_zone: restaurant.delivery_zone || null,
         telegram_bot_token: restaurant.telegram_bot_token || '',
         telegram_group_id: restaurant.telegram_group_id || ''
       });
     } else {
       setEditingRestaurant(null);
       setRestaurantForm({
-        name: '', address: '', phone: '', logo_url: '', telegram_bot_token: '', telegram_group_id: ''
+        name: '', address: '', phone: '', logo_url: '', delivery_zone: null, telegram_bot_token: '', telegram_group_id: ''
       });
     }
     setShowRestaurantModal(true);
@@ -379,9 +384,9 @@ function SuperAdminDashboard() {
                         <th>Логотип</th>
                         <th>Название</th>
                         <th>Адрес</th>
-                        <th>Telegram Bot</th>
+                        <th>Зона доставки</th>
+                        <th>Telegram</th>
                         <th>Статус</th>
-                        <th>Товары</th>
                         <th>Действия</th>
                       </tr>
                     </thead>
@@ -405,10 +410,17 @@ function SuperAdminDashboard() {
                           <td><strong>{r.name}</strong></td>
                           <td>{r.address || '-'}</td>
                           <td>
-                            {r.telegram_bot_token ? (
-                              <Badge bg="success">Настроен</Badge>
+                            {r.delivery_zone ? (
+                              <Badge bg="success">🗺️ Настроена</Badge>
                             ) : (
-                              <Badge bg="secondary">Не настроен</Badge>
+                              <Badge bg="secondary">Не настроена</Badge>
+                            )}
+                          </td>
+                          <td>
+                            {r.telegram_bot_token ? (
+                              <Badge bg="success">✓</Badge>
+                            ) : (
+                              <Badge bg="secondary">✗</Badge>
                             )}
                           </td>
                           <td>
@@ -416,10 +428,9 @@ function SuperAdminDashboard() {
                               type="switch"
                               checked={r.is_active}
                               onChange={() => handleToggleRestaurant(r)}
-                              label={r.is_active ? 'Активен' : 'Неактивен'}
+                              label={r.is_active ? 'Да' : 'Нет'}
                             />
                           </td>
-                          <td>{r.products_count || 0}</td>
                           <td>
                             <Button variant="outline-primary" size="sm" className="me-2" onClick={() => openRestaurantModal(r)}>
                               ✏️
@@ -741,11 +752,71 @@ function SuperAdminDashboard() {
               />
               <Form.Text className="text-muted">ID группы или канала для получения заказов</Form.Text>
             </Form.Group>
+            
+            <hr />
+            <h6>🗺️ Зона доставки</h6>
+            <Form.Group className="mb-3">
+              <div className="d-flex align-items-center gap-2 mb-2">
+                {restaurantForm.delivery_zone ? (
+                  <Badge bg="success">✓ Зона установлена ({restaurantForm.delivery_zone.length} точек)</Badge>
+                ) : (
+                  <Badge bg="secondary">Зона не установлена</Badge>
+                )}
+                <Button 
+                  variant="outline-primary" 
+                  size="sm"
+                  onClick={() => setShowMapModal(true)}
+                >
+                  {restaurantForm.delivery_zone ? 'Изменить зону' : 'Нарисовать зону'}
+                </Button>
+                {restaurantForm.delivery_zone && (
+                  <Button 
+                    variant="outline-danger" 
+                    size="sm"
+                    onClick={() => setRestaurantForm({ ...restaurantForm, delivery_zone: null })}
+                  >
+                    Удалить
+                  </Button>
+                )}
+              </div>
+              <Form.Text className="text-muted">
+                Нарисуйте на карте область, в которую ресторан осуществляет доставку
+              </Form.Text>
+            </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowRestaurantModal(false)}>Отмена</Button>
           <Button variant="primary" onClick={handleSaveRestaurant}>Сохранить</Button>
+        </Modal.Footer>
+      </Modal>
+      
+      {/* Delivery Zone Map Modal */}
+      <Modal show={showMapModal} onHide={() => setShowMapModal(false)} size="xl">
+        <Modal.Header closeButton>
+          <Modal.Title>🗺️ Зона доставки</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Suspense fallback={<div className="text-center p-5"><Spinner animation="border" /></div>}>
+            <DeliveryZoneMap
+              zone={restaurantForm.delivery_zone}
+              onZoneChange={(zone) => setRestaurantForm({ ...restaurantForm, delivery_zone: zone })}
+              height="500px"
+              editable={true}
+            />
+          </Suspense>
+          <Alert variant="info" className="mt-3">
+            <strong>Инструкция:</strong>
+            <ol className="mb-0 mt-2">
+              <li>Нажмите на иконку многоугольника (⬠) справа на карте</li>
+              <li>Кликайте по карте, чтобы отметить точки границы зоны доставки</li>
+              <li>Завершите многоугольник, кликнув на первую точку</li>
+              <li>Закройте окно — зона сохранится</li>
+            </ol>
+          </Alert>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowMapModal(false)}>Готово</Button>
         </Modal.Footer>
       </Modal>
 

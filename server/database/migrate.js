@@ -43,6 +43,11 @@ async function migrate() {
       await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS logo_url TEXT`);
     } catch (e) {}
     
+    // Add delivery_zone column for storing polygon coordinates
+    try {
+      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_zone JSONB`);
+    } catch (e) {}
+    
     console.log('✅ Restaurants table ready');
     
     // =====================================================
