@@ -160,8 +160,8 @@ router.post('/', authenticate, async (req, res) => {
       return sum + (parseFloat(item.price) * parseFloat(item.quantity));
     }, 0);
     
-    // Generate order number
-    const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Generate short order number (5 digits)
+    const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
     
     // Handle delivery_time - convert "asap" to null for database
     const dbDeliveryTime = (delivery_time && delivery_time !== 'asap') ? delivery_time : null;

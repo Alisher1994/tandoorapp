@@ -135,9 +135,8 @@ function Cart() {
     try {
       const restaurant_id = cart[0]?.restaurant_id || user?.active_restaurant_id;
       
-      // Если нет адреса но есть локация - используем координаты
-      const deliveryAddress = formData.delivery_address || 
-        (hasLocation ? `Локация: ${mapCoordinates.lat.toFixed(6)}, ${mapCoordinates.lng.toFixed(6)}` : '');
+      // Если нет адреса но есть локация - указываем что доставка по локации
+      const deliveryAddress = formData.delivery_address || (hasLocation ? 'По геолокации' : '');
       
       const orderData = {
         items: cart.map(item => ({
