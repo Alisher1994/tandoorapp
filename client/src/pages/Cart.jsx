@@ -162,11 +162,25 @@ function Cart() {
       const response = await axios.post(`${API_URL}/orders`, orderData);
       console.log('✅ Order created:', response.data);
       
-      // Save order info for receipt
-      setCreatedOrder(response.data.order);
-      setOrderItems(orderData.items);
-      setShowReceipt(true);
+      // Save order info for receipt BEFORE clearing cart
+      const orderForReceipt = response.data.order || {
+        order_number: response.data.order_number || 'N/A',
+        total_amount: orderData.items.reduce((sum, i) => sum + (i.price * i.quantity), 0),
+        payment_method: orderData.payment_method
+      };
+      
+      // Store items before clearing
+      const itemsForReceipt = [...orderData.items];
+      
+      // Clear cart first
       clearCart();
+      
+      // Then show receipt
+      setCreatedOrder(orderForReceipt);
+      setOrderItems(itemsForReceipt);
+      setShowReceipt(true);
+      
+      console.log('📋 Showing receipt:', orderForReceipt);
     } catch (err) {
       console.error('❌ Order error:', err);
       console.error('❌ Response:', err.response?.data);
@@ -177,6 +191,20 @@ function Cart() {
       setLoading(false);
     }
   };
+
+  // Show receipt if order was created (even if cart is empty now)
+  if (showReceipt) {
+    return (
+      <OrderReceipt 
+        order={createdOrder} 
+        items={orderItems}
+        onClose={() => {
+          setShowReceipt(false);
+          navigate('/orders');
+        }}
+      />
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -479,15 +507,6 @@ function Cart() {
           )}
         </Card.Body>
       </Card>
-
-      {/* Receipt animation */}
-      {showReceipt && (
-        <OrderReceipt 
-          order={createdOrder} 
-          items={orderItems}
-          onClose={() => setShowReceipt(false)}
-        />
-      )}
 
       {/* Модалка для локации */}
       <Modal show={showLocationModal} onHide={() => setShowLocationModal(false)} centered>
