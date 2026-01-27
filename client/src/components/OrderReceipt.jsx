@@ -70,8 +70,8 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
                 src={restaurantLogo} 
                 alt={restaurantName || 'Restaurant'} 
                 style={{ 
-                  maxHeight: '50px', 
-                  maxWidth: '150px',
+                  maxHeight: '80px', 
+                  maxWidth: '220px',
                   objectFit: 'contain',
                   marginBottom: '12px'
                 }}

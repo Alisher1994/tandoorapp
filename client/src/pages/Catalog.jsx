@@ -155,7 +155,6 @@ function Catalog() {
               <span>{currentRestaurant?.name || 'Каталог'}</span>
             )}
           </Navbar.Brand>
-          <Navbar.Toggle />
           <Navbar.Collapse className="justify-content-end">
             <Nav>
               <Nav.Link onClick={() => navigate('/orders')}>
