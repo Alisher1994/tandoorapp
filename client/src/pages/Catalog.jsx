@@ -120,7 +120,15 @@ function Catalog() {
       <Navbar bg="white" expand="lg" className="shadow-sm mb-4 sticky-top">
         <Container>
           <Navbar.Brand className="d-flex align-items-center">
-            <span style={{ fontSize: '1.5rem' }} className="me-2">🍽️</span>
+            {currentRestaurant?.logo_url ? (
+              <img 
+                src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
+                alt={currentRestaurant.name}
+                style={{ height: '35px', width: '35px', objectFit: 'cover', borderRadius: '8px', marginRight: '10px' }}
+              />
+            ) : (
+              <span style={{ fontSize: '1.5rem' }} className="me-2">🍽️</span>
+            )}
             {restaurants.length > 1 ? (
               <Form.Select 
                 size="sm"

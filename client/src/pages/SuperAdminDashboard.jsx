@@ -34,8 +34,9 @@ function SuperAdminDashboard() {
   
   // Forms
   const [restaurantForm, setRestaurantForm] = useState({
-    name: '', address: '', phone: '', telegram_bot_token: '', telegram_group_id: ''
+    name: '', address: '', phone: '', logo_url: '', telegram_bot_token: '', telegram_group_id: ''
   });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [operatorForm, setOperatorForm] = useState({
     username: '', password: '', full_name: '', phone: '', restaurant_ids: []
   });
@@ -130,6 +131,26 @@ function SuperAdminDashboard() {
     }
   };
 
+  // Logo upload handler
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploadingLogo(true);
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+      const response = await axios.post(`${API_URL}/upload`, formData);
+      setRestaurantForm({ ...restaurantForm, logo_url: response.data.imageUrl });
+      setSuccess('Логотип загружен');
+    } catch (err) {
+      setError('Ошибка загрузки логотипа');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   // Restaurant handlers
   const openRestaurantModal = (restaurant = null) => {
     if (restaurant) {
@@ -138,13 +159,14 @@ function SuperAdminDashboard() {
         name: restaurant.name || '',
         address: restaurant.address || '',
         phone: restaurant.phone || '',
+        logo_url: restaurant.logo_url || '',
         telegram_bot_token: restaurant.telegram_bot_token || '',
         telegram_group_id: restaurant.telegram_group_id || ''
       });
     } else {
       setEditingRestaurant(null);
       setRestaurantForm({
-        name: '', address: '', phone: '', telegram_bot_token: '', telegram_group_id: ''
+        name: '', address: '', phone: '', logo_url: '', telegram_bot_token: '', telegram_group_id: ''
       });
     }
     setShowRestaurantModal(true);
@@ -354,12 +376,12 @@ function SuperAdminDashboard() {
                     <thead className="table-light">
                       <tr>
                         <th>ID</th>
+                        <th>Логотип</th>
                         <th>Название</th>
                         <th>Адрес</th>
-                        <th>Телефон</th>
                         <th>Telegram Bot</th>
                         <th>Статус</th>
-                        <th>Заказы</th>
+                        <th>Товары</th>
                         <th>Действия</th>
                       </tr>
                     </thead>
@@ -367,9 +389,21 @@ function SuperAdminDashboard() {
                       {restaurants.map(r => (
                         <tr key={r.id}>
                           <td>{r.id}</td>
+                          <td>
+                            {r.logo_url ? (
+                              <img 
+                                src={r.logo_url.startsWith('http') ? r.logo_url : `${API_URL.replace('/api', '')}${r.logo_url}`}
+                                alt={r.name}
+                                style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px' }}
+                              />
+                            ) : (
+                              <div style={{ width: '40px', height: '40px', background: '#f0f0f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                🏪
+                              </div>
+                            )}
+                          </td>
                           <td><strong>{r.name}</strong></td>
                           <td>{r.address || '-'}</td>
-                          <td>{r.phone || '-'}</td>
                           <td>
                             {r.telegram_bot_token ? (
                               <Badge bg="success">Настроен</Badge>
@@ -385,7 +419,7 @@ function SuperAdminDashboard() {
                               label={r.is_active ? 'Активен' : 'Неактивен'}
                             />
                           </td>
-                          <td>{r.orders_count || 0}</td>
+                          <td>{r.products_count || 0}</td>
                           <td>
                             <Button variant="outline-primary" size="sm" className="me-2" onClick={() => openRestaurantModal(r)}>
                               ✏️
@@ -618,6 +652,45 @@ function SuperAdminDashboard() {
         </Modal.Header>
         <Modal.Body>
           <Form>
+            {/* Logo Upload */}
+            <Form.Group className="mb-3">
+              <Form.Label>Логотип ресторана</Form.Label>
+              <div className="d-flex align-items-center gap-3">
+                {restaurantForm.logo_url ? (
+                  <img 
+                    src={restaurantForm.logo_url.startsWith('http') ? restaurantForm.logo_url : `${API_URL.replace('/api', '')}${restaurantForm.logo_url}`}
+                    alt="Logo"
+                    style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '12px', border: '2px solid #dee2e6' }}
+                  />
+                ) : (
+                  <div style={{ width: '80px', height: '80px', background: '#f8f9fa', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed #dee2e6' }}>
+                    <span style={{ fontSize: '2rem' }}>🏪</span>
+                  </div>
+                )}
+                <div>
+                  <Form.Control 
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    disabled={uploadingLogo}
+                  />
+                  {uploadingLogo && <small className="text-muted">Загрузка...</small>}
+                  {restaurantForm.logo_url && (
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="text-danger p-0 mt-1"
+                      onClick={() => setRestaurantForm({ ...restaurantForm, logo_url: '' })}
+                    >
+                      Удалить логотип
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Form.Group>
+            
+            <hr />
+            
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">

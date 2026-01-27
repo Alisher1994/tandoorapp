@@ -29,6 +29,7 @@ async function migrate() {
         name VARCHAR(255) NOT NULL,
         address TEXT,
         phone VARCHAR(20),
+        logo_url TEXT,
         telegram_bot_token VARCHAR(255),
         telegram_group_id VARCHAR(100),
         is_active BOOLEAN DEFAULT true,
@@ -36,6 +37,12 @@ async function migrate() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Add logo_url column if not exists
+    try {
+      await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS logo_url TEXT`);
+    } catch (e) {}
+    
     console.log('✅ Restaurants table ready');
     
     // =====================================================

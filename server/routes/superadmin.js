@@ -74,17 +74,17 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
-    const { name, address, phone, telegram_bot_token, telegram_group_id } = req.body;
+    const { name, address, phone, logo_url, telegram_bot_token, telegram_group_id } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
     }
     
     const result = await pool.query(`
-      INSERT INTO restaurants (name, address, phone, telegram_bot_token, telegram_group_id)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO restaurants (name, address, phone, logo_url, telegram_bot_token, telegram_group_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [name, address, phone, telegram_bot_token, telegram_group_id]);
+    `, [name, address, phone, logo_url, telegram_bot_token, telegram_group_id]);
     
     const restaurant = result.rows[0];
     
@@ -111,7 +111,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, telegram_bot_token, telegram_group_id, is_active } = req.body;
+    const { name, address, phone, logo_url, telegram_bot_token, telegram_group_id, is_active } = req.body;
     
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -125,13 +125,14 @@ router.put('/restaurants/:id', async (req, res) => {
       SET name = COALESCE($1, name),
           address = COALESCE($2, address),
           phone = COALESCE($3, phone),
-          telegram_bot_token = COALESCE($4, telegram_bot_token),
-          telegram_group_id = COALESCE($5, telegram_group_id),
-          is_active = COALESCE($6, is_active),
+          logo_url = $4,
+          telegram_bot_token = COALESCE($5, telegram_bot_token),
+          telegram_group_id = COALESCE($6, telegram_group_id),
+          is_active = COALESCE($7, is_active),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $8
       RETURNING *
-    `, [name, address, phone, telegram_bot_token, telegram_group_id, is_active, req.params.id]);
+    `, [name, address, phone, logo_url, telegram_bot_token, telegram_group_id, is_active, req.params.id]);
     
     const restaurant = result.rows[0];
     
