@@ -12,22 +12,28 @@ import Spinner from 'react-bootstrap/Spinner';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Login() {
+  const [searchParams] = useSearchParams();
+  const tokenFromUrl = searchParams.get('token');
+  
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [autoLoginLoading, setAutoLoginLoading] = useState(false);
+  const [autoLoginLoading, setAutoLoginLoading] = useState(!!tokenFromUrl);
   const { user, login } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
-  // Check for auto-login token in URL
+  // Check for auto-login token in URL on mount
   useEffect(() => {
-    const token = searchParams.get('token');
-    if (token && !user) {
-      handleAutoLogin(token);
+    if (tokenFromUrl && !user) {
+      handleAutoLogin(tokenFromUrl);
+    } else if (tokenFromUrl && user) {
+      // Already logged in, redirect
+      redirectBasedOnRole(user.role);
+    } else {
+      setAutoLoginLoading(false);
     }
-  }, [searchParams]);
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -41,28 +47,26 @@ function Login() {
     setError('');
     
     try {
-      // Verify token and get user data
-      const response = await axios.get(`${API_URL}/auth/verify-token`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Simply save token - AuthContext will verify on page load
+      localStorage.setItem('token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
-      if (response.data.valid) {
-        // Save token and set user
-        localStorage.setItem('token', token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        
-        // Fetch full user data
-        const userResponse = await axios.get(`${API_URL}/auth/me`);
-        
-        // Force page reload to update auth context
-        window.location.href = '/';
+      // Try to fetch user to verify token is valid
+      const response = await axios.get(`${API_URL}/auth/me`);
+      
+      if (response.data.user) {
+        // Token is valid - reload page to load user in AuthContext
+        window.location.replace('/');
       } else {
+        localStorage.removeItem('token');
         setError('Ссылка недействительна. Запросите новую в Telegram боте.');
+        setAutoLoginLoading(false);
       }
     } catch (err) {
       console.error('Auto-login error:', err);
-      setError('Ссылка устарела или недействительна. Запросите новую через /start в Telegram боте.');
-    } finally {
+      localStorage.removeItem('token');
+      delete axios.defaults.headers.common['Authorization'];
+      setError('Ссылка устарела или недействительна. Используйте /start в Telegram боте.');
       setAutoLoginLoading(false);
     }
   };
