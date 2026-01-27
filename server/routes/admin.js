@@ -232,6 +232,88 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
+// Update order items (add, remove, change quantity)
+router.put('/orders/:id/items', async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { items } = req.body;
+    
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: 'Список товаров обязателен' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Get order and check access
+    const orderCheck = await client.query(
+      'SELECT * FROM orders WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (orderCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+    
+    const order = orderCheck.rows[0];
+    
+    // Check restaurant access
+    if (req.user.role !== 'superadmin' && order.restaurant_id !== req.user.active_restaurant_id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Нет доступа к этому заказу' });
+    }
+    
+    // Delete old items
+    await client.query('DELETE FROM order_items WHERE order_id = $1', [req.params.id]);
+    
+    // Insert new items
+    let newTotal = 0;
+    for (const item of items) {
+      const itemTotal = parseFloat(item.price) * parseFloat(item.quantity);
+      newTotal += itemTotal;
+      
+      await client.query(
+        `INSERT INTO order_items (order_id, product_id, product_name, quantity, unit, price, total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [req.params.id, item.product_id || null, item.product_name, item.quantity, item.unit || 'шт', item.price, itemTotal]
+      );
+    }
+    
+    // Update order total
+    await client.query(
+      'UPDATE orders SET total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [newTotal, req.params.id]
+    );
+    
+    await client.query('COMMIT');
+    
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      restaurantId: order.restaurant_id,
+      actionType: ACTION_TYPES.UPDATE_ORDER,
+      entityType: ENTITY_TYPES.ORDER,
+      entityId: order.id,
+      entityName: `Заказ #${order.order_number}`,
+      newValues: { items_count: items.length, total: newTotal },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.json({
+      message: 'Товары обновлены',
+      total_amount: newTotal
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update order items error:', error);
+    res.status(500).json({ error: 'Ошибка обновления товаров' });
+  } finally {
+    client.release();
+  }
+});
+
 // =====================================================
 // ТОВАРЫ
 // =====================================================

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-function OrderReceipt({ order, items, onClose }) {
+function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName }) {
   const [visible, setVisible] = useState(false);
   const navigate = useNavigate();
 
@@ -58,12 +58,35 @@ function OrderReceipt({ order, items, onClose }) {
             position: 'relative'
           }}
         >
-          {/* Header */}
+          {/* Header with logo */}
           <div style={{ 
             padding: '24px 20px 16px',
             textAlign: 'center',
             borderBottom: '2px dashed #ddd'
           }}>
+            {/* Restaurant logo */}
+            {restaurantLogo ? (
+              <img 
+                src={restaurantLogo} 
+                alt={restaurantName || 'Restaurant'} 
+                style={{ 
+                  maxHeight: '50px', 
+                  maxWidth: '150px',
+                  objectFit: 'contain',
+                  marginBottom: '12px'
+                }}
+              />
+            ) : restaurantName ? (
+              <div style={{ 
+                fontSize: '16px', 
+                fontWeight: 'bold',
+                marginBottom: '12px',
+                color: '#333'
+              }}>
+                {restaurantName}
+              </div>
+            ) : null}
+            
             <div style={{ fontSize: '24px', marginBottom: '8px' }}>✅</div>
             <h3 style={{ 
               margin: '0 0 4px', 

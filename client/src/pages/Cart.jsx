@@ -43,6 +43,22 @@ function Cart() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
+  const [restaurant, setRestaurant] = useState(null);
+  
+  // Fetch restaurant info for receipt
+  useEffect(() => {
+    const fetchRestaurant = async () => {
+      if (user?.active_restaurant_id) {
+        try {
+          const res = await axios.get(`${API_URL}/products/restaurant/${user.active_restaurant_id}`);
+          setRestaurant(res.data);
+        } catch (e) {
+          console.error('Error fetching restaurant:', e);
+        }
+      }
+    };
+    fetchRestaurant();
+  }, [user?.active_restaurant_id]);
 
   const availableTimes = useMemo(() => {
     const now = new Date();
@@ -195,10 +211,16 @@ function Cart() {
 
   // Show receipt if order was created (even if cart is empty now)
   if (showReceipt) {
+    const logoUrl = restaurant?.logo_url 
+      ? (restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`)
+      : null;
+    
     return (
       <OrderReceipt 
         order={createdOrder} 
         items={orderItems}
+        restaurantLogo={logoUrl}
+        restaurantName={restaurant?.name}
         onClose={() => {
           setShowReceipt(false);
           navigate('/orders');

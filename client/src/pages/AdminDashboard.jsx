@@ -28,6 +28,9 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingItems, setEditingItems] = useState([]);
+  const [isEditingItems, setIsEditingItems] = useState(false);
+  const [savingItems, setSavingItems] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -87,6 +90,65 @@ function AdminDashboard() {
       setShowOrderModal(false);
     } catch (error) {
       alert('Ошибка обновления статуса');
+    }
+  };
+
+  const startEditingItems = () => {
+    setEditingItems([...selectedOrder.items]);
+    setIsEditingItems(true);
+  };
+
+  const cancelEditingItems = () => {
+    setEditingItems([]);
+    setIsEditingItems(false);
+  };
+
+  const updateItemQuantity = (index, delta) => {
+    const newItems = [...editingItems];
+    newItems[index].quantity = Math.max(1, parseFloat(newItems[index].quantity) + delta);
+    newItems[index].total = newItems[index].quantity * newItems[index].price;
+    setEditingItems(newItems);
+  };
+
+  const removeItem = (index) => {
+    if (editingItems.length <= 1) {
+      alert('Нельзя удалить последний товар');
+      return;
+    }
+    const newItems = editingItems.filter((_, i) => i !== index);
+    setEditingItems(newItems);
+  };
+
+  const addProductToOrder = (product) => {
+    const existingIndex = editingItems.findIndex(i => i.product_id === product.id);
+    if (existingIndex >= 0) {
+      updateItemQuantity(existingIndex, 1);
+    } else {
+      setEditingItems([...editingItems, {
+        product_id: product.id,
+        product_name: product.name_ru,
+        quantity: 1,
+        unit: product.unit || 'шт',
+        price: parseFloat(product.price),
+        total: parseFloat(product.price)
+      }]);
+    }
+  };
+
+  const saveEditedItems = async () => {
+    setSavingItems(true);
+    try {
+      await axios.put(`${API_URL}/admin/orders/${selectedOrder.id}/items`, { items: editingItems });
+      setIsEditingItems(false);
+      fetchData();
+      // Update selected order
+      const newTotal = editingItems.reduce((sum, i) => sum + i.total, 0);
+      setSelectedOrder({ ...selectedOrder, items: editingItems, total_amount: newTotal });
+      setAlertMessage({ type: 'success', text: 'Товары обновлены' });
+    } catch (error) {
+      alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSavingItems(false);
     }
   };
 
@@ -632,27 +694,89 @@ function AdminDashboard() {
 
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
                   <div className="mb-3">
-                    <strong>Товары:</strong>
-                    <Table className="mt-2">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <strong>Товары:</strong>
+                      {!isEditingItems ? (
+                        <Button variant="outline-primary" size="sm" onClick={startEditingItems}>
+                          ✏️ Редактировать
+                        </Button>
+                      ) : (
+                        <div className="d-flex gap-2">
+                          <Button variant="success" size="sm" onClick={saveEditedItems} disabled={savingItems}>
+                            {savingItems ? '...' : '💾 Сохранить'}
+                          </Button>
+                          <Button variant="outline-secondary" size="sm" onClick={cancelEditingItems}>
+                            Отмена
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <Table className="mt-2" size="sm">
                       <thead>
                         <tr>
                           <th>Товар</th>
-                          <th>Количество</th>
+                          <th>Кол-во</th>
                           <th>Цена</th>
                           <th>Сумма</th>
+                          {isEditingItems && <th></th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedOrder.items.map((item, idx) => (
+                        {(isEditingItems ? editingItems : selectedOrder.items).map((item, idx) => (
                           <tr key={idx}>
                             <td>{item.product_name}</td>
-                            <td>{item.quantity} {item.unit}</td>
-                            <td>{item.price} сум</td>
-                            <td>{item.total} сум</td>
+                            <td>
+                              {isEditingItems ? (
+                                <div className="d-flex align-items-center gap-1">
+                                  <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, -1)}>-</Button>
+                                  <span className="mx-1">{item.quantity}</span>
+                                  <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, 1)}>+</Button>
+                                </div>
+                              ) : (
+                                `${item.quantity} ${item.unit}`
+                              )}
+                            </td>
+                            <td>{parseFloat(item.price).toLocaleString()}</td>
+                            <td>{(item.quantity * item.price).toLocaleString()}</td>
+                            {isEditingItems && (
+                              <td>
+                                <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>🗑️</Button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
                     </Table>
+                    
+                    {/* Add product dropdown when editing */}
+                    {isEditingItems && (
+                      <Form.Group className="mt-2">
+                        <Form.Label className="small">Добавить товар:</Form.Label>
+                        <Form.Select 
+                          size="sm"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const product = products.find(p => p.id === parseInt(e.target.value));
+                              if (product) addProductToOrder(product);
+                              e.target.value = '';
+                            }
+                          }}
+                        >
+                          <option value="">Выберите товар...</option>
+                          {products.map(p => (
+                            <option key={p.id} value={p.id}>{p.name_ru} - {parseFloat(p.price).toLocaleString()} сум</option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+                    )}
+                    
+                    {/* New total when editing */}
+                    {isEditingItems && (
+                      <div className="mt-2 text-end">
+                        <strong>Новая сумма: {editingItems.reduce((sum, i) => sum + (i.quantity * i.price), 0).toLocaleString()} сум</strong>
+                      </div>
+                    )}
                   </div>
                 )}
 
