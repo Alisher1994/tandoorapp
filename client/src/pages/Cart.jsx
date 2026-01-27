@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -7,9 +7,9 @@ import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
-import Table from 'react-bootstrap/Table';
 import Badge from 'react-bootstrap/Badge';
 import Alert from 'react-bootstrap/Alert';
+import Modal from 'react-bootstrap/Modal';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -21,8 +21,8 @@ function Cart() {
   const navigate = useNavigate();
   
   // Use saved location from Telegram bot
-  const hasLocation = user?.last_latitude && user?.last_longitude;
-  const savedCoordinates = hasLocation ? `${user.last_latitude},${user.last_longitude}` : '';
+  const hasSavedLocation = user?.last_latitude && user?.last_longitude;
+  const savedCoordinates = hasSavedLocation ? `${user.last_latitude},${user.last_longitude}` : '';
   
   const [formData, setFormData] = useState({
     delivery_address: user?.last_address || '',
@@ -73,9 +73,78 @@ function Cart() {
       }));
     }
   }, [deliveryTimeMode, availableTimes]);
+
+  const startHold = () => {
+    holdTimerRef.current = setTimeout(() => {
+      setShowLocationModal(true);
+    }, 600);
+  };
+
+  const cancelHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
+
+  const applyCoordinates = (lat, lng) => {
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    setFormData(prev => ({
+      ...prev,
+      delivery_coordinates: `${lat},${lng}`
+    }));
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Геолокация не поддерживается в этом браузере');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        applyCoordinates(pos.coords.latitude, pos.coords.longitude);
+        setShowLocationModal(false);
+      },
+      () => setError('Не удалось получить геолокацию')
+    );
+  };
+
+  const applyManualCoordinates = () => {
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      setError('Введите корректные координаты');
+      return;
+    }
+    applyCoordinates(lat, lng);
+    setShowLocationModal(false);
+  };
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
+  const holdTimerRef = useRef(null);
+
+  const mapCoordinates = useMemo(() => {
+    if (formData.delivery_coordinates) {
+      const parts = formData.delivery_coordinates.split(',').map(v => v.trim());
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+          return { lat, lng };
+        }
+      }
+    }
+    if (hasSavedLocation) {
+      return { lat: user.last_latitude, lng: user.last_longitude };
+    }
+    return null;
+  }, [formData.delivery_coordinates, hasSavedLocation, user]);
+
+  const hasLocation = !!mapCoordinates;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -231,7 +300,7 @@ function Cart() {
                         📍 Локация получена из Telegram
                         <br />
                         <a 
-                          href={`https://yandex.ru/maps/?pt=${user.last_longitude},${user.last_latitude}&z=17&l=map`}
+                          href={`https://yandex.ru/maps/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=17&l=map`}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -241,15 +310,28 @@ function Cart() {
                     </Alert>
                   )}
                   {hasLocation && (
-                    <div className="mb-2 rounded overflow-hidden" style={{ border: '1px solid #eee' }}>
+                    <div
+                      className="mb-2 rounded overflow-hidden"
+                      style={{ border: '1px solid #eee' }}
+                      onMouseDown={startHold}
+                      onMouseUp={cancelHold}
+                      onMouseLeave={cancelHold}
+                      onTouchStart={startHold}
+                      onTouchEnd={cancelHold}
+                    >
                       <iframe
                         title="delivery-map"
-                        src={`https://yandex.ru/map-widget/v1/?pt=${user.last_longitude},${user.last_latitude}&z=16&l=map`}
+                        src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
                         width="100%"
                         height="200"
                         frameBorder="0"
                       />
                     </div>
+                  )}
+                  {hasLocation && (
+                    <Form.Text className="text-muted">
+                      Нажмите и удерживайте карту, чтобы изменить точку доставки.
+                    </Form.Text>
                   )}
                   <Form.Control
                     as="textarea"
@@ -346,6 +428,51 @@ function Cart() {
           </Card>
         </Col>
       </Row>
+
+      <Modal show={showLocationModal} onHide={() => setShowLocationModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Изменить точку доставки</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info">
+            Долгое нажатие по карте открыло это окно. Вы можете использовать текущую
+            геолокацию или ввести координаты вручную.
+          </Alert>
+          <div className="d-grid gap-2 mb-3">
+            <Button variant="primary" onClick={useCurrentLocation}>
+              Использовать текущее местоположение
+            </Button>
+            <Button
+              variant="outline-secondary"
+              onClick={() => setShowLocationModal(false)}
+            >
+              Отмена
+            </Button>
+          </div>
+          <hr />
+          <Form.Group className="mb-3">
+            <Form.Label>Широта</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Например: 41.2995"
+              value={manualLat}
+              onChange={(e) => setManualLat(e.target.value)}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Долгота</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Например: 69.2401"
+              value={manualLng}
+              onChange={(e) => setManualLng(e.target.value)}
+            />
+          </Form.Group>
+          <Button variant="success" className="w-100" onClick={applyManualCoordinates}>
+            Применить координаты
+          </Button>
+        </Modal.Body>
+      </Modal>
     </Container>
   );
 }

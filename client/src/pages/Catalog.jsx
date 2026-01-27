@@ -23,7 +23,7 @@ function Catalog() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user, logout, isOperator } = useAuth();
-  const { addToCart, cartCount, clearCart } = useCart();
+  const { addToCart, updateQuantity, cartCount, clearCart, cart } = useCart();
   const navigate = useNavigate();
 
   // Load restaurants (for header/logo and operator selection)
@@ -101,6 +101,8 @@ function Catalog() {
       restaurant_id: selectedRestaurant
     });
   };
+
+  const getCartItem = (productId) => cart.find(item => item.id === productId);
 
   const handleLogout = () => {
     logout();
@@ -278,15 +280,46 @@ function Catalog() {
                           <div className="fw-bold text-primary mb-2" style={{ fontSize: '0.95rem' }}>
                             {parseFloat(product.price).toLocaleString()} сум
                           </div>
-                          <Button
-                            variant={product.in_stock ? 'primary' : 'secondary'}
-                            size="sm"
-                            className="w-100"
-                            onClick={() => handleAddToCart(product)}
-                            disabled={!product.in_stock}
-                          >
-                            {product.in_stock ? '+ В корзину' : 'Нет'}
-                          </Button>
+                          {product.in_stock ? (
+                            (() => {
+                              const cartItem = getCartItem(product.id);
+                              if (cartItem) {
+                                return (
+                                  <div className="d-flex align-items-center justify-content-between bg-light rounded-pill px-2 py-1">
+                                    <Button
+                                      variant="light"
+                                      size="sm"
+                                      onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
+                                    >
+                                      -
+                                    </Button>
+                                    <span className="fw-semibold">{cartItem.quantity}</span>
+                                    <Button
+                                      variant="light"
+                                      size="sm"
+                                      onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                                    >
+                                      +
+                                    </Button>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  className="w-100"
+                                  onClick={() => handleAddToCart(product)}
+                                >
+                                  + В корзину
+                                </Button>
+                              );
+                            })()
+                          ) : (
+                            <Button variant="secondary" size="sm" className="w-100" disabled>
+                              Нет
+                            </Button>
+                          )}
                         </div>
                       </Card.Body>
                     </Card>
