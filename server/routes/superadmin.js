@@ -453,14 +453,15 @@ router.delete('/operators/:id', async (req, res) => {
 // Получить всех клиентов
 router.get('/customers', async (req, res) => {
   try {
-    const { page = 1, limit = 50, search = '' } = req.query;
+    const { page = 1, limit = 50, search = '', status = '' } = req.query;
     const offset = (page - 1) * limit;
     
     let query = `
       SELECT 
         u.id, u.username, u.full_name, u.phone, u.telegram_id, u.is_active, u.created_at,
         COUNT(o.id) as orders_count,
-        COALESCE(SUM(o.total_amount), 0) as total_spent
+        COALESCE(SUM(o.total_amount), 0) as total_spent,
+        MAX(o.created_at) as last_order_date
       FROM users u
       LEFT JOIN orders o ON u.id = o.user_id
       WHERE u.role = 'customer'
@@ -468,8 +469,14 @@ router.get('/customers', async (req, res) => {
     
     const params = [];
     if (search) {
-      query += ` AND (u.full_name ILIKE $1 OR u.phone ILIKE $1 OR u.username ILIKE $1)`;
+      query += ` AND (u.full_name ILIKE $${params.length + 1} OR u.phone ILIKE $${params.length + 1} OR u.username ILIKE $${params.length + 1})`;
       params.push(`%${search}%`);
+    }
+    
+    if (status === 'active') {
+      query += ` AND u.is_active = true`;
+    } else if (status === 'blocked') {
+      query += ` AND u.is_active = false`;
     }
     
     query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
@@ -484,6 +491,11 @@ router.get('/customers', async (req, res) => {
       countQuery += ` AND (full_name ILIKE $2 OR phone ILIKE $2 OR username ILIKE $2)`;
       countParams.push(`%${search}%`);
     }
+    if (status === 'active') {
+      countQuery += ` AND is_active = true`;
+    } else if (status === 'blocked') {
+      countQuery += ` AND is_active = false`;
+    }
     const countResult = await pool.query(countQuery, countParams);
     
     res.json({
@@ -495,6 +507,199 @@ router.get('/customers', async (req, res) => {
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: 'Ошибка получения клиентов' });
+  }
+});
+
+// Получить детали клиента
+router.get('/customers/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        u.id, u.username, u.full_name, u.phone, u.telegram_id, u.is_active, u.created_at,
+        COUNT(o.id) as orders_count,
+        COALESCE(SUM(o.total_amount), 0) as total_spent
+      FROM users u
+      LEFT JOIN orders o ON u.id = o.user_id
+      WHERE u.id = $1 AND u.role = 'customer'
+      GROUP BY u.id
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Клиент не найден' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get customer error:', error);
+    res.status(500).json({ error: 'Ошибка получения клиента' });
+  }
+});
+
+// Заблокировать/разблокировать клиента
+router.put('/customers/:id/toggle-block', async (req, res) => {
+  try {
+    // Get current status
+    const currentResult = await pool.query('SELECT * FROM users WHERE id = $1 AND role = $2', [req.params.id, 'customer']);
+    
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Клиент не найден' });
+    }
+    
+    const customer = currentResult.rows[0];
+    const newStatus = !customer.is_active;
+    
+    await pool.query('UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newStatus, req.params.id]);
+    
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      actionType: newStatus ? ACTION_TYPES.UNBLOCK_USER : ACTION_TYPES.BLOCK_USER,
+      entityType: ENTITY_TYPES.USER,
+      entityId: customer.id,
+      entityName: customer.full_name || customer.username,
+      oldValues: { is_active: customer.is_active },
+      newValues: { is_active: newStatus },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.json({ 
+      message: newStatus ? 'Клиент разблокирован' : 'Клиент заблокирован',
+      is_active: newStatus
+    });
+  } catch (error) {
+    console.error('Toggle customer block error:', error);
+    res.status(500).json({ error: 'Ошибка изменения статуса клиента' });
+  }
+});
+
+// Удалить клиента
+router.delete('/customers/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get customer data
+    const customerResult = await client.query('SELECT * FROM users WHERE id = $1 AND role = $2', [req.params.id, 'customer']);
+    
+    if (customerResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Клиент не найден' });
+    }
+    
+    const customer = customerResult.rows[0];
+    
+    // Check if customer has orders
+    const ordersResult = await client.query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [req.params.id]);
+    const ordersCount = parseInt(ordersResult.rows[0].count);
+    
+    if (ordersCount > 0) {
+      // Soft delete - just block the customer
+      await client.query('UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
+      await client.query('COMMIT');
+      
+      await logActivity({
+        userId: req.user.id,
+        actionType: ACTION_TYPES.DELETE_USER,
+        entityType: ENTITY_TYPES.USER,
+        entityId: customer.id,
+        entityName: customer.full_name || customer.username,
+        oldValues: customer,
+        newValues: { is_active: false, soft_deleted: true },
+        details: `Soft delete (${ordersCount} заказов)`,
+        ipAddress: getIpFromRequest(req),
+        userAgent: getUserAgentFromRequest(req)
+      });
+      
+      return res.json({ 
+        message: `Клиент деактивирован (имеет ${ordersCount} заказов)`,
+        soft_deleted: true
+      });
+    }
+    
+    // Hard delete if no orders
+    await client.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    await client.query('COMMIT');
+    
+    await logActivity({
+      userId: req.user.id,
+      actionType: ACTION_TYPES.DELETE_USER,
+      entityType: ENTITY_TYPES.USER,
+      entityId: customer.id,
+      entityName: customer.full_name || customer.username,
+      oldValues: customer,
+      details: 'Hard delete (no orders)',
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.json({ message: 'Клиент удален', deleted: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Delete customer error:', error);
+    res.status(500).json({ error: 'Ошибка удаления клиента' });
+  } finally {
+    client.release();
+  }
+});
+
+// Получить историю заказов клиента
+router.get('/customers/:id/orders', async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    
+    // Verify customer exists
+    const customerResult = await pool.query('SELECT id, full_name FROM users WHERE id = $1 AND role = $2', [req.params.id, 'customer']);
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Клиент не найден' });
+    }
+    
+    // Get orders with items
+    const ordersResult = await pool.query(`
+      SELECT 
+        o.id, o.order_number, o.status, o.total_amount, o.payment_method,
+        o.customer_name, o.customer_phone, o.delivery_address, o.delivery_coordinates,
+        o.delivery_date, o.delivery_time, o.comment, o.created_at, o.updated_at,
+        r.name as restaurant_name, r.id as restaurant_id,
+        u_operator.full_name as processed_by_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', oi.id,
+              'product_id', oi.product_id,
+              'product_name', oi.product_name,
+              'quantity', oi.quantity,
+              'unit', oi.unit,
+              'price', oi.price,
+              'total', oi.quantity * oi.price
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'
+        ) as items
+      FROM orders o
+      LEFT JOIN restaurants r ON o.restaurant_id = r.id
+      LEFT JOIN users u_operator ON o.processed_by = u_operator.id
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.user_id = $1
+      GROUP BY o.id, r.name, r.id, u_operator.full_name
+      ORDER BY o.created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [req.params.id, limit, offset]);
+    
+    // Get total count
+    const countResult = await pool.query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [req.params.id]);
+    
+    res.json({
+      customer: customerResult.rows[0],
+      orders: ordersResult.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+  } catch (error) {
+    console.error('Get customer orders error:', error);
+    res.status(500).json({ error: 'Ошибка получения заказов клиента' });
   }
 });
 

@@ -23,6 +23,8 @@ const ACTION_TYPES = {
   CREATE_USER: 'create_user',
   UPDATE_USER: 'update_user',
   DELETE_USER: 'delete_user',
+  BLOCK_USER: 'block_user',
+  UNBLOCK_USER: 'unblock_user',
   
   // Restaurants
   CREATE_RESTAURANT: 'create_restaurant',
