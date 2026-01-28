@@ -492,11 +492,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           return;
         }
         
+        // Показываем только заказы этого ресторана
         const ordersResult = await pool.query(`
           SELECT order_number, status, total_amount, created_at
-          FROM orders WHERE user_id = $1
+          FROM orders WHERE user_id = $1 AND restaurant_id = $2
           ORDER BY created_at DESC LIMIT 5
-        `, [userResult.rows[0].id]);
+        `, [userResult.rows[0].id, restaurantId]);
         
         if (ordersResult.rows.length === 0) {
           bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {

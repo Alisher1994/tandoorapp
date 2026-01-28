@@ -749,14 +749,29 @@ function initBot() {
       console.log(`📋 Confirm order ${orderId} by ${operatorName}`);
       
       try {
-        // Check current status first
-        const checkResult = await pool.query('SELECT status FROM orders WHERE id = $1', [orderId]);
-        if (checkResult.rows.length === 0) {
+        // Check if this order belongs to a restaurant with its own bot token
+        // If so, skip processing here (multi-bot system will handle it)
+        const orderCheck = await pool.query(`
+          SELECT o.status, r.telegram_bot_token 
+          FROM orders o 
+          LEFT JOIN restaurants r ON o.restaurant_id = r.id 
+          WHERE o.id = $1
+        `, [orderId]);
+        
+        if (orderCheck.rows.length === 0) {
           bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Заказ не найден', show_alert: true });
           return;
         }
         
-        if (checkResult.rows[0].status !== 'new') {
+        const orderData = orderCheck.rows[0];
+        
+        // If restaurant has its own bot token (different from env), skip - multi-bot handles it
+        if (orderData.telegram_bot_token && orderData.telegram_bot_token !== process.env.TELEGRAM_BOT_TOKEN) {
+          console.log(`⏭️ Skipping confirm for order ${orderId} - handled by multi-bot system`);
+          return;
+        }
+        
+        if (orderData.status !== 'new') {
           bot.answerCallbackQuery(callbackQuery.id, { text: '⚠️ Заказ уже обработан', show_alert: true });
           return;
         }
@@ -817,6 +832,22 @@ function initBot() {
     // Reject order - ask for reason
     else if (data.startsWith('reject_order_')) {
       const orderId = data.replace('reject_order_', '');
+      
+      // Check if this order belongs to a restaurant with its own bot token
+      const orderCheck = await pool.query(`
+        SELECT r.telegram_bot_token 
+        FROM orders o 
+        LEFT JOIN restaurants r ON o.restaurant_id = r.id 
+        WHERE o.id = $1
+      `, [orderId]);
+      
+      // If restaurant has its own bot token (different from env), skip - multi-bot handles it
+      if (orderCheck.rows.length > 0 && 
+          orderCheck.rows[0].telegram_bot_token && 
+          orderCheck.rows[0].telegram_bot_token !== process.env.TELEGRAM_BOT_TOKEN) {
+        console.log(`⏭️ Skipping reject for order ${orderId} - handled by multi-bot system`);
+        return;
+      }
       
       // Store state to wait for rejection reason
       registrationStates.set(`reject_${chatId}_${messageId}`, {

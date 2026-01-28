@@ -581,52 +581,36 @@ function Cart() {
               <Form.Group>
                 <Form.Label className="small text-muted mb-1">{t('paymentMethod')}</Form.Label>
                 <div className="d-flex flex-column gap-2">
-                  {/* Основные способы */}
+                  {/* Наличные */}
+                  <Button
+                    variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
+                    size="sm"
+                    className="w-100"
+                    onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
+                  >
+                    💵 {t('cash')}
+                  </Button>
+                  {/* Click и Payme */}
                   <div className="d-flex gap-2">
                     <Button
-                      variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
+                      variant={formData.payment_method === 'click' ? 'success' : 'outline-secondary'}
                       size="sm"
-                      className="flex-fill"
-                      onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
+                      className="flex-fill d-flex align-items-center justify-content-center gap-2"
+                      onClick={() => setFormData({ ...formData, payment_method: 'click' })}
                     >
-                      💵 {t('cash')}
+                      <img src="/click.png" alt="Click" style={{ height: 18 }} />
+                      Click
                     </Button>
                     <Button
-                      variant={formData.payment_method === 'card' ? 'success' : 'outline-secondary'}
+                      variant={formData.payment_method === 'payme' ? 'success' : 'outline-secondary'}
                       size="sm"
-                      className="flex-fill"
-                      onClick={() => setFormData({ ...formData, payment_method: 'card' })}
+                      className="flex-fill d-flex align-items-center justify-content-center gap-2"
+                      onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
                     >
-                      💳 {t('card')}
+                      <img src="/payme.png" alt="Payme" style={{ height: 18 }} />
+                      Payme
                     </Button>
                   </div>
-                  {/* Click и Payme если настроены */}
-                  {(restaurant?.click_url || restaurant?.payme_url) && (
-                    <div className="d-flex gap-2">
-                      {restaurant?.click_url && (
-                        <Button
-                          variant={formData.payment_method === 'click' ? 'success' : 'outline-secondary'}
-                          size="sm"
-                          className="flex-fill d-flex align-items-center justify-content-center gap-2"
-                          onClick={() => setFormData({ ...formData, payment_method: 'click' })}
-                        >
-                          <img src="/click.png" alt="Click" style={{ height: 18 }} />
-                          Click
-                        </Button>
-                      )}
-                      {restaurant?.payme_url && (
-                        <Button
-                          variant={formData.payment_method === 'payme' ? 'success' : 'outline-secondary'}
-                          size="sm"
-                          className="flex-fill d-flex align-items-center justify-content-center gap-2"
-                          onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
-                        >
-                          <img src="/payme.png" alt="Payme" style={{ height: 18 }} />
-                          Payme
-                        </Button>
-                      )}
-                    </div>
-                  )}
                 </div>
               </Form.Group>
             </Card.Body>
