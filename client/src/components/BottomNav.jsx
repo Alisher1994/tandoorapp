@@ -1,20 +1,22 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
 
 function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { cart } = useCart();
+  const { language, toggleLanguage, t } = useLanguage();
   
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   
   const isActive = (path) => location.pathname === path;
   
   const navItems = [
-    { path: '/', icon: '🏠', label: 'Меню' },
-    { path: '/cart', icon: '🛒', label: 'Корзина', badge: cartCount },
-    { path: '/orders', icon: '📋', label: 'Заказы' },
+    { path: '/', icon: '🏠', label: t('menu') },
+    { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
+    { path: '/orders', icon: '📋', label: t('orders') },
   ];
 
   return (
@@ -83,6 +85,33 @@ function BottomNav() {
           )}
         </button>
       ))}
+      
+      {/* Language switcher */}
+      <button
+        onClick={toggleLanguage}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          background: 'none',
+          border: 'none',
+          padding: '4px 16px',
+          cursor: 'pointer',
+          opacity: 0.65,
+          transition: 'all 0.2s'
+        }}
+      >
+        <span style={{ fontSize: '24px', marginBottom: '2px' }}>
+          🌐
+        </span>
+        <span style={{ 
+          fontSize: '11px', 
+          fontWeight: '600',
+          color: 'var(--accent-color)'
+        }}>
+          {language === 'ru' ? 'UZ' : 'RU'}
+        </span>
+      </button>
     </nav>
   );
 }

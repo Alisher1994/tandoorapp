@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { LanguageProvider } from './context/LanguageContext';
 import Login from './pages/Login';
 import Catalog from './pages/Catalog';
 import Cart from './pages/Cart';
@@ -15,8 +16,9 @@ import CatalogGate from './components/CatalogGate';
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <CartProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/catalog" element={<CatalogGate />} />
@@ -62,8 +64,9 @@ function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </CartProvider>
-    </AuthProvider>
+        </CartProvider>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

@@ -175,6 +175,23 @@ function initBot() {
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
         
+        // Check if user is blocked
+        if (!user.is_active) {
+          bot.sendMessage(chatId, 
+            `🚫 <b>Ваш аккаунт заблокирован</b>\n\n` +
+            `Для связи с поддержкой обратитесь к администратору.`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '📞 Связаться с поддержкой', url: 'https://t.me/budavron' }]
+                ]
+              }
+            }
+          );
+          return;
+        }
+        
         // User already registered - show inline button for new order
         bot.sendMessage(chatId, 
           `👋 С возвращением, ${user.full_name}!`,
@@ -440,7 +457,9 @@ function initBot() {
         }
         
         // New user registration - complete registration
-        const username = `user_${userId}`;
+        // Use Telegram username, fallback to user_ID, fallback to name
+        const telegramUsername = msg.from.username;
+        const username = telegramUsername || `user_${userId}`;
         const password = Math.random().toString(36).slice(-8);
         const hashedPassword = await bcrypt.hash(password, 10);
         
@@ -453,7 +472,8 @@ function initBot() {
             phone = EXCLUDED.phone,
             last_latitude = EXCLUDED.last_latitude,
             last_longitude = EXCLUDED.last_longitude,
-            active_restaurant_id = EXCLUDED.active_restaurant_id
+            active_restaurant_id = EXCLUDED.active_restaurant_id,
+            username = CASE WHEN users.username LIKE 'user_%' AND $2 NOT LIKE 'user_%' THEN $2 ELSE users.username END
           RETURNING id
         `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurant.id]);
         

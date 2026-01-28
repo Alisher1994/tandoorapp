@@ -430,16 +430,20 @@ function Catalog() {
             {nonEmptyCategories.length > 0 && (
               <div 
                 ref={categoryNavRef}
-                className="mb-3 pb-2 bg-white sticky-top" 
+                className="mb-3 pb-2 bg-white" 
                 style={{ 
+                  position: 'sticky',
+                  top: 56,
+                  zIndex: 100,
                   overflowX: 'auto', 
                   whiteSpace: 'nowrap',
-                  top: '60px',
-                  zIndex: 100,
-                  paddingTop: '8px',
+                  paddingTop: '12px',
+                  paddingBottom: '8px',
                   marginTop: '-8px',
                   scrollbarWidth: 'none',
-                  msOverflowStyle: 'none'
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch',
+                  borderBottom: '1px solid var(--border-color)'
                 }}
               >
                 <Button

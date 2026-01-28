@@ -19,6 +19,8 @@ import Alert from 'react-bootstrap/Alert';
 import InputGroup from 'react-bootstrap/InputGroup';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
+import * as XLSX from 'xlsx';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -73,7 +75,108 @@ function AdminDashboard() {
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
   
+  // Dashboard analytics
+  const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
+  const [dashboardMonth, setDashboardMonth] = useState(new Date().getMonth() + 1);
+  const [analytics, setAnalytics] = useState({
+    revenue: 0,
+    ordersCount: 0,
+    averageCheck: 0,
+    topProducts: [],
+    orderLocations: []
+  });
+  
   const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
+  const { language, toggleLanguage, t } = useLanguage();
+  
+  // Excel export function
+  const exportToExcel = (data, filename, columns) => {
+    const ws = XLSX.utils.json_to_sheet(data.map(item => {
+      const row = {};
+      columns.forEach(col => {
+        row[col.header] = col.accessor(item);
+      });
+      return row;
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Data');
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  };
+  
+  const exportOrders = () => {
+    exportToExcel(orders, 'orders', [
+      { header: '№', accessor: (o) => o.order_number },
+      { header: 'Клиент', accessor: (o) => o.customer_name },
+      { header: 'Телефон', accessor: (o) => o.customer_phone },
+      { header: 'Сумма', accessor: (o) => o.total_amount },
+      { header: 'Статус', accessor: (o) => o.status },
+      { header: 'Дата', accessor: (o) => new Date(o.created_at).toLocaleString('ru-RU') },
+      { header: 'Адрес', accessor: (o) => o.delivery_address },
+      { header: 'Комментарий', accessor: (o) => o.comment },
+    ]);
+  };
+  
+  const exportProducts = () => {
+    exportToExcel(products, 'products', [
+      { header: 'Название (RU)', accessor: (p) => p.name_ru },
+      { header: 'Название (UZ)', accessor: (p) => p.name_uz },
+      { header: 'Категория', accessor: (p) => p.category_name },
+      { header: 'Цена', accessor: (p) => p.price },
+      { header: 'Единица', accessor: (p) => p.unit },
+      { header: 'Статус', accessor: (p) => p.in_stock ? 'Активен' : 'Скрыт' },
+    ]);
+  };
+  
+  const exportCategories = () => {
+    exportToExcel(categories, 'categories', [
+      { header: 'Название (RU)', accessor: (c) => c.name_ru },
+      { header: 'Название (UZ)', accessor: (c) => c.name_uz },
+      { header: 'Порядок', accessor: (c) => c.sort_order },
+    ]);
+  };
+  
+  // Calculate analytics based on orders
+  useEffect(() => {
+    const filteredOrders = orders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear && 
+             orderDate.getMonth() + 1 === dashboardMonth &&
+             order.status !== 'cancelled';
+    });
+    
+    const revenue = filteredOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+    const ordersCount = filteredOrders.length;
+    const averageCheck = ordersCount > 0 ? revenue / ordersCount : 0;
+    
+    // Calculate top products
+    const productStats = {};
+    filteredOrders.forEach(order => {
+      if (order.items) {
+        order.items.forEach(item => {
+          if (!productStats[item.product_name]) {
+            productStats[item.product_name] = { name: item.product_name, quantity: 0, revenue: 0 };
+          }
+          productStats[item.product_name].quantity += item.quantity;
+          productStats[item.product_name].revenue += item.quantity * parseFloat(item.price || 0);
+        });
+      }
+    });
+    
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
+    
+    // Collect order locations
+    const orderLocations = filteredOrders
+      .filter(o => o.delivery_coordinates)
+      .map(o => {
+        const [lat, lng] = (o.delivery_coordinates || '').split(',').map(v => parseFloat(v.trim()));
+        return { lat, lng, orderNumber: o.order_number };
+      })
+      .filter(loc => !isNaN(loc.lat) && !isNaN(loc.lng));
+    
+    setAnalytics({ revenue, ordersCount, averageCheck, topProducts, orderLocations });
+  }, [orders, dashboardYear, dashboardMonth]);
 
   useEffect(() => {
     fetchData();
@@ -594,7 +697,13 @@ function AdminDashboard() {
               )}
               
               <Nav.Link className="text-light">👤 {user?.full_name || user?.username}</Nav.Link>
-              <Nav.Link onClick={handleLogout}>Выход</Nav.Link>
+              
+              {/* Language switcher */}
+              <Nav.Link onClick={toggleLanguage} className="text-warning fw-bold">
+                🌐 {language === 'ru' ? 'UZ' : 'RU'}
+              </Nav.Link>
+              
+              <Nav.Link onClick={handleLogout}>{t('logout')}</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
@@ -621,23 +730,188 @@ function AdminDashboard() {
           </Alert>
         )}
         
-        <Tabs defaultActiveKey="orders" className="mb-4">
-          <Tab eventKey="orders" title="Заказы">
+        <Tabs defaultActiveKey="dashboard" className="mb-4">
+          {/* Dashboard Tab */}
+          <Tab eventKey="dashboard" title={`📊 ${t('dashboard')}`}>
+            <Card className="mb-4">
+              <Card.Body>
+                {/* Filters */}
+                <Row className="mb-4 g-3">
+                  <Col md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">Год</Form.Label>
+                      <Form.Select 
+                        value={dashboardYear} 
+                        onChange={(e) => setDashboardYear(parseInt(e.target.value))}
+                      >
+                        {[2024, 2025, 2026, 2027].map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                  <Col md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">Месяц</Form.Label>
+                      <Form.Select 
+                        value={dashboardMonth} 
+                        onChange={(e) => setDashboardMonth(parseInt(e.target.value))}
+                      >
+                        {[
+                          { value: 1, label: 'Январь' },
+                          { value: 2, label: 'Февраль' },
+                          { value: 3, label: 'Март' },
+                          { value: 4, label: 'Апрель' },
+                          { value: 5, label: 'Май' },
+                          { value: 6, label: 'Июнь' },
+                          { value: 7, label: 'Июль' },
+                          { value: 8, label: 'Август' },
+                          { value: 9, label: 'Сентябрь' },
+                          { value: 10, label: 'Октябрь' },
+                          { value: 11, label: 'Ноябрь' },
+                          { value: 12, label: 'Декабрь' },
+                        ].map(m => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                </Row>
+                
+                {/* Stats Widgets */}
+                <Row className="g-4 mb-4">
+                  <Col md={4}>
+                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                      <Card.Body className="text-white">
+                        <div className="d-flex justify-content-between align-items-start">
+                          <div>
+                            <h6 className="text-white-50 mb-1">{t('revenue')}</h6>
+                            <h3 className="mb-0">{formatPrice(analytics.revenue)} {t('sum')}</h3>
+                          </div>
+                          <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>💰</div>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={4}>
+                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+                      <Card.Body className="text-white">
+                        <div className="d-flex justify-content-between align-items-start">
+                          <div>
+                            <h6 className="text-white-50 mb-1">{t('ordersCount')}</h6>
+                            <h3 className="mb-0">{analytics.ordersCount}</h3>
+                          </div>
+                          <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>📦</div>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={4}>
+                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
+                      <Card.Body className="text-white">
+                        <div className="d-flex justify-content-between align-items-start">
+                          <div>
+                            <h6 className="text-white-50 mb-1">{t('averageCheck')}</h6>
+                            <h3 className="mb-0">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
+                          </div>
+                          <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>🧾</div>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+                
+                <Row className="g-4">
+                  {/* Top Products */}
+                  <Col md={6}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Header className="bg-white border-0">
+                        <h6 className="mb-0">🏆 {t('topProducts')}</h6>
+                      </Card.Header>
+                      <Card.Body className="p-0">
+                        {analytics.topProducts.length > 0 ? (
+                          <Table hover className="mb-0">
+                            <thead className="table-light">
+                              <tr>
+                                <th>#</th>
+                                <th>{t('productName')}</th>
+                                <th className="text-end">Кол-во</th>
+                                <th className="text-end">{t('revenue')}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {analytics.topProducts.map((item, idx) => (
+                                <tr key={idx}>
+                                  <td>
+                                    <Badge bg={idx < 3 ? 'warning' : 'secondary'}>{idx + 1}</Badge>
+                                  </td>
+                                  <td>{item.name}</td>
+                                  <td className="text-end">{item.quantity}</td>
+                                  <td className="text-end">{formatPrice(item.revenue)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </Table>
+                        ) : (
+                          <div className="text-center text-muted py-4">
+                            Нет данных за выбранный период
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  
+                  {/* Order Geography Map */}
+                  <Col md={6}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Header className="bg-white border-0">
+                        <h6 className="mb-0">🗺️ {t('orderGeography')}</h6>
+                      </Card.Header>
+                      <Card.Body className="p-0">
+                        {analytics.orderLocations.length > 0 ? (
+                          <div style={{ height: '350px', width: '100%' }}>
+                            <iframe
+                              title="orders-map"
+                              src={`https://yandex.ru/map-widget/v1/?pt=${analytics.orderLocations.map(loc => `${loc.lng},${loc.lat},pm2rdm`).join('~')}&z=11&l=map`}
+                              width="100%"
+                              height="100%"
+                              frameBorder="0"
+                              style={{ borderRadius: '0 0 8px 8px' }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="text-center text-muted py-5">
+                            <div style={{ fontSize: '3rem', opacity: 0.3 }}>🗺️</div>
+                            <p className="mt-2">Нет данных о локациях за выбранный период</p>
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+          </Tab>
+          
+          <Tab eventKey="orders" title={t('orders')}>
             <Card>
               <Card.Body>
-                <div className="mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-3">
                   <Form.Select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     style={{ maxWidth: '200px' }}
                   >
-                    <option value="all">Все статусы</option>
-                    <option value="new">Новый</option>
-                    <option value="preparing">Готовится</option>
-                    <option value="delivering">Доставляется</option>
-                    <option value="delivered">Доставлен</option>
-                    <option value="cancelled">Отменен</option>
+                    <option value="all">{t('allStatuses')}</option>
+                    <option value="new">{t('statusNew')}</option>
+                    <option value="preparing">{t('statusPreparing')}</option>
+                    <option value="delivering">{t('statusDelivering')}</option>
+                    <option value="delivered">{t('statusDelivered')}</option>
+                    <option value="cancelled">{t('statusCancelled')}</option>
                   </Form.Select>
+                  <Button variant="outline-success" size="sm" onClick={exportOrders}>
+                    📥 {t('downloadExcel')}
+                  </Button>
                 </div>
 
                 <Table responsive>
@@ -662,7 +936,7 @@ function AdminDashboard() {
                             <small>{order.customer_phone}</small>
                           </div>
                         </td>
-                        <td>{order.total_amount} сум</td>
+                        <td>{formatPrice(order.total_amount)} сум</td>
                         <td>{getStatusBadge(order.status)}</td>
                         <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
                         <td>
@@ -688,11 +962,14 @@ function AdminDashboard() {
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="mb-0">Товары</h5>
                   <div className="d-flex gap-2">
+                    <Button variant="outline-secondary" size="sm" onClick={exportProducts}>
+                      📥 {t('downloadExcel')}
+                    </Button>
                     <Button variant="outline-success" onClick={() => setShowExcelModal(true)}>
-                      📥 Импорт Excel
+                      📤 {t('importExcel')}
                     </Button>
                     <Button variant="primary" onClick={() => openProductModal()}>
-                      ➕ Добавить товар
+                      ➕ {t('addProduct')}
                     </Button>
                   </div>
                 </div>
@@ -857,14 +1134,19 @@ function AdminDashboard() {
             </Card>
           </Tab>
 
-          <Tab eventKey="categories" title="Категории">
+          <Tab eventKey="categories" title={t('categories')}>
             <Card>
               <Card.Body>
-                <div className="d-flex justify-content-between mb-3">
-                  <h5>Категории</h5>
-                  <Button variant="primary" onClick={() => openCategoryModal()}>
-                    Добавить категорию
-                  </Button>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5>{t('categories')}</h5>
+                  <div className="d-flex gap-2">
+                    <Button variant="outline-secondary" size="sm" onClick={exportCategories}>
+                      📥 {t('downloadExcel')}
+                    </Button>
+                    <Button variant="primary" onClick={() => openCategoryModal()}>
+                      ➕ {t('add')}
+                    </Button>
+                  </div>
                 </div>
                 <Table responsive>
                   <thead>
