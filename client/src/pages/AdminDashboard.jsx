@@ -43,9 +43,7 @@ function AdminDashboard() {
     image_url: '',
     price: '',
     unit: 'шт',
-    barcode: '',
-    in_stock: true,
-    sort_order: 0
+    in_stock: true
   });
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -218,9 +216,7 @@ function AdminDashboard() {
         image_url: product.image_url || '',
         price: product.price || '',
         unit: product.unit || 'шт',
-        barcode: product.barcode || '',
-        in_stock: product.in_stock !== false,
-        sort_order: product.sort_order || 0
+        in_stock: product.in_stock !== false
       });
     } else {
       setSelectedProduct(null);
@@ -233,9 +229,7 @@ function AdminDashboard() {
         image_url: '',
         price: '',
         unit: 'шт',
-        barcode: '',
-        in_stock: true,
-        sort_order: 0
+        in_stock: true
       });
     }
     setShowProductModal(true);
@@ -246,8 +240,7 @@ function AdminDashboard() {
     try {
       const productData = {
         ...productForm,
-        price: parseFloat(productForm.price),
-        sort_order: parseInt(productForm.sort_order) || 0
+        price: parseFloat(productForm.price)
       };
 
       if (selectedProduct) {
@@ -554,7 +547,7 @@ function AdminDashboard() {
                       <th>Название</th>
                       <th>Категория</th>
                       <th>Цена</th>
-                      <th>В наличии</th>
+                      <th>Статус</th>
                       <th>Действия</th>
                     </tr>
                   </thead>
@@ -566,9 +559,9 @@ function AdminDashboard() {
                         <td>{product.price} сум</td>
                         <td>
                           {product.in_stock ? (
-                            <Badge bg="success">Да</Badge>
+                            <Badge bg="success">Активен</Badge>
                           ) : (
-                            <Badge bg="danger">Нет</Badge>
+                            <Badge bg="secondary">Скрыт</Badge>
                           )}
                         </td>
                         <td>
@@ -1033,45 +1026,16 @@ function AdminDashboard() {
                 />
               </Form.Group>
 
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Штрих-код</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={productForm.barcode}
-                      onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value })}
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-              <Form.Group className="mb-3">
-                <Form.Label>
-                  Порядок сортировки
-                  <Form.Text className="text-muted ms-2">
-                    (Число: чем меньше, тем выше в списке. Например: 1, 2, 3...)
-                  </Form.Text>
-                </Form.Label>
-                <Form.Control
-                  type="number"
-                  min="0"
-                  value={productForm.sort_order}
-                  onChange={(e) => setProductForm({ ...productForm, sort_order: parseInt(e.target.value) || 0 })}
-                />
-                <Form.Text className="text-muted">
-                  Товары с меньшим числом отображаются первыми в категории.
-                </Form.Text>
-              </Form.Group>
-                </Col>
-              </Row>
-
               <Form.Group className="mb-3">
                 <Form.Check
-                  type="checkbox"
-                  label="В наличии"
-                  checked={productForm.in_stock}
-                  onChange={(e) => setProductForm({ ...productForm, in_stock: e.target.checked })}
+                  type="switch"
+                  label="Скрыть товар"
+                  checked={!productForm.in_stock}
+                  onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
                 />
+                <Form.Text className="text-muted">
+                  Если включено — товар не будет показываться клиентам.
+                </Form.Text>
               </Form.Group>
             </Modal.Body>
             <Modal.Footer>

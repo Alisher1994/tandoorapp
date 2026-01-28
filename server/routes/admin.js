@@ -336,7 +336,7 @@ router.get('/products', async (req, res) => {
       params.push(restaurantId);
     }
     
-    query += ' ORDER BY p.sort_order, p.name_ru';
+    query += ' ORDER BY p.name_ru';
     
     const result = await pool.query(query, params);
     res.json(result.rows);
