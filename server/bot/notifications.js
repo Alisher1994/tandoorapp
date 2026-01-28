@@ -173,14 +173,14 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null)
       `${statusText}\n\n` +
       `Сумма: ${formatPrice(order.total_amount)} сум`;
     
-    // Add "New Order" button for delivered/cancelled orders
+    // Add "New Order" button for new/delivered/cancelled orders
     const showNewOrderButton = status === 'delivered' || status === 'cancelled' || status === 'new';
     
     const options = { 
       parse_mode: 'HTML',
       reply_markup: showNewOrderButton ? {
         inline_keyboard: [
-          [{ text: '🛒 Начать новый заказ', callback_data: 'new_order' }]
+          [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
         ]
       } : undefined
     };

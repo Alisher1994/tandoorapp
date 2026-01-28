@@ -88,3 +88,4 @@ INSERT INTO products (category_id, name_ru, name_uz, price, unit, in_stock, imag
 
 
 
+

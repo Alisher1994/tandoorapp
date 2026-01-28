@@ -175,23 +175,17 @@ function initBot() {
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
         
-        // User already registered - always ask for location first
-        registrationStates.set(userId, { 
-          step: 'waiting_location_for_order',
-          isExistingUser: true 
-        });
-        
+        // User already registered - show inline button for new order
         bot.sendMessage(chatId, 
-          `👋 С возвращением, ${user.full_name}!\n\n` +
-          `📍 Отправьте локацию для доставки:`,
+          `👋 С возвращением, ${user.full_name}!`,
           {
             parse_mode: 'HTML',
             reply_markup: {
-              keyboard: [
-                [{ text: '📍 Отправить локацию', request_location: true }],
-                [{ text: '📋 Мои заказы' }, { text: '❓ Помощь' }]
-              ],
-              resize_keyboard: true
+              remove_keyboard: true,
+              inline_keyboard: [
+                [{ text: '🛒 Новый заказ', callback_data: 'new_order' }],
+                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
+              ]
             }
           }
         );
@@ -273,7 +267,7 @@ function initBot() {
       if (ordersResult.rows.length === 0) {
         bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
           reply_markup: {
-            inline_keyboard: [[{ text: '🛒 Сделать заказ', callback_data: 'new_order' }]]
+            inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
           }
         });
         return;
@@ -436,7 +430,8 @@ function initBot() {
               reply_markup: {
                 remove_keyboard: true,
                 inline_keyboard: [
-                  [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
+                  [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
+                  [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
                 ]
               }
             }
@@ -480,7 +475,8 @@ function initBot() {
             reply_markup: {
               remove_keyboard: true,
               inline_keyboard: [
-                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
+                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
+                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
               ]
             }
           }
@@ -610,7 +606,7 @@ function initBot() {
           {
             reply_markup: {
               inline_keyboard: [
-                [{ text: '🛒 Сделать заказ', callback_data: 'new_order' }]
+                [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
               ]
             }
           }
@@ -640,7 +636,7 @@ function initBot() {
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🛒 Начать новый заказ', callback_data: 'new_order' }]
+            [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
           ]
         }
       });
@@ -670,20 +666,60 @@ function initBot() {
         isExistingUser: true 
       });
       
-      // First send text message
+      // Send message with location request keyboard
       await bot.sendMessage(chatId,
-        '🛒 <b>Новый заказ</b>\n\n📍 Нажмите кнопку ниже, чтобы отправить локацию:',
+        '📍 Отправьте геолокацию для доставки:',
         {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: [
-              [{ text: '📍 Отправить локацию', request_location: true }]
+              [{ text: '📍 Отправить геолокацию', request_location: true }]
             ],
             resize_keyboard: true,
-            one_time_keyboard: false
+            one_time_keyboard: true
           }
         }
       );
+      return;
+    }
+    
+    // My orders inline button
+    if (data === 'my_orders') {
+      const userResult = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
+      
+      if (userResult.rows.length === 0) {
+        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+        return;
+      }
+      
+      const ordersResult = await pool.query(`
+        SELECT o.order_number, o.status, o.total_amount, o.created_at
+        FROM orders o WHERE o.user_id = $1
+        ORDER BY o.created_at DESC LIMIT 5
+      `, [userResult.rows[0].id]);
+      
+      if (ordersResult.rows.length === 0) {
+        bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
+          reply_markup: {
+            inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
+          }
+        });
+        return;
+      }
+      
+      let message = '📦 <b>Ваши заказы:</b>\n\n';
+      const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
+      
+      ordersResult.rows.forEach((order) => {
+        message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум\n`;
+      });
+      
+      bot.sendMessage(chatId, message, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
+        }
+      });
       return;
     }
     
@@ -832,7 +868,7 @@ function initBot() {
                     parse_mode: 'HTML',
                     reply_markup: {
                       inline_keyboard: [
-                        [{ text: '🛒 Сделать новый заказ', callback_data: 'new_order' }]
+                        [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
                       ]
                     }
                   }
