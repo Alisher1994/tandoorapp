@@ -98,14 +98,28 @@ async function findRestaurantByLocation(lat, lng) {
   }
 }
 
+function getTimeInTimeZone(timeZone) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('ru-RU', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(now);
+  const hh = parts.find(p => p.type === 'hour')?.value || '00';
+  const mm = parts.find(p => p.type === 'minute')?.value || '00';
+  return { hh: parseInt(hh, 10), mm: parseInt(mm, 10) };
+}
+
 function isRestaurantOpen(openTime, closeTime) {
   if (!openTime || !closeTime) return true;
-  const now = new Date();
+  const timeZone = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
+  const { hh, mm } = getTimeInTimeZone(timeZone);
   const [openH, openM] = openTime.split(':').map(Number);
   const [closeH, closeM] = closeTime.split(':').map(Number);
   const openMinutes = openH * 60 + openM;
   const closeMinutes = closeH * 60 + closeM;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = hh * 60 + mm;
 
   if (openMinutes === closeMinutes) return true;
   if (openMinutes < closeMinutes) {
