@@ -701,8 +701,8 @@ function AdminDashboard() {
               {/* Language switcher with flag */}
               <Nav.Link onClick={toggleLanguage} className="d-flex align-items-center">
                 <img 
-                  src={language === 'ru' ? '/uz.svg' : '/ru.svg'}
-                  alt={language === 'ru' ? 'UZ' : 'RU'}
+                  src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+                  alt={language === 'ru' ? 'RU' : 'UZ'}
                   style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(255,255,255,0.3)' }}
                 />
               </Nav.Link>

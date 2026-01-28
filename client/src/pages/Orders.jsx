@@ -120,8 +120,8 @@ function Orders() {
               }}
             >
               <img 
-                src={language === 'ru' ? '/uz.svg' : '/ru.svg'}
-                alt={language === 'ru' ? 'UZ' : 'RU'}
+                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+                alt={language === 'ru' ? 'RU' : 'UZ'}
                 style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
               />
             </button>

@@ -376,10 +376,10 @@ function Catalog() {
             {language === 'uz' && product.name_uz ? product.name_uz : product.name_ru}
           </Card.Title>
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
-            {product.unit}
+            {language === 'uz' && product.unit_uz ? product.unit_uz : product.unit}
           </Card.Text>
           <div className="fw-bold text-primary mt-auto" style={{ fontSize: '0.9rem' }}>
-            {formatPrice(product.price)} сум
+            {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
           </div>
         </Card.Body>
       </Card>
@@ -431,8 +431,8 @@ function Catalog() {
             title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
           >
             <img 
-              src={language === 'ru' ? '/uz.svg' : '/ru.svg'}
-              alt={language === 'ru' ? 'UZ' : 'RU'}
+              src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+              alt={language === 'ru' ? 'RU' : 'UZ'}
               style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
             />
           </button>
@@ -479,7 +479,7 @@ function Catalog() {
                   size="sm"
                   onClick={() => scrollToCategory(null)}
                 >
-                  🍴 Все
+                  🍴 {language === 'uz' ? 'Hammasi' : 'Все'}
                 </Button>
                 {nonEmptyCategories.map(category => (
                   <Button
