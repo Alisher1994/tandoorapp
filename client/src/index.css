@@ -42,9 +42,26 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
   /* For scroll tracking */
   scroll-behavior: smooth;
+}
+
+/* Sticky header fix for iOS */
+.sticky-top,
+[style*="position: sticky"] {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Prevent content jump when scrolling */
+.navbar {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 body {

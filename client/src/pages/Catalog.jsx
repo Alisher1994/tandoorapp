@@ -398,7 +398,20 @@ function Catalog() {
 
   return (
     <>
-      <Navbar bg="white" expand="lg" className="shadow-sm mb-4 sticky-top">
+      <Navbar 
+        bg="white" 
+        expand="lg" 
+        className="shadow-sm mb-0"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 1010,
+          transform: 'translateZ(0)',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden'
+        }}
+      >
         <Container className="d-flex justify-content-between align-items-center">
           {/* Empty space for balance */}
           <div style={{ width: '40px' }} />
@@ -457,20 +470,24 @@ function Catalog() {
             {nonEmptyCategories.length > 0 && (
               <div 
                 ref={categoryNavRef}
-                className="mb-3 pb-2 bg-white" 
+                className="pb-2 bg-white" 
                 style={{ 
                   position: 'sticky',
                   top: 56,
-                  zIndex: 100,
+                  zIndex: 1000,
                   overflowX: 'auto', 
                   whiteSpace: 'nowrap',
                   paddingTop: '12px',
                   paddingBottom: '8px',
-                  marginTop: '-8px',
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
                   WebkitOverflowScrolling: 'touch',
-                  borderBottom: '1px solid var(--border-color)'
+                  borderBottom: '1px solid var(--border-color)',
+                  /* GPU acceleration for smooth scrolling on iOS */
+                  transform: 'translateZ(0)',
+                  willChange: 'transform',
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden'
                 }}
               >
                 <Button
