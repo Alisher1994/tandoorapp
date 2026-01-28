@@ -64,7 +64,12 @@ function Catalog() {
     const scrollTop = window.scrollY + 150; // Offset for sticky header
     let currentCategory = null;
     
-    for (const category of categories) {
+    // Only consider non-empty categories
+    const visibleCategories = categories.filter(cat => 
+      products.some(p => p.category_id === cat.id)
+    );
+    
+    for (const category of visibleCategories) {
       const element = categoriesRef.current[category.id];
       if (element) {
         const rect = element.getBoundingClientRect();
@@ -85,7 +90,7 @@ function Catalog() {
         }
       }
     }
-  }, [categories, selectedCategory, activeCategory]);
+  }, [categories, products, selectedCategory, activeCategory]);
 
   useEffect(() => {
     window.addEventListener('scroll', handleScroll);
@@ -180,6 +185,11 @@ function Catalog() {
   const filteredProducts = selectedCategory
     ? products.filter(p => p.category_id === selectedCategory)
     : products;
+
+  // Filter out empty categories (categories with no products)
+  const nonEmptyCategories = categories.filter(category => 
+    products.some(p => p.category_id === category.id)
+  );
 
   const currentRestaurant = restaurants.find(r => r.id === selectedRestaurant);
 
@@ -397,8 +407,8 @@ function Catalog() {
 
         {selectedRestaurant && (
           <>
-            {/* Categories - sticky horizontal scroll */}
-            {categories.length > 0 && (
+            {/* Categories - sticky horizontal scroll (only show non-empty) */}
+            {nonEmptyCategories.length > 0 && (
               <div 
                 ref={categoryNavRef}
                 className="mb-3 pb-2 bg-white sticky-top" 
@@ -421,7 +431,7 @@ function Catalog() {
                 >
                   🍴 Все
                 </Button>
-                {categories.map(category => (
+                {nonEmptyCategories.map(category => (
                   <Button
                     key={category.id}
                     data-category={category.id}
@@ -448,9 +458,8 @@ function Catalog() {
             {/* Products - grouped by category when showing "All" */}
             {!loading && selectedCategory === null && (
               <>
-                {categories.map(category => {
+                {nonEmptyCategories.map(category => {
                   const categoryProducts = products.filter(p => p.category_id === category.id);
-                  if (categoryProducts.length === 0) return null;
                   
                   return (
                     <div 
