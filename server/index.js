@@ -11,7 +11,8 @@ const orderRoutes = require('./routes/orders');
 const adminRoutes = require('./routes/admin');
 const superadminRoutes = require('./routes/superadmin');
 const uploadRoutes = require('./routes/upload');
-const { initBot } = require('./bot/bot');
+const { initBot, getBot } = require('./bot/bot');
+const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 
 const app = express();
 // Railway автоматически устанавливает PORT, используем его
@@ -72,11 +73,20 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Telegram webhook route (must be before catch-all routes)
-const { getBot } = require('./bot/bot');
 app.post('/api/telegram/webhook', express.json(), (req, res) => {
   const bot = getBot();
   if (bot) {
     bot.processUpdate(req.body);
+  }
+  res.sendStatus(200);
+});
+
+// Telegram webhook route for specific restaurant (multi-bot system)
+app.post('/api/telegram/webhook/:restaurantId', express.json(), (req, res) => {
+  const { restaurantId } = req.params;
+  const processed = processWebhook(restaurantId, req.body);
+  if (!processed) {
+    console.warn(`⚠️ No bot found for restaurant ID: ${restaurantId}`);
   }
   res.sendStatus(200);
 });
@@ -142,8 +152,11 @@ async function startServer() {
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 Listening on 0.0.0.0:${PORT}`);
     
-    // Initialize Telegram bot after server is running (for webhook)
+    // Initialize legacy Telegram bot (fallback for old system)
     initBot();
+    
+    // Initialize multi-bot system for all restaurants
+    await initMultiBots();
   });
 }
 

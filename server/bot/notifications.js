@@ -16,8 +16,24 @@ function getDefaultBot() {
   }
 }
 
+// Try to get bot from multi-bot manager first
+function getMultiBotByRestaurantId(restaurantId) {
+  try {
+    const { getBotByRestaurantId } = require('./multiBotManager');
+    return getBotByRestaurantId(restaurantId);
+  } catch (error) {
+    return null;
+  }
+}
+
 // Get or create bot for a specific restaurant
-function getRestaurantBot(botToken) {
+function getRestaurantBot(botToken, restaurantId = null) {
+  // First try to get from multi-bot manager if restaurantId provided
+  if (restaurantId) {
+    const multiBot = getMultiBotByRestaurantId(restaurantId);
+    if (multiBot) return multiBot;
+  }
+  
   if (!botToken) {
     return getDefaultBot();
   }
