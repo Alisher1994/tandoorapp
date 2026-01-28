@@ -41,6 +41,15 @@ function formatPrice(price) {
   return parseFloat(price).toLocaleString('ru-RU');
 }
 
+// Escape HTML special characters to prevent formatting issues
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 /**
  * Send order notification to admin group with action buttons
  */
@@ -64,7 +73,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       const qty = parseFloat(item.quantity);
       const price = parseFloat(item.price);
       const total = qty * price;
-      return `${index + 1}. ${item.product_name}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
+      return `${index + 1}. ${escapeHtml(item.product_name)}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
     }).join('\n\n');
     
     // Build location link
@@ -77,7 +86,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
         locationLine = `<a href="${mapUrl}">📍 Адрес доставки</a>`;
       }
     } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
-      locationLine = `📍 Адрес: ${order.delivery_address}`;
+      locationLine = `📍 Адрес: ${escapeHtml(order.delivery_address)}`;
     }
     
     // Delivery time
@@ -92,12 +101,12 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       `<b>ID: ${order.order_number}</b>\n` +
       `Статус: 🆕 Новый\n\n` +
       (locationLine ? `${locationLine}\n` : '') +
-      `👤 Клиент: ${order.customer_name}\n` +
-      `📞 Телефон: ${order.customer_phone}\n` +
+      `👤 Клиент: ${escapeHtml(order.customer_name)}\n` +
+      `📞 Телефон: ${escapeHtml(order.customer_phone)}\n` +
       `🕐 К времени: ${deliveryTime}\n\n` +
       `<b>Товары</b>\n\n${itemsList}\n\n` +
       `<b>Итого: ${formatPrice(productsTotal)} сум</b>\n\n` +
-      (order.comment ? `💬 Комментарий: ${order.comment}` : '💬 Комментарий: —');
+      (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
     
     // Add action buttons
     const keyboard = {

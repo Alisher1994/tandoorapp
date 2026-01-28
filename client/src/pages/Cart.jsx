@@ -19,7 +19,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 function Cart() {
   const { cart, cartTotal, updateQuantity, removeFromCart, clearCart } = useCart();
   const { user } = useAuth();
-  const { language, toggleLanguage } = useLanguage();
+  const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
   
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
@@ -292,10 +292,10 @@ function Cart() {
           <Card className="text-center py-5 border-0 shadow-sm">
             <Card.Body>
               <div style={{ fontSize: '4rem' }}>🛒</div>
-              <h4 className="mt-3">Корзина пуста</h4>
-              <p className="text-muted">Добавьте товары из каталога</p>
+              <h4 className="mt-3">{t('cartEmpty')}</h4>
+              <p className="text-muted">{t('cartEmptyDesc')}</p>
               <Button variant="primary" onClick={() => navigate('/')}>
-                Перейти в каталог
+                {t('goToCatalog')}
               </Button>
             </Card.Body>
           </Card>
@@ -345,7 +345,7 @@ function Cart() {
         {/* Заголовок с номером шага */}
         <div className="text-center mb-4">
           <h5 className="mb-2">
-            {step === 1 ? '🛒 Ваш заказ' : '📍 Доставка'}
+            {step === 1 ? `🛒 ${t('yourOrder')}` : `📍 ${t('delivery')}`}
           </h5>
         <div className="d-flex justify-content-center gap-2">
           <div 
@@ -393,8 +393,8 @@ function Cart() {
                   </div>
                 )}
                 <div className="flex-grow-1 ms-3">
-                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{item.name_ru}</div>
-                  <div className="text-primary fw-bold">{formatPrice(item.price)} сум</div>
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{language === 'uz' && item.name_uz ? item.name_uz : item.name_ru}</div>
+                  <div className="text-primary fw-bold">{formatPrice(item.price)} {t('sum')}</div>
                 </div>
                 <div className="d-flex align-items-center">
                   <div className="d-flex align-items-center bg-light rounded-pill">
@@ -435,7 +435,7 @@ function Cart() {
         <Card className="border-0 shadow-sm mb-3">
           <Card.Body>
             <Form.Group>
-              <Form.Label className="small text-muted mb-1">Комментарий к заказу</Form.Label>
+              <Form.Label className="small text-muted mb-1">{t('comment')}</Form.Label>
               <Form.Control
                 ref={commentRef}
                 as="textarea"
@@ -443,7 +443,7 @@ function Cart() {
                 value={formData.comment}
                 onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                 onFocus={handleCommentFocus}
-                placeholder="Пожелания к заказу..."
+                placeholder={t('commentPlaceholder')}
                 className="border-0 bg-light"
               />
             </Form.Group>
@@ -459,7 +459,7 @@ function Cart() {
               {/* Карта */}
               {hasLocation && (
                 <div className="mb-3">
-                  <div className="small text-muted mb-1">Точка доставки</div>
+                  <div className="small text-muted mb-1">{t('deliveryPoint')}</div>
                   <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #eee' }}>
                     <iframe
                       title="map"
@@ -475,7 +475,7 @@ function Cart() {
                     className="w-100"
                     onClick={() => setShowLocationModal(true)}
                   >
-                    📍 Изменить точку
+                    📍 {t('changePoint')}
                   </Button>
                 </div>
               )}
@@ -486,7 +486,7 @@ function Cart() {
                   className="w-100 mb-3"
                   onClick={() => setShowLocationModal(true)}
                 >
-                  📍 Указать местоположение
+                  📍 {t('specifyLocation')}
                 </Button>
               )}
 
@@ -511,7 +511,7 @@ function Cart() {
               {/* Телефон */}
               <Form.Group className="mb-3">
                 <Form.Label className="small text-muted mb-1">
-                  Телефон <span className="text-danger">*</span>
+                  {t('phone')} <span className="text-danger">*</span>
                 </Form.Label>
                 <Form.Control
                   type="tel"
@@ -525,7 +525,7 @@ function Cart() {
 
               {/* Время доставки */}
               <Form.Group className="mb-3">
-                <Form.Label className="small text-muted mb-1">Время доставки</Form.Label>
+                <Form.Label className="small text-muted mb-1">{t('deliveryTime')}</Form.Label>
                 <div className="d-flex gap-2 mb-2">
                   <Button
                     variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
@@ -533,7 +533,7 @@ function Cart() {
                     className="flex-fill"
                     onClick={() => setDeliveryTimeMode('asap')}
                   >
-                    🚀 Быстрее
+                    🚀 {t('asap')}
                   </Button>
                   <Button
                     variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
@@ -541,7 +541,7 @@ function Cart() {
                     className="flex-fill"
                     onClick={() => setDeliveryTimeMode('scheduled')}
                   >
-                    🕐 Ко времени
+                    🕐 {t('scheduled')}
                   </Button>
                 </div>
                 {deliveryTimeMode === 'scheduled' && (
@@ -563,7 +563,7 @@ function Cart() {
 
               {/* Способ оплаты */}
               <Form.Group>
-                <Form.Label className="small text-muted mb-1">Способ оплаты</Form.Label>
+                <Form.Label className="small text-muted mb-1">{t('paymentMethod')}</Form.Label>
                 <div className="d-flex gap-2">
                   <Button
                     variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
@@ -571,7 +571,7 @@ function Cart() {
                     className="flex-fill"
                     onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
                   >
-                    💵 Наличные
+                    💵 {t('cash')}
                   </Button>
                   <Button
                     variant={formData.payment_method === 'card' ? 'success' : 'outline-secondary'}
@@ -579,7 +579,7 @@ function Cart() {
                     className="flex-fill"
                     onClick={() => setFormData({ ...formData, payment_method: 'card' })}
                   >
-                    💳 Карта
+                    💳 {t('card')}
                   </Button>
                 </div>
               </Form.Group>
@@ -592,8 +592,8 @@ function Cart() {
       <Card className="border-0 shadow-sm">
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <span className="text-muted">Итого:</span>
-            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal)} сум</span>
+            <span className="text-muted">{t('total')}:</span>
+            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal)} {t('sum')}</span>
           </div>
           
           {step === 1 ? (
@@ -603,7 +603,7 @@ function Cart() {
               className="w-100"
               onClick={() => setStep(2)}
             >
-              Далее →
+              {t('next')} →
             </Button>
           ) : (
             <div className="d-flex gap-2">
@@ -612,7 +612,7 @@ function Cart() {
                 className="flex-fill"
                 onClick={() => setStep(1)}
               >
-                ← Назад
+                ← {t('back')}
               </Button>
               <Button 
                 variant="primary" 
@@ -620,7 +620,7 @@ function Cart() {
                 onClick={handleSubmit}
                 disabled={loading}
               >
-                {loading ? <Spinner size="sm" /> : 'Оформить'}
+                {loading ? <Spinner size="sm" /> : t('checkout')}
               </Button>
             </div>
           )}
@@ -630,11 +630,11 @@ function Cart() {
       {/* Модалка для локации */}
       <Modal show={showLocationModal} onHide={() => setShowLocationModal(false)} centered>
         <Modal.Header closeButton className="border-0">
-          <Modal.Title className="fs-5">📍 Местоположение</Modal.Title>
+          <Modal.Title className="fs-5">📍 {t('location')}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="text-center py-4">
           <p className="text-muted mb-4">
-            Определим ваше текущее местоположение для доставки
+            {language === 'uz' ? 'Yetkazib berish uchun joriy joylashuvingizni aniqlaymiz' : 'Определим ваше текущее местоположение для доставки'}
           </p>
           <Button 
             variant="primary" 
@@ -644,9 +644,9 @@ function Cart() {
             disabled={locationLoading}
           >
             {locationLoading ? (
-              <><Spinner size="sm" className="me-2" />Определение...</>
+              <><Spinner size="sm" className="me-2" />{language === 'uz' ? 'Aniqlanmoqda...' : 'Определение...'}</>
             ) : (
-              '📍 Определить'
+              `📍 ${t('detectLocation')}`
             )}
           </Button>
           <Button 
@@ -654,7 +654,7 @@ function Cart() {
             className="w-100"
             onClick={() => setShowLocationModal(false)}
           >
-            Отмена
+            {t('cancel')}
           </Button>
         </Modal.Body>
       </Modal>

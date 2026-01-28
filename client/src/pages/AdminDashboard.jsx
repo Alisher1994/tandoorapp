@@ -35,7 +35,7 @@ function AdminDashboard() {
   const [editingItems, setEditingItems] = useState([]);
   const [isEditingItems, setIsEditingItems] = useState(false);
   const [savingItems, setSavingItems] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('delivered');
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productForm, setProductForm] = useState({
@@ -135,13 +135,13 @@ function AdminDashboard() {
     ]);
   };
   
-  // Calculate analytics based on orders
+  // Calculate analytics based on orders (only delivered orders for accurate statistics)
   useEffect(() => {
     const filteredOrders = orders.filter(order => {
       const orderDate = new Date(order.created_at);
       return orderDate.getFullYear() === dashboardYear && 
              orderDate.getMonth() + 1 === dashboardMonth &&
-             order.status !== 'cancelled';
+             order.status === 'delivered'; // Only count delivered orders
     });
     
     const revenue = filteredOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);

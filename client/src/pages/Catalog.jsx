@@ -256,7 +256,7 @@ function Catalog() {
                 justifyContent: 'center'
               }}
             >
-              <span className="badge bg-secondary">Нет в наличии</span>
+              <span className="badge bg-secondary">{language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}</span>
             </div>
           )}
           
@@ -373,7 +373,7 @@ function Catalog() {
         </div>
         <Card.Body className="d-flex flex-column p-2">
           <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>
-            {product.name_ru}
+            {language === 'uz' && product.name_uz ? product.name_uz : product.name_ru}
           </Card.Title>
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
             {product.unit}
@@ -490,7 +490,7 @@ function Catalog() {
                     size="sm"
                     onClick={() => scrollToCategory(category.id)}
                   >
-                    {category.name_ru}
+                    {language === 'uz' && category.name_uz ? category.name_uz : category.name_ru}
                   </Button>
                 ))}
               </div>
@@ -517,7 +517,7 @@ function Catalog() {
                       ref={el => categoriesRef.current[category.id] = el}
                       className="mb-4"
                     >
-                      <h6 className="mb-3 text-muted fw-bold">{category.name_ru}</h6>
+                      <h6 className="mb-3 text-muted fw-bold">{language === 'uz' && category.name_uz ? category.name_uz : category.name_ru}</h6>
                       <Row>
                         {categoryProducts.map(product => (
                           <Col key={product.id} xs={6} sm={4} md={3} lg={2} className="mb-4">

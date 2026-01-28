@@ -19,7 +19,7 @@ function Orders() {
   const [restaurant, setRestaurant] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const { user, logout } = useAuth();
-  const { language, toggleLanguage } = useLanguage();
+  const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
   
   const toggleOrderDetails = (orderId) => {
@@ -72,11 +72,11 @@ function Orders() {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      'new': { variant: 'primary', text: 'Новый' },
-      'preparing': { variant: 'warning', text: 'Готовится' },
-      'delivering': { variant: 'info', text: 'Доставляется' },
-      'delivered': { variant: 'success', text: 'Доставлен' },
-      'cancelled': { variant: 'danger', text: 'Отменен' }
+      'new': { variant: 'primary', text: t('statusNew') },
+      'preparing': { variant: 'warning', text: t('statusPreparing') },
+      'delivering': { variant: 'info', text: t('statusDelivering') },
+      'delivered': { variant: 'success', text: t('statusDelivered') },
+      'cancelled': { variant: 'danger', text: t('statusCancelled') }
     };
     
     const config = statusConfig[status] || { variant: 'secondary', text: status };
@@ -87,7 +87,7 @@ function Orders() {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
         <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Загрузка...</span>
+          <span className="visually-hidden">{t('loading')}</span>
         </div>
       </div>
     );
@@ -135,10 +135,10 @@ function Orders() {
           <Card className="border-0 shadow-sm text-center py-5">
             <Card.Body>
               <div style={{ fontSize: '3rem' }}>📦</div>
-              <h5 className="mt-3">У вас пока нет заказов</h5>
-              <p className="text-muted">Сделайте ваш первый заказ!</p>
+              <h5 className="mt-3">{t('noOrders')}</h5>
+              <p className="text-muted">{t('makeFirstOrder')}</p>
               <button className="btn btn-primary" onClick={() => navigate('/')}>
-                Перейти в каталог
+                {t('goToCatalog')}
               </button>
             </Card.Body>
           </Card>
@@ -177,7 +177,7 @@ function Orders() {
                     </div>
                   </div>
                   <div className="text-end">
-                    <div className="fw-bold text-primary">{formatPrice(order.total_amount)} сум</div>
+                    <div className="fw-bold text-primary">{formatPrice(order.total_amount)} {t('sum')}</div>
                     {getStatusBadge(order.status)}
                   </div>
                 </div>
@@ -190,12 +190,12 @@ function Orders() {
                     {/* Order items */}
                     {order.items && order.items.length > 0 && (
                       <div className="mb-3">
-                        <div className="text-muted small mb-2">Состав заказа:</div>
+                        <div className="text-muted small mb-2">{t('orderComposition')}:</div>
                         {order.items.map((item, idx) => (
                           <div key={idx} className="d-flex justify-content-between py-1 border-bottom" style={{ fontSize: '0.9rem' }}>
                             <span>{item.product_name}</span>
                             <span className="text-muted">
-                              {item.quantity} × {formatPrice(item.price)} = <strong>{formatPrice(item.total || item.quantity * item.price)}</strong> сум
+                              {item.quantity} × {formatPrice(item.price)} = <strong>{formatPrice(item.total || item.quantity * item.price)}</strong> {t('sum')}
                             </span>
                           </div>
                         ))}
@@ -204,13 +204,13 @@ function Orders() {
 
                     {/* Payment method */}
                     <div className="mb-2 small">
-                      <span className="text-muted">Оплата:</span> {order.payment_method === 'card' ? '💳 Карта' : '💵 Наличные'}
+                      <span className="text-muted">{t('payment')}:</span> {order.payment_method === 'card' ? `💳 ${t('card')}` : `💵 ${t('cash')}`}
                     </div>
 
                     {/* Comment */}
                     {order.comment && (
                       <div className="mb-2 small">
-                        <span className="text-muted">Комментарий:</span> {order.comment}
+                        <span className="text-muted">{language === 'uz' ? 'Izoh' : 'Комментарий'}:</span> {order.comment}
                       </div>
                     )}
 
@@ -224,7 +224,7 @@ function Orders() {
                         }}
                         disabled={cancelling === order.id}
                       >
-                        {cancelling === order.id ? 'Отмена...' : '❌ Отменить заказ'}
+                        {cancelling === order.id ? t('cancelling') : `❌ ${t('cancelOrder')}`}
                       </button>
                     )}
                   </div>
@@ -233,7 +233,7 @@ function Orders() {
                 {/* Expand indicator */}
                 <div className="text-center mt-2">
                   <small className="text-muted">
-                    {expandedOrder === order.id ? '▲ Свернуть' : '▼ Подробнее'}
+                    {expandedOrder === order.id ? `▲ ${t('collapse')}` : `▼ ${t('expand')}`}
                   </small>
                 </div>
               </Card.Body>
