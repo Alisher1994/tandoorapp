@@ -930,4 +930,105 @@ router.post('/broadcast', async (req, res) => {
   }
 });
 
+// =====================================================
+// ГОДОВАЯ АНАЛИТИКА
+// =====================================================
+
+// Get yearly analytics with monthly breakdown
+router.get('/analytics/yearly', async (req, res) => {
+  try {
+    const { year } = req.query;
+    const selectedYear = parseInt(year) || new Date().getFullYear();
+    const restaurantId = req.user.active_restaurant_id;
+    
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+    
+    // Get monthly revenue and orders count for delivered orders
+    const monthlyStats = await pool.query(`
+      SELECT 
+        EXTRACT(MONTH FROM created_at) as month,
+        COUNT(*) as orders_count,
+        COALESCE(SUM(total_amount), 0) as revenue
+      FROM orders
+      WHERE restaurant_id = $1 
+        AND EXTRACT(YEAR FROM created_at) = $2
+        AND status = 'delivered'
+      GROUP BY EXTRACT(MONTH FROM created_at)
+      ORDER BY month
+    `, [restaurantId, selectedYear]);
+    
+    // Create array for all 12 months
+    const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      orders_count: 0,
+      revenue: 0
+    }));
+    
+    // Fill with actual data
+    monthlyStats.rows.forEach(row => {
+      const idx = parseInt(row.month) - 1;
+      monthlyData[idx] = {
+        month: parseInt(row.month),
+        orders_count: parseInt(row.orders_count),
+        revenue: parseFloat(row.revenue)
+      };
+    });
+    
+    // Calculate totals and average check
+    const totalRevenue = monthlyData.reduce((sum, m) => sum + m.revenue, 0);
+    const totalOrders = monthlyData.reduce((sum, m) => sum + m.orders_count, 0);
+    const averageCheck = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+    
+    // Get top 5 products for each month
+    const topProductsResult = await pool.query(`
+      WITH monthly_products AS (
+        SELECT 
+          EXTRACT(MONTH FROM o.created_at) as month,
+          oi.product_name,
+          SUM(oi.quantity) as total_quantity,
+          SUM(oi.quantity * oi.price) as total_revenue,
+          ROW_NUMBER() OVER (
+            PARTITION BY EXTRACT(MONTH FROM o.created_at) 
+            ORDER BY SUM(oi.quantity) DESC
+          ) as rank
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.order_id
+        WHERE o.restaurant_id = $1 
+          AND EXTRACT(YEAR FROM o.created_at) = $2
+          AND o.status = 'delivered'
+        GROUP BY EXTRACT(MONTH FROM o.created_at), oi.product_name
+      )
+      SELECT month, product_name, total_quantity, total_revenue
+      FROM monthly_products
+      WHERE rank <= 5
+      ORDER BY month, rank
+    `, [restaurantId, selectedYear]);
+    
+    // Organize top products by month
+    const topProductsByMonth = Array.from({ length: 12 }, () => []);
+    topProductsResult.rows.forEach(row => {
+      const idx = parseInt(row.month) - 1;
+      topProductsByMonth[idx].push({
+        name: row.product_name,
+        quantity: parseInt(row.total_quantity),
+        revenue: parseFloat(row.total_revenue)
+      });
+    });
+    
+    res.json({
+      year: selectedYear,
+      monthlyData,
+      totalRevenue,
+      totalOrders,
+      averageCheck,
+      topProductsByMonth
+    });
+  } catch (error) {
+    console.error('Yearly analytics error:', error);
+    res.status(500).json({ error: 'Ошибка получения аналитики' });
+  }
+});
+
 module.exports = router;

@@ -68,7 +68,7 @@ const translations = {
     statusCancelled: 'Отменен',
     
     // Admin
-    dashboard: 'Дашборд',
+    dashboard: 'Аналитика',
     products: 'Товары',
     categories: 'Категории',
     clients: 'Клиенты',
@@ -182,7 +182,7 @@ const translations = {
     statusCancelled: 'Bekor qilindi',
     
     // Admin
-    dashboard: 'Boshqaruv paneli',
+    dashboard: 'Analitika',
     products: 'Mahsulotlar',
     categories: 'Kategoriyalar',
     clients: 'Mijozlar',

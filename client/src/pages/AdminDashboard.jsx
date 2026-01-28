@@ -89,6 +89,17 @@ function AdminDashboard() {
     orderLocations: []
   });
   
+  // Yearly analytics
+  const [yearlyAnalytics, setYearlyAnalytics] = useState({
+    year: new Date().getFullYear(),
+    monthlyData: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, orders_count: 0, revenue: 0 })),
+    totalRevenue: 0,
+    totalOrders: 0,
+    averageCheck: 0,
+    topProductsByMonth: Array.from({ length: 12 }, () => [])
+  });
+  const [loadingYearlyAnalytics, setLoadingYearlyAnalytics] = useState(false);
+  
   const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   
@@ -180,6 +191,25 @@ function AdminDashboard() {
     
     setAnalytics({ revenue, ordersCount, averageCheck, topProducts, orderLocations });
   }, [orders, dashboardYear, dashboardMonth]);
+
+  // Fetch yearly analytics
+  const fetchYearlyAnalytics = async (year) => {
+    setLoadingYearlyAnalytics(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/analytics/yearly?year=${year}`);
+      setYearlyAnalytics(response.data);
+    } catch (error) {
+      console.error('Error fetching yearly analytics:', error);
+    } finally {
+      setLoadingYearlyAnalytics(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.active_restaurant_id) {
+      fetchYearlyAnalytics(dashboardYear);
+    }
+  }, [dashboardYear, user?.active_restaurant_id]);
 
   useEffect(() => {
     fetchData();
@@ -954,6 +984,310 @@ function AdminDashboard() {
                     </Card>
                   </Col>
                 </Row>
+                
+                {/* =====================================================
+                    ГОДОВАЯ АНАЛИТИКА
+                ===================================================== */}
+                <hr className="my-4" />
+                <h5 className="mb-4">📈 Годовая аналитика за {dashboardYear} год</h5>
+                
+                {loadingYearlyAnalytics ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Yearly Summary Cards */}
+                    <Row className="g-4 mb-4">
+                      <Col md={4}>
+                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
+                          <Card.Body className="text-white">
+                            <div className="d-flex justify-content-between align-items-start">
+                              <div>
+                                <h6 className="text-white-50 mb-1">Выручка за год</h6>
+                                <h3 className="mb-0">{formatPrice(yearlyAnalytics.totalRevenue)} сум</h3>
+                              </div>
+                              <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>💵</div>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                      <Col md={4}>
+                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%)' }}>
+                          <Card.Body className="text-white">
+                            <div className="d-flex justify-content-between align-items-start">
+                              <div>
+                                <h6 className="text-white-50 mb-1">Заказов за год</h6>
+                                <h3 className="mb-0">{yearlyAnalytics.totalOrders}</h3>
+                              </div>
+                              <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>📊</div>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                      <Col md={4}>
+                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)' }}>
+                          <Card.Body className="text-white">
+                            <div className="d-flex justify-content-between align-items-start">
+                              <div>
+                                <h6 className="text-white-50 mb-1">Средний чек за год</h6>
+                                <h3 className="mb-0">{formatPrice(yearlyAnalytics.averageCheck)} сум</h3>
+                              </div>
+                              <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>🧾</div>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    </Row>
+                    
+                    {/* Revenue Chart - Line Graph */}
+                    <Card className="border-0 shadow-sm mb-4">
+                      <Card.Header className="bg-white border-0">
+                        <h6 className="mb-0">💰 Финансы по месяцам</h6>
+                      </Card.Header>
+                      <Card.Body>
+                        <div style={{ height: '300px', position: 'relative' }}>
+                          {/* SVG Line Chart for Revenue */}
+                          <svg viewBox="0 0 1000 280" style={{ width: '100%', height: '100%' }}>
+                            {/* Grid lines */}
+                            {[0, 1, 2, 3, 4].map(i => (
+                              <line key={i} x1="50" y1={50 + i * 50} x2="950" y2={50 + i * 50} stroke="#e0e0e0" strokeWidth="1" />
+                            ))}
+                            
+                            {/* Y-axis labels */}
+                            {(() => {
+                              const maxRevenue = Math.max(...yearlyAnalytics.monthlyData.map(m => m.revenue), 1);
+                              return [0, 1, 2, 3, 4].map(i => (
+                                <text key={i} x="45" y={255 - i * 50} textAnchor="end" fontSize="11" fill="#666">
+                                  {formatPrice(Math.round(maxRevenue * i / 4))}
+                                </text>
+                              ));
+                            })()}
+                            
+                            {/* Line path */}
+                            {(() => {
+                              const maxRevenue = Math.max(...yearlyAnalytics.monthlyData.map(m => m.revenue), 1);
+                              const points = yearlyAnalytics.monthlyData.map((m, i) => {
+                                const x = 75 + i * 75;
+                                const y = 250 - (m.revenue / maxRevenue) * 200;
+                                return `${x},${y}`;
+                              }).join(' ');
+                              
+                              const areaPath = yearlyAnalytics.monthlyData.map((m, i) => {
+                                const x = 75 + i * 75;
+                                const y = 250 - (m.revenue / maxRevenue) * 200;
+                                return i === 0 ? `M ${x},${y}` : `L ${x},${y}`;
+                              }).join(' ') + ` L ${75 + 11 * 75},250 L 75,250 Z`;
+                              
+                              return (
+                                <>
+                                  {/* Area fill */}
+                                  <path d={areaPath} fill="url(#revenueGradient)" opacity="0.3" />
+                                  {/* Line */}
+                                  <polyline points={points} fill="none" stroke="#667eea" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                  {/* Points */}
+                                  {yearlyAnalytics.monthlyData.map((m, i) => {
+                                    const x = 75 + i * 75;
+                                    const y = 250 - (m.revenue / maxRevenue) * 200;
+                                    return (
+                                      <g key={i}>
+                                        <circle cx={x} cy={y} r="6" fill="#667eea" />
+                                        <circle cx={x} cy={y} r="3" fill="white" />
+                                      </g>
+                                    );
+                                  })}
+                                </>
+                              );
+                            })()}
+                            
+                            {/* Gradient definition */}
+                            <defs>
+                              <linearGradient id="revenueGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="#667eea" />
+                                <stop offset="100%" stopColor="#667eea" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                            
+                            {/* X-axis labels */}
+                            {['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].map((m, i) => (
+                              <text key={i} x={75 + i * 75} y="275" textAnchor="middle" fontSize="11" fill="#666">{m}</text>
+                            ))}
+                          </svg>
+                        </div>
+                        {/* Revenue values row */}
+                        <div className="d-flex justify-content-between mt-2 px-4" style={{ overflowX: 'auto' }}>
+                          {yearlyAnalytics.monthlyData.map((m, i) => (
+                            <div key={i} className="text-center" style={{ minWidth: '70px' }}>
+                              <small className="text-muted d-block" style={{ fontSize: '10px' }}>
+                                {formatPrice(m.revenue)}
+                              </small>
+                            </div>
+                          ))}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                    
+                    {/* Orders Chart - Line Graph */}
+                    <Card className="border-0 shadow-sm mb-4">
+                      <Card.Header className="bg-white border-0">
+                        <h6 className="mb-0">📦 Доставленные заказы по месяцам</h6>
+                      </Card.Header>
+                      <Card.Body>
+                        <div style={{ height: '300px', position: 'relative' }}>
+                          {/* SVG Line Chart for Orders */}
+                          <svg viewBox="0 0 1000 280" style={{ width: '100%', height: '100%' }}>
+                            {/* Grid lines */}
+                            {[0, 1, 2, 3, 4].map(i => (
+                              <line key={i} x1="50" y1={50 + i * 50} x2="950" y2={50 + i * 50} stroke="#e0e0e0" strokeWidth="1" />
+                            ))}
+                            
+                            {/* Y-axis labels */}
+                            {(() => {
+                              const maxOrders = Math.max(...yearlyAnalytics.monthlyData.map(m => m.orders_count), 1);
+                              return [0, 1, 2, 3, 4].map(i => (
+                                <text key={i} x="45" y={255 - i * 50} textAnchor="end" fontSize="11" fill="#666">
+                                  {Math.round(maxOrders * i / 4)}
+                                </text>
+                              ));
+                            })()}
+                            
+                            {/* Line path */}
+                            {(() => {
+                              const maxOrders = Math.max(...yearlyAnalytics.monthlyData.map(m => m.orders_count), 1);
+                              const points = yearlyAnalytics.monthlyData.map((m, i) => {
+                                const x = 75 + i * 75;
+                                const y = 250 - (m.orders_count / maxOrders) * 200;
+                                return `${x},${y}`;
+                              }).join(' ');
+                              
+                              const areaPath = yearlyAnalytics.monthlyData.map((m, i) => {
+                                const x = 75 + i * 75;
+                                const y = 250 - (m.orders_count / maxOrders) * 200;
+                                return i === 0 ? `M ${x},${y}` : `L ${x},${y}`;
+                              }).join(' ') + ` L ${75 + 11 * 75},250 L 75,250 Z`;
+                              
+                              return (
+                                <>
+                                  {/* Area fill */}
+                                  <path d={areaPath} fill="url(#ordersGradient)" opacity="0.3" />
+                                  {/* Line */}
+                                  <polyline points={points} fill="none" stroke="#f5576c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                  {/* Points */}
+                                  {yearlyAnalytics.monthlyData.map((m, i) => {
+                                    const x = 75 + i * 75;
+                                    const y = 250 - (m.orders_count / maxOrders) * 200;
+                                    return (
+                                      <g key={i}>
+                                        <circle cx={x} cy={y} r="6" fill="#f5576c" />
+                                        <circle cx={x} cy={y} r="3" fill="white" />
+                                      </g>
+                                    );
+                                  })}
+                                </>
+                              );
+                            })()}
+                            
+                            {/* Gradient definition */}
+                            <defs>
+                              <linearGradient id="ordersGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="#f5576c" />
+                                <stop offset="100%" stopColor="#f5576c" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                            
+                            {/* X-axis labels */}
+                            {['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].map((m, i) => (
+                              <text key={i} x={75 + i * 75} y="275" textAnchor="middle" fontSize="11" fill="#666">{m}</text>
+                            ))}
+                          </svg>
+                        </div>
+                        {/* Orders count row */}
+                        <div className="d-flex justify-content-between mt-2 px-4" style={{ overflowX: 'auto' }}>
+                          {yearlyAnalytics.monthlyData.map((m, i) => (
+                            <div key={i} className="text-center" style={{ minWidth: '70px' }}>
+                              <small className="text-primary fw-bold">{m.orders_count}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </Card.Body>
+                    </Card>
+                    
+                    {/* Top 5 Products by Month - Horizontal Scroll */}
+                    <Card className="border-0 shadow-sm mb-4">
+                      <Card.Header className="bg-white border-0">
+                        <h6 className="mb-0">🏆 Топ-5 товаров по месяцам</h6>
+                      </Card.Header>
+                      <Card.Body className="p-0">
+                        <div style={{ overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                          <div className="d-flex" style={{ minWidth: 'max-content' }}>
+                            {['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'].map((monthName, monthIdx) => (
+                              <div 
+                                key={monthIdx} 
+                                style={{ 
+                                  minWidth: '200px', 
+                                  maxWidth: '200px',
+                                  borderRight: monthIdx < 11 ? '1px solid #dee2e6' : 'none'
+                                }}
+                                className="p-3"
+                              >
+                                <h6 className="text-center mb-3" style={{ 
+                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                  color: 'white',
+                                  padding: '8px',
+                                  borderRadius: '8px',
+                                  fontSize: '13px'
+                                }}>
+                                  {monthName}
+                                </h6>
+                                {yearlyAnalytics.topProductsByMonth[monthIdx]?.length > 0 ? (
+                                  <div style={{ whiteSpace: 'normal' }}>
+                                    {yearlyAnalytics.topProductsByMonth[monthIdx].map((product, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className="d-flex align-items-center mb-2 p-2" 
+                                        style={{ 
+                                          background: idx === 0 ? '#fff3cd' : idx === 1 ? '#e2e3e5' : idx === 2 ? '#fce4d6' : '#f8f9fa',
+                                          borderRadius: '6px',
+                                          fontSize: '12px'
+                                        }}
+                                      >
+                                        <Badge 
+                                          bg={idx === 0 ? 'warning' : idx === 1 ? 'secondary' : idx === 2 ? 'danger' : 'light'}
+                                          text={idx > 2 ? 'dark' : undefined}
+                                          className="me-2"
+                                        >
+                                          {idx + 1}
+                                        </Badge>
+                                        <div style={{ overflow: 'hidden' }}>
+                                          <div style={{ 
+                                            overflow: 'hidden', 
+                                            textOverflow: 'ellipsis',
+                                            fontWeight: '500'
+                                          }} title={product.name}>
+                                            {product.name}
+                                          </div>
+                                          <small className="text-muted">
+                                            {product.quantity} шт • {formatPrice(product.revenue)}
+                                          </small>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-center text-muted py-4" style={{ whiteSpace: 'normal', fontSize: '12px' }}>
+                                    Нет данных
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </>
+                )}
               </Card.Body>
             </Card>
           </Tab>
@@ -1005,13 +1339,29 @@ function AdminDashboard() {
                         <td>{getStatusBadge(order.status)}</td>
                         <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
                         <td>
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => openOrderModal(order)}
-                          >
-                            Детали
-                          </Button>
+                          <div className="d-flex gap-1">
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => openOrderModal(order)}
+                            >
+                              Детали
+                            </Button>
+                            {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => {
+                                  if (window.confirm('Вы уверены, что хотите отменить этот заказ?')) {
+                                    updateOrderStatus(order.id, 'cancelled');
+                                  }
+                                }}
+                                title="Отменить заказ"
+                              >
+                                ✕
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
