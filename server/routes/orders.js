@@ -14,8 +14,10 @@ function getNowInRestaurantTimezone() {
 // Get user orders
 router.get('/my-orders', authenticate, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT o.*, r.name as restaurant_name,
+    // Filter by active restaurant if user has one
+    const activeRestaurantId = req.user.active_restaurant_id;
+    
+    let query = `SELECT o.*, r.name as restaurant_name,
               COALESCE(
                 json_agg(
                   json_build_object(
@@ -32,11 +34,19 @@ router.get('/my-orders', authenticate, async (req, res) => {
        FROM orders o
        LEFT JOIN restaurants r ON o.restaurant_id = r.id
        LEFT JOIN order_items oi ON o.id = oi.order_id
-       WHERE o.user_id = $1
-       GROUP BY o.id, r.name
-       ORDER BY o.created_at DESC`,
-      [req.user.id]
-    );
+       WHERE o.user_id = $1`;
+    
+    const params = [req.user.id];
+    
+    // If user has active restaurant, show only orders from that restaurant
+    if (activeRestaurantId) {
+      query += ` AND o.restaurant_id = $2`;
+      params.push(activeRestaurantId);
+    }
+    
+    query += ` GROUP BY o.id, r.name ORDER BY o.created_at DESC`;
+    
+    const result = await pool.query(query, params);
     
     res.json(result.rows);
   } catch (error) {

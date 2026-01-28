@@ -204,7 +204,14 @@ function Orders() {
 
                     {/* Payment method */}
                     <div className="mb-2 small">
-                      <span className="text-muted">{t('payment')}:</span> {order.payment_method === 'card' ? `💳 ${t('card')}` : `💵 ${t('cash')}`}
+                      <span className="text-muted">{t('payment')}:</span>{' '}
+                      {order.payment_method === 'click' ? (
+                        <><img src="/click.png" alt="Click" style={{ height: 16, marginRight: 4 }} /> Click</>
+                      ) : order.payment_method === 'payme' ? (
+                        <><img src="/payme.png" alt="Payme" style={{ height: 16, marginRight: 4 }} /> Payme</>
+                      ) : (
+                        `💵 ${t('cash')}`
+                      )}
                     </div>
 
                     {/* Comment */}
