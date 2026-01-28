@@ -164,7 +164,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
 /**
  * Send order status update to user
  */
-async function sendOrderUpdateToUser(telegramId, order, status, botToken = null) {
+async function sendOrderUpdateToUser(telegramId, order, status, botToken = null, restaurantPaymentUrls = null) {
   if (!telegramId) return;
   
   const bot = getRestaurantBot(botToken);
@@ -183,7 +183,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null)
     };
     
     const statusMessages = {
-      'new': '✅ Ваш заказ принят!',
+      'new': '📦 Ваш заказ в обработке!',
       'preparing': '👨‍🍳 Ваш заказ готовится',
       'delivering': '🚗 Ваш заказ в пути',
       'delivered': '✅ Ваш заказ доставлен!',
@@ -193,16 +193,28 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null)
     const tag = statusTags[status] || '#обновлен';
     const statusText = statusMessages[status] || 'Обновление заказа';
     
+    // Build payment link for new orders
+    let paymentLine = '';
+    if (status === 'new' && order.payment_method && restaurantPaymentUrls) {
+      if (order.payment_method === 'click' && restaurantPaymentUrls.click_url) {
+        paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.click_url}">Click</a>`;
+      } else if (order.payment_method === 'payme' && restaurantPaymentUrls.payme_url) {
+        paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.payme_url}">Payme</a>`;
+      }
+    }
+    
     const message = 
       `<b>ID: ${order.order_number}</b> ${tag}\n\n` +
       `${statusText}\n\n` +
-      `Сумма: ${formatPrice(order.total_amount)} сум`;
+      `Сумма заказа: ${formatPrice(order.total_amount)} сум` +
+      paymentLine;
     
-    // Add "New Order" button for new/delivered/cancelled orders
-    const showNewOrderButton = status === 'delivered' || status === 'cancelled' || status === 'new';
+    // Add "New Order" button for delivered/cancelled orders (not for new - they have payment link)
+    const showNewOrderButton = status === 'delivered' || status === 'cancelled';
     
     const options = { 
       parse_mode: 'HTML',
+      disable_web_page_preview: true,
       reply_markup: showNewOrderButton ? {
         inline_keyboard: [
           [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]

@@ -228,7 +228,7 @@ router.post('/', authenticate, async (req, res) => {
     // Send notifications using restaurant's bot if configured
     if (finalRestaurantId) {
       const restaurantResult = await pool.query(
-        'SELECT telegram_bot_token, telegram_group_id FROM restaurants WHERE id = $1',
+        'SELECT telegram_bot_token, telegram_group_id, click_url, payme_url FROM restaurants WHERE id = $1',
         [finalRestaurantId]
       );
       const restaurant = restaurantResult.rows[0];
@@ -239,13 +239,22 @@ router.post('/', authenticate, async (req, res) => {
         // Fall back to default notification
         await sendOrderNotification(order, items);
       }
+      
+      // Send notification to user with payment link
+      if (req.user.telegram_id) {
+        const paymentUrls = {
+          click_url: restaurant?.click_url,
+          payme_url: restaurant?.payme_url
+        };
+        await sendOrderUpdateToUser(req.user.telegram_id, order, 'new', restaurant?.telegram_bot_token, paymentUrls);
+      }
     } else {
       await sendOrderNotification(order, items);
-    }
-    
-    // Send notification to user
-    if (req.user.telegram_id) {
-      await sendOrderUpdateToUser(req.user.telegram_id, order, 'new');
+      
+      // Send notification to user
+      if (req.user.telegram_id) {
+        await sendOrderUpdateToUser(req.user.telegram_id, order, 'new');
+      }
     }
     
     res.status(201).json({
