@@ -773,10 +773,12 @@ function initBot() {
           [orderId, 'preparing', `Подтверждено: ${operatorName}`]
         );
         
-        // Get order details for notification
+        // Get order details for notification with restaurant bot token
         const orderResult = await pool.query(
-          `SELECT o.*, u.telegram_id FROM orders o 
+          `SELECT o.*, u.telegram_id, r.telegram_bot_token 
+           FROM orders o 
            LEFT JOIN users u ON o.user_id = u.id 
+           LEFT JOIN restaurants r ON o.restaurant_id = r.id
            WHERE o.id = $1`,
           [orderId]
         );
@@ -784,10 +786,10 @@ function initBot() {
         if (orderResult.rows.length > 0) {
           const order = orderResult.rows[0];
           
-          // Notify customer
+          // Notify customer using restaurant's bot
           if (order.telegram_id) {
             const { sendOrderUpdateToUser } = require('./notifications');
-            await sendOrderUpdateToUser(order.telegram_id, order, 'preparing');
+            await sendOrderUpdateToUser(order.telegram_id, order, 'preparing', order.telegram_bot_token);
           }
           
           // Update message in group - remove buttons
@@ -865,10 +867,12 @@ function initBot() {
             [orderId, 'cancelled', `Отказано: ${text} (${operatorName})`]
           );
           
-          // Get order details
+          // Get order details with restaurant bot token
           const orderResult = await pool.query(
-            `SELECT o.*, u.telegram_id FROM orders o 
+            `SELECT o.*, u.telegram_id, r.telegram_bot_token 
+             FROM orders o 
              LEFT JOIN users u ON o.user_id = u.id 
+             LEFT JOIN restaurants r ON o.restaurant_id = r.id
              WHERE o.id = $1`,
             [orderId]
           );
@@ -876,11 +880,14 @@ function initBot() {
           if (orderResult.rows.length > 0) {
             const order = orderResult.rows[0];
             
-            // Notify customer with reason
+            // Notify customer with reason using restaurant's bot
             if (order.telegram_id) {
-              const bot = getDefaultBot();
-              if (bot) {
-                bot.sendMessage(order.telegram_id,
+              const { getRestaurantBot } = require('./notifications');
+              const customerBot = order.telegram_bot_token 
+                ? getRestaurantBot(order.telegram_bot_token) 
+                : getDefaultBot();
+              if (customerBot) {
+                customerBot.sendMessage(order.telegram_id,
                   `❌ <b>Заказ #${order.order_number} отменен</b>\n\n` +
                   `Причина: ${text}\n\n` +
                   `Приносим извинения за неудобства.`,

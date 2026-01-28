@@ -308,27 +308,37 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
     
     await client.query('COMMIT');
     
-    // Notify user
+    // Get restaurant bot token for notifications
+    let restaurantBotToken = null;
+    let restaurantGroupId = null;
+    if (order.restaurant_id) {
+      const restaurantResult = await pool.query(
+        'SELECT telegram_bot_token, telegram_group_id FROM restaurants WHERE id = $1',
+        [order.restaurant_id]
+      );
+      if (restaurantResult.rows[0]) {
+        restaurantBotToken = restaurantResult.rows[0].telegram_bot_token;
+        restaurantGroupId = restaurantResult.rows[0].telegram_group_id;
+      }
+    }
+    
+    // Notify user using restaurant's bot
     if (req.user.telegram_id) {
       const { sendOrderUpdateToUser } = require('../bot/notifications');
-      await sendOrderUpdateToUser(req.user.telegram_id, { ...order, status: 'cancelled' }, 'cancelled');
+      await sendOrderUpdateToUser(
+        req.user.telegram_id, 
+        { ...order, status: 'cancelled' }, 
+        'cancelled',
+        restaurantBotToken
+      );
     }
 
     // Update group notification (remove buttons)
     try {
-      let restaurant = null;
-      if (order.restaurant_id) {
-        const restaurantResult = await pool.query(
-          'SELECT telegram_bot_token, telegram_group_id FROM restaurants WHERE id = $1',
-          [order.restaurant_id]
-        );
-        restaurant = restaurantResult.rows[0];
-      }
-
       await updateOrderNotificationForCustomerCancel(
         { ...order, status: 'cancelled' },
-        restaurant?.telegram_bot_token,
-        restaurant?.telegram_group_id
+        restaurantBotToken,
+        restaurantGroupId
       );
     } catch (error) {
       console.error('Update group cancel message error:', error);

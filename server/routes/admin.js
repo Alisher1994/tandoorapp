@@ -209,14 +209,22 @@ router.patch('/orders/:id/status', async (req, res) => {
       userAgent: getUserAgentFromRequest(req)
     });
     
-    // Get user telegram_id and send notification
+    // Get user telegram_id and restaurant bot token, then send notification
     const userResult = await pool.query(
-      'SELECT telegram_id FROM users WHERE id = $1',
-      [order.user_id]
+      `SELECT u.telegram_id, r.telegram_bot_token 
+       FROM users u
+       LEFT JOIN restaurants r ON r.id = $2
+       WHERE u.id = $1`,
+      [order.user_id, order.restaurant_id]
     );
     
     if (userResult.rows[0]?.telegram_id) {
-      await sendOrderUpdateToUser(userResult.rows[0].telegram_id, order, status);
+      await sendOrderUpdateToUser(
+        userResult.rows[0].telegram_id, 
+        order, 
+        status,
+        userResult.rows[0].telegram_bot_token
+      );
     }
     
     res.json({

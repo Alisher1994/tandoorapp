@@ -232,4 +232,4 @@ async function updateOrderNotificationForCustomerCancel(order, botToken = null, 
   }
 }
 
-module.exports = { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel };
+module.exports = { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel, getRestaurantBot };
