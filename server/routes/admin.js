@@ -423,13 +423,23 @@ router.post('/products/upsert', async (req, res) => {
       return res.status(400).json({ error: 'Название и цена обязательны' });
     }
     
-    // Проверяем, существует ли товар с таким названием в этой категории
-    const existingProduct = await pool.query(`
-      SELECT id FROM products 
-      WHERE restaurant_id = $1 
-        AND category_id = $2 
-        AND LOWER(name_ru) = LOWER($3)
-    `, [restaurantId, category_id, name_ru]);
+    // Проверяем, существует ли товар с таким названием в этой категории (или любой категории если category_id не указан)
+    let existingProduct;
+    if (category_id) {
+      existingProduct = await pool.query(`
+        SELECT id FROM products 
+        WHERE restaurant_id = $1 
+          AND category_id = $2 
+          AND LOWER(name_ru) = LOWER($3)
+      `, [restaurantId, category_id, name_ru]);
+    } else {
+      // Если категория не указана, ищем по названию в любой категории
+      existingProduct = await pool.query(`
+        SELECT id FROM products 
+        WHERE restaurant_id = $1 
+          AND LOWER(name_ru) = LOWER($2)
+      `, [restaurantId, name_ru]);
+    }
     
     let result;
     let isUpdate = false;
@@ -437,18 +447,52 @@ router.post('/products/upsert', async (req, res) => {
     if (existingProduct.rows.length > 0) {
       // Обновляем существующий товар
       isUpdate = true;
+      const updateFields = ['price = $1', 'unit = $2'];
+      const updateValues = [price, unit || 'шт'];
+      let paramIndex = 3;
+      
+      if (name_uz) {
+        updateFields.push(`name_uz = $${paramIndex}`);
+        updateValues.push(name_uz);
+        paramIndex++;
+      }
+      if (category_id) {
+        updateFields.push(`category_id = $${paramIndex}`);
+        updateValues.push(category_id);
+        paramIndex++;
+      }
+      if (description_ru) {
+        updateFields.push(`description_ru = $${paramIndex}`);
+        updateValues.push(description_ru);
+        paramIndex++;
+      }
+      if (description_uz) {
+        updateFields.push(`description_uz = $${paramIndex}`);
+        updateValues.push(description_uz);
+        paramIndex++;
+      }
+      if (image_url) {
+        updateFields.push(`image_url = $${paramIndex}`);
+        updateValues.push(image_url);
+        paramIndex++;
+      }
+      if (barcode) {
+        updateFields.push(`barcode = $${paramIndex}`);
+        updateValues.push(barcode);
+        paramIndex++;
+      }
+      
+      updateFields.push(`in_stock = $${paramIndex}`);
+      updateValues.push(in_stock !== false);
+      paramIndex++;
+      
+      updateValues.push(existingProduct.rows[0].id);
+      
       result = await pool.query(`
-        UPDATE products SET
-          price = $1, unit = $2, name_uz = COALESCE($3, name_uz), 
-          description_ru = COALESCE($4, description_ru), description_uz = COALESCE($5, description_uz),
-          image_url = COALESCE(NULLIF($6, ''), image_url), barcode = COALESCE($7, barcode),
-          in_stock = $8, sort_order = COALESCE($9, sort_order)
-        WHERE id = $10
+        UPDATE products SET ${updateFields.join(', ')}
+        WHERE id = $${paramIndex}
         RETURNING *
-      `, [
-        price, unit || 'шт', name_uz, description_ru, description_uz,
-        image_url, barcode, in_stock !== false, sort_order, existingProduct.rows[0].id
-      ]);
+      `, updateValues);
     } else {
       // Создаем новый товар
       result = await pool.query(`
