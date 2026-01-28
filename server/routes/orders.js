@@ -5,6 +5,12 @@ const { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationFor
 
 const router = express.Router();
 
+function getNowInRestaurantTimezone() {
+  const timezone = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
+  const nowString = new Date().toLocaleString('en-US', { timeZone: timezone });
+  return new Date(nowString);
+}
+
 // Get user orders
 router.get('/my-orders', authenticate, async (req, res) => {
   try {
@@ -131,7 +137,7 @@ router.post('/', authenticate, async (req, res) => {
       console.log('📦 Restaurant hours:', hours);
       
       if (hours?.start_time && hours?.end_time) {
-        const now = new Date();
+        const now = getNowInRestaurantTimezone();
         const startTime = hours.start_time.substring(0, 5);
         const endTime = hours.end_time.substring(0, 5);
         const [openH, openM] = startTime.split(':').map(Number);

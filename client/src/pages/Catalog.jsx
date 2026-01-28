@@ -279,7 +279,10 @@ function Catalog() {
                                         background: 'var(--accent-color)',
                                         color: '#1a1a1a',
                                         fontSize: '12px',
-                                        fontWeight: 700
+                                        fontWeight: 700,
+                                        opacity: catalogQtyOpen?.[overlayKey] ? 0 : 1,
+                                        pointerEvents: catalogQtyOpen?.[overlayKey] ? 'none' : 'auto',
+                                        transition: 'opacity 0.2s'
                                       }}
                                       onClick={() => {
                                         setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
