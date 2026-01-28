@@ -89,13 +89,12 @@ function Orders() {
       {/* Simple header */}
       <div className="bg-white shadow-sm py-3 mb-3">
         <Container style={{ maxWidth: '600px' }}>
-          <div className="d-flex align-items-center justify-content-between">
-            <h5 className="mb-0">📋 Мои заказы</h5>
+          <div className="d-flex align-items-center justify-content-center">
             {restaurant?.logo_url && (
               <img 
                 src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`} 
                 alt="Logo" 
-                height="32" 
+                height="36" 
                 style={{ objectFit: 'contain' }}
               />
             )}

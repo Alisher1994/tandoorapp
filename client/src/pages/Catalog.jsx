@@ -6,9 +6,7 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
-import Badge from 'react-bootstrap/Badge';
 import Navbar from 'react-bootstrap/Navbar';
-import Nav from 'react-bootstrap/Nav';
 import Form from 'react-bootstrap/Form';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -22,9 +20,10 @@ function Catalog() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [loading, setLoading] = useState(true);
-  const { user, logout, isOperator } = useAuth();
-  const { addToCart, updateQuantity, cartCount, clearCart, cart } = useCart();
+  const { user, isOperator } = useAuth();
+  const { addToCart, updateQuantity, clearCart, cart } = useCart();
   const navigate = useNavigate();
 
   // Load restaurants (for header/logo and operator selection)
@@ -129,55 +128,18 @@ function Catalog() {
   return (
     <>
       <Navbar bg="white" expand="lg" className="shadow-sm mb-4 sticky-top">
-        <Container>
-          <Navbar.Brand className="d-flex align-items-center">
+        <Container className="justify-content-center">
+          <Navbar.Brand className="d-flex align-items-center justify-content-center">
             {currentRestaurant?.logo_url ? (
               <img 
                 src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
                 alt={currentRestaurant.name}
-                style={{ height: '35px', width: '35px', objectFit: 'cover', borderRadius: '8px', marginRight: '10px' }}
+                style={{ height: '42px', width: '42px', objectFit: 'cover', borderRadius: '10px' }}
               />
             ) : (
-              <span style={{ fontSize: '1.5rem' }} className="me-2">🍽️</span>
-            )}
-            {isOperator() && restaurants.length > 1 ? (
-              <Form.Select 
-                size="sm"
-                value={selectedRestaurant || ''}
-                onChange={handleRestaurantChange}
-                style={{ width: 'auto', minWidth: '150px' }}
-              >
-                {restaurants.map(r => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </Form.Select>
-            ) : (
-              <span>{currentRestaurant?.name || 'Каталог'}</span>
+              <span style={{ fontSize: '1.7rem' }}>🍽️</span>
             )}
           </Navbar.Brand>
-          <Navbar.Collapse className="justify-content-end">
-            <Nav>
-              <Nav.Link onClick={() => navigate('/orders')}>
-                📦 Заказы
-              </Nav.Link>
-              <Nav.Link onClick={() => navigate('/cart')} className="position-relative">
-                🛒 Корзина
-                {cartCount > 0 && (
-                  <Badge bg="danger" className="ms-1 rounded-pill">
-                    {cartCount}
-                  </Badge>
-                )}
-              </Nav.Link>
-              {isOperator() && (
-                <Nav.Link onClick={() => navigate('/admin')}>
-                  ⚙️ Админ
-                </Nav.Link>
-              )}
-              <Nav.Link onClick={handleLogout}>
-                🚪 Выход
-              </Nav.Link>
-            </Nav>
-          </Navbar.Collapse>
         </Container>
       </Navbar>
 
@@ -269,7 +231,7 @@ function Catalog() {
                           </div>
                         )}
                       </div>
-                      <Card.Body className="d-flex flex-column p-2">
+                      <Card.Body className="d-flex flex-column p-2" style={{ position: 'relative' }}>
                         <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem' }}>
                           {product.name_ru}
                         </Card.Title>
@@ -283,36 +245,85 @@ function Catalog() {
                           {product.in_stock ? (
                             (() => {
                               const cartItem = getCartItem(product.id);
-                              if (cartItem) {
-                                return (
-                                  <div className="d-flex align-items-center justify-content-between bg-light rounded-pill px-2 py-1">
+                              const hasQty = !!cartItem;
+                              const qty = cartItem?.quantity || 0;
+                              const overlayKey = `qty_open_${product.id}`;
+                              return (
+                                <div className="d-flex align-items-center justify-content-between">
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center"
+                                    style={{ width: 36, height: 36, position: 'relative' }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleAddToCart(product);
+                                      setCatalogQtyOpen(prev => {
+                                        const next = { ...prev, [overlayKey]: true };
+                                        return next;
+                                      });
+                                      setTimeout(() => {
+                                        setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
+                                      }, 2000);
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                  {hasQty && (
+                                    <span
+                                      className="rounded-circle d-inline-flex align-items-center justify-content-center"
+                                      style={{
+                                        minWidth: 28,
+                                        height: 28,
+                                        background: 'var(--accent-color)',
+                                        color: '#1a1a1a',
+                                        fontSize: '12px',
+                                        fontWeight: 700
+                                      }}
+                                      onClick={() => {
+                                        setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
+                                        setTimeout(() => {
+                                          setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
+                                        }, 2000);
+                                      }}
+                                    >
+                                      {qty}
+                                    </span>
+                                  )}
+                                  <div
+                                    className={`d-flex align-items-center justify-content-between bg-light rounded-pill px-2 py-1`}
+                                    style={{
+                                      position: 'absolute',
+                                      left: 8,
+                                      right: 8,
+                                      bottom: 8,
+                                      opacity: catalogQtyOpen?.[overlayKey] ? 1 : 0,
+                                      pointerEvents: catalogQtyOpen?.[overlayKey] ? 'auto' : 'none',
+                                      transition: 'opacity 0.2s'
+                                    }}
+                                    onClick={() => {
+                                      setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
+                                      setTimeout(() => {
+                                        setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
+                                      }, 2000);
+                                    }}
+                                  >
                                     <Button
                                       variant="light"
                                       size="sm"
-                                      onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
+                                      onClick={() => updateQuantity(product.id, qty - 1)}
                                     >
                                       -
                                     </Button>
-                                    <span className="fw-semibold">{cartItem.quantity}</span>
+                                    <span className="fw-semibold">{qty}</span>
                                     <Button
                                       variant="light"
                                       size="sm"
-                                      onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                                      onClick={() => updateQuantity(product.id, qty + 1)}
                                     >
                                       +
                                     </Button>
                                   </div>
-                                );
-                              }
-                              return (
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  className="w-100"
-                                  onClick={() => handleAddToCart(product)}
-                                >
-                                  + В корзину
-                                </Button>
+                                </div>
                               );
                             })()
                           ) : (
