@@ -230,8 +230,9 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 20px 10px;
+  padding: 20px 30px;
   position: relative;
+  overflow: hidden;
 }
 
 .stepper-step {
@@ -353,18 +354,17 @@ body {
 .stepper-line-container {
   position: absolute;
   top: 42px;
-  left: 0;
-  right: 0;
+  left: 50px;
+  right: 50px;
   height: 3px;
   z-index: 1;
-  padding: 0 60px;
 }
 
 .stepper-line-bg {
   position: absolute;
   top: 0;
-  left: 60px;
-  right: 60px;
+  left: 0;
+  right: 0;
   height: 3px;
   background: #e0e0e0;
   border-radius: 2px;
@@ -373,7 +373,7 @@ body {
 .stepper-line-progress {
   position: absolute;
   top: 0;
-  left: 60px;
+  left: 0;
   height: 3px;
   background: linear-gradient(90deg, #ff9800, #ffc107, #8bc34a, #4caf50);
   border-radius: 2px;
@@ -397,6 +397,29 @@ body {
 .cancel-reason-box strong {
   display: block;
   margin-bottom: 5px;
+}
+
+/* Action buttons - white background, black icons */
+.btn-action {
+  background-color: #ffffff !important;
+  border-color: #dee2e6 !important;
+  color: #1f1f1f !important;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-action:hover {
+  background-color: #f8f9fa !important;
+  border-color: #adb5bd !important;
+  color: #1f1f1f !important;
+}
+
+.btn-action svg {
+  fill: #1f1f1f;
 }
 
 @media (max-width: 768px) {

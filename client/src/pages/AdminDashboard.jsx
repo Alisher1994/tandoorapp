@@ -1388,21 +1388,19 @@ function AdminDashboard() {
                         <td>
                           <div className="d-flex gap-1">
                             <Button
-                              variant="outline-primary"
+                              className="btn-action"
                               size="sm"
                               onClick={() => openOrderModal(order)}
                               title="Детали"
-                              style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                               <ReceiptIcon />
                             </Button>
                             {order.status !== 'cancelled' && order.status !== 'delivered' && (
                               <Button
-                                variant="outline-danger"
+                                className="btn-action"
                                 size="sm"
                                 onClick={() => openCancelModal(order.id)}
                                 title="Отменить заказ"
-                                style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                               >
                                 <TrashIcon />
                               </Button>
@@ -1600,31 +1598,26 @@ function AdminDashboard() {
                         </td>
                         <td>
                           <Button 
-                            variant="outline-primary" 
+                            className="btn-action me-1"
                             size="sm" 
-                            className="me-1"
                             onClick={() => openProductModal(product)}
                             title="Редактировать"
-                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
                             <EditIcon />
                           </Button>
                           <Button 
-                            variant="outline-secondary" 
+                            className="btn-action me-1"
                             size="sm"
-                            className="me-1"
                             onClick={() => duplicateProduct(product)}
                             title="Дублировать"
-                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
                             <CopyIcon />
                           </Button>
                           <Button 
-                            variant="outline-danger" 
+                            className="btn-action"
                             size="sm"
                             onClick={() => handleDeleteProduct(product.id)}
                             title="Удалить"
-                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
                             <TrashIcon />
                           </Button>
@@ -1689,21 +1682,18 @@ function AdminDashboard() {
                         <td>{category.sort_order}</td>
                         <td>
                           <Button 
-                            variant="outline-primary" 
+                            className="btn-action me-1"
                             size="sm" 
-                            className="me-1"
                             onClick={() => openCategoryModal(category)}
                             title="Редактировать"
-                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
                             <EditIcon />
                           </Button>
                           <Button 
-                            variant="outline-danger" 
+                            className="btn-action"
                             size="sm"
                             onClick={() => handleDeleteCategory(category.id)}
                             title="Удалить"
-                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
                             <TrashIcon />
                           </Button>
