@@ -46,7 +46,9 @@ async function migrate() {
       'logo_url TEXT',
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
-      'end_time VARCHAR(5)'
+      'end_time VARCHAR(5)',
+      'click_url TEXT',
+      'payme_url TEXT'
     ];
     
     for (const col of restaurantColumns) {

@@ -45,7 +45,9 @@ function SuperAdminDashboard() {
     telegram_bot_token: '',
     telegram_group_id: '',
     start_time: '',
-    end_time: ''
+    end_time: '',
+    click_url: '',
+    payme_url: ''
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -249,7 +251,9 @@ function SuperAdminDashboard() {
         telegram_bot_token: restaurant.telegram_bot_token || '',
         telegram_group_id: restaurant.telegram_group_id || '',
         start_time: restaurant.start_time || '',
-        end_time: restaurant.end_time || ''
+        end_time: restaurant.end_time || '',
+        click_url: restaurant.click_url || '',
+        payme_url: restaurant.payme_url || ''
       });
     } else {
       setEditingRestaurant(null);
@@ -262,7 +266,9 @@ function SuperAdminDashboard() {
         telegram_bot_token: '',
         telegram_group_id: '',
         start_time: '',
-        end_time: ''
+        end_time: '',
+        click_url: '',
+        payme_url: ''
       });
     }
     setShowRestaurantModal(true);
@@ -924,7 +930,34 @@ function SuperAdminDashboard() {
             </Form.Group>
             
             <hr />
-            <h6>🗺️ Зона доставки</h6>
+            <h6>� Способы оплаты</h6>
+            <Form.Group className="mb-3">
+              <Form.Label>
+                <img src="/click.png" alt="Click" style={{ height: 20, marginRight: 8 }} />
+                Click - ссылка на оплату
+              </Form.Label>
+              <Form.Control 
+                value={restaurantForm.click_url}
+                onChange={(e) => setRestaurantForm({ ...restaurantForm, click_url: e.target.value })}
+                placeholder="https://my.click.uz/services/pay?service_id=..."
+              />
+              <Form.Text className="text-muted">Ссылка для оплаты через Click</Form.Text>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>
+                <img src="/payme.png" alt="Payme" style={{ height: 20, marginRight: 8 }} />
+                Payme - ссылка на оплату
+              </Form.Label>
+              <Form.Control 
+                value={restaurantForm.payme_url}
+                onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_url: e.target.value })}
+                placeholder="https://payme.uz/fallback/merchant/..."
+              />
+              <Form.Text className="text-muted">Ссылка для оплаты через Payme</Form.Text>
+            </Form.Group>
+            
+            <hr />
+            <h6>�🗺️ Зона доставки</h6>
             <Form.Group className="mb-3">
               <div className="d-flex align-items-center gap-2 mb-2">
                 {restaurantForm.delivery_zone ? (

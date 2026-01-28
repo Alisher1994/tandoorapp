@@ -74,7 +74,7 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time, click_url, payme_url } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
@@ -83,8 +83,8 @@ router.post('/restaurants', async (req, res) => {
     console.log('📍 Creating restaurant with delivery_zone:', delivery_zone);
     
     const result = await pool.query(`
-      INSERT INTO restaurants (name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO restaurants (name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time, click_url, payme_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       name,
@@ -95,7 +95,9 @@ router.post('/restaurants', async (req, res) => {
       telegram_bot_token,
       telegram_group_id,
       start_time,
-      end_time
+      end_time,
+      click_url || null,
+      payme_url || null
     ]);
     
     const restaurant = result.rows[0];
@@ -123,7 +125,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url } = req.body;
     
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -146,8 +148,10 @@ router.put('/restaurants/:id', async (req, res) => {
           is_active = COALESCE($8, is_active),
           start_time = $9,
           end_time = $10,
+          click_url = $11,
+          payme_url = $12,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $13
       RETURNING *
     `, [
       name,
@@ -160,6 +164,8 @@ router.put('/restaurants/:id', async (req, res) => {
       is_active,
       start_time || null,
       end_time || null,
+      click_url || null,
+      payme_url || null,
       req.params.id
     ]);
     
