@@ -227,41 +227,46 @@ function Catalog() {
                               justifyContent: 'center'
                             }}
                           >
-                            <Badge bg="secondary">Нет в наличии</Badge>
+                            <span className="badge bg-secondary">Нет в наличии</span>
                           </div>
                         )}
-                      </div>
-                      <Card.Body className="d-flex flex-column p-2" style={{ position: 'relative' }}>
-                        <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem' }}>
-                          {product.name_ru}
-                        </Card.Title>
-                        <Card.Text className="text-muted small mb-2" style={{ fontSize: '0.75rem' }}>
-                          {product.unit}
-                        </Card.Text>
-                        <div className="mt-auto">
-                          <div className="fw-bold text-primary mb-2" style={{ fontSize: '0.95rem' }}>
-                            {parseFloat(product.price).toLocaleString()} сум
-                          </div>
-                          {product.in_stock ? (
-                            (() => {
-                              const cartItem = getCartItem(product.id);
-                              const hasQty = !!cartItem;
-                              const qty = cartItem?.quantity || 0;
-                              const overlayKey = `qty_open_${product.id}`;
-                              return (
-                                <div className="d-flex align-items-center justify-content-between">
-                                  {!hasQty && (
+                        
+                        {/* Quantity controls on image */}
+                        {product.in_stock && (() => {
+                          const cartItem = getCartItem(product.id);
+                          const hasQty = !!cartItem;
+                          const qty = cartItem?.quantity || 0;
+                          const overlayKey = `qty_open_${product.id}`;
+                          const isOpen = catalogQtyOpen?.[overlayKey];
+                          
+                          return (
+                            <>
+                              {/* Plus button or Quantity circle */}
+                              {!isOpen && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    right: 8,
+                                    bottom: 8,
+                                    zIndex: 2
+                                  }}
+                                >
+                                  {!hasQty ? (
                                     <button
                                       type="button"
-                                      className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center"
-                                      style={{ width: 36, height: 36, position: 'relative' }}
+                                      className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow"
+                                      style={{ 
+                                        width: 32, 
+                                        height: 32,
+                                        fontSize: '18px',
+                                        fontWeight: 'bold',
+                                        padding: 0
+                                      }}
                                       onClick={(e) => {
                                         e.preventDefault();
+                                        e.stopPropagation();
                                         handleAddToCart(product);
-                                        setCatalogQtyOpen(prev => {
-                                          const next = { ...prev, [overlayKey]: true };
-                                          return next;
-                                        });
+                                        setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
                                         setTimeout(() => {
                                           setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
                                         }, 2000);
@@ -269,22 +274,21 @@ function Catalog() {
                                     >
                                       +
                                     </button>
-                                  )}
-                                  {hasQty && (
+                                  ) : (
                                     <span
-                                      className="rounded-circle d-inline-flex align-items-center justify-content-center"
+                                      className="rounded-circle d-inline-flex align-items-center justify-content-center shadow"
                                       style={{
-                                        minWidth: 28,
-                                        height: 28,
-                                        background: 'var(--accent-color)',
+                                        width: 32,
+                                        height: 32,
+                                        background: 'var(--accent-color, #FFD700)',
                                         color: '#1a1a1a',
-                                        fontSize: '12px',
+                                        fontSize: '13px',
                                         fontWeight: 700,
-                                        opacity: catalogQtyOpen?.[overlayKey] ? 0 : 1,
-                                        pointerEvents: catalogQtyOpen?.[overlayKey] ? 'none' : 'auto',
-                                        transition: 'opacity 0.2s'
+                                        cursor: 'pointer'
                                       }}
-                                      onClick={() => {
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
                                         setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
                                         setTimeout(() => {
                                           setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
@@ -294,48 +298,67 @@ function Catalog() {
                                       {qty}
                                     </span>
                                   )}
-                                  <div
-                                    className={`d-flex align-items-center justify-content-between bg-light rounded-pill px-2 py-1`}
-                                    style={{
-                                      position: 'absolute',
-                                      left: 8,
-                                      right: 8,
-                                      bottom: 8,
-                                      opacity: catalogQtyOpen?.[overlayKey] ? 1 : 0,
-                                      pointerEvents: catalogQtyOpen?.[overlayKey] ? 'auto' : 'none',
-                                      transition: 'opacity 0.2s'
-                                    }}
-                                    onClick={() => {
-                                      setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
-                                      setTimeout(() => {
-                                        setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
-                                      }, 2000);
+                                </div>
+                              )}
+                              
+                              {/* Expanded controls */}
+                              {isOpen && (
+                                <div
+                                  className="d-flex align-items-center justify-content-between rounded-pill px-1 shadow"
+                                  style={{
+                                    position: 'absolute',
+                                    right: 8,
+                                    bottom: 8,
+                                    background: 'rgba(255,255,255,0.95)',
+                                    zIndex: 3,
+                                    minWidth: '90px'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: true }));
+                                    setTimeout(() => {
+                                      setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
+                                    }, 2000);
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
+                                    style={{ width: 28, height: 28, fontSize: '16px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateQuantity(product.id, qty - 1);
                                     }}
                                   >
-                                    <Button
-                                      variant="light"
-                                      size="sm"
-                                      onClick={() => updateQuantity(product.id, qty - 1)}
-                                    >
-                                      -
-                                    </Button>
-                                    <span className="fw-semibold">{qty}</span>
-                                    <Button
-                                      variant="light"
-                                      size="sm"
-                                      onClick={() => updateQuantity(product.id, qty + 1)}
-                                    >
-                                      +
-                                    </Button>
-                                  </div>
+                                    −
+                                  </button>
+                                  <span className="fw-bold px-2" style={{ fontSize: '14px' }}>{qty}</span>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
+                                    style={{ width: 28, height: 28, fontSize: '16px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateQuantity(product.id, qty + 1);
+                                    }}
+                                  >
+                                    +
+                                  </button>
                                 </div>
-                              );
-                            })()
-                          ) : (
-                            <Button variant="secondary" size="sm" className="w-100" disabled>
-                              Нет
-                            </Button>
-                          )}
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <Card.Body className="d-flex flex-column p-2">
+                        <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>
+                          {product.name_ru}
+                        </Card.Title>
+                        <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
+                          {product.unit}
+                        </Card.Text>
+                        <div className="fw-bold text-primary mt-auto" style={{ fontSize: '0.9rem' }}>
+                          {parseFloat(product.price).toLocaleString()} сум
                         </div>
                       </Card.Body>
                     </Card>
