@@ -34,11 +34,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-const uploadsPath = path.join(__dirname, '../uploads');
+const uploadsPath = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, '../uploads');
 const fs = require('fs');
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
+console.log('📦 Serving uploads from:', uploadsPath);
 app.use('/uploads', express.static(uploadsPath));
 
 // Root route for Railway health check
