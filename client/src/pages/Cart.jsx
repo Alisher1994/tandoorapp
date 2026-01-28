@@ -595,20 +595,18 @@ function Cart() {
                     <Button
                       variant={formData.payment_method === 'click' ? 'success' : 'outline-secondary'}
                       size="sm"
-                      className="flex-fill d-flex align-items-center justify-content-center gap-2"
+                      className="flex-fill d-flex align-items-center justify-content-center"
                       onClick={() => setFormData({ ...formData, payment_method: 'click' })}
                     >
-                      <img src="/click.png" alt="Click" style={{ height: 18 }} />
-                      Click
+                      <img src="/click.png" alt="Click" style={{ height: 22 }} />
                     </Button>
                     <Button
                       variant={formData.payment_method === 'payme' ? 'success' : 'outline-secondary'}
                       size="sm"
-                      className="flex-fill d-flex align-items-center justify-content-center gap-2"
+                      className="flex-fill d-flex align-items-center justify-content-center"
                       onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
                     >
-                      <img src="/payme.png" alt="Payme" style={{ height: 18 }} />
-                      Payme
+                      <img src="/payme.png" alt="Payme" style={{ height: 22 }} />
                     </Button>
                   </div>
                 </div>
