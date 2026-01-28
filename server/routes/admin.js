@@ -405,6 +405,86 @@ router.post('/products', async (req, res) => {
   }
 });
 
+// Upsert товар (создать или обновить по категории и названию)
+router.post('/products/upsert', async (req, res) => {
+  try {
+    const {
+      category_id, name_ru, name_uz, description_ru, description_uz,
+      image_url, price, unit, barcode, in_stock, sort_order
+    } = req.body;
+    
+    const restaurantId = req.user.active_restaurant_id;
+    
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+    
+    if (!name_ru || !price) {
+      return res.status(400).json({ error: 'Название и цена обязательны' });
+    }
+    
+    // Проверяем, существует ли товар с таким названием в этой категории
+    const existingProduct = await pool.query(`
+      SELECT id FROM products 
+      WHERE restaurant_id = $1 
+        AND category_id = $2 
+        AND LOWER(name_ru) = LOWER($3)
+    `, [restaurantId, category_id, name_ru]);
+    
+    let result;
+    let isUpdate = false;
+    
+    if (existingProduct.rows.length > 0) {
+      // Обновляем существующий товар
+      isUpdate = true;
+      result = await pool.query(`
+        UPDATE products SET
+          price = $1, unit = $2, name_uz = COALESCE($3, name_uz), 
+          description_ru = COALESCE($4, description_ru), description_uz = COALESCE($5, description_uz),
+          image_url = COALESCE(NULLIF($6, ''), image_url), barcode = COALESCE($7, barcode),
+          in_stock = $8, sort_order = COALESCE($9, sort_order)
+        WHERE id = $10
+        RETURNING *
+      `, [
+        price, unit || 'шт', name_uz, description_ru, description_uz,
+        image_url, barcode, in_stock !== false, sort_order, existingProduct.rows[0].id
+      ]);
+    } else {
+      // Создаем новый товар
+      result = await pool.query(`
+        INSERT INTO products (
+          restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
+          image_url, price, unit, barcode, in_stock, sort_order
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *
+      `, [
+        restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
+        image_url, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0
+      ]);
+    }
+    
+    const product = result.rows[0];
+    
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      restaurantId,
+      actionType: isUpdate ? ACTION_TYPES.UPDATE_PRODUCT : ACTION_TYPES.CREATE_PRODUCT,
+      entityType: ENTITY_TYPES.PRODUCT,
+      entityId: product.id,
+      entityName: product.name_ru,
+      newValues: product,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.status(isUpdate ? 200 : 201).json({ ...product, isUpdate });
+  } catch (error) {
+    console.error('Upsert product error:', error);
+    res.status(500).json({ error: 'Ошибка создания/обновления товара' });
+  }
+});
+
 // Обновить товар
 router.put('/products/:id', async (req, res) => {
   try {

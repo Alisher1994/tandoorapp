@@ -75,6 +75,9 @@ function AdminDashboard() {
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
   
+  // Product selection for bulk operations
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  
   // Dashboard analytics
   const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
   const [dashboardMonth, setDashboardMonth] = useState(new Date().getMonth() + 1);
@@ -386,6 +389,57 @@ function AdminDashboard() {
     }
   };
 
+  // Bulk delete selected products
+  const handleBulkDeleteProducts = async () => {
+    if (selectedProducts.length === 0) return;
+    
+    if (!window.confirm(`Вы уверены, что хотите удалить ${selectedProducts.length} товар(ов)?`)) {
+      return;
+    }
+    
+    try {
+      let deleted = 0;
+      let errors = 0;
+      
+      for (const productId of selectedProducts) {
+        try {
+          await axios.delete(`${API_URL}/admin/products/${productId}`);
+          deleted++;
+        } catch (err) {
+          errors++;
+        }
+      }
+      
+      setSelectedProducts([]);
+      fetchData();
+      setAlertMessage({ 
+        type: errors > 0 ? 'warning' : 'success', 
+        text: `Удалено: ${deleted}${errors > 0 ? `, Ошибок: ${errors}` : ''}` 
+      });
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      alert('Ошибка массового удаления');
+    }
+  };
+
+  // Toggle product selection
+  const toggleProductSelection = (productId) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  // Select all filtered products
+  const toggleSelectAllProducts = (filteredProductIds) => {
+    if (selectedProducts.length === filteredProductIds.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(filteredProductIds);
+    }
+  };
+
   const openCategoryModal = (category = null) => {
     if (category) {
       setSelectedCategory(category);
@@ -558,7 +612,8 @@ function AdminDashboard() {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        let imported = 0;
+        let created = 0;
+        let updated = 0;
         let errors = 0;
         
         for (const row of jsonData) {
@@ -583,8 +638,13 @@ function AdminDashboard() {
             }
             
             if (productData.name_ru && productData.price > 0) {
-              await axios.post(`${API_URL}/admin/products`, productData);
-              imported++;
+              // Use upsert endpoint - will update if category+name exists
+              const response = await axios.post(`${API_URL}/admin/products/upsert`, productData);
+              if (response.data.isUpdate) {
+                updated++;
+              } else {
+                created++;
+              }
             } else {
               errors++;
             }
@@ -594,9 +654,14 @@ function AdminDashboard() {
           }
         }
         
+        let message = 'Импорт завершен.';
+        if (created > 0) message += ` Добавлено: ${created}.`;
+        if (updated > 0) message += ` Обновлено: ${updated}.`;
+        if (errors > 0) message += ` Ошибок: ${errors}.`;
+        
         setAlertMessage({ 
-          type: imported > 0 ? 'success' : 'warning', 
-          text: `Импорт завершен. Добавлено: ${imported}, Ошибок: ${errors}` 
+          type: (created > 0 || updated > 0) ? 'success' : 'warning', 
+          text: message 
         });
         setShowExcelModal(false);
         setExcelFile(null);
@@ -1016,9 +1081,52 @@ function AdminDashboard() {
                   </Col>
                 </Row>
                 
+                {/* Bulk actions bar */}
+                {selectedProducts.length > 0 && (
+                  <Alert variant="info" className="d-flex justify-content-between align-items-center py-2">
+                    <span>Выбрано товаров: <strong>{selectedProducts.length}</strong></span>
+                    <Button 
+                      variant="danger" 
+                      size="sm"
+                      onClick={handleBulkDeleteProducts}
+                    >
+                      🗑️ Удалить выбранные
+                    </Button>
+                  </Alert>
+                )}
+                
                 <Table responsive hover>
                   <thead className="table-light">
                     <tr>
+                      <th style={{ width: '40px' }}>
+                        <Form.Check 
+                          type="checkbox"
+                          checked={(() => {
+                            const filteredIds = products
+                              .filter(product => {
+                                if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
+                                if (productCategoryFilter !== 'all' && product.category_id !== parseInt(productCategoryFilter)) return false;
+                                if (productStatusFilter === 'active' && !product.in_stock) return false;
+                                if (productStatusFilter === 'hidden' && product.in_stock) return false;
+                                return true;
+                              })
+                              .map(p => p.id);
+                            return filteredIds.length > 0 && filteredIds.every(id => selectedProducts.includes(id));
+                          })()}
+                          onChange={() => {
+                            const filteredIds = products
+                              .filter(product => {
+                                if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
+                                if (productCategoryFilter !== 'all' && product.category_id !== parseInt(productCategoryFilter)) return false;
+                                if (productStatusFilter === 'active' && !product.in_stock) return false;
+                                if (productStatusFilter === 'hidden' && product.in_stock) return false;
+                                return true;
+                              })
+                              .map(p => p.id);
+                            toggleSelectAllProducts(filteredIds);
+                          }}
+                        />
+                      </th>
                       <th style={{ width: '50px' }}>№</th>
                       <th style={{ width: '60px' }}>Фото</th>
                       <th>Название</th>
@@ -1049,7 +1157,14 @@ function AdminDashboard() {
                         return true;
                       })
                       .map((product, index) => (
-                      <tr key={product.id}>
+                      <tr key={product.id} className={selectedProducts.includes(product.id) ? 'table-active' : ''}>
+                        <td>
+                          <Form.Check 
+                            type="checkbox"
+                            checked={selectedProducts.includes(product.id)}
+                            onChange={() => toggleProductSelection(product.id)}
+                          />
+                        </td>
                         <td className="text-muted">{index + 1}</td>
                         <td>
                           {product.image_url ? (
