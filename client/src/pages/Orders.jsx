@@ -3,8 +3,10 @@ import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Badge from 'react-bootstrap/Badge';
+import Collapse from 'react-bootstrap/Collapse';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { formatPrice } from '../context/CartContext';
 import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -14,8 +16,13 @@ function Orders() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(null);
   const [restaurant, setRestaurant] = useState(null);
+  const [expandedOrder, setExpandedOrder] = useState(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  
+  const toggleOrderDetails = (orderId) => {
+    setExpandedOrder(expandedOrder === orderId ? null : orderId);
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -117,55 +124,98 @@ function Orders() {
           </Card>
         ) : (
           orders.map(order => (
-            <Card key={order.id} className="border-0 shadow-sm mb-3">
-              <Card.Body>
-                <div className="d-flex justify-content-between align-items-start mb-3">
-                  <div>
-                    <h6 className="mb-0">Заказ #{order.order_number}</h6>
-                    <small className="text-muted">
-                      {new Date(order.created_at).toLocaleString('ru-RU')}
-                    </small>
+            <Card 
+              key={order.id} 
+              className="border-0 shadow-sm mb-3"
+              style={{ cursor: 'pointer' }}
+              onClick={() => toggleOrderDetails(order.id)}
+            >
+              <Card.Body className="p-3">
+                {/* Compact order header - always visible */}
+                <div className="d-flex justify-content-between align-items-center">
+                  <div className="d-flex align-items-center">
+                    <div 
+                      className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style={{ 
+                        width: 40, 
+                        height: 40, 
+                        background: order.status === 'delivered' ? '#d4edda' : 
+                                   order.status === 'cancelled' ? '#f8d7da' : '#e7f1ff',
+                        fontSize: '1.2rem'
+                      }}
+                    >
+                      {order.status === 'new' ? '🆕' : 
+                       order.status === 'preparing' ? '👨‍🍳' : 
+                       order.status === 'delivering' ? '🚚' : 
+                       order.status === 'delivered' ? '✅' : '❌'}
+                    </div>
+                    <div>
+                      <div className="fw-bold">#{order.order_number}</div>
+                      <small className="text-muted">
+                        {new Date(order.created_at).toLocaleDateString('ru-RU')} {new Date(order.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                      </small>
+                    </div>
                   </div>
-                  {getStatusBadge(order.status)}
+                  <div className="text-end">
+                    <div className="fw-bold text-primary">{formatPrice(order.total_amount)} сум</div>
+                    {getStatusBadge(order.status)}
+                  </div>
                 </div>
 
-                <div className="mb-2">
-                  <strong>Сумма:</strong> {parseFloat(order.total_amount).toLocaleString()} сум
-                </div>
+                {/* Expandable details */}
+                <Collapse in={expandedOrder === order.id}>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <hr className="my-3" />
+                    
+                    {/* Order items */}
+                    {order.items && order.items.length > 0 && (
+                      <div className="mb-3">
+                        <div className="text-muted small mb-2">Состав заказа:</div>
+                        {order.items.map((item, idx) => (
+                          <div key={idx} className="d-flex justify-content-between py-1 border-bottom" style={{ fontSize: '0.9rem' }}>
+                            <span>{item.product_name}</span>
+                            <span className="text-muted">
+                              {item.quantity} × {formatPrice(item.price)} = <strong>{formatPrice(item.total || item.quantity * item.price)}</strong> сум
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                <div className="mb-2">
-                  <strong>Оплата:</strong> {order.payment_method === 'card' ? '💳 Карта' : '💵 Наличные'}
-                </div>
+                    {/* Payment method */}
+                    <div className="mb-2 small">
+                      <span className="text-muted">Оплата:</span> {order.payment_method === 'card' ? '💳 Карта' : '💵 Наличные'}
+                    </div>
 
-                {order.items && order.items.length > 0 && (
-                  <div className="mb-2">
-                    <strong>Товары:</strong>
-                    <ul className="mt-1 mb-0 ps-3" style={{ fontSize: '0.9rem' }}>
-                      {order.items.map((item, idx) => (
-                        <li key={idx} className="text-muted">
-                          {item.product_name} - {item.quantity} {item.unit} × {parseFloat(item.price).toLocaleString()} = {parseFloat(item.total).toLocaleString()} сум
-                        </li>
-                      ))}
-                    </ul>
+                    {/* Comment */}
+                    {order.comment && (
+                      <div className="mb-2 small">
+                        <span className="text-muted">Комментарий:</span> {order.comment}
+                      </div>
+                    )}
+
+                    {/* Cancel button - only for 'new' status */}
+                    {order.status === 'new' && (
+                      <button
+                        className="btn btn-outline-danger btn-sm w-100 mt-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cancelOrder(order.id);
+                        }}
+                        disabled={cancelling === order.id}
+                      >
+                        {cancelling === order.id ? 'Отмена...' : '❌ Отменить заказ'}
+                      </button>
+                    )}
                   </div>
-                )}
-
-                {order.comment && (
-                  <div className="text-muted small mb-2">
-                    <strong>Комментарий:</strong> {order.comment}
-                  </div>
-                )}
-
-                {/* Cancel button - only for 'new' status */}
-                {order.status === 'new' && (
-                  <button
-                    className="btn btn-outline-danger btn-sm w-100 mt-2"
-                    onClick={() => cancelOrder(order.id)}
-                    disabled={cancelling === order.id}
-                  >
-                    {cancelling === order.id ? 'Отмена...' : '❌ Отменить заказ'}
-                  </button>
-                )}
+                </Collapse>
+                
+                {/* Expand indicator */}
+                <div className="text-center mt-2">
+                  <small className="text-muted">
+                    {expandedOrder === order.id ? '▲ Свернуть' : '▼ Подробнее'}
+                  </small>
+                </div>
               </Card.Body>
             </Card>
           ))

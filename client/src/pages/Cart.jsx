@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -8,7 +8,7 @@ import Form from 'react-bootstrap/Form';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import Spinner from 'react-bootstrap/Spinner';
-import { useCart } from '../context/CartContext';
+import { useCart, formatPrice } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import OrderReceipt from '../components/OrderReceipt';
 import BottomNav from '../components/BottomNav';
@@ -44,6 +44,18 @@ function Cart() {
   const [createdOrder, setCreatedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [restaurant, setRestaurant] = useState(null);
+  
+  // Ref for comment textarea for keyboard avoidance
+  const commentRef = useRef(null);
+  
+  // Keyboard avoidance - scroll to comment field when focused
+  const handleCommentFocus = () => {
+    setTimeout(() => {
+      if (commentRef.current) {
+        commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
+  };
   
   // Fetch restaurant info for receipt
   useEffect(() => {
@@ -300,7 +312,7 @@ function Cart() {
                 )}
                 <div className="flex-grow-1 ms-3">
                   <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{item.name_ru}</div>
-                  <div className="text-primary fw-bold">{parseFloat(item.price).toLocaleString()} сум</div>
+                  <div className="text-primary fw-bold">{formatPrice(item.price)} сум</div>
                 </div>
                 <div className="d-flex align-items-center">
                   <div className="d-flex align-items-center bg-light rounded-pill">
@@ -343,10 +355,12 @@ function Cart() {
             <Form.Group>
               <Form.Label className="small text-muted mb-1">Комментарий к заказу</Form.Label>
               <Form.Control
+                ref={commentRef}
                 as="textarea"
                 rows={2}
                 value={formData.comment}
                 onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                onFocus={handleCommentFocus}
                 placeholder="Пожелания к заказу..."
                 className="border-0 bg-light"
               />
@@ -497,7 +511,7 @@ function Cart() {
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
             <span className="text-muted">Итого:</span>
-            <span className="fs-4 fw-bold text-primary">{cartTotal.toLocaleString()} сум</span>
+            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal)} сум</span>
           </div>
           
           {step === 1 ? (

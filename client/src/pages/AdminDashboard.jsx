@@ -360,6 +360,144 @@ function AdminDashboard() {
     }
   };
 
+  // Handle paste from clipboard (Ctrl+V)
+  const handlePaste = async (e, setImageUrl) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          handleImageUpload(file, setImageUrl);
+        }
+        break;
+      }
+    }
+  };
+
+  // Duplicate product
+  const duplicateProduct = (product) => {
+    setSelectedProduct(null);
+    setProductForm({
+      category_id: product.category_id || '',
+      name_ru: product.name_ru || '',
+      name_uz: product.name_uz || '',
+      description_ru: '',
+      description_uz: '',
+      image_url: '', // Empty - admin fills manually
+      price: '', // Empty - admin fills manually
+      unit: product.unit || 'шт',
+      in_stock: true
+    });
+    setShowProductModal(true);
+  };
+
+  // Excel Import
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const [excelFile, setExcelFile] = useState(null);
+  const [excelPreview, setExcelPreview] = useState([]);
+  const [importingExcel, setImportingExcel] = useState(false);
+
+  const handleExcelFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setExcelFile(file);
+    
+    // Read and preview Excel file
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        // Dynamic import for xlsx
+        const XLSX = await import('xlsx');
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        // Preview first 10 rows
+        setExcelPreview(jsonData.slice(0, 10));
+      } catch (error) {
+        console.error('Error reading Excel:', error);
+        alert('Ошибка чтения файла. Убедитесь, что это файл Excel (.xlsx, .xls) или CSV.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const importExcel = async () => {
+    if (!excelFile) return;
+    
+    setImportingExcel(true);
+    try {
+      const XLSX = await import('xlsx');
+      const reader = new FileReader();
+      
+      reader.onload = async (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        let imported = 0;
+        let errors = 0;
+        
+        for (const row of jsonData) {
+          try {
+            // Map Excel columns to product fields
+            const productData = {
+              category_id: row['Категория ID'] || row['category_id'] || '',
+              name_ru: row['Название (RU)'] || row['Название'] || row['name_ru'] || '',
+              name_uz: row['Название (UZ)'] || row['name_uz'] || '',
+              price: parseFloat(row['Цена'] || row['price'] || 0),
+              unit: row['Единица'] || row['unit'] || 'шт',
+              in_stock: true
+            };
+            
+            // Find category by name if category_id not provided
+            if (!productData.category_id && row['Категория']) {
+              const cat = categories.find(c => 
+                c.name_ru?.toLowerCase() === row['Категория'].toLowerCase() ||
+                c.name_uz?.toLowerCase() === row['Категория'].toLowerCase()
+              );
+              if (cat) productData.category_id = cat.id;
+            }
+            
+            if (productData.name_ru && productData.price > 0) {
+              await axios.post(`${API_URL}/admin/products`, productData);
+              imported++;
+            } else {
+              errors++;
+            }
+          } catch (err) {
+            console.error('Error importing row:', err);
+            errors++;
+          }
+        }
+        
+        setAlertMessage({ 
+          type: imported > 0 ? 'success' : 'warning', 
+          text: `Импорт завершен. Добавлено: ${imported}, Ошибок: ${errors}` 
+        });
+        setShowExcelModal(false);
+        setExcelFile(null);
+        setExcelPreview([]);
+        fetchData();
+        setImportingExcel(false);
+      };
+      
+      reader.readAsArrayBuffer(excelFile);
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Ошибка импорта: ' + error.message);
+      setImportingExcel(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusConfig = {
       'new': { variant: 'primary', text: 'Новый' },
@@ -535,11 +673,16 @@ function AdminDashboard() {
           <Tab eventKey="products" title="Товары">
             <Card>
               <Card.Body>
-                <div className="d-flex justify-content-between mb-3">
-                  <h5>Товары</h5>
-                  <Button variant="primary" onClick={() => openProductModal()}>
-                    Добавить товар
-                  </Button>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="mb-0">Товары</h5>
+                  <div className="d-flex gap-2">
+                    <Button variant="outline-success" onClick={() => setShowExcelModal(true)}>
+                      📥 Импорт Excel
+                    </Button>
+                    <Button variant="primary" onClick={() => openProductModal()}>
+                      ➕ Добавить товар
+                    </Button>
+                  </div>
                 </div>
                 <Table responsive>
                   <thead>
@@ -568,17 +711,28 @@ function AdminDashboard() {
                           <Button 
                             variant="outline-primary" 
                             size="sm" 
-                            className="me-2"
+                            className="me-1"
                             onClick={() => openProductModal(product)}
+                            title="Редактировать"
                           >
-                            Редактировать
+                            ✏️
+                          </Button>
+                          <Button 
+                            variant="outline-secondary" 
+                            size="sm"
+                            className="me-1"
+                            onClick={() => duplicateProduct(product)}
+                            title="Дублировать"
+                          >
+                            📋
                           </Button>
                           <Button 
                             variant="outline-danger" 
                             size="sm"
                             onClick={() => handleDeleteProduct(product.id)}
+                            title="Удалить"
                           >
-                            Удалить
+                            🗑️
                           </Button>
                         </td>
                       </tr>
@@ -968,6 +1122,7 @@ function AdminDashboard() {
                       onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
                     >
                       <option value="шт">шт</option>
+                      <option value="порция">порция</option>
                       <option value="кг">кг</option>
                       <option value="л">л</option>
                       <option value="г">г</option>
@@ -979,6 +1134,55 @@ function AdminDashboard() {
 
               <Form.Group className="mb-3">
                 <Form.Label>Изображение</Form.Label>
+                <div 
+                  className="border rounded p-3 mb-2 text-center"
+                  style={{ 
+                    background: '#f8f9fa', 
+                    cursor: 'pointer',
+                    minHeight: '100px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column'
+                  }}
+                  tabIndex={0}
+                  onPaste={(e) => handlePaste(e, (url) => setProductForm({ ...productForm, image_url: url }))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                      handleImageUpload(file, (url) => setProductForm({ ...productForm, image_url: url }));
+                    }
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  {productForm.image_url ? (
+                    <div className="position-relative">
+                      <img 
+                        src={productForm.image_url} 
+                        alt="Preview" 
+                        style={{ maxWidth: '200px', maxHeight: '150px', objectFit: 'cover' }}
+                        className="img-thumbnail"
+                      />
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="d-block mx-auto mt-1"
+                        onClick={() => setProductForm({ ...productForm, image_url: '' })}
+                      >
+                        ❌ Удалить
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-muted">
+                      <div style={{ fontSize: '2rem' }}>📷</div>
+                      <small>
+                        Вставьте изображение (Ctrl+V)<br/>
+                        или перетащите файл сюда
+                      </small>
+                    </div>
+                  )}
+                </div>
                 <Form.Control
                   type="file"
                   accept="image/*"
@@ -992,30 +1196,13 @@ function AdminDashboard() {
                   }}
                   disabled={uploadingImage}
                 />
-                {productForm.image_url && (
-                  <div className="mt-2">
-                    <img 
-                      src={productForm.image_url} 
-                      alt="Preview" 
-                      style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }}
-                      className="img-thumbnail"
-                    />
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={() => setProductForm({ ...productForm, image_url: '' })}
-                    >
-                      Удалить изображение
-                    </Button>
-                  </div>
-                )}
                 {uploadingImage && (
                   <div className="text-muted mt-2">
-                    <small>Загрузка изображения...</small>
+                    <small>⏳ Загрузка изображения...</small>
                   </div>
                 )}
                 <Form.Text className="text-muted">
-                  Или введите URL изображения:
+                  Или введите URL:
                 </Form.Text>
                 <Form.Control
                   type="url"
@@ -1242,6 +1429,76 @@ function AdminDashboard() {
               disabled={broadcastLoading || !broadcastForm.message.trim()}
             >
               {broadcastLoading ? 'Отправка...' : '📢 Отправить рассылку'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Excel Import Modal */}
+        <Modal show={showExcelModal} onHide={() => setShowExcelModal(false)} size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>📥 Импорт товаров из Excel</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="info">
+              <strong>Формат файла:</strong><br/>
+              Первая строка — заголовки столбцов. Обязательные столбцы:<br/>
+              • <code>Название (RU)</code> или <code>Название</code> — название товара<br/>
+              • <code>Цена</code> — цена товара<br/>
+              Дополнительные столбцы:<br/>
+              • <code>Категория</code> — название категории<br/>
+              • <code>Название (UZ)</code> — название на узбекском<br/>
+              • <code>Единица</code> — единица измерения (шт, кг, порция и т.д.)
+            </Alert>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>Выберите файл Excel (.xlsx, .xls, .csv)</Form.Label>
+              <Form.Control
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleExcelFile}
+              />
+            </Form.Group>
+
+            {excelPreview.length > 0 && (
+              <div className="mt-3">
+                <strong>Предпросмотр (первые 10 строк):</strong>
+                <div className="table-responsive mt-2" style={{ maxHeight: '300px', overflow: 'auto' }}>
+                  <table className="table table-sm table-bordered">
+                    <thead className="table-light">
+                      <tr>
+                        {excelPreview[0]?.map((cell, idx) => (
+                          <th key={idx} style={{ fontSize: '0.8rem' }}>{cell || `Столбец ${idx + 1}`}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {excelPreview.slice(1).map((row, rowIdx) => (
+                        <tr key={rowIdx}>
+                          {row.map((cell, idx) => (
+                            <td key={idx} style={{ fontSize: '0.8rem' }}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => {
+              setShowExcelModal(false);
+              setExcelFile(null);
+              setExcelPreview([]);
+            }}>
+              Отмена
+            </Button>
+            <Button 
+              variant="success" 
+              onClick={importExcel}
+              disabled={importingExcel || !excelFile}
+            >
+              {importingExcel ? 'Импорт...' : '📥 Импортировать'}
             </Button>
           </Modal.Footer>
         </Modal>
