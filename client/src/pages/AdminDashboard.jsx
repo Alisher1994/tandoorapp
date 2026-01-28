@@ -16,7 +16,9 @@ import Tab from 'react-bootstrap/Tab';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Alert from 'react-bootstrap/Alert';
+import InputGroup from 'react-bootstrap/InputGroup';
 import { useAuth } from '../context/AuthContext';
+import { formatPrice } from '../context/CartContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -61,6 +63,16 @@ function AdminDashboard() {
   const [broadcastForm, setBroadcastForm] = useState({ message: '', image_url: '' });
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [broadcastImageFile, setBroadcastImageFile] = useState(null);
+  
+  // Product filters and search
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
+  const [productStatusFilter, setProductStatusFilter] = useState('all');
+  
+  // Image preview modal
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
+  
   const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
 
   useEffect(() => {
@@ -684,9 +696,54 @@ function AdminDashboard() {
                     </Button>
                   </div>
                 </div>
-                <Table responsive>
-                  <thead>
+                
+                {/* Filters and Search */}
+                <Row className="mb-3 g-2">
+                  <Col md={4}>
+                    <InputGroup size="sm">
+                      <InputGroup.Text>🔍</InputGroup.Text>
+                      <Form.Control
+                        placeholder="Поиск по названию..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                      />
+                      {productSearch && (
+                        <Button variant="outline-secondary" onClick={() => setProductSearch('')}>
+                          ✕
+                        </Button>
+                      )}
+                    </InputGroup>
+                  </Col>
+                  <Col md={4}>
+                    <Form.Select 
+                      size="sm"
+                      value={productCategoryFilter}
+                      onChange={(e) => setProductCategoryFilter(e.target.value)}
+                    >
+                      <option value="all">Все категории</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name_ru}</option>
+                      ))}
+                    </Form.Select>
+                  </Col>
+                  <Col md={4}>
+                    <Form.Select 
+                      size="sm"
+                      value={productStatusFilter}
+                      onChange={(e) => setProductStatusFilter(e.target.value)}
+                    >
+                      <option value="all">Все статусы</option>
+                      <option value="active">Активные</option>
+                      <option value="hidden">Скрытые</option>
+                    </Form.Select>
+                  </Col>
+                </Row>
+                
+                <Table responsive hover>
+                  <thead className="table-light">
                     <tr>
+                      <th style={{ width: '50px' }}>№</th>
+                      <th style={{ width: '60px' }}>Фото</th>
                       <th>Название</th>
                       <th>Категория</th>
                       <th>Цена</th>
@@ -695,11 +752,57 @@ function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map(product => (
+                    {products
+                      .filter(product => {
+                        // Search filter
+                        if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) {
+                          return false;
+                        }
+                        // Category filter
+                        if (productCategoryFilter !== 'all' && product.category_id !== parseInt(productCategoryFilter)) {
+                          return false;
+                        }
+                        // Status filter
+                        if (productStatusFilter === 'active' && !product.in_stock) {
+                          return false;
+                        }
+                        if (productStatusFilter === 'hidden' && product.in_stock) {
+                          return false;
+                        }
+                        return true;
+                      })
+                      .map((product, index) => (
                       <tr key={product.id}>
+                        <td className="text-muted">{index + 1}</td>
+                        <td>
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url.startsWith('http') ? product.image_url : `${API_URL.replace('/api', '')}${product.image_url}`}
+                              alt={product.name_ru}
+                              style={{ 
+                                width: 40, 
+                                height: 40, 
+                                objectFit: 'cover', 
+                                borderRadius: 6,
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => {
+                                setPreviewImageUrl(product.image_url.startsWith('http') ? product.image_url : `${API_URL.replace('/api', '')}${product.image_url}`);
+                                setShowImagePreview(true);
+                              }}
+                            />
+                          ) : (
+                            <div 
+                              className="bg-light d-flex align-items-center justify-content-center text-muted"
+                              style={{ width: 40, height: 40, borderRadius: 6 }}
+                            >
+                              📷
+                            </div>
+                          )}
+                        </td>
                         <td>{product.name_ru}</td>
                         <td>{product.category_name || '-'}</td>
-                        <td>{product.price} сум</td>
+                        <td>{formatPrice(product.price)} сум</td>
                         <td>
                           {product.in_stock ? (
                             <Badge bg="success">Активен</Badge>
@@ -739,6 +842,17 @@ function AdminDashboard() {
                     ))}
                   </tbody>
                 </Table>
+                
+                {/* Results count */}
+                <div className="text-muted small">
+                  Найдено: {products.filter(product => {
+                    if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
+                    if (productCategoryFilter !== 'all' && product.category_id !== parseInt(productCategoryFilter)) return false;
+                    if (productStatusFilter === 'active' && !product.in_stock) return false;
+                    if (productStatusFilter === 'hidden' && product.in_stock) return false;
+                    return true;
+                  }).length} из {products.length}
+                </div>
               </Card.Body>
             </Card>
           </Tab>
@@ -892,7 +1006,7 @@ function AdminDashboard() {
                   })()}
                 </div>
                 <div className="mb-3">
-                  <strong>Сумма:</strong> {parseFloat(selectedOrder.total_amount).toLocaleString()} сум
+                  <strong>Сумма:</strong> {formatPrice(selectedOrder.total_amount)} сум
                 </div>
                 <div className="mb-3">
                   <strong>Статус:</strong> {getStatusBadge(selectedOrder.status)}
@@ -943,8 +1057,8 @@ function AdminDashboard() {
                                 `${item.quantity} ${item.unit}`
                               )}
                             </td>
-                            <td>{parseFloat(item.price).toLocaleString()}</td>
-                            <td>{(item.quantity * item.price).toLocaleString()}</td>
+                            <td>{formatPrice(item.price)}</td>
+                            <td>{formatPrice(item.quantity * item.price)}</td>
                             {isEditingItems && (
                               <td>
                                 <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>🗑️</Button>
@@ -971,7 +1085,7 @@ function AdminDashboard() {
                         >
                           <option value="">Выберите товар...</option>
                           {products.map(p => (
-                            <option key={p.id} value={p.id}>{p.name_ru} - {parseFloat(p.price).toLocaleString()} сум</option>
+                            <option key={p.id} value={p.id}>{p.name_ru} - {formatPrice(p.price)} сум</option>
                           ))}
                         </Form.Select>
                       </Form.Group>
@@ -980,7 +1094,7 @@ function AdminDashboard() {
                     {/* New total when editing */}
                     {isEditingItems && (
                       <div className="mt-2 text-end">
-                        <strong>Новая сумма: {editingItems.reduce((sum, i) => sum + (i.quantity * i.price), 0).toLocaleString()} сум</strong>
+                        <strong>Новая сумма: {formatPrice(editingItems.reduce((sum, i) => sum + (i.quantity * i.price), 0))} сум</strong>
                       </div>
                     )}
                   </div>
@@ -1355,32 +1469,63 @@ function AdminDashboard() {
             
             <Form.Group className="mb-3">
               <Form.Label>Фото (необязательно)</Form.Label>
+              <div
+                className="border rounded p-3 mb-2 text-center"
+                style={{
+                  borderStyle: 'dashed',
+                  background: '#f8f9fa',
+                  cursor: 'pointer',
+                  minHeight: broadcastForm.image_url ? 'auto' : '100px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                tabIndex={0}
+                onPaste={(e) => handlePaste(e, (url) => setBroadcastForm({ ...broadcastForm, image_url: url }))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file && file.type.startsWith('image/')) {
+                    const syntheticEvent = { target: { files: [file] } };
+                    handleBroadcastImageUpload(syntheticEvent);
+                  }
+                }}
+                onDragOver={(e) => e.preventDefault()}
+              >
+                {broadcastForm.image_url ? (
+                  <>
+                    <img 
+                      src={broadcastForm.image_url} 
+                      alt="Preview" 
+                      style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }}
+                      className="img-thumbnail mb-2"
+                    />
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBroadcastForm({ ...broadcastForm, image_url: '' });
+                        setBroadcastImageFile(null);
+                      }}
+                    >
+                      🗑️ Удалить фото
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-muted mb-2">📸 Вставьте изображение (Ctrl+V)</div>
+                    <div className="text-muted small">или перетащите файл сюда</div>
+                  </>
+                )}
+              </div>
               <Form.Control
                 type="file"
                 accept="image/*"
                 onChange={handleBroadcastImageUpload}
+                size="sm"
               />
-              {broadcastForm.image_url && (
-                <div className="mt-2">
-                  <img 
-                    src={broadcastForm.image_url} 
-                    alt="Preview" 
-                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }}
-                    className="img-thumbnail"
-                  />
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="d-block"
-                    onClick={() => {
-                      setBroadcastForm({ ...broadcastForm, image_url: '' });
-                      setBroadcastImageFile(null);
-                    }}
-                  >
-                    Удалить фото
-                  </Button>
-                </div>
-              )}
             </Form.Group>
 
             <Form.Group className="mb-3">
@@ -1501,6 +1646,20 @@ function AdminDashboard() {
               {importingExcel ? 'Импорт...' : '📥 Импортировать'}
             </Button>
           </Modal.Footer>
+        </Modal>
+
+        {/* Image Preview Modal */}
+        <Modal show={showImagePreview} onHide={() => setShowImagePreview(false)} centered size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>Просмотр изображения</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="text-center p-0">
+            <img 
+              src={previewImageUrl} 
+              alt="Preview" 
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+            />
+          </Modal.Body>
         </Modal>
       </Container>
     </>

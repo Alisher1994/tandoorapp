@@ -48,14 +48,56 @@ function Cart() {
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
   
-  // Keyboard avoidance - scroll to comment field when focused
+  // Keyboard avoidance - scroll to comment field when focused (works on iOS)
   const handleCommentFocus = () => {
-    setTimeout(() => {
+    // Multiple attempts for iOS compatibility
+    const scrollToInput = () => {
       if (commentRef.current) {
+        // Get scroll container (#root for iOS fix)
+        const scrollContainer = document.getElementById('root') || window;
+        const rect = commentRef.current.getBoundingClientRect();
+        
+        // Calculate position to center the input in visible area
+        const visualHeight = window.visualViewport?.height || window.innerHeight;
+        const targetScroll = scrollContainer === window 
+          ? window.scrollY + rect.top - (visualHeight / 3)
+          : scrollContainer.scrollTop + rect.top - (visualHeight / 3);
+        
+        if (scrollContainer === window) {
+          window.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+        } else {
+          scrollContainer.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+        }
+        
+        // Also use scrollIntoView as fallback
         commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 300);
+    };
+    
+    // Initial scroll
+    setTimeout(scrollToInput, 100);
+    // Re-scroll after keyboard appears (iOS)
+    setTimeout(scrollToInput, 300);
+    setTimeout(scrollToInput, 500);
   };
+  
+  // Handle iOS visualViewport resize (keyboard open/close)
+  useEffect(() => {
+    const handleResize = () => {
+      if (document.activeElement === commentRef.current) {
+        setTimeout(() => {
+          if (commentRef.current) {
+            commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
+    };
+    
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+      return () => window.visualViewport.removeEventListener('resize', handleResize);
+    }
+  }, []);
   
   // Fetch restaurant info for receipt
   useEffect(() => {
@@ -243,18 +285,21 @@ function Cart() {
 
   if (cart.length === 0) {
     return (
-      <Container className="py-4">
-        <Card className="text-center py-5 border-0 shadow-sm">
-          <Card.Body>
-            <div style={{ fontSize: '4rem' }}>🛒</div>
-            <h4 className="mt-3">Корзина пуста</h4>
-            <p className="text-muted">Добавьте товары из каталога</p>
-            <Button variant="primary" onClick={() => navigate('/')}>
-              Перейти в каталог
-            </Button>
-          </Card.Body>
-        </Card>
-      </Container>
+      <>
+        <Container className="py-4" style={{ paddingBottom: '80px' }}>
+          <Card className="text-center py-5 border-0 shadow-sm">
+            <Card.Body>
+              <div style={{ fontSize: '4rem' }}>🛒</div>
+              <h4 className="mt-3">Корзина пуста</h4>
+              <p className="text-muted">Добавьте товары из каталога</p>
+              <Button variant="primary" onClick={() => navigate('/')}>
+                Перейти в каталог
+              </Button>
+            </Card.Body>
+          </Card>
+        </Container>
+        <BottomNav />
+      </>
     );
   }
 

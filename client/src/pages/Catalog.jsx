@@ -57,11 +57,15 @@ function Catalog() {
     }
   }, [selectedRestaurant]);
 
+  // Get scroll container (#root for iOS fix)
+  const getScrollContainer = () => document.getElementById('root') || window;
+  
   // ScrollSpy: detect which category is in view
   const handleScroll = useCallback(() => {
     if (isScrolling.current || selectedCategory !== null) return;
     
-    const scrollTop = window.scrollY + 150; // Offset for sticky header
+    const scrollContainer = getScrollContainer();
+    const scrollTop = (scrollContainer === window ? window.scrollY : scrollContainer.scrollTop) + 150;
     let currentCategory = null;
     
     // Only consider non-empty categories
@@ -73,7 +77,8 @@ function Catalog() {
       const element = categoriesRef.current[category.id];
       if (element) {
         const rect = element.getBoundingClientRect();
-        const offsetTop = rect.top + window.scrollY;
+        // For #root scroll, use getBoundingClientRect which is relative to viewport
+        const offsetTop = rect.top + (scrollContainer === window ? window.scrollY : scrollContainer.scrollTop);
         if (scrollTop >= offsetTop) {
           currentCategory = category.id;
         }
@@ -93,15 +98,22 @@ function Catalog() {
   }, [categories, products, selectedCategory, activeCategory]);
 
   useEffect(() => {
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const scrollContainer = getScrollContainer();
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
   // Scroll to category when clicked
   const scrollToCategory = (categoryId) => {
+    const scrollContainer = getScrollContainer();
+    
     if (categoryId === null) {
       setSelectedCategory(null);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (scrollContainer === window) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return;
     }
     
@@ -111,8 +123,15 @@ function Catalog() {
       setSelectedCategory(null); // Show all products grouped
       setActiveCategory(categoryId);
       
-      const offsetTop = element.getBoundingClientRect().top + window.scrollY - 130;
-      window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+      const rect = element.getBoundingClientRect();
+      const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
+      const offsetTop = rect.top + currentScroll - 130;
+      
+      if (scrollContainer === window) {
+        window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+      } else {
+        scrollContainer.scrollTo({ top: offsetTop, behavior: 'smooth' });
+      }
       
       setTimeout(() => {
         isScrolling.current = false;

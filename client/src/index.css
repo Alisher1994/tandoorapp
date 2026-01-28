@@ -43,6 +43,8 @@ html, body {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  /* For scroll tracking */
+  scroll-behavior: smooth;
 }
 
 body {
