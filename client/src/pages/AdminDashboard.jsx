@@ -24,6 +24,38 @@ import * as XLSX from 'xlsx';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+// SVG Icons
+const EditIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
+    <path d="m15 5 4 4"/>
+  </svg>
+);
+
+const CopyIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+    <path d="M3 6h18"/>
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+  </svg>
+);
+
+const ReceiptIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13 16H8"/>
+    <path d="M14 8H8"/>
+    <path d="M16 12H8"/>
+    <path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/>
+  </svg>
+);
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
@@ -842,7 +874,7 @@ function AdminDashboard() {
         </Container>
       </Navbar>
 
-      <Container>
+      <Container className="admin-panel">
         {/* Alerts */}
         {alertMessage.text && (
           <Alert 
@@ -1359,8 +1391,10 @@ function AdminDashboard() {
                               variant="outline-primary"
                               size="sm"
                               onClick={() => openOrderModal(order)}
+                              title="Детали"
+                              style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
-                              Детали
+                              <ReceiptIcon />
                             </Button>
                             {order.status !== 'cancelled' && order.status !== 'delivered' && (
                               <Button
@@ -1368,8 +1402,9 @@ function AdminDashboard() {
                                 size="sm"
                                 onClick={() => openCancelModal(order.id)}
                                 title="Отменить заказ"
+                                style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                               >
-                                ✕
+                                <TrashIcon />
                               </Button>
                             )}
                           </div>
@@ -1570,8 +1605,9 @@ function AdminDashboard() {
                             className="me-1"
                             onClick={() => openProductModal(product)}
                             title="Редактировать"
+                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            Изм.
+                            <EditIcon />
                           </Button>
                           <Button 
                             variant="outline-secondary" 
@@ -1579,16 +1615,18 @@ function AdminDashboard() {
                             className="me-1"
                             onClick={() => duplicateProduct(product)}
                             title="Дублировать"
+                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            Коп.
+                            <CopyIcon />
                           </Button>
                           <Button 
                             variant="outline-danger" 
                             size="sm"
                             onClick={() => handleDeleteProduct(product.id)}
                             title="Удалить"
+                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            Уд.
+                            <TrashIcon />
                           </Button>
                         </td>
                       </tr>
@@ -1653,17 +1691,21 @@ function AdminDashboard() {
                           <Button 
                             variant="outline-primary" 
                             size="sm" 
-                            className="me-2"
+                            className="me-1"
                             onClick={() => openCategoryModal(category)}
+                            title="Редактировать"
+                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            Редактировать
+                            <EditIcon />
                           </Button>
                           <Button 
                             variant="outline-danger" 
                             size="sm"
                             onClick={() => handleDeleteCategory(category.id)}
+                            title="Удалить"
+                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            Удалить
+                            <TrashIcon />
                           </Button>
                         </td>
                       </tr>
@@ -1766,8 +1808,95 @@ function AdminDashboard() {
                 <div className="mb-3">
                   <strong>Сумма:</strong> {formatPrice(selectedOrder.total_amount)} сум
                 </div>
-                <div className="mb-3">
-                  <strong>Статус:</strong> {getStatusBadge(selectedOrder.status)}
+                
+                {/* Order Status Stepper */}
+                <div className="mb-4">
+                  <strong className="d-block mb-2">Статус заказа:</strong>
+                  {(() => {
+                    const statuses = [
+                      { key: 'new', label: 'Новый', num: 1 },
+                      { key: 'preparing', label: 'Готовится', num: 2 },
+                      { key: 'delivering', label: 'Доставляется', num: 3 },
+                      { key: 'delivered', label: 'Доставлен', num: 4 }
+                    ];
+                    const currentStatus = selectedOrder.status;
+                    const isCancelled = currentStatus === 'cancelled';
+                    const currentIdx = statuses.findIndex(s => s.key === currentStatus);
+                    const cancelledAtIdx = isCancelled ? 
+                      (selectedOrder.cancelled_at_status ? 
+                        statuses.findIndex(s => s.key === selectedOrder.cancelled_at_status) : 0) : -1;
+                    
+                    // Calculate progress percentage
+                    let progressPercent = 0;
+                    if (!isCancelled) {
+                      if (currentIdx === 0) progressPercent = 0;
+                      else if (currentIdx === 1) progressPercent = 33;
+                      else if (currentIdx === 2) progressPercent = 66;
+                      else if (currentIdx === 3) progressPercent = 100;
+                    } else {
+                      if (cancelledAtIdx === 0) progressPercent = 0;
+                      else if (cancelledAtIdx === 1) progressPercent = 33;
+                      else if (cancelledAtIdx === 2) progressPercent = 66;
+                      else progressPercent = 33;
+                    }
+                    
+                    return (
+                      <div className="bg-white rounded p-3" style={{ border: '1px solid #eee' }}>
+                        <div className="order-stepper">
+                          <div className="stepper-line-container">
+                            <div className="stepper-line-bg"></div>
+                            <div 
+                              className={`stepper-line-progress ${isCancelled ? 'cancelled' : ''}`}
+                              style={{ width: `${progressPercent}%` }}
+                            ></div>
+                          </div>
+                          
+                          {statuses.map((status, idx) => {
+                            const isCompleted = !isCancelled && currentIdx > idx;
+                            const isActive = !isCancelled && currentIdx === idx;
+                            const isCancelledStep = isCancelled && cancelledAtIdx === idx;
+                            const isPastCancelled = isCancelled && idx < cancelledAtIdx;
+                            
+                            let stepClass = 'stepper-step';
+                            if (isCompleted || isPastCancelled) stepClass += ' completed';
+                            if (isActive) stepClass += ' active';
+                            if (isCancelledStep) stepClass += ' cancelled active';
+                            
+                            return (
+                              <div 
+                                key={status.key} 
+                                className={stepClass}
+                                data-step={status.num}
+                              >
+                                <div 
+                                  className="stepper-circle"
+                                  onClick={() => {
+                                    if (!isCancelled && currentStatus !== status.key) {
+                                      updateOrderStatus(selectedOrder.id, status.key);
+                                    }
+                                  }}
+                                  title={`Изменить на: ${status.label}`}
+                                >
+                                  {isCancelledStep ? '✕' : status.num}
+                                </div>
+                                <div className="stepper-label">
+                                  {isCancelledStep ? 'Отменён' : status.label}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Cancel reason */}
+                        {isCancelled && selectedOrder.cancel_reason && (
+                          <div className="cancel-reason-box">
+                            <strong>Причина отмены:</strong>
+                            {selectedOrder.cancel_reason}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
@@ -1857,48 +1986,6 @@ function AdminDashboard() {
                     )}
                   </div>
                 )}
-
-                <div className="mb-3">
-                  <strong>Изменить статус:</strong>
-                  <div className="d-flex gap-2 mt-2">
-                    {selectedOrder.status !== 'new' && (
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={() => updateOrderStatus(selectedOrder.id, 'new')}
-                      >
-                        Новый
-                      </Button>
-                    )}
-                    {selectedOrder.status !== 'preparing' && (
-                      <Button
-                        variant="outline-warning"
-                        size="sm"
-                        onClick={() => updateOrderStatus(selectedOrder.id, 'preparing')}
-                      >
-                        Готовится
-                      </Button>
-                    )}
-                    {selectedOrder.status !== 'delivering' && (
-                      <Button
-                        variant="outline-info"
-                        size="sm"
-                        onClick={() => updateOrderStatus(selectedOrder.id, 'delivering')}
-                      >
-                        Доставляется
-                      </Button>
-                    )}
-                    {selectedOrder.status !== 'delivered' && (
-                      <Button
-                        variant="outline-success"
-                        size="sm"
-                        onClick={() => updateOrderStatus(selectedOrder.id, 'delivered')}
-                      >
-                        Доставлен
-                      </Button>
-                    )}
-                  </div>
-                </div>
               </>
             )}
           </Modal.Body>

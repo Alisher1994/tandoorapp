@@ -418,7 +418,7 @@ function SuperAdminDashboard() {
         </Container>
       </Navbar>
 
-      <Container>
+      <Container className="admin-panel">
         {/* Alerts */}
         {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
         {success && <Alert variant="success" dismissible onClose={() => setSuccess('')}>{success}</Alert>}

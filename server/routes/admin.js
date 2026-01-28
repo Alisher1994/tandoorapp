@@ -175,22 +175,37 @@ router.patch('/orders/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа к этому заказу' });
     }
     
-    // Update order (save cancel_reason in comment if cancelling)
-    const orderComment = status === 'cancelled' && cancel_reason 
-      ? `Причина отмены: ${cancel_reason}` 
-      : oldOrder.comment;
+    // Update order with cancel_reason and cancelled_at_status if cancelling
+    let updateQuery;
+    let updateParams;
     
-    const orderResult = await client.query(`
-      UPDATE orders SET 
-        status = $1, 
-        processed_by = $2,
-        processed_at = CASE WHEN processed_at IS NULL THEN CURRENT_TIMESTAMP ELSE processed_at END,
-        comment = COALESCE($4, comment),
-        updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $3 
-      RETURNING *
-    `, [status, req.user.id, req.params.id, status === 'cancelled' ? orderComment : null]);
+    if (status === 'cancelled' && cancel_reason) {
+      updateQuery = `
+        UPDATE orders SET 
+          status = $1, 
+          processed_by = $2,
+          processed_at = CASE WHEN processed_at IS NULL THEN CURRENT_TIMESTAMP ELSE processed_at END,
+          cancel_reason = $4,
+          cancelled_at_status = $5,
+          updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $3 
+        RETURNING *
+      `;
+      updateParams = [status, req.user.id, req.params.id, cancel_reason, oldOrder.status];
+    } else {
+      updateQuery = `
+        UPDATE orders SET 
+          status = $1, 
+          processed_by = $2,
+          processed_at = CASE WHEN processed_at IS NULL THEN CURRENT_TIMESTAMP ELSE processed_at END,
+          updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $3 
+        RETURNING *
+      `;
+      updateParams = [status, req.user.id, req.params.id];
+    }
     
+    const orderResult = await client.query(updateQuery, updateParams);
     const order = orderResult.rows[0];
     
     // Add status history with cancel reason

@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_method VARCHAR(20) DEFAULT 'cash',
   payment_status VARCHAR(20) DEFAULT 'unpaid',
   comment TEXT,
+  cancel_reason TEXT,
+  cancelled_at_status VARCHAR(20),
   delivery_date DATE,
   delivery_time TIME,
   processed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,

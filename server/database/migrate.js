@@ -117,7 +117,9 @@ async function migrate() {
       { name: 'processed_by', type: 'INTEGER REFERENCES users(id) ON DELETE SET NULL' },
       { name: 'processed_at', type: 'TIMESTAMP' },
       { name: 'admin_message_id', type: 'BIGINT' },
-      { name: 'admin_chat_id', type: 'TEXT' }
+      { name: 'admin_chat_id', type: 'TEXT' },
+      { name: 'cancel_reason', type: 'TEXT' },
+      { name: 'cancelled_at_status', type: 'VARCHAR(20)' }
     ];
     
     for (const col of orderColumns) {
