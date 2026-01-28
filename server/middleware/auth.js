@@ -29,7 +29,8 @@ const authenticate = async (req, res, next) => {
         u.last_latitude,
         u.last_longitude,
         u.last_address,
-        r.name as active_restaurant_name
+        r.name as active_restaurant_name,
+        r.logo_url as active_restaurant_logo
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       WHERE u.id = $1

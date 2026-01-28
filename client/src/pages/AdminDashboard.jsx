@@ -78,6 +78,11 @@ function AdminDashboard() {
   // Product selection for bulk operations
   const [selectedProducts, setSelectedProducts] = useState([]);
   
+  // Cancel order modal
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  
   // Dashboard analytics
   const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
   const [dashboardMonth, setDashboardMonth] = useState(new Date().getMonth() + 1);
@@ -235,14 +240,36 @@ function AdminDashboard() {
     }
   };
 
-  const updateOrderStatus = async (orderId, newStatus) => {
+  const updateOrderStatus = async (orderId, newStatus, reason = null) => {
     try {
-      await axios.patch(`${API_URL}/admin/orders/${orderId}/status`, { status: newStatus });
+      await axios.patch(`${API_URL}/admin/orders/${orderId}/status`, { 
+        status: newStatus,
+        cancel_reason: reason 
+      });
       fetchData();
       setShowOrderModal(false);
     } catch (error) {
       alert('Ошибка обновления статуса');
     }
+  };
+
+  // Open cancel modal
+  const openCancelModal = (orderId) => {
+    setCancelOrderId(orderId);
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
+  // Confirm cancel order
+  const confirmCancelOrder = async () => {
+    if (!cancelReason.trim()) {
+      alert('Укажите причину отмены');
+      return;
+    }
+    await updateOrderStatus(cancelOrderId, 'cancelled', cancelReason);
+    setShowCancelModal(false);
+    setCancelOrderId(null);
+    setCancelReason('');
   };
 
   const startEditingItems = () => {
@@ -755,8 +782,15 @@ function AdminDashboard() {
     <>
       <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
         <Container>
-          <Navbar.Brand>
-            🍽️ Панель оператора
+          <Navbar.Brand className="d-flex align-items-center">
+            {user?.active_restaurant_logo ? (
+              <img 
+                src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
+                alt="Logo"
+                style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, marginRight: 10 }}
+              />
+            ) : null}
+            <span>Панель оператора</span>
             {user?.active_restaurant_name && (
               <Badge bg="light" text="dark" className="ms-2">{user.active_restaurant_name}</Badge>
             )}
@@ -766,7 +800,7 @@ function AdminDashboard() {
             <Nav>
               {/* Restaurant Switcher */}
               {user?.restaurants?.length > 1 && (
-                <NavDropdown title="🏪 Переключить ресторан" id="restaurant-dropdown">
+                <NavDropdown title="Переключить ресторан" id="restaurant-dropdown">
                   {user.restaurants.map(r => (
                     <NavDropdown.Item 
                       key={r.id} 
@@ -781,17 +815,17 @@ function AdminDashboard() {
               
               {/* Broadcast button */}
               <Nav.Link onClick={() => setShowBroadcastModal(true)}>
-                📢 Рассылка
+                Рассылка
               </Nav.Link>
               
               {/* Super Admin Link */}
               {isSuperAdmin() && (
                 <Nav.Link onClick={() => navigate('/superadmin')}>
-                  🏢 Супер-админ
+                  Супер-админ
                 </Nav.Link>
               )}
               
-              <Nav.Link className="text-light">👤 {user?.full_name || user?.username}</Nav.Link>
+              <Nav.Link className="text-light">{user?.full_name || user?.username}</Nav.Link>
               
               {/* Language switcher with flag */}
               <Nav.Link onClick={toggleLanguage} className="d-flex align-items-center">
@@ -831,7 +865,7 @@ function AdminDashboard() {
         
         <Tabs defaultActiveKey="dashboard" className="mb-4">
           {/* Dashboard Tab */}
-          <Tab eventKey="dashboard" title={`📊 ${t('dashboard')}`}>
+          <Tab eventKey="dashboard" title={t('dashboard')}>
             <Card className="mb-4">
               <Card.Body>
                 {/* Filters */}
@@ -882,12 +916,9 @@ function AdminDashboard() {
                   <Col md={4}>
                     <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                       <Card.Body className="text-white">
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div>
-                            <h6 className="text-white-50 mb-1">{t('revenue')}</h6>
-                            <h3 className="mb-0">{formatPrice(analytics.revenue)} {t('sum')}</h3>
-                          </div>
-                          <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>💰</div>
+                        <div>
+                          <h6 className="text-white-50 mb-1">{t('revenue')}</h6>
+                          <h3 className="mb-0">{formatPrice(analytics.revenue)} {t('sum')}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -895,12 +926,9 @@ function AdminDashboard() {
                   <Col md={4}>
                     <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
                       <Card.Body className="text-white">
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div>
-                            <h6 className="text-white-50 mb-1">{t('ordersCount')}</h6>
-                            <h3 className="mb-0">{analytics.ordersCount}</h3>
-                          </div>
-                          <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>📦</div>
+                        <div>
+                          <h6 className="text-white-50 mb-1">{t('ordersCount')}</h6>
+                          <h3 className="mb-0">{analytics.ordersCount}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -908,12 +936,9 @@ function AdminDashboard() {
                   <Col md={4}>
                     <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
                       <Card.Body className="text-white">
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div>
-                            <h6 className="text-white-50 mb-1">{t('averageCheck')}</h6>
-                            <h3 className="mb-0">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
-                          </div>
-                          <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>🧾</div>
+                        <div>
+                          <h6 className="text-white-50 mb-1">{t('averageCheck')}</h6>
+                          <h3 className="mb-0">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -925,7 +950,7 @@ function AdminDashboard() {
                   <Col md={6}>
                     <Card className="border-0 shadow-sm h-100">
                       <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">🏆 {t('topProducts')}</h6>
+                        <h6 className="mb-0">{t('topProducts')}</h6>
                       </Card.Header>
                       <Card.Body className="p-0">
                         {analytics.topProducts.length > 0 ? (
@@ -1004,12 +1029,9 @@ function AdminDashboard() {
                       <Col md={4}>
                         <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
                           <Card.Body className="text-white">
-                            <div className="d-flex justify-content-between align-items-start">
-                              <div>
-                                <h6 className="text-white-50 mb-1">Выручка за год</h6>
-                                <h3 className="mb-0">{formatPrice(yearlyAnalytics.totalRevenue)} сум</h3>
-                              </div>
-                              <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>💵</div>
+                            <div>
+                              <h6 className="text-white-50 mb-1">Выручка за год</h6>
+                              <h3 className="mb-0">{formatPrice(yearlyAnalytics.totalRevenue)} сум</h3>
                             </div>
                           </Card.Body>
                         </Card>
@@ -1017,12 +1039,9 @@ function AdminDashboard() {
                       <Col md={4}>
                         <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%)' }}>
                           <Card.Body className="text-white">
-                            <div className="d-flex justify-content-between align-items-start">
-                              <div>
-                                <h6 className="text-white-50 mb-1">Заказов за год</h6>
-                                <h3 className="mb-0">{yearlyAnalytics.totalOrders}</h3>
-                              </div>
-                              <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>📊</div>
+                            <div>
+                              <h6 className="text-white-50 mb-1">Заказов за год</h6>
+                              <h3 className="mb-0">{yearlyAnalytics.totalOrders}</h3>
                             </div>
                           </Card.Body>
                         </Card>
@@ -1030,22 +1049,18 @@ function AdminDashboard() {
                       <Col md={4}>
                         <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)' }}>
                           <Card.Body className="text-white">
-                            <div className="d-flex justify-content-between align-items-start">
-                              <div>
-                                <h6 className="text-white-50 mb-1">Средний чек за год</h6>
-                                <h3 className="mb-0">{formatPrice(yearlyAnalytics.averageCheck)} сум</h3>
-                              </div>
-                              <div style={{ fontSize: '2.5rem', opacity: 0.3 }}>🧾</div>
+                            <div>
+                              <h6 className="text-white-50 mb-1">Средний чек за год</h6>
+                              <h3 className="mb-0">{formatPrice(yearlyAnalytics.averageCheck)} сум</h3>
                             </div>
                           </Card.Body>
                         </Card>
                       </Col>
                     </Row>
                     
-                    {/* Revenue Chart - Line Graph */}
                     <Card className="border-0 shadow-sm mb-4">
                       <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">💰 Финансы по месяцам</h6>
+                        <h6 className="mb-0">Финансы по месяцам</h6>
                       </Card.Header>
                       <Card.Body>
                         <div style={{ height: '300px', position: 'relative' }}>
@@ -1132,7 +1147,7 @@ function AdminDashboard() {
                     {/* Orders Chart - Line Graph */}
                     <Card className="border-0 shadow-sm mb-4">
                       <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">📦 Доставленные заказы по месяцам</h6>
+                        <h6 className="mb-0">Доставленные заказы по месяцам</h6>
                       </Card.Header>
                       <Card.Body>
                         <div style={{ height: '300px', position: 'relative' }}>
@@ -1217,7 +1232,7 @@ function AdminDashboard() {
                     {/* Top 5 Products by Month - Horizontal Scroll */}
                     <Card className="border-0 shadow-sm mb-4">
                       <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">🏆 Топ-5 товаров по месяцам</h6>
+                        <h6 className="mb-0">Топ-5 товаров по месяцам</h6>
                       </Card.Header>
                       <Card.Body className="p-0">
                         <div style={{ overflowX: 'auto', whiteSpace: 'nowrap' }}>
@@ -1309,7 +1324,7 @@ function AdminDashboard() {
                     <option value="cancelled">{t('statusCancelled')}</option>
                   </Form.Select>
                   <Button variant="outline-success" size="sm" onClick={exportOrders}>
-                    📥 {t('downloadExcel')}
+                    {t('downloadExcel')}
                   </Button>
                 </div>
 
@@ -1351,11 +1366,7 @@ function AdminDashboard() {
                               <Button
                                 variant="outline-danger"
                                 size="sm"
-                                onClick={() => {
-                                  if (window.confirm('Вы уверены, что хотите отменить этот заказ?')) {
-                                    updateOrderStatus(order.id, 'cancelled');
-                                  }
-                                }}
+                                onClick={() => openCancelModal(order.id)}
                                 title="Отменить заказ"
                               >
                                 ✕
@@ -1378,13 +1389,13 @@ function AdminDashboard() {
                   <h5 className="mb-0">Товары</h5>
                   <div className="d-flex gap-2">
                     <Button variant="outline-secondary" size="sm" onClick={exportProducts}>
-                      📥 {t('downloadExcel')}
+                      {t('downloadExcel')}
                     </Button>
                     <Button variant="outline-success" onClick={() => setShowExcelModal(true)}>
-                      📤 {t('importExcel')}
+                      {t('importExcel')}
                     </Button>
                     <Button variant="primary" onClick={() => openProductModal()}>
-                      ➕ {t('addProduct')}
+                      {t('addProduct')}
                     </Button>
                   </div>
                 </div>
@@ -1440,7 +1451,7 @@ function AdminDashboard() {
                       size="sm"
                       onClick={handleBulkDeleteProducts}
                     >
-                      🗑️ Удалить выбранные
+                      Удалить выбранные
                     </Button>
                   </Alert>
                 )}
@@ -1560,7 +1571,7 @@ function AdminDashboard() {
                             onClick={() => openProductModal(product)}
                             title="Редактировать"
                           >
-                            ✏️
+                            Изм.
                           </Button>
                           <Button 
                             variant="outline-secondary" 
@@ -1569,7 +1580,7 @@ function AdminDashboard() {
                             onClick={() => duplicateProduct(product)}
                             title="Дублировать"
                           >
-                            📋
+                            Коп.
                           </Button>
                           <Button 
                             variant="outline-danger" 
@@ -1577,7 +1588,7 @@ function AdminDashboard() {
                             onClick={() => handleDeleteProduct(product.id)}
                             title="Удалить"
                           >
-                            🗑️
+                            Уд.
                           </Button>
                         </td>
                       </tr>
@@ -1606,10 +1617,10 @@ function AdminDashboard() {
                   <h5>{t('categories')}</h5>
                   <div className="d-flex gap-2">
                     <Button variant="outline-secondary" size="sm" onClick={exportCategories}>
-                      📥 {t('downloadExcel')}
+                      {t('downloadExcel')}
                     </Button>
                     <Button variant="primary" onClick={() => openCategoryModal()}>
-                      ➕ {t('add')}
+                      {t('add')}
                     </Button>
                   </div>
                 </div>
@@ -1765,7 +1776,7 @@ function AdminDashboard() {
                       <strong>Товары:</strong>
                       {!isEditingItems ? (
                         <Button variant="outline-primary" size="sm" onClick={startEditingItems}>
-                          ✏️ Редактировать
+                          Редактировать
                         </Button>
                       ) : (
                         <div className="d-flex gap-2">
@@ -1808,7 +1819,7 @@ function AdminDashboard() {
                             <td>{formatPrice(item.quantity * item.price)}</td>
                             {isEditingItems && (
                               <td>
-                                <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>🗑️</Button>
+                                <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>X</Button>
                               </td>
                             )}
                           </tr>
@@ -2257,7 +2268,7 @@ function AdminDashboard() {
                         setBroadcastImageFile(null);
                       }}
                     >
-                      🗑️ Удалить фото
+                      Удалить фото
                     </Button>
                   </>
                 ) : (
@@ -2328,7 +2339,7 @@ function AdminDashboard() {
         {/* Excel Import Modal */}
         <Modal show={showExcelModal} onHide={() => setShowExcelModal(false)} size="lg">
           <Modal.Header closeButton>
-            <Modal.Title>📥 Импорт товаров из Excel</Modal.Title>
+            <Modal.Title>Импорт товаров из Excel</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <Alert variant="info">
@@ -2390,7 +2401,7 @@ function AdminDashboard() {
               onClick={importExcel}
               disabled={importingExcel || !excelFile}
             >
-              {importingExcel ? 'Импорт...' : '📥 Импортировать'}
+              {importingExcel ? 'Импорт...' : 'Импортировать'}
             </Button>
           </Modal.Footer>
         </Modal>
@@ -2407,6 +2418,40 @@ function AdminDashboard() {
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
             />
           </Modal.Body>
+        </Modal>
+
+        {/* Cancel Order Modal */}
+        <Modal show={showCancelModal} onHide={() => setShowCancelModal(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>❌ Отмена заказа</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <p className="text-muted mb-3">
+              Вы уверены, что хотите отменить этот заказ? Укажите причину отмены:
+            </p>
+            <Form.Group>
+              <Form.Label>Причина отмены <span className="text-danger">*</span></Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Например: клиент отказался, нет товара в наличии, ошибка в заказе..."
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowCancelModal(false)}>
+              Назад
+            </Button>
+            <Button 
+              variant="danger" 
+              onClick={confirmCancelOrder}
+              disabled={!cancelReason.trim()}
+            >
+              Отменить заказ
+            </Button>
+          </Modal.Footer>
         </Modal>
       </Container>
     </>

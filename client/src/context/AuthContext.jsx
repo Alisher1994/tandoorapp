@@ -93,7 +93,8 @@ export function AuthProvider({ children }) {
       setUser(prev => ({
         ...prev,
         active_restaurant_id: response.data.active_restaurant_id,
-        active_restaurant_name: response.data.active_restaurant_name
+        active_restaurant_name: response.data.active_restaurant_name,
+        active_restaurant_logo: response.data.active_restaurant_logo
       }));
       
       return { success: true };

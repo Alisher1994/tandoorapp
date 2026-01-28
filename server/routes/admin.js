@@ -60,16 +60,17 @@ router.post('/switch-restaurant', async (req, res) => {
       [restaurant_id, req.user.id]
     );
     
-    // Get restaurant name
+    // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name FROM restaurants WHERE id = $1',
+      'SELECT name, logo_url FROM restaurants WHERE id = $1',
       [restaurant_id]
     );
     
     res.json({ 
       message: 'Ресторан переключен',
       active_restaurant_id: restaurant_id,
-      active_restaurant_name: restaurantResult.rows[0]?.name
+      active_restaurant_name: restaurantResult.rows[0]?.name,
+      active_restaurant_logo: restaurantResult.rows[0]?.logo_url
     });
   } catch (error) {
     console.error('Switch restaurant error:', error);
@@ -147,7 +148,7 @@ router.patch('/orders/:id/status', async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { status, comment } = req.body;
+    const { status, comment, cancel_reason } = req.body;
     
     if (!status) {
       return res.status(400).json({ error: 'Статус обязателен' });
@@ -174,23 +175,29 @@ router.patch('/orders/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа к этому заказу' });
     }
     
-    // Update order
+    // Update order (save cancel_reason in comment if cancelling)
+    const orderComment = status === 'cancelled' && cancel_reason 
+      ? `Причина отмены: ${cancel_reason}` 
+      : oldOrder.comment;
+    
     const orderResult = await client.query(`
       UPDATE orders SET 
         status = $1, 
         processed_by = $2,
         processed_at = CASE WHEN processed_at IS NULL THEN CURRENT_TIMESTAMP ELSE processed_at END,
+        comment = COALESCE($4, comment),
         updated_at = CURRENT_TIMESTAMP 
       WHERE id = $3 
       RETURNING *
-    `, [status, req.user.id, req.params.id]);
+    `, [status, req.user.id, req.params.id, status === 'cancelled' ? orderComment : null]);
     
     const order = orderResult.rows[0];
     
-    // Add status history
+    // Add status history with cancel reason
+    const historyComment = cancel_reason || comment || null;
     await client.query(
       'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
-      [order.id, status, req.user.id, comment || null]
+      [order.id, status, req.user.id, historyComment]
     );
     
     await client.query('COMMIT');

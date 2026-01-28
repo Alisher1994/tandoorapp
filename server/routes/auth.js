@@ -68,7 +68,7 @@ router.post('/login', async (req, res) => {
     }
     
     const result = await pool.query(`
-      SELECT u.*, r.name as active_restaurant_name
+      SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       WHERE u.username = $1
@@ -132,6 +132,7 @@ router.post('/login', async (req, res) => {
         role: user.role,
         active_restaurant_id: user.active_restaurant_id,
         active_restaurant_name: user.active_restaurant_name,
+        active_restaurant_logo: user.active_restaurant_logo,
         restaurants
       }
     });
@@ -187,6 +188,7 @@ router.get('/me', authenticate, async (req, res) => {
         role: req.user.role,
         active_restaurant_id: req.user.active_restaurant_id,
         active_restaurant_name: req.user.active_restaurant_name,
+        active_restaurant_logo: req.user.active_restaurant_logo,
         restaurants: req.user.restaurants || [],
         last_latitude: req.user.last_latitude,
         last_longitude: req.user.last_longitude,
