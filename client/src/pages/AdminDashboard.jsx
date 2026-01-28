@@ -146,7 +146,7 @@ function AdminDashboard() {
     
     const revenue = filteredOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
     const ordersCount = filteredOrders.length;
-    const averageCheck = ordersCount > 0 ? revenue / ordersCount : 0;
+    const averageCheck = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
     
     // Calculate top products
     const productStats = {};
@@ -872,23 +872,19 @@ function AdminDashboard() {
                         <h6 className="mb-0">🗺️ {t('orderGeography')}</h6>
                       </Card.Header>
                       <Card.Body className="p-0">
-                        {analytics.orderLocations.length > 0 ? (
-                          <div style={{ height: '350px', width: '100%' }}>
-                            <iframe
-                              title="orders-map"
-                              src={`https://yandex.ru/map-widget/v1/?pt=${analytics.orderLocations.map(loc => `${loc.lng},${loc.lat},pm2rdm`).join('~')}&z=11&l=map`}
-                              width="100%"
-                              height="100%"
-                              frameBorder="0"
-                              style={{ borderRadius: '0 0 8px 8px' }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="text-center text-muted py-5">
-                            <div style={{ fontSize: '3rem', opacity: 0.3 }}>🗺️</div>
-                            <p className="mt-2">Нет данных о локациях за выбранный период</p>
-                          </div>
-                        )}
+                        <div style={{ height: '350px', width: '100%' }}>
+                          <iframe
+                            title="orders-map"
+                            src={analytics.orderLocations.length > 0 
+                              ? `https://yandex.ru/map-widget/v1/?pt=${analytics.orderLocations.map(loc => `${loc.lng},${loc.lat},pm2rdm`).join('~')}&z=11&l=map`
+                              : `https://yandex.ru/map-widget/v1/?ll=69.2401,41.2995&z=11&l=map`
+                            }
+                            width="100%"
+                            height="100%"
+                            frameBorder="0"
+                            style={{ borderRadius: '0 0 8px 8px' }}
+                          />
+                        </div>
                       </Card.Body>
                     </Card>
                   </Col>
