@@ -250,24 +250,26 @@ function Catalog() {
                               const overlayKey = `qty_open_${product.id}`;
                               return (
                                 <div className="d-flex align-items-center justify-content-between">
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center"
-                                    style={{ width: 36, height: 36, position: 'relative' }}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      handleAddToCart(product);
-                                      setCatalogQtyOpen(prev => {
-                                        const next = { ...prev, [overlayKey]: true };
-                                        return next;
-                                      });
-                                      setTimeout(() => {
-                                        setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
-                                      }, 2000);
-                                    }}
-                                  >
-                                    +
-                                  </button>
+                                  {!hasQty && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center"
+                                      style={{ width: 36, height: 36, position: 'relative' }}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        handleAddToCart(product);
+                                        setCatalogQtyOpen(prev => {
+                                          const next = { ...prev, [overlayKey]: true };
+                                          return next;
+                                        });
+                                        setTimeout(() => {
+                                          setCatalogQtyOpen(prev => ({ ...prev, [overlayKey]: false }));
+                                        }, 2000);
+                                      }}
+                                    >
+                                      +
+                                    </button>
+                                  )}
                                   {hasQty && (
                                     <span
                                       className="rounded-circle d-inline-flex align-items-center justify-content-center"
