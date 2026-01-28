@@ -10,6 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import Spinner from 'react-bootstrap/Spinner';
 import { useCart, formatPrice } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import OrderReceipt from '../components/OrderReceipt';
 import BottomNav from '../components/BottomNav';
 
@@ -18,6 +19,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 function Cart() {
   const { cart, cartTotal, updateQuantity, removeFromCart, clearCart } = useCart();
   const { user } = useAuth();
+  const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
   
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
@@ -304,12 +306,47 @@ function Cart() {
   }
 
   return (
-    <Container className="py-3" style={{ maxWidth: '500px' }}>
-      {/* Заголовок с номером шага */}
-      <div className="text-center mb-4">
-        <h5 className="mb-2">
-          {step === 1 ? '🛒 Ваш заказ' : '📍 Доставка'}
-        </h5>
+    <>
+      {/* Header with language switcher */}
+      <div className="bg-white shadow-sm py-3 mb-3">
+        <Container style={{ maxWidth: '500px' }}>
+          <div className="d-flex align-items-center justify-content-between">
+            <div style={{ width: '40px' }} />
+            {restaurant?.logo_url ? (
+              <img 
+                src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`} 
+                alt="Logo" 
+                height="36" 
+                style={{ objectFit: 'contain' }}
+              />
+            ) : (
+              <span style={{ fontSize: '1.5rem' }}>🍽️</span>
+            )}
+            <button
+              onClick={toggleLanguage}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              <img 
+                src={language === 'ru' ? '/uz.svg' : '/ru.svg'}
+                alt={language === 'ru' ? 'UZ' : 'RU'}
+                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+              />
+            </button>
+          </div>
+        </Container>
+      </div>
+      
+      <Container className="py-3" style={{ maxWidth: '500px' }}>
+        {/* Заголовок с номером шага */}
+        <div className="text-center mb-4">
+          <h5 className="mb-2">
+            {step === 1 ? '🛒 Ваш заказ' : '📍 Доставка'}
+          </h5>
         <div className="d-flex justify-content-center gap-2">
           <div 
             className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 1 ? 'bg-primary text-white' : 'bg-light'}`}
@@ -622,12 +659,13 @@ function Cart() {
         </Modal.Body>
       </Modal>
       
+        {/* Spacer for bottom nav */}
+        <div style={{ height: '70px' }} />
+      </Container>
+      
       {/* Bottom navigation */}
       <BottomNav />
-      
-      {/* Spacer for bottom nav */}
-      <div style={{ height: '70px' }} />
-    </Container>
+    </>
   );
 }
 

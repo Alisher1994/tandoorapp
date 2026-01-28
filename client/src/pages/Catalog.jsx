@@ -10,6 +10,7 @@ import Navbar from 'react-bootstrap/Navbar';
 import Form from 'react-bootstrap/Form';
 import { useAuth } from '../context/AuthContext';
 import { useCart, formatPrice } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -26,6 +27,7 @@ function Catalog() {
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart } = useCart();
+  const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
   
   // Refs for ScrollSpy
@@ -397,8 +399,12 @@ function Catalog() {
   return (
     <>
       <Navbar bg="white" expand="lg" className="shadow-sm mb-4 sticky-top">
-        <Container className="justify-content-center">
-          <Navbar.Brand className="d-flex align-items-center justify-content-center">
+        <Container className="d-flex justify-content-between align-items-center">
+          {/* Empty space for balance */}
+          <div style={{ width: '40px' }} />
+          
+          {/* Center logo */}
+          <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto">
             {currentRestaurant?.logo_url ? (
               <img 
                 src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
@@ -409,6 +415,27 @@ function Catalog() {
               <span style={{ fontSize: '1.7rem' }}>🍽️</span>
             )}
           </Navbar.Brand>
+          
+          {/* Language switcher with flag */}
+          <button
+            onClick={toggleLanguage}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
+          >
+            <img 
+              src={language === 'ru' ? '/uz.svg' : '/ru.svg'}
+              alt={language === 'ru' ? 'UZ' : 'RU'}
+              style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+            />
+          </button>
         </Container>
       </Navbar>
 

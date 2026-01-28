@@ -7,6 +7,7 @@ import Collapse from 'react-bootstrap/Collapse';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -18,6 +19,7 @@ function Orders() {
   const [restaurant, setRestaurant] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const { user, logout } = useAuth();
+  const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
   
   const toggleOrderDetails = (orderId) => {
@@ -93,18 +95,36 @@ function Orders() {
 
   return (
     <>
-      {/* Simple header */}
+      {/* Header with language switcher */}
       <div className="bg-white shadow-sm py-3 mb-3">
         <Container style={{ maxWidth: '600px' }}>
-          <div className="d-flex align-items-center justify-content-center">
-            {restaurant?.logo_url && (
+          <div className="d-flex align-items-center justify-content-between">
+            <div style={{ width: '40px' }} />
+            {restaurant?.logo_url ? (
               <img 
                 src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`} 
                 alt="Logo" 
                 height="36" 
                 style={{ objectFit: 'contain' }}
               />
+            ) : (
+              <span style={{ fontSize: '1.5rem' }}>🍽️</span>
             )}
+            <button
+              onClick={toggleLanguage}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              <img 
+                src={language === 'ru' ? '/uz.svg' : '/ru.svg'}
+                alt={language === 'ru' ? 'UZ' : 'RU'}
+                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+              />
+            </button>
           </div>
         </Container>
       </div>
