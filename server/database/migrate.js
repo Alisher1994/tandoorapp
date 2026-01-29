@@ -57,7 +57,10 @@ async function migrate() {
       'support_username VARCHAR(100)',
       'service_fee DECIMAL(10, 2) DEFAULT 0',
       'latitude DECIMAL(10, 8)',
-      'longitude DECIMAL(11, 8)'
+      'longitude DECIMAL(11, 8)',
+      'delivery_base_radius DECIMAL(5, 2) DEFAULT 2',
+      'delivery_base_price DECIMAL(10, 2) DEFAULT 5000',
+      'delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000'
     ];
     
     for (const col of restaurantColumns) {

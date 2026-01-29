@@ -125,7 +125,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km } = req.body;
     
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -159,7 +159,7 @@ router.put('/restaurants/:id', async (req, res) => {
       }
     }
     
-    // Now update with all fields including coordinates
+    // Now update with all fields including coordinates and delivery settings
     const result = await pool.query(`
       UPDATE restaurants 
       SET name = COALESCE($1, name),
@@ -178,8 +178,11 @@ router.put('/restaurants/:id', async (req, res) => {
           service_fee = $14,
           latitude = $15,
           longitude = $16,
+          delivery_base_radius = $17,
+          delivery_base_price = $18,
+          delivery_price_per_km = $19,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $17
+      WHERE id = $20
       RETURNING *
     `, [
       name,
@@ -198,6 +201,9 @@ router.put('/restaurants/:id', async (req, res) => {
       parseFloat(service_fee) || 0,
       latitude ? parseFloat(latitude) : null,
       longitude ? parseFloat(longitude) : null,
+      parseFloat(delivery_base_radius) || 2,
+      parseFloat(delivery_base_price) || 5000,
+      parseFloat(delivery_price_per_km) || 2000,
       req.params.id
     ]);
     

@@ -52,7 +52,10 @@ function SuperAdminDashboard() {
     support_username: '',
     service_fee: 0,
     latitude: '',
-    longitude: ''
+    longitude: '',
+    delivery_base_radius: 2,
+    delivery_base_price: 5000,
+    delivery_price_per_km: 2000
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -274,7 +277,10 @@ function SuperAdminDashboard() {
         support_username: restaurant.support_username || '',
         service_fee: restaurant.service_fee || 0,
         latitude: restaurant.latitude || '',
-        longitude: restaurant.longitude || ''
+        longitude: restaurant.longitude || '',
+        delivery_base_radius: restaurant.delivery_base_radius || 2,
+        delivery_base_price: restaurant.delivery_base_price || 5000,
+        delivery_price_per_km: restaurant.delivery_price_per_km || 2000
       });
     } else {
       setEditingRestaurant(null);
@@ -293,7 +299,10 @@ function SuperAdminDashboard() {
         support_username: '',
         service_fee: 0,
         latitude: '',
-        longitude: ''
+        longitude: '',
+        delivery_base_radius: 2,
+        delivery_base_price: 5000,
+        delivery_price_per_km: 2000
       });
     }
     setShowRestaurantModal(true);
@@ -1038,7 +1047,54 @@ function SuperAdminDashboard() {
             </Form.Group>
             
             <hr />
-            <h6>📍 Координаты ресторана (для расчёта доставки)</h6>
+            <h6>� Настройки доставки</h6>
+            <Row>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small">Базовый радиус (км)</Form.Label>
+                  <Form.Control 
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    size="sm"
+                    value={restaurantForm.delivery_base_radius}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, delivery_base_radius: parseFloat(e.target.value) || 2 })}
+                  />
+                  <Form.Text className="text-muted">До этого расстояния - базовая цена</Form.Text>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small">Базовая цена (сум)</Form.Label>
+                  <Form.Control 
+                    type="number"
+                    min="0"
+                    step="1000"
+                    size="sm"
+                    value={restaurantForm.delivery_base_price}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, delivery_base_price: parseFloat(e.target.value) || 5000 })}
+                  />
+                  <Form.Text className="text-muted">Минимальная стоимость</Form.Text>
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small">За каждый км (сум)</Form.Label>
+                  <Form.Control 
+                    type="number"
+                    min="0"
+                    step="500"
+                    size="sm"
+                    value={restaurantForm.delivery_price_per_km}
+                    onChange={(e) => setRestaurantForm({ ...restaurantForm, delivery_price_per_km: parseFloat(e.target.value) || 2000 })}
+                  />
+                  <Form.Text className="text-muted">После базового радиуса</Form.Text>
+                </Form.Group>
+              </Col>
+            </Row>
+            
+            <hr />
+            <h6>�📍 Координаты ресторана (для расчёта доставки)</h6>
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-2">

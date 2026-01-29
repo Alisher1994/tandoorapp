@@ -69,9 +69,11 @@ router.post('/calculate', async (req, res) => {
       });
     }
     
-    // Получаем координаты ресторана
+    // Получаем координаты и настройки доставки ресторана
     const result = await pool.query(
-      'SELECT latitude, longitude, name FROM restaurants WHERE id = $1',
+      `SELECT latitude, longitude, name, 
+              delivery_base_radius, delivery_base_price, delivery_price_per_km 
+       FROM restaurants WHERE id = $1`,
       [restaurant_id]
     );
     
@@ -80,6 +82,11 @@ router.post('/calculate', async (req, res) => {
     }
     
     const restaurant = result.rows[0];
+    
+    // Используем настройки ресторана или дефолтные значения
+    const baseRadius = parseFloat(restaurant.delivery_base_radius) || BASE_RADIUS_KM;
+    const basePrice = parseFloat(restaurant.delivery_base_price) || BASE_PRICE;
+    const pricePerKm = parseFloat(restaurant.delivery_price_per_km) || PRICE_PER_KM;
     
     // Если у ресторана нет координат
     if (!restaurant.latitude || !restaurant.longitude) {
@@ -106,15 +113,21 @@ router.post('/calculate', async (req, res) => {
       distanceType = 'straight_line';
     }
     
-    const deliveryCost = calculateDeliveryPrice(distanceKm);
+    // Расчет с индивидуальными настройками ресторана
+    let deliveryCost = basePrice;
+    if (distanceKm > baseRadius) {
+      const extraKm = distanceKm - baseRadius;
+      deliveryCost = basePrice + (extraKm * pricePerKm);
+    }
+    deliveryCost = Math.round(deliveryCost / 500) * 500; // Округляем до 500 сум
     
     res.json({
       delivery_cost: deliveryCost,
       distance_km: Math.round(distanceKm * 100) / 100,
       distance_type: distanceType,
-      base_radius_km: BASE_RADIUS_KM,
-      base_price: BASE_PRICE,
-      price_per_km: PRICE_PER_KM,
+      base_radius_km: baseRadius,
+      base_price: basePrice,
+      price_per_km: pricePerKm,
       restaurant_name: restaurant.name
     });
     
@@ -126,14 +139,39 @@ router.post('/calculate', async (req, res) => {
 
 /**
  * GET /api/delivery/info
- * Получить информацию о тарифах доставки
+ * Получить информацию о тарифах доставки (для конкретного ресторана или дефолтные)
  */
-router.get('/info', (req, res) => {
+router.get('/info', async (req, res) => {
+  const { restaurant_id } = req.query;
+  
+  let baseRadius = BASE_RADIUS_KM;
+  let basePrice = BASE_PRICE;
+  let pricePerKm = PRICE_PER_KM;
+  
+  if (restaurant_id) {
+    try {
+      const result = await pool.query(
+        `SELECT delivery_base_radius, delivery_base_price, delivery_price_per_km 
+         FROM restaurants WHERE id = $1`,
+        [restaurant_id]
+      );
+      
+      if (result.rows.length > 0) {
+        const r = result.rows[0];
+        baseRadius = parseFloat(r.delivery_base_radius) || BASE_RADIUS_KM;
+        basePrice = parseFloat(r.delivery_base_price) || BASE_PRICE;
+        pricePerKm = parseFloat(r.delivery_price_per_km) || PRICE_PER_KM;
+      }
+    } catch (error) {
+      console.error('Error fetching restaurant delivery settings:', error);
+    }
+  }
+  
   res.json({
-    base_radius_km: BASE_RADIUS_KM,
-    base_price: BASE_PRICE,
-    price_per_km: PRICE_PER_KM,
-    description: `Доставка в радиусе ${BASE_RADIUS_KM} км - ${BASE_PRICE} сум. Каждый дополнительный км - ${PRICE_PER_KM} сум.`
+    base_radius_km: baseRadius,
+    base_price: basePrice,
+    price_per_km: pricePerKm,
+    description: `Доставка в радиусе ${baseRadius} км - ${basePrice} сум. Каждый дополнительный км - ${pricePerKm} сум.`
   });
 });
 
