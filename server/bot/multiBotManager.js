@@ -160,11 +160,20 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
         
-        // Update user's active restaurant to this bot's restaurant
-        await pool.query(
-          'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
-          [restaurantId, user.id]
-        );
+        // Update user's active restaurant and username if available
+        const telegramUsername = msg.from.username;
+        if (telegramUsername && !user.username.startsWith('@')) {
+          // User now has a telegram username, update it
+          await pool.query(
+            'UPDATE users SET active_restaurant_id = $1, username = $2 WHERE id = $3',
+            [restaurantId, `@${telegramUsername}`, user.id]
+          );
+        } else {
+          await pool.query(
+            'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
+            [restaurantId, user.id]
+          );
+        }
         
         // Track user-restaurant relationship for broadcast
         await pool.query(`
@@ -637,7 +646,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       
       // New user registration - complete it
       const telegramUsername = msg.from.username;
-      const username = telegramUsername || `user_${userId}`;
+      // Use telegram username with @ prefix, or generate unique username
+      const username = telegramUsername ? `@${telegramUsername}` : `user_${userId}`;
       const password = Math.random().toString(36).slice(-8);
       const hashedPassword = await bcrypt.hash(password, 10);
       
@@ -649,7 +659,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           phone = EXCLUDED.phone,
           last_latitude = EXCLUDED.last_latitude,
           last_longitude = EXCLUDED.last_longitude,
-          active_restaurant_id = EXCLUDED.active_restaurant_id
+          active_restaurant_id = EXCLUDED.active_restaurant_id,
+          username = CASE 
+            WHEN EXCLUDED.username LIKE '@%' THEN EXCLUDED.username 
+            ELSE users.username 
+          END
         RETURNING id
       `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId]);
       
