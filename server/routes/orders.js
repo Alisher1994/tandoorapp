@@ -26,7 +26,9 @@ router.get('/my-orders', authenticate, async (req, res) => {
                     'quantity', oi.quantity,
                     'unit', oi.unit,
                     'price', oi.price,
-                    'total', oi.total
+                    'total', oi.total,
+                    'container_name', oi.container_name,
+                    'container_price', oi.container_price
                   )
                 ) FILTER (WHERE oi.id IS NOT NULL),
                 '[]'
@@ -213,8 +215,8 @@ router.post('/', authenticate, async (req, res) => {
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items (
-          order_id, product_id, product_name, quantity, unit, price, total
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          order_id, product_id, product_name, quantity, unit, price, total, container_name, container_price
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           order.id,
           item.product_id || null,
@@ -222,7 +224,9 @@ router.post('/', authenticate, async (req, res) => {
           item.quantity,
           item.unit,
           item.price,
-          parseFloat(item.price) * parseFloat(item.quantity)
+          parseFloat(item.price) * parseFloat(item.quantity),
+          item.container_name || null,
+          item.container_price || 0
         ]
       );
     }

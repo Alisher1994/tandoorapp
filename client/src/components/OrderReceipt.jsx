@@ -134,18 +134,32 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
               Товары
             </div>
             {items?.map((item, idx) => (
-              <div key={idx} style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '8px',
-                fontSize: '13px'
-              }}>
-                <span style={{ flex: 1, paddingRight: '8px' }}>
-                  {item.product_name}
-                </span>
-                <span style={{ whiteSpace: 'nowrap', color: '#666' }}>
-                  {item.quantity}x{formatPrice(item.price)}
-                </span>
+              <div key={idx} style={{ marginBottom: '8px' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '13px'
+                }}>
+                  <span style={{ flex: 1, paddingRight: '8px' }}>
+                    {idx + 1}. {item.product_name}
+                  </span>
+                  <span style={{ whiteSpace: 'nowrap', color: '#666' }}>
+                    {item.quantity}×{formatPrice(item.price)}
+                  </span>
+                </div>
+                {item.container_price > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '11px',
+                    color: '#888',
+                    marginTop: '2px',
+                    paddingLeft: '16px'
+                  }}>
+                    <span>🍽 {item.container_name || 'Посуда'}</span>
+                    <span>{item.quantity}×{formatPrice(item.container_price)}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>

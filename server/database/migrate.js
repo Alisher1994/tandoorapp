@@ -177,6 +177,21 @@ async function migrate() {
     
     console.log('✅ Orders table updated');
     
+    // Add container columns to order_items
+    const orderItemsColumns = [
+      { name: 'container_name', type: 'VARCHAR(255)' },
+      { name: 'container_price', type: 'DECIMAL(10, 2) DEFAULT 0' }
+    ];
+    
+    for (const col of orderItemsColumns) {
+      try {
+        await client.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+      } catch (e) {
+        if (e.code !== '42701') console.log(`ℹ️  Column order_items.${col.name}: ${e.message}`);
+      }
+    }
+    console.log('✅ Order_items table updated with container columns');
+    
     // =====================================================
     // Step 3: Create operator_restaurants junction table
     // =====================================================

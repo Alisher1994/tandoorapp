@@ -226,11 +226,21 @@ function Orders() {
                       <div className="mb-3">
                         <div className="text-muted small mb-2">{t('orderComposition')}:</div>
                         {order.items.map((item, idx) => (
-                          <div key={idx} className="d-flex justify-content-between py-1 border-bottom" style={{ fontSize: '0.9rem' }}>
-                            <span>{item.product_name}</span>
-                            <span className="text-muted">
-                              {item.quantity} × {formatPrice(item.price)} = <strong>{formatPrice(item.total || item.quantity * item.price)}</strong> {t('sum')}
-                            </span>
+                          <div key={idx} className="py-1 border-bottom" style={{ fontSize: '0.9rem' }}>
+                            <div className="d-flex justify-content-between">
+                              <span>{idx + 1}. {item.product_name}</span>
+                              <span className="text-muted">
+                                {item.quantity} × {formatPrice(item.price)} = <strong>{formatPrice(item.total || item.quantity * item.price)}</strong> {t('sum')}
+                              </span>
+                            </div>
+                            {parseFloat(item.container_price) > 0 && (
+                              <div className="d-flex justify-content-between ps-3" style={{ fontSize: '0.8rem', color: '#888' }}>
+                                <span>🍽 {item.container_name || 'Посуда'}</span>
+                                <span>
+                                  {item.quantity} × {formatPrice(item.container_price)} = {formatPrice(item.quantity * parseFloat(item.container_price))} {t('sum')}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

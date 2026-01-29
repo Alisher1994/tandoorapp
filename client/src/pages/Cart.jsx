@@ -257,8 +257,11 @@ function Cart() {
           product_name: item.name_ru,
           quantity: item.quantity,
           unit: item.unit,
-          price: item.price
+          price: item.price,
+          container_name: item.container_name || null,
+          container_price: item.container_price || 0
         })),
+        container_total: containerTotal,
         restaurant_id,
         ...formData,
         delivery_address: deliveryAddress,
