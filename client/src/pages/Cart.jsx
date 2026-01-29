@@ -665,7 +665,7 @@ function Cart() {
                         <div className="fw-bold">{savedAddresses.find(a => a.id === selectedAddressId)?.name}</div>
                         <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
                       </div>
-                      <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowLocationModal(true)}>
+                      <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
                         {language === 'uz' ? "O'zgartirish" : 'Изменить'}
                       </Button>
                     </div>
@@ -879,7 +879,7 @@ function Cart() {
         </Card.Body>
       </Card>
 
-      {/* Модалка для выбора локации на карте */}
+      {/* Модалка для выбора локации на карте (только карта) */}
       <Modal 
         show={showLocationModal} 
         onHide={() => setShowLocationModal(false)} 
@@ -887,45 +887,11 @@ function Cart() {
         className="location-picker-modal"
       >
         <Modal.Header closeButton className="border-0 bg-white shadow-sm">
-          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Yetkazib berish nuqtasi' : 'Точка доставки'}</Modal.Title>
+          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Yangi manzil' : 'Новый адрес'}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-0 d-flex flex-column">
-          {/* Список сохранённых адресов сверху */}
-          {savedAddresses.length > 0 && (
-            <div className="bg-light border-bottom">
-              <div className="p-2 small text-muted">{language === 'uz' ? 'Saqlangan manzillar' : 'Сохранённые адреса'}</div>
-              <ListGroup variant="flush" className="bg-white">
-                {savedAddresses.map(addr => (
-                  <ListGroup.Item 
-                    key={addr.id}
-                    action
-                    className="d-flex align-items-center py-2 px-3"
-                    onClick={() => { selectAddress(addr); setShowLocationModal(false); }}
-                  >
-                    <div 
-                      className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style={{ 
-                        width: 40, height: 40, 
-                        background: addr.name === 'Дом' || addr.name === 'Uy' ? '#e8f4fd' : 
-                                   addr.name === 'Работа' || addr.name === 'Ish' ? '#fef3e8' : '#f0f0f0'
-                      }}
-                    >
-                      {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
-                       addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'}
-                    </div>
-                    <div className="flex-grow-1">
-                      <div className="fw-bold" style={{ fontSize: '14px' }}>{addr.name}</div>
-                      <div className="text-muted" style={{ fontSize: '12px' }}>{addr.address}</div>
-                    </div>
-                    {addr.is_default && <Badge bg="primary" className="ms-2">{language === 'uz' ? 'Asosiy' : 'Основной'}</Badge>}
-                  </ListGroup.Item>
-                ))}
-              </ListGroup>
-            </div>
-          )}
-          
           {/* Карта Яндекс */}
-          <div className="flex-grow-1" style={{ minHeight: '250px' }}>
+          <div className="flex-grow-1" style={{ minHeight: '300px' }}>
             <ClientLocationPicker
               latitude={mapCoordinates?.lat || 41.311081}
               longitude={mapCoordinates?.lng || 69.240562}
@@ -934,7 +900,6 @@ function Cart() {
                   ...prev,
                   delivery_coordinates: `${lat},${lng}`
                 }));
-                setSelectedAddressId(null); // Сбрасываем выбранный адрес
               }}
             />
           </div>
@@ -958,23 +923,23 @@ function Cart() {
               className="w-100"
               onClick={() => {
                 setShowLocationModal(false);
-                // Если адрес не из сохранённых - предложить сохранить
-                if (!selectedAddressId && formData.delivery_coordinates) {
+                // Открыть модалку для ввода названия
+                if (formData.delivery_coordinates) {
                   setShowNewAddressModal(true);
                 }
               }}
               disabled={!formData.delivery_coordinates}
             >
-              ✓ {language === 'uz' ? 'Tanlangan nuqtani tasdiqlash' : 'Подтвердить выбранную точку'}
+              ✓ {language === 'uz' ? 'Davom etish' : 'Продолжить'}
             </Button>
           </div>
         </Modal.Body>
       </Modal>
       
       {/* Модалка выбора из сохранённых адресов */}
-      <Modal show={showAddressModal} onHide={() => setShowAddressModal(false)} centered>
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Manzillarim' : 'Мои адреса'}</Modal.Title>
+      <Modal show={showAddressModal} onHide={() => setShowAddressModal(false)} centered size="md">
+        <Modal.Header closeButton className="border-0 pb-0">
+          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Manzillar' : 'Адреса'}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-0">
           <ListGroup variant="flush">
@@ -982,39 +947,40 @@ function Cart() {
               <ListGroup.Item 
                 key={addr.id}
                 action
-                className="d-flex justify-content-between align-items-center"
+                className="d-flex align-items-center py-3 px-3"
                 onClick={() => selectAddress(addr)}
               >
-                <div className="d-flex align-items-center">
-                  <span className="me-2 fs-5">
-                    {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
-                     addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'}
-                  </span>
-                  <div>
-                    <div className="fw-bold">{addr.name}</div>
-                    <small className="text-muted">{addr.address}</small>
-                  </div>
+                <div 
+                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                  style={{ 
+                    width: 44, height: 44, 
+                    background: addr.name === 'Дом' || addr.name === 'Uy' ? '#e8f4fd' : 
+                               addr.name === 'Работа' || addr.name === 'Ish' ? '#fef3e8' : '#f0f0f0'
+                  }}
+                >
+                  {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
+                   addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'}
                 </div>
-                <div className="d-flex align-items-center gap-2">
-                  {addr.is_default && <Badge bg="primary">{language === 'uz' ? 'Asosiy' : 'Основной'}</Badge>}
-                  <Button 
-                    variant="link" 
-                    className="text-danger p-0"
-                    onClick={(e) => { e.stopPropagation(); deleteAddress(addr.id); }}
-                  >
-                    🗑️
-                  </Button>
+                <div className="flex-grow-1">
+                  <div className="fw-bold">{addr.name}</div>
+                  <div className="text-muted small">{addr.address}</div>
                 </div>
+                {selectedAddressId === addr.id && (
+                  <span className="text-success">✓</span>
+                )}
               </ListGroup.Item>
             ))}
           </ListGroup>
-          <div className="p-3">
+          <div className="p-3 border-top">
             <Button 
-              variant="outline-primary" 
+              variant="primary" 
               className="w-100"
-              onClick={() => { setShowAddressModal(false); setShowLocationModal(true); }}
+              onClick={() => { 
+                setShowAddressModal(false); 
+                setShowLocationModal(true); 
+              }}
             >
-              ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
+              ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Новый адрес'}
             </Button>
           </div>
         </Modal.Body>
