@@ -162,6 +162,35 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
 }
 
 /**
+ * Replace placeholders in message template
+ * Available placeholders:
+ * {order_number} - Order number
+ * {customer_name} - Customer name
+ * {customer_phone} - Customer phone
+ * {total_amount} - Total amount
+ * {delivery_address} - Delivery address
+ * {payment_method} - Payment method
+ */
+function replacePlaceholders(template, order) {
+  if (!template) return template;
+  
+  const paymentMethods = {
+    'cash': 'Наличные',
+    'click': 'Click',
+    'payme': 'Payme',
+    'card': 'Карта'
+  };
+  
+  return template
+    .replace(/{order_number}/g, order.order_number || '')
+    .replace(/{customer_name}/g, order.customer_name || '')
+    .replace(/{customer_phone}/g, order.customer_phone || '')
+    .replace(/{total_amount}/g, formatPrice(order.total_amount))
+    .replace(/{delivery_address}/g, order.delivery_address || '')
+    .replace(/{payment_method}/g, paymentMethods[order.payment_method] || order.payment_method || '');
+}
+
+/**
  * Send order status update to user
  * @param {Object} customMessages - Custom messages from restaurant settings { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled }
  */
@@ -197,7 +226,8 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
     if (customMessages) {
       const customMsgKey = `msg_${status}`;
       if (customMessages[customMsgKey]) {
-        statusText = customMessages[customMsgKey];
+        // Replace placeholders in custom message
+        statusText = replacePlaceholders(customMessages[customMsgKey], order);
       }
     }
     

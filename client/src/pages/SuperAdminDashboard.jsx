@@ -1418,6 +1418,21 @@ function SuperAdminDashboard() {
             </small>
           </Alert>
           
+          <Alert variant="secondary" className="mb-3">
+            <strong>Доступные переменные:</strong>
+            <div className="mt-2" style={{ fontSize: '0.85rem' }}>
+              <code>{'{order_number}'}</code> — номер заказа<br/>
+              <code>{'{customer_name}'}</code> — имя клиента<br/>
+              <code>{'{customer_phone}'}</code> — телефон клиента<br/>
+              <code>{'{total_amount}'}</code> — сумма заказа<br/>
+              <code>{'{delivery_address}'}</code> — адрес доставки<br/>
+              <code>{'{payment_method}'}</code> — способ оплаты
+            </div>
+            <div className="mt-2 text-muted" style={{ fontSize: '0.8rem' }}>
+              Пример: <code>Здравствуйте, {'{customer_name}'}! Ваш заказ #{'{order_number}'} готовится.</code>
+            </div>
+          </Alert>
+          
           <Form.Group className="mb-3">
             <Form.Label>
               <Badge bg="primary" className="me-2">1</Badge>
