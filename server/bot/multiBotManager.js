@@ -306,17 +306,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const oldPhone = user.phone;
         const newPhone = contact.phone_number;
         
-        // Log the change
-        await pool.query(`
-          INSERT INTO user_profile_logs (user_id, field_name, old_value, new_value, changed_via)
-          VALUES ($1, 'phone', $2, $3, 'bot')
-        `, [user.id, oldPhone, newPhone]);
-        
-        // Update user phone
+        // Update user phone first
         await pool.query(
           'UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [newPhone, user.id]
         );
+        
+        // Try to log the change (table may not exist yet)
+        try {
+          await pool.query(`
+            INSERT INTO user_profile_logs (user_id, field_name, old_value, new_value, changed_via)
+            VALUES ($1, 'phone', $2, $3, 'bot')
+          `, [user.id, oldPhone, newPhone]);
+        } catch (logError) {
+          console.log('Profile log table may not exist:', logError.message);
+        }
         
         bot.sendMessage(chatId,
           `✅ <b>Телефон успешно изменен!</b>\n\n` +
@@ -508,17 +512,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const oldName = user.full_name;
         const newName = text.trim();
         
-        // Log the change
-        await pool.query(`
-          INSERT INTO user_profile_logs (user_id, field_name, old_value, new_value, changed_via)
-          VALUES ($1, 'full_name', $2, $3, 'bot')
-        `, [user.id, oldName, newName]);
-        
-        // Update user name
+        // Update user name first
         await pool.query(
           'UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [newName, user.id]
         );
+        
+        // Try to log the change (table may not exist yet)
+        try {
+          await pool.query(`
+            INSERT INTO user_profile_logs (user_id, field_name, old_value, new_value, changed_via)
+            VALUES ($1, 'full_name', $2, $3, 'bot')
+          `, [user.id, oldName, newName]);
+        } catch (logError) {
+          console.log('Profile log table may not exist:', logError.message);
+        }
         
         bot.sendMessage(chatId,
           `✅ <b>Имя успешно изменено!</b>\n\n` +
