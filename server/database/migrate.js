@@ -124,6 +124,7 @@ async function migrate() {
       { name: 'processed_at', type: 'TIMESTAMP' },
       { name: 'admin_message_id', type: 'BIGINT' },
       { name: 'admin_chat_id', type: 'TEXT' },
+      { name: 'admin_comment', type: 'TEXT' },
       { name: 'cancel_reason', type: 'TEXT' },
       { name: 'cancelled_at_status', type: 'VARCHAR(20)' }
     ];

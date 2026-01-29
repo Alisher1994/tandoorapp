@@ -137,8 +137,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   
   console.log(`🤖 Setting up handlers for restaurant: ${restaurantName} (ID: ${restaurantId})`);
   
-  // Helper to get state key
-  const getStateKey = (userId) => `${botToken}_${userId}`;
+  // Helper to get state key - includes chatId for group handling
+  const getStateKey = (userId, chatId) => `${botToken}_${chatId || ''}_${userId}`;
   
   // /start command
   bot.onText(/\/start/, async (msg) => {
@@ -186,7 +186,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         );
       } else {
         // Start registration
-        registrationStates.set(getStateKey(userId), { step: 'waiting_contact', restaurantId });
+        registrationStates.set(getStateKey(userId, chatId), { step: 'waiting_contact', restaurantId });
         
         bot.sendMessage(chatId,
           `👋 Добро пожаловать в <b>${restaurantName}</b>!\n\n` +
@@ -262,12 +262,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const userId = msg.from.id;
     const contact = msg.contact;
     
-    const state = registrationStates.get(getStateKey(userId));
+    const state = registrationStates.get(getStateKey(userId, chatId));
     if (!state || state.step !== 'waiting_contact') return;
     
     state.phone = contact.phone_number;
     state.step = 'waiting_name';
-    registrationStates.set(getStateKey(userId), state);
+    registrationStates.set(getStateKey(userId, chatId), state);
     
     bot.sendMessage(chatId, 
       '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
@@ -283,13 +283,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     
     if (text.startsWith('/')) return;
     
-    const state = registrationStates.get(getStateKey(userId));
+    // Check state first with chatId (for groups), then without (for private)
+    let state = registrationStates.get(getStateKey(userId, chatId));
+    let stateKey = getStateKey(userId, chatId);
+    
+    if (!state) {
+      // Also try without chatId for backwards compatibility
+      state = registrationStates.get(getStateKey(userId, ''));
+      stateKey = getStateKey(userId, '');
+    }
+    
     if (!state) return;
     
     if (state.step === 'waiting_name') {
       state.name = text;
       state.step = 'waiting_location';
-      registrationStates.set(getStateKey(userId), state);
+      registrationStates.set(stateKey, state);
       
       bot.sendMessage(chatId,
         `👋 Приятно познакомиться, ${text}!\n\n` +
@@ -308,13 +317,27 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     
     // Handle rejection reason
     if (state.step === 'waiting_rejection_reason') {
-      const { orderId, messageId, operatorName } = state;
+      const { orderId, messageId, operatorName, groupChatId, originalMessage, operatorTelegramId } = state;
       
       try {
-        // Update order status
+        // Find operator user by telegram_id to save processed_by
+        let processedByUserId = null;
+        if (operatorTelegramId) {
+          try {
+            const operatorResult = await pool.query(
+              'SELECT id FROM users WHERE telegram_id = $1',
+              [operatorTelegramId]
+            );
+            if (operatorResult.rows.length > 0) {
+              processedByUserId = operatorResult.rows[0].id;
+            }
+          } catch (e) {}
+        }
+        
+        // Update order status with processed_by
         await pool.query(
-          `UPDATE orders SET status = 'cancelled', admin_comment = $1, processed_at = CURRENT_TIMESTAMP WHERE id = $2`,
-          [text, orderId]
+          `UPDATE orders SET status = 'cancelled', admin_comment = $1, processed_at = CURRENT_TIMESTAMP, processed_by = $3 WHERE id = $2`,
+          [text, orderId, processedByUserId]
         );
         
         // Get order details for customer notification
@@ -342,6 +365,20 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               console.error('Error notifying customer:', e);
             }
           }
+          
+          // Update the original message in the group to show cancelled status
+          if (groupChatId && messageId && originalMessage) {
+            try {
+              const updatedMessage = originalMessage + `\n\n❌ <b>ОТМЕНЕН</b>\nОператор: ${operatorName}\nПричина: ${text}`;
+              await bot.editMessageText(updatedMessage, {
+                chat_id: groupChatId,
+                message_id: messageId,
+                parse_mode: 'HTML'
+              });
+            } catch (e) {
+              console.error('Error updating group message:', e);
+            }
+          }
         }
         
         bot.sendMessage(chatId,
@@ -349,7 +386,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           { parse_mode: 'HTML' }
         );
         
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(stateKey);
       } catch (error) {
         console.error('Reject order error:', error);
         bot.sendMessage(chatId, '❌ Ошибка при отмене заказа');
@@ -367,7 +404,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         
         if (userResult.rows.length === 0) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
-          registrationStates.delete(getStateKey(userId));
+          registrationStates.delete(stateKey);
           return;
         }
         
@@ -385,11 +422,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           { parse_mode: 'HTML' }
         );
         
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(stateKey);
       } catch (error) {
         console.error('Save feedback error:', error);
         bot.sendMessage(chatId, '❌ Ошибка при отправке. Попробуйте позже.');
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(stateKey);
       }
     }
   });
@@ -403,7 +440,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     // Check if user is blocked
     if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
     
-    let state = registrationStates.get(getStateKey(userId));
+    let state = registrationStates.get(getStateKey(userId, chatId));
     
     // If no state but user exists, treat as checking delivery
     if (!state) {
@@ -438,7 +475,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           `😔 К сожалению, ваш адрес находится за пределами зоны доставки ресторана <b>${restaurantName}</b>.`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
         );
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(getStateKey(userId, chatId));
         return;
       }
       
@@ -451,7 +488,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           `😔 Извините, ресторан <b>${restaurantName}</b> работает с ${startTime || '??:??'} до ${endTime || '??:??'}.\n\nПопробуйте позже!`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
         );
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(getStateKey(userId, chatId));
         return;
       }
       
@@ -467,7 +504,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const token = generateLoginToken(user.id, user.username);
         const loginUrl = buildCatalogUrl(appUrl, token);
         
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(getStateKey(userId, chatId));
         
         bot.sendMessage(chatId,
           `✅ Отлично! Доставка доступна!\n\n🏪 Ресторан: <b>${restaurantName}</b>`,
@@ -504,7 +541,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId]);
       
       const newUserId = userResult.rows[0].id;
-      registrationStates.delete(getStateKey(userId));
+      registrationStates.delete(getStateKey(userId, chatId));
       
       const token = generateLoginToken(newUserId, username);
       const loginUrl = buildCatalogUrl(appUrl, token);
@@ -622,11 +659,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Handle feedback type selection
       if (data.startsWith('feedback_type_')) {
         const feedbackType = data.replace('feedback_type_', '');
-        const state = registrationStates.get(getStateKey(userId)) || {};
+        const state = registrationStates.get(getStateKey(userId, chatId)) || {};
         state.step = 'waiting_feedback_message';
         state.feedbackType = feedbackType;
         state.restaurantId = restaurantId;
-        registrationStates.set(getStateKey(userId), state);
+        registrationStates.set(getStateKey(userId, chatId), state);
         
         const typeNames = {
           complaint: 'жалоба',
@@ -644,7 +681,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       
       // Cancel feedback
       if (data === 'feedback_cancel') {
-        registrationStates.delete(getStateKey(userId));
+        registrationStates.delete(getStateKey(userId, chatId));
         bot.sendMessage(chatId, '❌ Отменено');
       }
       
@@ -652,11 +689,24 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (data.startsWith('confirm_order_')) {
         const orderId = data.split('_')[2];
         const operatorName = query.from.first_name || 'Оператор';
+        const operatorTelegramId = query.from.id;
         
-        // Update order status
+        // Find operator user by telegram_id to save processed_by
+        let processedByUserId = null;
+        try {
+          const operatorResult = await pool.query(
+            'SELECT id FROM users WHERE telegram_id = $1',
+            [operatorTelegramId]
+          );
+          if (operatorResult.rows.length > 0) {
+            processedByUserId = operatorResult.rows[0].id;
+          }
+        } catch (e) {}
+        
+        // Update order status with processed_by
         await pool.query(
-          `UPDATE orders SET status = 'preparing', processed_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [orderId]
+          `UPDATE orders SET status = 'preparing', processed_at = CURRENT_TIMESTAMP, processed_by = $2 WHERE id = $1`,
+          [orderId, processedByUserId]
         );
         
         // Get order for customer notification
@@ -677,22 +727,40 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         }
         
-        bot.editMessageReplyMarkup(
-          { inline_keyboard: [[{ text: '✅ Принят: ' + operatorName, callback_data: 'done' }]] },
-          { chat_id: chatId, message_id: query.message.message_id }
-        );
+        // Update the original message text to show status
+        try {
+          const currentMessage = query.message.text || '';
+          const updatedMessage = currentMessage + `\n\n✅ <b>ПРИНЯТ</b>\nОператор: ${operatorName}`;
+          await bot.editMessageText(updatedMessage, {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            parse_mode: 'HTML'
+          });
+        } catch (e) {
+          // Fallback to just removing buttons
+          bot.editMessageReplyMarkup(
+            { inline_keyboard: [[{ text: '✅ Принят: ' + operatorName, callback_data: 'done' }]] },
+            { chat_id: chatId, message_id: query.message.message_id }
+          );
+        }
       }
       
       // Handle order rejection
       if (data.startsWith('reject_order_')) {
         const orderId = data.split('_')[2];
         const operatorName = query.from.first_name || 'Оператор';
+        const operatorTelegramId = query.from.id;
+        const originalMessage = query.message.text || '';
         
-        registrationStates.set(getStateKey(userId), {
+        // Use chatId (group chat) in state key so we can find it when operator types
+        registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_rejection_reason',
           orderId,
           operatorName,
-          messageId: query.message.message_id
+          operatorTelegramId,
+          messageId: query.message.message_id,
+          groupChatId: chatId,
+          originalMessage
         });
         
         bot.sendMessage(chatId, `📝 Укажите причину отмены заказа #${orderId}:`);

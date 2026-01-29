@@ -1979,6 +1979,28 @@ function AdminDashboard() {
                   <strong>Сумма:</strong> {formatPrice(selectedOrder.total_amount)} сум
                 </div>
                 
+                {/* Processed by operator info */}
+                {selectedOrder.processed_by_name && (
+                  <div className="mb-3">
+                    <strong>
+                      {selectedOrder.status === 'cancelled' ? '❌ Отменил:' : '✅ Обработал:'}
+                    </strong>{' '}
+                    {selectedOrder.processed_by_name}
+                    {selectedOrder.processed_at && (
+                      <small className="text-muted ms-2">
+                        ({new Date(selectedOrder.processed_at).toLocaleString('ru-RU')})
+                      </small>
+                    )}
+                  </div>
+                )}
+                
+                {/* Admin comment (rejection reason) */}
+                {selectedOrder.admin_comment && (
+                  <div className="mb-3 p-2 bg-light rounded">
+                    <strong>Причина отмены:</strong> {selectedOrder.admin_comment}
+                  </div>
+                )}
+                
                 {/* Order Status Stepper */}
                 <div className="mb-4">
                   <strong className="d-block mb-2">Статус заказа:</strong>
