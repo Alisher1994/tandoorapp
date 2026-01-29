@@ -205,6 +205,15 @@ router.post('/', authenticate, async (req, res) => {
       dbDeliveryTime
     });
     
+    // Ensure required columns exist
+    try {
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_fee DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cost DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DECIMAL(10, 2) DEFAULT 0');
+    } catch (e) {
+      console.log('ℹ️ Orders columns check:', e.message);
+    }
+    
     // Create order
     const orderResult = await client.query(
       `INSERT INTO orders (
