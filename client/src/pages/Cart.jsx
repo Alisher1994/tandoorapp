@@ -294,55 +294,56 @@ function Cart() {
   const useCurrentLocation = () => {
     setLocationLoading(true);
     setError('');
-    
     // Try Telegram WebApp LocationManager first
     const tg = window.Telegram?.WebApp;
+    const handleCoords = (lat, lng) => {
+      setFormData(prev => ({
+        ...prev,
+        delivery_coordinates: `${lat},${lng}`
+      }));
+      setShowLocationModal(false);
+      // Открыть модалку для имени адреса, сбросить имя
+      setNewAddressForm({ name: '', address: '' });
+      setTimeout(() => setShowNewAddressModal(true), 300);
+    };
     if (tg?.LocationManager) {
       tg.LocationManager.init(() => {
         if (tg.LocationManager.isInited && tg.LocationManager.isLocationAvailable) {
           tg.LocationManager.getLocation((location) => {
             if (location) {
-              setFormData(prev => ({
-                ...prev,
-                delivery_coordinates: `${location.latitude},${location.longitude}`
-              }));
-              setShowLocationModal(false);
+              handleCoords(location.latitude, location.longitude);
             } else {
               setError('Не удалось получить геолокацию через Telegram');
             }
             setLocationLoading(false);
           });
         } else {
-          // Fallback to browser geolocation
-          fallbackToNavigatorGeolocation();
+          fallbackToNavigatorGeolocation(handleCoords);
         }
       });
       return;
     }
-    
-    // Fallback to browser geolocation
-    fallbackToNavigatorGeolocation();
+    fallbackToNavigatorGeolocation(handleCoords);
   };
   
-  const fallbackToNavigatorGeolocation = () => {
+  const fallbackToNavigatorGeolocation = (onSuccess) => {
     if (!navigator.geolocation) {
       setError('Геолокация не поддерживается');
       setLocationLoading(false);
+      alert('Геолокация отключена или не поддерживается. Включите геолокацию в настройках устройства.');
       return;
     }
-    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setFormData(prev => ({
-          ...prev,
-          delivery_coordinates: `${pos.coords.latitude},${pos.coords.longitude}`
-        }));
-        setShowLocationModal(false);
+        if (onSuccess) {
+          onSuccess(pos.coords.latitude, pos.coords.longitude);
+        }
         setLocationLoading(false);
       },
       (err) => {
         console.error('Geolocation error:', err);
         setError('Не удалось получить геолокацию. Разрешите доступ к местоположению.');
+        alert('Не удалось получить геолокацию. Включите геолокацию в настройках устройства и разрешите доступ.');
         setLocationLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -998,14 +999,14 @@ function Cart() {
               <Button 
                 variant={newAddressForm.name === 'Дом' ? 'primary' : 'outline-secondary'}
                 size="sm"
-                onClick={() => setNewAddressForm({...newAddressForm, name: language === 'uz' ? 'Uy' : 'Дом'})}
+                onClick={() => setNewAddressForm({...newAddressForm, name: ''})}
               >
                 🏠 {language === 'uz' ? 'Uy' : 'Дом'}
               </Button>
               <Button 
                 variant={newAddressForm.name === 'Работа' ? 'primary' : 'outline-secondary'}
                 size="sm"
-                onClick={() => setNewAddressForm({...newAddressForm, name: language === 'uz' ? 'Ish' : 'Работа'})}
+                onClick={() => setNewAddressForm({...newAddressForm, name: ''})}
               >
                 💼 {language === 'uz' ? 'Ish' : 'Работа'}
               </Button>
