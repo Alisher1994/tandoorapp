@@ -178,7 +178,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             reply_markup: {
               inline_keyboard: [
                 [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
-                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
+                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }],
+                [{ text: '💬 Жалобы и предложения', callback_data: 'feedback' }]
               ]
             }
           }
@@ -352,6 +353,43 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       } catch (error) {
         console.error('Reject order error:', error);
         bot.sendMessage(chatId, '❌ Ошибка при отмене заказа');
+      }
+    }
+    
+    // Handle feedback message
+    if (state.step === 'waiting_feedback_message') {
+      try {
+        // Get user info
+        const userResult = await pool.query(
+          'SELECT id, full_name, phone FROM users WHERE telegram_id = $1',
+          [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
+          bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+          registrationStates.delete(getStateKey(userId));
+          return;
+        }
+        
+        const user = userResult.rows[0];
+        
+        // Save feedback to database
+        await pool.query(`
+          INSERT INTO feedback (restaurant_id, user_id, customer_name, customer_phone, type, message)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [state.restaurantId || restaurantId, user.id, user.full_name, user.phone, state.feedbackType, text]);
+        
+        bot.sendMessage(chatId,
+          `✅ <b>Спасибо за ваше обращение!</b>\n\n` +
+          `Мы получили ваше сообщение и рассмотрим его в ближайшее время.`,
+          { parse_mode: 'HTML' }
+        );
+        
+        registrationStates.delete(getStateKey(userId));
+      } catch (error) {
+        console.error('Save feedback error:', error);
+        bot.sendMessage(chatId, '❌ Ошибка при отправке. Попробуйте позже.');
+        registrationStates.delete(getStateKey(userId));
       }
     }
   });
@@ -554,6 +592,60 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
           }
         });
+      }
+      
+      // Handle feedback
+      if (data === 'feedback') {
+        registrationStates.set(getStateKey(userId), { 
+          step: 'waiting_feedback_type',
+          restaurantId 
+        });
+        
+        bot.sendMessage(chatId,
+          `📬 <b>Жалобы и предложения</b>\n\n` +
+          `Выберите тип обращения:`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '😤 Жалоба', callback_data: 'feedback_type_complaint' }],
+                [{ text: '💡 Предложение', callback_data: 'feedback_type_suggestion' }],
+                [{ text: '❓ Вопрос', callback_data: 'feedback_type_question' }],
+                [{ text: '📝 Другое', callback_data: 'feedback_type_other' }],
+                [{ text: '❌ Отмена', callback_data: 'feedback_cancel' }]
+              ]
+            }
+          }
+        );
+      }
+      
+      // Handle feedback type selection
+      if (data.startsWith('feedback_type_')) {
+        const feedbackType = data.replace('feedback_type_', '');
+        const state = registrationStates.get(getStateKey(userId)) || {};
+        state.step = 'waiting_feedback_message';
+        state.feedbackType = feedbackType;
+        state.restaurantId = restaurantId;
+        registrationStates.set(getStateKey(userId), state);
+        
+        const typeNames = {
+          complaint: 'жалоба',
+          suggestion: 'предложение',
+          question: 'вопрос',
+          other: 'обращение'
+        };
+        
+        bot.sendMessage(chatId,
+          `📝 Тип: <b>${typeNames[feedbackType]}</b>\n\n` +
+          `Напишите ваше сообщение:`,
+          { parse_mode: 'HTML' }
+        );
+      }
+      
+      // Cancel feedback
+      if (data === 'feedback_cancel') {
+        registrationStates.delete(getStateKey(userId));
+        bot.sendMessage(chatId, '❌ Отменено');
       }
       
       // Handle order confirmation

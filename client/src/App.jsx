@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Catalog from './pages/Catalog';
 import Cart from './pages/Cart';
 import Orders from './pages/Orders';
+import Feedback from './pages/Feedback';
 import AdminDashboard from './pages/AdminDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import PrivateRoute from './components/PrivateRoute';
@@ -43,6 +44,14 @@ function App() {
             element={
               <PrivateRoute>
                 <Orders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/feedback"
+            element={
+              <PrivateRoute>
+                <Feedback />
               </PrivateRoute>
             }
           />

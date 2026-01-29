@@ -20,6 +20,7 @@ const translations = {
     menu: 'Меню',
     cart: 'Корзина',
     orders: 'Заказы',
+    feedback: 'Жалобы',
     
     // Catalog
     catalog: 'Каталог',
@@ -134,6 +135,7 @@ const translations = {
     menu: 'Menyu',
     cart: 'Savat',
     orders: 'Buyurtmalar',
+    feedback: 'Shikoyat',
     
     // Catalog
     catalog: 'Katalog',

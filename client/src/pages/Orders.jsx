@@ -284,13 +284,17 @@ function Orders() {
         
         {/* Feedback button */}
         <Card 
-          className="border-0 shadow-sm mb-3 text-center"
-          style={{ cursor: 'pointer', backgroundColor: '#f8f9fa' }}
+          className="border-0 shadow-sm mb-3 text-center mt-4"
+          style={{ 
+            cursor: 'pointer', 
+            backgroundColor: '#fff8e6',
+            border: '1px solid #f0d68a !important'
+          }}
           onClick={() => setShowFeedbackModal(true)}
         >
           <Card.Body className="py-3">
-            <span style={{ fontSize: '1.2rem' }}>💬</span>
-            <span className="ms-2">
+            <span style={{ fontSize: '1.3rem' }}>💬</span>
+            <span className="ms-2 fw-medium" style={{ color: '#8b6914' }}>
               {language === 'uz' ? 'Shikoyat va takliflar' : 'Жалобы и предложения'}
             </span>
           </Card.Body>

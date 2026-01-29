@@ -17,6 +17,7 @@ function BottomNav() {
     { path: '/', icon: '🏠', label: t('menu') },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
     { path: '/orders', icon: '📋', label: t('orders') },
+    { path: '/feedback', icon: '💬', label: t('feedback') || 'Жалобы' },
   ];
 
   return (
