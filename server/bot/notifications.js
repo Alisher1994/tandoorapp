@@ -113,6 +113,18 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
     
     // Calculate total
     const productsTotal = parseFloat(order.total_amount);
+    const deliveryCost = parseFloat(order.delivery_cost) || 0;
+    const deliveryDistanceKm = parseFloat(order.delivery_distance_km) || 0;
+    
+    // Build delivery line
+    let deliveryLine = '';
+    if (deliveryCost > 0) {
+      deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} сум`;
+      if (deliveryDistanceKm > 0) {
+        deliveryLine += ` (${deliveryDistanceKm} км)`;
+      }
+      deliveryLine += '\n';
+    }
     
     const message = 
       `<b>ID: ${order.order_number}</b>\n` +
@@ -122,6 +134,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       `📞 Телефон: ${escapeHtml(order.customer_phone)}\n` +
       `🕐 К времени: ${deliveryTime}\n\n` +
       `<b>Товары</b>\n\n${itemsList}\n\n` +
+      deliveryLine +
       `<b>Итого: ${formatPrice(productsTotal)} сум</b>\n\n` +
       (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
     

@@ -108,7 +108,9 @@ router.post('/', authenticate, async (req, res) => {
       delivery_date,
       delivery_time,
       restaurant_id,
-      service_fee
+      service_fee,
+      delivery_cost,
+      delivery_distance_km
     } = req.body;
     
     console.log('📦 Parsed data:', {
@@ -174,7 +176,7 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
-    // Calculate total (items + containers + service fee)
+    // Calculate total (items + containers + service fee + delivery)
     const itemsTotal = items.reduce((sum, item) => {
       const itemPrice = parseFloat(item.price) * parseFloat(item.quantity);
       const containerPrice = (parseFloat(item.container_price) || 0) * parseFloat(item.quantity);
@@ -182,7 +184,9 @@ router.post('/', authenticate, async (req, res) => {
     }, 0);
     
     const serviceFee = parseFloat(service_fee) || 0;
-    const totalAmount = itemsTotal + serviceFee;
+    const deliveryCost = parseFloat(delivery_cost) || 0;
+    const deliveryDistanceKm = parseFloat(delivery_distance_km) || 0;
+    const totalAmount = itemsTotal + serviceFee + deliveryCost;
     
     // Generate short order number (5 digits)
     const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
@@ -206,13 +210,15 @@ router.post('/', authenticate, async (req, res) => {
       `INSERT INTO orders (
         restaurant_id, user_id, order_number, total_amount, delivery_address, 
         delivery_coordinates, customer_name, customer_phone, 
-        payment_method, comment, delivery_date, delivery_time, status, service_fee
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        payment_method, comment, delivery_date, delivery_time, status, service_fee,
+        delivery_cost, delivery_distance_km
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         finalRestaurantId, req.user.id, orderNumber, totalAmount, delivery_address,
         delivery_coordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
-        payment_method || 'cash', comment, delivery_date, dbDeliveryTime, 'new', serviceFee
+        payment_method || 'cash', comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
+        deliveryCost, deliveryDistanceKm
       ]
     );
     

@@ -46,6 +46,9 @@ function Cart() {
   const [createdOrder, setCreatedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [restaurant, setRestaurant] = useState(null);
+  const [deliveryCost, setDeliveryCost] = useState(0);
+  const [deliveryDistance, setDeliveryDistance] = useState(0);
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
   
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
@@ -166,6 +169,36 @@ function Cart() {
 
   const hasLocation = !!mapCoordinates;
 
+  // Fetch delivery cost when coordinates change
+  useEffect(() => {
+    const fetchDeliveryCost = async () => {
+      if (!mapCoordinates || !user?.active_restaurant_id) {
+        setDeliveryCost(0);
+        setDeliveryDistance(0);
+        return;
+      }
+      
+      setDeliveryLoading(true);
+      try {
+        const res = await axios.post(`${API_URL}/delivery/calculate`, {
+          restaurant_id: user.active_restaurant_id,
+          customer_lat: mapCoordinates.lat,
+          customer_lng: mapCoordinates.lng
+        });
+        setDeliveryCost(res.data.delivery_cost || 0);
+        setDeliveryDistance(res.data.distance_km || 0);
+      } catch (e) {
+        console.error('Error fetching delivery cost:', e);
+        setDeliveryCost(0);
+        setDeliveryDistance(0);
+      } finally {
+        setDeliveryLoading(false);
+      }
+    };
+    
+    fetchDeliveryCost();
+  }, [mapCoordinates, user?.active_restaurant_id]);
+
   const useCurrentLocation = () => {
     setLocationLoading(true);
     setError('');
@@ -266,6 +299,8 @@ function Cart() {
         })),
         container_total: containerTotal,
         service_fee: serviceFee,
+        delivery_cost: deliveryCost,
+        delivery_distance_km: deliveryDistance,
         restaurant_id,
         ...formData,
         delivery_address: deliveryAddress,
@@ -683,9 +718,21 @@ function Cart() {
             </div>
           )}
           
+          {deliveryCost > 0 && (
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="text-muted">
+                🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                {deliveryDistance > 0 && <small className="ms-1">({deliveryDistance} км)</small>}
+              </span>
+              <span>
+                {deliveryLoading ? '...' : `${formatPrice(deliveryCost)} ${t('sum')}`}
+              </span>
+            </div>
+          )}
+          
           <div className="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
             <span className="text-muted fw-bold">{t('total')}:</span>
-            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0))} {t('sum')}</span>
+            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
           </div>
           
           {step === 1 ? (

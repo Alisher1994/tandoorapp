@@ -246,6 +246,17 @@ function Orders() {
                       </div>
                     )}
 
+                    {/* Delivery cost */}
+                    {parseFloat(order.delivery_cost) > 0 && (
+                      <div className="mb-2 small">
+                        <span className="text-muted">🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:</span>{' '}
+                        <strong>{formatPrice(order.delivery_cost)}</strong> {t('sum')}
+                        {parseFloat(order.delivery_distance_km) > 0 && (
+                          <span className="text-muted ms-1">({order.delivery_distance_km} км)</span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Payment method */}
                     <div className="mb-2 small">
                       <span className="text-muted">{t('payment')}:</span>{' '}

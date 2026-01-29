@@ -55,7 +55,9 @@ async function migrate() {
       'msg_delivered TEXT',
       'msg_cancelled TEXT',
       'support_username VARCHAR(100)',
-      'service_fee DECIMAL(10, 2) DEFAULT 0'
+      'service_fee DECIMAL(10, 2) DEFAULT 0',
+      'latitude DECIMAL(10, 8)',
+      'longitude DECIMAL(11, 8)'
     ];
     
     for (const col of restaurantColumns) {
@@ -157,7 +159,9 @@ async function migrate() {
       { name: 'admin_comment', type: 'TEXT' },
       { name: 'cancel_reason', type: 'TEXT' },
       { name: 'cancelled_at_status', type: 'VARCHAR(20)' },
-      { name: 'service_fee', type: 'DECIMAL(10, 2) DEFAULT 0' }
+      { name: 'service_fee', type: 'DECIMAL(10, 2) DEFAULT 0' },
+      { name: 'delivery_cost', type: 'DECIMAL(10, 2) DEFAULT 0' },
+      { name: 'delivery_distance_km', type: 'DECIMAL(10, 2)' }
     ];
     
     for (const col of orderColumns) {
