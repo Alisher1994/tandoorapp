@@ -43,7 +43,22 @@ const authenticate = async (req, res, next) => {
     const user = userResult.rows[0];
     
     if (!user.is_active) {
-      return res.status(403).json({ error: 'Аккаунт деактивирован' });
+      // Get support username from active restaurant
+      let supportUsername = 'admin';
+      if (user.active_restaurant_id) {
+        const restaurantResult = await pool.query(
+          'SELECT support_username FROM restaurants WHERE id = $1',
+          [user.active_restaurant_id]
+        );
+        if (restaurantResult.rows[0]?.support_username) {
+          supportUsername = restaurantResult.rows[0].support_username;
+        }
+      }
+      return res.status(403).json({ 
+        error: 'Аккаунт деактивирован',
+        blocked: true,
+        support_username: supportUsername
+      });
     }
     
     // Get list of restaurants user has access to (for operators and superadmins)

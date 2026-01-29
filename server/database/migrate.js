@@ -53,7 +53,8 @@ async function migrate() {
       'msg_preparing TEXT',
       'msg_delivering TEXT',
       'msg_delivered TEXT',
-      'msg_cancelled TEXT'
+      'msg_cancelled TEXT',
+      'support_username VARCHAR(100)'
     ];
     
     for (const col of restaurantColumns) {

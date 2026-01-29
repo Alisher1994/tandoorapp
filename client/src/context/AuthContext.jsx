@@ -8,6 +8,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [supportUsername, setSupportUsername] = useState(null);
 
   useEffect(() => {
     initializeAuth();
@@ -44,9 +46,16 @@ export function AuthProvider({ children }) {
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
       setUser(response.data.user);
+      setIsBlocked(false);
     } catch (error) {
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
+      // Check if user is blocked
+      if (error.response?.status === 403 && error.response?.data?.blocked) {
+        setIsBlocked(true);
+        setSupportUsername(error.response.data.support_username || 'admin');
+      } else {
+        localStorage.removeItem('token');
+        delete axios.defaults.headers.common['Authorization'];
+      }
     } finally {
       setLoading(false);
     }
@@ -121,7 +130,9 @@ export function AuthProvider({ children }) {
       isSuperAdmin,
       isOperator,
       isCustomer,
-      fetchUser
+      fetchUser,
+      isBlocked,
+      supportUsername
     }}>
       {children}
     </AuthContext.Provider>

@@ -125,7 +125,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url, support_username } = req.body;
     
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -150,8 +150,9 @@ router.put('/restaurants/:id', async (req, res) => {
           end_time = $10,
           click_url = $11,
           payme_url = $12,
+          support_username = $13,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *
     `, [
       name,
@@ -166,6 +167,7 @@ router.put('/restaurants/:id', async (req, res) => {
       end_time || null,
       click_url || null,
       payme_url || null,
+      support_username || null,
       req.params.id
     ]);
     

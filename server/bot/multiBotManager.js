@@ -100,6 +100,37 @@ async function isLocationInRestaurantZone(restaurantId, lat, lng) {
   }
 }
 
+// Check if user is blocked and send message
+async function checkBlockedUser(bot, chatId, userId, restaurantId) {
+  try {
+    const userResult = await pool.query(
+      'SELECT is_active FROM users WHERE telegram_id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length > 0 && !userResult.rows[0].is_active) {
+      // Get support username from restaurant
+      const restaurantResult = await pool.query(
+        'SELECT support_username FROM restaurants WHERE id = $1',
+        [restaurantId]
+      );
+      
+      const supportUsername = restaurantResult.rows[0]?.support_username || process.env.ADMIN_USERNAME || 'admin';
+      
+      await bot.sendMessage(chatId,
+        `🚫 <b>Ваш аккаунт заблокирован</b>\n\n` +
+        `Для связи с администратором обратитесь: @${supportUsername}`,
+        { parse_mode: 'HTML' }
+      );
+      return true; // User is blocked
+    }
+    return false; // User is not blocked
+  } catch (error) {
+    console.error('Check blocked user error:', error);
+    return false;
+  }
+}
+
 // Setup handlers for a specific bot
 function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   const appUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
@@ -117,6 +148,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     console.log(`📱 /start from user ${userId} for restaurant ${restaurantName}`);
     
     try {
+      // Check if user is blocked
+      if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
+      
       // Check if user exists
       const userResult = await pool.query(
         'SELECT * FROM users WHERE telegram_id = $1',
@@ -125,16 +159,6 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
-        
-        // Check if user is blocked
-        if (!user.is_active) {
-          bot.sendMessage(chatId, 
-            `🚫 <b>Ваш аккаунт заблокирован</b>\n\n` +
-            `Для связи с поддержкой обратитесь к администратору.`,
-            { parse_mode: 'HTML' }
-          );
-          return;
-        }
         
         // Update user's active restaurant to this bot's restaurant
         await pool.query(
@@ -190,6 +214,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const userId = msg.from.id;
     
     try {
+      // Check if user is blocked
+      if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
+      
       const userResult = await pool.query(
         'SELECT * FROM users WHERE telegram_id = $1',
         [userId]
@@ -335,6 +362,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const userId = msg.from.id;
     const location = msg.location;
     
+    // Check if user is blocked
+    if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
+    
     let state = registrationStates.get(getStateKey(userId));
     
     // If no state but user exists, treat as checking delivery
@@ -470,6 +500,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     
     try {
       bot.answerCallbackQuery(query.id);
+      
+      // Check if user is blocked
+      if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
       
       if (data === 'new_order' || data === 'check_delivery') {
         // Ask for location

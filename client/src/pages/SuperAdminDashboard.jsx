@@ -47,7 +47,8 @@ function SuperAdminDashboard() {
     start_time: '',
     end_time: '',
     click_url: '',
-    payme_url: ''
+    payme_url: '',
+    support_username: ''
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -265,7 +266,8 @@ function SuperAdminDashboard() {
         start_time: restaurant.start_time || '',
         end_time: restaurant.end_time || '',
         click_url: restaurant.click_url || '',
-        payme_url: restaurant.payme_url || ''
+        payme_url: restaurant.payme_url || '',
+        support_username: restaurant.support_username || ''
       });
     } else {
       setEditingRestaurant(null);
@@ -280,7 +282,8 @@ function SuperAdminDashboard() {
         start_time: '',
         end_time: '',
         click_url: '',
-        payme_url: ''
+        payme_url: '',
+        support_username: ''
       });
     }
     setShowRestaurantModal(true);
@@ -974,9 +977,18 @@ function SuperAdminDashboard() {
               />
               <Form.Text className="text-muted">ID группы или канала для получения заказов</Form.Text>
             </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Username администратора (для поддержки)</Form.Label>
+              <Form.Control 
+                value={restaurantForm.support_username}
+                onChange={(e) => setRestaurantForm({ ...restaurantForm, support_username: e.target.value })}
+                placeholder="admin_username"
+              />
+              <Form.Text className="text-muted">Telegram username администратора для связи (без @). Показывается заблокированным клиентам.</Form.Text>
+            </Form.Group>
             
             <hr />
-            <h6>� Способы оплаты</h6>
+            <h6> Способы оплаты</h6>
             <Form.Group className="mb-3">
               <Form.Label>
                 <img src="/click.png" alt="Click" style={{ height: 20, marginRight: 8 }} />
