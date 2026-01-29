@@ -718,14 +718,19 @@ function Cart() {
             </div>
           )}
           
-          {deliveryCost > 0 && (
+          {/* Доставка - показываем всегда когда есть координаты */}
+          {hasLocation && (
             <div className="d-flex justify-content-between align-items-center mb-2">
               <span className="text-muted">
                 🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
                 {deliveryDistance > 0 && <small className="ms-1">({deliveryDistance} км)</small>}
               </span>
               <span>
-                {deliveryLoading ? '...' : `${formatPrice(deliveryCost)} ${t('sum')}`}
+                {deliveryLoading ? (
+                  <Spinner animation="border" size="sm" />
+                ) : (
+                  `${formatPrice(deliveryCost)} ${t('sum')}`
+                )}
               </span>
             </div>
           )}
