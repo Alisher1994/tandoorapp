@@ -55,6 +55,7 @@ function SuperAdminDashboard() {
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [showCoordsMapModal, setShowCoordsMapModal] = useState(false);
   const [operatorForm, setOperatorForm] = useState({
     username: '', password: '', full_name: '', phone: '', restaurant_ids: []
   });
@@ -1039,7 +1040,7 @@ function SuperAdminDashboard() {
             <hr />
             <h6>� Координаты ресторана (для расчёта доставки)</h6>
             <Row>
-              <Col md={6}>
+              <Col md={5}>
                 <Form.Group className="mb-3">
                   <Form.Label>Широта (Latitude)</Form.Label>
                   <Form.Control 
@@ -1050,7 +1051,7 @@ function SuperAdminDashboard() {
                   />
                 </Form.Group>
               </Col>
-              <Col md={6}>
+              <Col md={5}>
                 <Form.Group className="mb-3">
                   <Form.Label>Долгота (Longitude)</Form.Label>
                   <Form.Control 
@@ -1061,9 +1062,18 @@ function SuperAdminDashboard() {
                   />
                 </Form.Group>
               </Col>
+              <Col md={2} className="d-flex align-items-end">
+                <Button 
+                  variant="outline-primary" 
+                  className="mb-3 w-100"
+                  onClick={() => setShowCoordsMapModal(true)}
+                >
+                  🗺️
+                </Button>
+              </Col>
             </Row>
             <Form.Text className="text-muted mb-3 d-block">
-              Координаты можно найти в Google Maps или Yandex.Карты. Нужны для расчёта стоимости доставки.
+              Нажмите 🗺️ чтобы указать точку ресторана на карте
             </Form.Text>
             
             <hr />
@@ -1130,6 +1140,55 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowMapModal(false)}>Готово</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Restaurant Coordinates Map Modal */}
+      <Modal show={showCoordsMapModal} onHide={() => setShowCoordsMapModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>📍 Укажите местоположение ресторана</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div style={{ height: '400px', width: '100%' }}>
+            <iframe
+              title="Выбор координат"
+              src={`https://yandex.ru/map-widget/v1/?pt=${restaurantForm.longitude || '69.2401'},${restaurantForm.latitude || '41.3111'}&z=14&l=map`}
+              width="100%"
+              height="100%"
+              frameBorder="0"
+              style={{ borderRadius: '8px' }}
+            />
+          </div>
+          <Alert variant="info" className="mt-3">
+            <strong>Как найти координаты:</strong>
+            <ol className="mb-0 mt-2">
+              <li>Откройте <a href="https://yandex.uz/maps" target="_blank" rel="noopener noreferrer">Yandex Карты</a> или <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a></li>
+              <li>Найдите ваш ресторан на карте</li>
+              <li>Кликните правой кнопкой мыши → "Что здесь?"</li>
+              <li>Скопируйте координаты (например: 41.311081, 69.240562)</li>
+              <li>Первое число — широта, второе — долгота</li>
+            </ol>
+          </Alert>
+          <Form.Group className="mt-3">
+            <Form.Label>Или вставьте координаты через запятую:</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="41.311081, 69.240562"
+              onBlur={(e) => {
+                const coords = e.target.value.split(',').map(c => c.trim());
+                if (coords.length === 2) {
+                  const lat = parseFloat(coords[0]);
+                  const lng = parseFloat(coords[1]);
+                  if (!isNaN(lat) && !isNaN(lng)) {
+                    setRestaurantForm({ ...restaurantForm, latitude: lat.toString(), longitude: lng.toString() });
+                  }
+                }
+              }}
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCoordsMapModal(false)}>Готово</Button>
         </Modal.Footer>
       </Modal>
 
