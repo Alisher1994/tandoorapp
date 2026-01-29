@@ -1358,4 +1358,66 @@ router.get('/feedback/stats', async (req, res) => {
   }
 });
 
+// =====================================================
+// USER PROFILE LOGS (история изменений профиля)
+// =====================================================
+
+// Get profile change logs for a specific user
+router.get('/user/:userId/profile-logs', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        id,
+        field_name,
+        old_value,
+        new_value,
+        changed_via,
+        created_at
+      FROM user_profile_logs 
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get user profile logs error:', error);
+    res.status(500).json({ error: 'Ошибка получения логов' });
+  }
+});
+
+// Get all profile change logs (for current restaurant's customers)
+router.get('/profile-logs', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    
+    const result = await pool.query(`
+      SELECT 
+        pl.id,
+        pl.user_id,
+        u.full_name as user_name,
+        u.phone as user_phone,
+        pl.field_name,
+        pl.old_value,
+        pl.new_value,
+        pl.changed_via,
+        pl.created_at
+      FROM user_profile_logs pl
+      JOIN users u ON pl.user_id = u.id
+      WHERE EXISTS (
+        SELECT 1 FROM user_restaurants ur 
+        WHERE ur.user_id = u.id AND ur.restaurant_id = $1
+      )
+      ORDER BY pl.created_at DESC
+      LIMIT 100
+    `, [restaurantId]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get profile logs error:', error);
+    res.status(500).json({ error: 'Ошибка получения логов' });
+  }
+});
+
 module.exports = router;

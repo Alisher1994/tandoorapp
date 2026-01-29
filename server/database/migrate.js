@@ -269,6 +269,23 @@ async function migrate() {
     console.log('✅ Feedback table ready');
     
     // =====================================================
+    // Step 4.6: Create user_profile_logs table for tracking profile changes
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_profile_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        field_name VARCHAR(50) NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        changed_via VARCHAR(20) DEFAULT 'bot',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ User_profile_logs table ready');
+    
+    // =====================================================
     // Step 5: Update user roles - change 'admin' to 'superadmin'
     // =====================================================
     

@@ -187,6 +187,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               inline_keyboard: [
                 [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
                 [{ text: '📋 Мои заказы', callback_data: 'my_orders' }],
+                [{ text: '⚙️ Изменить данные', callback_data: 'edit_profile' }],
                 [{ text: '💬 Жалобы и предложения', callback_data: 'feedback' }]
               ]
             }
@@ -270,17 +271,67 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const userId = msg.from.id;
     const contact = msg.contact;
     
-    const state = registrationStates.get(getStateKey(userId, chatId));
-    if (!state || state.step !== 'waiting_contact') return;
+    let state = registrationStates.get(getStateKey(userId, chatId));
+    let stateKey = getStateKey(userId, chatId);
     
-    state.phone = contact.phone_number;
-    state.step = 'waiting_name';
-    registrationStates.set(getStateKey(userId, chatId), state);
+    // Registration contact flow
+    if (state && state.step === 'waiting_contact') {
+      state.phone = contact.phone_number;
+      state.step = 'waiting_name';
+      registrationStates.set(stateKey, state);
+      
+      bot.sendMessage(chatId, 
+        '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
+        { reply_markup: { remove_keyboard: true } }
+      );
+      return;
+    }
     
-    bot.sendMessage(chatId, 
-      '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
-      { reply_markup: { remove_keyboard: true } }
-    );
+    // Phone update flow
+    if (state && state.step === 'waiting_new_phone') {
+      try {
+        // Get current user data
+        const userResult = await pool.query(
+          'SELECT id, phone FROM users WHERE telegram_id = $1',
+          [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
+          bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start', { reply_markup: { remove_keyboard: true } });
+          registrationStates.delete(stateKey);
+          return;
+        }
+        
+        const user = userResult.rows[0];
+        const oldPhone = user.phone;
+        const newPhone = contact.phone_number;
+        
+        // Log the change
+        await pool.query(`
+          INSERT INTO user_profile_logs (user_id, field_name, old_value, new_value, changed_via)
+          VALUES ($1, 'phone', $2, $3, 'bot')
+        `, [user.id, oldPhone, newPhone]);
+        
+        // Update user phone
+        await pool.query(
+          'UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [newPhone, user.id]
+        );
+        
+        bot.sendMessage(chatId,
+          `✅ <b>Телефон успешно изменен!</b>\n\n` +
+          `Было: ${oldPhone}\n` +
+          `Стало: ${newPhone}`,
+          { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+        );
+        
+        registrationStates.delete(stateKey);
+      } catch (error) {
+        console.error('Update phone error:', error);
+        bot.sendMessage(chatId, '❌ Ошибка при обновлении. Попробуйте позже.', { reply_markup: { remove_keyboard: true } });
+        registrationStates.delete(stateKey);
+      }
+    }
   });
   
   // Handle text messages
@@ -434,6 +485,52 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       } catch (error) {
         console.error('Save feedback error:', error);
         bot.sendMessage(chatId, '❌ Ошибка при отправке. Попробуйте позже.');
+        registrationStates.delete(stateKey);
+      }
+    }
+    
+    // Handle new name input
+    if (state.step === 'waiting_new_name') {
+      try {
+        // Get current user data
+        const userResult = await pool.query(
+          'SELECT id, full_name FROM users WHERE telegram_id = $1',
+          [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
+          bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+          registrationStates.delete(stateKey);
+          return;
+        }
+        
+        const user = userResult.rows[0];
+        const oldName = user.full_name;
+        const newName = text.trim();
+        
+        // Log the change
+        await pool.query(`
+          INSERT INTO user_profile_logs (user_id, field_name, old_value, new_value, changed_via)
+          VALUES ($1, 'full_name', $2, $3, 'bot')
+        `, [user.id, oldName, newName]);
+        
+        // Update user name
+        await pool.query(
+          'UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [newName, user.id]
+        );
+        
+        bot.sendMessage(chatId,
+          `✅ <b>Имя успешно изменено!</b>\n\n` +
+          `Было: ${oldName}\n` +
+          `Стало: ${newName}`,
+          { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+        );
+        
+        registrationStates.delete(stateKey);
+      } catch (error) {
+        console.error('Update name error:', error);
+        bot.sendMessage(chatId, '❌ Ошибка при обновлении. Попробуйте позже.');
         registrationStates.delete(stateKey);
       }
     }
@@ -698,6 +795,74 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (data === 'feedback_cancel') {
         registrationStates.delete(getStateKey(userId, chatId));
         bot.sendMessage(chatId, '❌ Отменено');
+      }
+      
+      // Handle edit profile
+      if (data === 'edit_profile') {
+        const userResult = await pool.query('SELECT full_name, phone FROM users WHERE telegram_id = $1', [userId]);
+        if (userResult.rows.length === 0) {
+          bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+          return;
+        }
+        const user = userResult.rows[0];
+        
+        bot.sendMessage(chatId,
+          `⚙️ <b>Ваши данные:</b>\n\n` +
+          `👤 Имя: ${user.full_name}\n` +
+          `📱 Телефон: ${user.phone}\n\n` +
+          `Выберите, что хотите изменить:`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
+                [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
+                [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
+              ]
+            }
+          }
+        );
+      }
+      
+      // Handle edit name
+      if (data === 'edit_name') {
+        registrationStates.set(getStateKey(userId, chatId), { 
+          step: 'waiting_new_name',
+          restaurantId 
+        });
+        
+        bot.sendMessage(chatId,
+          `✏️ Введите новое имя:`,
+          { parse_mode: 'HTML' }
+        );
+      }
+      
+      // Handle edit phone
+      if (data === 'edit_phone') {
+        registrationStates.set(getStateKey(userId, chatId), { 
+          step: 'waiting_new_phone',
+          restaurantId 
+        });
+        
+        bot.sendMessage(chatId,
+          `📱 Поделитесь новым номером телефона:`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              keyboard: [[
+                { text: '📱 Поделиться контактом', request_contact: true }
+              ]],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            }
+          }
+        );
+      }
+      
+      // Handle cancel edit
+      if (data === 'edit_cancel') {
+        registrationStates.delete(getStateKey(userId, chatId));
+        bot.sendMessage(chatId, '❌ Отменено', { reply_markup: { remove_keyboard: true } });
       }
       
       // Handle order confirmation
