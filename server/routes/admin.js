@@ -1005,10 +1005,10 @@ router.post('/broadcast', async (req, res) => {
     }
     
     const restaurant = restaurantResult.rows[0];
-    const botToken = restaurant.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN;
+    const botToken = restaurant.telegram_bot_token;
     
     if (!botToken) {
-      return res.status(400).json({ error: 'Telegram бот не настроен для этого ресторана' });
+      return res.status(400).json({ error: 'Telegram бот не настроен для этого ресторана. Добавьте токен бота в настройках.' });
     }
     
     // Get all customers who have interacted with this restaurant

@@ -1,8 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 
-const DEFAULT_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID;
-
 // Cache for restaurant-specific bots
 const restaurantBots = new Map();
 
@@ -70,10 +68,13 @@ function escapeHtml(text) {
  * Send order notification to admin group with action buttons
  */
 async function sendOrderNotification(order, items, chatId = null, botToken = null) {
-  const targetChatId = chatId || DEFAULT_ADMIN_CHAT_ID;
-  
-  if (!targetChatId) {
+  if (!chatId) {
     console.warn('⚠️  No chat ID for notifications, skipping');
+    return;
+  }
+  
+  if (!botToken) {
+    console.warn('⚠️  No bot token for notifications, skipping');
     return;
   }
   
@@ -134,9 +135,9 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       ]
     };
     
-    console.log(`📤 Sending order ${order.id} notification to ${targetChatId} with buttons`);
+    console.log(`📤 Sending order ${order.id} notification to ${chatId} with buttons`);
     
-    const result = await bot.sendMessage(targetChatId, message, { 
+    const result = await bot.sendMessage(chatId, message, { 
       parse_mode: 'HTML',
       disable_web_page_preview: true,
       reply_markup: keyboard
@@ -148,7 +149,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
           `UPDATE orders 
            SET admin_message_id = $1, admin_chat_id = $2 
            WHERE id = $3`,
-          [result.message_id, String(targetChatId), order.id]
+          [result.message_id, String(chatId), order.id]
         );
       } catch (e) {
         console.error('Failed to store admin message id:', e.message);
@@ -276,15 +277,20 @@ async function updateOrderNotificationForCustomerCancel(order, botToken = null, 
     return;
   }
 
-  const targetChatId = order?.admin_chat_id || fallbackChatId || DEFAULT_ADMIN_CHAT_ID;
+  const targetChatId = order?.admin_chat_id || fallbackChatId;
   const messageId = order?.admin_message_id;
+  
+  if (!targetChatId) {
+    console.warn('⚠️  No chat ID for group update, skipping');
+    return;
+  }
 
   const message =
     `❌ <b>Клиент отменил заказ #${order.order_number}</b>\n\n` +
     `Статус: Отменен клиентом`;
 
   try {
-    if (targetChatId && messageId) {
+    if (messageId) {
       await bot.editMessageText(message, {
         chat_id: targetChatId,
         message_id: messageId,
@@ -292,7 +298,7 @@ async function updateOrderNotificationForCustomerCancel(order, botToken = null, 
         disable_web_page_preview: true,
         reply_markup: { inline_keyboard: [] }
       });
-    } else if (targetChatId) {
+    } else {
       await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
     }
   } catch (error) {

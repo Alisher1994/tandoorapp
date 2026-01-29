@@ -286,8 +286,8 @@ async function migrate() {
       `, [
         process.env.DEFAULT_RESTAURANT_NAME || 'Основной ресторан',
         process.env.DEFAULT_RESTAURANT_ADDRESS || '',
-        process.env.TELEGRAM_BOT_TOKEN || '',
-        process.env.TELEGRAM_ADMIN_CHAT_ID || ''
+        '', // Token should be set in admin panel, not from env
+        ''  // Group ID should be set in admin panel, not from env
       ]);
       defaultRestaurantId = restaurantResult.rows[0].id;
       console.log(`✅ Default restaurant created with ID: ${defaultRestaurantId}`);
