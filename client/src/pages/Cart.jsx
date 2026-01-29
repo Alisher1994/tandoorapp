@@ -652,18 +652,11 @@ function Cart() {
         <Form onSubmit={handleSubmit}>
           <Card className="border-0 shadow-sm mb-3">
             <Card.Body>
-              {/* Мои адреса */}
+              {/* Адрес доставки */}
               <div className="mb-3">
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="small text-muted">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</span>
-                  {savedAddresses.length > 0 && (
-                    <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
-                      {language === 'uz' ? 'Manzillarim' : 'Мои адреса'} ({savedAddresses.length})
-                    </Button>
-                  )}
-                </div>
+                <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
                 
-                {/* Выбранный адрес или карта */}
+                {/* Если есть выбранный адрес */}
                 {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
                   <div className="p-3 bg-light rounded mb-2">
                     <div className="d-flex align-items-start">
@@ -672,61 +665,21 @@ function Cart() {
                         <div className="fw-bold">{savedAddresses.find(a => a.id === selectedAddressId)?.name}</div>
                         <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
                       </div>
-                      <Button variant="link" size="sm" className="p-0" onClick={() => setShowAddressModal(true)}>
+                      <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowLocationModal(true)}>
                         {language === 'uz' ? "O'zgartirish" : 'Изменить'}
                       </Button>
                     </div>
                   </div>
-                ) : hasLocation ? (
+                ) : savedAddresses.length > 0 ? (
+                  /* Есть сохранённые адреса но не выбран - быстрый выбор */
                   <div className="mb-2">
-                    <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #eee' }}>
-                      <iframe
-                        title="map"
-                        src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
-                        width="100%"
-                        height="150"
-                        frameBorder="0"
-                      />
-                    </div>
-                    <div className="d-flex gap-2">
-                      <Button 
-                        variant="outline-secondary" 
-                        size="sm" 
-                        className="flex-fill"
-                        onClick={() => setShowLocationModal(true)}
-                      >
-                        📍 {t('changePoint')}
-                      </Button>
-                      <Button 
-                        variant="outline-primary" 
-                        size="sm" 
-                        className="flex-fill"
-                        onClick={() => setShowNewAddressModal(true)}
-                      >
-                        💾 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button 
-                    variant="outline-primary" 
-                    className="w-100 mb-2"
-                    onClick={() => setShowLocationModal(true)}
-                  >
-                    📍 {t('specifyLocation')}
-                  </Button>
-                )}
-                
-                {/* Быстрый выбор из сохранённых адресов */}
-                {savedAddresses.length > 0 && !selectedAddressId && (
-                  <div className="mt-2">
-                    <div className="small text-muted mb-2">{language === 'uz' ? 'Tezkor tanlash' : 'Быстрый выбор'}:</div>
-                    <div className="d-flex flex-wrap gap-2">
+                    <div className="d-flex flex-wrap gap-2 mb-2">
                       {savedAddresses.slice(0, 3).map(addr => (
                         <Button
                           key={addr.id}
                           variant="outline-secondary"
                           size="sm"
+                          className="d-flex align-items-center"
                           onClick={() => selectAddress(addr)}
                         >
                           {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
@@ -734,7 +687,23 @@ function Cart() {
                         </Button>
                       ))}
                     </div>
+                    <Button 
+                      variant="outline-primary" 
+                      size="sm"
+                      onClick={() => setShowLocationModal(true)}
+                    >
+                      ➕ {language === 'uz' ? "Yangi manzil" : 'Новый адрес'}
+                    </Button>
                   </div>
+                ) : (
+                  /* Нет адресов - показать кнопку Новый адрес */
+                  <Button 
+                    variant="primary" 
+                    className="w-100"
+                    onClick={() => setShowLocationModal(true)}
+                  >
+                    ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
+                  </Button>
                 )}
               </div>
 
