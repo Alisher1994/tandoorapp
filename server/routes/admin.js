@@ -889,14 +889,18 @@ router.post('/broadcast', async (req, res) => {
       return res.status(400).json({ error: 'Telegram бот не настроен для этого ресторана' });
     }
     
-    // Get all customers who have ordered from this restaurant
+    // Get all customers who have interacted with this restaurant
+    // Either they ordered from it, or it's their active restaurant (they pressed /start)
     const customersResult = await pool.query(`
       SELECT DISTINCT u.telegram_id, u.full_name
       FROM users u
-      INNER JOIN orders o ON u.id = o.user_id
-      WHERE o.restaurant_id = $1 
-        AND u.telegram_id IS NOT NULL 
+      WHERE u.telegram_id IS NOT NULL 
         AND u.is_active = true
+        AND u.role = 'customer'
+        AND (
+          u.active_restaurant_id = $1
+          OR u.id IN (SELECT DISTINCT user_id FROM orders WHERE restaurant_id = $1)
+        )
     `, [restaurantId]);
     
     const customers = customersResult.rows;
