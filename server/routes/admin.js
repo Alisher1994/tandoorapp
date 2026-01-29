@@ -920,6 +920,8 @@ router.post('/broadcast', async (req, res) => {
     
     const broadcastMessage = `📢 <b>${restaurant.name}</b>\n\n${message}`;
     
+    const errors = [];
+    
     for (const customer of customers) {
       try {
         if (image_url) {
@@ -939,7 +941,8 @@ router.post('/broadcast', async (req, res) => {
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (err) {
-        console.error(`Failed to send to ${customer.telegram_id}:`, err.message);
+        console.error(`Failed to send to ${customer.telegram_id} (${customer.full_name}):`, err.message);
+        errors.push({ user: customer.full_name, error: err.message });
         failed++;
       }
     }
@@ -952,7 +955,7 @@ router.post('/broadcast', async (req, res) => {
       entityType: 'notification',
       entityId: null,
       entityName: 'Рассылка',
-      newValues: { message, sent, failed, total: customers.length },
+      newValues: { message, sent, failed, total: customers.length, errors },
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
@@ -961,7 +964,8 @@ router.post('/broadcast', async (req, res) => {
       message: 'Рассылка завершена',
       sent,
       failed,
-      total: customers.length
+      total: customers.length,
+      errors: errors.slice(0, 5) // Return first 5 errors for debugging
     });
   } catch (error) {
     console.error('Broadcast error:', error);
