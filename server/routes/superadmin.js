@@ -136,42 +136,84 @@ router.put('/restaurants/:id', async (req, res) => {
     
     console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
     
-    const result = await pool.query(`
-      UPDATE restaurants 
-      SET name = COALESCE($1, name),
-          address = COALESCE($2, address),
-          phone = COALESCE($3, phone),
-          logo_url = $4,
-          delivery_zone = $5,
-          telegram_bot_token = COALESCE($6, telegram_bot_token),
-          telegram_group_id = COALESCE($7, telegram_group_id),
-          is_active = COALESCE($8, is_active),
-          start_time = $9,
-          end_time = $10,
-          click_url = $11,
-          payme_url = $12,
-          support_username = $13,
-          service_fee = $14,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $15
-      RETURNING *
-    `, [
-      name,
-      address,
-      phone,
-      logo_url,
-      delivery_zone ? JSON.stringify(delivery_zone) : null,
-      telegram_bot_token,
-      telegram_group_id,
-      is_active,
-      start_time || null,
-      end_time || null,
-      click_url || null,
-      payme_url || null,
-      support_username || null,
-      parseFloat(service_fee) || 0,
-      req.params.id
-    ]);
+    // Check if service_fee column exists
+    const hasServiceFee = oldValues.hasOwnProperty('service_fee');
+    
+    let result;
+    if (hasServiceFee) {
+      result = await pool.query(`
+        UPDATE restaurants 
+        SET name = COALESCE($1, name),
+            address = COALESCE($2, address),
+            phone = COALESCE($3, phone),
+            logo_url = $4,
+            delivery_zone = $5,
+            telegram_bot_token = COALESCE($6, telegram_bot_token),
+            telegram_group_id = COALESCE($7, telegram_group_id),
+            is_active = COALESCE($8, is_active),
+            start_time = $9,
+            end_time = $10,
+            click_url = $11,
+            payme_url = $12,
+            support_username = $13,
+            service_fee = $14,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $15
+        RETURNING *
+      `, [
+        name,
+        address,
+        phone,
+        logo_url,
+        delivery_zone ? JSON.stringify(delivery_zone) : null,
+        telegram_bot_token,
+        telegram_group_id,
+        is_active,
+        start_time || null,
+        end_time || null,
+        click_url || null,
+        payme_url || null,
+        support_username || null,
+        parseFloat(service_fee) || 0,
+        req.params.id
+      ]);
+    } else {
+      // Fallback without service_fee column
+      result = await pool.query(`
+        UPDATE restaurants 
+        SET name = COALESCE($1, name),
+            address = COALESCE($2, address),
+            phone = COALESCE($3, phone),
+            logo_url = $4,
+            delivery_zone = $5,
+            telegram_bot_token = COALESCE($6, telegram_bot_token),
+            telegram_group_id = COALESCE($7, telegram_group_id),
+            is_active = COALESCE($8, is_active),
+            start_time = $9,
+            end_time = $10,
+            click_url = $11,
+            payme_url = $12,
+            support_username = $13,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $14
+        RETURNING *
+      `, [
+        name,
+        address,
+        phone,
+        logo_url,
+        delivery_zone ? JSON.stringify(delivery_zone) : null,
+        telegram_bot_token,
+        telegram_group_id,
+        is_active,
+        start_time || null,
+        end_time || null,
+        click_url || null,
+        payme_url || null,
+        support_username || null,
+        req.params.id
+      ]);
+    }
     
     const restaurant = result.rows[0];
     
