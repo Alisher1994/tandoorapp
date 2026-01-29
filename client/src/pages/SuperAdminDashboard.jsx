@@ -48,7 +48,8 @@ function SuperAdminDashboard() {
     end_time: '',
     click_url: '',
     payme_url: '',
-    support_username: ''
+    support_username: '',
+    service_fee: 0
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
@@ -267,7 +268,8 @@ function SuperAdminDashboard() {
         end_time: restaurant.end_time || '',
         click_url: restaurant.click_url || '',
         payme_url: restaurant.payme_url || '',
-        support_username: restaurant.support_username || ''
+        support_username: restaurant.support_username || '',
+        service_fee: restaurant.service_fee || 0
       });
     } else {
       setEditingRestaurant(null);
@@ -283,7 +285,8 @@ function SuperAdminDashboard() {
         end_time: '',
         click_url: '',
         payme_url: '',
-        support_username: ''
+        support_username: '',
+        service_fee: 0
       });
     }
     setShowRestaurantModal(true);
@@ -1014,8 +1017,21 @@ function SuperAdminDashboard() {
               <Form.Text className="text-muted">Ссылка для оплаты через Payme</Form.Text>
             </Form.Group>
             
+            <Form.Group className="mb-3">
+              <Form.Label>🛎 Стоимость сервиса (сум)</Form.Label>
+              <Form.Control 
+                type="number"
+                min="0"
+                step="1000"
+                value={restaurantForm.service_fee}
+                onChange={(e) => setRestaurantForm({ ...restaurantForm, service_fee: parseFloat(e.target.value) || 0 })}
+                placeholder="0"
+              />
+              <Form.Text className="text-muted">Если 0, услуга сервиса не отображается клиентам</Form.Text>
+            </Form.Group>
+            
             <hr />
-            <h6>�🗺️ Зона доставки</h6>
+            <h6>🗺️ Зона доставки</h6>
             <Form.Group className="mb-3">
               <div className="d-flex align-items-center gap-2 mb-2">
                 {restaurantForm.delivery_zone ? (

@@ -251,6 +251,9 @@ function Cart() {
       // Если нет адреса но есть локация - указываем что доставка по локации
       const deliveryAddress = formData.delivery_address || (hasLocation ? 'По геолокации' : '');
       
+      // Calculate service fee
+      const serviceFee = parseFloat(restaurant?.service_fee) || 0;
+      
       const orderData = {
         items: cart.map(item => ({
           product_id: item.id,
@@ -262,6 +265,7 @@ function Cart() {
           container_price: item.container_price || 0
         })),
         container_total: containerTotal,
+        service_fee: serviceFee,
         restaurant_id,
         ...formData,
         delivery_address: deliveryAddress,
@@ -677,9 +681,16 @@ function Cart() {
             </div>
           )}
           
+          {parseFloat(restaurant?.service_fee) > 0 && (
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
+              <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
+            </div>
+          )}
+          
           <div className="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
             <span className="text-muted fw-bold">{t('total')}:</span>
-            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal)} {t('sum')}</span>
+            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0))} {t('sum')}</span>
           </div>
           
           {step === 1 ? (

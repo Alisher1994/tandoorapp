@@ -54,7 +54,8 @@ async function migrate() {
       'msg_delivering TEXT',
       'msg_delivered TEXT',
       'msg_cancelled TEXT',
-      'support_username VARCHAR(100)'
+      'support_username VARCHAR(100)',
+      'service_fee DECIMAL(10, 2) DEFAULT 0'
     ];
     
     for (const col of restaurantColumns) {
@@ -155,7 +156,8 @@ async function migrate() {
       { name: 'admin_chat_id', type: 'TEXT' },
       { name: 'admin_comment', type: 'TEXT' },
       { name: 'cancel_reason', type: 'TEXT' },
-      { name: 'cancelled_at_status', type: 'VARCHAR(20)' }
+      { name: 'cancelled_at_status', type: 'VARCHAR(20)' },
+      { name: 'service_fee', type: 'DECIMAL(10, 2) DEFAULT 0' }
     ];
     
     for (const col of orderColumns) {

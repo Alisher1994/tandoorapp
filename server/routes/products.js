@@ -72,7 +72,7 @@ router.get('/', async (req, res) => {
 router.get('/restaurant/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, address, phone, logo_url 
+      `SELECT id, name, address, phone, logo_url, service_fee, click_url, payme_url 
        FROM restaurants 
        WHERE id = $1`,
       [req.params.id]
@@ -114,7 +114,7 @@ router.get('/:id', async (req, res) => {
 router.get('/restaurants/list', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, name, address, phone, logo_url 
+      SELECT id, name, address, phone, logo_url, service_fee 
       FROM restaurants 
       WHERE is_active = true 
       ORDER BY name
