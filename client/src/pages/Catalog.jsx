@@ -399,7 +399,8 @@ function Catalog() {
   return (
     <>
       <Navbar 
-        bg="white" 
+        bg="dark" 
+        variant="dark"
         expand="lg" 
         className="shadow-sm mb-0"
         style={{
@@ -412,7 +413,7 @@ function Catalog() {
           WebkitBackfaceVisibility: 'hidden'
         }}
       >
-        <Container className="d-flex justify-content-between align-items-center">
+        <div className="d-flex justify-content-between align-items-center w-100 px-3">
           {/* Empty space for balance */}
           <div style={{ width: '40px' }} />
           
@@ -449,8 +450,57 @@ function Catalog() {
               style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
             />
           </button>
-        </Container>
+        </div>
       </Navbar>
+
+      {/* Categories - sticky horizontal scroll on full width */}
+      {selectedRestaurant && nonEmptyCategories.length > 0 && (
+        <div 
+          ref={categoryNavRef}
+          className="pb-2 bg-white" 
+          style={{ 
+            position: 'sticky',
+            top: 56,
+            zIndex: 1000,
+            overflowX: 'auto', 
+            whiteSpace: 'nowrap',
+            paddingTop: '12px',
+            paddingBottom: '8px',
+            paddingLeft: '12px',
+            paddingRight: '12px',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch',
+            borderBottom: '1px solid var(--border-color)',
+            /* GPU acceleration for smooth scrolling on iOS */
+            transform: 'translateZ(0)',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden'
+          }}
+        >
+          <Button
+            variant={selectedCategory === null && activeCategory === null ? 'primary' : 'outline-primary'}
+            className="me-2 mb-2"
+            size="sm"
+            onClick={() => scrollToCategory(null)}
+          >
+            🍴 {language === 'uz' ? 'Hammasi' : 'Все'}
+          </Button>
+          {nonEmptyCategories.map(category => (
+            <Button
+              key={category.id}
+              data-category={category.id}
+              variant={(selectedCategory === category.id || activeCategory === category.id) ? 'primary' : 'outline-primary'}
+              className="me-2 mb-2"
+              size="sm"
+              onClick={() => scrollToCategory(category.id)}
+            >
+              {language === 'uz' && category.name_uz ? category.name_uz : category.name_ru}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <Container>
         {/* No restaurants */}
@@ -466,52 +516,6 @@ function Catalog() {
 
         {selectedRestaurant && (
           <>
-            {/* Categories - sticky horizontal scroll (only show non-empty) */}
-            {nonEmptyCategories.length > 0 && (
-              <div 
-                ref={categoryNavRef}
-                className="pb-2 bg-white" 
-                style={{ 
-                  position: 'sticky',
-                  top: 56,
-                  zIndex: 1000,
-                  overflowX: 'auto', 
-                  whiteSpace: 'nowrap',
-                  paddingTop: '12px',
-                  paddingBottom: '8px',
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none',
-                  WebkitOverflowScrolling: 'touch',
-                  borderBottom: '1px solid var(--border-color)',
-                  /* GPU acceleration for smooth scrolling on iOS */
-                  transform: 'translateZ(0)',
-                  willChange: 'transform',
-                  backfaceVisibility: 'hidden',
-                  WebkitBackfaceVisibility: 'hidden'
-                }}
-              >
-                <Button
-                  variant={selectedCategory === null && activeCategory === null ? 'primary' : 'outline-primary'}
-                  className="me-2 mb-2"
-                  size="sm"
-                  onClick={() => scrollToCategory(null)}
-                >
-                  🍴 {language === 'uz' ? 'Hammasi' : 'Все'}
-                </Button>
-                {nonEmptyCategories.map(category => (
-                  <Button
-                    key={category.id}
-                    data-category={category.id}
-                    variant={(selectedCategory === category.id || activeCategory === category.id) ? 'primary' : 'outline-primary'}
-                    className="me-2 mb-2"
-                    size="sm"
-                    onClick={() => scrollToCategory(category.id)}
-                  >
-                    {language === 'uz' && category.name_uz ? category.name_uz : category.name_ru}
-                  </Button>
-                ))}
-              </div>
-            )}
 
             {/* Loading */}
             {loading && (
