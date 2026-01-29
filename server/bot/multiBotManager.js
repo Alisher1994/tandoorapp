@@ -166,6 +166,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           [restaurantId, user.id]
         );
         
+        // Track user-restaurant relationship for broadcast
+        await pool.query(`
+          INSERT INTO user_restaurants (user_id, restaurant_id, last_interaction)
+          VALUES ($1, $2, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, restaurant_id) 
+          DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
+        `, [user.id, restaurantId]);
+        
         // Generate login URL
         const token = generateLoginToken(user.id, user.username);
         const loginUrl = buildCatalogUrl(appUrl, token);
@@ -542,6 +550,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       
       const newUserId = userResult.rows[0].id;
       registrationStates.delete(getStateKey(userId, chatId));
+      
+      // Track user-restaurant relationship for broadcast
+      await pool.query(`
+        INSERT INTO user_restaurants (user_id, restaurant_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, restaurant_id) DO NOTHING
+      `, [newUserId, restaurantId]);
       
       const token = generateLoginToken(newUserId, username);
       const loginUrl = buildCatalogUrl(appUrl, token);

@@ -890,7 +890,7 @@ router.post('/broadcast', async (req, res) => {
     }
     
     // Get all customers who have interacted with this restaurant
-    // Either they ordered from it, or it's their active restaurant (they pressed /start)
+    // From user_restaurants table, or active_restaurant_id, or orders
     const customersResult = await pool.query(`
       SELECT DISTINCT u.telegram_id, u.full_name
       FROM users u
@@ -900,6 +900,7 @@ router.post('/broadcast', async (req, res) => {
         AND (
           u.active_restaurant_id = $1
           OR u.id IN (SELECT DISTINCT user_id FROM orders WHERE restaurant_id = $1)
+          OR u.id IN (SELECT DISTINCT user_id FROM user_restaurants WHERE restaurant_id = $1)
         )
     `, [restaurantId]);
     

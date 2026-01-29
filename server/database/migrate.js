@@ -164,6 +164,22 @@ async function migrate() {
     console.log('✅ Operator_restaurants table ready');
     
     // =====================================================
+    // Step 3.5: Create user_restaurants table for tracking customer-restaurant relationships
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_restaurants (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        first_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, restaurant_id)
+      )
+    `);
+    console.log('✅ User_restaurants table ready');
+    
+    // =====================================================
     // Step 4: Create activity_logs table
     // =====================================================
     
