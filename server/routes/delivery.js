@@ -63,6 +63,8 @@ router.post('/calculate', async (req, res) => {
   try {
     const { restaurant_id, customer_lat, customer_lng } = req.body;
     
+    console.log('🚗 Delivery calculate request:', { restaurant_id, customer_lat, customer_lng });
+    
     if (!restaurant_id || !customer_lat || !customer_lng) {
       return res.status(400).json({ 
         error: 'Необходимы параметры: restaurant_id, customer_lat, customer_lng' 
@@ -78,10 +80,19 @@ router.post('/calculate', async (req, res) => {
     );
     
     if (result.rows.length === 0) {
+      console.log('❌ Restaurant not found:', restaurant_id);
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     
     const restaurant = result.rows[0];
+    console.log('📍 Restaurant data:', { 
+      name: restaurant.name,
+      lat: restaurant.latitude, 
+      lng: restaurant.longitude,
+      delivery_base_radius: restaurant.delivery_base_radius,
+      delivery_base_price: restaurant.delivery_base_price,
+      delivery_price_per_km: restaurant.delivery_price_per_km
+    });
     
     // Используем настройки ресторана или дефолтные значения
     const baseRadius = parseFloat(restaurant.delivery_base_radius) || BASE_RADIUS_KM;
@@ -90,6 +101,7 @@ router.post('/calculate', async (req, res) => {
     
     // Если у ресторана нет координат
     if (!restaurant.latitude || !restaurant.longitude) {
+      console.log('⚠️ Restaurant has no coordinates, returning free delivery');
       return res.json({
         delivery_cost: 0,
         distance_km: 0,
