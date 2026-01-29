@@ -231,9 +231,10 @@ router.patch('/orders/:id/status', async (req, res) => {
       userAgent: getUserAgentFromRequest(req)
     });
     
-    // Get user telegram_id and restaurant bot token, then send notification
+    // Get user telegram_id and restaurant bot token and custom messages, then send notification
     const userResult = await pool.query(
-      `SELECT u.telegram_id, r.telegram_bot_token 
+      `SELECT u.telegram_id, r.telegram_bot_token,
+              r.msg_new, r.msg_preparing, r.msg_delivering, r.msg_delivered, r.msg_cancelled
        FROM users u
        LEFT JOIN restaurants r ON r.id = $2
        WHERE u.id = $1`,
@@ -241,11 +242,22 @@ router.patch('/orders/:id/status', async (req, res) => {
     );
     
     if (userResult.rows[0]?.telegram_id) {
+      const row = userResult.rows[0];
+      const customMessages = {
+        msg_new: row.msg_new,
+        msg_preparing: row.msg_preparing,
+        msg_delivering: row.msg_delivering,
+        msg_delivered: row.msg_delivered,
+        msg_cancelled: row.msg_cancelled
+      };
+      
       await sendOrderUpdateToUser(
-        userResult.rows[0].telegram_id, 
+        row.telegram_id, 
         order, 
         status,
-        userResult.rows[0].telegram_bot_token
+        row.telegram_bot_token,
+        null, // restaurantPaymentUrls
+        customMessages
       );
     }
     

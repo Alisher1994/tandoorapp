@@ -73,6 +73,18 @@ function SuperAdminDashboard() {
   // Order detail modal
   const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  
+  // Message templates modal
+  const [showMessagesModal, setShowMessagesModal] = useState(false);
+  const [messagesRestaurant, setMessagesRestaurant] = useState(null);
+  const [messagesForm, setMessagesForm] = useState({
+    msg_new: '',
+    msg_preparing: '',
+    msg_delivering: '',
+    msg_delivered: '',
+    msg_cancelled: ''
+  });
+  const [savingMessages, setSavingMessages] = useState(false);
 
   // Load data on tab change
   useEffect(() => {
@@ -312,6 +324,37 @@ function SuperAdminDashboard() {
     }
   };
 
+  // Message templates handlers
+  const openMessagesModal = async (restaurant) => {
+    setMessagesRestaurant(restaurant);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/restaurants/${restaurant.id}/messages`);
+      setMessagesForm({
+        msg_new: response.data.msg_new || '',
+        msg_preparing: response.data.msg_preparing || '',
+        msg_delivering: response.data.msg_delivering || '',
+        msg_delivered: response.data.msg_delivered || '',
+        msg_cancelled: response.data.msg_cancelled || ''
+      });
+      setShowMessagesModal(true);
+    } catch (err) {
+      setError('Ошибка загрузки шаблонов');
+    }
+  };
+
+  const handleSaveMessages = async () => {
+    setSavingMessages(true);
+    try {
+      await axios.put(`${API_URL}/superadmin/restaurants/${messagesRestaurant.id}/messages`, messagesForm);
+      setSuccess('Шаблоны сообщений сохранены');
+      setShowMessagesModal(false);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка сохранения шаблонов');
+    } finally {
+      setSavingMessages(false);
+    }
+  };
+
   // Operator handlers
   const openOperatorModal = (operator = null) => {
     if (operator) {
@@ -531,10 +574,13 @@ function SuperAdminDashboard() {
                             />
                           </td>
                           <td>
-                            <Button variant="outline-primary" size="sm" className="me-2" onClick={() => openRestaurantModal(r)}>
+                            <Button variant="outline-primary" size="sm" className="me-1" onClick={() => openRestaurantModal(r)} title="Редактировать">
                               ✏️
                             </Button>
-                            <Button variant="outline-danger" size="sm" onClick={() => handleDeleteRestaurant(r.id)}>
+                            <Button variant="outline-info" size="sm" className="me-1" onClick={() => openMessagesModal(r)} title="Шаблоны сообщений">
+                              💬
+                            </Button>
+                            <Button variant="outline-danger" size="sm" onClick={() => handleDeleteRestaurant(r.id)} title="Удалить">
                               🗑️
                             </Button>
                           </td>
@@ -1356,6 +1402,102 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowOrderDetailModal(false)}>Закрыть</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Message Templates Modal */}
+      <Modal show={showMessagesModal} onHide={() => setShowMessagesModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Шаблоны сообщений: {messagesRestaurant?.name}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info" className="mb-3">
+            <small>
+              Настройте тексты уведомлений, которые будут отправляться клиентам при изменении статуса заказа.
+              Оставьте поле пустым, чтобы использовать текст по умолчанию.
+            </small>
+          </Alert>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>
+              <Badge bg="primary" className="me-2">1</Badge>
+              Новый заказ
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              placeholder="📦 Ваш заказ в обработке!"
+              value={messagesForm.msg_new}
+              onChange={(e) => setMessagesForm({ ...messagesForm, msg_new: e.target.value })}
+            />
+            <Form.Text className="text-muted">По умолчанию: 📦 Ваш заказ в обработке!</Form.Text>
+          </Form.Group>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>
+              <Badge bg="warning" className="me-2">2</Badge>
+              Готовится
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              placeholder="👨‍🍳 Ваш заказ готовится"
+              value={messagesForm.msg_preparing}
+              onChange={(e) => setMessagesForm({ ...messagesForm, msg_preparing: e.target.value })}
+            />
+            <Form.Text className="text-muted">По умолчанию: 👨‍🍳 Ваш заказ готовится</Form.Text>
+          </Form.Group>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>
+              <Badge bg="info" className="me-2">3</Badge>
+              Доставляется
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              placeholder="🚗 Ваш заказ в пути"
+              value={messagesForm.msg_delivering}
+              onChange={(e) => setMessagesForm({ ...messagesForm, msg_delivering: e.target.value })}
+            />
+            <Form.Text className="text-muted">По умолчанию: 🚗 Ваш заказ в пути</Form.Text>
+          </Form.Group>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>
+              <Badge bg="success" className="me-2">4</Badge>
+              Доставлен
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              placeholder="✅ Ваш заказ доставлен!"
+              value={messagesForm.msg_delivered}
+              onChange={(e) => setMessagesForm({ ...messagesForm, msg_delivered: e.target.value })}
+            />
+            <Form.Text className="text-muted">По умолчанию: ✅ Ваш заказ доставлен!</Form.Text>
+          </Form.Group>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>
+              <Badge bg="danger" className="me-2">✕</Badge>
+              Отменён
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={2}
+              placeholder="❌ Заказ отменен"
+              value={messagesForm.msg_cancelled}
+              onChange={(e) => setMessagesForm({ ...messagesForm, msg_cancelled: e.target.value })}
+            />
+            <Form.Text className="text-muted">По умолчанию: ❌ Заказ отменен</Form.Text>
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowMessagesModal(false)}>Отмена</Button>
+          <Button variant="primary" onClick={handleSaveMessages} disabled={savingMessages}>
+            {savingMessages ? 'Сохранение...' : 'Сохранить'}
+          </Button>
         </Modal.Footer>
       </Modal>
     </div>

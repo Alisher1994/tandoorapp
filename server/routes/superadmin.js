@@ -192,6 +192,74 @@ router.put('/restaurants/:id', async (req, res) => {
   }
 });
 
+// Получить шаблоны сообщений ресторана
+router.get('/restaurants/:id/messages', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled 
+       FROM restaurants WHERE id = $1`,
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get restaurant messages error:', error);
+    res.status(500).json({ error: 'Ошибка получения шаблонов' });
+  }
+});
+
+// Обновить шаблоны сообщений ресторана
+router.put('/restaurants/:id/messages', async (req, res) => {
+  try {
+    const { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE restaurants 
+      SET msg_new = $1,
+          msg_preparing = $2,
+          msg_delivering = $3,
+          msg_delivered = $4,
+          msg_cancelled = $5,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+      RETURNING id, name, msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
+    `, [
+      msg_new || null,
+      msg_preparing || null,
+      msg_delivering || null,
+      msg_delivered || null,
+      msg_cancelled || null,
+      req.params.id
+    ]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+    
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      restaurantId: parseInt(req.params.id),
+      actionType: ACTION_TYPES.UPDATE_RESTAURANT,
+      entityType: ENTITY_TYPES.RESTAURANT,
+      entityId: parseInt(req.params.id),
+      entityName: result.rows[0].name,
+      newValues: { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update restaurant messages error:', error);
+    res.status(500).json({ error: 'Ошибка обновления шаблонов' });
+  }
+});
+
 // Удалить ресторан
 router.delete('/restaurants/:id', async (req, res) => {
   const client = await pool.connect();

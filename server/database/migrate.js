@@ -48,7 +48,12 @@ async function migrate() {
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',
       'click_url TEXT',
-      'payme_url TEXT'
+      'payme_url TEXT',
+      'msg_new TEXT',
+      'msg_preparing TEXT',
+      'msg_delivering TEXT',
+      'msg_delivered TEXT',
+      'msg_cancelled TEXT'
     ];
     
     for (const col of restaurantColumns) {

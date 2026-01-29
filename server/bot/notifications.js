@@ -163,8 +163,9 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
 
 /**
  * Send order status update to user
+ * @param {Object} customMessages - Custom messages from restaurant settings { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled }
  */
-async function sendOrderUpdateToUser(telegramId, order, status, botToken = null, restaurantPaymentUrls = null) {
+async function sendOrderUpdateToUser(telegramId, order, status, botToken = null, restaurantPaymentUrls = null, customMessages = null) {
   if (!telegramId) return;
   
   const bot = getRestaurantBot(botToken);
@@ -182,7 +183,8 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       'cancelled': '#отменен'
     };
     
-    const statusMessages = {
+    // Default messages
+    const defaultMessages = {
       'new': '📦 Ваш заказ в обработке!',
       'preparing': '👨‍🍳 Ваш заказ готовится',
       'delivering': '🚗 Ваш заказ в пути',
@@ -190,8 +192,16 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       'cancelled': '❌ Заказ отменен'
     };
     
+    // Use custom message if provided, otherwise use default
+    let statusText = defaultMessages[status] || 'Обновление заказа';
+    if (customMessages) {
+      const customMsgKey = `msg_${status}`;
+      if (customMessages[customMsgKey]) {
+        statusText = customMessages[customMsgKey];
+      }
+    }
+    
     const tag = statusTags[status] || '#обновлен';
-    const statusText = statusMessages[status] || 'Обновление заказа';
     
     // Build payment link for new orders
     let paymentLine = '';
