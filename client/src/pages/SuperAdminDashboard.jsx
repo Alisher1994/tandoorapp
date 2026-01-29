@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
-const LocationPicker = lazy(() => import('../components/LocationPicker'));
+const YandexLocationPicker = lazy(() => import('../components/YandexLocationPicker'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -1065,17 +1065,17 @@ function SuperAdminDashboard() {
                 </Form.Group>
               </Col>
             </Row>
-            <Form.Text className="text-muted mb-2 d-block">
-              Кликните на карту чтобы указать местоположение
-            </Form.Text>
             <Suspense fallback={<div className="text-center p-3"><Spinner size="sm" /> Загрузка карты...</div>}>
-              <LocationPicker
+              <YandexLocationPicker
                 latitude={restaurantForm.latitude}
                 longitude={restaurantForm.longitude}
                 onLocationChange={(lat, lng) => setRestaurantForm({ ...restaurantForm, latitude: lat, longitude: lng })}
-                height="200px"
+                height="250px"
               />
             </Suspense>
+            <Form.Text className="text-muted mt-2 d-block">
+              Кликните на карту или перетащите маркер
+            </Form.Text>
             
             <hr />
             <h6>�🗺️ Зона доставки</h6>
