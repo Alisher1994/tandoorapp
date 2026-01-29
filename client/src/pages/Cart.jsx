@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import OrderReceipt from '../components/OrderReceipt';
 import BottomNav from '../components/BottomNav';
+import ClientLocationPicker from '../components/ClientLocationPicker';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -904,35 +905,54 @@ function Cart() {
         </Card.Body>
       </Card>
 
-      {/* Модалка для локации */}
-      <Modal show={showLocationModal} onHide={() => setShowLocationModal(false)} centered>
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title className="fs-5">📍 {t('location')}</Modal.Title>
+      {/* Модалка для выбора локации на карте */}
+      <Modal 
+        show={showLocationModal} 
+        onHide={() => setShowLocationModal(false)} 
+        fullscreen
+        className="location-picker-modal"
+      >
+        <Modal.Header closeButton className="border-0 bg-white shadow-sm">
+          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Yetkazib berish nuqtasi' : 'Точка доставки'}</Modal.Title>
         </Modal.Header>
-        <Modal.Body className="text-center py-4">
-          <p className="text-muted mb-4">
-            {language === 'uz' ? 'Yetkazib berish uchun joriy joylashuvingizni aniqlaymiz' : 'Определим ваше текущее местоположение для доставки'}
-          </p>
-          <Button 
-            variant="primary" 
-            size="lg"
-            className="w-100 mb-3"
-            onClick={useCurrentLocation}
-            disabled={locationLoading}
-          >
-            {locationLoading ? (
-              <><Spinner size="sm" className="me-2" />{language === 'uz' ? 'Aniqlanmoqda...' : 'Определение...'}</>
-            ) : (
-              `📍 ${t('detectLocation')}`
-            )}
-          </Button>
-          <Button 
-            variant="light" 
-            className="w-100"
-            onClick={() => setShowLocationModal(false)}
-          >
-            {t('cancel')}
-          </Button>
+        <Modal.Body className="p-0 d-flex flex-column">
+          {/* Карта Яндекс */}
+          <div className="flex-grow-1" style={{ minHeight: '300px' }}>
+            <ClientLocationPicker
+              latitude={mapCoordinates?.lat || 41.311081}
+              longitude={mapCoordinates?.lng || 69.240562}
+              onLocationChange={(lat, lng) => {
+                setFormData(prev => ({
+                  ...prev,
+                  delivery_coordinates: `${lat},${lng}`
+                }));
+              }}
+            />
+          </div>
+          
+          {/* Кнопки внизу */}
+          <div className="p-3 bg-white border-top">
+            <Button 
+              variant="outline-primary" 
+              className="w-100 mb-2"
+              onClick={useCurrentLocation}
+              disabled={locationLoading}
+            >
+              {locationLoading ? (
+                <><Spinner size="sm" className="me-2" />{language === 'uz' ? 'Aniqlanmoqda...' : 'Определение...'}</>
+              ) : (
+                <>📍 {language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить моё местоположение'}</>
+              )}
+            </Button>
+            <Button 
+              variant="primary" 
+              className="w-100"
+              onClick={() => setShowLocationModal(false)}
+              disabled={!formData.delivery_coordinates}
+            >
+              ✓ {language === 'uz' ? 'Tanlangan nuqtani tasdiqlash' : 'Подтвердить выбранную точку'}
+            </Button>
+          </div>
         </Modal.Body>
       </Modal>
       
