@@ -86,7 +86,8 @@ function AdminDashboard() {
     image_url: '',
     price: '',
     unit: 'шт',
-    in_stock: true
+    in_stock: true,
+    container_id: ''
   });
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -151,6 +152,12 @@ function AdminDashboard() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
   const [feedbackResponse, setFeedbackResponse] = useState('');
+  
+  // Containers (посуда)
+  const [containers, setContainers] = useState([]);
+  const [showContainerModal, setShowContainerModal] = useState(false);
+  const [selectedContainer, setSelectedContainer] = useState(null);
+  const [containerForm, setContainerForm] = useState({ name: '', price: 0, sort_order: 0 });
   
   const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -277,15 +284,17 @@ function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [ordersRes, productsRes, categoriesRes] = await Promise.all([
+      const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.all([
         axios.get(`${API_URL}/admin/orders${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`),
         axios.get(`${API_URL}/admin/products`),
-        axios.get(`${API_URL}/admin/categories`)
+        axios.get(`${API_URL}/admin/categories`),
+        axios.get(`${API_URL}/admin/containers`)
       ]);
       
       setOrders(ordersRes.data);
       setProducts(productsRes.data);
       setCategories(categoriesRes.data);
+      setContainers(containersRes.data || []);
       
       // Fetch feedback stats
       fetchFeedbackStats();
@@ -335,6 +344,43 @@ function AdminDashboard() {
       setAlertMessage({ type: 'success', text: 'Обращение обновлено' });
     } catch (error) {
       setAlertMessage({ type: 'danger', text: 'Ошибка обновления' });
+    }
+  };
+  
+  // Container functions
+  const openContainerModal = (container = null) => {
+    setSelectedContainer(container);
+    setContainerForm(container ? { 
+      name: container.name, 
+      price: container.price, 
+      sort_order: container.sort_order || 0 
+    } : { name: '', price: 0, sort_order: 0 });
+    setShowContainerModal(true);
+  };
+  
+  const saveContainer = async () => {
+    try {
+      if (selectedContainer) {
+        await axios.put(`${API_URL}/admin/containers/${selectedContainer.id}`, containerForm);
+      } else {
+        await axios.post(`${API_URL}/admin/containers`, containerForm);
+      }
+      setShowContainerModal(false);
+      fetchData();
+      setAlertMessage({ type: 'success', text: selectedContainer ? 'Посуда обновлена' : 'Посуда добавлена' });
+    } catch (error) {
+      setAlertMessage({ type: 'danger', text: 'Ошибка сохранения' });
+    }
+  };
+  
+  const deleteContainer = async (id) => {
+    if (!window.confirm('Удалить посуду? Она будет удалена из всех товаров.')) return;
+    try {
+      await axios.delete(`${API_URL}/admin/containers/${id}`);
+      fetchData();
+      setAlertMessage({ type: 'success', text: 'Посуда удалена' });
+    } catch (error) {
+      setAlertMessage({ type: 'danger', text: 'Ошибка удаления' });
     }
   };
 
@@ -489,7 +535,8 @@ function AdminDashboard() {
         image_url: product.image_url || '',
         price: product.price || '',
         unit: product.unit || 'шт',
-        in_stock: product.in_stock !== false
+        in_stock: product.in_stock !== false,
+        container_id: product.container_id || ''
       });
     } else {
       setSelectedProduct(null);
@@ -502,7 +549,8 @@ function AdminDashboard() {
         image_url: '',
         price: '',
         unit: 'шт',
-        in_stock: true
+        in_stock: true,
+        container_id: ''
       });
     }
     setShowProductModal(true);
@@ -1772,6 +1820,67 @@ function AdminDashboard() {
             </Card>
           </Tab>
           
+          <Tab eventKey="containers" title="🍽 Посуда">
+            <Card>
+              <Card.Body>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5>🍽 Посуда и тара</h5>
+                  <Button variant="primary" onClick={() => openContainerModal()}>
+                    Добавить
+                  </Button>
+                </div>
+                <p className="text-muted small mb-3">
+                  Посуда привязывается к товарам. Её стоимость автоматически добавляется к заказу.
+                </p>
+                <Table responsive>
+                  <thead>
+                    <tr>
+                      <th>Название</th>
+                      <th>Цена</th>
+                      <th>Порядок</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {containers.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="text-center text-muted py-4">
+                          Нет добавленной посуды
+                        </td>
+                      </tr>
+                    ) : (
+                      containers.map(container => (
+                        <tr key={container.id}>
+                          <td>{container.name}</td>
+                          <td>{formatPrice(container.price)} сум</td>
+                          <td>{container.sort_order}</td>
+                          <td>
+                            <Button 
+                              className="btn-action me-1"
+                              size="sm" 
+                              onClick={() => openContainerModal(container)}
+                              title="Редактировать"
+                            >
+                              <EditIcon />
+                            </Button>
+                            <Button 
+                              className="btn-action"
+                              size="sm"
+                              onClick={() => deleteContainer(container.id)}
+                              title="Удалить"
+                            >
+                              <TrashIcon />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </Table>
+              </Card.Body>
+            </Card>
+          </Tab>
+          
           <Tab eventKey="feedback" title={
             <span>
               Обратная связь
@@ -2282,6 +2391,24 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
               </Row>
+
+              <Form.Group className="mb-3">
+                <Form.Label>🍽 Посуда/Тара</Form.Label>
+                <Form.Select
+                  value={productForm.container_id}
+                  onChange={(e) => setProductForm({ ...productForm, container_id: e.target.value })}
+                >
+                  <option value="">Без посуды</option>
+                  {containers.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (+{formatPrice(c.price)} сум)
+                    </option>
+                  ))}
+                </Form.Select>
+                <Form.Text className="text-muted">
+                  Стоимость посуды добавится к заказу
+                </Form.Text>
+              </Form.Group>
 
               <Form.Group className="mb-3">
                 <Form.Label>Изображение</Form.Label>
@@ -2824,6 +2951,50 @@ function AdminDashboard() {
                 Закрыть
               </Button>
             )}
+          </Modal.Footer>
+        </Modal>
+        
+        {/* Container Modal */}
+        <Modal show={showContainerModal} onHide={() => setShowContainerModal(false)}>
+          <Modal.Header closeButton>
+            <Modal.Title>{selectedContainer ? 'Редактировать посуду' : 'Добавить посуду'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Название *</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="Например: Контейнер 1л, Стакан 0.5л"
+                value={containerForm.name}
+                onChange={(e) => setContainerForm({ ...containerForm, name: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Цена (сум) *</Form.Label>
+              <Form.Control
+                type="number"
+                min="0"
+                step="100"
+                value={containerForm.price}
+                onChange={(e) => setContainerForm({ ...containerForm, price: parseFloat(e.target.value) || 0 })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Порядок сортировки</Form.Label>
+              <Form.Control
+                type="number"
+                value={containerForm.sort_order}
+                onChange={(e) => setContainerForm({ ...containerForm, sort_order: parseInt(e.target.value) || 0 })}
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowContainerModal(false)}>
+              Отмена
+            </Button>
+            <Button variant="primary" onClick={saveContainer} disabled={!containerForm.name}>
+              {selectedContainer ? 'Сохранить' : 'Добавить'}
+            </Button>
           </Modal.Footer>
         </Modal>
       </Container>

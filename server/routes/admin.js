@@ -366,9 +366,11 @@ router.get('/products', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     
     let query = `
-      SELECT p.*, c.name_ru as category_name 
+      SELECT p.*, c.name_ru as category_name, 
+             cnt.name as container_name, cnt.price as container_price
       FROM products p 
       LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN containers cnt ON p.container_id = cnt.id
       WHERE 1=1
     `;
     const params = [];
@@ -393,7 +395,7 @@ router.post('/products', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock, sort_order
+      image_url, price, unit, barcode, in_stock, sort_order, container_id
     } = req.body;
     
     const restaurantId = req.user.active_restaurant_id;
@@ -409,12 +411,12 @@ router.post('/products', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO products (
         restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-        image_url, price, unit, barcode, in_stock, sort_order
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        image_url, price, unit, barcode, in_stock, sort_order, container_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `, [
       restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0
+      image_url, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null
     ]);
     
     const product = result.rows[0];
@@ -568,7 +570,7 @@ router.put('/products/:id', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock, sort_order
+      image_url, price, unit, barcode, in_stock, sort_order, container_id
     } = req.body;
     
     // Get old values and check access
@@ -587,12 +589,12 @@ router.put('/products/:id', async (req, res) => {
       UPDATE products SET
         category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
         image_url = $6, price = $7, unit = $8, barcode = $9, in_stock = $10, sort_order = $11,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
+        container_id = $12, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $13
       RETURNING *
     `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock !== false, sort_order || 0, req.params.id
+      image_url, price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null, req.params.id
     ]);
     
     const product = result.rows[0];
@@ -652,6 +654,126 @@ router.delete('/products/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete product error:', error);
     res.status(500).json({ error: 'Ошибка удаления товара' });
+  }
+});
+
+// =====================================================
+// ПОСУДА / ТАРА (Containers)
+// =====================================================
+
+// Получить список посуды
+router.get('/containers', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+    
+    const result = await pool.query(
+      `SELECT * FROM containers WHERE restaurant_id = $1 ORDER BY sort_order, name`,
+      [restaurantId]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get containers error:', error);
+    res.status(500).json({ error: 'Ошибка получения посуды' });
+  }
+});
+
+// Создать посуду
+router.post('/containers', async (req, res) => {
+  try {
+    const { name, price, sort_order } = req.body;
+    const restaurantId = req.user.active_restaurant_id;
+    
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Название обязательно' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO containers (restaurant_id, name, price, sort_order)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [restaurantId, name, price || 0, sort_order || 0]);
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create container error:', error);
+    res.status(500).json({ error: 'Ошибка создания посуды' });
+  }
+});
+
+// Обновить посуду
+router.put('/containers/:id', async (req, res) => {
+  try {
+    const { name, price, is_active, sort_order } = req.body;
+    const restaurantId = req.user.active_restaurant_id;
+    
+    // Check access
+    const checkResult = await pool.query(
+      'SELECT * FROM containers WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Посуда не найдена' });
+    }
+    
+    if (checkResult.rows[0].restaurant_id !== restaurantId && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    
+    const result = await pool.query(`
+      UPDATE containers SET 
+        name = COALESCE($1, name),
+        price = COALESCE($2, price),
+        is_active = COALESCE($3, is_active),
+        sort_order = COALESCE($4, sort_order)
+      WHERE id = $5
+      RETURNING *
+    `, [name, price, is_active, sort_order, req.params.id]);
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update container error:', error);
+    res.status(500).json({ error: 'Ошибка обновления посуды' });
+  }
+});
+
+// Удалить посуду
+router.delete('/containers/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    
+    // Check access
+    const checkResult = await pool.query(
+      'SELECT * FROM containers WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Посуда не найдена' });
+    }
+    
+    if (checkResult.rows[0].restaurant_id !== restaurantId && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+    
+    // Remove container from products first
+    await pool.query('UPDATE products SET container_id = NULL WHERE container_id = $1', [req.params.id]);
+    
+    await pool.query('DELETE FROM containers WHERE id = $1', [req.params.id]);
+    
+    res.json({ message: 'Посуда удалена' });
+  } catch (error) {
+    console.error('Delete container error:', error);
+    res.status(500).json({ error: 'Ошибка удаления посуды' });
   }
 });
 

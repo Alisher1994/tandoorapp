@@ -61,7 +61,21 @@ export function CartProvider({ children }) {
   };
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  
+  // Calculate cart total including container prices
+  const cartTotal = cart.reduce((sum, item) => {
+    const productTotal = item.price * item.quantity;
+    const containerTotal = item.container_price ? (parseFloat(item.container_price) * item.quantity) : 0;
+    return sum + productTotal + containerTotal;
+  }, 0);
+  
+  // Calculate container total separately for display
+  const containerTotal = cart.reduce((sum, item) => {
+    return sum + (item.container_price ? (parseFloat(item.container_price) * item.quantity) : 0);
+  }, 0);
+  
+  // Calculate product total without containers
+  const productTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   return (
     <CartContext.Provider
@@ -69,6 +83,8 @@ export function CartProvider({ children }) {
         cart,
         cartCount,
         cartTotal,
+        productTotal,
+        containerTotal,
         addToCart,
         updateQuantity,
         removeFromCart,

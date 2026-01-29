@@ -32,9 +32,11 @@ router.get('/', async (req, res) => {
     const { category_id, in_stock, restaurant_id } = req.query;
     
     let query = `
-      SELECT p.*, c.name_ru as category_name 
+      SELECT p.*, c.name_ru as category_name,
+             cnt.id as container_id, cnt.name as container_name, cnt.price as container_price
       FROM products p 
       LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN containers cnt ON p.container_id = cnt.id
       WHERE 1=1
     `;
     const params = [];

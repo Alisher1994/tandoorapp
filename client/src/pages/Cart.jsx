@@ -17,7 +17,7 @@ import BottomNav from '../components/BottomNav';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Cart() {
-  const { cart, cartTotal, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { cart, cartTotal, productTotal, containerTotal, updateQuantity, removeFromCart, clearCart } = useCart();
   const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
@@ -446,7 +446,14 @@ function Cart() {
                 )}
                 <div className="flex-grow-1 ms-3">
                   <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{language === 'uz' && item.name_uz ? item.name_uz : item.name_ru}</div>
-                  <div className="text-primary fw-bold">{formatPrice(item.price)} {t('sum')}</div>
+                  <div className="text-primary fw-bold">
+                    {formatPrice(item.price)} {t('sum')}
+                    {item.container_price > 0 && (
+                      <small className="text-muted ms-1">
+                        + 🍽 {formatPrice(item.container_price)}
+                      </small>
+                    )}
+                  </div>
                 </div>
                 <div className="d-flex align-items-center">
                   <div className="d-flex align-items-center bg-light rounded-pill">
@@ -655,8 +662,20 @@ function Cart() {
       {/* Итого и кнопки */}
       <Card className="border-0 shadow-sm">
         <Card.Body>
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <span className="text-muted">{t('total')}:</span>
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="text-muted">{t('products')}:</span>
+            <span>{formatPrice(productTotal)} {t('sum')}</span>
+          </div>
+          
+          {containerTotal > 0 && (
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="text-muted">🍽 {t('containers') || 'Посуда'}:</span>
+              <span>{formatPrice(containerTotal)} {t('sum')}</span>
+            </div>
+          )}
+          
+          <div className="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
+            <span className="text-muted fw-bold">{t('total')}:</span>
             <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal)} {t('sum')}</span>
           </div>
           

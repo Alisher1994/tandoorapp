@@ -105,7 +105,8 @@ async function migrate() {
     
     // Add columns to products table  
     const productColumns = [
-      { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' }
+      { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
+      { name: 'container_id', type: 'INTEGER' }
     ];
     
     for (const col of productColumns) {
@@ -116,6 +117,34 @@ async function migrate() {
       }
     }
     console.log('✅ Products table updated');
+    
+    // =====================================================
+    // Create containers table (посуда/тара)
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS containers (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        price DECIMAL(10, 2) DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Containers table ready');
+    
+    // Add foreign key constraint to products.container_id if not exists
+    try {
+      await client.query(`
+        ALTER TABLE products 
+        ADD CONSTRAINT fk_products_container 
+        FOREIGN KEY (container_id) REFERENCES containers(id) ON DELETE SET NULL
+      `);
+    } catch (e) {
+      // Constraint might already exist
+    }
     
     // Add columns to orders table
     const orderColumns = [
