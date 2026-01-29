@@ -56,6 +56,13 @@ const ReceiptIcon = () => (
   </svg>
 );
 
+const EyeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
@@ -136,6 +143,14 @@ function AdminDashboard() {
     topProductsByMonth: Array.from({ length: 12 }, () => [])
   });
   const [loadingYearlyAnalytics, setLoadingYearlyAnalytics] = useState(false);
+  
+  // Feedback
+  const [feedback, setFeedback] = useState([]);
+  const [feedbackStats, setFeedbackStats] = useState({ new_count: 0 });
+  const [feedbackFilter, setFeedbackFilter] = useState({ status: '', type: '' });
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
+  const [feedbackResponse, setFeedbackResponse] = useState('');
   
   const { user, logout, switchRestaurant, isSuperAdmin } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -253,6 +268,12 @@ function AdminDashboard() {
     const interval = setInterval(fetchData, 10000); // Update every 10 seconds
     return () => clearInterval(interval);
   }, [statusFilter, user?.active_restaurant_id]);
+  
+  useEffect(() => {
+    if (user?.active_restaurant_id) {
+      fetchFeedback();
+    }
+  }, [feedbackFilter, user?.active_restaurant_id]);
 
   const fetchData = async () => {
     try {
@@ -265,10 +286,55 @@ function AdminDashboard() {
       setOrders(ordersRes.data);
       setProducts(productsRes.data);
       setCategories(categoriesRes.data);
+      
+      // Fetch feedback stats
+      fetchFeedbackStats();
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const fetchFeedback = async () => {
+    try {
+      let url = `${API_URL}/admin/feedback?`;
+      if (feedbackFilter.status) url += `status=${feedbackFilter.status}&`;
+      if (feedbackFilter.type) url += `type=${feedbackFilter.type}&`;
+      const response = await axios.get(url);
+      setFeedback(response.data.feedback || []);
+    } catch (error) {
+      console.error('Error fetching feedback:', error);
+    }
+  };
+  
+  const fetchFeedbackStats = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/admin/feedback/stats`);
+      setFeedbackStats(response.data);
+    } catch (error) {
+      console.error('Error fetching feedback stats:', error);
+    }
+  };
+  
+  const openFeedbackDetail = (fb) => {
+    setSelectedFeedback(fb);
+    setFeedbackResponse(fb.admin_response || '');
+    setShowFeedbackModal(true);
+  };
+  
+  const handleFeedbackResponse = async (newStatus) => {
+    try {
+      await axios.patch(`${API_URL}/admin/feedback/${selectedFeedback.id}`, {
+        status: newStatus,
+        admin_response: feedbackResponse
+      });
+      setShowFeedbackModal(false);
+      fetchFeedback();
+      fetchFeedbackStats();
+      setAlertMessage({ type: 'success', text: 'Обращение обновлено' });
+    } catch (error) {
+      setAlertMessage({ type: 'danger', text: 'Ошибка обновления' });
     }
   };
 
@@ -1705,6 +1771,120 @@ function AdminDashboard() {
               </Card.Body>
             </Card>
           </Tab>
+          
+          <Tab eventKey="feedback" title={
+            <span>
+              Обратная связь
+              {feedbackStats.new_count > 0 && (
+                <Badge bg="danger" className="ms-2">{feedbackStats.new_count}</Badge>
+              )}
+            </span>
+          }>
+            <Card>
+              <Card.Body>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5>Обращения клиентов</h5>
+                  <div className="d-flex gap-2">
+                    <Form.Select 
+                      size="sm" 
+                      style={{ width: 'auto' }}
+                      value={feedbackFilter.type}
+                      onChange={(e) => setFeedbackFilter({...feedbackFilter, type: e.target.value})}
+                    >
+                      <option value="">Все типы</option>
+                      <option value="complaint">Жалоба</option>
+                      <option value="suggestion">Предложение</option>
+                      <option value="question">Вопрос</option>
+                      <option value="other">Другое</option>
+                    </Form.Select>
+                    <Form.Select 
+                      size="sm" 
+                      style={{ width: 'auto' }}
+                      value={feedbackFilter.status}
+                      onChange={(e) => setFeedbackFilter({...feedbackFilter, status: e.target.value})}
+                    >
+                      <option value="">Все статусы</option>
+                      <option value="new">Новый</option>
+                      <option value="in_progress">В работе</option>
+                      <option value="resolved">Решено</option>
+                      <option value="closed">Закрыто</option>
+                    </Form.Select>
+                  </div>
+                </div>
+                
+                {feedback.length === 0 ? (
+                  <p className="text-muted text-center py-4">Обращений пока нет</p>
+                ) : (
+                  <Table responsive hover>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Клиент</th>
+                        <th>Тип</th>
+                        <th>Сообщение</th>
+                        <th>Статус</th>
+                        <th>Дата</th>
+                        <th>Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {feedback.map((fb) => (
+                        <tr key={fb.id} style={{ cursor: 'pointer' }} onClick={() => openFeedbackDetail(fb)}>
+                          <td>{fb.id}</td>
+                          <td>
+                            <div>{fb.customer_name}</div>
+                            <small className="text-muted">{fb.customer_phone}</small>
+                          </td>
+                          <td>
+                            <Badge bg={
+                              fb.type === 'complaint' ? 'danger' :
+                              fb.type === 'suggestion' ? 'info' :
+                              fb.type === 'question' ? 'warning' : 'secondary'
+                            }>
+                              {fb.type === 'complaint' ? 'Жалоба' :
+                               fb.type === 'suggestion' ? 'Предложение' :
+                               fb.type === 'question' ? 'Вопрос' : 'Другое'}
+                            </Badge>
+                          </td>
+                          <td style={{ maxWidth: '250px' }}>
+                            <div style={{ 
+                              whiteSpace: 'nowrap', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis' 
+                            }}>
+                              {fb.message}
+                            </div>
+                          </td>
+                          <td>
+                            <Badge bg={
+                              fb.status === 'new' ? 'primary' :
+                              fb.status === 'in_progress' ? 'warning' :
+                              fb.status === 'resolved' ? 'success' : 'secondary'
+                            }>
+                              {fb.status === 'new' ? 'Новый' :
+                               fb.status === 'in_progress' ? 'В работе' :
+                               fb.status === 'resolved' ? 'Решено' : 'Закрыто'}
+                            </Badge>
+                          </td>
+                          <td>{new Date(fb.created_at).toLocaleDateString()}</td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <Button 
+                              className="btn-action"
+                              size="sm"
+                              onClick={() => openFeedbackDetail(fb)}
+                              title="Просмотр"
+                            >
+                              <EyeIcon />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )}
+              </Card.Body>
+            </Card>
+          </Tab>
         </Tabs>
 
         {/* Order Details Modal */}
@@ -2528,6 +2708,100 @@ function AdminDashboard() {
             >
               Отменить заказ
             </Button>
+          </Modal.Footer>
+        </Modal>
+        
+        {/* Feedback Detail Modal */}
+        <Modal show={showFeedbackModal} onHide={() => setShowFeedbackModal(false)} centered size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>
+              Обращение #{selectedFeedback?.id}
+              {selectedFeedback && (
+                <Badge bg={
+                  selectedFeedback.type === 'complaint' ? 'danger' :
+                  selectedFeedback.type === 'suggestion' ? 'info' :
+                  selectedFeedback.type === 'question' ? 'warning' : 'secondary'
+                } className="ms-2">
+                  {selectedFeedback.type === 'complaint' ? 'Жалоба' :
+                   selectedFeedback.type === 'suggestion' ? 'Предложение' :
+                   selectedFeedback.type === 'question' ? 'Вопрос' : 'Другое'}
+                </Badge>
+              )}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {selectedFeedback && (
+              <>
+                <div className="mb-3 p-3 bg-light rounded">
+                  <div className="row">
+                    <div className="col-md-6">
+                      <strong>Клиент:</strong> {selectedFeedback.customer_name}
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Телефон:</strong>{' '}
+                      <a href={`tel:${selectedFeedback.customer_phone}`}>
+                        {selectedFeedback.customer_phone}
+                      </a>
+                    </div>
+                  </div>
+                  <div className="row mt-2">
+                    <div className="col-md-6">
+                      <strong>Дата:</strong> {new Date(selectedFeedback.created_at).toLocaleString()}
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Статус:</strong>{' '}
+                      <Badge bg={
+                        selectedFeedback.status === 'new' ? 'primary' :
+                        selectedFeedback.status === 'in_progress' ? 'warning' :
+                        selectedFeedback.status === 'resolved' ? 'success' : 'secondary'
+                      }>
+                        {selectedFeedback.status === 'new' ? 'Новый' :
+                         selectedFeedback.status === 'in_progress' ? 'В работе' :
+                         selectedFeedback.status === 'resolved' ? 'Решено' : 'Закрыто'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mb-3">
+                  <label className="form-label fw-bold">Сообщение клиента:</label>
+                  <div className="p-3 border rounded bg-white" style={{ whiteSpace: 'pre-wrap' }}>
+                    {selectedFeedback.message}
+                  </div>
+                </div>
+                
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-bold">Ваш ответ:</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={4}
+                    value={feedbackResponse}
+                    onChange={(e) => setFeedbackResponse(e.target.value)}
+                    placeholder="Введите ответ на обращение..."
+                  />
+                </Form.Group>
+              </>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowFeedbackModal(false)}>
+              Закрыть
+            </Button>
+            {selectedFeedback?.status === 'new' && (
+              <Button variant="warning" onClick={() => handleFeedbackResponse('in_progress')}>
+                Взять в работу
+              </Button>
+            )}
+            {(selectedFeedback?.status === 'new' || selectedFeedback?.status === 'in_progress') && (
+              <Button variant="success" onClick={() => handleFeedbackResponse('resolved')}>
+                Решено
+              </Button>
+            )}
+            {selectedFeedback?.status !== 'closed' && (
+              <Button variant="dark" onClick={() => handleFeedbackResponse('closed')}>
+                Закрыть
+              </Button>
+            )}
           </Modal.Footer>
         </Modal>
       </Container>

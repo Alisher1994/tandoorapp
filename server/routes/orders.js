@@ -373,4 +373,80 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
   }
 });
 
+// =====================================================
+// FEEDBACK (Complaints & Suggestions)
+// =====================================================
+
+// Create feedback (for customers)
+router.post('/feedback', authenticate, async (req, res) => {
+  try {
+    const { type, message } = req.body;
+    
+    if (!message || message.trim().length === 0) {
+      return res.status(400).json({ error: 'Сообщение обязательно' });
+    }
+    
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Ресторан не выбран' });
+    }
+    
+    // Get user info
+    const userResult = await pool.query(
+      'SELECT full_name, phone FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const userData = userResult.rows[0] || {};
+    
+    const result = await pool.query(`
+      INSERT INTO feedback (restaurant_id, user_id, customer_name, customer_phone, type, message)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [
+      restaurantId,
+      req.user.id,
+      userData.full_name || 'Клиент',
+      userData.phone || '',
+      type || 'complaint',
+      message.trim()
+    ]);
+    
+    res.status(201).json({ 
+      message: 'Ваше обращение отправлено. Спасибо за обратную связь!',
+      feedback: result.rows[0] 
+    });
+  } catch (error) {
+    console.error('Create feedback error:', error);
+    res.status(500).json({ error: 'Ошибка отправки обращения' });
+  }
+});
+
+// Get my feedback (for customers)
+router.get('/my-feedback', authenticate, async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    
+    let query = `
+      SELECT f.*, r.name as restaurant_name
+      FROM feedback f
+      LEFT JOIN restaurants r ON f.restaurant_id = r.id
+      WHERE f.user_id = $1
+    `;
+    const params = [req.user.id];
+    
+    if (restaurantId) {
+      query += ` AND f.restaurant_id = $2`;
+      params.push(restaurantId);
+    }
+    
+    query += ` ORDER BY f.created_at DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get my feedback error:', error);
+    res.status(500).json({ error: 'Ошибка получения обращений' });
+  }
+});
+
 module.exports = router;

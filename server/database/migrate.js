@@ -184,6 +184,29 @@ async function migrate() {
     console.log('✅ Activity_logs table ready');
     
     // =====================================================
+    // Step 4.5: Create feedback table
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS feedback (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        customer_name VARCHAR(255),
+        customer_phone VARCHAR(50),
+        type VARCHAR(20) DEFAULT 'complaint' CHECK (type IN ('complaint', 'suggestion', 'question', 'other')),
+        message TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'in_progress', 'resolved', 'closed')),
+        admin_response TEXT,
+        responded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        responded_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Feedback table ready');
+    
+    // =====================================================
     // Step 5: Update user roles - change 'admin' to 'superadmin'
     // =====================================================
     

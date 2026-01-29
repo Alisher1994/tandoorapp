@@ -1065,4 +1065,166 @@ router.get('/analytics/yearly', async (req, res) => {
   }
 });
 
+// =====================================================
+// FEEDBACK (Complaints & Suggestions) - Admin
+// =====================================================
+
+// Get all feedback for restaurant
+router.get('/feedback', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId && req.user.role !== 'superadmin') {
+      return res.status(400).json({ error: 'Ресторан не выбран' });
+    }
+    
+    const { status, type, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    
+    let query = `
+      SELECT f.*, 
+             u.username as user_username,
+             resp.full_name as responder_name
+      FROM feedback f
+      LEFT JOIN users u ON f.user_id = u.id
+      LEFT JOIN users resp ON f.responded_by = resp.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (restaurantId) {
+      query += ` AND f.restaurant_id = $${paramIndex}`;
+      params.push(restaurantId);
+      paramIndex++;
+    }
+    
+    if (status) {
+      query += ` AND f.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+    
+    if (type) {
+      query += ` AND f.type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+    
+    // Get total count
+    const countQuery = query.replace('SELECT f.*, \n             u.username as user_username,\n             resp.full_name as responder_name', 'SELECT COUNT(*)');
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count);
+    
+    // Add pagination
+    query += ` ORDER BY f.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      feedback: result.rows,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('Get feedback error:', error);
+    res.status(500).json({ error: 'Ошибка получения обращений' });
+  }
+});
+
+// Update feedback status / respond
+router.patch('/feedback/:id', async (req, res) => {
+  try {
+    const { status, admin_response } = req.body;
+    const feedbackId = req.params.id;
+    
+    // Check access
+    const checkResult = await pool.query(
+      'SELECT * FROM feedback WHERE id = $1',
+      [feedbackId]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Обращение не найдено' });
+    }
+    
+    const feedback = checkResult.rows[0];
+    
+    // Check restaurant access
+    if (req.user.role !== 'superadmin' && feedback.restaurant_id !== req.user.active_restaurant_id) {
+      return res.status(403).json({ error: 'Нет доступа к этому обращению' });
+    }
+    
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (status) {
+      updates.push(`status = $${paramIndex}`);
+      values.push(status);
+      paramIndex++;
+    }
+    
+    if (admin_response !== undefined) {
+      updates.push(`admin_response = $${paramIndex}`);
+      values.push(admin_response);
+      paramIndex++;
+      
+      updates.push(`responded_by = $${paramIndex}`);
+      values.push(req.user.id);
+      paramIndex++;
+      
+      updates.push(`responded_at = CURRENT_TIMESTAMP`);
+    }
+    
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+    values.push(feedbackId);
+    
+    const result = await pool.query(`
+      UPDATE feedback 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `, values);
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update feedback error:', error);
+    res.status(500).json({ error: 'Ошибка обновления обращения' });
+  }
+});
+
+// Get feedback stats
+router.get('/feedback/stats', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    
+    let whereClause = '';
+    const params = [];
+    
+    if (restaurantId) {
+      whereClause = 'WHERE restaurant_id = $1';
+      params.push(restaurantId);
+    }
+    
+    const result = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status = 'new') as new_count,
+        COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress_count,
+        COUNT(*) FILTER (WHERE status = 'resolved') as resolved_count,
+        COUNT(*) FILTER (WHERE status = 'closed') as closed_count,
+        COUNT(*) as total
+      FROM feedback
+      ${whereClause}
+    `, params);
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get feedback stats error:', error);
+    res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
 module.exports = router;
