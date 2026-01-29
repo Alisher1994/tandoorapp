@@ -1038,7 +1038,7 @@ function SuperAdminDashboard() {
             </Form.Group>
             
             <hr />
-            <h6>� Координаты ресторана (для расчёта доставки)</h6>
+            <h6>📍 Координаты ресторана (для расчёта доставки)</h6>
             <Row>
               <Col md={6}>
                 <Form.Group className="mb-2">
@@ -1078,7 +1078,7 @@ function SuperAdminDashboard() {
             </Form.Text>
             
             <hr />
-            <h6>�🗺️ Зона доставки</h6>
+            <h6>🗺️ Зона доставки</h6>
             <Form.Group className="mb-3">
               <div className="d-flex align-items-center gap-2 mb-2">
                 {restaurantForm.delivery_zone ? (
