@@ -210,6 +210,8 @@ router.post('/', authenticate, async (req, res) => {
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_fee DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cost DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_name VARCHAR(255)');
+      await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(10, 2) DEFAULT 0');
     } catch (e) {
       console.log('ℹ️ Orders columns check:', e.message);
     }
