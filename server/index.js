@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const superadminRoutes = require('./routes/superadmin');
 const uploadRoutes = require('./routes/upload');
 const deliveryRoutes = require('./routes/delivery');
+const addressRoutes = require('./routes/addresses');
 const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 
@@ -100,6 +101,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/delivery', deliveryRoutes);
+app.use('/api/addresses', addressRoutes);
 
 // Serve static files from React app (must be after API routes)
 if (process.env.NODE_ENV === 'production') {

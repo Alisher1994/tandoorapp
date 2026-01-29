@@ -8,6 +8,8 @@ import Form from 'react-bootstrap/Form';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import Spinner from 'react-bootstrap/Spinner';
+import ListGroup from 'react-bootstrap/ListGroup';
+import Badge from 'react-bootstrap/Badge';
 import { useCart, formatPrice } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -18,7 +20,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Cart() {
   const { cart, cartTotal, productTotal, containerTotal, updateQuantity, removeFromCart, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
   
@@ -49,6 +51,14 @@ function Cart() {
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
+  
+  // Мои адреса
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [showNewAddressModal, setShowNewAddressModal] = useState(false);
+  const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
+  const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
   
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
@@ -118,6 +128,87 @@ function Cart() {
     };
     fetchRestaurant();
   }, [user?.active_restaurant_id]);
+  
+  // Загрузка сохранённых адресов
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/addresses`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setSavedAddresses(res.data);
+        
+        // Если есть адрес по умолчанию и ещё не выбран адрес
+        const defaultAddr = res.data.find(a => a.is_default);
+        if (defaultAddr && !selectedAddressId) {
+          selectAddress(defaultAddr);
+        }
+      } catch (e) {
+        console.error('Error fetching addresses:', e);
+      }
+    };
+    fetchAddresses();
+  }, []);
+  
+  // Выбор адреса из списка
+  const selectAddress = (addr) => {
+    setSelectedAddressId(addr.id);
+    setFormData(prev => ({
+      ...prev,
+      delivery_address: addr.address,
+      delivery_coordinates: addr.latitude && addr.longitude ? `${addr.latitude},${addr.longitude}` : ''
+    }));
+    setShowAddressModal(false);
+  };
+  
+  // Сохранение нового адреса
+  const saveNewAddress = async () => {
+    if (!newAddressForm.name || !formData.delivery_coordinates) {
+      setError(language === 'uz' ? 'Nom va koordinatalar kerak' : 'Укажите название и точку на карте');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const [lat, lng] = formData.delivery_coordinates.split(',').map(Number);
+      
+      const res = await axios.post(`${API_URL}/addresses`, {
+        name: newAddressForm.name,
+        address: formData.delivery_address || newAddressForm.name,
+        latitude: lat,
+        longitude: lng,
+        is_default: savedAddresses.length === 0
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setSavedAddresses(prev => [...prev, res.data]);
+      setSelectedAddressId(res.data.id);
+      setShowNewAddressModal(false);
+      setNewAddressForm({ name: '', address: '' });
+    } catch (e) {
+      console.error('Error saving address:', e);
+      setError(language === 'uz' ? 'Manzilni saqlab bolmadi' : 'Ошибка сохранения адреса');
+    }
+  };
+  
+  // Удаление адреса
+  const deleteAddress = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/addresses/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSavedAddresses(prev => prev.filter(a => a.id !== id));
+      if (selectedAddressId === id) {
+        setSelectedAddressId(null);
+        setFormData(prev => ({ ...prev, delivery_address: '', delivery_coordinates: '' }));
+      }
+    } catch (e) {
+      console.error('Error deleting address:', e);
+    }
+  };
 
   const availableTimes = useMemo(() => {
     const now = new Date();
@@ -257,6 +348,7 @@ function Cart() {
     );
   };
 
+  // Показать модалку подтверждения перед заказом
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -276,6 +368,13 @@ function Cart() {
       return;
     }
 
+    // Показываем модалку подтверждения адреса
+    setShowConfirmOrderModal(true);
+  };
+  
+  // Финальная отправка заказа после подтверждения
+  const confirmAndSendOrder = async () => {
+    setShowConfirmOrderModal(false);
     setLoading(true);
 
     try {
@@ -552,57 +651,91 @@ function Cart() {
         <Form onSubmit={handleSubmit}>
           <Card className="border-0 shadow-sm mb-3">
             <Card.Body>
-              {/* Карта */}
-              {hasLocation && (
-                <div className="mb-3">
-                  <div className="small text-muted mb-1">{t('deliveryPoint')}</div>
-                  <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #eee' }}>
-                    <iframe
-                      title="map"
-                      src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
-                      width="100%"
-                      height="150"
-                      frameBorder="0"
-                    />
+              {/* Мои адреса */}
+              <div className="mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <span className="small text-muted">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</span>
+                  {savedAddresses.length > 0 && (
+                    <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
+                      {language === 'uz' ? 'Manzillarim' : 'Мои адреса'} ({savedAddresses.length})
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Выбранный адрес или карта */}
+                {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
+                  <div className="p-3 bg-light rounded mb-2">
+                    <div className="d-flex align-items-start">
+                      <span className="me-2">📍</span>
+                      <div className="flex-grow-1">
+                        <div className="fw-bold">{savedAddresses.find(a => a.id === selectedAddressId)?.name}</div>
+                        <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
+                      </div>
+                      <Button variant="link" size="sm" className="p-0" onClick={() => setShowAddressModal(true)}>
+                        {language === 'uz' ? "O'zgartirish" : 'Изменить'}
+                      </Button>
+                    </div>
                   </div>
+                ) : hasLocation ? (
+                  <div className="mb-2">
+                    <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #eee' }}>
+                      <iframe
+                        title="map"
+                        src={`https://yandex.ru/map-widget/v1/?pt=${mapCoordinates.lng},${mapCoordinates.lat}&z=16&l=map`}
+                        width="100%"
+                        height="150"
+                        frameBorder="0"
+                      />
+                    </div>
+                    <div className="d-flex gap-2">
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm" 
+                        className="flex-fill"
+                        onClick={() => setShowLocationModal(true)}
+                      >
+                        📍 {t('changePoint')}
+                      </Button>
+                      <Button 
+                        variant="outline-primary" 
+                        size="sm" 
+                        className="flex-fill"
+                        onClick={() => setShowNewAddressModal(true)}
+                      >
+                        💾 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
                   <Button 
-                    variant="outline-secondary" 
-                    size="sm" 
-                    className="w-100"
+                    variant="outline-primary" 
+                    className="w-100 mb-2"
                     onClick={() => setShowLocationModal(true)}
                   >
-                    📍 {t('changePoint')}
+                    📍 {t('specifyLocation')}
                   </Button>
-                </div>
-              )}
-
-              {!hasLocation && (
-                <Button 
-                  variant="outline-primary" 
-                  className="w-100 mb-3"
-                  onClick={() => setShowLocationModal(true)}
-                >
-                  📍 {t('specifyLocation')}
-                </Button>
-              )}
-
-              {/* Адрес - только если нет локации */}
-              {!hasLocation && (
-                <Form.Group className="mb-3">
-                  <Form.Label className="small text-muted mb-1">
-                    Адрес доставки <span className="text-danger">*</span>
-                  </Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={2}
-                    value={formData.delivery_address}
-                    onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
-                    placeholder="Улица, дом, подъезд, квартира"
-                    className="border-0 bg-light"
-                    required
-                  />
-                </Form.Group>
-              )}
+                )}
+                
+                {/* Быстрый выбор из сохранённых адресов */}
+                {savedAddresses.length > 0 && !selectedAddressId && (
+                  <div className="mt-2">
+                    <div className="small text-muted mb-2">{language === 'uz' ? 'Tezkor tanlash' : 'Быстрый выбор'}:</div>
+                    <div className="d-flex flex-wrap gap-2">
+                      {savedAddresses.slice(0, 3).map(addr => (
+                        <Button
+                          key={addr.id}
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => selectAddress(addr)}
+                        >
+                          {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
+                           addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'} {addr.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Телефон */}
               <Form.Group className="mb-3">
@@ -800,6 +933,166 @@ function Cart() {
           >
             {t('cancel')}
           </Button>
+        </Modal.Body>
+      </Modal>
+      
+      {/* Модалка выбора из сохранённых адресов */}
+      <Modal show={showAddressModal} onHide={() => setShowAddressModal(false)} centered>
+        <Modal.Header closeButton className="border-0">
+          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Manzillarim' : 'Мои адреса'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-0">
+          <ListGroup variant="flush">
+            {savedAddresses.map(addr => (
+              <ListGroup.Item 
+                key={addr.id}
+                action
+                className="d-flex justify-content-between align-items-center"
+                onClick={() => selectAddress(addr)}
+              >
+                <div className="d-flex align-items-center">
+                  <span className="me-2 fs-5">
+                    {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
+                     addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'}
+                  </span>
+                  <div>
+                    <div className="fw-bold">{addr.name}</div>
+                    <small className="text-muted">{addr.address}</small>
+                  </div>
+                </div>
+                <div className="d-flex align-items-center gap-2">
+                  {addr.is_default && <Badge bg="primary">{language === 'uz' ? 'Asosiy' : 'Основной'}</Badge>}
+                  <Button 
+                    variant="link" 
+                    className="text-danger p-0"
+                    onClick={(e) => { e.stopPropagation(); deleteAddress(addr.id); }}
+                  >
+                    🗑️
+                  </Button>
+                </div>
+              </ListGroup.Item>
+            ))}
+          </ListGroup>
+          <div className="p-3">
+            <Button 
+              variant="outline-primary" 
+              className="w-100"
+              onClick={() => { setShowAddressModal(false); setShowLocationModal(true); }}
+            >
+              ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
+      
+      {/* Модалка сохранения нового адреса */}
+      <Modal show={showNewAddressModal} onHide={() => setShowNewAddressModal(false)} centered>
+        <Modal.Header closeButton className="border-0">
+          <Modal.Title className="fs-5">💾 {language === 'uz' ? 'Manzilni saqlash' : 'Сохранить адрес'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-3">
+            <Form.Label>{language === 'uz' ? 'Manzil nomi' : 'Название адреса'}</Form.Label>
+            <div className="d-flex gap-2 mb-2">
+              <Button 
+                variant={newAddressForm.name === 'Дом' ? 'primary' : 'outline-secondary'}
+                size="sm"
+                onClick={() => setNewAddressForm({...newAddressForm, name: language === 'uz' ? 'Uy' : 'Дом'})}
+              >
+                🏠 {language === 'uz' ? 'Uy' : 'Дом'}
+              </Button>
+              <Button 
+                variant={newAddressForm.name === 'Работа' ? 'primary' : 'outline-secondary'}
+                size="sm"
+                onClick={() => setNewAddressForm({...newAddressForm, name: language === 'uz' ? 'Ish' : 'Работа'})}
+              >
+                💼 {language === 'uz' ? 'Ish' : 'Работа'}
+              </Button>
+            </div>
+            <Form.Control
+              type="text"
+              value={newAddressForm.name}
+              onChange={(e) => setNewAddressForm({...newAddressForm, name: e.target.value})}
+              placeholder={language === 'uz' ? 'Yoki boshqa nom' : 'Или другое название'}
+            />
+          </Form.Group>
+          <Button 
+            variant="primary" 
+            className="w-100"
+            onClick={saveNewAddress}
+            disabled={!newAddressForm.name}
+          >
+            💾 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
+          </Button>
+        </Modal.Body>
+      </Modal>
+      
+      {/* Модалка подтверждения заказа */}
+      <Modal show={showConfirmOrderModal} onHide={() => setShowConfirmOrderModal(false)} centered>
+        <Modal.Header closeButton className="border-0">
+          <Modal.Title className="fs-5">✅ {language === 'uz' ? 'Buyurtmani tasdiqlang' : 'Подтвердите заказ'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="warning" className="mb-3">
+            <div className="fw-bold mb-1">📍 {language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}:</div>
+            <div>
+              {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
+                <>
+                  <strong>{savedAddresses.find(a => a.id === selectedAddressId)?.name}</strong>
+                  <br />
+                  {savedAddresses.find(a => a.id === selectedAddressId)?.address}
+                </>
+              ) : formData.delivery_address || (language === 'uz' ? 'Joriy joylashuv' : 'По геолокации')}
+            </div>
+          </Alert>
+          
+          <div className="mb-3">
+            <div className="d-flex justify-content-between">
+              <span>{language === 'uz' ? 'Mahsulotlar' : 'Товары'}:</span>
+              <span>{formatPrice(productTotal)} {t('sum')}</span>
+            </div>
+            {containerTotal > 0 && (
+              <div className="d-flex justify-content-between">
+                <span>🍽 {language === 'uz' ? 'Idishlar' : 'Посуда'}:</span>
+                <span>{formatPrice(containerTotal)} {t('sum')}</span>
+              </div>
+            )}
+            {parseFloat(restaurant?.service_fee) > 0 && (
+              <div className="d-flex justify-content-between">
+                <span>🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
+                <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
+              </div>
+            )}
+            {deliveryCost > 0 && (
+              <div className="d-flex justify-content-between">
+                <span>🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:</span>
+                <span>{formatPrice(deliveryCost)} {t('sum')}</span>
+              </div>
+            )}
+            <hr />
+            <div className="d-flex justify-content-between fw-bold">
+              <span>{t('total')}:</span>
+              <span className="text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
+            </div>
+          </div>
+          
+          <div className="d-flex gap-2">
+            <Button 
+              variant="outline-secondary" 
+              className="flex-fill"
+              onClick={() => setShowConfirmOrderModal(false)}
+            >
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button 
+              variant="success" 
+              className="flex-fill"
+              onClick={confirmAndSendOrder}
+              disabled={loading}
+            >
+              {loading ? <Spinner size="sm" /> : (language === 'uz' ? 'Tasdiqlash' : 'Подтвердить')}
+            </Button>
+          </div>
         </Modal.Body>
       </Modal>
       

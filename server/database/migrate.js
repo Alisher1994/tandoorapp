@@ -278,6 +278,25 @@ async function migrate() {
     console.log('✅ Feedback table ready');
     
     // =====================================================
+    // Step 4.6: Create user_addresses table (Мои адреса)
+    // =====================================================
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_addresses (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        address TEXT NOT NULL,
+        latitude DECIMAL(10, 8),
+        longitude DECIMAL(11, 8),
+        is_default BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ User_addresses table ready');
+    
+    // =====================================================
     // Step 4.6: Create user_profile_logs table for tracking profile changes
     // =====================================================
     
