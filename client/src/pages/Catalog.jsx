@@ -399,9 +399,8 @@ function Catalog() {
   return (
     <>
       <Navbar 
-        bg="white" 
         expand="lg" 
-        className="shadow-sm mb-0"
+        className="mb-0"
         style={{
           position: 'sticky',
           top: 0,
@@ -409,7 +408,9 @@ function Catalog() {
           transform: 'translateZ(0)',
           willChange: 'transform',
           backfaceVisibility: 'hidden',
-          WebkitBackfaceVisibility: 'hidden'
+          WebkitBackfaceVisibility: 'hidden',
+          backgroundColor: '#f6f4ef',
+          borderBottom: '1px solid var(--border-color)'
         }}
       >
         <div className="d-flex justify-content-between align-items-center w-100 px-3">
@@ -456,7 +457,6 @@ function Catalog() {
       {selectedRestaurant && nonEmptyCategories.length > 0 && (
         <div 
           ref={categoryNavRef}
-          className="pb-2 bg-white" 
           style={{ 
             position: 'sticky',
             top: 56,
@@ -470,6 +470,7 @@ function Catalog() {
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
+            backgroundColor: '#f6f4ef',
             borderBottom: '1px solid var(--border-color)',
             /* GPU acceleration for smooth scrolling on iOS */
             transform: 'translateZ(0)',
