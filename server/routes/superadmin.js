@@ -159,6 +159,19 @@ router.put('/restaurants/:id', async (req, res) => {
       }
     }
     
+    // Check if delivery settings columns exist
+    const hasDeliverySettings = oldValues.hasOwnProperty('delivery_base_radius');
+    if (!hasDeliverySettings) {
+      try {
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_base_radius DECIMAL(5, 2) DEFAULT 2');
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_base_price DECIMAL(10, 2) DEFAULT 5000');
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000');
+        console.log('✅ Added delivery settings columns to restaurants');
+      } catch (e) {
+        console.log('ℹ️ delivery settings columns:', e.message);
+      }
+    }
+    
     // Now update with all fields including coordinates and delivery settings
     const result = await pool.query(`
       UPDATE restaurants 
