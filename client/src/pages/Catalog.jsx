@@ -399,8 +399,7 @@ function Catalog() {
   return (
     <>
       <Navbar 
-        bg="dark" 
-        variant="dark"
+        bg="white" 
         expand="lg" 
         className="shadow-sm mb-0"
         style={{
