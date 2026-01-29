@@ -72,9 +72,7 @@ router.get('/', async (req, res) => {
 router.get('/restaurant/:id', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, address, phone, logo_url, service_fee, click_url, payme_url 
-       FROM restaurants 
-       WHERE id = $1`,
+      `SELECT * FROM restaurants WHERE id = $1`,
       [req.params.id]
     );
 
@@ -82,7 +80,18 @@ router.get('/restaurant/:id', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
 
-    res.json(result.rows[0]);
+    // Return only safe public fields
+    const r = result.rows[0];
+    res.json({
+      id: r.id,
+      name: r.name,
+      address: r.address,
+      phone: r.phone,
+      logo_url: r.logo_url,
+      service_fee: r.service_fee || 0,
+      click_url: r.click_url,
+      payme_url: r.payme_url
+    });
   } catch (error) {
     console.error('Restaurant error:', error);
     res.status(500).json({ error: 'Ошибка получения ресторана' });
@@ -114,12 +123,20 @@ router.get('/:id', async (req, res) => {
 router.get('/restaurants/list', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, name, address, phone, logo_url, service_fee 
-      FROM restaurants 
+      SELECT * FROM restaurants 
       WHERE is_active = true 
       ORDER BY name
     `);
-    res.json(result.rows);
+    // Return only safe public fields
+    const restaurants = result.rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      address: r.address,
+      phone: r.phone,
+      logo_url: r.logo_url,
+      service_fee: r.service_fee || 0
+    }));
+    res.json(restaurants);
   } catch (error) {
     console.error('Restaurants list error:', error);
     res.status(500).json({ error: 'Ошибка получения списка ресторанов' });
