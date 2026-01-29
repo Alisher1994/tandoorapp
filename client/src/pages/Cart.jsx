@@ -167,11 +167,45 @@ function Cart() {
   const hasLocation = !!mapCoordinates;
 
   const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setError('Геолокация не поддерживается');
+    setLocationLoading(true);
+    setError('');
+    
+    // Try Telegram WebApp LocationManager first
+    const tg = window.Telegram?.WebApp;
+    if (tg?.LocationManager) {
+      tg.LocationManager.init(() => {
+        if (tg.LocationManager.isInited && tg.LocationManager.isLocationAvailable) {
+          tg.LocationManager.getLocation((location) => {
+            if (location) {
+              setFormData(prev => ({
+                ...prev,
+                delivery_coordinates: `${location.latitude},${location.longitude}`
+              }));
+              setShowLocationModal(false);
+            } else {
+              setError('Не удалось получить геолокацию через Telegram');
+            }
+            setLocationLoading(false);
+          });
+        } else {
+          // Fallback to browser geolocation
+          fallbackToNavigatorGeolocation();
+        }
+      });
       return;
     }
-    setLocationLoading(true);
+    
+    // Fallback to browser geolocation
+    fallbackToNavigatorGeolocation();
+  };
+  
+  const fallbackToNavigatorGeolocation = () => {
+    if (!navigator.geolocation) {
+      setError('Геолокация не поддерживается');
+      setLocationLoading(false);
+      return;
+    }
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setFormData(prev => ({
@@ -181,10 +215,12 @@ function Cart() {
         setShowLocationModal(false);
         setLocationLoading(false);
       },
-      () => {
-        setError('Не удалось получить геолокацию');
+      (err) => {
+        console.error('Geolocation error:', err);
+        setError('Не удалось получить геолокацию. Разрешите доступ к местоположению.');
         setLocationLoading(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
