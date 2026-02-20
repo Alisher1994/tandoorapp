@@ -27,7 +27,8 @@ console.log(`📌 PORT from environment: ${process.env.PORT || 'not set, using d
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow inline scripts for React
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(morgan('combined'));
 app.use(cors({
