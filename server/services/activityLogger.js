@@ -8,29 +8,29 @@ const ACTION_TYPES = {
   CREATE_PRODUCT: 'create_product',
   UPDATE_PRODUCT: 'update_product',
   DELETE_PRODUCT: 'delete_product',
-  
+
   // Categories
   CREATE_CATEGORY: 'create_category',
   UPDATE_CATEGORY: 'update_category',
   DELETE_CATEGORY: 'delete_category',
-  
+
   // Orders
   PROCESS_ORDER: 'process_order',
   UPDATE_ORDER_STATUS: 'update_order_status',
   CANCEL_ORDER: 'cancel_order',
-  
+
   // Users
   CREATE_USER: 'create_user',
   UPDATE_USER: 'update_user',
   DELETE_USER: 'delete_user',
   BLOCK_USER: 'block_user',
   UNBLOCK_USER: 'unblock_user',
-  
+
   // Restaurants
   CREATE_RESTAURANT: 'create_restaurant',
   UPDATE_RESTAURANT: 'update_restaurant',
   DELETE_RESTAURANT: 'delete_restaurant',
-  
+
   // Auth
   LOGIN: 'login',
   LOGOUT: 'logout'
@@ -126,7 +126,13 @@ async function getActivityLogs(filters = {}) {
       offset = 0
     } = filters;
 
-    let query = `
+    // For total count
+    let countQuery = `SELECT COUNT(*) FROM activity_logs al WHERE 1=1`;
+    const countParams = [];
+    let countParamIndex = 1;
+
+    // For data
+    let dataQuery = `
       SELECT 
         al.*,
         u.username,
@@ -137,51 +143,78 @@ async function getActivityLogs(filters = {}) {
       LEFT JOIN restaurants r ON al.restaurant_id = r.id
       WHERE 1=1
     `;
-    
-    const params = [];
-    let paramIndex = 1;
 
+    const dataParams = [];
+    let dataParamIndex = 1;
+
+    const filterBlocks = [];
     if (restaurantId) {
-      query += ` AND al.restaurant_id = $${paramIndex}`;
-      params.push(restaurantId);
-      paramIndex++;
+      filterBlocks.push(`al.restaurant_id = $${dataParamIndex}`);
+      dataParams.push(restaurantId);
+      countParams.push(restaurantId);
+      dataParamIndex++;
+      countParamIndex++;
     }
 
     if (userId) {
-      query += ` AND al.user_id = $${paramIndex}`;
-      params.push(userId);
-      paramIndex++;
+      filterBlocks.push(`al.user_id = $${dataParamIndex}`);
+      dataParams.push(userId);
+      countParams.push(userId);
+      dataParamIndex++;
+      countParamIndex++;
     }
 
     if (actionType) {
-      query += ` AND al.action_type = $${paramIndex}`;
-      params.push(actionType);
-      paramIndex++;
+      filterBlocks.push(`al.action_type = $${dataParamIndex}`);
+      dataParams.push(actionType);
+      countParams.push(actionType);
+      dataParamIndex++;
+      countParamIndex++;
     }
 
     if (entityType) {
-      query += ` AND al.entity_type = $${paramIndex}`;
-      params.push(entityType);
-      paramIndex++;
+      filterBlocks.push(`al.entity_type = $${dataParamIndex}`);
+      dataParams.push(entityType);
+      countParams.push(entityType);
+      dataParamIndex++;
+      countParamIndex++;
     }
 
     if (startDate) {
-      query += ` AND al.created_at >= $${paramIndex}`;
-      params.push(startDate);
-      paramIndex++;
+      filterBlocks.push(`al.created_at >= $${dataParamIndex}`);
+      dataParams.push(startDate);
+      countParams.push(startDate);
+      dataParamIndex++;
+      countParamIndex++;
     }
 
     if (endDate) {
-      query += ` AND al.created_at <= $${paramIndex}`;
-      params.push(endDate);
-      paramIndex++;
+      filterBlocks.push(`al.created_at <= $${dataParamIndex}`);
+      const endDateWithTime = endDate.includes(' ') ? endDate : `${endDate} 23:59:59`;
+      dataParams.push(endDateWithTime);
+      countParams.push(endDateWithTime);
+      dataParamIndex++;
+      countParamIndex++;
     }
 
-    query += ` ORDER BY al.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
+    if (filterBlocks.length > 0) {
+      const whereClause = ` AND ` + filterBlocks.join(' AND ');
+      dataQuery += whereClause;
+      countQuery += whereClause;
+    }
 
-    const result = await pool.query(query, params);
-    return result.rows;
+    dataQuery += ` ORDER BY al.created_at DESC LIMIT $${dataParamIndex} OFFSET $${dataParamIndex + 1}`;
+    dataParams.push(limit, offset);
+
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, dataParams),
+      pool.query(countQuery, countParams)
+    ]);
+
+    return {
+      logs: dataResult.rows,
+      total: parseInt(countResult.rows[0].count)
+    };
   } catch (error) {
     console.error('Get activity logs error:', error);
     throw error;
@@ -202,15 +235,15 @@ async function getActivityStats(restaurantId = null, days = 7) {
       FROM activity_logs
       WHERE created_at >= NOW() - INTERVAL '${days} days'
     `;
-    
+
     const params = [];
     if (restaurantId) {
       query += ` AND restaurant_id = $1`;
       params.push(restaurantId);
     }
-    
+
     query += ` GROUP BY action_type, entity_type, DATE(created_at) ORDER BY date DESC`;
-    
+
     const result = await pool.query(query, params);
     return result.rows;
   } catch (error) {
@@ -223,9 +256,9 @@ async function getActivityStats(restaurantId = null, days = 7) {
  * Хелпер для получения IP из request
  */
 function getIpFromRequest(req) {
-  return req.headers['x-forwarded-for']?.split(',')[0] || 
-         req.socket?.remoteAddress || 
-         null;
+  return req.headers['x-forwarded-for']?.split(',')[0] ||
+    req.socket?.remoteAddress ||
+    null;
 }
 
 /**

@@ -5,25 +5,25 @@ const bcrypt = require('bcryptjs');
 
 async function migrate() {
   const client = await pool.connect();
-
+  
   try {
     console.log('🔄 Starting database migration...');
-
+    
     // Check DATABASE_URL
     if (!process.env.DATABASE_URL) {
       console.error('❌ DATABASE_URL is not set! Cannot run migrations.');
       return false;
     }
-
+    
     console.log('📊 DATABASE_URL is set, connecting...');
-
+    
     // Disable global transaction because try/catch masks failures that break the whole block
     // await client.query('BEGIN');
-
+    
     // =====================================================
     // Step 1: Create restaurants table FIRST (before users references it)
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS restaurants (
         id SERIAL PRIMARY KEY,
@@ -41,7 +41,7 @@ async function migrate() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
+    
     // Add missing columns
     const restaurantColumns = [
       'logo_url TEXT',
@@ -61,25 +61,21 @@ async function migrate() {
       'longitude DECIMAL(11, 8)',
       'delivery_base_radius DECIMAL(5, 2) DEFAULT 2',
       'delivery_base_price DECIMAL(10, 2) DEFAULT 5000',
-      'delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000',
-      'is_delivery_enabled BOOLEAN DEFAULT true',
-      'balance DECIMAL(12, 2) DEFAULT 100000.00',
-      'is_free_tier BOOLEAN DEFAULT false',
-      'order_cost DECIMAL(12, 2) DEFAULT 1000.00'
+      'delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000'
     ];
-
+    
     for (const col of restaurantColumns) {
       try {
         await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
-      } catch (e) { }
+      } catch (e) {}
     }
-
+    
     console.log('✅ Restaurants table ready');
-
+    
     // =====================================================
     // Step 2: Add new columns to existing tables
     // =====================================================
-
+    
     // Add columns to users table
     const userColumns = [
       { name: 'active_restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
@@ -88,7 +84,7 @@ async function migrate() {
       { name: 'last_longitude', type: 'DECIMAL(11, 8)' },
       { name: 'last_address', type: 'TEXT' }
     ];
-
+    
     for (const col of userColumns) {
       try {
         await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
@@ -97,14 +93,14 @@ async function migrate() {
         if (e.code !== '42701') console.log(`ℹ️  Column users.${col.name}: ${e.message}`);
       }
     }
-
+    
     // Add columns to categories table
     const categoryColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
       { name: 'is_active', type: 'BOOLEAN DEFAULT true' },
       { name: 'updated_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ];
-
+    
     for (const col of categoryColumns) {
       try {
         await client.query(`ALTER TABLE categories ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
@@ -113,13 +109,13 @@ async function migrate() {
       }
     }
     console.log('✅ Categories table updated');
-
+    
     // Add columns to products table  
     const productColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
       { name: 'container_id', type: 'INTEGER' }
     ];
-
+    
     for (const col of productColumns) {
       try {
         await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
@@ -128,11 +124,11 @@ async function migrate() {
       }
     }
     console.log('✅ Products table updated');
-
+    
     // =====================================================
     // Create containers table (посуда/тара)
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS containers (
         id SERIAL PRIMARY KEY,
@@ -145,7 +141,7 @@ async function migrate() {
       )
     `);
     console.log('✅ Containers table ready');
-
+    
     // Add foreign key constraint to products.container_id if not exists
     try {
       await client.query(`
@@ -156,7 +152,7 @@ async function migrate() {
     } catch (e) {
       // Constraint might already exist
     }
-
+    
     // Add columns to orders table
     const orderColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
@@ -169,11 +165,9 @@ async function migrate() {
       { name: 'cancelled_at_status', type: 'VARCHAR(20)' },
       { name: 'service_fee', type: 'DECIMAL(10, 2) DEFAULT 0' },
       { name: 'delivery_cost', type: 'DECIMAL(10, 2) DEFAULT 0' },
-      { name: 'delivery_distance_km', type: 'DECIMAL(10, 2)' },
-      { name: 'is_paid', type: 'BOOLEAN DEFAULT false' },
-      { name: 'paid_amount', type: 'DECIMAL(12, 2) DEFAULT 0' }
+      { name: 'delivery_distance_km', type: 'DECIMAL(10, 2)' }
     ];
-
+    
     for (const col of orderColumns) {
       try {
         await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
@@ -181,7 +175,7 @@ async function migrate() {
         if (e.code !== '42701') console.log(`ℹ️  Column orders.${col.name}: ${e.message}`);
       }
     }
-
+    
     // Fix column sizes - order_number and customer_phone were too small
     try {
       await client.query(`ALTER TABLE orders ALTER COLUMN order_number TYPE VARCHAR(50)`);
@@ -190,15 +184,15 @@ async function migrate() {
     } catch (e) {
       console.log(`ℹ️  Orders resize: ${e.message}`);
     }
-
+    
     console.log('✅ Orders table updated');
-
+    
     // Add container columns to order_items
     const orderItemsColumns = [
       { name: 'container_name', type: 'VARCHAR(255)' },
       { name: 'container_price', type: 'DECIMAL(10, 2) DEFAULT 0' }
     ];
-
+    
     for (const col of orderItemsColumns) {
       try {
         await client.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
@@ -207,11 +201,11 @@ async function migrate() {
       }
     }
     console.log('✅ Order_items table updated with container columns');
-
+    
     // =====================================================
     // Step 3: Create operator_restaurants junction table
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS operator_restaurants (
         id SERIAL PRIMARY KEY,
@@ -222,11 +216,11 @@ async function migrate() {
       )
     `);
     console.log('✅ Operator_restaurants table ready');
-
+    
     // =====================================================
     // Step 3.5: Create user_restaurants table for tracking customer-restaurant relationships
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_restaurants (
         id SERIAL PRIMARY KEY,
@@ -238,11 +232,11 @@ async function migrate() {
       )
     `);
     console.log('✅ User_restaurants table ready');
-
+    
     // =====================================================
     // Step 4: Create activity_logs table
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id SERIAL PRIMARY KEY,
@@ -260,11 +254,11 @@ async function migrate() {
       )
     `);
     console.log('✅ Activity_logs table ready');
-
+    
     // =====================================================
     // Step 4.5: Create feedback table
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS feedback (
         id SERIAL PRIMARY KEY,
@@ -283,11 +277,11 @@ async function migrate() {
       )
     `);
     console.log('✅ Feedback table ready');
-
+    
     // =====================================================
     // Step 4.6: Create user_addresses table (Мои адреса)
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_addresses (
         id SERIAL PRIMARY KEY,
@@ -302,11 +296,11 @@ async function migrate() {
       )
     `);
     console.log('✅ User_addresses table ready');
-
+    
     // =====================================================
     // Step 4.6: Create user_profile_logs table for tracking profile changes
     // =====================================================
-
+    
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_profile_logs (
         id SERIAL PRIMARY KEY,
@@ -319,13 +313,13 @@ async function migrate() {
       )
     `);
     console.log('✅ User_profile_logs table ready');
-
+    
     // =====================================================
     // Step 5: Update user roles - change 'admin' to 'superadmin'
     // =====================================================
-
+    
     await client.query(`UPDATE users SET role = 'superadmin' WHERE role = 'admin'`);
-
+    
     // Fix role constraint if exists
     try {
       await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
@@ -337,14 +331,14 @@ async function migrate() {
       // Constraint might not exist or already correct
     }
     console.log('✅ User roles updated');
-
+    
     // =====================================================
     // Step 6: Create default restaurant
     // =====================================================
-
+    
     const restaurantCheck = await client.query('SELECT id FROM restaurants LIMIT 1');
     let defaultRestaurantId;
-
+    
     if (restaurantCheck.rows.length === 0) {
       const restaurantResult = await client.query(`
         INSERT INTO restaurants (name, address, telegram_bot_token, telegram_group_id, is_active)
@@ -362,34 +356,34 @@ async function migrate() {
       defaultRestaurantId = restaurantCheck.rows[0].id;
       console.log(`ℹ️  Restaurant exists with ID: ${defaultRestaurantId}`);
     }
-
+    
     // =====================================================
     // Step 7: Create or update superadmin
     // =====================================================
-
+    
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
+    
     const adminCheck = await client.query(
       'SELECT id, role FROM users WHERE username = $1',
       [adminUsername]
     );
-
+    
     let adminId;
-
+    
     if (adminCheck.rows.length === 0) {
       const adminResult = await client.query(`
         INSERT INTO users (username, password, full_name, role, is_active, active_restaurant_id) 
         VALUES ($1, $2, 'Super Administrator', 'superadmin', true, $3)
         RETURNING id
       `, [adminUsername, hashedPassword, defaultRestaurantId]);
-
+      
       adminId = adminResult.rows[0].id;
       console.log(`✅ Superadmin created: ${adminUsername}`);
     } else {
       adminId = adminCheck.rows[0].id;
-
+      
       // Update to superadmin role and set active restaurant
       await client.query(`
         UPDATE users 
@@ -398,31 +392,31 @@ async function migrate() {
             active_restaurant_id = COALESCE(active_restaurant_id, $1)
         WHERE id = $2
       `, [defaultRestaurantId, adminId]);
-
+      
       console.log(`✅ Superadmin updated: ${adminUsername}`);
     }
-
+    
     // Link superadmin to default restaurant
     await client.query(`
       INSERT INTO operator_restaurants (user_id, restaurant_id)
       VALUES ($1, $2)
       ON CONFLICT (user_id, restaurant_id) DO NOTHING
     `, [adminId, defaultRestaurantId]);
-
+    
     // =====================================================
     // Step 8: Migrate existing data to default restaurant
     // =====================================================
-
+    
     await client.query(`UPDATE categories SET restaurant_id = $1 WHERE restaurant_id IS NULL`, [defaultRestaurantId]);
     await client.query(`UPDATE products SET restaurant_id = $1 WHERE restaurant_id IS NULL`, [defaultRestaurantId]);
     await client.query(`UPDATE orders SET restaurant_id = $1 WHERE restaurant_id IS NULL`, [defaultRestaurantId]);
-
+    
     console.log('✅ Existing data migrated to default restaurant');
-
+    
     // =====================================================
     // Step 9: Create indexes
     // =====================================================
-
+    
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_users_active_restaurant ON users(active_restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_operator_restaurants_user ON operator_restaurants(user_id)',
@@ -435,7 +429,7 @@ async function migrate() {
       'CREATE INDEX IF NOT EXISTS idx_activity_logs_restaurant ON activity_logs(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC)'
     ];
-
+    
     for (const idx of indexes) {
       try {
         await client.query(idx);
@@ -444,53 +438,11 @@ async function migrate() {
       }
     }
     console.log('✅ Indexes created');
-
-    // =====================================================
-    // Step 10: Billing System Tables
-    // =====================================================
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS billing_settings (
-        id SERIAL PRIMARY KEY,
-        default_starting_balance DECIMAL(12, 2) DEFAULT 100000.00,
-        default_order_cost DECIMAL(12, 2) DEFAULT 1000.00,
-        card_number VARCHAR(50),
-        card_holder VARCHAR(255),
-        phone_number VARCHAR(50),
-        telegram_username VARCHAR(100),
-        click_link TEXT,
-        payme_link TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Insert default settings if not exists
-    await client.query(`
-      INSERT INTO billing_settings (id) 
-      SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM billing_settings WHERE id = 1)
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS billing_transactions (
-        id SERIAL PRIMARY KEY,
-        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
-        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        amount DECIMAL(12, 2) NOT NULL,
-        type VARCHAR(20) NOT NULL, -- 'deposit', 'withdrawal'
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Add transaction indexes
-    await client.query('CREATE INDEX IF NOT EXISTS idx_billing_transactions_restaurant ON billing_transactions(restaurant_id)');
-
-    console.log('✅ Billing tables and settings ready');
-
+    
     // await client.query('COMMIT');
     console.log('✅ Migration completed successfully!');
     return true;
-
+    
   } catch (error) {
     // await client.query('ROLLBACK');
     console.error('❌ Migration error:', error.message);

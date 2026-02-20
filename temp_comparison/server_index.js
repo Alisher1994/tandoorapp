@@ -15,7 +15,6 @@ const deliveryRoutes = require('./routes/delivery');
 const addressRoutes = require('./routes/addresses');
 const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
-const { initBroadcastWorker } = require('./services/broadcastWorker');
 
 const app = express();
 // Railway автоматически устанавливает PORT, используем его
@@ -58,16 +57,16 @@ app.get('/api/health', async (req, res) => {
   try {
     const pool = require('./database/connection');
     const dbResult = await pool.query('SELECT NOW() as time, COUNT(*) as users FROM users');
-    res.json({
-      status: 'ok',
+    res.json({ 
+      status: 'ok', 
       timestamp: new Date().toISOString(),
       database: 'connected',
       db_time: dbResult.rows[0]?.time,
       users_count: dbResult.rows[0]?.users
     });
   } catch (error) {
-    res.json({
-      status: 'ok',
+    res.json({ 
+      status: 'ok', 
       timestamp: new Date().toISOString(),
       database: 'error',
       error: error.message
@@ -108,11 +107,11 @@ app.use('/api/addresses', addressRoutes);
 if (process.env.NODE_ENV === 'production') {
   const buildPath = path.join(__dirname, '../client/build');
   const fs = require('fs');
-
+  
   if (fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
     console.log('✅ Static files served from:', buildPath);
-
+    
     // Serve React app (catch-all route must be last)
     app.get('*', (req, res) => {
       res.sendFile(path.join(buildPath, 'index.html'));
@@ -136,34 +135,32 @@ if (process.env.NODE_ENV === 'production') {
 
 // Initialize database and start server
 async function startServer() {
+  // Always run migrations on Railway (DATABASE_URL is set)
+  if (process.env.DATABASE_URL) {
+    try {
+      console.log('🔄 Running database migrations on startup...');
+      const migrate = require('./database/migrate');
+      await migrate();
+      console.log('✅ Migrations completed');
+    } catch (error) {
+      console.error('⚠️  Migration error:', error.message);
+      console.error(error);
+    }
+  } else {
+    console.warn('⚠️  DATABASE_URL not set, skipping migrations');
+  }
+
   // Start server first - listen on 0.0.0.0 for Railway
   app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 Listening on 0.0.0.0:${PORT}`);
-
-    // Always run migrations on Railway (DATABASE_URL is set)
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🔄 Running database migrations on startup...');
-        const migrate = require('./database/migrate');
-        await migrate();
-        console.log('✅ Migrations completed');
-      } catch (error) {
-        console.error('⚠️  Migration error:', error.message);
-      }
-    } else {
-      console.warn('⚠️  DATABASE_URL not set, skipping migrations');
-    }
-
+    
     // Initialize legacy Telegram bot (fallback for old system)
     initBot();
-
+    
     // Initialize multi-bot system for all restaurants
     await initMultiBots();
-
-    // Initialize scheduled broadcast worker
-    initBroadcastWorker();
   });
 }
 

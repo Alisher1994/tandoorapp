@@ -24,10 +24,10 @@ function Cart() {
   const { user, refreshUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
-  
+
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
   const savedCoordinates = hasSavedLocation ? `${user.last_latitude},${user.last_longitude}` : '';
-  
+
   const [formData, setFormData] = useState({
     delivery_address: user?.last_address || '',
     delivery_coordinates: savedCoordinates,
@@ -52,7 +52,7 @@ function Cart() {
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
-  
+
   // Мои адреса
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
@@ -60,10 +60,10 @@ function Cart() {
   const [showNewAddressModal, setShowNewAddressModal] = useState(false);
   const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
-  
+
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
-  
+
   // Keyboard avoidance - scroll to comment field when focused (works on iOS)
   const handleCommentFocus = () => {
     // Multiple attempts for iOS compatibility
@@ -72,31 +72,31 @@ function Cart() {
         // Get scroll container (#root for iOS fix)
         const scrollContainer = document.getElementById('root') || window;
         const rect = commentRef.current.getBoundingClientRect();
-        
+
         // Calculate position to center the input in visible area
         const visualHeight = window.visualViewport?.height || window.innerHeight;
-        const targetScroll = scrollContainer === window 
+        const targetScroll = scrollContainer === window
           ? window.scrollY + rect.top - (visualHeight / 3)
           : scrollContainer.scrollTop + rect.top - (visualHeight / 3);
-        
+
         if (scrollContainer === window) {
           window.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
         } else {
           scrollContainer.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
         }
-        
+
         // Also use scrollIntoView as fallback
         commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     };
-    
+
     // Initial scroll
     setTimeout(scrollToInput, 100);
     // Re-scroll after keyboard appears (iOS)
     setTimeout(scrollToInput, 300);
     setTimeout(scrollToInput, 500);
   };
-  
+
   // Handle iOS visualViewport resize (keyboard open/close)
   useEffect(() => {
     const handleResize = () => {
@@ -108,13 +108,13 @@ function Cart() {
         }, 100);
       }
     };
-    
+
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleResize);
       return () => window.visualViewport.removeEventListener('resize', handleResize);
     }
   }, []);
-  
+
   // Fetch restaurant info for receipt
   useEffect(() => {
     const fetchRestaurant = async () => {
@@ -129,7 +129,7 @@ function Cart() {
     };
     fetchRestaurant();
   }, [user?.active_restaurant_id]);
-  
+
   // Загрузка сохранённых адресов
   useEffect(() => {
     const fetchAddresses = async () => {
@@ -139,7 +139,7 @@ function Cart() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setSavedAddresses(res.data);
-        
+
         // Если есть адрес по умолчанию и ещё не выбран адрес
         const defaultAddr = res.data.find(a => a.is_default);
         if (defaultAddr && !selectedAddressId) {
@@ -151,7 +151,7 @@ function Cart() {
     };
     fetchAddresses();
   }, []);
-  
+
   // Выбор адреса из списка
   const selectAddress = (addr) => {
     setSelectedAddressId(addr.id);
@@ -162,18 +162,18 @@ function Cart() {
     }));
     setShowAddressModal(false);
   };
-  
+
   // Сохранение нового адреса
   const saveNewAddress = async () => {
     if (!newAddressForm.name || !formData.delivery_coordinates) {
       setError(language === 'uz' ? 'Nom va koordinatalar kerak' : 'Укажите название и точку на карте');
       return;
     }
-    
+
     try {
       const token = localStorage.getItem('token');
       const [lat, lng] = formData.delivery_coordinates.split(',').map(Number);
-      
+
       const res = await axios.post(`${API_URL}/addresses`, {
         name: newAddressForm.name,
         address: formData.delivery_address || newAddressForm.name,
@@ -183,7 +183,7 @@ function Cart() {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setSavedAddresses(prev => [...prev, res.data]);
       setSelectedAddressId(res.data.id);
       setShowNewAddressModal(false);
@@ -193,7 +193,7 @@ function Cart() {
       setError(language === 'uz' ? 'Manzilni saqlab bolmadi' : 'Ошибка сохранения адреса');
     }
   };
-  
+
   // Удаление адреса
   const deleteAddress = async (id) => {
     try {
@@ -264,12 +264,12 @@ function Cart() {
   // Fetch delivery cost when coordinates change
   useEffect(() => {
     const fetchDeliveryCost = async () => {
-      if (!mapCoordinates || !user?.active_restaurant_id) {
+      if (!mapCoordinates || !user?.active_restaurant_id || restaurant?.is_delivery_enabled === false) {
         setDeliveryCost(0);
         setDeliveryDistance(0);
         return;
       }
-      
+
       setDeliveryLoading(true);
       try {
         const res = await axios.post(`${API_URL}/delivery/calculate`, {
@@ -287,7 +287,7 @@ function Cart() {
         setDeliveryLoading(false);
       }
     };
-    
+
     fetchDeliveryCost();
   }, [mapCoordinates, user?.active_restaurant_id]);
 
@@ -325,7 +325,7 @@ function Cart() {
     }
     fallbackToNavigatorGeolocation(handleCoords);
   };
-  
+
   const fallbackToNavigatorGeolocation = (onSuccess) => {
     if (!navigator.geolocation) {
       setError('Геолокация не поддерживается');
@@ -354,7 +354,7 @@ function Cart() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (cart.length === 0) {
       setError('Корзина пуста');
       return;
@@ -364,8 +364,8 @@ function Cart() {
       setError('Укажите номер телефона');
       return;
     }
-    
-    if (!hasLocation && !formData.delivery_address) {
+
+    if (restaurant?.is_delivery_enabled !== false && !hasLocation && !formData.delivery_address) {
       setError('Укажите адрес доставки');
       return;
     }
@@ -373,7 +373,7 @@ function Cart() {
     // Показываем модалку подтверждения адреса
     setShowConfirmOrderModal(true);
   };
-  
+
   // Финальная отправка заказа после подтверждения
   const confirmAndSendOrder = async () => {
     setShowConfirmOrderModal(false);
@@ -381,13 +381,15 @@ function Cart() {
 
     try {
       const restaurant_id = cart[0]?.restaurant_id || user?.active_restaurant_id;
-      
+
       // Если нет адреса но есть локация - указываем что доставка по локации
-      const deliveryAddress = formData.delivery_address || (hasLocation ? 'По геолокации' : '');
-      
+      const deliveryAddress = restaurant?.is_delivery_enabled === false
+        ? 'Самовывоз'
+        : (formData.delivery_address || (hasLocation ? 'По геолокации' : ''));
+
       // Calculate service fee
       const serviceFee = parseFloat(restaurant?.service_fee) || 0;
-      
+
       const orderData = {
         items: cart.map(item => ({
           product_id: item.id,
@@ -410,23 +412,23 @@ function Cart() {
       };
 
       console.log('📦 Sending order:', JSON.stringify(orderData, null, 2));
-      
+
       const response = await axios.post(`${API_URL}/orders`, orderData);
       console.log('✅ Order created:', response.data);
-      
+
       // Save order info for receipt BEFORE clearing cart
       const orderForReceipt = response.data.order || {
         order_number: response.data.order_number || 'N/A',
         total_amount: orderData.items.reduce((sum, i) => sum + (i.price * i.quantity), 0),
         payment_method: orderData.payment_method
       };
-      
+
       // Store items before clearing
       const itemsForReceipt = [...orderData.items];
-      
+
       // Clear cart first
       clearCart();
-      
+
       // Открываем ссылку на оплату если выбран Click или Payme
       if (formData.payment_method === 'click' && restaurant?.click_url) {
         // Используем Telegram WebApp для открытия ссылки
@@ -442,12 +444,12 @@ function Cart() {
           window.open(restaurant.payme_url, '_blank');
         }
       }
-      
+
       // Then show receipt
       setCreatedOrder(orderForReceipt);
       setOrderItems(itemsForReceipt);
       setShowReceipt(true);
-      
+
       console.log('📋 Showing receipt:', orderForReceipt);
     } catch (err) {
       console.error('❌ Order error:', err);
@@ -462,13 +464,13 @@ function Cart() {
 
   // Show receipt if order was created (even if cart is empty now)
   if (showReceipt) {
-    const logoUrl = restaurant?.logo_url 
+    const logoUrl = restaurant?.logo_url
       ? (restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`)
       : null;
-    
+
     return (
-      <OrderReceipt 
-        order={createdOrder} 
+      <OrderReceipt
+        order={createdOrder}
         items={orderItems}
         restaurantLogo={logoUrl}
         restaurantName={restaurant?.name}
@@ -508,10 +510,10 @@ function Cart() {
           <div className="d-flex align-items-center justify-content-between">
             <div style={{ width: '40px' }} />
             {restaurant?.logo_url ? (
-              <img 
-                src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`} 
-                alt="Logo" 
-                height="36" 
+              <img
+                src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`}
+                alt="Logo"
+                height="36"
                 style={{ objectFit: 'contain' }}
               />
             ) : (
@@ -526,7 +528,7 @@ function Cart() {
                 cursor: 'pointer'
               }}
             >
-              <img 
+              <img
                 src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
                 alt={language === 'ru' ? 'RU' : 'UZ'}
                 style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
@@ -535,585 +537,596 @@ function Cart() {
           </div>
         </Container>
       </div>
-      
+
       <Container className="py-3" style={{ maxWidth: '500px' }}>
         {/* Заголовок с номером шага */}
         <div className="text-center mb-4">
           <h5 className="mb-2">
             {step === 1 ? `🛒 ${t('yourOrder')}` : `📍 ${t('delivery')}`}
           </h5>
-        <div className="d-flex justify-content-center gap-2">
-          <div 
-            className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 1 ? 'bg-primary text-white' : 'bg-light'}`}
-            style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
-          >
-            1
-          </div>
-          <div 
-            className="align-self-center" 
-            style={{ width: 40, height: 2, background: step >= 2 ? '#0d6efd' : '#dee2e6' }}
-          />
-          <div 
-            className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 2 ? 'bg-primary text-white' : 'bg-light'}`}
-            style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
-          >
-            2
+          <div className="d-flex justify-content-center gap-2">
+            <div
+              className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 1 ? 'bg-primary text-white' : 'bg-light'}`}
+              style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
+            >
+              1
+            </div>
+            <div
+              className="align-self-center"
+              style={{ width: 40, height: 2, background: step >= 2 ? '#0d6efd' : '#dee2e6' }}
+            />
+            <div
+              className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 2 ? 'bg-primary text-white' : 'bg-light'}`}
+              style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
+            >
+              2
+            </div>
           </div>
         </div>
-      </div>
 
-      {error && <Alert variant="danger" className="py-2 mb-3">{error}</Alert>}
+        {error && <Alert variant="danger" className="py-2 mb-3">{error}</Alert>}
 
-      {/* ШАГ 1: Список товаров */}
-      {step === 1 && (
-        <Card className="border-0 shadow-sm mb-3">
-          <Card.Body className="p-0">
-            {cart.map((item, index) => (
-              <div 
-                key={item.id} 
-                className={`d-flex align-items-center p-3 ${index !== cart.length - 1 ? 'border-bottom' : ''}`}
-              >
-                {item.image_url ? (
-                  <img
-                    src={item.image_url.startsWith('http') ? item.image_url : `${API_URL.replace('/api', '')}${item.image_url}`}
-                    alt={item.name_ru}
-                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10 }}
-                  />
-                ) : (
-                  <div 
-                    className="bg-light d-flex align-items-center justify-content-center"
-                    style={{ width: 56, height: 56, borderRadius: 10, fontSize: '1.5rem' }}
-                  >
-                    🍽️
-                  </div>
-                )}
-                <div className="flex-grow-1 ms-3">
-                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{language === 'uz' && item.name_uz ? item.name_uz : item.name_ru}</div>
-                  <div className="text-primary fw-bold">
-                    {formatPrice(item.price)} {t('sum')}
-                  </div>
-                </div>
-                <div className="d-flex align-items-center">
-                  <div className="d-flex align-items-center bg-light rounded-pill">
-                    <Button 
-                      variant="link" 
-                      className="p-1 px-2 text-dark text-decoration-none" 
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    >
-                      −
-                    </Button>
-                    <span className="mx-1 fw-semibold" style={{ minWidth: 20, textAlign: 'center' }}>
-                      {item.quantity}
-                    </span>
-                    <Button 
-                      variant="link" 
-                      className="p-1 px-2 text-dark text-decoration-none" 
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    >
-                      +
-                    </Button>
-                  </div>
-                  <Button 
-                    variant="link" 
-                    className="text-danger p-1 ms-2" 
-                    onClick={() => removeFromCart(item.id)}
-                  >
-                    🗑️
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </Card.Body>
-        </Card>
-      )}
-
-      {/* Комментарий - только на шаге 1 */}
-      {step === 1 && (
-        <Card className="border-0 shadow-sm mb-3">
-          <Card.Body>
-            <Form.Group>
-              <Form.Label className="small text-muted mb-1">{t('comment')}</Form.Label>
-              <Form.Control
-                ref={commentRef}
-                as="textarea"
-                rows={2}
-                value={formData.comment}
-                onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-                onFocus={handleCommentFocus}
-                placeholder={t('commentPlaceholder')}
-                className="border-0 bg-light"
-              />
-            </Form.Group>
-          </Card.Body>
-        </Card>
-      )}
-
-      {/* ШАГ 2: Данные доставки */}
-      {step === 2 && (
-        <Form onSubmit={handleSubmit}>
+        {/* ШАГ 1: Список товаров */}
+        {step === 1 && (
           <Card className="border-0 shadow-sm mb-3">
-            <Card.Body>
-              {/* Адрес доставки */}
-              <div className="mb-3">
-                <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
-                
-                {/* Если есть выбранный адрес */}
-                {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
-                  <div className="p-3 bg-light rounded mb-2">
-                    <div className="d-flex align-items-start">
-                      <span className="me-2">📍</span>
-                      <div className="flex-grow-1">
-                        <div className="fw-bold">{savedAddresses.find(a => a.id === selectedAddressId)?.name}</div>
-                        <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
-                      </div>
-                      <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
-                        {language === 'uz' ? "O'zgartirish" : 'Изменить'}
+            <Card.Body className="p-0">
+              {cart.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`d-flex align-items-center p-3 ${index !== cart.length - 1 ? 'border-bottom' : ''}`}
+                >
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url.startsWith('http') ? item.image_url : `${API_URL.replace('/api', '')}${item.image_url}`}
+                      alt={item.name_ru}
+                      style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10 }}
+                    />
+                  ) : (
+                    <div
+                      className="bg-light d-flex align-items-center justify-content-center"
+                      style={{ width: 56, height: 56, borderRadius: 10, fontSize: '1.5rem' }}
+                    >
+                      🍽️
+                    </div>
+                  )}
+                  <div className="flex-grow-1 ms-3">
+                    <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{language === 'uz' && item.name_uz ? item.name_uz : item.name_ru}</div>
+                    <div className="text-primary fw-bold">
+                      {formatPrice(item.price)} {t('sum')}
+                    </div>
+                  </div>
+                  <div className="d-flex align-items-center">
+                    <div className="d-flex align-items-center bg-light rounded-pill">
+                      <Button
+                        variant="link"
+                        className="p-1 px-2 text-dark text-decoration-none"
+                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      >
+                        −
+                      </Button>
+                      <span className="mx-1 fw-semibold" style={{ minWidth: 20, textAlign: 'center' }}>
+                        {item.quantity}
+                      </span>
+                      <Button
+                        variant="link"
+                        className="p-1 px-2 text-dark text-decoration-none"
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      >
+                        +
                       </Button>
                     </div>
-                  </div>
-                ) : savedAddresses.length > 0 ? (
-                  /* Есть сохранённые адреса но не выбран - быстрый выбор */
-                  <div className="mb-2">
-                    <div className="d-flex flex-wrap gap-2 mb-2">
-                      {savedAddresses.slice(0, 3).map(addr => (
-                        <Button
-                          key={addr.id}
-                          variant="outline-secondary"
-                          size="sm"
-                          className="d-flex align-items-center"
-                          onClick={() => selectAddress(addr)}
-                        >
-                          {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
-                           addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'} {addr.name}
-                        </Button>
-                      ))}
-                    </div>
-                    <Button 
-                      variant="outline-primary" 
-                      size="sm"
-                      onClick={() => setShowLocationModal(true)}
+                    <Button
+                      variant="link"
+                      className="text-danger p-1 ms-2"
+                      onClick={() => removeFromCart(item.id)}
                     >
-                      ➕ {language === 'uz' ? "Yangi manzil" : 'Новый адрес'}
+                      🗑️
                     </Button>
                   </div>
-                ) : (
-                  /* Нет адресов - показать кнопку Новый адрес */
-                  <Button 
-                    variant="primary" 
-                    className="w-100"
-                    onClick={() => setShowLocationModal(true)}
-                  >
-                    ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
-                  </Button>
-                )}
-              </div>
-
-              {/* Телефон */}
-              <Form.Group className="mb-3">
-                <Form.Label className="small text-muted mb-1">
-                  {t('phone')} <span className="text-danger">*</span>
-                </Form.Label>
-                <Form.Control
-                  type="tel"
-                  value={formData.customer_phone}
-                  onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
-                  placeholder="+998 90 123 45 67"
-                  className="border-0 bg-light"
-                  required
-                />
-              </Form.Group>
-
-              {/* Время доставки */}
-              <Form.Group className="mb-3">
-                <Form.Label className="small text-muted mb-1">{t('deliveryTime')}</Form.Label>
-                <div className="d-flex gap-2 mb-2">
-                  <Button
-                    variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
-                    size="sm"
-                    className="flex-fill"
-                    onClick={() => setDeliveryTimeMode('asap')}
-                  >
-                    🚀 {t('asap')}
-                  </Button>
-                  <Button
-                    variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
-                    size="sm"
-                    className="flex-fill"
-                    onClick={() => setDeliveryTimeMode('scheduled')}
-                  >
-                    🕐 {t('scheduled')}
-                  </Button>
                 </div>
-                {deliveryTimeMode === 'scheduled' && (
-                  <Form.Select
-                    value={formData.delivery_time}
-                    onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
-                    className="border-0 bg-light"
-                  >
-                    {availableTimes.length === 0 ? (
-                      <option value="">Нет доступного времени</option>
-                    ) : (
-                      availableTimes.map(time => (
-                        <option key={time} value={time}>{time}</option>
-                      ))
-                    )}
-                  </Form.Select>
-                )}
-              </Form.Group>
+              ))}
+            </Card.Body>
+          </Card>
+        )}
 
-              {/* Способ оплаты */}
+        {/* Комментарий - только на шаге 1 */}
+        {step === 1 && (
+          <Card className="border-0 shadow-sm mb-3">
+            <Card.Body>
               <Form.Group>
-                <Form.Label className="small text-muted mb-1">{t('paymentMethod')}</Form.Label>
-                <div className="d-flex flex-column gap-2">
-                  {/* Наличные */}
-                  <Button
-                    variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
-                    size="sm"
-                    className="w-100"
-                    onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
-                  >
-                    💵 {t('cash')}
-                  </Button>
-                  {/* Click и Payme */}
-                  <div className="d-flex gap-2">
-                    <Button
-                      variant={formData.payment_method === 'click' ? 'success' : 'outline-secondary'}
-                      size="sm"
-                      className="flex-fill d-flex align-items-center justify-content-center"
-                      onClick={() => setFormData({ ...formData, payment_method: 'click' })}
-                    >
-                      <img src="/click.png" alt="Click" style={{ height: 22 }} />
-                    </Button>
-                    <Button
-                      variant={formData.payment_method === 'payme' ? 'success' : 'outline-secondary'}
-                      size="sm"
-                      className="flex-fill d-flex align-items-center justify-content-center"
-                      onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
-                    >
-                      <img src="/payme.png" alt="Payme" style={{ height: 22 }} />
-                    </Button>
-                  </div>
-                </div>
+                <Form.Label className="small text-muted mb-1">{t('comment')}</Form.Label>
+                <Form.Control
+                  ref={commentRef}
+                  as="textarea"
+                  rows={2}
+                  value={formData.comment}
+                  onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+                  onFocus={handleCommentFocus}
+                  placeholder={t('commentPlaceholder')}
+                  className="border-0 bg-light"
+                />
               </Form.Group>
             </Card.Body>
           </Card>
-        </Form>
-      )}
+        )}
 
-      {/* Итого и кнопки */}
-      <Card className="border-0 shadow-sm">
-        <Card.Body>
-          {/* Детализация только на шаге 2 */}
-          {step === 2 && (
-            <>
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <span className="text-muted">{t('products')}:</span>
+        {/* ШАГ 2: Данные доставки */}
+        {step === 2 && (
+          <Form onSubmit={handleSubmit}>
+            <Card className="border-0 shadow-sm mb-3">
+              <Card.Body>
+                {/* Адрес доставки */}
+                {restaurant?.is_delivery_enabled !== false && (
+                  <div className="mb-3">
+                    <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
+
+                    {/* Если есть выбранный адрес */}
+                    {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
+                      <div className="p-3 bg-light rounded mb-2">
+                        <div className="d-flex align-items-start">
+                          <span className="me-2">📍</span>
+                          <div className="flex-grow-1">
+                            <div className="fw-bold">{savedAddresses.find(a => a.id === selectedAddressId)?.name}</div>
+                            <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
+                          </div>
+                          <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
+                            {language === 'uz' ? "O'zgartirish" : 'Изменить'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : savedAddresses.length > 0 ? (
+                      /* Есть сохранённые адреса но не выбран - быстрый выбор */
+                      <div className="mb-2">
+                        <div className="d-flex flex-wrap gap-2 mb-2">
+                          {savedAddresses.slice(0, 3).map(addr => (
+                            <Button
+                              key={addr.id}
+                              variant="outline-secondary"
+                              size="sm"
+                              className="d-flex align-items-center"
+                              onClick={() => selectAddress(addr)}
+                            >
+                              {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' :
+                                addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'} {addr.name}
+                            </Button>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline-primary"
+                          size="sm"
+                          onClick={() => setShowLocationModal(true)}
+                        >
+                          ➕ {language === 'uz' ? "Yangi manzil" : 'Новый адрес'}
+                        </Button>
+                      </div>
+                    ) : (
+                      /* Нет адресов - показать кнопку Новый адрес */
+                      <Button
+                        variant="primary"
+                        className="w-100"
+                        onClick={() => setShowLocationModal(true)}
+                      >
+                        ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Телефон */}
+                <Form.Group className="mb-3">
+                  <Form.Label className="small text-muted mb-1">
+                    {t('phone')} <span className="text-danger">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    type="tel"
+                    value={formData.customer_phone}
+                    onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                    placeholder="+998 90 123 45 67"
+                    className="border-0 bg-light"
+                    required
+                  />
+                </Form.Group>
+
+                {/* Время доставки */}
+                <Form.Group className="mb-3">
+                  <Form.Label className="small text-muted mb-1">{t('deliveryTime')}</Form.Label>
+                  <div className="d-flex gap-2 mb-2">
+                    <Button
+                      variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
+                      size="sm"
+                      className="flex-fill"
+                      onClick={() => setDeliveryTimeMode('asap')}
+                    >
+                      🚀 {t('asap')}
+                    </Button>
+                    <Button
+                      variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
+                      size="sm"
+                      className="flex-fill"
+                      onClick={() => setDeliveryTimeMode('scheduled')}
+                    >
+                      🕐 {t('scheduled')}
+                    </Button>
+                  </div>
+                  {deliveryTimeMode === 'scheduled' && (
+                    <Form.Select
+                      value={formData.delivery_time}
+                      onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
+                      className="border-0 bg-light"
+                    >
+                      {availableTimes.length === 0 ? (
+                        <option value="">Нет доступного времени</option>
+                      ) : (
+                        availableTimes.map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))
+                      )}
+                    </Form.Select>
+                  )}
+                </Form.Group>
+
+                {/* Способ оплаты */}
+                <Form.Group>
+                  <Form.Label className="small text-muted mb-1">{t('paymentMethod')}</Form.Label>
+                  <div className="d-flex flex-column gap-2">
+                    {/* Наличные */}
+                    <Button
+                      variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
+                      size="sm"
+                      className="w-100"
+                      onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
+                    >
+                      💵 {t('cash')}
+                    </Button>
+                    {/* Click и Payme */}
+                    <div className="d-flex gap-2">
+                      <Button
+                        variant={formData.payment_method === 'click' ? 'success' : 'outline-secondary'}
+                        size="sm"
+                        className="flex-fill d-flex align-items-center justify-content-center"
+                        onClick={() => setFormData({ ...formData, payment_method: 'click' })}
+                      >
+                        <img src="/click.png" alt="Click" style={{ height: 22 }} />
+                      </Button>
+                      <Button
+                        variant={formData.payment_method === 'payme' ? 'success' : 'outline-secondary'}
+                        size="sm"
+                        className="flex-fill d-flex align-items-center justify-content-center"
+                        onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
+                      >
+                        <img src="/payme.png" alt="Payme" style={{ height: 22 }} />
+                      </Button>
+                    </div>
+                  </div>
+                </Form.Group>
+              </Card.Body>
+            </Card>
+          </Form>
+        )}
+
+        {/* Итого и кнопки */}
+        <Card className="border-0 shadow-sm">
+          <Card.Body>
+            {/* Детализация только на шаге 2 */}
+            {step === 2 && (
+              <>
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <span className="text-muted">{t('products')}:</span>
+                  <span>{formatPrice(productTotal)} {t('sum')}</span>
+                </div>
+
+                {containerTotal > 0 && (
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span className="text-muted">🍽 {t('containers') || 'Посуда'}:</span>
+                    <span>{formatPrice(containerTotal)} {t('sum')}</span>
+                  </div>
+                )}
+
+                {parseFloat(restaurant?.service_fee) > 0 && (
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
+                    <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
+                  </div>
+                )}
+
+                {/* Доставка - показываем всегда когда есть координаты */}
+                {restaurant?.is_delivery_enabled !== false && hasLocation && (
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span className="text-muted">
+                      🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                      {deliveryDistance > 0 && <small className="ms-1">({deliveryDistance} км)</small>}
+                    </span>
+                    <span>
+                      {deliveryLoading ? (
+                        <Spinner animation="border" size="sm" />
+                      ) : (
+                        `${formatPrice(deliveryCost)} ${t('sum')}`
+                      )}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className={`d-flex justify-content-between align-items-center mb-3 ${step === 2 ? 'pt-2 border-top' : ''}`}>
+              <span className="text-muted fw-bold">{t('total')}:</span>
+              <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
+            </div>
+
+            {step === 1 ? (
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-100"
+                onClick={() => setStep(2)}
+              >
+                {t('next')} →
+              </Button>
+            ) : (
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-secondary"
+                  className="flex-fill"
+                  onClick={() => setStep(1)}
+                >
+                  ← {t('back')}
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-fill"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                >
+                  {loading ? <Spinner size="sm" /> : t('checkout')}
+                </Button>
+              </div>
+            )}
+          </Card.Body>
+        </Card>
+
+        {/* Модалка для выбора локации на карте (только карта) */}
+        <Modal
+          show={showLocationModal}
+          onHide={() => setShowLocationModal(false)}
+          fullscreen
+          className="location-picker-modal"
+        >
+          <Modal.Header closeButton className="border-0 bg-white shadow-sm">
+            <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Yangi manzil' : 'Новый адрес'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="p-0 d-flex flex-column">
+            {/* Карта Яндекс */}
+            <div className="flex-grow-1" style={{ minHeight: '300px' }}>
+              <ClientLocationPicker
+                latitude={mapCoordinates?.lat || 41.311081}
+                longitude={mapCoordinates?.lng || 69.240562}
+                onLocationChange={(lat, lng) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    delivery_coordinates: `${lat},${lng}`
+                  }));
+                }}
+              />
+            </div>
+
+            {/* Кнопки внизу */}
+            <div className="p-3 bg-white border-top">
+              <Button
+                variant="outline-secondary"
+                className="w-100 mb-2"
+                onClick={useCurrentLocation}
+                disabled={locationLoading}
+              >
+                {locationLoading ? (
+                  <><Spinner size="sm" className="me-2" />{language === 'uz' ? 'Aniqlanmoqda...' : 'Определение...'}</>
+                ) : (
+                  <>📍 {language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить моё местоположение'}</>
+                )}
+              </Button>
+              <Button
+                variant="primary"
+                className="w-100"
+                onClick={() => {
+                  setShowLocationModal(false);
+                  // Открыть модалку для ввода названия
+                  if (formData.delivery_coordinates) {
+                    setShowNewAddressModal(true);
+                  }
+                }}
+                disabled={!formData.delivery_coordinates}
+              >
+                ✓ {language === 'uz' ? 'Davom etish' : 'Продолжить'}
+              </Button>
+            </div>
+          </Modal.Body>
+        </Modal>
+
+        {/* Модалка выбора из сохранённых адресов */}
+        <Modal show={showAddressModal} onHide={() => setShowAddressModal(false)} centered size="md">
+          <Modal.Header closeButton className="border-0 pb-0">
+            <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Manzillar' : 'Адреса'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="p-0">
+            <ListGroup variant="flush">
+              {savedAddresses.map(addr => (
+                <ListGroup.Item
+                  key={addr.id}
+                  action
+                  className="d-flex align-items-center py-3 px-3"
+                  onClick={() => selectAddress(addr)}
+                >
+                  <div
+                    className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                    style={{
+                      width: 44, height: 44,
+                      background: addr.name === 'Дом' || addr.name === 'Uy' ? '#e8f4fd' :
+                        addr.name === 'Работа' || addr.name === 'Ish' ? '#fef3e8' : '#f0f0f0'
+                    }}
+                  >
+                    {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' :
+                      addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'}
+                  </div>
+                  <div className="flex-grow-1">
+                    <div className="fw-bold">{addr.name}</div>
+                    <div className="text-muted small">{addr.address}</div>
+                  </div>
+                  {selectedAddressId === addr.id && (
+                    <span className="text-success">✓</span>
+                  )}
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+            <div className="p-3 border-top">
+              <Button
+                variant="primary"
+                className="w-100"
+                onClick={() => {
+                  setShowAddressModal(false);
+                  setShowLocationModal(true);
+                }}
+              >
+                ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Новый адрес'}
+              </Button>
+            </div>
+          </Modal.Body>
+        </Modal>
+
+        {/* Модалка сохранения нового адреса */}
+        <Modal show={showNewAddressModal} onHide={() => setShowNewAddressModal(false)} centered>
+          <Modal.Header closeButton className="border-0">
+            <Modal.Title className="fs-5">💾 {language === 'uz' ? 'Manzilni saqlash' : 'Сохранить адрес'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>{language === 'uz' ? 'Manzil nomi' : 'Название адреса'}</Form.Label>
+              <div className="d-flex gap-2 mb-2">
+                <Button
+                  variant={newAddressForm.name === 'Дом' ? 'primary' : 'outline-secondary'}
+                  size="sm"
+                  onClick={() => setNewAddressForm({ ...newAddressForm, name: '' })}
+                >
+                  🏠 {language === 'uz' ? 'Uy' : 'Дом'}
+                </Button>
+                <Button
+                  variant={newAddressForm.name === 'Работа' ? 'primary' : 'outline-secondary'}
+                  size="sm"
+                  onClick={() => setNewAddressForm({ ...newAddressForm, name: '' })}
+                >
+                  💼 {language === 'uz' ? 'Ish' : 'Работа'}
+                </Button>
+              </div>
+              <Form.Control
+                type="text"
+                value={newAddressForm.name}
+                onChange={(e) => setNewAddressForm({ ...newAddressForm, name: e.target.value })}
+                placeholder={language === 'uz' ? 'Yoki boshqa nom' : 'Или другое название'}
+              />
+            </Form.Group>
+            <div className="d-flex gap-2">
+              <Button
+                variant="outline-secondary"
+                className="flex-fill"
+                onClick={() => {
+                  setShowNewAddressModal(false);
+                  setNewAddressForm({ name: '', address: '' });
+                }}
+              >
+                {language === 'uz' ? 'Saqlamaslik' : 'Не сохранять'}
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-fill"
+                onClick={saveNewAddress}
+                disabled={!newAddressForm.name}
+              >
+                💾 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
+              </Button>
+            </div>
+          </Modal.Body>
+        </Modal>
+
+        {/* Модалка подтверждения заказа */}
+        <Modal show={showConfirmOrderModal} onHide={() => setShowConfirmOrderModal(false)} centered>
+          <Modal.Header closeButton className="border-0">
+            <Modal.Title className="fs-5">✅ {language === 'uz' ? 'Buyurtmani tasdiqlang' : 'Подтвердите заказ'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {restaurant?.is_delivery_enabled !== false && (
+              <Alert variant="warning" className="mb-3">
+                <div className="fw-bold mb-1">📍 {language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}:</div>
+                <div>
+                  {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
+                    <>
+                      <strong>{savedAddresses.find(a => a.id === selectedAddressId)?.name}</strong>
+                      <br />
+                      {savedAddresses.find(a => a.id === selectedAddressId)?.address}
+                    </>
+                  ) : formData.delivery_address || (language === 'uz' ? 'Joriy joylashuv' : 'По геолокации')}
+                </div>
+              </Alert>
+            )}
+
+            {restaurant?.is_delivery_enabled === false && (
+              <Alert variant="info" className="mb-3 border-0 bg-light text-dark">
+                <div className="fw-bold mb-1">🛍 {language === 'uz' ? 'O\'zingiz olib ketish' : 'Самовывоз'}</div>
+                <div className="small">Заказ будет готов в ресторане. Подходите к кассе и назовите свое имя или телефон.</div>
+              </Alert>
+            )}
+
+            <div className="mb-3">
+              <div className="d-flex justify-content-between">
+                <span>{language === 'uz' ? 'Mahsulotlar' : 'Товары'}:</span>
                 <span>{formatPrice(productTotal)} {t('sum')}</span>
               </div>
-              
               {containerTotal > 0 && (
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="text-muted">🍽 {t('containers') || 'Посуда'}:</span>
+                <div className="d-flex justify-content-between">
+                  <span>🍽 {language === 'uz' ? 'Idishlar' : 'Посуда'}:</span>
                   <span>{formatPrice(containerTotal)} {t('sum')}</span>
                 </div>
               )}
-              
               {parseFloat(restaurant?.service_fee) > 0 && (
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
+                <div className="d-flex justify-content-between">
+                  <span>🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
                   <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
                 </div>
               )}
-              
-              {/* Доставка - показываем всегда когда есть координаты */}
-              {hasLocation && (
-                <div className="d-flex justify-content-between align-items-center mb-2">
-                  <span className="text-muted">
-                    🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                    {deliveryDistance > 0 && <small className="ms-1">({deliveryDistance} км)</small>}
-                  </span>
-                  <span>
-                    {deliveryLoading ? (
-                      <Spinner animation="border" size="sm" />
-                    ) : (
-                      `${formatPrice(deliveryCost)} ${t('sum')}`
-                    )}
-                  </span>
+              {deliveryCost > 0 && (
+                <div className="d-flex justify-content-between">
+                  <span>🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:</span>
+                  <span>{formatPrice(deliveryCost)} {t('sum')}</span>
                 </div>
               )}
-            </>
-          )}
-          
-          <div className={`d-flex justify-content-between align-items-center mb-3 ${step === 2 ? 'pt-2 border-top' : ''}`}>
-            <span className="text-muted fw-bold">{t('total')}:</span>
-            <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
-          </div>
-          
-          {step === 1 ? (
-            <Button 
-              variant="primary" 
-              size="lg" 
-              className="w-100"
-              onClick={() => setStep(2)}
-            >
-              {t('next')} →
-            </Button>
-          ) : (
+              <hr />
+              <div className="d-flex justify-content-between fw-bold">
+                <span>{t('total')}:</span>
+                <span className="text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
+              </div>
+            </div>
+
             <div className="d-flex gap-2">
-              <Button 
-                variant="outline-secondary" 
+              <Button
+                variant="outline-secondary"
                 className="flex-fill"
-                onClick={() => setStep(1)}
+                onClick={() => setShowConfirmOrderModal(false)}
               >
-                ← {t('back')}
+                {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
               </Button>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="success"
                 className="flex-fill"
-                onClick={handleSubmit}
+                onClick={confirmAndSendOrder}
                 disabled={loading}
               >
-                {loading ? <Spinner size="sm" /> : t('checkout')}
+                {loading ? <Spinner size="sm" /> : (language === 'uz' ? 'Tasdiqlash' : 'Подтвердить')}
               </Button>
             </div>
-          )}
-        </Card.Body>
-      </Card>
+          </Modal.Body>
+        </Modal>
 
-      {/* Модалка для выбора локации на карте (только карта) */}
-      <Modal 
-        show={showLocationModal} 
-        onHide={() => setShowLocationModal(false)} 
-        fullscreen
-        className="location-picker-modal"
-      >
-        <Modal.Header closeButton className="border-0 bg-white shadow-sm">
-          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Yangi manzil' : 'Новый адрес'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="p-0 d-flex flex-column">
-          {/* Карта Яндекс */}
-          <div className="flex-grow-1" style={{ minHeight: '300px' }}>
-            <ClientLocationPicker
-              latitude={mapCoordinates?.lat || 41.311081}
-              longitude={mapCoordinates?.lng || 69.240562}
-              onLocationChange={(lat, lng) => {
-                setFormData(prev => ({
-                  ...prev,
-                  delivery_coordinates: `${lat},${lng}`
-                }));
-              }}
-            />
-          </div>
-          
-          {/* Кнопки внизу */}
-          <div className="p-3 bg-white border-top">
-            <Button 
-              variant="outline-secondary" 
-              className="w-100 mb-2"
-              onClick={useCurrentLocation}
-              disabled={locationLoading}
-            >
-              {locationLoading ? (
-                <><Spinner size="sm" className="me-2" />{language === 'uz' ? 'Aniqlanmoqda...' : 'Определение...'}</>
-              ) : (
-                <>📍 {language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить моё местоположение'}</>
-              )}
-            </Button>
-            <Button 
-              variant="primary" 
-              className="w-100"
-              onClick={() => {
-                setShowLocationModal(false);
-                // Открыть модалку для ввода названия
-                if (formData.delivery_coordinates) {
-                  setShowNewAddressModal(true);
-                }
-              }}
-              disabled={!formData.delivery_coordinates}
-            >
-              ✓ {language === 'uz' ? 'Davom etish' : 'Продолжить'}
-            </Button>
-          </div>
-        </Modal.Body>
-      </Modal>
-      
-      {/* Модалка выбора из сохранённых адресов */}
-      <Modal show={showAddressModal} onHide={() => setShowAddressModal(false)} centered size="md">
-        <Modal.Header closeButton className="border-0 pb-0">
-          <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Manzillar' : 'Адреса'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="p-0">
-          <ListGroup variant="flush">
-            {savedAddresses.map(addr => (
-              <ListGroup.Item 
-                key={addr.id}
-                action
-                className="d-flex align-items-center py-3 px-3"
-                onClick={() => selectAddress(addr)}
-              >
-                <div 
-                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                  style={{ 
-                    width: 44, height: 44, 
-                    background: addr.name === 'Дом' || addr.name === 'Uy' ? '#e8f4fd' : 
-                               addr.name === 'Работа' || addr.name === 'Ish' ? '#fef3e8' : '#f0f0f0'
-                  }}
-                >
-                  {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' : 
-                   addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'}
-                </div>
-                <div className="flex-grow-1">
-                  <div className="fw-bold">{addr.name}</div>
-                  <div className="text-muted small">{addr.address}</div>
-                </div>
-                {selectedAddressId === addr.id && (
-                  <span className="text-success">✓</span>
-                )}
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
-          <div className="p-3 border-top">
-            <Button 
-              variant="primary" 
-              className="w-100"
-              onClick={() => { 
-                setShowAddressModal(false); 
-                setShowLocationModal(true); 
-              }}
-            >
-              ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Новый адрес'}
-            </Button>
-          </div>
-        </Modal.Body>
-      </Modal>
-      
-      {/* Модалка сохранения нового адреса */}
-      <Modal show={showNewAddressModal} onHide={() => setShowNewAddressModal(false)} centered>
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title className="fs-5">💾 {language === 'uz' ? 'Manzilni saqlash' : 'Сохранить адрес'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form.Group className="mb-3">
-            <Form.Label>{language === 'uz' ? 'Manzil nomi' : 'Название адреса'}</Form.Label>
-            <div className="d-flex gap-2 mb-2">
-              <Button 
-                variant={newAddressForm.name === 'Дом' ? 'primary' : 'outline-secondary'}
-                size="sm"
-                onClick={() => setNewAddressForm({...newAddressForm, name: ''})}
-              >
-                🏠 {language === 'uz' ? 'Uy' : 'Дом'}
-              </Button>
-              <Button 
-                variant={newAddressForm.name === 'Работа' ? 'primary' : 'outline-secondary'}
-                size="sm"
-                onClick={() => setNewAddressForm({...newAddressForm, name: ''})}
-              >
-                💼 {language === 'uz' ? 'Ish' : 'Работа'}
-              </Button>
-            </div>
-            <Form.Control
-              type="text"
-              value={newAddressForm.name}
-              onChange={(e) => setNewAddressForm({...newAddressForm, name: e.target.value})}
-              placeholder={language === 'uz' ? 'Yoki boshqa nom' : 'Или другое название'}
-            />
-          </Form.Group>
-          <div className="d-flex gap-2">
-            <Button 
-              variant="outline-secondary" 
-              className="flex-fill"
-              onClick={() => {
-                setShowNewAddressModal(false);
-                setNewAddressForm({ name: '', address: '' });
-              }}
-            >
-              {language === 'uz' ? 'Saqlamaslik' : 'Не сохранять'}
-            </Button>
-            <Button 
-              variant="primary" 
-              className="flex-fill"
-              onClick={saveNewAddress}
-              disabled={!newAddressForm.name}
-            >
-              💾 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
-            </Button>
-          </div>
-        </Modal.Body>
-      </Modal>
-      
-      {/* Модалка подтверждения заказа */}
-      <Modal show={showConfirmOrderModal} onHide={() => setShowConfirmOrderModal(false)} centered>
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title className="fs-5">✅ {language === 'uz' ? 'Buyurtmani tasdiqlang' : 'Подтвердите заказ'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Alert variant="warning" className="mb-3">
-            <div className="fw-bold mb-1">📍 {language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}:</div>
-            <div>
-              {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
-                <>
-                  <strong>{savedAddresses.find(a => a.id === selectedAddressId)?.name}</strong>
-                  <br />
-                  {savedAddresses.find(a => a.id === selectedAddressId)?.address}
-                </>
-              ) : formData.delivery_address || (language === 'uz' ? 'Joriy joylashuv' : 'По геолокации')}
-            </div>
-          </Alert>
-          
-          <div className="mb-3">
-            <div className="d-flex justify-content-between">
-              <span>{language === 'uz' ? 'Mahsulotlar' : 'Товары'}:</span>
-              <span>{formatPrice(productTotal)} {t('sum')}</span>
-            </div>
-            {containerTotal > 0 && (
-              <div className="d-flex justify-content-between">
-                <span>🍽 {language === 'uz' ? 'Idishlar' : 'Посуда'}:</span>
-                <span>{formatPrice(containerTotal)} {t('sum')}</span>
-              </div>
-            )}
-            {parseFloat(restaurant?.service_fee) > 0 && (
-              <div className="d-flex justify-content-between">
-                <span>🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
-                <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
-              </div>
-            )}
-            {deliveryCost > 0 && (
-              <div className="d-flex justify-content-between">
-                <span>🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:</span>
-                <span>{formatPrice(deliveryCost)} {t('sum')}</span>
-              </div>
-            )}
-            <hr />
-            <div className="d-flex justify-content-between fw-bold">
-              <span>{t('total')}:</span>
-              <span className="text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
-            </div>
-          </div>
-          
-          <div className="d-flex gap-2">
-            <Button 
-              variant="outline-secondary" 
-              className="flex-fill"
-              onClick={() => setShowConfirmOrderModal(false)}
-            >
-              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
-            </Button>
-            <Button 
-              variant="success" 
-              className="flex-fill"
-              onClick={confirmAndSendOrder}
-              disabled={loading}
-            >
-              {loading ? <Spinner size="sm" /> : (language === 'uz' ? 'Tasdiqlash' : 'Подтвердить')}
-            </Button>
-          </div>
-        </Modal.Body>
-      </Modal>
-      
         {/* Spacer for bottom nav */}
         <div style={{ height: '70px' }} />
       </Container>
-      
+
       {/* Bottom navigation */}
       <BottomNav />
     </>

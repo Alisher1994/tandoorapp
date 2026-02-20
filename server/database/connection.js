@@ -9,7 +9,11 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: {
+    rejectUnauthorized: false
+  },
+  connectionTimeoutMillis: 10000, // Увеличим до 10 секунд
+  idleTimeoutMillis: 30000,
 });
 
 pool.on('connect', () => {
@@ -17,8 +21,11 @@ pool.on('connect', () => {
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Database connection error:', err);
+  console.error('❌ Database connection error details:', {
+    message: err.message,
+    stack: err.stack,
+    code: err.code
+  });
 });
 
 module.exports = pool;
-

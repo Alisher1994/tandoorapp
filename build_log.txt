@@ -1,0 +1,26 @@
+
+> order-system-client@1.0.0 build
+> vite build
+
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mтЬУ[39m 461 modules transformed.
+rendering chunks...
+[plugin:vite:reporter] [plugin vite:reporter] 
+(!) C:/Users/KDFX Modes/Desktop/App/Davron/client/node_modules/xlsx/xlsx.mjs is dynamically imported by C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/AdminDashboard.jsx but also statically imported by C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/AdminDashboard.jsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+[2mbuild/[22m[32mindex.html                               [39m[1m[2m  0.61 kB[22m[1m[22m[2m тФВ gzip:   0.39 kB[22m
+[2mbuild/[22m[32massets/spritesheet-DpIxuf5L.svg          [39m[1m[2m  5.55 kB[22m[1m[22m[2m тФВ gzip:   1.67 kB[22m
+[2mbuild/[22m[35massets/DeliveryZoneMap-D9RYvAJw.css      [39m[1m[2m 28.17 kB[22m[1m[22m[2m тФВ gzip:  12.77 kB[22m
+[2mbuild/[22m[35massets/index-DDBVfVq-.css                [39m[1m[2m238.96 kB[22m[1m[22m[2m тФВ gzip:  32.95 kB[22m
+[2mbuild/[22m[36massets/YandexLocationPicker-COiKf9Zv.js  [39m[1m[2m  1.84 kB[22m[1m[22m[2m тФВ gzip:   1.03 kB[22m
+[2mbuild/[22m[36massets/DeliveryZoneMap-DKYmZqmx.js       [39m[1m[2m222.80 kB[22m[1m[22m[2m тФВ gzip:  59.73 kB[22m
+[2mbuild/[22m[36massets/index-Bpy45h3X.js                 [39m[1m[33m891.34 kB[39m[22m[2m тФВ gzip: 287.25 kB[22m
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[32mтЬУ built in 2.34s[39m

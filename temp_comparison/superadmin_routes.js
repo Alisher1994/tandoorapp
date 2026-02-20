@@ -3,22 +3,19 @@ const router = express.Router();
 const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
 const { authenticate, requireSuperAdmin } = require('../middleware/auth');
-const {
-  logActivity,
-  getActivityLogs,
+const { 
+  logActivity, 
+  getActivityLogs, 
   getActivityStats,
   getIpFromRequest,
   getUserAgentFromRequest,
-  ACTION_TYPES,
-  ENTITY_TYPES
+  ACTION_TYPES, 
+  ENTITY_TYPES 
 } = require('../services/activityLogger');
 
 // All routes require superadmin authentication
 router.use(authenticate);
 router.use(requireSuperAdmin);
-
-const { sendBalanceNotification } = require('../bot/notifications');
-
 
 // =====================================================
 // РЕСТОРАНЫ
@@ -42,154 +39,6 @@ router.get('/restaurants', async (req, res) => {
   }
 });
 
-// =====================================================
-// БИЛЛИНГ И БАЛАНС (СУПЕРАДМИН)
-// =====================================================
-
-// Получить глобальные настройки биллинга (реквизиты)
-router.get('/billing-settings', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
-    res.json(result.rows[0] || {});
-  } catch (error) {
-    console.error('Get billing settings error:', error);
-    res.status(500).json({ error: 'Ошибка получения настроек биллинга' });
-  }
-});
-
-// Обновить глобальные настройки биллинга
-router.put('/billing-settings', async (req, res) => {
-  try {
-    const {
-      card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link,
-      default_starting_balance, default_order_cost
-    } = req.body;
-
-    const result = await pool.query(`
-      UPDATE billing_settings 
-      SET card_number = $1, card_holder = $2, phone_number = $3, 
-          telegram_username = $4, click_link = $5, payme_link = $6,
-          default_starting_balance = $7, default_order_cost = $8,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = 1
-      RETURNING *
-    `, [
-      card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link,
-      parseFloat(default_starting_balance) || 100000,
-      parseFloat(default_order_cost) || 1000
-    ]);
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Update billing settings error:', error);
-    res.status(500).json({ error: 'Ошибка обновления настроек биллинга' });
-  }
-});
-
-// Пополнить баланс ресторана вручную
-router.post('/restaurants/:id/topup', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { amount, description } = req.body;
-    const restaurantId = req.params.id;
-
-    if (!amount || isNaN(amount) || amount <= 0) {
-      return res.status(400).json({ error: 'Некорректная сумма пополнения' });
-    }
-
-    await client.query('BEGIN');
-
-    // Update restaurant balance
-    const updatedRest = await client.query(`
-      UPDATE restaurants 
-      SET balance = balance + $1 
-      WHERE id = $2 
-      RETURNING id, name, balance
-    `, [amount, restaurantId]);
-
-    if (updatedRest.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Ресторан не найден' });
-    }
-
-    // Record transaction
-    await client.query(`
-      INSERT INTO billing_transactions (restaurant_id, user_id, amount, type, description)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [restaurantId, req.user.id, amount, 'deposit', description || 'Ручное пополнение суперадмином']);
-
-    await client.query('COMMIT');
-
-    // Notify all operators of this restaurant in Telegram
-    try {
-      const operators = await pool.query(`
-        SELECT u.telegram_id, u.full_name 
-        FROM users u
-        INNER JOIN operator_restaurants opr ON u.id = opr.user_id
-        WHERE opr.restaurant_id = $1 AND u.telegram_id IS NOT NULL
-      `, [restaurantId]);
-
-      for (const op of operators.rows) {
-        await sendBalanceNotification(op.telegram_id, amount, updatedRest.rows[0].balance);
-      }
-    } catch (notifErr) {
-      console.error('Notification error on topup:', notifErr.message);
-    }
-
-    res.json(updatedRest.rows[0]);
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Restaurant topup error:', error);
-    res.status(500).json({ error: 'Ошибка пополнения баланса' });
-  } finally {
-    client.release();
-  }
-});
-
-// Изменить статус бесплатного тарифа
-router.patch('/restaurants/:id/free-tier', async (req, res) => {
-  try {
-    const { is_free_tier } = req.body;
-    const result = await pool.query(
-      'UPDATE restaurants SET is_free_tier = $1 WHERE id = $2 RETURNING id, is_free_tier',
-      [is_free_tier, req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Ресторан не найден' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Free tier toggle error:', error);
-    res.status(500).json({ error: 'Ошибка изменения тарифа' });
-  }
-});
-
-// Переключить статус "Бесплатный тариф"
-router.post('/restaurants/:id/toggle-free', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      UPDATE restaurants 
-      SET is_free_tier = NOT is_free_tier 
-      WHERE id = $1 
-      RETURNING id, is_free_tier
-    `, [req.params.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Ресторан не найден' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Toggle free tier error:', error);
-    res.status(500).json({ error: 'Ошибка изменения тарифа' });
-  }
-});
-
-
 // Получить один ресторан
 router.get('/restaurants/:id', async (req, res) => {
   try {
@@ -199,11 +48,11 @@ router.get('/restaurants/:id', async (req, res) => {
       FROM restaurants r
       WHERE r.id = $1
     `, [req.params.id]);
-
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
-
+    
     // Get operators for this restaurant
     const operatorsResult = await pool.query(`
       SELECT u.id, u.username, u.full_name, u.phone
@@ -211,10 +60,10 @@ router.get('/restaurants/:id', async (req, res) => {
       INNER JOIN operator_restaurants opr ON u.id = opr.user_id
       WHERE opr.restaurant_id = $1
     `, [req.params.id]);
-
+    
     const restaurant = result.rows[0];
     restaurant.operators = operatorsResult.rows;
-
+    
     res.json(restaurant);
   } catch (error) {
     console.error('Get restaurant error:', error);
@@ -225,26 +74,17 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
-
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time, click_url, payme_url } = req.body;
+    
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
     }
-
+    
     console.log('📍 Creating restaurant with delivery_zone:', delivery_zone);
-
-    // Get default billing settings
-    const settingsResult = await pool.query('SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1');
-    const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
-
+    
     const result = await pool.query(`
-      INSERT INTO restaurants (
-        name, address, phone, logo_url, delivery_zone, 
-        telegram_bot_token, telegram_group_id, start_time, end_time, 
-        click_url, payme_url, is_delivery_enabled, service_fee,
-        balance, order_cost
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO restaurants (name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time, click_url, payme_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       name,
@@ -257,16 +97,11 @@ router.post('/restaurants', async (req, res) => {
       start_time,
       end_time,
       click_url || null,
-      payme_url || null,
-      is_delivery_enabled !== undefined ? is_delivery_enabled : true,
-      parseFloat(req.body.service_fee) || 0,
-      settings.default_starting_balance,
-      req.body.service_fee !== undefined ? parseFloat(req.body.service_fee) : settings.default_order_cost
+      payme_url || null
     ]);
-
-
+    
     const restaurant = result.rows[0];
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -279,7 +114,7 @@ router.post('/restaurants', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.status(201).json(restaurant);
   } catch (error) {
     console.error('Create restaurant error:', error);
@@ -290,17 +125,17 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
-
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km } = req.body;
+    
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     const oldValues = oldResult.rows[0];
-
+    
     console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
-
+    
     // Check if service_fee column exists, if not - create it
     const hasServiceFee = oldValues.hasOwnProperty('service_fee');
     if (!hasServiceFee) {
@@ -311,7 +146,7 @@ router.put('/restaurants/:id', async (req, res) => {
         console.log('ℹ️ service_fee column:', e.message);
       }
     }
-
+    
     // Check if latitude/longitude columns exist
     const hasCoords = oldValues.hasOwnProperty('latitude');
     if (!hasCoords) {
@@ -323,7 +158,7 @@ router.put('/restaurants/:id', async (req, res) => {
         console.log('ℹ️ latitude/longitude columns:', e.message);
       }
     }
-
+    
     // Check if delivery settings columns exist
     const hasDeliverySettings = oldValues.hasOwnProperty('delivery_base_radius');
     if (!hasDeliverySettings) {
@@ -336,18 +171,7 @@ router.put('/restaurants/:id', async (req, res) => {
         console.log('ℹ️ delivery settings columns:', e.message);
       }
     }
-
-    // Check if delivery flag exists
-    const hasDeliveryFlag = oldValues.hasOwnProperty('is_delivery_enabled');
-    if (!hasDeliveryFlag) {
-      try {
-        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_delivery_enabled BOOLEAN DEFAULT true');
-        console.log('✅ Added is_delivery_enabled column to restaurants');
-      } catch (e) {
-        console.log('ℹ️ is_delivery_enabled column:', e.message);
-      }
-    }
-
+    
     // Now update with all fields including coordinates and delivery settings
     const result = await pool.query(`
       UPDATE restaurants 
@@ -370,10 +194,8 @@ router.put('/restaurants/:id', async (req, res) => {
           delivery_base_radius = $17,
           delivery_base_price = $18,
           delivery_price_per_km = $19,
-          is_delivery_enabled = $20,
-          order_cost = $21,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $22
+      WHERE id = $20
       RETURNING *
     `, [
       name,
@@ -392,16 +214,14 @@ router.put('/restaurants/:id', async (req, res) => {
       parseFloat(service_fee) || 0,
       latitude ? parseFloat(latitude) : null,
       longitude ? parseFloat(longitude) : null,
-      parseFloat(delivery_base_radius) || 0,
-      parseFloat(delivery_base_price) || 0,
-      parseFloat(delivery_price_per_km) || 0,
-      is_delivery_enabled !== undefined ? is_delivery_enabled : true,
-      parseFloat(service_fee) || 0,
+      parseFloat(delivery_base_radius) || 2,
+      parseFloat(delivery_base_price) || 5000,
+      parseFloat(delivery_price_per_km) || 2000,
       req.params.id
     ]);
-
+    
     const restaurant = result.rows[0];
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -415,7 +235,7 @@ router.put('/restaurants/:id', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.json(restaurant);
   } catch (error) {
     console.error('Update restaurant error:', error);
@@ -431,11 +251,11 @@ router.get('/restaurants/:id/messages', async (req, res) => {
        FROM restaurants WHERE id = $1`,
       [req.params.id]
     );
-
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
-
+    
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get restaurant messages error:', error);
@@ -447,7 +267,7 @@ router.get('/restaurants/:id/messages', async (req, res) => {
 router.put('/restaurants/:id/messages', async (req, res) => {
   try {
     const { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled } = req.body;
-
+    
     const result = await pool.query(`
       UPDATE restaurants 
       SET msg_new = $1,
@@ -466,11 +286,11 @@ router.put('/restaurants/:id/messages', async (req, res) => {
       msg_cancelled || null,
       req.params.id
     ]);
-
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -483,7 +303,7 @@ router.put('/restaurants/:id/messages', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Update restaurant messages error:', error);
@@ -496,7 +316,7 @@ router.delete('/restaurants/:id', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
+    
     // Get restaurant for logging
     const restaurantResult = await client.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
     if (restaurantResult.rows.length === 0) {
@@ -504,14 +324,14 @@ router.delete('/restaurants/:id', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     const restaurant = restaurantResult.rows[0];
-
+    
     // Check if there are orders
     const ordersCheck = await client.query('SELECT COUNT(*) FROM orders WHERE restaurant_id = $1', [req.params.id]);
     if (parseInt(ordersCheck.rows[0].count) > 0) {
       // Soft delete - just deactivate
       await client.query('UPDATE restaurants SET is_active = false WHERE id = $1', [req.params.id]);
       await client.query('COMMIT');
-
+      
       await logActivity({
         userId: req.user.id,
         restaurantId: restaurant.id,
@@ -524,14 +344,14 @@ router.delete('/restaurants/:id', async (req, res) => {
         ipAddress: getIpFromRequest(req),
         userAgent: getUserAgentFromRequest(req)
       });
-
+      
       return res.json({ message: 'Ресторан деактивирован (есть связанные заказы)' });
     }
-
+    
     // Hard delete if no orders
     await client.query('DELETE FROM restaurants WHERE id = $1', [req.params.id]);
     await client.query('COMMIT');
-
+    
     await logActivity({
       userId: req.user.id,
       actionType: ACTION_TYPES.DELETE_RESTAURANT,
@@ -542,7 +362,7 @@ router.delete('/restaurants/:id', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.json({ message: 'Ресторан удален' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -586,66 +406,35 @@ router.get('/operators', async (req, res) => {
   }
 });
 
-// =====================================================
-// КАТЕГОРИИ
-// =====================================================
-
-// Получить все категории
-router.get('/categories', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM categories ORDER BY sort_order, name_ru');
-    res.json(result.rows || []);
-  } catch (error) {
-    console.error('Get categories error:', error);
-    res.status(500).json({ error: 'Ошибка получения категорий' });
-  }
-});
-
-// Создать категорию
-router.post('/categories', async (req, res) => {
-  try {
-    const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
-    const result = await pool.query(`
-      INSERT INTO categories (name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `, [name_ru, name_uz, image_url, sort_order || 0, parent_id || null, restaurant_id || null]);
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Create category error:', error);
-    res.status(500).json({ error: 'Ошибка создания категории' });
-  }
-});
-
 // Создать оператора
 router.post('/operators', async (req, res) => {
   const client = await pool.connect();
   try {
     const { username, password, full_name, phone, restaurant_ids } = req.body;
-
+    
     if (!username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
-
+    
     await client.query('BEGIN');
-
+    
     // Check username uniqueness
     const existingUser = await client.query('SELECT id FROM users WHERE username = $1', [username]);
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Пользователь с таким логином уже существует' });
     }
-
+    
     const hashedPassword = await bcrypt.hash(password, 10);
-
+    
     const userResult = await client.query(`
       INSERT INTO users (username, password, full_name, phone, role, is_active)
       VALUES ($1, $2, $3, $4, 'operator', true)
       RETURNING id, username, full_name, phone, role, is_active, created_at
     `, [username, hashedPassword, full_name, phone]);
-
+    
     const user = userResult.rows[0];
-
+    
     // Link to restaurants
     if (restaurant_ids && restaurant_ids.length > 0) {
       for (const restaurantId of restaurant_ids) {
@@ -654,15 +443,15 @@ router.post('/operators', async (req, res) => {
           VALUES ($1, $2)
         `, [user.id, restaurantId]);
       }
-
+      
       // Set first restaurant as active
       await client.query(`
         UPDATE users SET active_restaurant_id = $1 WHERE id = $2
       `, [restaurant_ids[0], user.id]);
     }
-
+    
     await client.query('COMMIT');
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -674,7 +463,7 @@ router.post('/operators', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.status(201).json(user);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -690,9 +479,9 @@ router.put('/operators/:id', async (req, res) => {
   const client = await pool.connect();
   try {
     const { full_name, phone, password, is_active, restaurant_ids } = req.body;
-
+    
     await client.query('BEGIN');
-
+    
     // Get old values
     const oldResult = await client.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
     if (oldResult.rows.length === 0) {
@@ -700,7 +489,7 @@ router.put('/operators/:id', async (req, res) => {
       return res.status(404).json({ error: 'Оператор не найден' });
     }
     const oldValues = oldResult.rows[0];
-
+    
     // Update user
     let updateQuery = `
       UPDATE users SET 
@@ -710,24 +499,24 @@ router.put('/operators/:id', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `;
     let params = [full_name, phone, is_active];
-
+    
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
       updateQuery += `, password = $${params.length + 1}`;
       params.push(hashedPassword);
     }
-
+    
     updateQuery += ` WHERE id = $${params.length + 1} RETURNING *`;
     params.push(req.params.id);
-
+    
     const userResult = await client.query(updateQuery, params);
     const user = userResult.rows[0];
-
+    
     // Update restaurant links if provided
     if (restaurant_ids !== undefined) {
       // Remove old links
       await client.query('DELETE FROM operator_restaurants WHERE user_id = $1', [req.params.id]);
-
+      
       // Add new links
       for (const restaurantId of restaurant_ids) {
         await client.query(`
@@ -735,7 +524,7 @@ router.put('/operators/:id', async (req, res) => {
           VALUES ($1, $2)
         `, [req.params.id, restaurantId]);
       }
-
+      
       // Update active restaurant if current one is not in new list
       if (restaurant_ids.length > 0 && !restaurant_ids.includes(user.active_restaurant_id)) {
         await client.query(`
@@ -747,9 +536,9 @@ router.put('/operators/:id', async (req, res) => {
         `, [req.params.id]);
       }
     }
-
+    
     await client.query('COMMIT');
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -762,7 +551,7 @@ router.put('/operators/:id', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.json(user);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -780,17 +569,17 @@ router.delete('/operators/:id', async (req, res) => {
     if (parseInt(req.params.id) === req.user.id) {
       return res.status(400).json({ error: 'Нельзя удалить самого себя' });
     }
-
+    
     // Get user for logging
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'Оператор не найден' });
     }
     const user = userResult.rows[0];
-
+    
     // Soft delete
     await pool.query('UPDATE users SET is_active = false WHERE id = $1', [req.params.id]);
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -802,7 +591,7 @@ router.delete('/operators/:id', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.json({ message: 'Оператор деактивирован' });
   } catch (error) {
     console.error('Delete operator error:', error);
@@ -819,38 +608,35 @@ router.get('/customers', async (req, res) => {
   try {
     const { page = 1, limit = 50, search = '', status = '' } = req.query;
     const offset = (page - 1) * limit;
-
+    
     let query = `
       SELECT 
-        u.id as user_id, u.id as association_id, u.username, u.full_name, u.phone, u.telegram_id, 
-        u.is_active as user_is_active, false as is_blocked, u.created_at,
-        r.name as restaurant_name,
+        u.id, u.username, u.full_name, u.phone, u.telegram_id, u.is_active, u.created_at,
         COUNT(o.id) as orders_count,
         COALESCE(SUM(o.total_amount), 0) as total_spent,
         MAX(o.created_at) as last_order_date
       FROM users u
-      LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       LEFT JOIN orders o ON u.id = o.user_id
       WHERE u.role = 'customer'
     `;
-
+    
     const params = [];
     if (search) {
       query += ` AND (u.full_name ILIKE $${params.length + 1} OR u.phone ILIKE $${params.length + 1} OR u.username ILIKE $${params.length + 1})`;
       params.push(`%${search}%`);
     }
-
+    
     if (status === 'active') {
       query += ` AND u.is_active = true`;
     } else if (status === 'blocked') {
       query += ` AND u.is_active = false`;
     }
-
-    query += ` GROUP BY u.id, r.name ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    
+    query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
-
+    
     const result = await pool.query(query, params);
-
+    
     // Get total count
     let countQuery = 'SELECT COUNT(*) FROM users WHERE role = $1';
     const countParams = ['customer'];
@@ -864,7 +650,7 @@ router.get('/customers', async (req, res) => {
       countQuery += ` AND is_active = false`;
     }
     const countResult = await pool.query(countQuery, countParams);
-
+    
     res.json({
       customers: result.rows,
       total: parseInt(countResult.rows[0].count),
@@ -890,11 +676,11 @@ router.get('/customers/:id', async (req, res) => {
       WHERE u.id = $1 AND u.role = 'customer'
       GROUP BY u.id
     `, [req.params.id]);
-
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Клиент не найден' });
     }
-
+    
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Get customer error:', error);
@@ -907,16 +693,16 @@ router.put('/customers/:id/toggle-block', async (req, res) => {
   try {
     // Get current status
     const currentResult = await pool.query('SELECT * FROM users WHERE id = $1 AND role = $2', [req.params.id, 'customer']);
-
+    
     if (currentResult.rows.length === 0) {
       return res.status(404).json({ error: 'Клиент не найден' });
     }
-
+    
     const customer = currentResult.rows[0];
     const newStatus = !customer.is_active;
-
+    
     await pool.query('UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newStatus, req.params.id]);
-
+    
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -929,8 +715,8 @@ router.put('/customers/:id/toggle-block', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
-    res.json({
+    
+    res.json({ 
       message: newStatus ? 'Клиент разблокирован' : 'Клиент заблокирован',
       is_active: newStatus
     });
@@ -945,26 +731,26 @@ router.delete('/customers/:id', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
+    
     // Get customer data
     const customerResult = await client.query('SELECT * FROM users WHERE id = $1 AND role = $2', [req.params.id, 'customer']);
-
+    
     if (customerResult.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Клиент не найден' });
     }
-
+    
     const customer = customerResult.rows[0];
-
+    
     // Check if customer has orders
     const ordersResult = await client.query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [req.params.id]);
     const ordersCount = parseInt(ordersResult.rows[0].count);
-
+    
     if (ordersCount > 0) {
       // Soft delete - just block the customer
       await client.query('UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
       await client.query('COMMIT');
-
+      
       await logActivity({
         userId: req.user.id,
         actionType: ACTION_TYPES.DELETE_USER,
@@ -977,17 +763,17 @@ router.delete('/customers/:id', async (req, res) => {
         ipAddress: getIpFromRequest(req),
         userAgent: getUserAgentFromRequest(req)
       });
-
-      return res.json({
+      
+      return res.json({ 
         message: `Клиент деактивирован (имеет ${ordersCount} заказов)`,
         soft_deleted: true
       });
     }
-
+    
     // Hard delete if no orders
     await client.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     await client.query('COMMIT');
-
+    
     await logActivity({
       userId: req.user.id,
       actionType: ACTION_TYPES.DELETE_USER,
@@ -999,7 +785,7 @@ router.delete('/customers/:id', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-
+    
     res.json({ message: 'Клиент удален', deleted: true });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1015,13 +801,13 @@ router.get('/customers/:id/orders', async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
-
+    
     // Verify customer exists
     const customerResult = await pool.query('SELECT id, full_name FROM users WHERE id = $1 AND role = $2', [req.params.id, 'customer']);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Клиент не найден' });
     }
-
+    
     // Get orders with items
     const ordersResult = await pool.query(`
       SELECT 
@@ -1053,10 +839,10 @@ router.get('/customers/:id/orders', async (req, res) => {
       ORDER BY o.created_at DESC
       LIMIT $2 OFFSET $3
     `, [req.params.id, limit, offset]);
-
+    
     // Get total count
     const countResult = await pool.query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [req.params.id]);
-
+    
     res.json({
       customer: customerResult.rows[0],
       orders: ordersResult.rows,
@@ -1077,20 +863,20 @@ router.get('/customers/:id/orders', async (req, res) => {
 // Получить логи
 router.get('/logs', async (req, res) => {
   try {
-    const {
-      restaurant_id,
-      user_id,
-      action_type,
+    const { 
+      restaurant_id, 
+      user_id, 
+      action_type, 
       entity_type,
       start_date,
       end_date,
-      page = 1,
-      limit = 50
+      page = 1, 
+      limit = 50 
     } = req.query;
-
+    
     const offset = (page - 1) * limit;
-
-    const result = await getActivityLogs({
+    
+    const logs = await getActivityLogs({
       restaurantId: restaurant_id,
       userId: user_id,
       actionType: action_type,
@@ -1100,10 +886,9 @@ router.get('/logs', async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
-
+    
     res.json({
-      logs: result.logs,
-      total: result.total,
+      logs,
       page: parseInt(page),
       limit: parseInt(limit)
     });
@@ -1141,54 +926,11 @@ router.get('/stats', async (req, res) => {
         (SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE) as today_orders_count,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE DATE(created_at) = CURRENT_DATE) as today_revenue
     `);
-
+    
     res.json(stats.rows[0]);
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Ошибка получения статистики' });
-  }
-});
-
-// =====================================================
-// БИЛЛИНГ (НАСТРОЙКИ)
-// =====================================================
-
-// Получить глобальные настройки биллинга
-router.get('/billing/settings', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
-    res.json(result.rows[0] || {});
-  } catch (error) {
-    console.error('Get billing settings error:', error);
-    res.status(500).json({ error: 'Ошибка получения настроек' });
-  }
-});
-
-// Обновить глобальные настройки биллинга
-router.put('/billing/settings', async (req, res) => {
-  try {
-    const {
-      card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link, default_starting_balance, default_order_cost
-    } = req.body;
-
-    const result = await pool.query(`
-      UPDATE billing_settings
-      SET card_number = $1, card_holder = $2, phone_number = $3, 
-          telegram_username = $4, click_link = $5, payme_link = $6, 
-          default_starting_balance = $7, default_order_cost = $8,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = 1
-      RETURNING *
-    `, [
-      card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link, default_starting_balance, default_order_cost
-    ]);
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Update billing settings error:', error);
-    res.status(500).json({ error: 'Ошибка сохранения настроек' });
   }
 });
 

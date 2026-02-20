@@ -3,12 +3,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
-const { 
-  logActivity, 
-  getIpFromRequest, 
+const {
+  logActivity,
+  getIpFromRequest,
   getUserAgentFromRequest,
-  ACTION_TYPES, 
-  ENTITY_TYPES 
+  ACTION_TYPES,
+  ENTITY_TYPES
 } = require('../services/activityLogger');
 
 const router = express.Router();
@@ -17,29 +17,29 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
   try {
     const { username, password, full_name, phone, telegram_id } = req.body;
-    
+
     if (!username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
-    
+
     // Prevent registration with admin/operator username patterns
     const forbiddenPatterns = ['admin', 'superadmin', 'operator'];
     if (forbiddenPatterns.some(p => username.toLowerCase().includes(p))) {
       return res.status(400).json({ error: 'Этот логин зарезервирован' });
     }
-    
+
     // Check if user exists
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE username = $1 OR (telegram_id = $2 AND telegram_id IS NOT NULL)',
       [username, telegram_id]
     );
-    
+
     if (existingUser.rows.length > 0) {
       return res.status(400).json({ error: 'Пользователь уже существует' });
     }
-    
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Only allow customer role registration via API
     const result = await pool.query(
       `INSERT INTO users (username, password, full_name, phone, telegram_id, role, is_active) 
@@ -47,7 +47,7 @@ router.post('/register', async (req, res) => {
        RETURNING id, username, full_name, phone, role`,
       [username, hashedPassword, full_name, phone, telegram_id || null]
     );
-    
+
     res.status(201).json({
       message: 'Регистрация успешна',
       user: result.rows[0]
@@ -62,41 +62,41 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
-    
+
     const result = await pool.query(`
       SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       WHERE u.username = $1
     `, [username]);
-    
+
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
-    
+
     const user = result.rows[0];
-    
+
     // Check if user is active
     if (!user.is_active) {
       return res.status(403).json({ error: 'Аккаунт деактивирован' });
     }
-    
+
     const isValidPassword = await bcrypt.compare(password, user.password);
-    
+
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
-    
+
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
-    
+
     // Get restaurants for operators and superadmins
     let restaurants = [];
     if (user.role === 'superadmin' || user.role === 'operator') {
@@ -109,7 +109,7 @@ router.post('/login', async (req, res) => {
       `, [user.id]);
       restaurants = restaurantsResult.rows;
     }
-    
+
     // Log login activity
     await logActivity({
       userId: user.id,
@@ -121,7 +121,7 @@ router.post('/login', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-    
+
     res.json({
       token,
       user: {
@@ -146,29 +146,29 @@ router.post('/login', async (req, res) => {
 router.get('/verify-token', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    
+
     if (!token) {
       return res.json({ valid: false, error: 'No token provided' });
     }
-    
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // Check if user exists and is active
     const userResult = await pool.query(
       'SELECT id, username, is_active FROM users WHERE id = $1',
       [decoded.userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.json({ valid: false, error: 'User not found' });
     }
-    
+
     const user = userResult.rows[0];
-    
+
     if (!user.is_active) {
       return res.json({ valid: false, error: 'User deactivated' });
     }
-    
+
     res.json({ valid: true, userId: user.id, username: user.username });
   } catch (error) {
     console.error('Token verification error:', error);
@@ -190,6 +190,7 @@ router.get('/me', authenticate, async (req, res) => {
         active_restaurant_name: req.user.active_restaurant_name,
         active_restaurant_logo: req.user.active_restaurant_logo,
         restaurants: req.user.restaurants || [],
+        balance: req.user.balance,
         last_latitude: req.user.last_latitude,
         last_longitude: req.user.last_longitude,
         last_address: req.user.last_address
@@ -214,7 +215,7 @@ router.post('/logout', authenticate, async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
-    
+
     res.json({ message: 'Выход выполнен' });
   } catch (error) {
     res.status(500).json({ error: 'Ошибка выхода' });

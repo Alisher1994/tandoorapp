@@ -26,20 +26,20 @@ function buildCatalogUrl(appUrl, token) {
 // Check if point is inside polygon
 function isPointInPolygon(point, polygon) {
   if (!polygon || polygon.length < 3) return false;
-  
+
   const [lat, lng] = point;
   let inside = false;
-  
+
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const [lat_i, lng_i] = polygon[i];
     const [lat_j, lng_j] = polygon[j];
-    
+
     if (((lng_i > lng) !== (lng_j > lng)) &&
-        (lat < (lat_j - lat_i) * (lng - lng_i) / (lng_j - lng_i) + lat_i)) {
+      (lat < (lat_j - lat_i) * (lng - lng_i) / (lng_j - lng_i) + lat_i)) {
       inside = !inside;
     }
   }
-  
+
   return inside;
 }
 
@@ -81,18 +81,18 @@ async function isLocationInRestaurantZone(restaurantId, lat, lng) {
       'SELECT delivery_zone FROM restaurants WHERE id = $1',
       [restaurantId]
     );
-    
+
     if (result.rows.length === 0) return true; // No zone = deliver everywhere
-    
+
     let zone = result.rows[0].delivery_zone;
     if (!zone) return true; // No zone = deliver everywhere
-    
+
     if (typeof zone === 'string') {
       zone = JSON.parse(zone);
     }
-    
+
     if (!zone || zone.length < 3) return true;
-    
+
     return isPointInPolygon([lat, lng], zone);
   } catch (error) {
     console.error('Zone check error:', error);
@@ -100,29 +100,33 @@ async function isLocationInRestaurantZone(restaurantId, lat, lng) {
   }
 }
 
-// Check if user is blocked and send message
+// Check if user is blocked (globally or for specific restaurant)
 async function checkBlockedUser(bot, chatId, userId, restaurantId) {
   try {
     const userResult = await pool.query(
-      'SELECT is_active FROM users WHERE telegram_id = $1',
-      [userId]
+      'SELECT u.is_active, ur.is_blocked FROM users u LEFT JOIN user_restaurants ur ON u.id = ur.user_id AND ur.restaurant_id = $2 WHERE u.telegram_id = $1',
+      [userId, restaurantId]
     );
-    
-    if (userResult.rows.length > 0 && !userResult.rows[0].is_active) {
-      // Get support username from restaurant
-      const restaurantResult = await pool.query(
-        'SELECT support_username FROM restaurants WHERE id = $1',
-        [restaurantId]
-      );
-      
-      const supportUsername = restaurantResult.rows[0]?.support_username || process.env.ADMIN_USERNAME || 'admin';
-      
-      await bot.sendMessage(chatId,
-        `🚫 <b>Ваш аккаунт заблокирован</b>\n\n` +
-        `Для связи с администратором обратитесь: @${supportUsername}`,
-        { parse_mode: 'HTML' }
-      );
-      return true; // User is blocked
+
+    if (userResult.rows.length > 0) {
+      const { is_active, is_blocked } = userResult.rows[0];
+
+      if (!is_active || is_blocked) {
+        // Get support username from restaurant
+        const restaurantResult = await pool.query(
+          'SELECT support_username FROM restaurants WHERE id = $1',
+          [restaurantId]
+        );
+
+        const supportUsername = restaurantResult.rows[0]?.support_username || process.env.ADMIN_USERNAME || 'admin';
+
+        await bot.sendMessage(chatId,
+          `🚫 <b>Ваш аккаунт заблокирован</b>\n\n` +
+          `Для связи с администратором обратитесь: @${supportUsername}`,
+          { parse_mode: 'HTML' }
+        );
+        return true; // User is blocked
+      }
     }
     return false; // User is not blocked
   } catch (error) {
@@ -134,32 +138,32 @@ async function checkBlockedUser(bot, chatId, userId, restaurantId) {
 // Setup handlers for a specific bot
 function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   const appUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
-  
+
   console.log(`🤖 Setting up handlers for restaurant: ${restaurantName} (ID: ${restaurantId})`);
-  
+
   // Helper to get state key - includes chatId for group handling
   const getStateKey = (userId, chatId) => `${botToken}_${chatId || ''}_${userId}`;
-  
+
   // /start command
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-    
+
     console.log(`📱 /start from user ${userId} for restaurant ${restaurantName}`);
-    
+
     try {
       // Check if user is blocked
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
-      
+
       // Check if user exists
       const userResult = await pool.query(
         'SELECT * FROM users WHERE telegram_id = $1',
         [userId]
       );
-      
+
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
-        
+
         // Update user's active restaurant and username if available
         const telegramUsername = msg.from.username;
         if (telegramUsername && !user.username.startsWith('@')) {
@@ -174,7 +178,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             [restaurantId, user.id]
           );
         }
-        
+
         // Track user-restaurant relationship for broadcast
         await pool.query(`
           INSERT INTO user_restaurants (user_id, restaurant_id, last_interaction)
@@ -182,12 +186,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           ON CONFLICT (user_id, restaurant_id) 
           DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
         `, [user.id, restaurantId]);
-        
+
         // Generate login URL
         const token = generateLoginToken(user.id, user.username);
         const loginUrl = buildCatalogUrl(appUrl, token);
-        
-        bot.sendMessage(chatId, 
+
+        bot.sendMessage(chatId,
           `👋 С возвращением, ${user.full_name}!\n\n` +
           `🏪 Ресторан: <b>${restaurantName}</b>`,
           {
@@ -205,7 +209,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       } else {
         // Start registration
         registrationStates.set(getStateKey(userId, chatId), { step: 'waiting_contact', restaurantId });
-        
+
         bot.sendMessage(chatId,
           `👋 Добро пожаловать в <b>${restaurantName}</b>!\n\n` +
           '📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
@@ -226,37 +230,37 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
     }
   });
-  
+
   // /menu command
   bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-    
+
     try {
       // Check if user is blocked
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
-      
+
       const userResult = await pool.query(
         'SELECT * FROM users WHERE telegram_id = $1',
         [userId]
       );
-      
+
       if (userResult.rows.length === 0) {
         bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
         return;
       }
-      
+
       const user = userResult.rows[0];
-      
+
       // Update active restaurant
       await pool.query(
         'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
         [restaurantId, user.id]
       );
-      
+
       const token = generateLoginToken(user.id, user.username);
       const loginUrl = buildCatalogUrl(appUrl, token);
-      
+
       bot.sendMessage(chatId,
         `🍽️ <b>${restaurantName}</b>\n\nНажмите кнопку ниже, чтобы открыть меню:`,
         {
@@ -273,29 +277,29 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       bot.sendMessage(chatId, '❌ Произошла ошибка');
     }
   });
-  
+
   // Handle contact sharing
   bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const contact = msg.contact;
-    
+
     let state = registrationStates.get(getStateKey(userId, chatId));
     let stateKey = getStateKey(userId, chatId);
-    
+
     // Registration contact flow
     if (state && state.step === 'waiting_contact') {
       state.phone = contact.phone_number;
       state.step = 'waiting_name';
       registrationStates.set(stateKey, state);
-      
-      bot.sendMessage(chatId, 
+
+      bot.sendMessage(chatId,
         '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
         { reply_markup: { remove_keyboard: true } }
       );
       return;
     }
-    
+
     // Phone update flow
     if (state && state.step === 'waiting_new_phone') {
       try {
@@ -304,23 +308,23 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           'SELECT id, phone FROM users WHERE telegram_id = $1',
           [userId]
         );
-        
+
         if (userResult.rows.length === 0) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start', { reply_markup: { remove_keyboard: true } });
           registrationStates.delete(stateKey);
           return;
         }
-        
+
         const user = userResult.rows[0];
         const oldPhone = user.phone;
         const newPhone = contact.phone_number;
-        
+
         // Update user phone first
         await pool.query(
           'UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [newPhone, user.id]
         );
-        
+
         // Try to log the change (table may not exist yet)
         try {
           await pool.query(`
@@ -330,14 +334,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         } catch (logError) {
           console.log('Profile log table may not exist:', logError.message);
         }
-        
+
         bot.sendMessage(chatId,
           `✅ <b>Телефон успешно изменен!</b>\n\n` +
           `Было: ${oldPhone}\n` +
           `Стало: ${newPhone}`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
         );
-        
+
         registrationStates.delete(stateKey);
       } catch (error) {
         console.error('Update phone error:', error);
@@ -346,32 +350,32 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
     }
   });
-  
+
   // Handle text messages
   bot.on('text', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const text = msg.text;
-    
+
     if (text.startsWith('/')) return;
-    
+
     // Check state first with chatId (for groups), then without (for private)
     let state = registrationStates.get(getStateKey(userId, chatId));
     let stateKey = getStateKey(userId, chatId);
-    
+
     if (!state) {
       // Also try without chatId for backwards compatibility
       state = registrationStates.get(getStateKey(userId, ''));
       stateKey = getStateKey(userId, '');
     }
-    
+
     if (!state) return;
-    
+
     if (state.step === 'waiting_name') {
       state.name = text;
       state.step = 'waiting_location';
       registrationStates.set(stateKey, state);
-      
+
       bot.sendMessage(chatId,
         `👋 Приятно познакомиться, ${text}!\n\n` +
         '📍 Теперь поделитесь вашей геолокацией:',
@@ -386,11 +390,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
       );
     }
-    
+
     // Handle rejection reason
     if (state.step === 'waiting_rejection_reason') {
       const { orderId, messageId, operatorName, groupChatId, originalMessage, operatorTelegramId } = state;
-      
+
       try {
         // Find operator user by telegram_id to save processed_by
         let processedByUserId = null;
@@ -403,15 +407,15 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             if (operatorResult.rows.length > 0) {
               processedByUserId = operatorResult.rows[0].id;
             }
-          } catch (e) {}
+          } catch (e) { }
         }
-        
+
         // Update order status with processed_by
         await pool.query(
           `UPDATE orders SET status = 'cancelled', admin_comment = $1, processed_at = CURRENT_TIMESTAMP, processed_by = $3 WHERE id = $2`,
           [text, orderId, processedByUserId]
         );
-        
+
         // Get order details for customer notification
         const orderResult = await pool.query(
           `SELECT o.*, u.telegram_id 
@@ -420,10 +424,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
            WHERE o.id = $1`,
           [orderId]
         );
-        
+
         if (orderResult.rows.length > 0) {
           const order = orderResult.rows[0];
-          
+
           // Notify customer
           if (order.telegram_id) {
             try {
@@ -437,7 +441,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               console.error('Error notifying customer:', e);
             }
           }
-          
+
           // Update the original message in the group to show cancelled status
           if (groupChatId && messageId && originalMessage) {
             try {
@@ -452,19 +456,19 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             }
           }
         }
-        
+
         bot.sendMessage(chatId,
           `❌ <b>Заказ #${orderId} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
           { parse_mode: 'HTML' }
         );
-        
+
         registrationStates.delete(stateKey);
       } catch (error) {
         console.error('Reject order error:', error);
         bot.sendMessage(chatId, '❌ Ошибка при отмене заказа');
       }
     }
-    
+
     // Handle feedback message
     if (state.step === 'waiting_feedback_message') {
       try {
@@ -473,27 +477,27 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           'SELECT id, full_name, phone FROM users WHERE telegram_id = $1',
           [userId]
         );
-        
+
         if (userResult.rows.length === 0) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
           registrationStates.delete(stateKey);
           return;
         }
-        
+
         const user = userResult.rows[0];
-        
+
         // Save feedback to database
         await pool.query(`
           INSERT INTO feedback (restaurant_id, user_id, customer_name, customer_phone, type, message)
           VALUES ($1, $2, $3, $4, $5, $6)
         `, [state.restaurantId || restaurantId, user.id, user.full_name, user.phone, state.feedbackType, text]);
-        
+
         bot.sendMessage(chatId,
           `✅ <b>Спасибо за ваше обращение!</b>\n\n` +
           `Мы получили ваше сообщение и рассмотрим его в ближайшее время.`,
           { parse_mode: 'HTML' }
         );
-        
+
         registrationStates.delete(stateKey);
       } catch (error) {
         console.error('Save feedback error:', error);
@@ -501,7 +505,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         registrationStates.delete(stateKey);
       }
     }
-    
+
     // Handle new name input
     if (state.step === 'waiting_new_name') {
       try {
@@ -510,23 +514,23 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           'SELECT id, full_name FROM users WHERE telegram_id = $1',
           [userId]
         );
-        
+
         if (userResult.rows.length === 0) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
           registrationStates.delete(stateKey);
           return;
         }
-        
+
         const user = userResult.rows[0];
         const oldName = user.full_name;
         const newName = text.trim();
-        
+
         // Update user name first
         await pool.query(
           'UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [newName, user.id]
         );
-        
+
         // Try to log the change (table may not exist yet)
         try {
           await pool.query(`
@@ -536,14 +540,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         } catch (logError) {
           console.log('Profile log table may not exist:', logError.message);
         }
-        
+
         bot.sendMessage(chatId,
           `✅ <b>Имя успешно изменено!</b>\n\n` +
           `Было: ${oldName}\n` +
           `Стало: ${newName}`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
         );
-        
+
         registrationStates.delete(stateKey);
       } catch (error) {
         console.error('Update name error:', error);
@@ -552,18 +556,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
     }
   });
-  
+
   // Handle location sharing
   bot.on('location', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const location = msg.location;
-    
+
     // Check if user is blocked
     if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
-    
+
     let state = registrationStates.get(getStateKey(userId, chatId));
-    
+
     // If no state but user exists, treat as checking delivery
     if (!state) {
       const userCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [userId]);
@@ -574,24 +578,24 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         return;
       }
     }
-    
+
     try {
       // Get restaurant info
       const restaurantResult = await pool.query(
         'SELECT * FROM restaurants WHERE id = $1',
         [restaurantId]
       );
-      
+
       if (restaurantResult.rows.length === 0) {
         bot.sendMessage(chatId, '❌ Ресторан не найден', { reply_markup: { remove_keyboard: true } });
         return;
       }
-      
+
       const restaurant = restaurantResult.rows[0];
-      
+
       // Check delivery zone
       const inZone = await isLocationInRestaurantZone(restaurantId, location.latitude, location.longitude);
-      
+
       if (!inZone) {
         bot.sendMessage(chatId,
           `😔 К сожалению, ваш адрес находится за пределами зоны доставки ресторана <b>${restaurantName}</b>.`,
@@ -600,11 +604,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         registrationStates.delete(getStateKey(userId, chatId));
         return;
       }
-      
+
       // Check working hours
       const startTime = restaurant.start_time ? restaurant.start_time.substring(0, 5) : null;
       const endTime = restaurant.end_time ? restaurant.end_time.substring(0, 5) : null;
-      
+
       if (!isRestaurantOpen(startTime, endTime)) {
         bot.sendMessage(chatId,
           `😔 Извините, ресторан <b>${restaurantName}</b> работает с ${startTime || '??:??'} до ${endTime || '??:??'}.\n\nПопробуйте позже!`,
@@ -613,21 +617,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         registrationStates.delete(getStateKey(userId, chatId));
         return;
       }
-      
+
       // Existing user - update location and show menu
       if (state.isExistingUser || state.step === 'checking_delivery') {
         const user = state.user || (await pool.query('SELECT * FROM users WHERE telegram_id = $1', [userId])).rows[0];
-        
+
         await pool.query(
           `UPDATE users SET last_latitude = $1, last_longitude = $2, active_restaurant_id = $3 WHERE id = $4`,
           [location.latitude, location.longitude, restaurantId, user.id]
         );
-        
+
         const token = generateLoginToken(user.id, user.username);
         const loginUrl = buildCatalogUrl(appUrl, token);
-        
+
         registrationStates.delete(getStateKey(userId, chatId));
-        
+
         bot.sendMessage(chatId,
           `✅ Отлично! Доставка доступна!\n\n🏪 Ресторан: <b>${restaurantName}</b>`,
           {
@@ -643,14 +647,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         );
         return;
       }
-      
+
       // New user registration - complete it
       const telegramUsername = msg.from.username;
       // Use telegram username with @ prefix, or generate unique username
       const username = telegramUsername ? `@${telegramUsername}` : `user_${userId}`;
       const password = Math.random().toString(36).slice(-8);
       const hashedPassword = await bcrypt.hash(password, 10);
-      
+
       const userResult = await pool.query(`
         INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id)
         VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7, $8)
@@ -666,20 +670,20 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           END
         RETURNING id
       `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId]);
-      
+
       const newUserId = userResult.rows[0].id;
       registrationStates.delete(getStateKey(userId, chatId));
-      
+
       // Track user-restaurant relationship for broadcast
       await pool.query(`
         INSERT INTO user_restaurants (user_id, restaurant_id)
         VALUES ($1, $2)
         ON CONFLICT (user_id, restaurant_id) DO NOTHING
       `, [newUserId, restaurantId]);
-      
+
       const token = generateLoginToken(newUserId, username);
       const loginUrl = buildCatalogUrl(appUrl, token);
-      
+
       bot.sendMessage(chatId,
         `✅ Регистрация успешна!\n\n` +
         `🏪 Ресторан: <b>${restaurantName}</b>\n` +
@@ -700,19 +704,19 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
     }
   });
-  
+
   // Handle callback queries
   bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const userId = query.from.id;
     const data = query.data;
-    
+
     try {
       bot.answerCallbackQuery(query.id);
-      
+
       // Check if user is blocked
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
-      
+
       if (data === 'new_order' || data === 'check_delivery') {
         // Ask for location
         bot.sendMessage(chatId,
@@ -726,21 +730,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         );
       }
-      
+
       if (data === 'my_orders') {
         const userResult = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
         if (userResult.rows.length === 0) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
           return;
         }
-        
+
         // Показываем только заказы этого ресторана
         const ordersResult = await pool.query(`
           SELECT order_number, status, total_amount, created_at
           FROM orders WHERE user_id = $1 AND restaurant_id = $2
           ORDER BY created_at DESC LIMIT 5
         `, [userResult.rows[0].id, restaurantId]);
-        
+
         if (ordersResult.rows.length === 0) {
           bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
             reply_markup: {
@@ -749,14 +753,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           });
           return;
         }
-        
+
         const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
         let message = '📦 <b>Ваши заказы:</b>\n\n';
-        
+
         ordersResult.rows.forEach((order) => {
           message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум\n`;
         });
-        
+
         bot.sendMessage(chatId, message, {
           parse_mode: 'HTML',
           reply_markup: {
@@ -764,14 +768,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         });
       }
-      
+
       // Handle feedback
       if (data === 'feedback') {
-        registrationStates.set(getStateKey(userId), { 
+        registrationStates.set(getStateKey(userId), {
           step: 'waiting_feedback_type',
-          restaurantId 
+          restaurantId
         });
-        
+
         bot.sendMessage(chatId,
           `📬 <b>Жалобы и предложения</b>\n\n` +
           `Выберите тип обращения:`,
@@ -789,7 +793,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         );
       }
-      
+
       // Handle feedback type selection
       if (data.startsWith('feedback_type_')) {
         const feedbackType = data.replace('feedback_type_', '');
@@ -798,27 +802,27 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         state.feedbackType = feedbackType;
         state.restaurantId = restaurantId;
         registrationStates.set(getStateKey(userId, chatId), state);
-        
+
         const typeNames = {
           complaint: 'жалоба',
           suggestion: 'предложение',
           question: 'вопрос',
           other: 'обращение'
         };
-        
+
         bot.sendMessage(chatId,
           `📝 Тип: <b>${typeNames[feedbackType]}</b>\n\n` +
           `Напишите ваше сообщение:`,
           { parse_mode: 'HTML' }
         );
       }
-      
+
       // Cancel feedback
       if (data === 'feedback_cancel') {
         registrationStates.delete(getStateKey(userId, chatId));
         bot.sendMessage(chatId, '❌ Отменено');
       }
-      
+
       // Handle edit profile
       if (data === 'edit_profile') {
         const userResult = await pool.query('SELECT full_name, phone FROM users WHERE telegram_id = $1', [userId]);
@@ -827,7 +831,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           return;
         }
         const user = userResult.rows[0];
-        
+
         bot.sendMessage(chatId,
           `⚙️ <b>Ваши данные:</b>\n\n` +
           `👤 Имя: ${user.full_name}\n` +
@@ -845,27 +849,27 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         );
       }
-      
+
       // Handle edit name
       if (data === 'edit_name') {
-        registrationStates.set(getStateKey(userId, chatId), { 
+        registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_new_name',
-          restaurantId 
+          restaurantId
         });
-        
+
         bot.sendMessage(chatId,
           `✏️ Введите новое имя:`,
           { parse_mode: 'HTML' }
         );
       }
-      
+
       // Handle edit phone
       if (data === 'edit_phone') {
-        registrationStates.set(getStateKey(userId, chatId), { 
+        registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_new_phone',
-          restaurantId 
+          restaurantId
         });
-        
+
         bot.sendMessage(chatId,
           `📱 Поделитесь новым номером телефона:`,
           {
@@ -880,19 +884,19 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         );
       }
-      
+
       // Handle cancel edit
       if (data === 'edit_cancel') {
         registrationStates.delete(getStateKey(userId, chatId));
         bot.sendMessage(chatId, '❌ Отменено', { reply_markup: { remove_keyboard: true } });
       }
-      
+
       // Handle order confirmation
       if (data.startsWith('confirm_order_')) {
         const orderId = data.split('_')[2];
         const operatorName = query.from.first_name || 'Оператор';
         const operatorTelegramId = query.from.id;
-        
+
         // Find operator user by telegram_id to save processed_by
         let processedByUserId = null;
         try {
@@ -903,20 +907,20 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           if (operatorResult.rows.length > 0) {
             processedByUserId = operatorResult.rows[0].id;
           }
-        } catch (e) {}
-        
+        } catch (e) { }
+
         // Update order status with processed_by
         await pool.query(
           `UPDATE orders SET status = 'preparing', processed_at = CURRENT_TIMESTAMP, processed_by = $2 WHERE id = $1`,
           [orderId, processedByUserId]
         );
-        
+
         // Get order for customer notification
         const orderResult = await pool.query(
           `SELECT o.*, u.telegram_id FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = $1`,
           [orderId]
         );
-        
+
         if (orderResult.rows.length > 0) {
           const order = orderResult.rows[0];
           if (order.telegram_id) {
@@ -925,10 +929,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
                 `✅ <b>Заказ #${order.order_number} принят!</b>\n\n👨‍🍳 Ваш заказ готовится.\nОжидайте доставку!`,
                 { parse_mode: 'HTML' }
               );
-            } catch (e) {}
+            } catch (e) { }
           }
         }
-        
+
         // Update the original message text to show status
         try {
           const currentMessage = query.message.text || '';
@@ -946,14 +950,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           );
         }
       }
-      
+
       // Handle order rejection
       if (data.startsWith('reject_order_')) {
         const orderId = data.split('_')[2];
         const operatorName = query.from.first_name || 'Оператор';
         const operatorTelegramId = query.from.id;
         const originalMessage = query.message.text || '';
-        
+
         // Use chatId (group chat) in state key so we can find it when operator types
         registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_rejection_reason',
@@ -964,15 +968,15 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           groupChatId: chatId,
           originalMessage
         });
-        
+
         bot.sendMessage(chatId, `📝 Укажите причину отмены заказа #${orderId}:`);
       }
-      
+
     } catch (error) {
       console.error('Callback query error:', error);
     }
   });
-  
+
   // Error handling
   bot.on('polling_error', (error) => {
     if (error.response?.body?.error_code === 409) {
@@ -986,7 +990,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 // Initialize all restaurant bots
 async function initMultiBots() {
   console.log('🤖 Initializing multi-bot system...');
-  
+
   try {
     // Get all restaurants with bot tokens from database
     const result = await pool.query(`
@@ -994,25 +998,25 @@ async function initMultiBots() {
       FROM restaurants 
       WHERE is_active = true AND telegram_bot_token IS NOT NULL AND telegram_bot_token != ''
     `);
-    
+
     console.log(`📋 Found ${result.rows.length} restaurants with bot tokens`);
-    
+
     const isProduction = process.env.NODE_ENV === 'production';
     const webhookBaseUrl = process.env.TELEGRAM_WEBHOOK_URL || process.env.BACKEND_URL || process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
-    
+
     for (const restaurant of result.rows) {
       try {
         console.log(`🔄 Initializing bot for: ${restaurant.name}`);
-        
+
         let bot;
-        
+
         if (isProduction && webhookBaseUrl) {
           // Use webhook in production - unique path per restaurant
           const webhookPath = `/api/telegram/webhook/${restaurant.id}`;
           const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
-          
+
           bot = new TelegramBot(restaurant.telegram_bot_token);
-          
+
           try {
             await bot.setWebHook(webhookUrl);
             console.log(`✅ ${restaurant.name}: Webhook set to ${webhookUrl}`);
@@ -1027,7 +1031,7 @@ async function initMultiBots() {
           bot = new TelegramBot(restaurant.telegram_bot_token, { polling: true });
           console.log(`✅ ${restaurant.name}: Using polling mode`);
         }
-        
+
         // Store bot reference
         restaurantBots.set(restaurant.telegram_bot_token, {
           bot,
@@ -1035,17 +1039,17 @@ async function initMultiBots() {
           restaurantName: restaurant.name,
           groupId: restaurant.telegram_group_id
         });
-        
+
         // Setup handlers
         setupBotHandlers(bot, restaurant.id, restaurant.name, restaurant.telegram_bot_token);
-        
+
       } catch (error) {
         console.error(`❌ Failed to initialize bot for ${restaurant.name}:`, error.message);
       }
     }
-    
+
     console.log(`✅ Multi-bot system initialized: ${restaurantBots.size} bots active`);
-    
+
   } catch (error) {
     console.error('❌ Multi-bot initialization error:', error);
   }

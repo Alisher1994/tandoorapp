@@ -25,7 +25,8 @@
 }
 
 /* iOS Safari - disable swipe back gesture and elastic scroll */
-html, body {
+html,
+body {
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
   overflow-x: hidden;
@@ -111,13 +112,15 @@ body {
   box-shadow: var(--shadow-hover);
 }
 
-.form-control, .form-select {
+.form-control,
+.form-select {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background-color: #fff;
 }
 
-.form-control:focus, .form-select:focus {
+.form-control:focus,
+.form-select:focus {
   border-color: var(--primary-light);
   box-shadow: 0 0 0 0.25rem rgba(31, 31, 31, 0.15);
 }
@@ -263,7 +266,7 @@ body {
 
 .stepper-circle:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .stepper-step.completed .stepper-circle {
@@ -311,9 +314,11 @@ body {
   0% {
     box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
   }
+
   50% {
     box-shadow: 0 0 0 15px rgba(76, 175, 80, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
   }
@@ -323,9 +328,11 @@ body {
   0% {
     box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7);
   }
+
   50% {
     box-shadow: 0 0 0 15px rgba(244, 67, 54, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
   }
@@ -428,5 +435,48 @@ body {
   }
 }
 
+/* Custom thin scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
 
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
 
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* Premium horizontal scrollbar for analytics widgets */
+.premium-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #c7d2fe #f1f5f9;
+}
+
+.premium-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.premium-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+  margin: 0 16px;
+}
+
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #818cf8, #a78bfa);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+.premium-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  box-shadow: 0 0 6px rgba(102, 126, 234, 0.4);
+}

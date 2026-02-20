@@ -1,0 +1,93 @@
+
+> order-system-client@1.0.0 build
+> vite build
+
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mтЬУ[39m 19 modules transformed.
+x Build failed in 162ms
+error during build:
+[vite:esbuild] Transform failed with 8 errors:
+C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/SuperAdminDashboard.jsx:1457:14: ERROR: Unexpected closing "Form.Group" tag does not match opening "Form" tag
+C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/SuperAdminDashboard.jsx:1470:18: ERROR: Unexpected closing "Form.Group" tag does not match opening "Col" tag
+C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/SuperAdminDashboard.jsx:1471:16: ERROR: Unexpected closing "Col" tag does not match opening "Row" tag
+C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/SuperAdminDashboard.jsx:1480:18: ERROR: Unexpected closing "Form.Group" tag does not match opening "Col" tag
+C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/SuperAdminDashboard.jsx:1481:16: ERROR: Unexpected closing "Col" tag does not match opening "Modal.Body" tag
+...
+file: C:/Users/KDFX Modes/Desktop/App/Davron/client/src/pages/SuperAdminDashboard.jsx:1457:14
+
+Unexpected closing "Form.Group" tag does not match opening "Form" tag
+1455|                  </div>
+1456|                </div>
+1457|              </Form.Group>
+   |                ^
+1458|  
+1459|              <hr />
+
+Unexpected closing "Form.Group" tag does not match opening "Col" tag
+1468|                      placeholder={t('saRestaurantNamePh')}
+1469|                    />
+1470|                  </Form.Group>
+   |                    ^
+1471|                </Col>
+1472|                <Col md={6}>
+
+Unexpected closing "Col" tag does not match opening "Row" tag
+1469|                    />
+1470|                  </Form.Group>
+1471|                </Col>
+   |                  ^
+1472|                <Col md={6}>
+1473|        
+
+Unexpected closing "Form.Group" tag does not match opening "Col" tag
+1478|                      placeholder="+998901234567"
+1479|                    />
+1480|                  </Form.Group>
+   |                    ^
+1481|                </Col>
+1482|              </Row>
+
+Unexpected closing "Col" tag does not match opening "Modal.Body" tag
+1479|                    />
+1480|                  </Form.Group>
+1481|                </Col>
+   |                  ^
+1482|              </Row>
+1483|    
+
+Unexpected closing "Row" tag does not match opening "Modal" tag
+1480|                  </Form.Group>
+1481|                </Col>
+1482|              </Row>
+   |                ^
+1483|    
+1484|                <Form.Label>╨Р╨┤╤А╨╡╤Б</Form.Label>
+
+Unexpected closing "Form.Group" tag does not match opening "div" tag
+1488|                  placeholder={t('saRestaurantAddressPh')}
+1489|                />
+1490|              </Form.Group>
+   |                ^
+1491|              <hr />
+1492|              <h6>{t('saWorkingHours')}</h6>
+
+Unexpected ">"
+1489|                />
+1490|              </Form.Group>
+1491|              <hr />
+   |                   ^
+1492|              <h6>{t('saWorkingHours')}</h6>
+1493|              <Row>
+
+    at failureErrorWithLog (C:\Users\KDFX Modes\Desktop\App\Davron\client\node_modules\esbuild\lib\main.js:1472:15)
+    at C:\Users\KDFX Modes\Desktop\App\Davron\client\node_modules\esbuild\lib\main.js:755:50
+    at responseCallbacks.<computed> (C:\Users\KDFX Modes\Desktop\App\Davron\client\node_modules\esbuild\lib\main.js:622:9)
+    at handleIncomingPacket (C:\Users\KDFX Modes\Desktop\App\Davron\client\node_modules\esbuild\lib\main.js:677:12)
+    at Socket.readFromStdout (C:\Users\KDFX Modes\Desktop\App\Davron\client\node_modules\esbuild\lib\main.js:600:7)
+    at Socket.emit (node:events:508:28)
+    at addChunk (node:internal/streams/readable:559:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+    at Readable.push (node:internal/streams/readable:390:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)

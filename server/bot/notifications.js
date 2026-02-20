@@ -31,15 +31,15 @@ function getRestaurantBot(botToken, restaurantId = null) {
     const multiBot = getMultiBotByRestaurantId(restaurantId);
     if (multiBot) return multiBot;
   }
-  
+
   if (!botToken) {
     return getDefaultBot();
   }
-  
+
   if (restaurantBots.has(botToken)) {
     return restaurantBots.get(botToken);
   }
-  
+
   try {
     const bot = new TelegramBot(botToken);
     restaurantBots.set(botToken, bot);
@@ -72,18 +72,18 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
     console.warn('⚠️  No chat ID for notifications, skipping');
     return;
   }
-  
+
   if (!botToken) {
     console.warn('⚠️  No bot token for notifications, skipping');
     return;
   }
-  
+
   const bot = getRestaurantBot(botToken);
   if (!bot) {
     console.warn('⚠️  Bot not available for notification');
     return;
   }
-  
+
   try {
     // Build items list
     const itemsList = items.map((item, index) => {
@@ -92,7 +92,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       const total = qty * price;
       return `${index + 1}. ${escapeHtml(item.product_name)}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
     }).join('\n\n');
-    
+
     // Build location link
     let locationLine = '';
     if (order.delivery_coordinates) {
@@ -105,17 +105,17 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
     } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
       locationLine = `📍 Адрес: ${escapeHtml(order.delivery_address)}`;
     }
-    
+
     // Delivery time
-    const deliveryTime = order.delivery_time && order.delivery_time !== 'asap' 
-      ? order.delivery_time 
+    const deliveryTime = order.delivery_time && order.delivery_time !== 'asap'
+      ? order.delivery_time
       : 'Как можно быстрее';
-    
+
     // Calculate total
     const productsTotal = parseFloat(order.total_amount);
     const deliveryCost = parseFloat(order.delivery_cost) || 0;
     const deliveryDistanceKm = parseFloat(order.delivery_distance_km) || 0;
-    
+
     // Build delivery line
     let deliveryLine = '';
     if (deliveryCost > 0) {
@@ -125,8 +125,8 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       }
       deliveryLine += '\n';
     }
-    
-    const message = 
+
+    const message =
       `<b>ID: ${order.order_number}</b>\n` +
       `Статус: 🆕 Новый\n\n` +
       (locationLine ? `${locationLine}\n` : '') +
@@ -137,7 +137,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       deliveryLine +
       `<b>Итого: ${formatPrice(productsTotal)} сум</b>\n\n` +
       (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
-    
+
     // Add action buttons
     const keyboard = {
       inline_keyboard: [
@@ -147,15 +147,15 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
         ]
       ]
     };
-    
+
     console.log(`📤 Sending order ${order.id} notification to ${chatId} with buttons`);
-    
-    const result = await bot.sendMessage(chatId, message, { 
+
+    const result = await bot.sendMessage(chatId, message, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
       reply_markup: keyboard
     });
-    
+
     if (order?.id && result?.message_id) {
       try {
         await pool.query(
@@ -187,14 +187,14 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
  */
 function replacePlaceholders(template, order) {
   if (!template) return template;
-  
+
   const paymentMethods = {
     'cash': 'Наличные',
     'click': 'Click',
     'payme': 'Payme',
     'card': 'Карта'
   };
-  
+
   return template
     .replace(/{order_number}/g, order.order_number || '')
     .replace(/{customer_name}/g, order.customer_name || '')
@@ -210,13 +210,13 @@ function replacePlaceholders(template, order) {
  */
 async function sendOrderUpdateToUser(telegramId, order, status, botToken = null, restaurantPaymentUrls = null, customMessages = null) {
   if (!telegramId) return;
-  
+
   const bot = getRestaurantBot(botToken);
   if (!bot) {
     console.warn('⚠️  Bot not initialized, cannot send update');
     return;
   }
-  
+
   try {
     const statusTags = {
       'new': '#новый',
@@ -225,7 +225,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       'delivered': '#доставлен',
       'cancelled': '#отменен'
     };
-    
+
     // Default messages
     const defaultMessages = {
       'new': '📦 Ваш заказ в обработке!',
@@ -234,7 +234,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       'delivered': '✅ Ваш заказ доставлен!',
       'cancelled': '❌ Заказ отменен'
     };
-    
+
     // Use custom message if provided, otherwise use default
     let statusText = defaultMessages[status] || 'Обновление заказа';
     if (customMessages) {
@@ -244,9 +244,9 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
         statusText = replacePlaceholders(customMessages[customMsgKey], order);
       }
     }
-    
+
     const tag = statusTags[status] || '#обновлен';
-    
+
     // Build payment link for new orders
     let paymentLine = '';
     if (status === 'new' && order.payment_method && restaurantPaymentUrls) {
@@ -256,17 +256,17 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
         paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.payme_url}">Payme</a>`;
       }
     }
-    
-    const message = 
+
+    const message =
       `<b>ID: ${order.order_number}</b> ${tag}\n\n` +
       `${statusText}\n\n` +
       `Сумма заказа: ${formatPrice(order.total_amount)} сум` +
       paymentLine;
-    
+
     // Add "New Order" button for delivered/cancelled orders (not for new - they have payment link)
     const showNewOrderButton = status === 'delivered' || status === 'cancelled';
-    
-    const options = { 
+
+    const options = {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
       reply_markup: showNewOrderButton ? {
@@ -275,7 +275,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
         ]
       } : undefined
     };
-    
+
     await bot.sendMessage(telegramId, message, options);
     console.log(`✅ Order update sent to user ${telegramId}`);
   } catch (error) {
@@ -292,7 +292,7 @@ async function updateOrderNotificationForCustomerCancel(order, botToken = null, 
 
   const targetChatId = order?.admin_chat_id || fallbackChatId;
   const messageId = order?.admin_message_id;
-  
+
   if (!targetChatId) {
     console.warn('⚠️  No chat ID for group update, skipping');
     return;
@@ -319,4 +319,30 @@ async function updateOrderNotificationForCustomerCancel(order, botToken = null, 
   }
 }
 
-module.exports = { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel, getRestaurantBot };
+async function sendBalanceNotification(telegramId, amount, currentBalance, botToken = null) {
+  if (!telegramId) return;
+
+  const bot = getRestaurantBot(botToken);
+  if (!bot) return;
+
+  const message =
+    `💰 <b>Пополнение баланса!</b>\n\n` +
+    `Сумма: +${formatPrice(amount)} сум\n` +
+    `Текущий баланс: <b>${formatPrice(currentBalance)} сум</b>\n\n` +
+    `Вы можете продолжать принимать заказы.`;
+
+  try {
+    await bot.sendMessage(telegramId, message, { parse_mode: 'HTML' });
+    console.log(`✅ Balance notification sent to user ${telegramId}`);
+  } catch (error) {
+    console.error('Send balance notification error:', error);
+  }
+}
+
+module.exports = {
+  sendOrderNotification,
+  sendOrderUpdateToUser,
+  updateOrderNotificationForCustomerCancel,
+  sendBalanceNotification,
+  getRestaurantBot
+};
