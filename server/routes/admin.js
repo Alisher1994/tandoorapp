@@ -1772,7 +1772,7 @@ router.get('/feedback', async (req, res) => {
     }
 
     // Get total count
-    const countQuery = query.replace('SELECT f.*, \n             u.username as user_username,\n             resp.full_name as responder_name', 'SELECT COUNT(*)');
+    const countQuery = query.replace(/SELECT[\s\S]*?FROM feedback f/, 'SELECT COUNT(*) FROM feedback f');
     const countResult = await pool.query(countQuery, params);
     const total = parseInt(countResult.rows[0].count);
 
