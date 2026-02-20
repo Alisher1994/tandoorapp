@@ -7,7 +7,7 @@ function YandexLocationPicker({ latitude, longitude, onLocationChange, height = 
   const isInitializedRef = useRef(false);
 
   const defaultCenter = [41.311081, 69.240562]; // Tashkent center
-  
+
   const getCenter = useCallback(() => {
     if (latitude && longitude) {
       const lat = parseFloat(latitude);
@@ -40,12 +40,24 @@ function YandexLocationPicker({ latitude, longitude, onLocationChange, height = 
     const loadYandexMaps = () => {
       return new Promise((resolve, reject) => {
         if (window.ymaps) {
-          resolve(window.ymaps);
+          window.ymaps.ready(() => resolve(window.ymaps));
           return;
         }
 
+        const existingScript = document.querySelector('script[src*="api-maps.yandex.ru"]');
+        if (existingScript) {
+          const checkYmaps = setInterval(() => {
+            if (window.ymaps) {
+              window.ymaps.ready(() => resolve(window.ymaps));
+              clearInterval(checkYmaps);
+            }
+          }, 100);
+          return;
+        }
+
+        const apiKey = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
         const script = document.createElement('script');
-        script.src = 'https://api-maps.yandex.ru/2.1/?apikey=&lang=ru_RU';
+        script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU`;
         script.async = true;
         script.onload = () => {
           window.ymaps.ready(() => resolve(window.ymaps));
@@ -57,15 +69,15 @@ function YandexLocationPicker({ latitude, longitude, onLocationChange, height = 
 
     const initMap = async () => {
       if (isInitializedRef.current || !mapRef.current) return;
-      
+
       try {
         const ymaps = await loadYandexMaps();
-        
+
         if (!mapRef.current || isInitializedRef.current) return;
         isInitializedRef.current = true;
 
         const center = getCenter();
-        
+
         // Create map
         const map = new ymaps.Map(mapRef.current, {
           center: center,
@@ -117,12 +129,12 @@ function YandexLocationPicker({ latitude, longitude, onLocationChange, height = 
   }, []);
 
   return (
-    <div 
+    <div
       ref={mapRef}
-      style={{ 
-        height, 
-        width: '100%', 
-        borderRadius: '8px', 
+      style={{
+        height,
+        width: '100%',
+        borderRadius: '8px',
         overflow: 'hidden',
         border: '1px solid #dee2e6'
       }}

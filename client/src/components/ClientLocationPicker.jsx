@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './ClientLocationPicker.css';
 
-const YANDEX_API_KEY = '650c02e9-6ef5-4d0e-add0-91e1abd044d8'; // Тот же ключ что и для ресторанов
+const YANDEX_API_KEY = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
 
 function ClientLocationPicker({ latitude, longitude, onLocationChange }) {
   const mapContainerRef = useRef(null);

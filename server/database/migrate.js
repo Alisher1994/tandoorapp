@@ -84,6 +84,7 @@ async function migrate() {
     const userColumns = [
       { name: 'active_restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE SET NULL' },
       { name: 'is_active', type: 'BOOLEAN DEFAULT true' },
+      { name: 'telegram_id', type: 'BIGINT UNIQUE' },
       { name: 'last_latitude', type: 'DECIMAL(10, 8)' },
       { name: 'last_longitude', type: 'DECIMAL(11, 8)' },
       { name: 'last_address', type: 'TEXT' }

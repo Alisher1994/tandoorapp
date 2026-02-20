@@ -2686,15 +2686,17 @@ function AdminDashboard() {
                                     </Form.Group>
                                   </Col>
                                   <Col md={12}>
-                                    <Form.Group className="mb-3">
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
-                                      <Form.Control
-                                        type="text"
-                                        className="form-control-custom"
-                                        value={restaurantSettings.support_username || ''}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
-                                      />
-                                    </Form.Group>
+                                    {isSuperAdmin && (
+                                      <Form.Group className="mb-3">
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
+                                        <Form.Control
+                                          type="text"
+                                          className="form-control-custom"
+                                          value={restaurantSettings.support_username || ''}
+                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
+                                        />
+                                      </Form.Group>
+                                    )}
                                     <div className="d-grid d-md-flex mt-2">
                                       <Button
                                         variant="outline-primary"
