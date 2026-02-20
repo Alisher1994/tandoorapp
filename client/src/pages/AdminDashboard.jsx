@@ -23,6 +23,8 @@ import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import * as XLSX from 'xlsx';
+import YandexLocationPicker from '../components/YandexLocationPicker';
+import DeliveryZonePicker from '../components/DeliveryZonePicker';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -226,9 +228,11 @@ function AdminDashboard() {
   const [restaurantSettings, setRestaurantSettings] = useState(null);
   const [operators, setOperators] = useState([]);
   const [showOperatorModal, setShowOperatorModal] = useState(false);
-  const [operatorForm, setOperatorForm] = useState({ username: '', password: '', full_name: '', phone: '' });
+  const [operatorForm, setOperatorForm] = useState({ username: '', password: '', full_name: '', phone: '', telegram_id: '' });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
+  const [testingBot, setTestingBot] = useState(false);
+  const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -344,6 +348,13 @@ function AdminDashboard() {
       fetchFeedback();
     }
   }, [feedbackFilter, user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (user?.active_restaurant_id) {
+      fetchRestaurantSettings();
+      fetchOperators();
+    }
+  }, [user?.active_restaurant_id]);
 
   const fetchData = async () => {
     try {
@@ -505,6 +516,40 @@ function AdminDashboard() {
     }
   };
 
+  const testBot = async () => {
+    if (!restaurantSettings.telegram_bot_token) {
+      setAlertMessage({ type: 'warning', text: 'Введите Bot Token для проверки' });
+      return;
+    }
+    setTestingBot(true);
+    try {
+      const response = await axios.post(`${API_URL}/admin/test-bot`, {
+        botToken: restaurantSettings.telegram_bot_token,
+        groupId: restaurantSettings.telegram_group_id
+      });
+
+      const { message, details, errors, success } = response.data;
+
+      let fullText = message + '\n\n' + details.join('\n');
+      if (errors && errors.length > 0) {
+        fullText += '\n\nОшибки:\n' + errors.join('\n');
+      }
+
+      setAlertMessage({
+        type: success ? 'success' : 'warning',
+        text: <div style={{ whiteSpace: 'pre-wrap' }}>{fullText}</div>
+      });
+    } catch (error) {
+      console.error('Test bot error:', error);
+      setAlertMessage({
+        type: 'danger',
+        text: 'Ошибка при проверке: ' + (error.response?.data?.error || error.message)
+      });
+    } finally {
+      setTestingBot(false);
+    }
+  };
+
   const fetchOperators = async () => {
     try {
       const response = await axios.get(`${API_URL}/admin/operators`);
@@ -514,17 +559,44 @@ function AdminDashboard() {
     }
   };
 
+  const [editingOperator, setEditingOperator] = useState(null);
+
+  const openOperatorModal = (operator = null) => {
+    if (operator) {
+      setEditingOperator(operator);
+      setOperatorForm({
+        username: operator.username || '',
+        password: '',
+        full_name: operator.full_name || '',
+        phone: operator.phone || '',
+        telegram_id: operator.telegram_id || ''
+      });
+    } else {
+      setEditingOperator(null);
+      setOperatorForm({ username: '', password: '', full_name: '', phone: '', telegram_id: '' });
+    }
+    setShowOperatorModal(true);
+  };
+
   const saveOperator = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_URL}/admin/operators`, operatorForm);
-      setAlertMessage({ type: 'success', text: 'Оператор добавлен' });
+      if (editingOperator) {
+        const data = { ...operatorForm };
+        if (!data.password) delete data.password;
+        await axios.put(`${API_URL}/admin/operators/${editingOperator.id}`, data);
+        setAlertMessage({ type: 'success', text: 'Оператор обновлен' });
+      } else {
+        await axios.post(`${API_URL}/admin/operators`, operatorForm);
+        setAlertMessage({ type: 'success', text: 'Оператор добавлен' });
+      }
       setShowOperatorModal(false);
       setOperatorForm({ username: '', password: '', full_name: '', phone: '' });
+      setEditingOperator(null);
       fetchOperators();
     } catch (error) {
       console.error('Save operator error:', error);
-      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка добавления оператора' });
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка сохранения оператора' });
     }
   };
 
@@ -2488,7 +2560,7 @@ function AdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="settings" title={<span>⚙️ {t('settings')}</span>}>
+              <Tab eventKey="settings" title={<span>{t('settings')}</span>}>
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
                   <Nav variant="tabs" activeKey={settingsTab} onSelect={(k) => setSettingsTab(k)} className="border-0">
                     <Nav.Item>
@@ -2496,9 +2568,6 @@ function AdminDashboard() {
                     </Nav.Item>
                     <Nav.Item>
                       <Nav.Link eventKey="delivery" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'delivery' ? 'border-primary text-primary' : 'text-muted'}`}>Доставка</Nav.Link>
-                    </Nav.Item>
-                    <Nav.Item>
-                      <Nav.Link eventKey="messages" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'messages' ? 'border-primary text-primary' : 'text-muted'}`}>Шаблоны</Nav.Link>
                     </Nav.Item>
                     <Nav.Item>
                       <Nav.Link eventKey="operators" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'operators' ? 'border-primary text-primary' : 'text-muted'}`}>Операторы</Nav.Link>
@@ -2617,7 +2686,7 @@ function AdminDashboard() {
                                     </Form.Group>
                                   </Col>
                                   <Col md={12}>
-                                    <Form.Group>
+                                    <Form.Group className="mb-3">
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
                                       <Form.Control
                                         type="text"
@@ -2626,6 +2695,17 @@ function AdminDashboard() {
                                         onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
                                       />
                                     </Form.Group>
+                                    <div className="d-grid d-md-flex mt-2">
+                                      <Button
+                                        variant="outline-primary"
+                                        size="sm"
+                                        className="px-4 py-2 rounded-3 fw-bold"
+                                        onClick={testBot}
+                                        disabled={testingBot}
+                                      >
+                                        {testingBot ? '⌛ Проверка...' : '🔍 Проверить работу бота'}
+                                      </Button>
+                                    </div>
                                   </Col>
                                 </Row>
                               </Col>
@@ -2685,6 +2765,19 @@ function AdminDashboard() {
                                   checked={restaurantSettings.is_delivery_enabled}
                                   onChange={e => setRestaurantSettings({ ...restaurantSettings, is_delivery_enabled: e.target.checked })}
                                 />
+                              </Col>
+
+                              <Col md={12}>
+                                <div className="mb-4">
+                                  <label className="small fw-bold text-muted text-uppercase mb-2 d-block">Точка центра доставки на карте</label>
+                                  <YandexLocationPicker
+                                    latitude={restaurantSettings.latitude}
+                                    longitude={restaurantSettings.longitude}
+                                    onLocationChange={(lat, lng) => setRestaurantSettings({ ...restaurantSettings, latitude: lat, longitude: lng })}
+                                    height="400px"
+                                  />
+                                  <div className="small text-muted mt-2">Кликните на карту или перетащите маркер, чтобы установить координаты заведения.</div>
+                                </div>
                               </Col>
 
                               <Col md={6}>
@@ -2747,10 +2840,21 @@ function AdminDashboard() {
                               </Col>
                             </Row>
 
+                            <Col md={12}>
+                              <Button
+                                variant="outline-primary"
+                                className="w-100 py-3 rounded-4 border-dashed mt-3 shadow-none overflow-hidden"
+                                onClick={() => setShowDeliveryZoneModal(true)}
+                                style={{ borderStyle: 'dashed' }}
+                              >
+                                🗺️ {restaurantSettings.delivery_zone ? 'Редактировать зону доставки' : 'Настроить зону доставки'}
+                              </Button>
+                            </Col>
+
                             <div className="mt-4 pt-3 border-top text-end">
                               <Button
                                 variant="primary"
-                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom shadow-none"
                                 onClick={saveRestaurantSettings}
                                 disabled={savingSettings}
                               >
@@ -2761,92 +2865,6 @@ function AdminDashboard() {
                         </Card>
                       )}
 
-                      {settingsTab === 'messages' && (
-                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
-                          <Card.Body className="p-4">
-                            <Row className="gy-4">
-                              <Col md={12}>
-                                <Alert variant="info" className="small border-0 shadow-sm rounded-3">
-                                  <div className="fw-bold mb-1">Доступные переменные:</div>
-                                  <div><code>{"{order_id}"}</code>, <code>{"{status_text}"}</code>, <code>{"{total}"}</code>, <code>{"{items}"}</code></div>
-                                </Alert>
-                              </Col>
-
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Новый заказ</Form.Label>
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    className="form-control-custom"
-                                    value={restaurantSettings.msg_new || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_new: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Готовится</Form.Label>
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    className="form-control-custom"
-                                    value={restaurantSettings.msg_preparing || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_preparing: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Доставляется</Form.Label>
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    className="form-control-custom"
-                                    value={restaurantSettings.msg_delivering || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_delivering: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Доставлено</Form.Label>
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    className="form-control-custom"
-                                    value={restaurantSettings.msg_delivered || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_delivered: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Отменено</Form.Label>
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    className="form-control-custom"
-                                    value={restaurantSettings.msg_cancelled || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_cancelled: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                            </Row>
-
-                            <div className="mt-4 pt-3 border-top text-end">
-                              <Button
-                                variant="primary"
-                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
-                                onClick={saveRestaurantSettings}
-                                disabled={savingSettings}
-                              >
-                                {savingSettings ? 'Сохранение...' : 'Сохранить изменения'}
-                              </Button>
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      )}
 
                       {settingsTab === 'operators' && (
                         <>
@@ -2855,7 +2873,7 @@ function AdminDashboard() {
                             <Button
                               variant="primary"
                               className="rounded-pill px-4 fw-bold shadow-sm btn-primary-custom"
-                              onClick={() => setShowOperatorModal(true)}
+                              onClick={() => openOperatorModal(null)}
                             >
                               + Добавить оператора
                             </Button>
@@ -2877,14 +2895,25 @@ function AdminDashboard() {
                                     <td><code>@{op.username}</code></td>
                                     <td>{op.phone}</td>
                                     <td className="text-end">
-                                      <Button
-                                        variant="light"
-                                        className="action-btn text-danger shadow-none border-0"
-                                        onClick={() => deleteOperator(op.id)}
-                                        disabled={op.id === user?.id}
-                                      >
-                                        <TrashIcon />
-                                      </Button>
+                                      <div className="d-flex gap-2 justify-content-end">
+                                        <Button
+                                          variant="light"
+                                          className="action-btn text-primary shadow-none border-0"
+                                          onClick={() => openOperatorModal(op)}
+                                          title="Редактировать"
+                                        >
+                                          <EditIcon />
+                                        </Button>
+                                        <Button
+                                          variant="light"
+                                          className="action-btn text-danger shadow-none border-0"
+                                          onClick={() => deleteOperator(op.id)}
+                                          disabled={op.id === user?.id}
+                                          title="Удалить"
+                                        >
+                                          <TrashIcon />
+                                        </Button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -4313,31 +4342,33 @@ function AdminDashboard() {
         <Modal show={showOperatorModal} onHide={() => setShowOperatorModal(false)} centered>
           <Form onSubmit={saveOperator}>
             <Modal.Header closeButton>
-              <Modal.Title>Добавить оператора (заменшика)</Modal.Title>
+              <Modal.Title>{editingOperator ? 'Редактировать оператора' : 'Добавить оператора (заменшика)'}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-              <Alert variant="info" className="small border-0 shadow-sm rounded-3">
-                Вы можете добавить существующего пользователя по <b>username</b> или создать нового с ролью "Оператор".
-              </Alert>
+              {!editingOperator && (
+                <Alert variant="info" className="small border-0 shadow-sm rounded-3">
+                  Вы можете добавить существующего пользователя по <b>username</b> или создать нового с ролью "Оператор".
+                </Alert>
+              )}
               <Form.Group className="mb-3">
-                <Form.Label>Username <span className="text-danger">*</span></Form.Label>
+                <Form.Label>Username *</Form.Label>
                 <Form.Control
                   required
                   type="text"
                   placeholder="name2024"
                   value={operatorForm.username}
                   onChange={e => setOperatorForm({ ...operatorForm, username: e.target.value })}
+                  disabled={!!editingOperator}
                 />
               </Form.Group>
               <Form.Group className="mb-3">
-                <Form.Label>Пароль (для нового пользователя)</Form.Label>
+                <Form.Label>Пароль {!editingOperator && '(для нового пользователя)'}</Form.Label>
                 <Form.Control
                   type="password"
-                  placeholder="********"
+                  placeholder={editingOperator ? "Оставьте пустым, чтобы не менять" : "********"}
                   value={operatorForm.password}
                   onChange={e => setOperatorForm({ ...operatorForm, password: e.target.value })}
                 />
-                <Form.Text className="text-muted">Если пользователь уже существует, пароль не требуется.</Form.Text>
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Полное имя</Form.Label>
@@ -4357,13 +4388,56 @@ function AdminDashboard() {
                   onChange={e => setOperatorForm({ ...operatorForm, phone: e.target.value })}
                 />
               </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Telegram ID</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="123456789"
+                  value={operatorForm.telegram_id}
+                  onChange={e => setOperatorForm({ ...operatorForm, telegram_id: e.target.value })}
+                />
+                <Form.Text className="text-muted">
+                  Узнать свой ID можно у бота командой /id. Нужно для получения тестовых уведомлений в личку.
+                </Form.Text>
+              </Form.Group>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" onClick={() => setShowOperatorModal(false)}>Отмена</Button>
-              <Button variant="primary" type="submit">Добавить</Button>
+              <Button variant="primary" type="submit">{editingOperator ? 'Сохранить' : 'Добавить'}</Button>
             </Modal.Footer>
           </Form>
         </Modal>
+        <Modal show={showDeliveryZoneModal} onHide={() => setShowDeliveryZoneModal(false)} size="lg" centered className="rounded-4 overflow-hidden border-0">
+          <Modal.Header closeButton className="border-0 pb-0">
+            <Modal.Title className="h5 fw-bold">🗺️ Зона доставки</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="p-4 pt-2">
+            <div className="mb-3">
+              <label className="small fw-bold text-muted text-uppercase mb-2 d-block">Рисование области доставки</label>
+              <DeliveryZonePicker
+                deliveryZone={restaurantSettings?.delivery_zone}
+                onZoneChange={(zone) => setRestaurantSettings({ ...restaurantSettings, delivery_zone: zone })}
+                center={[restaurantSettings?.latitude || 41.311081, restaurantSettings?.longitude || 69.240562]}
+              />
+            </div>
+
+            <Alert variant="info" className="border-0 shadow-sm rounded-4 mb-0" style={{ background: 'rgba(59, 130, 246, 0.05)', color: '#1e40af' }}>
+              <div className="fw-bold mb-1">Инструкция:</div>
+              <ol className="small mb-0 ps-3">
+                <li>Нажмите на иконку многоугольника (⬠) справа на карте</li>
+                <li>Кликайте по карте, чтобы отметить точки границы зоны доставки</li>
+                <li>Завершите многоугольник, кликнув на первую точку</li>
+                <li>Нажмите кнопку "Готово", чтобы сохранить изменения</li>
+              </ol>
+            </Alert>
+          </Modal.Body>
+          <Modal.Footer className="border-0">
+            <Button variant="primary" className="px-5 rounded-pill fw-bold" onClick={() => setShowDeliveryZoneModal(false)}>
+              Готово
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
       </Container>
     </>
   );

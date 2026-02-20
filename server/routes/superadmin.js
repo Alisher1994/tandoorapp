@@ -563,7 +563,7 @@ router.get('/operators', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         u.id, u.username, u.full_name, u.phone, u.role, u.is_active, u.created_at,
-        u.active_restaurant_id,
+        u.active_restaurant_id, u.telegram_id,
         ar.name as active_restaurant_name,
         COALESCE(
           json_agg(
@@ -621,7 +621,7 @@ router.post('/categories', async (req, res) => {
 router.post('/operators', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { username, password, full_name, phone, restaurant_ids } = req.body;
+    const { username, password, full_name, phone, telegram_id, restaurant_ids } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
@@ -639,10 +639,10 @@ router.post('/operators', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const userResult = await client.query(`
-      INSERT INTO users (username, password, full_name, phone, role, is_active)
-      VALUES ($1, $2, $3, $4, 'operator', true)
-      RETURNING id, username, full_name, phone, role, is_active, created_at
-    `, [username, hashedPassword, full_name, phone]);
+      INSERT INTO users (username, password, full_name, phone, role, is_active, telegram_id)
+      VALUES ($1, $2, $3, $4, 'operator', true, $5)
+      RETURNING id, username, full_name, phone, role, is_active, created_at, telegram_id
+    `, [username, hashedPassword, full_name, phone, telegram_id || null]);
 
     const user = userResult.rows[0];
 
@@ -689,7 +689,7 @@ router.post('/operators', async (req, res) => {
 router.put('/operators/:id', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { full_name, phone, password, is_active, restaurant_ids } = req.body;
+    const { full_name, phone, password, is_active, telegram_id, restaurant_ids } = req.body;
 
     await client.query('BEGIN');
 
@@ -707,9 +707,10 @@ router.put('/operators/:id', async (req, res) => {
         full_name = COALESCE($1, full_name),
         phone = COALESCE($2, phone),
         is_active = COALESCE($3, is_active),
+        telegram_id = $4,
         updated_at = CURRENT_TIMESTAMP
     `;
-    let params = [full_name, phone, is_active];
+    let params = [full_name, phone, is_active, telegram_id || null];
 
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);

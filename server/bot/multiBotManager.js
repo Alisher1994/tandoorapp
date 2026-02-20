@@ -231,6 +231,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   });
 
+  // /id command
+  bot.onText(/\/id/, (msg) => {
+    bot.sendMessage(msg.chat.id, `Your Telegram ID: <code>${msg.from.id}</code>`, { parse_mode: 'HTML' });
+  });
+
   // /menu command
   bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;

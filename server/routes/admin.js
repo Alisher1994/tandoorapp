@@ -289,7 +289,7 @@ router.put('/restaurant', async (req, res) => {
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
       start_time, end_time, click_url, payme_url, support_username,
       latitude, longitude, delivery_base_radius, delivery_base_price,
-      delivery_price_per_km, is_delivery_enabled,
+      delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
     } = req.body;
 
@@ -315,19 +315,21 @@ router.put('/restaurant', async (req, res) => {
           delivery_base_price = $15,
           delivery_price_per_km = $16,
           is_delivery_enabled = $17,
-          msg_new = $18,
-          msg_preparing = $19,
-          msg_delivering = $20,
-          msg_delivered = $21,
-          msg_cancelled = $22,
+          delivery_zone = $18,
+          msg_new = $19,
+          msg_preparing = $20,
+          msg_delivering = $21,
+          msg_delivered = $22,
+          msg_cancelled = $23,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $23
+      WHERE id = $24
       RETURNING *
     `, [
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
       start_time, end_time, click_url, payme_url, support_username,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled,
+      delivery_zone ? JSON.stringify(delivery_zone) : null,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       restaurantId
     ]);
@@ -339,6 +341,59 @@ router.put('/restaurant', async (req, res) => {
   }
 });
 
+// Проверить работу бота (отправка тестовых сообщений)
+router.post('/test-bot', async (req, res) => {
+  try {
+    const { botToken, groupId } = req.body;
+    const telegramId = req.user.telegram_id;
+
+    if (!botToken) {
+      return res.status(400).json({ error: 'Token обязателен для проверки' });
+    }
+
+    const { getRestaurantBot } = require('../bot/notifications');
+    const bot = getRestaurantBot(botToken);
+
+    const results = [];
+    const errors = [];
+
+    // 1. Отправка в сам бот (пользователю)
+    if (telegramId) {
+      try {
+        await bot.sendMessage(telegramId, '🤖 Бот запущен и работает!');
+        results.push('✅ Сообщение "Бот запущен" отправлено вам в личные сообщения.');
+      } catch (err) {
+        errors.push(`❌ В личку: ${err.message}. Возможно, вы не начали диалог с ботом @${(await bot.getMe()).username}`);
+      }
+    } else {
+      results.push('⚠️ Ваш Telegram ID не привязан к этому аккаунту! Чтобы получать уведомления в личку, добавьте свой ID в настройках вашего профиля.');
+      results.push('💡 Вы можете узнать свой ID, отправив команду /id боту.');
+    }
+
+    // 2. Отправка в группу
+    if (groupId) {
+      try {
+        await bot.sendMessage(groupId, '✅ Бот слушает группу и готов к работе!');
+        results.push('✅ Сообщение "Бот слушает группу" отправлено в указанный чат.');
+      } catch (err) {
+        errors.push(`❌ В группу: ${err.message}. Проверьте Group ID и убедитесь, что бот добавлен в группу и является администратором.`);
+      }
+    } else {
+      results.push('ℹ️ Group ID не указан, сообщение в группу не отправлено.');
+    }
+
+    res.json({
+      success: errors.length === 0,
+      message: errors.length === 0 ? 'Тестирование завершено успешно!' : 'Тестирование завершено с ошибками',
+      details: results,
+      errors: errors
+    });
+  } catch (error) {
+    console.error('Test bot error:', error);
+    res.status(500).json({ error: 'Критическая ошибка при тестировании: ' + error.message });
+  }
+});
+
 // Получить список операторов текущего ресторана
 router.get('/operators', async (req, res) => {
   try {
@@ -346,7 +401,7 @@ router.get('/operators', async (req, res) => {
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
     const result = await pool.query(`
-      SELECT u.id, u.username, u.full_name, u.phone, u.role, u.is_active
+      SELECT u.id, u.username, u.full_name, u.phone, u.role, u.is_active, u.telegram_id
       FROM users u
       JOIN operator_restaurants opr ON u.id = opr.user_id
       WHERE opr.restaurant_id = $1 AND u.role = 'operator'
@@ -367,7 +422,7 @@ router.post('/operators', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
-    const { username, password, full_name, phone } = req.body;
+    const { username, password, full_name, phone, telegram_id } = req.body;
 
     if (!username) return res.status(400).json({ error: 'Username обязателен' });
 
@@ -397,10 +452,10 @@ router.post('/operators', async (req, res) => {
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUserResult = await client.query(`
-        INSERT INTO users (username, password, full_name, phone, role, active_restaurant_id)
-        VALUES ($1, $2, $3, $4, 'operator', $5)
-        RETURNING id, username, full_name, role
-      `, [username, hashedPassword, full_name, phone, restaurantId]);
+        INSERT INTO users (username, password, full_name, phone, role, active_restaurant_id, telegram_id)
+        VALUES ($1, $2, $3, $4, 'operator', $5, $6)
+        RETURNING id, username, full_name, role, telegram_id
+      `, [username, hashedPassword, full_name, phone, restaurantId, telegram_id || null]);
       user = newUserResult.rows[0];
     }
 
@@ -444,6 +499,56 @@ router.delete('/operators/:id', async (req, res) => {
   } catch (error) {
     console.error('Remove operator error:', error);
     res.status(500).json({ error: 'Ошибка удаления оператора' });
+  }
+});
+
+// Обновить оператора текущего ресторана (изменение данных)
+router.put('/operators/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    const operatorId = req.params.id;
+    const { username, password, full_name, phone, telegram_id } = req.body;
+
+    await client.query('BEGIN');
+
+    // Проверяем, привязан ли оператор к этому ресторану
+    const checkLink = await client.query(
+      'SELECT 1 FROM operator_restaurants WHERE user_id = $1 AND restaurant_id = $2',
+      [operatorId, restaurantId]
+    );
+
+    if (checkLink.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Оператор не найден в этом ресторане' });
+    }
+
+    // Обновляем данные пользователя
+    let query = 'UPDATE users SET username = $1, full_name = $2, phone = $3, telegram_id = $4';
+    let params = [username, full_name, phone, telegram_id || null];
+    let paramCount = 5;
+
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query += `, password = $${paramCount}`;
+      params.push(hashedPassword);
+      paramCount++;
+    }
+
+    query += ` WHERE id = $${paramCount} RETURNING id, username, full_name, phone, role, telegram_id`;
+    params.push(operatorId);
+
+    const result = await client.query(query, params);
+
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update operator error:', error);
+    res.status(500).json({ error: 'Ошибка обновления оператора' });
+  } finally {
+    client.release();
   }
 });
 
