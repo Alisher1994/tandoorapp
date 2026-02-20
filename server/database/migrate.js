@@ -17,7 +17,8 @@ async function migrate() {
     
     console.log('📊 DATABASE_URL is set, connecting...');
     
-    await client.query('BEGIN');
+    // Disable global transaction because try/catch masks failures that break the whole block
+    // await client.query('BEGIN');
     
     // =====================================================
     // Step 1: Create restaurants table FIRST (before users references it)
@@ -438,12 +439,12 @@ async function migrate() {
     }
     console.log('✅ Indexes created');
     
-    await client.query('COMMIT');
+    // await client.query('COMMIT');
     console.log('✅ Migration completed successfully!');
     return true;
     
   } catch (error) {
-    await client.query('ROLLBACK');
+    // await client.query('ROLLBACK');
     console.error('❌ Migration error:', error.message);
     console.error(error);
     return false;
