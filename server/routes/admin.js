@@ -260,6 +260,194 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 });
 
 // =====================================================
+// НАСТРОЙКИ (ДЛЯ ОПЕРАТОРА)
+// =====================================================
+
+// Получить настройки текущего ресторана
+router.get('/restaurant', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const result = await pool.query('SELECT * FROM restaurants WHERE id = $1', [restaurantId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Ресторан не найден' });
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get restaurant settings error:', error);
+    res.status(500).json({ error: 'Ошибка получения настроек ресторана' });
+  }
+});
+
+// Обновить настройки текущего ресторана
+router.put('/restaurant', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const {
+      name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
+      start_time, end_time, click_url, payme_url, support_username,
+      latitude, longitude, delivery_base_radius, delivery_base_price,
+      delivery_price_per_km, is_delivery_enabled,
+      msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
+    } = req.body;
+
+    // Fields that OPERATOR is NOT allowed to change:
+    // service_fee, balance, order_cost, is_free_tier
+
+    const result = await pool.query(`
+      UPDATE restaurants 
+      SET name = COALESCE($1, name),
+          address = COALESCE($2, address),
+          phone = COALESCE($3, phone),
+          logo_url = $4,
+          telegram_bot_token = COALESCE($5, telegram_bot_token),
+          telegram_group_id = COALESCE($6, telegram_group_id),
+          start_time = $7,
+          end_time = $8,
+          click_url = $9,
+          payme_url = $10,
+          support_username = $11,
+          latitude = $12,
+          longitude = $13,
+          delivery_base_radius = $14,
+          delivery_base_price = $15,
+          delivery_price_per_km = $16,
+          is_delivery_enabled = $17,
+          msg_new = $18,
+          msg_preparing = $19,
+          msg_delivering = $20,
+          msg_delivered = $21,
+          msg_cancelled = $22,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $23
+      RETURNING *
+    `, [
+      name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
+      start_time, end_time, click_url, payme_url, support_username,
+      latitude, longitude, delivery_base_radius, delivery_base_price,
+      delivery_price_per_km, is_delivery_enabled,
+      msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
+      restaurantId
+    ]);
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update restaurant settings error:', error);
+    res.status(500).json({ error: 'Ошибка обновления настроек ресторана' });
+  }
+});
+
+// Получить список операторов текущего ресторана
+router.get('/operators', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const result = await pool.query(`
+      SELECT u.id, u.username, u.full_name, u.phone, u.role, u.is_active
+      FROM users u
+      JOIN operator_restaurants opr ON u.id = opr.user_id
+      WHERE opr.restaurant_id = $1 AND u.role = 'operator'
+      ORDER BY u.id
+    `, [restaurantId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get operators error:', error);
+    res.status(500).json({ error: 'Ошибка получения списка операторов' });
+  }
+});
+
+// Добавить оператора к текущему ресторану (создать нового или привязать существующего)
+router.post('/operators', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const { username, password, full_name, phone } = req.body;
+
+    if (!username) return res.status(400).json({ error: 'Username обязателен' });
+
+    await client.query('BEGIN');
+
+    // Check if user already exists
+    let userResult = await client.query('SELECT * FROM users WHERE username = $1', [username]);
+    let user;
+
+    if (userResult.rows.length > 0) {
+      user = userResult.rows[0];
+      // Check if already operator of this restaurant
+      const checkLink = await client.query(
+        'SELECT 1 FROM operator_restaurants WHERE user_id = $1 AND restaurant_id = $2',
+        [user.id, restaurantId]
+      );
+      if (checkLink.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Пользователь уже является оператором этого ресторана' });
+      }
+    } else {
+      // Create new user
+      if (!password) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Пароль обязателен для нового пользователя' });
+      }
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUserResult = await client.query(`
+        INSERT INTO users (username, password, full_name, phone, role, active_restaurant_id)
+        VALUES ($1, $2, $3, $4, 'operator', $5)
+        RETURNING id, username, full_name, role
+      `, [username, hashedPassword, full_name, phone, restaurantId]);
+      user = newUserResult.rows[0];
+    }
+
+    // Link user to restaurant
+    await client.query(`
+      INSERT INTO operator_restaurants (user_id, restaurant_id)
+      VALUES ($1, $2)
+    `, [user.id, restaurantId]);
+
+    await client.query('COMMIT');
+    res.status(201).json(user);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Add operator error:', error);
+    res.status(500).json({ error: 'Ошибка добавления оператора' });
+  } finally {
+    client.release();
+  }
+});
+
+// Удалить оператора из текущего ресторана (отвязать)
+router.delete('/operators/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    const operatorId = req.params.id;
+
+    if (parseInt(operatorId) === req.user.id) {
+      return res.status(400).json({ error: 'Нельзя удалить самого себя' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM operator_restaurants WHERE user_id = $1 AND restaurant_id = $2',
+      [operatorId, restaurantId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Оператор не найден в этом ресторане' });
+    }
+
+    res.json({ message: 'Оператор удален из ресторана' });
+  } catch (error) {
+    console.error('Remove operator error:', error);
+    res.status(500).json({ error: 'Ошибка удаления оператора' });
+  }
+});
+
+// =====================================================
 // БИЛЛИНГ (ДЛЯ ОПЕРАТОРА)
 // =====================================================
 

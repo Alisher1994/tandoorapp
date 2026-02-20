@@ -222,6 +222,14 @@ function AdminDashboard() {
   const [selectedContainer, setSelectedContainer] = useState(null);
   const [containerForm, setContainerForm] = useState({ name: '', price: 0, sort_order: 0 });
 
+  // Settings Tab
+  const [restaurantSettings, setRestaurantSettings] = useState(null);
+  const [operators, setOperators] = useState([]);
+  const [showOperatorModal, setShowOperatorModal] = useState(false);
+  const [operatorForm, setOperatorForm] = useState({ username: '', password: '', full_name: '', phone: '' });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('general');
+
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
 
@@ -470,6 +478,65 @@ function AdminDashboard() {
       console.error('Fetch billing history error:', error);
     } finally {
       setLoadingBilling(false);
+    }
+  };
+
+  const fetchRestaurantSettings = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/admin/restaurant`);
+      setRestaurantSettings(response.data);
+    } catch (error) {
+      console.error('Fetch restaurant settings error:', error);
+    }
+  };
+
+  const saveRestaurantSettings = async () => {
+    setSavingSettings(true);
+    try {
+      await axios.put(`${API_URL}/admin/restaurant`, restaurantSettings);
+      setAlertMessage({ type: 'success', text: 'Настройки успешно сохранены' });
+      // Refresh user context if needed (logo/name in header)
+      fetchUser();
+    } catch (error) {
+      console.error('Save restaurant settings error:', error);
+      setAlertMessage({ type: 'danger', text: 'Ошибка сохранения настроек' });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const fetchOperators = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/admin/operators`);
+      setOperators(response.data);
+    } catch (error) {
+      console.error('Fetch operators error:', error);
+    }
+  };
+
+  const saveOperator = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_URL}/admin/operators`, operatorForm);
+      setAlertMessage({ type: 'success', text: 'Оператор добавлен' });
+      setShowOperatorModal(false);
+      setOperatorForm({ username: '', password: '', full_name: '', phone: '' });
+      fetchOperators();
+    } catch (error) {
+      console.error('Save operator error:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка добавления оператора' });
+    }
+  };
+
+  const deleteOperator = async (id) => {
+    if (!window.confirm('Вы уверены, что хотите удалить этого оператора из ресторана?')) return;
+    try {
+      await axios.delete(`${API_URL}/admin/operators/${id}`);
+      setAlertMessage({ type: 'success', text: 'Оператор удален' });
+      fetchOperators();
+    } catch (error) {
+      console.error('Delete operator error:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка удаления оператора' });
     }
   };
 
@@ -2420,6 +2487,423 @@ function AdminDashboard() {
                   </div>
                 )}
               </Tab>
+
+              <Tab eventKey="settings" title={<span>⚙️ {t('settings')}</span>}>
+                <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
+                  <Nav variant="tabs" activeKey={settingsTab} onSelect={(k) => setSettingsTab(k)} className="border-0">
+                    <Nav.Item>
+                      <Nav.Link eventKey="general" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'general' ? 'border-primary text-primary' : 'text-muted'}`}>Общие</Nav.Link>
+                    </Nav.Item>
+                    <Nav.Item>
+                      <Nav.Link eventKey="delivery" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'delivery' ? 'border-primary text-primary' : 'text-muted'}`}>Доставка</Nav.Link>
+                    </Nav.Item>
+                    <Nav.Item>
+                      <Nav.Link eventKey="messages" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'messages' ? 'border-primary text-primary' : 'text-muted'}`}>Шаблоны</Nav.Link>
+                    </Nav.Item>
+                    <Nav.Item>
+                      <Nav.Link eventKey="operators" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'operators' ? 'border-primary text-primary' : 'text-muted'}`}>Операторы</Nav.Link>
+                    </Nav.Item>
+                  </Nav>
+                </div>
+
+                <div className="p-4 bg-light" style={{ minHeight: '60vh' }}>
+                  {restaurantSettings ? (
+                    <>
+                      {settingsTab === 'general' && (
+                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <Row className="gy-4">
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название ресторана</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.name}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, name: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Телефон</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.phone}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, phone: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={12}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.address}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, address: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={12}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Logo URL</Form.Label>
+                                  <div className="d-flex gap-3 align-items-center">
+                                    {restaurantSettings.logo_url && (
+                                      <img
+                                        src={restaurantSettings.logo_url}
+                                        alt="Logo"
+                                        className="rounded-3"
+                                        style={{ width: 64, height: 64, objectFit: 'cover' }}
+                                      />
+                                    )}
+                                    <Form.Control
+                                      type="text"
+                                      className="form-control-custom flex-grow-1"
+                                      value={restaurantSettings.logo_url || ''}
+                                      onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_url: e.target.value })}
+                                      placeholder="https://example.com/logo.png"
+                                    />
+                                  </div>
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Начало работы</Form.Label>
+                                  <Form.Control
+                                    type="time"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.start_time || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, start_time: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Конец работы</Form.Label>
+                                  <Form.Control
+                                    type="time"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.end_time || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, end_time: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+
+                              <Col md={12} className="border-top pt-4">
+                                <h6 className="fw-bold mb-3">Telegram Интеграция</h6>
+                                <Row className="gy-3">
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
+                                      <Form.Control
+                                        type="password"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.telegram_bot_token || ''}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Group ID (чат для заказов)</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.telegram_group_id || ''}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_group_id: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={12}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.support_username || ''}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                </Row>
+                              </Col>
+
+                              <Col md={12} className="border-top pt-4">
+                                <h6 className="fw-bold mb-3">Платежные ссылки</h6>
+                                <Row className="gy-3">
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Click URL</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.click_url || ''}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Payme URL</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.payme_url || ''}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_url: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                </Row>
+                              </Col>
+                            </Row>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                onClick={saveRestaurantSettings}
+                                disabled={savingSettings}
+                              >
+                                {savingSettings ? 'Сохранение...' : 'Сохранить изменения'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'delivery' && (
+                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <Row className="gy-4">
+                              <Col md={12}>
+                                <Form.Check
+                                  type="switch"
+                                  label="Включить собственную доставку"
+                                  className="fw-bold mb-4"
+                                  checked={restaurantSettings.is_delivery_enabled}
+                                  onChange={e => setRestaurantSettings({ ...restaurantSettings, is_delivery_enabled: e.target.checked })}
+                                />
+                              </Col>
+
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Широта (Latitude)</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    step="any"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.latitude || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, latitude: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Долгота (Longitude)</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    step="any"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.longitude || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, longitude: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовый радиус (км)</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.delivery_base_radius || 0}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_radius: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовая цена (сум)</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.delivery_base_price || 0}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_price: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Цена за доп. км (сум)</Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.delivery_price_per_km || 0}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_price_per_km: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                            </Row>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                onClick={saveRestaurantSettings}
+                                disabled={savingSettings}
+                              >
+                                {savingSettings ? 'Сохранение...' : 'Сохранить изменения'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'messages' && (
+                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <Row className="gy-4">
+                              <Col md={12}>
+                                <Alert variant="info" className="small border-0 shadow-sm rounded-3">
+                                  <div className="fw-bold mb-1">Доступные переменные:</div>
+                                  <div><code>{"{order_id}"}</code>, <code>{"{status_text}"}</code>, <code>{"{total}"}</code>, <code>{"{items}"}</code></div>
+                                </Alert>
+                              </Col>
+
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Новый заказ</Form.Label>
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    className="form-control-custom"
+                                    value={restaurantSettings.msg_new || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_new: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Готовится</Form.Label>
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    className="form-control-custom"
+                                    value={restaurantSettings.msg_preparing || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_preparing: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Доставляется</Form.Label>
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    className="form-control-custom"
+                                    value={restaurantSettings.msg_delivering || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_delivering: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Доставлено</Form.Label>
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    className="form-control-custom"
+                                    value={restaurantSettings.msg_delivered || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_delivered: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={6}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Отменено</Form.Label>
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    className="form-control-custom"
+                                    value={restaurantSettings.msg_cancelled || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, msg_cancelled: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                            </Row>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                onClick={saveRestaurantSettings}
+                                disabled={savingSettings}
+                              >
+                                {savingSettings ? 'Сохранение...' : 'Сохранить изменения'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'operators' && (
+                        <>
+                          <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h5 className="fw-bold mb-0">Операторы ресторана</h5>
+                            <Button
+                              variant="primary"
+                              className="rounded-pill px-4 fw-bold shadow-sm btn-primary-custom"
+                              onClick={() => setShowOperatorModal(true)}
+                            >
+                              + Добавить оператора
+                            </Button>
+                          </div>
+                          <div className="admin-table-container">
+                            <Table responsive hover className="admin-table mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Имя</th>
+                                  <th>Username</th>
+                                  <th>Телефон</th>
+                                  <th className="text-end">ДЕЙСТВИЯ</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {operators.map(op => (
+                                  <tr key={op.id}>
+                                    <td>{op.full_name}</td>
+                                    <td><code>@{op.username}</code></td>
+                                    <td>{op.phone}</td>
+                                    <td className="text-end">
+                                      <Button
+                                        variant="light"
+                                        className="action-btn text-danger shadow-none border-0"
+                                        onClick={() => deleteOperator(op.id)}
+                                        disabled={op.id === user?.id}
+                                      >
+                                        <TrashIcon />
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {operators.length === 0 && (
+                                  <tr>
+                                    <td colSpan="4" className="text-center py-4 text-muted">Нет дополнительных операторов</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </Table>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-5">Загрузка настроек...</div>
+                  )}
+                </div>
+              </Tab>
             </Tabs>
           </Card.Body>
         </Card>
@@ -3825,7 +4309,62 @@ function AdminDashboard() {
             </Button>
           </Modal.Footer>
         </Modal>
-      </Container >
+        {/* Operator Modal */}
+        <Modal show={showOperatorModal} onHide={() => setShowOperatorModal(false)} centered>
+          <Form onSubmit={saveOperator}>
+            <Modal.Header closeButton>
+              <Modal.Title>Добавить оператора (заменшика)</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Alert variant="info" className="small border-0 shadow-sm rounded-3">
+                Вы можете добавить существующего пользователя по <b>username</b> или создать нового с ролью "Оператор".
+              </Alert>
+              <Form.Group className="mb-3">
+                <Form.Label>Username <span className="text-danger">*</span></Form.Label>
+                <Form.Control
+                  required
+                  type="text"
+                  placeholder="name2024"
+                  value={operatorForm.username}
+                  onChange={e => setOperatorForm({ ...operatorForm, username: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Пароль (для нового пользователя)</Form.Label>
+                <Form.Control
+                  type="password"
+                  placeholder="********"
+                  value={operatorForm.password}
+                  onChange={e => setOperatorForm({ ...operatorForm, password: e.target.value })}
+                />
+                <Form.Text className="text-muted">Если пользователь уже существует, пароль не требуется.</Form.Text>
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Полное имя</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="Иван Иванов"
+                  value={operatorForm.full_name}
+                  onChange={e => setOperatorForm({ ...operatorForm, full_name: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Телефон</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="+99890XXXXXXX"
+                  value={operatorForm.phone}
+                  onChange={e => setOperatorForm({ ...operatorForm, phone: e.target.value })}
+                />
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={() => setShowOperatorModal(false)}>Отмена</Button>
+              <Button variant="primary" type="submit">Добавить</Button>
+            </Modal.Footer>
+          </Form>
+        </Modal>
+      </Container>
     </>
   );
 }
