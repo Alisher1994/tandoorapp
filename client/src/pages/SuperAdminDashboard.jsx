@@ -1310,7 +1310,8 @@ function SuperAdminDashboard() {
                         (!c.parent_id && levelIndex === 0) ||
                         (c.parent_id === parentCategory?.id)
                       ).sort((a, b) => {
-                        const orderDiff = (a.sort_order || 0) - (b.sort_order || 0);
+                        const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
+                        const orderDiff = getSortVal(a) - getSortVal(b);
                         if (orderDiff !== 0) return orderDiff;
                         return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
                       }) : [];
@@ -1364,6 +1365,7 @@ function SuperAdminDashboard() {
                                           <i className="bi bi-folder2 text-muted" style={{ fontSize: '12px' }}></i>
                                         </div>
                                       )}
+                                      <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
                                       <span className="text-truncate small fw-medium">{cat?.name_ru}</span>
                                     </div>
                                     <div className="category-actions flex-shrink-0 ms-2">

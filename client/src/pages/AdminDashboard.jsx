@@ -368,15 +368,16 @@ function AdminDashboard() {
       setOrders(ordersRes.data);
       setProducts(productsRes.data);
 
-      // Calculate full category paths locally
+      // Calculate full category paths locally and sort correctly
       const categoriesData = categoriesRes.data;
       const getCategoryPath = (cat) => {
-        let path = cat.name_ru;
+        const getSortDisplay = (c) => `[${c.sort_order !== null && c.sort_order !== undefined ? c.sort_order : '-'}] `;
+        let path = getSortDisplay(cat) + cat.name_ru;
         let current = cat;
         while (current.parent_id) {
           const parent = categoriesData.find(c => c.id === current.parent_id);
           if (parent) {
-            path = `${parent.name_ru} > ${path}`;
+            path = `${getSortDisplay(parent)}${parent.name_ru} > ${path}`;
             current = parent;
           } else {
             break;
@@ -385,10 +386,28 @@ function AdminDashboard() {
         return path;
       };
 
+      // To sort correctly by hierarchy and sort_order, we build a sort_path
+      const getCategorySortPath = (cat) => {
+        const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
+        let path = [String(getSortVal(cat)).padStart(5, '0') + cat.name_ru];
+        let current = cat;
+        while (current.parent_id) {
+          const parent = categoriesData.find(c => c.id === current.parent_id);
+          if (parent) {
+            path.unshift(String(getSortVal(parent)).padStart(5, '0') + parent.name_ru);
+            current = parent;
+          } else {
+            break;
+          }
+        }
+        return path.join(' > ');
+      };
+
       const enrichedCategories = categoriesData.map(c => ({
         ...c,
-        full_path: getCategoryPath(c)
-      })).sort((a, b) => a.full_path.localeCompare(b.full_path, 'ru'));
+        full_path: getCategoryPath(c),
+        sort_key: getCategorySortPath(c)
+      })).sort((a, b) => a.sort_key.localeCompare(b.sort_key, 'ru'));
 
       setCategories(enrichedCategories);
 
@@ -2139,6 +2158,7 @@ function AdminDashboard() {
                             onClick={() => { setProductCategoryFilter(cat.id.toString()); setProductSubcategoryFilter('all'); }}
                             active={productCategoryFilter === cat.id.toString()}
                           >
+                            <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
                             {cat.name_ru}
                           </Dropdown.Item>
                         ))}
@@ -2177,6 +2197,7 @@ function AdminDashboard() {
                                 onClick={() => setProductSubcategoryFilter(sub.id.toString())}
                                 active={productSubcategoryFilter === sub.id.toString()}
                               >
+                                <span className="text-muted me-2 small">[{sub.sort_order !== null && sub.sort_order !== undefined ? sub.sort_order : '-'}]</span>
                                 {sub.name_ru}
                               </Dropdown.Item>
                             ))}
@@ -3512,6 +3533,7 @@ function AdminDashboard() {
                                 onClick={() => handleSelect(cat.id.toString())}
                                 active={selectedIdForThisLevel.toString() === cat.id.toString()}
                               >
+                                <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
                                 {cat.name_ru}
                               </Dropdown.Item>
                             ))}

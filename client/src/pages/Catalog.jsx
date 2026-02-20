@@ -29,7 +29,7 @@ function Catalog() {
   const { addToCart, updateQuantity, clearCart, cart } = useCart();
   const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
-  
+
   // Refs for ScrollSpy
   const categoriesRef = useRef({});
   const categoryNavRef = useRef(null);
@@ -61,20 +61,20 @@ function Catalog() {
 
   // Get scroll container (#root for iOS fix)
   const getScrollContainer = () => document.getElementById('root') || window;
-  
+
   // ScrollSpy: detect which category is in view
   const handleScroll = useCallback(() => {
     if (isScrolling.current || selectedCategory !== null) return;
-    
+
     const scrollContainer = getScrollContainer();
     const scrollTop = (scrollContainer === window ? window.scrollY : scrollContainer.scrollTop) + 150;
     let currentCategory = null;
-    
+
     // Only consider non-empty categories
-    const visibleCategories = categories.filter(cat => 
+    const visibleCategories = categories.filter(cat =>
       products.some(p => p.category_id === cat.id)
     );
-    
+
     for (const category of visibleCategories) {
       const element = categoriesRef.current[category.id];
       if (element) {
@@ -86,7 +86,7 @@ function Catalog() {
         }
       }
     }
-    
+
     if (currentCategory !== activeCategory) {
       setActiveCategory(currentCategory);
       // Scroll category nav to show active category
@@ -108,7 +108,7 @@ function Catalog() {
   // Scroll to category when clicked
   const scrollToCategory = (categoryId) => {
     const scrollContainer = getScrollContainer();
-    
+
     if (categoryId === null) {
       setSelectedCategory(null);
       if (scrollContainer === window) {
@@ -118,23 +118,23 @@ function Catalog() {
       }
       return;
     }
-    
+
     const element = categoriesRef.current[categoryId];
     if (element) {
       isScrolling.current = true;
       setSelectedCategory(null); // Show all products grouped
       setActiveCategory(categoryId);
-      
+
       const rect = element.getBoundingClientRect();
       const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
       const offsetTop = rect.top + currentScroll - 130;
-      
+
       if (scrollContainer === window) {
         window.scrollTo({ top: offsetTop, behavior: 'smooth' });
       } else {
         scrollContainer.scrollTo({ top: offsetTop, behavior: 'smooth' });
       }
-      
+
       setTimeout(() => {
         isScrolling.current = false;
       }, 500);
@@ -145,7 +145,7 @@ function Catalog() {
     try {
       const response = await axios.get(`${API_URL}/products/restaurants/list`);
       setRestaurants(response.data || []);
-      
+
       // Auto-select for operators if not set
       if (isOperator()) {
         if (response.data?.length === 1) {
@@ -164,15 +164,20 @@ function Catalog() {
 
   const fetchData = async () => {
     if (!selectedRestaurant) return;
-    
+
     setLoading(true);
     try {
       const [categoriesRes, productsRes] = await Promise.all([
         axios.get(`${API_URL}/products/categories?restaurant_id=${selectedRestaurant}`),
         axios.get(`${API_URL}/products?restaurant_id=${selectedRestaurant}`)
       ]);
-      
-      setCategories(categoriesRes.data || []);
+
+      setCategories((categoriesRes.data || []).sort((a, b) => {
+        const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
+        const orderDiff = getSortVal(a) - getSortVal(b);
+        if (orderDiff !== 0) return orderDiff;
+        return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
+      }));
       setProducts(productsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -208,7 +213,7 @@ function Catalog() {
     : products;
 
   // Filter out empty categories (categories with no products)
-  const nonEmptyCategories = categories.filter(category => 
+  const nonEmptyCategories = categories.filter(category =>
     products.some(p => p.category_id === category.id)
   );
 
@@ -221,7 +226,7 @@ function Catalog() {
     const qty = cartItem?.quantity || 0;
     const overlayKey = `qty_open_${product.id}`;
     const isOpen = catalogQtyOpen?.[overlayKey];
-    
+
     return (
       <Card className="h-100 shadow-sm border-0">
         <div style={{ position: 'relative' }}>
@@ -235,21 +240,21 @@ function Catalog() {
               }}
             />
           ) : (
-            <div 
-              style={{ height: '140px', background: '#f8f9fa' }} 
+            <div
+              style={{ height: '140px', background: '#f8f9fa' }}
               className="d-flex align-items-center justify-content-center"
             >
               <span style={{ fontSize: '3rem', opacity: 0.3 }}>🍽️</span>
             </div>
           )}
           {!product.in_stock && (
-            <div 
-              style={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
-                bottom: 0, 
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
                 background: 'rgba(0,0,0,0.5)',
                 display: 'flex',
                 alignItems: 'center',
@@ -259,7 +264,7 @@ function Catalog() {
               <span className="badge bg-secondary">{language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}</span>
             </div>
           )}
-          
+
           {/* Quantity controls on image */}
           {product.in_stock && (
             <>
@@ -277,8 +282,8 @@ function Catalog() {
                     <button
                       type="button"
                       className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow"
-                      style={{ 
-                        width: 32, 
+                      style={{
+                        width: 32,
                         height: 32,
                         fontSize: '18px',
                         fontWeight: 'bold',
@@ -322,7 +327,7 @@ function Catalog() {
                   )}
                 </div>
               )}
-              
+
               {/* Expanded controls */}
               {isOpen && (
                 <div
@@ -398,8 +403,8 @@ function Catalog() {
 
   return (
     <>
-      <Navbar 
-        expand="lg" 
+      <Navbar
+        expand="lg"
         className="mb-0"
         style={{
           position: 'sticky',
@@ -416,11 +421,11 @@ function Catalog() {
         <div className="d-flex justify-content-between align-items-center w-100 px-3">
           {/* Empty space for balance */}
           <div style={{ width: '40px' }} />
-          
+
           {/* Center logo */}
           <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto">
             {currentRestaurant?.logo_url ? (
-              <img 
+              <img
                 src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
                 alt={currentRestaurant.name}
                 style={{ height: '42px', width: '42px', objectFit: 'cover', borderRadius: '10px' }}
@@ -429,7 +434,7 @@ function Catalog() {
               <span style={{ fontSize: '1.7rem' }}>🍽️</span>
             )}
           </Navbar.Brand>
-          
+
           {/* Language switcher with flag */}
           <button
             onClick={toggleLanguage}
@@ -444,7 +449,7 @@ function Catalog() {
             }}
             title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
           >
-            <img 
+            <img
               src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
               alt={language === 'ru' ? 'RU' : 'UZ'}
               style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
@@ -455,13 +460,13 @@ function Catalog() {
 
       {/* Categories - sticky horizontal scroll on full width */}
       {selectedRestaurant && nonEmptyCategories.length > 0 && (
-        <div 
+        <div
           ref={categoryNavRef}
-          style={{ 
+          style={{
             position: 'sticky',
             top: 56,
             zIndex: 1000,
-            overflowX: 'auto', 
+            overflowX: 'auto',
             whiteSpace: 'nowrap',
             paddingTop: '12px',
             paddingBottom: '8px',
@@ -531,10 +536,10 @@ function Catalog() {
               <>
                 {nonEmptyCategories.map(category => {
                   const categoryProducts = products.filter(p => p.category_id === category.id);
-                  
+
                   return (
-                    <div 
-                      key={category.id} 
+                    <div
+                      key={category.id}
                       ref={el => categoriesRef.current[category.id] = el}
                       className="mb-4"
                     >
@@ -551,7 +556,7 @@ function Catalog() {
                 })}
               </>
             )}
-            
+
             {/* Products - single category selected */}
             {!loading && selectedCategory !== null && (
               <Row>
@@ -568,8 +573,8 @@ function Catalog() {
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
                 <p className="text-muted mt-3">
-                  {products.length === 0 
-                    ? 'Товары пока не добавлены' 
+                  {products.length === 0
+                    ? 'Товары пока не добавлены'
                     : 'Товары не найдены в выбранной категории'}
                 </p>
                 {isOperator() && products.length === 0 && (
@@ -585,7 +590,7 @@ function Catalog() {
 
       {/* Bottom navigation */}
       {!isOperator() && <BottomNav />}
-      
+
       {/* Spacer for bottom nav */}
       {!isOperator() && <div style={{ height: '70px' }} />}
     </>

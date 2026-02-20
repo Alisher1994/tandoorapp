@@ -617,6 +617,104 @@ router.post('/categories', async (req, res) => {
   }
 });
 
+// Обновить категорию
+router.put('/categories/:id', async (req, res) => {
+  try {
+    const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
+
+    // Get old values
+    const oldResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
+    if (oldResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    const oldCategory = oldResult.rows[0];
+
+    const result = await pool.query(`
+      UPDATE categories SET
+        name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, 
+        parent_id = $5, restaurant_id = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `, [name_ru, name_uz, image_url, sort_order || 0, parent_id || null, restaurant_id || null, req.params.id]);
+
+    const category = result.rows[0];
+
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      actionType: ACTION_TYPES.UPDATE_CATEGORY,
+      entityType: ENTITY_TYPES.CATEGORY,
+      entityId: category.id,
+      entityName: category.name_ru,
+      oldValues: oldCategory,
+      newValues: category,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    res.json(category);
+  } catch (error) {
+    console.error('Update category error:', error);
+    res.status(500).json({ error: 'Ошибка обновления категории' });
+  }
+});
+
+// Удалить категорию
+router.delete('/categories/:id', async (req, res) => {
+  try {
+    // Get category
+    const categoryResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+    const category = categoryResult.rows[0];
+
+    // Check for products in category
+    const productsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM products WHERE category_id = $1',
+      [req.params.id]
+    );
+
+    if (parseInt(productsCheck.rows[0].count) > 0) {
+      return res.status(400).json({
+        error: 'Нельзя удалить категорию, в которой есть товары. Сначала удалите или переместите товары.'
+      });
+    }
+
+    // Check for subcategories
+    const subcatsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM categories WHERE parent_id = $1',
+      [req.params.id]
+    );
+
+    if (parseInt(subcatsCheck.rows[0].count) > 0) {
+      return res.status(400).json({
+        error: 'Нельзя удалить категорию, у которой есть подкатегории. Сначала удалите подкатегории.'
+      });
+    }
+
+    await pool.query('DELETE FROM categories WHERE id = $1', [req.params.id]);
+
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      actionType: ACTION_TYPES.DELETE_CATEGORY,
+      entityType: ENTITY_TYPES.CATEGORY,
+      entityId: category.id,
+      entityName: category.name_ru,
+      oldValues: category,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    res.json({ message: 'Категория удалена' });
+  } catch (error) {
+    console.error('Delete category error:', error);
+    res.status(500).json({ error: 'Ошибка удаления категории' });
+  }
+});
+
+
 // Создать оператора
 router.post('/operators', async (req, res) => {
   const client = await pool.connect();
