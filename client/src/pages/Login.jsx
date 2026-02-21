@@ -65,7 +65,7 @@ function Login() {
               <Form.Label>Логин</Form.Label>
               <Form.Control
                 type="text"
-                placeholder="Введите логин"
+                placeholder="Введите номер телефона"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -100,10 +100,10 @@ function Login() {
                 <strong>👤 Клиенты:</strong> Вход по ссылке из Telegram бота
               </div>
               <div className="mb-2">
-                <strong>👨‍💼 Операторы:</strong> Логин выдается супер-админом
+                <strong>👨‍💼 Операторы:</strong> Логин = номер телефона
               </div>
               <div>
-                <strong>🏢 Супер-админ:</strong> Используйте ADMIN_USERNAME
+                <strong>🏢 Супер-админ:</strong> Используйте номер телефона или логин
               </div>
             </small>
           </div>

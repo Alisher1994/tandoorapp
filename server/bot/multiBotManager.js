@@ -31,6 +31,28 @@ function generateTemporaryPassword(length = 12) {
   return raw.slice(0, length);
 }
 
+function normalizePhone(rawPhone) {
+  if (!rawPhone) return '';
+  const trimmed = String(rawPhone).trim().replace(/\s+/g, '');
+  if (trimmed.startsWith('+')) {
+    return `+${trimmed.slice(1).replace(/\D/g, '')}`;
+  }
+  return trimmed.replace(/\D/g, '');
+}
+
+function buildWebLoginUrl() {
+  const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+  if (!base) return null;
+  const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
+  return `${trimmed}/login`;
+}
+
+function resolveLoginValue(user) {
+  const phoneLogin = normalizePhone(user?.phone);
+  if (phoneLogin) return phoneLogin;
+  return user?.username || '';
+}
+
 async function generateUniqueOperatorUsername(restaurantId, telegramUserId) {
   for (let i = 0; i < 10; i++) {
     const suffix = crypto.randomBytes(2).toString('hex');
@@ -183,6 +205,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       menuButtons.push([{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]);
     }
     menuButtons.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
+    menuButtons.push([{ text: '🔐 Восстановить доступ', callback_data: 'reset_password' }]);
     return menuButtons;
   };
 
@@ -245,7 +268,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               parse_mode: 'HTML',
               reply_markup: loginUrl
                 ? {
-                  inline_keyboard: [[{ text: '🔐 Войти в систему', url: loginUrl }]]
+                  inline_keyboard: [
+                    [{ text: '🔐 Войти в систему', url: loginUrl }],
+                    [{ text: '♻️ Восстановить доступ', callback_data: 'reset_password' }]
+                  ]
                 }
                 : undefined
             }
@@ -363,7 +389,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
       const userResult = await pool.query(
-        'SELECT id, username FROM users WHERE telegram_id = $1',
+        'SELECT id, username, phone FROM users WHERE telegram_id = $1',
         [userId]
       );
 
@@ -377,6 +403,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         step: 'waiting_password_reset_confirm',
         dbUserId: userResult.rows[0].id,
         username: userResult.rows[0].username,
+        phone: userResult.rows[0].phone,
         restaurantId
       });
 
@@ -436,7 +463,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
 
       const existingUserResult = await pool.query(
-        'SELECT id, username, role FROM users WHERE telegram_id = $1',
+        'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
         [userId]
       );
 
@@ -456,26 +483,29 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
 
         dbUserId = existing.id;
-        login = existing.username;
+        const phoneLogin = normalizePhone(existing.phone);
+        login = phoneLogin || existing.username;
 
         if (existing.role === 'superadmin') {
           await pool.query(
             `UPDATE users
              SET active_restaurant_id = $1,
+                 username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
                  is_active = true,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $2`,
-            [restaurantId, dbUserId]
+            [restaurantId, dbUserId, phoneLogin]
           );
         } else {
           await pool.query(
             `UPDATE users
              SET role = 'operator',
                  active_restaurant_id = $1,
+                 username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
                  is_active = true,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $2`,
-            [restaurantId, dbUserId]
+            [restaurantId, dbUserId, phoneLogin]
           );
         }
       } else {
@@ -546,7 +576,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     // Registration contact flow
     if (state && state.step === 'waiting_contact') {
-      state.phone = contact.phone_number;
+      state.phone = normalizePhone(contact.phone_number);
       state.step = 'waiting_name';
       registrationStates.set(stateKey, state);
 
@@ -574,12 +604,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
         const user = userResult.rows[0];
         const oldPhone = user.phone;
-        const newPhone = contact.phone_number;
+        const newPhone = normalizePhone(contact.phone_number);
 
         // Update user phone first
         await pool.query(
-          'UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-          [newPhone, user.id]
+          `UPDATE users
+           SET phone = $1,
+               username = CASE WHEN $2 <> '' THEN $2 ELSE username END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3`,
+          [newPhone, newPhone, user.id]
         );
 
         // Try to log the change (table may not exist yet)
@@ -910,11 +944,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
 
       // New user registration - complete it
-      const telegramUsername = msg.from.username;
-      // Use telegram username with @ prefix, or generate unique username
-      const username = telegramUsername ? `@${telegramUsername}` : `user_${userId}`;
+      const phoneLogin = normalizePhone(state.phone);
+      const username = phoneLogin || `user_${userId}`;
       const password = Math.random().toString(36).slice(-8);
       const hashedPassword = await bcrypt.hash(password, 10);
+
+      if (phoneLogin) {
+        const ownerCheck = await pool.query(
+          'SELECT id FROM users WHERE username = $1 AND telegram_id <> $2',
+          [phoneLogin, userId]
+        );
+        if (ownerCheck.rows.length > 0) {
+          bot.sendMessage(chatId, '❌ Этот номер уже зарегистрирован. Используйте другой номер или восстановление доступа.');
+          registrationStates.delete(getStateKey(userId, chatId));
+          return;
+        }
+      }
 
       const userResult = await pool.query(`
         INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id)
@@ -925,9 +970,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           last_latitude = EXCLUDED.last_latitude,
           last_longitude = EXCLUDED.last_longitude,
           active_restaurant_id = EXCLUDED.active_restaurant_id,
-          username = CASE 
-            WHEN EXCLUDED.username LIKE '@%' THEN EXCLUDED.username 
-            ELSE users.username 
+          username = CASE
+            WHEN EXCLUDED.username <> '' THEN EXCLUDED.username
+            ELSE users.username
           END
         RETURNING id
       `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId]);
@@ -1059,7 +1104,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Start reset password flow from inline menu
       if (data === 'reset_password') {
         const userResult = await pool.query(
-          'SELECT id, username FROM users WHERE telegram_id = $1',
+          'SELECT id, username, phone FROM users WHERE telegram_id = $1',
           [userId]
         );
 
@@ -1072,6 +1117,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           step: 'waiting_password_reset_confirm',
           dbUserId: userResult.rows[0].id,
           username: userResult.rows[0].username,
+          phone: userResult.rows[0].phone,
           restaurantId
         });
 
@@ -1113,13 +1159,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
         const temporaryPassword = generateTemporaryPassword();
         const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+        const normalizedLogin = normalizePhone(state.phone);
 
         const updateResult = await pool.query(
           `UPDATE users
-           SET password = $1, updated_at = CURRENT_TIMESTAMP
+           SET password = $1,
+               username = CASE WHEN $4 <> '' THEN $4 ELSE username END,
+               updated_at = CURRENT_TIMESTAMP
            WHERE id = $2 AND telegram_id = $3
-           RETURNING username`,
-          [hashedPassword, state.dbUserId, userId]
+           RETURNING username, phone`,
+          [hashedPassword, state.dbUserId, userId, normalizedLogin]
         );
 
         if (updateResult.rows.length === 0) {
@@ -1130,14 +1179,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
         passwordResetCooldown.set(cooldownKey, now);
         registrationStates.delete(stateKey);
+        const effectiveLogin = normalizedLogin || resolveLoginValue(updateResult.rows[0]);
+        const loginUrl = buildWebLoginUrl();
 
         bot.sendMessage(
           chatId,
-          `✅ <b>Пароль обновлен</b>\n\n` +
-          `Логин: <code>${updateResult.rows[0].username}</code>\n` +
+          `✅ <b>Доступ восстановлен</b>\n\n` +
+          `Логин: <code>${effectiveLogin}</code>\n` +
           `Временный пароль: <code>${temporaryPassword}</code>\n\n` +
+          `${loginUrl ? `Ссылка для входа: ${loginUrl}\n\n` : ''}` +
           `Рекомендуется войти в систему и сменить пароль.`,
-          { parse_mode: 'HTML' }
+          {
+            parse_mode: 'HTML',
+            reply_markup: loginUrl
+              ? { inline_keyboard: [[{ text: '🔐 Войти в систему', url: loginUrl }]] }
+              : undefined
+          }
         );
       }
 
@@ -1196,7 +1253,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               inline_keyboard: [
                 [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
                 [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
-                [{ text: '🔐 Восстановить пароль', callback_data: 'reset_password' }],
+                [{ text: '🔐 Восстановить логин и пароль', callback_data: 'reset_password' }],
                 [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
               ]
             }

@@ -451,8 +451,64 @@ async function initBot() {
     );
   }
 
+  async function resetAccessByTelegram(chatId, telegramUserId) {
+    const userResult = await pool.query(
+      'SELECT id, username, phone FROM users WHERE telegram_id = $1',
+      [telegramUserId]
+    );
+
+    if (userResult.rows.length === 0) {
+      await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+      return;
+    }
+
+    const user = userResult.rows[0];
+    const phoneLogin = normalizePhone(user.phone);
+    if (!phoneLogin) {
+      await bot.sendMessage(chatId, '❌ Для восстановления нужен номер телефона в профиле.');
+      return;
+    }
+
+    const temporaryPassword = Math.random().toString(36).slice(-8);
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    await pool.query(
+      `UPDATE users
+       SET password = $1,
+           username = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [hashedPassword, phoneLogin, user.id]
+    );
+
+    const loginUrl = buildWebLoginUrl();
+    await bot.sendMessage(
+      chatId,
+      `✅ <b>Доступ восстановлен</b>\n\n` +
+      `Логин: <code>${phoneLogin}</code>\n` +
+      `Временный пароль: <code>${temporaryPassword}</code>\n\n` +
+      `${loginUrl ? `Ссылка для входа: ${loginUrl}\n\n` : ''}` +
+      `Рекомендуется войти и сменить пароль.`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: loginUrl
+          ? { inline_keyboard: [[{ text: '🔐 Войти в систему', url: loginUrl }]] }
+          : undefined
+      }
+    );
+  }
+
   bot.onText(/\/onboard/, async (msg) => {
     await startOnboarding(msg.chat.id, msg.from.id);
+  });
+
+  bot.onText(/\/reset_password/, async (msg) => {
+    try {
+      await resetAccessByTelegram(msg.chat.id, msg.from.id);
+    } catch (error) {
+      console.error('Reset access error:', error);
+      bot.sendMessage(msg.chat.id, '❌ Ошибка восстановления доступа.');
+    }
   });
   
   // =====================================================
@@ -498,7 +554,8 @@ async function initBot() {
               remove_keyboard: true,
               inline_keyboard: [
                 [{ text: '🛒 Новый заказ', callback_data: 'new_order' }],
-                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
+                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }],
+                [{ text: '🔐 Восстановить доступ', callback_data: 'reset_password' }]
               ]
             }
           }
@@ -546,7 +603,7 @@ async function initBot() {
     if (!state || state.step !== 'waiting_contact') return;
     
     // Save contact and ask for name
-    state.phone = contact.phone_number;
+    state.phone = normalizePhone(contact.phone_number);
     state.step = 'waiting_name';
     registrationStates.set(userId, state);
     
@@ -841,11 +898,21 @@ async function initBot() {
         }
         
         // New user registration - complete registration
-        // Use Telegram username, fallback to user_ID, fallback to name
-        const telegramUsername = msg.from.username;
-        const username = telegramUsername || `user_${userId}`;
+        // Login should be phone number
+        const username = normalizePhone(state.phone) || `user_${userId}`;
         const password = Math.random().toString(36).slice(-8);
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        if (username && !username.startsWith('user_')) {
+          const ownerCheck = await pool.query(
+            'SELECT id FROM users WHERE username = $1 AND telegram_id <> $2',
+            [username, userId]
+          );
+          if (ownerCheck.rows.length > 0) {
+            bot.sendMessage(chatId, '❌ Этот номер уже зарегистрирован. Используйте восстановление доступа.');
+            return;
+          }
+        }
         
         // Save user with location and get ID
         const userResult = await pool.query(`
@@ -857,7 +924,7 @@ async function initBot() {
             last_latitude = EXCLUDED.last_latitude,
             last_longitude = EXCLUDED.last_longitude,
             active_restaurant_id = EXCLUDED.active_restaurant_id,
-            username = CASE WHEN users.username LIKE 'user_%' AND $2 NOT LIKE 'user_%' THEN $2 ELSE users.username END
+            username = CASE WHEN $2 <> '' THEN $2 ELSE users.username END
           RETURNING id
         `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurant.id]);
         
@@ -919,6 +986,7 @@ async function initBot() {
       '/start - Начать регистрацию\n' +
       '/menu - Открыть меню\n' +
       '/orders - Мои заказы\n' +
+      '/reset_password - Восстановить доступ\n' +
       '/help - Показать справку'
     );
   });
@@ -1144,6 +1212,11 @@ async function initBot() {
 
     if (data === 'onboard_skip_group') {
       await finalizeOnboarding(chatId, userId);
+      return;
+    }
+
+    if (data === 'reset_password') {
+      await resetAccessByTelegram(chatId, userId);
       return;
     }
     

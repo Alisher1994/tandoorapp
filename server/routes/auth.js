@@ -13,6 +13,15 @@ const {
 
 const router = express.Router();
 
+function normalizePhone(rawPhone) {
+  if (!rawPhone) return '';
+  const trimmed = String(rawPhone).trim().replace(/\s+/g, '');
+  if (trimmed.startsWith('+')) {
+    return `+${trimmed.slice(1).replace(/\D/g, '')}`;
+  }
+  return trimmed.replace(/\D/g, '');
+}
+
 // Register (only for customers via Telegram bot)
 router.post('/register', async (req, res) => {
   try {
@@ -62,25 +71,37 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    const normalizedUsername = String(username || '').trim();
+    const identifier = String(username || '').trim();
 
-    if (!normalizedUsername || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
 
-    const usernameLower = normalizedUsername.toLowerCase();
-    const usernameWithAt = normalizedUsername.startsWith('@')
-      ? normalizedUsername.toLowerCase()
-      : `@${normalizedUsername.toLowerCase()}`;
+    const usernameLower = identifier.toLowerCase();
+    const usernameWithAt = identifier.startsWith('@')
+      ? identifier.toLowerCase()
+      : `@${identifier.toLowerCase()}`;
+    const normalizedPhone = normalizePhone(identifier);
+    const phoneDigits = normalizedPhone.replace(/\D/g, '');
 
     const result = await pool.query(`
       SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
-      WHERE LOWER(u.username) = $1 OR LOWER(u.username) = $2
-      ORDER BY CASE WHEN LOWER(u.username) = $1 THEN 0 ELSE 1 END
+      WHERE LOWER(u.username) = $1
+         OR LOWER(u.username) = $2
+         OR COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3
+         OR COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3
+      ORDER BY
+        CASE
+          WHEN COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
+          WHEN COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
+          WHEN LOWER(u.username) = $1 THEN 2
+          WHEN LOWER(u.username) = $2 THEN 3
+          ELSE 4
+        END
       LIMIT 1
-    `, [usernameLower, usernameWithAt]);
+    `, [usernameLower, usernameWithAt, phoneDigits]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
