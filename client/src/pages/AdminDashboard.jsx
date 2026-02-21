@@ -1285,6 +1285,39 @@ function AdminDashboard() {
     return paymentMethod || '-';
   };
 
+  const formatDeliveryDateTime = (deliveryDate, deliveryTime) => {
+    if (!deliveryDate && !deliveryTime) return 'Как можно скорее';
+
+    if (deliveryDate && !deliveryTime && String(deliveryDate).includes('T')) {
+      const parsedDateTime = new Date(deliveryDate);
+      if (!Number.isNaN(parsedDateTime.getTime())) {
+        return parsedDateTime.toLocaleString('ru-RU');
+      }
+    }
+
+    const parts = [];
+
+    if (deliveryDate) {
+      const parsedDate = new Date(deliveryDate);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        parts.push(parsedDate.toLocaleDateString('ru-RU'));
+      } else {
+        parts.push(String(deliveryDate));
+      }
+    }
+
+    if (deliveryTime) {
+      const parsedTime = new Date(deliveryTime);
+      if (!Number.isNaN(parsedTime.getTime())) {
+        parts.push(parsedTime.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
+      } else {
+        parts.push(String(deliveryTime));
+      }
+    }
+
+    return parts.join(', ');
+  };
+
   const openOrderModal = (order) => {
     const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
     const normalizedCancelledAtStatus = order.cancelled_at_status === 'in_progress'
@@ -3067,7 +3100,7 @@ function AdminDashboard() {
         </Card>
 
         {/* Order Details Modal */}
-        <Modal show={showOrderModal} onHide={() => setShowOrderModal(false)}>
+        <Modal show={showOrderModal} onHide={() => setShowOrderModal(false)} size="lg">
           <Modal.Header closeButton>
             <Modal.Title className="d-flex align-items-center gap-2">
               <span>Заказ #{selectedOrder?.order_number}</span>
@@ -3101,7 +3134,7 @@ function AdminDashboard() {
                 </div>
                 <div className="mb-3">
                   <strong>Дата/время доставки:</strong>{' '}
-                  {[selectedOrder.delivery_date, selectedOrder.delivery_time].filter(Boolean).join(', ') || 'Как можно скорее'}
+                  {formatDeliveryDateTime(selectedOrder.delivery_date, selectedOrder.delivery_time)}
                 </div>
                 <div className="mb-3">
                   <strong>Оплата:</strong> {getPaymentMethodLabel(selectedOrder.payment_method)}
