@@ -1506,7 +1506,16 @@ function SuperAdminDashboard() {
                 {loading ? (
                   <div className="text-center p-5"><Spinner animation="border" /></div>
                 ) : (
-                  <div className="d-flex gap-3 pb-3" style={{ overflowX: 'auto', minHeight: '450px' }}>
+                  <div
+                    className="pb-3"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${CATEGORY_LEVEL_COUNT}, minmax(0, 1fr))`,
+                      gap: '12px',
+                      minHeight: '450px',
+                      width: '100%'
+                    }}
+                  >
                     {Array.from({ length: CATEGORY_LEVEL_COUNT }, (_, idx) => idx).map(levelIndex => {
                       const parentCategory = levelIndex === 0 ? null : categoryLevels[levelIndex - 1];
                       const isVisible = levelIndex === 0 || parentCategory !== null;
@@ -1522,7 +1531,11 @@ function SuperAdminDashboard() {
                       }) : [];
 
                       return (
-                        <Card key={levelIndex} className={`admin-card border-0 ${!isVisible ? 'opacity-50' : ''}`} style={{ minWidth: '260px', flex: '1 0 260px', maxWidth: '320px', background: isVisible ? '#fff' : '#f8fafc' }}>
+                        <Card
+                          key={levelIndex}
+                          className={`admin-card border-0 ${!isVisible ? 'opacity-50' : ''}`}
+                          style={{ minWidth: 0, width: '100%', background: isVisible ? '#fff' : '#f8fafc' }}
+                        >
                           <Card.Header className="admin-card-header d-flex justify-content-between align-items-center py-3">
                             <div>
                               <div className="fw-bold text-dark small text-uppercase letter-spacing-1 mb-0">
