@@ -229,6 +229,10 @@ function SuperAdminDashboard() {
   // Filters
   const [restaurantsPage, setRestaurantsPage] = useState(1);
   const [restaurantsLimit, setRestaurantsLimit] = useState(15);
+  const [restaurantsNameFilter, setRestaurantsNameFilter] = useState('');
+  const [restaurantsStatusFilter, setRestaurantsStatusFilter] = useState('');
+  const [restaurantsSelectFilter, setRestaurantsSelectFilter] = useState('');
+  const [restaurantsSelectSearch, setRestaurantsSelectSearch] = useState('');
   const [operatorsPage, setOperatorsPage] = useState(1);
   const [operatorsLimit, setOperatorsLimit] = useState(15);
   const [operatorSearch, setOperatorSearch] = useState('');
@@ -632,6 +636,38 @@ function SuperAdminDashboard() {
 
     return [selected, ...filtered];
   }, [allRestaurants, operatorRestaurantSearch, operatorRestaurantFilter]);
+
+  const restaurantsFilterOptions = useMemo(() => {
+    const term = restaurantsSelectSearch.trim().toLowerCase();
+    const source = restaurants?.restaurants || [];
+    const filtered = source.filter((restaurant) => (
+      !term || restaurant.name?.toLowerCase().includes(term)
+    ));
+
+    if (!restaurantsSelectFilter) return filtered;
+
+    const selected = source.find((restaurant) => String(restaurant.id) === String(restaurantsSelectFilter));
+    if (!selected || filtered.some((restaurant) => restaurant.id === selected.id)) return filtered;
+
+    return [selected, ...filtered];
+  }, [restaurants, restaurantsSelectSearch, restaurantsSelectFilter]);
+
+  const filteredRestaurants = useMemo(() => {
+    const source = restaurants?.restaurants || [];
+    return source.filter((restaurant) => {
+      const nameMatch = !restaurantsNameFilter ||
+        String(restaurant.name || '').toLowerCase().includes(restaurantsNameFilter.trim().toLowerCase());
+      const selectedMatch = !restaurantsSelectFilter || String(restaurant.id) === String(restaurantsSelectFilter);
+      const statusMatch = !restaurantsStatusFilter ||
+        (restaurantsStatusFilter === 'active' ? !!restaurant.is_active : !restaurant.is_active);
+      return nameMatch && selectedMatch && statusMatch;
+    });
+  }, [restaurants, restaurantsNameFilter, restaurantsSelectFilter, restaurantsStatusFilter]);
+
+  const paginatedRestaurants = useMemo(() => {
+    const start = (restaurantsPage - 1) * restaurantsLimit;
+    return filteredRestaurants.slice(start, start + restaurantsLimit);
+  }, [filteredRestaurants, restaurantsPage, restaurantsLimit]);
 
   const formatThousands = (value) => {
     if (value === null || value === undefined || value === '') return '';
@@ -1488,6 +1524,40 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
+                <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
+                  <Form.Control
+                    className="form-control-custom"
+                    type="search"
+                    placeholder="Поиск по названию..."
+                    style={{ width: '220px' }}
+                    value={restaurantsNameFilter}
+                    onChange={(e) => { setRestaurantsNameFilter(e.target.value); setRestaurantsPage(1); }}
+                  />
+                  <SearchableRestaurantFilter
+                    t={t}
+                    width="220px"
+                    value={restaurantsSelectFilter}
+                    restaurants={restaurantsFilterOptions}
+                    searchValue={restaurantsSelectSearch}
+                    onSearchChange={setRestaurantsSelectSearch}
+                    onChange={(nextValue) => {
+                      setRestaurantsSelectFilter(nextValue);
+                      setRestaurantsSelectSearch('');
+                      setRestaurantsPage(1);
+                    }}
+                  />
+                  <Form.Select
+                    className="form-control-custom"
+                    style={{ width: '170px' }}
+                    value={restaurantsStatusFilter}
+                    onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
+                  >
+                    <option value="">Все статусы</option>
+                    <option value="active">Активные</option>
+                    <option value="inactive">Неактивные</option>
+                  </Form.Select>
+                </div>
+
                 {loading ? (
                   <div className="text-center p-5"><Spinner animation="border" /></div>
                 ) : (
@@ -1507,7 +1577,7 @@ function SuperAdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {restaurants.restaurants?.map(r => (
+                          {paginatedRestaurants?.map(r => (
                             <tr key={r.id}>
                               <td><span className="text-muted small">#{r.id}</span></td>
                               <td>
@@ -1576,7 +1646,7 @@ function SuperAdminDashboard() {
                               </td>
                             </tr>
                           ))}
-                          {restaurants.restaurants?.length === 0 && (
+                          {filteredRestaurants?.length === 0 && (
                             <tr><td colSpan="8" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
                           )}
                         </tbody>
@@ -1585,7 +1655,7 @@ function SuperAdminDashboard() {
 
                     <DataPagination
                       current={restaurantsPage}
-                      total={restaurants.total}
+                      total={filteredRestaurants.length}
                       limit={restaurantsLimit}
                       onPageChange={setRestaurantsPage}
                       limitOptions={[15, 20, 30, 50]}
@@ -1597,11 +1667,8 @@ function SuperAdminDashboard() {
 
               {/* Operators Tab */}
               <Tab eventKey="operators" title={`👥 ${t('operators')}`}>
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0">{t('saManageOperators')}</h5>
-                  <Button className="btn-primary-custom" onClick={() => openOperatorModal()}>
-                    {t('saAddOperator')}
-                  </Button>
                 </div>
 
                 <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
@@ -1646,6 +1713,9 @@ function SuperAdminDashboard() {
                     value={operatorSearch}
                     onChange={(e) => { setOperatorSearch(e.target.value); setOperatorsPage(1); }}
                   />
+                  <Button className="btn-primary-custom ms-auto" onClick={() => openOperatorModal()}>
+                    {t('saAddOperator')}
+                  </Button>
                 </div>
 
                 {loading ? (
@@ -1977,13 +2047,12 @@ function SuperAdminDashboard() {
                                       </Button>
                                       <Button
                                         variant="link"
-                                        className={`p-0 ${canDeleteCategory(cat) ? 'text-danger' : 'text-muted opacity-50'}`}
+                                        className="p-0 text-danger"
                                         title={
                                           canDeleteCategory(cat)
                                             ? 'Удалить категорию'
                                             : `Нельзя удалить: товары (${getCategoryProductsCount(cat)}), подкатегории (${getCategorySubcategoriesCount(cat)})`
                                         }
-                                        disabled={!canDeleteCategory(cat)}
                                         onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
                                       >
                                         <i className="bi bi-trash" style={{ fontSize: '11px' }}></i>
