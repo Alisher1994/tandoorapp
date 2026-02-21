@@ -142,13 +142,15 @@ router.post('/', authenticate, async (req, res) => {
     
     console.log('📦 Final restaurant_id:', finalRestaurantId);
     
-    // Check restaurant working hours (block orders outside schedule)
+    // Check restaurant settings (hours + delivery flag)
+    let isDeliveryEnabled = true;
     if (finalRestaurantId) {
       const hoursResult = await client.query(
-        'SELECT start_time, end_time FROM restaurants WHERE id = $1',
+        'SELECT start_time, end_time, is_delivery_enabled FROM restaurants WHERE id = $1',
         [finalRestaurantId]
       );
       const hours = hoursResult.rows[0];
+      isDeliveryEnabled = hours?.is_delivery_enabled !== false;
       console.log('📦 Restaurant hours:', hours);
       
       if (hours?.start_time && hours?.end_time) {
@@ -184,8 +186,8 @@ router.post('/', authenticate, async (req, res) => {
     }, 0);
     
     const serviceFee = parseFloat(service_fee) || 0;
-    const deliveryCost = parseFloat(delivery_cost) || 0;
-    const deliveryDistanceKm = parseFloat(delivery_distance_km) || 0;
+    const deliveryCost = isDeliveryEnabled ? (parseFloat(delivery_cost) || 0) : 0;
+    const deliveryDistanceKm = isDeliveryEnabled ? (parseFloat(delivery_distance_km) || 0) : 0;
     const totalAmount = itemsTotal + serviceFee + deliveryCost;
     
     // Generate short order number (5 digits)

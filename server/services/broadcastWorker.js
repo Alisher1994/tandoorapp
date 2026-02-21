@@ -1,16 +1,23 @@
 const pool = require('../database/connection');
 const TelegramBot = require('node-telegram-bot-api');
+let isProcessing = false;
 
 async function processScheduledBroadcasts() {
+    if (isProcessing) return;
+    isProcessing = true;
+
     try {
-        const now = new Date();
         // Get active broadcasts due now
         const result = await pool.query(`
       SELECT sb.*, r.telegram_bot_token, r.name as restaurant_name
       FROM scheduled_broadcasts sb
       JOIN restaurants r ON sb.restaurant_id = r.id
-      WHERE sb.is_active = true AND sb.scheduled_at <= $1
-    `, [now]);
+      WHERE sb.is_active = true
+        AND sb.scheduled_at <= NOW()
+        AND (sb.last_run_at IS NULL OR sb.last_run_at < sb.scheduled_at)
+    `);
+
+        const now = new Date();
 
         for (const sb of result.rows) {
             console.log(`Processing scheduled broadcast ${sb.id} for restaurant ${sb.restaurant_name}`);
@@ -29,21 +36,26 @@ async function processScheduledBroadcasts() {
                 // Handle recurrence
                 let nextRun = null;
                 if (sb.recurrence === 'daily') {
-                    nextRun = new Date(sb.scheduled_at);
+                    nextRun = new Date(now);
                     nextRun.setDate(nextRun.getDate() + 1);
+                    nextRun.setHours(sb.scheduled_at.getHours(), sb.scheduled_at.getMinutes(), 0, 0);
                 } else if (sb.recurrence === 'weekly') {
-                    nextRun = new Date(sb.scheduled_at);
+                    nextRun = new Date(now);
                     nextRun.setDate(nextRun.getDate() + 7);
+                    nextRun.setHours(sb.scheduled_at.getHours(), sb.scheduled_at.getMinutes(), 0, 0);
                 } else if (sb.recurrence === 'custom' && sb.repeat_days && sb.repeat_days.length > 0) {
                     // Find next day in repeat_days
-                    const currentDay = sb.scheduled_at.getDay();
+                    const currentDay = now.getDay();
                     const sortedDays = [...sb.repeat_days].sort((a, b) => a - b);
-                    const nextDay = sortedDays.find(d => d > currentDay) ?? sortedDays[0];
-
-                    nextRun = new Date(sb.scheduled_at);
+                    let nextDay = sortedDays.find(d => d > currentDay);
+                    nextRun = new Date(now);
                     let diff = nextDay - currentDay;
-                    if (diff <= 0) diff += 7;
+                    if (nextDay === undefined || diff <= 0) {
+                        nextDay = sortedDays[0];
+                        diff = (nextDay + 7) - currentDay;
+                    }
                     nextRun.setDate(nextRun.getDate() + diff);
+                    nextRun.setHours(sb.scheduled_at.getHours(), sb.scheduled_at.getMinutes(), 0, 0);
                 }
 
                 if (nextRun) {
@@ -64,6 +76,8 @@ async function processScheduledBroadcasts() {
         }
     } catch (error) {
         console.error('Process scheduled broadcasts error:', error);
+    } finally {
+        isProcessing = false;
     }
 }
 
@@ -123,8 +137,9 @@ async function sendBroadcastMessage(sb, historyId) {
 }
 
 function initBroadcastWorker() {
-    // Check every minute
-    setInterval(processScheduledBroadcasts, 60000);
+    // Run once on startup and then poll
+    processScheduledBroadcasts().catch((e) => console.error('Initial scheduled broadcasts check failed:', e));
+    setInterval(processScheduledBroadcasts, 30000);
     console.log('⏰ Scheduled broadcast worker initialized');
 }
 

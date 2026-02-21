@@ -802,11 +802,12 @@ function AdminDashboard() {
     let finalScheduledAt = null;
     if (isScheduled) {
       const now = new Date();
+      const [hours, minutes] = scheduledTime.split(':').map(Number);
       if (recurrence === 'none') {
-        finalScheduledAt = `${scheduledDate}T${scheduledTime}:00`;
+        const target = new Date(`${scheduledDate}T${scheduledTime}:00`);
+        finalScheduledAt = target.toISOString();
       } else {
         // For recurring, we find the first occurrence
-        const [hours, minutes] = scheduledTime.split(':').map(Number);
         let target = new Date();
         target.setHours(hours, minutes, 0, 0);
 

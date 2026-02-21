@@ -260,13 +260,17 @@ function Cart() {
   }, [formData.delivery_coordinates, hasSavedLocation, user]);
 
   const hasLocation = !!mapCoordinates;
+  const isDeliveryEnabled = restaurant?.is_delivery_enabled !== false;
+  const effectiveDeliveryCost = isDeliveryEnabled ? deliveryCost : 0;
+  const effectiveDeliveryDistance = isDeliveryEnabled ? deliveryDistance : 0;
 
   // Fetch delivery cost when coordinates change
   useEffect(() => {
     const fetchDeliveryCost = async () => {
-      if (!mapCoordinates || !user?.active_restaurant_id || restaurant?.is_delivery_enabled === false) {
+      if (!mapCoordinates || !user?.active_restaurant_id || !isDeliveryEnabled) {
         setDeliveryCost(0);
         setDeliveryDistance(0);
+        setDeliveryLoading(false);
         return;
       }
 
@@ -289,7 +293,7 @@ function Cart() {
     };
 
     fetchDeliveryCost();
-  }, [mapCoordinates, user?.active_restaurant_id]);
+  }, [mapCoordinates, user?.active_restaurant_id, isDeliveryEnabled]);
 
   const useCurrentLocation = () => {
     setLocationLoading(true);
@@ -365,7 +369,7 @@ function Cart() {
       return;
     }
 
-    if (restaurant?.is_delivery_enabled !== false && !hasLocation && !formData.delivery_address) {
+    if (isDeliveryEnabled && !hasLocation && !formData.delivery_address) {
       setError('Укажите адрес доставки');
       return;
     }
@@ -383,7 +387,7 @@ function Cart() {
       const restaurant_id = cart[0]?.restaurant_id || user?.active_restaurant_id;
 
       // Если нет адреса но есть локация - указываем что доставка по локации
-      const deliveryAddress = restaurant?.is_delivery_enabled === false
+      const deliveryAddress = !isDeliveryEnabled
         ? 'Самовывоз'
         : (formData.delivery_address || (hasLocation ? 'По геолокации' : ''));
 
@@ -402,8 +406,8 @@ function Cart() {
         })),
         container_total: containerTotal,
         service_fee: serviceFee,
-        delivery_cost: deliveryCost,
-        delivery_distance_km: deliveryDistance,
+        delivery_cost: effectiveDeliveryCost,
+        delivery_distance_km: effectiveDeliveryDistance,
         restaurant_id,
         ...formData,
         delivery_address: deliveryAddress,
@@ -656,7 +660,7 @@ function Cart() {
             <Card className="border-0 shadow-sm mb-3">
               <Card.Body>
                 {/* Адрес доставки */}
-                {restaurant?.is_delivery_enabled !== false && (
+                {isDeliveryEnabled && (
                   <div className="mb-3">
                     <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
 
@@ -830,17 +834,17 @@ function Cart() {
                 )}
 
                 {/* Доставка - показываем всегда когда есть координаты */}
-                {restaurant?.is_delivery_enabled !== false && hasLocation && (
+                {isDeliveryEnabled && hasLocation && (
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <span className="text-muted">
                       🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                      {deliveryDistance > 0 && <small className="ms-1">({deliveryDistance} км)</small>}
+                      {effectiveDeliveryDistance > 0 && <small className="ms-1">({effectiveDeliveryDistance} км)</small>}
                     </span>
                     <span>
                       {deliveryLoading ? (
                         <Spinner animation="border" size="sm" />
                       ) : (
-                        `${formatPrice(deliveryCost)} ${t('sum')}`
+                        `${formatPrice(effectiveDeliveryCost)} ${t('sum')}`
                       )}
                     </span>
                   </div>
@@ -850,7 +854,7 @@ function Cart() {
 
             <div className={`d-flex justify-content-between align-items-center mb-3 ${step === 2 ? 'pt-2 border-top' : ''}`}>
               <span className="text-muted fw-bold">{t('total')}:</span>
-              <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
+              <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + effectiveDeliveryCost)} {t('sum')}</span>
             </div>
 
             {step === 1 ? (
@@ -1051,7 +1055,7 @@ function Cart() {
             <Modal.Title className="fs-5">✅ {language === 'uz' ? 'Buyurtmani tasdiqlang' : 'Подтвердите заказ'}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            {restaurant?.is_delivery_enabled !== false && (
+            {isDeliveryEnabled && (
               <Alert variant="warning" className="mb-3">
                 <div className="fw-bold mb-1">📍 {language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}:</div>
                 <div>
@@ -1066,7 +1070,7 @@ function Cart() {
               </Alert>
             )}
 
-            {restaurant?.is_delivery_enabled === false && (
+            {!isDeliveryEnabled && (
               <Alert variant="info" className="mb-3 border-0 bg-light text-dark">
                 <div className="fw-bold mb-1">🛍 {language === 'uz' ? 'O\'zingiz olib ketish' : 'Самовывоз'}</div>
                 <div className="small">Заказ будет готов в ресторане. Подходите к кассе и назовите свое имя или телефон.</div>
@@ -1090,16 +1094,16 @@ function Cart() {
                   <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
                 </div>
               )}
-              {deliveryCost > 0 && (
+              {effectiveDeliveryCost > 0 && (
                 <div className="d-flex justify-content-between">
                   <span>🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:</span>
-                  <span>{formatPrice(deliveryCost)} {t('sum')}</span>
+                  <span>{formatPrice(effectiveDeliveryCost)} {t('sum')}</span>
                 </div>
               )}
               <hr />
               <div className="d-flex justify-content-between fw-bold">
                 <span>{t('total')}:</span>
-                <span className="text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + deliveryCost)} {t('sum')}</span>
+                <span className="text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + effectiveDeliveryCost)} {t('sum')}</span>
               </div>
             </div>
 
