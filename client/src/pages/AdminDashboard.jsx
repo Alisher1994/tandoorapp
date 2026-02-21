@@ -3197,18 +3197,18 @@ function AdminDashboard() {
                                   title="delivery-map"
                                   src={`https://yandex.ru/map-widget/v1/?pt=${lng},${lat}&z=16&l=map`}
                                   width="100%"
-                                  height="220"
+                                  height="180"
                                   frameBorder="0"
                                 />
                               </div>
 
                               {/* Action buttons */}
-                              <div className="d-flex gap-2 flex-wrap">
+                              <div className="order-map-actions d-flex gap-2 flex-wrap">
                                 <a
                                   href={yandexMapUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="btn btn-outline-primary btn-sm"
+                                  className="btn btn-sm order-map-btn"
                                 >
                                   🗺 Яндекс.Карты
                                 </a>
@@ -3216,7 +3216,7 @@ function AdminDashboard() {
                                   href={googleMapsUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="btn btn-outline-secondary btn-sm"
+                                  className="btn btn-sm order-map-btn"
                                 >
                                   📍 Google Maps
                                 </a>
@@ -3224,13 +3224,13 @@ function AdminDashboard() {
                                   href={yandexTaxiUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="btn btn-warning btn-sm"
+                                  className="btn btn-sm order-map-btn"
                                 >
                                   🚕 Яндекс.Такси
                                 </a>
                                 <a
                                   href={yandexNaviUrl}
-                                  className="btn btn-outline-info btn-sm"
+                                  className="btn btn-sm order-map-btn"
                                 >
                                   🧭 Навигатор
                                 </a>
@@ -3251,15 +3251,8 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Admin comment (rejection reason) */}
-                {selectedOrder.admin_comment && (
-                  <div className="mb-3 p-2 bg-light rounded">
-                    <strong>Причина отмены:</strong> {selectedOrder.admin_comment}
-                  </div>
-                )}
-
                 {/* Order Status Stepper */}
-                <div className="mb-4">
+                <div className="order-status-section mb-2">
                   <strong className="d-block mb-2">Статус заказа:</strong>
                   {(() => {
                     const statuses = [
@@ -3339,6 +3332,13 @@ function AdminDashboard() {
                     );
                   })()}
                 </div>
+
+                {/* Admin comment (rejection reason) */}
+                {selectedOrder.admin_comment && (
+                  <div className="mb-2 p-2 bg-light rounded">
+                    <strong>Причина отмены:</strong> {selectedOrder.admin_comment}
+                  </div>
+                )}
                 </div>
 
                   </Col>
