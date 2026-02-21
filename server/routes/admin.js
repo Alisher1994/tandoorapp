@@ -888,6 +888,16 @@ router.post('/products', async (req, res) => {
       return res.status(400).json({ error: 'Название и цена обязательны' });
     }
 
+    if (category_id) {
+      const categoryCheck = await pool.query(
+        'SELECT id FROM categories WHERE id = $1 AND (restaurant_id = $2 OR restaurant_id IS NULL)',
+        [category_id, restaurantId]
+      );
+      if (categoryCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Категория не найдена для текущего ресторана' });
+      }
+    }
+
     const result = await pool.query(`
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
@@ -937,6 +947,16 @@ router.post('/products/upsert', async (req, res) => {
 
     if (!name_ru || !price) {
       return res.status(400).json({ error: 'Название и цена обязательны' });
+    }
+
+    if (category_id) {
+      const categoryCheck = await pool.query(
+        'SELECT id FROM categories WHERE id = $1 AND (restaurant_id = $2 OR restaurant_id IS NULL)',
+        [category_id, restaurantId]
+      );
+      if (categoryCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Категория не найдена для текущего ресторана' });
+      }
     }
 
     // Проверяем, существует ли товар с таким названием в этой категории (или любой категории если category_id не указан)
@@ -1063,6 +1083,16 @@ router.put('/products/:id', async (req, res) => {
     // Check restaurant access
     if (req.user.role !== 'superadmin' && oldProduct.restaurant_id !== req.user.active_restaurant_id) {
       return res.status(403).json({ error: 'Нет доступа к этому товару' });
+    }
+
+    if (category_id) {
+      const categoryCheck = await pool.query(
+        'SELECT id FROM categories WHERE id = $1 AND (restaurant_id = $2 OR restaurant_id IS NULL)',
+        [category_id, oldProduct.restaurant_id]
+      );
+      if (categoryCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Категория не найдена для текущего ресторана' });
+      }
     }
 
     const result = await pool.query(`

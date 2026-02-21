@@ -12,7 +12,7 @@ router.get('/categories', async (req, res) => {
     const params = [];
     
     if (restaurant_id) {
-      query += ' AND restaurant_id = $1';
+      query += ' AND (restaurant_id = $1 OR restaurant_id IS NULL)';
       params.push(restaurant_id);
     }
     
