@@ -3995,7 +3995,17 @@ function AdminDashboard() {
                       </div>
                       {broadcastForm.image_url && <div className="px-2 pb-2"><img src={broadcastForm.image_url} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} /></div>}
                       <div className="px-3 pb-2 pt-1">
-                        <div style={{ fontSize: '0.9rem', lineHeight: '1.4', whiteSpace: 'pre-wrap', color: '#222' }} dangerouslySetInnerHTML={{ __html: (broadcastForm.message || 'Текст сообщения...').replace(/<b>(.*?)<\/b>/g, '<strong>$1</strong>').replace(/<i>(.*?)<\/i>/g, '<em>$1</em>') }} />
+                        <div
+                          style={{
+                            fontSize: '0.9rem',
+                            lineHeight: '1.4',
+                            whiteSpace: 'pre-wrap',
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                            color: '#222'
+                          }}
+                          dangerouslySetInnerHTML={{ __html: (broadcastForm.message || 'Текст сообщения...').replace(/<b>(.*?)<\/b>/g, '<strong>$1</strong>').replace(/<i>(.*?)<\/i>/g, '<em>$1</em>') }}
+                        />
                         <div className="text-end mt-1 me-1" style={{ fontSize: '0.65rem', color: '#999' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ✓✓</div>
                       </div>
                     </div>
