@@ -995,6 +995,7 @@ function SuperAdminDashboard() {
                             <th>{t('saTableLogo')}</th>
                             <th>{t('saTableName')}</th>
                             <th>{t('saTableBalance') || 'Баланс'}</th>
+                            <th>{t('saServiceFee') || 'Сбор за обслуживание'}</th>
                             <th>{t('saTableTier') || 'Тариф'}</th>
                             <th>{t('saTableStatus')}</th>
                             <th className="text-end">{t('saTableActions')}</th>
@@ -1023,6 +1024,11 @@ function SuperAdminDashboard() {
                               <td>
                                 <div className="fw-bold text-primary">{parseFloat(r.balance || 0).toLocaleString()} сум</div>
                                 <small className="text-muted">Стоимость заказа: {parseFloat(r.order_cost || 1000).toLocaleString()}</small>
+                              </td>
+                              <td>
+                                <div className="fw-semibold">
+                                  {parseFloat(r.service_fee || 0).toLocaleString()} сум
+                                </div>
                               </td>
                               <td>
                                 <Badge
