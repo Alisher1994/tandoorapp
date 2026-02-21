@@ -12,6 +12,7 @@ const {
 const { reloadMultiBots } = require('../bot/multiBotManager');
 
 const router = express.Router();
+const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 
 // All routes require authentication and operator/superadmin role
 router.use(authenticate);
@@ -133,9 +134,16 @@ router.get('/orders', async (req, res) => {
     }
 
     if (status && status !== 'all') {
-      query += ` AND o.status = $${paramCount}`;
-      params.push(status);
-      paramCount++;
+      const normalizedStatus = normalizeOrderStatus(status);
+      if (normalizedStatus === 'preparing') {
+        query += ` AND (o.status = $${paramCount} OR o.status = $${paramCount + 1})`;
+        params.push('preparing', 'in_progress');
+        paramCount += 2;
+      } else {
+        query += ` AND o.status = $${paramCount}`;
+        params.push(normalizedStatus);
+        paramCount++;
+      }
     }
 
     query += ' GROUP BY o.id, u.username, u.full_name, u.telegram_id, r.name, r.balance, r.order_cost, r.is_free_tier, pb.full_name ORDER BY o.created_at DESC';
@@ -145,19 +153,24 @@ router.get('/orders', async (req, res) => {
     // Mask sensitive data only for NEW orders when restaurant balance is insufficient.
     // Processed orders must always show full customer data.
     const processedRows = result.rows.map(order => {
-      const isProcessedOrder = order.status && order.status !== 'new';
+      const normalizedStatus = normalizeOrderStatus(order.status);
+      const isProcessedOrder = normalizedStatus && normalizedStatus !== 'new';
       const isFreeTier = Boolean(order.restaurant_is_free_tier);
       const restaurantBalance = parseFloat(order.restaurant_balance || 0);
       const orderCost = parseFloat(order.restaurant_order_cost || 1000);
       const canViewNewOrderSensitiveData = isFreeTier || order.is_paid || restaurantBalance >= orderCost;
 
       if (isProcessedOrder || canViewNewOrderSensitiveData) {
-        return order;
+        return {
+          ...order,
+          status: normalizedStatus
+        };
       }
 
       // Mask sensitive fields
       return {
         ...order,
+        status: normalizedStatus,
         customer_phone: order.customer_phone ? order.customer_phone.substring(0, 4) + '***' + order.customer_phone.slice(-2) : '***',
         delivery_address: 'Засекречено (требуется оплата)',
         delivery_coordinates: null,
@@ -234,7 +247,7 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
       UPDATE orders 
       SET is_paid = true, 
           paid_amount = $1, 
-          status = 'in_progress', 
+          status = 'preparing', 
           processed_by = $2, 
           processed_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
@@ -622,8 +635,9 @@ router.patch('/orders/:id/status', async (req, res) => {
 
   try {
     const { status, comment, cancel_reason } = req.body;
+    const normalizedStatus = normalizeOrderStatus(status);
 
-    if (!status) {
+    if (!normalizedStatus) {
       return res.status(400).json({ error: 'Статус обязателен' });
     }
 
@@ -649,16 +663,18 @@ router.patch('/orders/:id/status', async (req, res) => {
     }
 
     // Check if order is paid (except for cancelled orders)
-    if (status !== 'cancelled' && !oldOrder.is_paid && !oldOrder.is_free_tier) {
+    if (normalizedStatus !== 'cancelled' && !oldOrder.is_paid && !oldOrder.is_free_tier) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Заказ еще не оплачен (примите его)' });
     }
+
+    const oldOrderStatus = normalizeOrderStatus(oldOrder.status);
 
     // Update order with cancel_reason and cancelled_at_status if cancelling
     let updateQuery;
     let updateParams;
 
-    if (status === 'cancelled' && cancel_reason) {
+    if (normalizedStatus === 'cancelled' && cancel_reason) {
       updateQuery = `
         UPDATE orders SET 
           status = $1, 
@@ -670,7 +686,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         WHERE id = $3 
         RETURNING *
       `;
-      updateParams = [status, req.user.id, req.params.id, cancel_reason, oldOrder.status];
+      updateParams = [normalizedStatus, req.user.id, req.params.id, cancel_reason, oldOrderStatus];
     } else {
       updateQuery = `
         UPDATE orders SET 
@@ -681,7 +697,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         WHERE id = $3 
         RETURNING *
       `;
-      updateParams = [status, req.user.id, req.params.id];
+      updateParams = [normalizedStatus, req.user.id, req.params.id];
     }
 
 
@@ -692,7 +708,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     const historyComment = cancel_reason || comment || null;
     await client.query(
       'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
-      [order.id, status, req.user.id, historyComment]
+      [order.id, normalizedStatus, req.user.id, historyComment]
     );
 
     await client.query('COMMIT');
@@ -701,12 +717,12 @@ router.patch('/orders/:id/status', async (req, res) => {
     await logActivity({
       userId: req.user.id,
       restaurantId: order.restaurant_id,
-      actionType: status === 'cancelled' ? ACTION_TYPES.CANCEL_ORDER : ACTION_TYPES.UPDATE_ORDER_STATUS,
+      actionType: normalizedStatus === 'cancelled' ? ACTION_TYPES.CANCEL_ORDER : ACTION_TYPES.UPDATE_ORDER_STATUS,
       entityType: ENTITY_TYPES.ORDER,
       entityId: order.id,
       entityName: `Заказ #${order.order_number} `,
-      oldValues: { status: oldOrder.status },
-      newValues: { status: order.status },
+      oldValues: { status: oldOrderStatus },
+      newValues: { status: normalizedStatus },
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
@@ -734,7 +750,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       await sendOrderUpdateToUser(
         row.telegram_id,
         order,
-        status,
+        normalizedStatus,
         row.telegram_bot_token,
         null, // restaurantPaymentUrls
         customMessages
@@ -1459,7 +1475,7 @@ router.get('/stats', async (req, res) => {
     const stats = await pool.query(`
 SELECT
   (SELECT COUNT(*) FROM orders ${whereClause} AND status = 'new') as new_orders,
-  (SELECT COUNT(*) FROM orders ${whereClause} AND status = 'preparing') as preparing_orders,
+  (SELECT COUNT(*) FROM orders ${whereClause} AND (status = 'preparing' OR status = 'in_progress')) as preparing_orders,
     (SELECT COUNT(*) FROM orders ${whereClause} AND status = 'delivering') as delivering_orders,
       (SELECT COUNT(*) FROM orders ${whereClause} AND DATE(created_at) = CURRENT_DATE) as today_orders,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders ${whereClause} AND DATE(created_at) = CURRENT_DATE) as today_revenue,

@@ -375,7 +375,13 @@ function AdminDashboard() {
         axios.get(`${API_URL}/admin/containers`)
       ]);
 
-      setOrders(ordersRes.data);
+      setOrders((ordersRes.data || []).map(order => ({
+        ...order,
+        status: order.status === 'in_progress' ? 'preparing' : order.status,
+        cancelled_at_status: order.cancelled_at_status === 'in_progress'
+          ? 'preparing'
+          : order.cancelled_at_status
+      })));
       setProducts(productsRes.data);
 
       // Calculate full category paths locally and sort correctly
@@ -643,7 +649,7 @@ function AdminDashboard() {
 
   const handleAcceptAndPay = async (orderId) => {
     try {
-      const response = await axios.post(`/api/admin/orders/${orderId}/accept-and-pay`);
+      await axios.post(`${API_URL}/admin/orders/${orderId}/accept-and-pay`);
       setAlertMessage({ type: 'success', text: 'Заказ успешно принят и оплачен' });
       // Refresh user and orders
       fetchUser();
@@ -1259,6 +1265,7 @@ function AdminDashboard() {
   const getStatusBadge = (status) => {
     const statusConfig = {
       'new': { variant: 'primary', text: 'Новый' },
+      'in_progress': { variant: 'warning', text: 'Готовится' },
       'preparing': { variant: 'warning', text: 'Готовится' },
       'delivering': { variant: 'info', text: 'Доставляется' },
       'delivered': { variant: 'success', text: 'Доставлен' },
@@ -1270,7 +1277,16 @@ function AdminDashboard() {
   };
 
   const openOrderModal = (order) => {
-    setSelectedOrder(order);
+    const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+    const normalizedCancelledAtStatus = order.cancelled_at_status === 'in_progress'
+      ? 'preparing'
+      : order.cancelled_at_status;
+
+    setSelectedOrder({
+      ...order,
+      status: normalizedStatus,
+      cancelled_at_status: normalizedCancelledAtStatus
+    });
     setShowOrderModal(true);
   };
 
@@ -2037,71 +2053,114 @@ function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map(order => (
-                        <tr key={order.id}>
-                          <td>{order.order_number}</td>
-                          <td>
-                            <div>
-                              <strong>{order.customer_name}</strong>
-                              <br />
-                              <small className={!order.is_paid && !billingInfo.restaurant?.is_free_tier ? "text-muted opacity-50" : ""}>
-                                {order.customer_phone}
-                                {!order.is_paid && !billingInfo.restaurant?.is_free_tier && (
-                                  <span className="ms-1" title="Требуется оплата">🔒</span>
-                                )}
-                              </small>
-                            </div>
-                          </td>
-                          <td>{formatPrice(order.total_amount)} {t('sum')}</td>
-                          <td>
-                            <div className="d-flex flex-column gap-1">
-                              {getStatusBadge(order.status)}
-                              {!order.is_paid && !billingInfo.restaurant?.is_free_tier && order.status === 'new' && (
-                                <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты</Badge>
-                              )}
-                              {order.is_paid && (
-                                <Badge bg="success" style={{ fontSize: '0.65rem' }}>Оплачен</Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
-                          <td>
-                            <div className="d-flex gap-1">
-                              {/* Accept & Pay Button for New Unpaid Orders */}
-                              {order.status === 'new' && !order.is_paid && !billingInfo.restaurant?.is_free_tier && (
-                                <Button
-                                  variant="success"
-                                  size="sm"
-                                  className="action-btn px-2 w-auto"
-                                  onClick={() => handleAcceptAndPay(order.id)}
-                                  title="Принять и оплатить"
-                                >
-                                  ✅ Принять
-                                </Button>
-                              )}
+                      {orders.map(order => {
+                        const orderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+                        const needsPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
 
-                              <Button
-                                className="action-btn bg-primary bg-opacity-10 text-primary border-0"
-                                size="sm"
-                                onClick={() => openOrderModal(order)}
-                                title={t('details')}
-                              >
-                                <ReceiptIcon />
-                              </Button>
-                              {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                        return (
+                          <tr key={order.id}>
+                            <td>{order.order_number}</td>
+                            <td>
+                              <div>
+                                <strong>{order.customer_name}</strong>
+                                <br />
+                                <small className={needsPayment ? "text-muted opacity-50" : ""}>
+                                  {order.customer_phone}
+                                  {needsPayment && (
+                                    <span className="ms-1" title="Требуется оплата">🔒</span>
+                                  )}
+                                </small>
+                              </div>
+                            </td>
+                            <td>{formatPrice(order.total_amount)} {t('sum')}</td>
+                            <td>
+                              <div className="d-flex flex-column gap-1">
+                                {getStatusBadge(orderStatus)}
+                                {needsPayment && orderStatus === 'new' && (
+                                  <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты</Badge>
+                                )}
+                                {order.is_paid && (
+                                  <Badge bg="success" style={{ fontSize: '0.65rem' }}>Оплачен</Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
+                            <td>
+                              <div className="d-flex gap-1 flex-wrap">
+                                {/* Accept & Pay Button for New Unpaid Orders */}
+                                {orderStatus === 'new' && needsPayment && (
+                                  <Button
+                                    variant="success"
+                                    size="sm"
+                                    className="action-btn px-2 w-auto"
+                                    onClick={() => handleAcceptAndPay(order.id)}
+                                    title="Принять и оплатить"
+                                  >
+                                    ✅ Принять
+                                  </Button>
+                                )}
+
+                                {/* Quick status actions in table */}
+                                {orderStatus === 'new' && !needsPayment && (
+                                  <Button
+                                    variant="warning"
+                                    size="sm"
+                                    className="px-2 w-auto"
+                                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                                    onClick={() => updateOrderStatus(order.id, 'preparing')}
+                                    title="Перевести в статус Готовится"
+                                  >
+                                    Готовится
+                                  </Button>
+                                )}
+                                {orderStatus === 'preparing' && (
+                                  <Button
+                                    variant="info"
+                                    size="sm"
+                                    className="px-2 w-auto text-white"
+                                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                                    onClick={() => updateOrderStatus(order.id, 'delivering')}
+                                    title="Перевести в статус Доставляется"
+                                  >
+                                    Доставляется
+                                  </Button>
+                                )}
+                                {orderStatus === 'delivering' && (
+                                  <Button
+                                    variant="success"
+                                    size="sm"
+                                    className="px-2 w-auto"
+                                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
+                                    onClick={() => updateOrderStatus(order.id, 'delivered')}
+                                    title="Перевести в статус Доставлен"
+                                  >
+                                    Доставлен
+                                  </Button>
+                                )}
+
                                 <Button
-                                  className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                  className="action-btn bg-primary bg-opacity-10 text-primary border-0"
                                   size="sm"
-                                  onClick={() => openCancelModal(order.id)}
-                                  title={t('cancelOrder')}
+                                  onClick={() => openOrderModal(order)}
+                                  title={t('details')}
                                 >
-                                  <TrashIcon />
+                                  <ReceiptIcon />
                                 </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                {orderStatus !== 'cancelled' && orderStatus !== 'delivered' && (
+                                  <Button
+                                    className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                    size="sm"
+                                    onClick={() => openCancelModal(order.id)}
+                                    title={t('cancelOrder')}
+                                  >
+                                    <TrashIcon />
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </Table>
                 </div>

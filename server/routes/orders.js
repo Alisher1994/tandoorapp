@@ -4,6 +4,8 @@ const { authenticate } = require('../middleware/auth');
 const { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel } = require('../bot/notifications');
 
 const router = express.Router();
+const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 
 function getNowInRestaurantTimezone() {
   const timezone = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
@@ -50,7 +52,10 @@ router.get('/my-orders', authenticate, async (req, res) => {
     
     const result = await pool.query(query, params);
     
-    res.json(result.rows);
+    res.json(result.rows.map(order => ({
+      ...order,
+      status: normalizeOrderStatus(order.status)
+    })));
   } catch (error) {
     console.error('Orders error:', error);
     res.status(500).json({ error: 'Ошибка получения заказов' });
@@ -78,6 +83,7 @@ router.get('/:id', authenticate, async (req, res) => {
     
     res.json({
       ...orderResult.rows[0],
+      status: normalizeOrderStatus(orderResult.rows[0].status),
       items: itemsResult.rows
     });
   } catch (error) {
@@ -150,7 +156,7 @@ router.post('/', authenticate, async (req, res) => {
         [finalRestaurantId]
       );
       const hours = hoursResult.rows[0];
-      isDeliveryEnabled = hours?.is_delivery_enabled !== false;
+      isDeliveryEnabled = isEnabledFlag(hours?.is_delivery_enabled);
       console.log('📦 Restaurant hours:', hours);
       
       if (hours?.start_time && hours?.end_time) {
