@@ -18,15 +18,21 @@ import BottomNav from '../components/BottomNav';
 import ClientLocationPicker from '../components/ClientLocationPicker';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const toEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
 function Cart() {
   const { cart, cartTotal, productTotal, containerTotal, updateQuantity, removeFromCart, clearCart } = useCart();
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
 
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
   const savedCoordinates = hasSavedLocation ? `${user.last_latitude},${user.last_longitude}` : '';
+  const activeRestaurantId = cart[0]?.restaurant_id || user?.active_restaurant_id || null;
 
   const [formData, setFormData] = useState({
     delivery_address: user?.last_address || '',
@@ -115,20 +121,50 @@ function Cart() {
     }
   }, []);
 
-  // Fetch restaurant info for receipt
+  // Fetch restaurant info for receipt and delivery availability
   useEffect(() => {
+    if (!activeRestaurantId) {
+      setRestaurant(null);
+      return;
+    }
+
+    let isMounted = true;
+
     const fetchRestaurant = async () => {
-      if (user?.active_restaurant_id) {
-        try {
-          const res = await axios.get(`${API_URL}/products/restaurant/${user.active_restaurant_id}`);
+      try {
+        const res = await axios.get(`${API_URL}/products/restaurant/${activeRestaurantId}`, {
+          params: { _t: Date.now() },
+          headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache'
+          }
+        });
+        if (isMounted) {
           setRestaurant(res.data);
-        } catch (e) {
-          console.error('Error fetching restaurant:', e);
         }
+      } catch (e) {
+        console.error('Error fetching restaurant:', e);
       }
     };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchRestaurant();
+      }
+    };
+
     fetchRestaurant();
-  }, [user?.active_restaurant_id]);
+    const interval = setInterval(fetchRestaurant, 15000);
+    window.addEventListener('focus', fetchRestaurant);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchRestaurant);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeRestaurantId]);
 
   // Загрузка сохранённых адресов
   useEffect(() => {
@@ -260,14 +296,20 @@ function Cart() {
   }, [formData.delivery_coordinates, hasSavedLocation, user]);
 
   const hasLocation = !!mapCoordinates;
-  const isDeliveryEnabled = restaurant?.is_delivery_enabled !== false;
+  const serviceFee = useMemo(() => {
+    return toNumber(restaurant?.service_fee ?? user?.active_restaurant_service_fee ?? 0, 0);
+  }, [restaurant?.service_fee, user?.active_restaurant_service_fee]);
+  const isDeliveryEnabled = useMemo(() => {
+    const flag = restaurant?.is_delivery_enabled ?? user?.active_restaurant_is_delivery_enabled;
+    return toEnabledFlag(flag);
+  }, [restaurant?.is_delivery_enabled, user?.active_restaurant_is_delivery_enabled]);
   const effectiveDeliveryCost = isDeliveryEnabled ? deliveryCost : 0;
   const effectiveDeliveryDistance = isDeliveryEnabled ? deliveryDistance : 0;
 
   // Fetch delivery cost when coordinates change
   useEffect(() => {
     const fetchDeliveryCost = async () => {
-      if (!mapCoordinates || !user?.active_restaurant_id || !isDeliveryEnabled) {
+      if (!mapCoordinates || !activeRestaurantId || !isDeliveryEnabled) {
         setDeliveryCost(0);
         setDeliveryDistance(0);
         setDeliveryLoading(false);
@@ -277,12 +319,18 @@ function Cart() {
       setDeliveryLoading(true);
       try {
         const res = await axios.post(`${API_URL}/delivery/calculate`, {
-          restaurant_id: user.active_restaurant_id,
+          restaurant_id: activeRestaurantId,
           customer_lat: mapCoordinates.lat,
           customer_lng: mapCoordinates.lng
         });
-        setDeliveryCost(res.data.delivery_cost || 0);
-        setDeliveryDistance(res.data.distance_km || 0);
+        if (res.data?.disabled) {
+          setDeliveryCost(0);
+          setDeliveryDistance(0);
+          setRestaurant(prev => (prev ? { ...prev, is_delivery_enabled: false } : prev));
+          return;
+        }
+        setDeliveryCost(toNumber(res.data.delivery_cost, 0));
+        setDeliveryDistance(toNumber(res.data.distance_km, 0));
       } catch (e) {
         console.error('Error fetching delivery cost:', e);
         setDeliveryCost(0);
@@ -293,7 +341,7 @@ function Cart() {
     };
 
     fetchDeliveryCost();
-  }, [mapCoordinates, user?.active_restaurant_id, isDeliveryEnabled]);
+  }, [mapCoordinates, activeRestaurantId, isDeliveryEnabled]);
 
   const useCurrentLocation = () => {
     setLocationLoading(true);
@@ -390,9 +438,6 @@ function Cart() {
       const deliveryAddress = !isDeliveryEnabled
         ? 'Самовывоз'
         : (formData.delivery_address || (hasLocation ? 'По геолокации' : ''));
-
-      // Calculate service fee
-      const serviceFee = parseFloat(restaurant?.service_fee) || 0;
 
       const orderData = {
         items: cart.map(item => ({
@@ -826,10 +871,10 @@ function Cart() {
                   </div>
                 )}
 
-                {parseFloat(restaurant?.service_fee) > 0 && (
+                {serviceFee > 0 && (
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
-                    <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
+                    <span>{formatPrice(serviceFee)} {t('sum')}</span>
                   </div>
                 )}
 
@@ -854,7 +899,7 @@ function Cart() {
 
             <div className={`d-flex justify-content-between align-items-center mb-3 ${step === 2 ? 'pt-2 border-top' : ''}`}>
               <span className="text-muted fw-bold">{t('total')}:</span>
-              <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + effectiveDeliveryCost)} {t('sum')}</span>
+              <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
             </div>
 
             {step === 1 ? (
@@ -1088,10 +1133,10 @@ function Cart() {
                   <span>{formatPrice(containerTotal)} {t('sum')}</span>
                 </div>
               )}
-              {parseFloat(restaurant?.service_fee) > 0 && (
+              {serviceFee > 0 && (
                 <div className="d-flex justify-content-between">
                   <span>🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
-                  <span>{formatPrice(restaurant.service_fee)} {t('sum')}</span>
+                  <span>{formatPrice(serviceFee)} {t('sum')}</span>
                 </div>
               )}
               {effectiveDeliveryCost > 0 && (
@@ -1103,7 +1148,7 @@ function Cart() {
               <hr />
               <div className="d-flex justify-content-between fw-bold">
                 <span>{t('total')}:</span>
-                <span className="text-primary">{formatPrice(cartTotal + (parseFloat(restaurant?.service_fee) || 0) + effectiveDeliveryCost)} {t('sum')}</span>
+                <span className="text-primary">{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
               </div>
             </div>
 

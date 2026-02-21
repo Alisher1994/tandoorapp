@@ -32,6 +32,8 @@ const authenticate = async (req, res, next) => {
         u.last_address,
         r.name as active_restaurant_name,
         r.logo_url as active_restaurant_logo,
+        r.service_fee as active_restaurant_service_fee,
+        r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
         r.balance as restaurant_balance,
         r.is_free_tier as restaurant_is_free_tier
       FROM users u

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database/connection');
 const axios = require('axios');
+const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
 // Константы для расчета стоимости доставки
 const BASE_RADIUS_KM = 2;      // Базовый радиус бесплатной доставки
@@ -73,8 +74,9 @@ router.post('/calculate', async (req, res) => {
     
     // Получаем координаты и настройки доставки ресторана
     const result = await pool.query(
-      `SELECT latitude, longitude, name, 
-              delivery_base_radius, delivery_base_price, delivery_price_per_km 
+      `SELECT latitude, longitude, name,
+              delivery_base_radius, delivery_base_price, delivery_price_per_km,
+              is_delivery_enabled
        FROM restaurants WHERE id = $1`,
       [restaurant_id]
     );
@@ -85,6 +87,15 @@ router.post('/calculate', async (req, res) => {
     }
     
     const restaurant = result.rows[0];
+    if (!isEnabledFlag(restaurant.is_delivery_enabled)) {
+      return res.json({
+        delivery_cost: 0,
+        distance_km: 0,
+        message: 'Доставка отключена для этого ресторана',
+        disabled: true
+      });
+    }
+
     console.log('📍 Restaurant data:', { 
       name: restaurant.name,
       lat: restaurant.latitude, 

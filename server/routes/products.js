@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../database/connection');
 
 const router = express.Router();
+const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
 // Get all categories (public - for customers, filtered by restaurant)
 router.get('/categories', async (req, res) => {
@@ -82,13 +83,15 @@ router.get('/restaurant/:id', async (req, res) => {
 
     // Return only safe public fields
     const r = result.rows[0];
+    const serviceFee = Number.parseFloat(r.service_fee ?? 0);
     res.json({
       id: r.id,
       name: r.name,
       address: r.address,
       phone: r.phone,
       logo_url: r.logo_url,
-      service_fee: r.service_fee || 0,
+      service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
+      is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       click_url: r.click_url,
       payme_url: r.payme_url
     });
@@ -128,14 +131,18 @@ router.get('/restaurants/list', async (req, res) => {
       ORDER BY name
     `);
     // Return only safe public fields
-    const restaurants = result.rows.map(r => ({
+    const restaurants = result.rows.map(r => {
+      const serviceFee = Number.parseFloat(r.service_fee ?? 0);
+      return ({
       id: r.id,
       name: r.name,
       address: r.address,
       phone: r.phone,
       logo_url: r.logo_url,
-      service_fee: r.service_fee || 0
-    }));
+      service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
+      is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled)
+      });
+    });
     res.json(restaurants);
   } catch (error) {
     console.error('Restaurants list error:', error);

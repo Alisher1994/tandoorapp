@@ -4,10 +4,6 @@ import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Badge from 'react-bootstrap/Badge';
 import Collapse from 'react-bootstrap/Collapse';
-import Modal from 'react-bootstrap/Modal';
-import Button from 'react-bootstrap/Button';
-import Form from 'react-bootstrap/Form';
-import Alert from 'react-bootstrap/Alert';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
@@ -22,12 +18,7 @@ function Orders() {
   const [cancelling, setCancelling] = useState(null);
   const [restaurant, setRestaurant] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackForm, setFeedbackForm] = useState({ type: 'complaint', message: '' });
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [feedbackSuccess, setFeedbackSuccess] = useState('');
-  const [feedbackError, setFeedbackError] = useState('');
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
   
@@ -90,31 +81,6 @@ function Orders() {
     
     const config = statusConfig[status] || { variant: 'secondary', text: status };
     return <Badge bg={config.variant}>{config.text}</Badge>;
-  };
-
-  const handleSubmitFeedback = async (e) => {
-    e.preventDefault();
-    if (!feedbackForm.message.trim()) {
-      setFeedbackError(language === 'uz' ? 'Xabar matnini kiriting' : 'Введите текст сообщения');
-      return;
-    }
-    
-    setFeedbackLoading(true);
-    setFeedbackError('');
-    
-    try {
-      await axios.post(`${API_URL}/orders/feedback`, feedbackForm);
-      setFeedbackSuccess(language === 'uz' ? 'Murojaatingiz yuborildi. Rahmat!' : 'Ваше обращение отправлено. Спасибо!');
-      setFeedbackForm({ type: 'complaint', message: '' });
-      setTimeout(() => {
-        setShowFeedbackModal(false);
-        setFeedbackSuccess('');
-      }, 2000);
-    } catch (error) {
-      setFeedbackError(error.response?.data?.error || 'Ошибка отправки');
-    } finally {
-      setFeedbackLoading(false);
-    }
   };
 
   if (loading) {
@@ -302,79 +268,11 @@ function Orders() {
             </Card>
           ))
         )}
-        
-        {/* Feedback button */}
-        <Card 
-          className="border-0 shadow-sm mb-3 text-center mt-4"
-          style={{ 
-            cursor: 'pointer', 
-            backgroundColor: '#fff8e6',
-            border: '1px solid #f0d68a !important'
-          }}
-          onClick={() => setShowFeedbackModal(true)}
-        >
-          <Card.Body className="py-3">
-            <span style={{ fontSize: '1.3rem' }}>💬</span>
-            <span className="ms-2 fw-medium" style={{ color: '#8b6914' }}>
-              {language === 'uz' ? 'Shikoyat va takliflar' : 'Жалобы и предложения'}
-            </span>
-          </Card.Body>
-        </Card>
-        
+
         {/* Spacer for bottom nav */}
         <div style={{ height: '70px' }} />
       </Container>
-      
-      {/* Feedback Modal */}
-      <Modal show={showFeedbackModal} onHide={() => setShowFeedbackModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {language === 'uz' ? 'Shikoyat va takliflar' : 'Жалобы и предложения'}
-          </Modal.Title>
-        </Modal.Header>
-        <Form onSubmit={handleSubmitFeedback}>
-          <Modal.Body>
-            {feedbackSuccess && <Alert variant="success">{feedbackSuccess}</Alert>}
-            {feedbackError && <Alert variant="danger">{feedbackError}</Alert>}
-            
-            <Form.Group className="mb-3">
-              <Form.Label>{language === 'uz' ? 'Murojaat turi' : 'Тип обращения'}</Form.Label>
-              <Form.Select
-                value={feedbackForm.type}
-                onChange={(e) => setFeedbackForm({ ...feedbackForm, type: e.target.value })}
-              >
-                <option value="complaint">{language === 'uz' ? 'Shikoyat' : 'Жалоба'}</option>
-                <option value="suggestion">{language === 'uz' ? 'Taklif' : 'Предложение'}</option>
-                <option value="question">{language === 'uz' ? 'Savol' : 'Вопрос'}</option>
-                <option value="other">{language === 'uz' ? 'Boshqa' : 'Другое'}</option>
-              </Form.Select>
-            </Form.Group>
-            
-            <Form.Group className="mb-3">
-              <Form.Label>{language === 'uz' ? 'Xabar' : 'Сообщение'} *</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={4}
-                placeholder={language === 'uz' ? 'Xabaringizni yozing...' : 'Напишите ваше сообщение...'}
-                value={feedbackForm.message}
-                onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
-                required
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowFeedbackModal(false)}>
-              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
-            </Button>
-            <Button variant="primary" type="submit" disabled={feedbackLoading}>
-              {feedbackLoading 
-                ? (language === 'uz' ? 'Yuborilmoqda...' : 'Отправка...') 
-                : (language === 'uz' ? 'Yuborish' : 'Отправить')}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
-      
+
       {/* Bottom navigation */}
       <BottomNav />
     </>

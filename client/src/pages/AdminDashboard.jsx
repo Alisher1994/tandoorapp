@@ -1290,6 +1290,25 @@ function AdminDashboard() {
     setShowOrderModal(true);
   };
 
+  const normalizePaymentLink = (value) => {
+    if (!value) return '';
+    let link = String(value).trim();
+    if (!link) return '';
+    if (!/^https?:\/\//i.test(link)) {
+      link = `https://${link}`;
+    }
+    try {
+      return new URL(link).toString();
+    } catch {
+      return '';
+    }
+  };
+
+  const getQrCodeUrl = (link) => `https://api.qrserver.com/v1/create-qr-code/?size=88x88&data=${encodeURIComponent(link)}`;
+
+  const clickPaymentLink = normalizePaymentLink(billingInfo.requisites?.click_link);
+  const paymePaymentLink = normalizePaymentLink(billingInfo.requisites?.payme_link);
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
@@ -3466,29 +3485,106 @@ function AdminDashboard() {
                           </div>
                         </div>
 
-                        <div className="d-flex gap-2">
-                          {billingInfo.requisites?.click_link && (
-                            <Button
-                              variant="primary"
-                              className="flex-fill fw-bold rounded-3 py-2 btn-click"
-                              href={billingInfo.requisites.click_link}
-                              target="_blank"
-                              style={{ backgroundColor: '#00BAE0', border: 'none' }}
+                        <div className="d-flex flex-column gap-2">
+                          <div className="p-2 bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
+                            <div className="min-w-0">
+                              <div className="fw-bold small text-uppercase mb-1">Click</div>
+                              {clickPaymentLink ? (
+                                <>
+                                  <a
+                                    href={clickPaymentLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="small text-break d-block mb-2 text-decoration-none"
+                                  >
+                                    {clickPaymentLink}
+                                  </a>
+                                  <Button
+                                    size="sm"
+                                    className="fw-bold px-2 py-1"
+                                    href={clickPaymentLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ backgroundColor: '#00BAE0', border: 'none', color: '#fff' }}
+                                  >
+                                    {language === 'uz' ? 'Ochish ↗' : 'Открыть ↗'}
+                                  </Button>
+                                </>
+                              ) : (
+                                <span className="small text-muted">{language === 'uz' ? "Havola yo'q" : 'Ссылка не указана'}</span>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                width: 88,
+                                height: 88,
+                                borderRadius: 8,
+                                border: '1px dashed #d1d5db',
+                                background: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                flexShrink: 0
+                              }}
                             >
-                              CLICK
-                            </Button>
-                          )}
-                          {billingInfo.requisites?.payme_link && (
-                            <Button
-                              variant="info"
-                              className="flex-fill fw-bold text-white rounded-3 py-2 btn-payme"
-                              href={billingInfo.requisites.payme_link}
-                              target="_blank"
-                              style={{ backgroundColor: '#3d7ea6', border: 'none' }}
+                              {clickPaymentLink ? (
+                                <img src={getQrCodeUrl(clickPaymentLink)} alt="Click QR" width="88" height="88" />
+                              ) : (
+                                <span className="small text-muted">QR</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="p-2 bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
+                            <div className="min-w-0">
+                              <div className="fw-bold small text-uppercase mb-1">Payme</div>
+                              {paymePaymentLink ? (
+                                <>
+                                  <a
+                                    href={paymePaymentLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="small text-break d-block mb-2 text-decoration-none"
+                                  >
+                                    {paymePaymentLink}
+                                  </a>
+                                  <Button
+                                    size="sm"
+                                    className="fw-bold px-2 py-1"
+                                    href={paymePaymentLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ backgroundColor: '#3d7ea6', border: 'none', color: '#fff' }}
+                                  >
+                                    {language === 'uz' ? 'Ochish ↗' : 'Открыть ↗'}
+                                  </Button>
+                                </>
+                              ) : (
+                                <span className="small text-muted">{language === 'uz' ? "Havola yo'q" : 'Ссылка не указана'}</span>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                width: 88,
+                                height: 88,
+                                borderRadius: 8,
+                                border: '1px dashed #d1d5db',
+                                background: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                flexShrink: 0
+                              }}
                             >
-                              PAYME
-                            </Button>
-                          )}
+                              {paymePaymentLink ? (
+                                <img src={getQrCodeUrl(paymePaymentLink)} alt="Payme QR" width="88" height="88" />
+                              ) : (
+                                <span className="small text-muted">QR</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </Col>

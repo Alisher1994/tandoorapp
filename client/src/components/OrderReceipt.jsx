@@ -86,16 +86,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
                 {restaurantName}
               </div>
             ) : null}
-            
-            <div style={{ fontSize: '24px', marginBottom: '8px', color: 'var(--accent-color)' }}>✅</div>
-            <h3 style={{ 
-              margin: '0 0 4px', 
-              fontSize: '18px',
-              fontWeight: 'bold',
-              color: 'var(--accent-color)'
-            }}>
-              Заказ принят!
-            </h3>
+
             <div style={{ 
               fontSize: '12px', 
               color: '#666',
@@ -189,10 +180,12 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
           {/* Payment method */}
           <div style={{
             padding: '12px 20px',
-            background: 'var(--accent-soft)',
+            background: '#fff',
+            borderTop: '1px dashed var(--border-color)',
+            borderBottom: '1px dashed var(--border-color)',
             textAlign: 'center',
             fontSize: '12px',
-            color: '#4a4438'
+            color: '#666'
           }}>
             {order?.payment_method === 'card' ? '💳 Оплата картой' : '💵 Оплата наличными'}
           </div>
@@ -204,7 +197,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
             fontSize: '13px',
             color: '#666'
           }}>
-            Спасибо за заказ! 🙏
+            Спасибо за заказ!
           </div>
 
           {/* Zigzag bottom edge */}
@@ -230,7 +223,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
             width: '100%',
             padding: '16px',
             marginTop: '16px',
-            background: '#28a745',
+            background: 'var(--primary-color)',
             color: '#fff',
             border: 'none',
             borderRadius: '12px',
@@ -248,4 +241,3 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
 }
 
 export default OrderReceipt;
-
