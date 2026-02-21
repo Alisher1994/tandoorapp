@@ -1980,7 +1980,7 @@ function SuperAdminDashboard() {
                       return (
                         <Card
                           key={levelIndex}
-                          className={`admin-card admin-section-panel border-0 ${!isVisible ? 'opacity-50' : ''}`}
+                          className={`admin-card admin-section-panel ${!isVisible ? 'opacity-50' : ''}`}
                           style={{ minWidth: 0, width: '100%', background: isVisible ? '#fff' : '#f8fafc' }}
                         >
                           <Card.Header className="admin-card-header admin-section-panel-header d-flex justify-content-between align-items-center py-3">
@@ -2198,7 +2198,7 @@ function SuperAdminDashboard() {
 
                 <Row className="g-4">
                   <Col md={7}>
-                    <Card className="admin-card admin-section-panel border-0 h-100">
+                    <Card className="admin-card admin-section-panel h-100">
                       <Card.Header className="admin-section-panel-header py-3">
                         <h6 className="mb-0 fw-bold">{t('paymentRequisitesInfo')}</h6>
                       </Card.Header>
@@ -2276,7 +2276,7 @@ function SuperAdminDashboard() {
                   </Col>
 
                   <Col md={5}>
-                    <Card className="admin-card admin-section-panel border-0 h-100">
+                    <Card className="admin-card admin-section-panel h-100">
                       <Card.Header className="admin-section-panel-header py-3">
                         <h6 className="mb-0 fw-bold">{t('defaultFinancialParams')}</h6>
                       </Card.Header>
