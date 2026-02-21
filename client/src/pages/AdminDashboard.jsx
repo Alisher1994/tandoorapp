@@ -3491,7 +3491,13 @@ function AdminDashboard() {
                         <div className="d-flex flex-column gap-2">
                           <div className="p-2 bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
                             <div className="min-w-0">
-                              <div className="fw-bold small text-uppercase mb-1">Click</div>
+                              <div className="mb-2">
+                                <img
+                                  src="/click.png"
+                                  alt="Click"
+                                  style={{ height: 22, width: 'auto', display: 'block' }}
+                                />
+                              </div>
                               {clickPaymentLink ? (
                                 <>
                                   <Button
@@ -3533,7 +3539,13 @@ function AdminDashboard() {
 
                           <div className="p-2 bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
                             <div className="min-w-0">
-                              <div className="fw-bold small text-uppercase mb-1">Payme</div>
+                              <div className="mb-2">
+                                <img
+                                  src="/payme.png"
+                                  alt="Payme"
+                                  style={{ height: 22, width: 'auto', display: 'block' }}
+                                />
+                              </div>
                               {paymePaymentLink ? (
                                 <>
                                   <Button

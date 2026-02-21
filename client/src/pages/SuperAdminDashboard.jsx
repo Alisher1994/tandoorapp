@@ -459,13 +459,29 @@ function SuperAdminDashboard() {
     }
   };
 
+  const formatThousands = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const digits = String(value).replace(/\D/g, '');
+    if (!digits) return '';
+    return Number(digits).toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
+  };
+
+  const handleTopupAmountChange = (event) => {
+    const digitsOnly = String(event.target.value || '').replace(/\D/g, '');
+    setTopupForm((prev) => ({ ...prev, amount: digitsOnly }));
+  };
+
   const handleTopup = async () => {
-    if (!topupForm.amount || isNaN(topupForm.amount) || topupForm.amount <= 0) {
+    const amountValue = Number(String(topupForm.amount || '').replace(/\D/g, ''));
+    if (!amountValue || Number.isNaN(amountValue) || amountValue <= 0) {
       setError('Некорректная сумма');
       return;
     }
     try {
-      await axios.post(`${API_URL}/superadmin/restaurants/${topupRestaurant.id}/topup`, topupForm);
+      await axios.post(`${API_URL}/superadmin/restaurants/${topupRestaurant.id}/topup`, {
+        ...topupForm,
+        amount: amountValue
+      });
       setSuccess(`Баланс ресторана "${topupRestaurant.name}" пополнен`);
       setShowTopupModal(false);
       setTopupForm({ amount: '', description: '' });
@@ -2620,11 +2636,12 @@ function SuperAdminDashboard() {
           <Form.Group className="mb-3">
             <Form.Label className="small fw-bold text-muted text-uppercase">{t('amountToTopup')}</Form.Label>
             <Form.Control
-              type="number"
+              type="text"
+              inputMode="numeric"
               className="form-control-custom"
               placeholder="100000"
-              value={topupForm.amount}
-              onChange={e => setTopupForm({ ...topupForm, amount: e.target.value })}
+              value={formatThousands(topupForm.amount)}
+              onChange={handleTopupAmountChange}
             />
           </Form.Group>
           <Form.Group className="mb-0">
