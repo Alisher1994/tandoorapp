@@ -21,6 +21,34 @@ function buildCatalogUrl(appUrl, token) {
 
 // Store for registration states
 const registrationStates = new Map();
+// Store for centralized onboarding states in superadmin bot
+const onboardingStates = new Map();
+
+function normalizePhone(rawPhone) {
+  if (!rawPhone) return '';
+  const trimmed = String(rawPhone).trim().replace(/\s+/g, '');
+  if (trimmed.startsWith('+')) {
+    return `+${trimmed.slice(1).replace(/\D/g, '')}`;
+  }
+  return trimmed.replace(/\D/g, '');
+}
+
+function passwordFromPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '0000';
+  return digits.slice(-4).padStart(4, '0');
+}
+
+function buildWebLoginUrl() {
+  const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+  if (!base) return null;
+  const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
+  return `${trimmed}/login`;
+}
+
+function getOnboardingStateKey(userId) {
+  return `onboard_${userId}`;
+}
 
 // Check if point is inside polygon (ray casting algorithm)
 function isPointInPolygon(point, polygon) {
@@ -157,6 +185,257 @@ function initBot() {
     bot = new TelegramBot(token, { polling: true });
     console.log('🤖 Telegram bot initialized with polling');
   }
+
+  async function askOnboardingField(chatId, field) {
+    const prompts = {
+      store_name: '🏪 Введите <b>название магазина</b>:',
+      full_name: '👤 Введите <b>ФИО оператора</b>:',
+      phone: '📱 Отправьте <b>номер телефона</b>:',
+      location: '📍 Отправьте <b>локацию магазина</b>:',
+      logo_url: '🖼️ Отправьте ссылку на <b>логотип</b> (URL):',
+      bot_token: '🤖 Отправьте <b>Bot Token</b> вашего магазина:',
+      group_id: '👥 Отправьте <b>Chat ID группы</b> для заказов:'
+    };
+
+    if (field === 'phone') {
+      await bot.sendMessage(chatId, prompts[field], {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [[{ text: '📱 Поделиться контактом', request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
+      });
+      return;
+    }
+
+    if (field === 'location') {
+      await bot.sendMessage(chatId, prompts[field], {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [[{ text: '📍 Поделиться локацией', request_location: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
+      });
+      return;
+    }
+
+    await bot.sendMessage(chatId, prompts[field], {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'onboard_cancel' }]]
+      }
+    });
+  }
+
+  async function showOptionalStep(chatId, userId, stepName) {
+    const stateKey = getOnboardingStateKey(userId);
+    const state = onboardingStates.get(stateKey);
+    if (!state) return;
+
+    if (stepName === 'logo_url') {
+      state.step = 'await_logo_choice';
+      onboardingStates.set(stateKey, state);
+      await bot.sendMessage(chatId,
+        '🖼️ Логотип магазина (необязательно):',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '➕ Добавить логотип', callback_data: 'onboard_add_logo' }],
+              [{ text: '⏭️ Пропустить', callback_data: 'onboard_skip_logo' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    if (stepName === 'bot_token') {
+      state.step = 'await_token_choice';
+      onboardingStates.set(stateKey, state);
+      await bot.sendMessage(chatId,
+        '🤖 Bot Token магазина (необязательно на этом шаге):',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '➕ Добавить токен', callback_data: 'onboard_add_token' }],
+              [{ text: '⏭️ Пропустить', callback_data: 'onboard_skip_token' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    if (stepName === 'group_id') {
+      state.step = 'await_group_choice';
+      onboardingStates.set(stateKey, state);
+      await bot.sendMessage(chatId,
+        '👥 Group Chat ID (необязательно на этом шаге):',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '➕ Добавить Group ID', callback_data: 'onboard_add_group' }],
+              [{ text: '⏭️ Пропустить', callback_data: 'onboard_skip_group' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+  }
+
+  async function finalizeOnboarding(chatId, userId) {
+    const stateKey = getOnboardingStateKey(userId);
+    const state = onboardingStates.get(stateKey);
+    if (!state) return;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const normalizedPhone = normalizePhone(state.phone);
+      const username = normalizedPhone;
+      const plainPassword = passwordFromPhone(normalizedPhone);
+      const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+      // Prevent conflict with existing username owned by another user
+      const usernameOwner = await client.query(
+        'SELECT id, role, telegram_id FROM users WHERE username = $1',
+        [username]
+      );
+      if (usernameOwner.rows.length > 0 && usernameOwner.rows[0].telegram_id !== userId) {
+        await client.query('ROLLBACK');
+        await bot.sendMessage(chatId,
+          '❌ Такой логин (номер телефона) уже используется. Укажите другой номер телефона.'
+        );
+        return;
+      }
+
+      const settingsResult = await client.query('SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1');
+      const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
+
+      const restaurantResult = await client.query(`
+        INSERT INTO restaurants (
+          name, phone, logo_url, telegram_bot_token, telegram_group_id,
+          latitude, longitude, delivery_base_radius, is_delivery_enabled,
+          balance, order_cost, is_active
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 3, true, $8, $9, true)
+        RETURNING id, name
+      `, [
+        state.store_name,
+        normalizedPhone || null,
+        state.logo_url || null,
+        state.bot_token || null,
+        state.group_id || null,
+        state.location?.latitude || null,
+        state.location?.longitude || null,
+        settings.default_starting_balance,
+        settings.default_order_cost
+      ]);
+
+      const restaurant = restaurantResult.rows[0];
+
+      let userIdDb;
+      const userByTg = await client.query('SELECT id, role FROM users WHERE telegram_id = $1', [userId]);
+      if (userByTg.rows.length > 0) {
+        userIdDb = userByTg.rows[0].id;
+        if (userByTg.rows[0].role === 'customer') {
+          await client.query('ROLLBACK');
+          await bot.sendMessage(chatId,
+            '❌ Этот Telegram-аккаунт уже зарегистрирован как клиент. Используйте отдельный Telegram для оператора.'
+          );
+          return;
+        }
+
+        await client.query(`
+          UPDATE users
+          SET username = $1,
+              password = $2,
+              full_name = $3,
+              phone = $4,
+              role = 'operator',
+              is_active = true,
+              active_restaurant_id = $5,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $6
+        `, [username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, userIdDb]);
+      } else {
+        const insertedUser = await client.query(`
+          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id)
+          VALUES ($1, $2, $3, $4, $5, 'operator', true, $6)
+          RETURNING id
+        `, [userId, username, hashedPassword, state.full_name, normalizedPhone, restaurant.id]);
+        userIdDb = insertedUser.rows[0].id;
+      }
+
+      await client.query(`
+        INSERT INTO operator_restaurants (user_id, restaurant_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, restaurant_id) DO NOTHING
+      `, [userIdDb, restaurant.id]);
+
+      await client.query('COMMIT');
+      onboardingStates.delete(stateKey);
+
+      const loginUrl = buildWebLoginUrl();
+      const locationText = state.location
+        ? `${state.location.latitude.toFixed(6)}, ${state.location.longitude.toFixed(6)}`
+        : 'не указана';
+
+      await bot.sendMessage(
+        chatId,
+        `✅ <b>Регистрация завершена</b>\n\n` +
+        `🏪 Магазин: <b>${restaurant.name}</b>\n` +
+        `👤 ФИО: ${state.full_name}\n` +
+        `📱 Логин: <code>${username}</code>\n` +
+        `🔐 Пароль: <code>${plainPassword}</code>\n` +
+        `📍 Локация: ${locationText}\n` +
+        `🚚 Радиус доставки: 3 км (по умолчанию)\n\n` +
+        `${loginUrl ? `Вход: ${loginUrl}` : '⚠️ URL входа не настроен в переменных окружения.'}`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: loginUrl
+            ? {
+              remove_keyboard: true,
+              inline_keyboard: [[{ text: '🔐 Войти в систему', url: loginUrl }]]
+            }
+            : { remove_keyboard: true }
+        }
+      );
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Finalize onboarding error:', error);
+      await bot.sendMessage(chatId, '❌ Ошибка создания доступа. Попробуйте позже.');
+    } finally {
+      client.release();
+    }
+  }
+
+  async function startOnboarding(chatId, userId) {
+    onboardingStates.set(getOnboardingStateKey(userId), {
+      step: 'await_store_name'
+    });
+    await bot.sendMessage(
+      chatId,
+      '🧭 <b>Онбординг магазина</b>\n\nОбязательные поля:\n• Название магазина\n• ФИО\n• Номер телефона\n• Локация\n\nНеобязательные поля можно пропустить.',
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '▶️ Начать', callback_data: 'onboard_begin_required' }],
+            [{ text: '❌ Отмена', callback_data: 'onboard_cancel' }]
+          ]
+        }
+      }
+    );
+  }
+
+  bot.onText(/\/onboard/, async (msg) => {
+    await startOnboarding(msg.chat.id, msg.from.id);
+  });
   
   // =====================================================
   // /start command
@@ -207,19 +486,16 @@ function initBot() {
           }
         );
       } else {
-        // Start registration - ask for contact
-        registrationStates.set(userId, { step: 'waiting_contact' });
-        
+        // Show entry point: customer flow or centralized store onboarding
         bot.sendMessage(chatId,
-          '👋 Добро пожаловать!\n\n' +
-          '📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
+          '👋 Добро пожаловать!\n\nВыберите сценарий:',
           {
+            parse_mode: 'HTML',
             reply_markup: {
-              keyboard: [[
-                { text: '📱 Поделиться контактом', request_contact: true }
-              ]],
-              resize_keyboard: true,
-              one_time_keyboard: true
+              inline_keyboard: [
+                [{ text: '🏪 Регистрация магазина', callback_data: 'onboard_start' }],
+                [{ text: '🛒 Клиентская регистрация', callback_data: 'legacy_customer_start' }]
+              ]
             }
           }
         );
@@ -237,6 +513,16 @@ function initBot() {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const contact = msg.contact;
+
+    const onboardingKey = getOnboardingStateKey(userId);
+    const onboardingState = onboardingStates.get(onboardingKey);
+    if (onboardingState && onboardingState.step === 'await_phone') {
+      onboardingState.phone = normalizePhone(contact.phone_number);
+      onboardingState.step = 'await_location';
+      onboardingStates.set(onboardingKey, onboardingState);
+      await askOnboardingField(chatId, 'location');
+      return;
+    }
     
     const state = registrationStates.get(userId);
     if (!state || state.step !== 'waiting_contact') return;
@@ -265,6 +551,70 @@ function initBot() {
     
     // Skip commands
     if (text.startsWith('/')) return;
+
+    const onboardingKey = getOnboardingStateKey(userId);
+    const onboardingState = onboardingStates.get(onboardingKey);
+    if (onboardingState) {
+      if (onboardingState.step === 'await_store_name') {
+        const storeName = text.trim();
+        if (!storeName) {
+          await bot.sendMessage(chatId, '❌ Название магазина обязательно. Введите название.');
+          return;
+        }
+        onboardingState.store_name = storeName;
+        onboardingState.step = 'await_full_name';
+        onboardingStates.set(onboardingKey, onboardingState);
+        await askOnboardingField(chatId, 'full_name');
+        return;
+      }
+
+      if (onboardingState.step === 'await_full_name') {
+        const fullName = text.trim();
+        if (!fullName) {
+          await bot.sendMessage(chatId, '❌ ФИО обязательно. Введите ФИО.');
+          return;
+        }
+        onboardingState.full_name = fullName;
+        onboardingState.step = 'await_phone';
+        onboardingStates.set(onboardingKey, onboardingState);
+        await askOnboardingField(chatId, 'phone');
+        return;
+      }
+
+      if (onboardingState.step === 'await_phone') {
+        const normalized = normalizePhone(text);
+        if (!normalized || normalized.length < 7) {
+          await bot.sendMessage(chatId, '❌ Некорректный номер телефона. Введите номер еще раз.');
+          return;
+        }
+        onboardingState.phone = normalized;
+        onboardingState.step = 'await_location';
+        onboardingStates.set(onboardingKey, onboardingState);
+        await askOnboardingField(chatId, 'location');
+        return;
+      }
+
+      if (onboardingState.step === 'await_logo_url') {
+        onboardingState.logo_url = text.trim();
+        onboardingStates.set(onboardingKey, onboardingState);
+        await showOptionalStep(chatId, userId, 'bot_token');
+        return;
+      }
+
+      if (onboardingState.step === 'await_bot_token') {
+        onboardingState.bot_token = text.trim();
+        onboardingStates.set(onboardingKey, onboardingState);
+        await showOptionalStep(chatId, userId, 'group_id');
+        return;
+      }
+
+      if (onboardingState.step === 'await_group_id') {
+        onboardingState.group_id = text.trim();
+        onboardingStates.set(onboardingKey, onboardingState);
+        await finalizeOnboarding(chatId, userId);
+        return;
+      }
+    }
     
     // Handle menu buttons
     if (text === '📋 Мои заказы') {
@@ -352,6 +702,22 @@ function initBot() {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const location = msg.location;
+
+    const onboardingKey = getOnboardingStateKey(userId);
+    const onboardingState = onboardingStates.get(onboardingKey);
+    if (onboardingState && onboardingState.step === 'await_location') {
+      onboardingState.location = {
+        latitude: location.latitude,
+        longitude: location.longitude
+      };
+      onboardingStates.set(onboardingKey, onboardingState);
+      await bot.sendMessage(chatId,
+        '✅ Обязательные поля заполнены.\n\nДалее можно добавить необязательные данные или пропустить:',
+        { reply_markup: { remove_keyboard: true } }
+      );
+      await showOptionalStep(chatId, userId, 'logo_url');
+      return;
+    }
     
     let state = registrationStates.get(userId);
     
@@ -531,6 +897,7 @@ function initBot() {
     const chatId = msg.chat.id;
     bot.sendMessage(chatId,
       '📖 Справка:\n\n' +
+      '/onboard - Регистрация магазина и оператора\n' +
       '/start - Начать регистрацию\n' +
       '/menu - Открыть меню\n' +
       '/orders - Мои заказы\n' +
@@ -678,6 +1045,89 @@ function initBot() {
     
     // Answer callback to remove loading state
     bot.answerCallbackQuery(callbackQuery.id);
+
+    // =====================================================
+    // Central onboarding flow
+    // =====================================================
+    if (data === 'legacy_customer_start') {
+      registrationStates.set(userId, { step: 'waiting_contact' });
+      await bot.sendMessage(chatId,
+        '📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
+        {
+          reply_markup: {
+            keyboard: [[{ text: '📱 Поделиться контактом', request_contact: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
+      return;
+    }
+
+    if (data === 'onboard_start') {
+      await startOnboarding(chatId, userId);
+      return;
+    }
+
+    if (data === 'onboard_cancel') {
+      onboardingStates.delete(getOnboardingStateKey(userId));
+      await bot.sendMessage(chatId, '❌ Онбординг отменен.', { reply_markup: { remove_keyboard: true } });
+      return;
+    }
+
+    if (data === 'onboard_begin_required') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey) || {};
+      state.step = 'await_store_name';
+      onboardingStates.set(stateKey, state);
+      await askOnboardingField(chatId, 'store_name');
+      return;
+    }
+
+    if (data === 'onboard_add_logo') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey);
+      if (!state) return;
+      state.step = 'await_logo_url';
+      onboardingStates.set(stateKey, state);
+      await askOnboardingField(chatId, 'logo_url');
+      return;
+    }
+
+    if (data === 'onboard_skip_logo') {
+      await showOptionalStep(chatId, userId, 'bot_token');
+      return;
+    }
+
+    if (data === 'onboard_add_token') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey);
+      if (!state) return;
+      state.step = 'await_bot_token';
+      onboardingStates.set(stateKey, state);
+      await askOnboardingField(chatId, 'bot_token');
+      return;
+    }
+
+    if (data === 'onboard_skip_token') {
+      await showOptionalStep(chatId, userId, 'group_id');
+      return;
+    }
+
+    if (data === 'onboard_add_group') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey);
+      if (!state) return;
+      state.step = 'await_group_id';
+      onboardingStates.set(stateKey, state);
+      await askOnboardingField(chatId, 'group_id');
+      return;
+    }
+
+    if (data === 'onboard_skip_group') {
+      await finalizeOnboarding(chatId, userId);
+      return;
+    }
     
     if (data === 'new_order') {
       // Start new order flow - ask for location
