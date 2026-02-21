@@ -1517,11 +1517,8 @@ function SuperAdminDashboard() {
 
               {/* Restaurants Tab */}
               <Tab eventKey="restaurants" title={`🏪 ${t('restaurants')}`}>
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0">{t('saManageRestaurants')}</h5>
-                  <Button className="btn-primary-custom" onClick={() => openRestaurantModal()}>
-                    {t('saAddRestaurant')}
-                  </Button>
                 </div>
 
                 <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
@@ -1556,6 +1553,9 @@ function SuperAdminDashboard() {
                     <option value="active">Активные</option>
                     <option value="inactive">Неактивные</option>
                   </Form.Select>
+                  <Button className="btn-primary-custom ms-auto" onClick={() => openRestaurantModal()}>
+                    {t('saAddRestaurant')}
+                  </Button>
                 </div>
 
                 {loading ? (
