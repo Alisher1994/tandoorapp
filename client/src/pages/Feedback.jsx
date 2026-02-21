@@ -4,6 +4,7 @@ import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
+import Modal from 'react-bootstrap/Modal';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -13,7 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Feedback() {
   const { user } = useAuth();
-  const { language, toggleLanguage, t } = useLanguage();
+  const { language, toggleLanguage } = useLanguage();
   
   const [feedbackForm, setFeedbackForm] = useState({ type: 'complaint', message: '' });
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,7 @@ function Feedback() {
   const [error, setError] = useState('');
   const [myFeedback, setMyFeedback] = useState([]);
   const [loadingFeedback, setLoadingFeedback] = useState(true);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   useEffect(() => {
     fetchMyFeedback();
@@ -52,6 +54,8 @@ function Feedback() {
       await axios.post(`${API_URL}/orders/feedback`, feedbackForm);
       setSuccess(language === 'uz' ? 'Murojaatingiz yuborildi. Rahmat!' : 'Ваше обращение отправлено. Спасибо!');
       setFeedbackForm({ type: 'complaint', message: '' });
+      setError('');
+      setShowFeedbackModal(false);
       fetchMyFeedback();
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
@@ -79,6 +83,16 @@ function Feedback() {
       closed: { label: language === 'uz' ? 'Yopildi' : 'Закрыто', color: 'secondary' }
     };
     return statuses[status] || { label: status, color: 'secondary' };
+  };
+
+  const openFeedbackModal = () => {
+    setError('');
+    setShowFeedbackModal(true);
+  };
+
+  const closeFeedbackModal = () => {
+    setShowFeedbackModal(false);
+    setError('');
   };
 
   return (
@@ -125,51 +139,15 @@ function Feedback() {
       </div>
 
       <Container style={{ maxWidth: '600px', paddingTop: '16px', paddingBottom: '100px' }}>
-        {/* New Feedback Form */}
-        <Card className="border-0 shadow-sm mb-4">
-          <Card.Body>
-            <h6 className="mb-3">{language === 'uz' ? 'Yangi murojaat' : 'Новое обращение'}</h6>
-            
-            {success && <Alert variant="success">{success}</Alert>}
-            {error && <Alert variant="danger">{error}</Alert>}
-            
-            <Form onSubmit={handleSubmit}>
-              <Form.Group className="mb-3">
-                <Form.Label>{language === 'uz' ? 'Murojaat turi' : 'Тип обращения'}</Form.Label>
-                <Form.Select
-                  value={feedbackForm.type}
-                  onChange={(e) => setFeedbackForm({ ...feedbackForm, type: e.target.value })}
-                >
-                  <option value="complaint">{language === 'uz' ? 'Shikoyat' : 'Жалоба'}</option>
-                  <option value="suggestion">{language === 'uz' ? 'Taklif' : 'Предложение'}</option>
-                  <option value="question">{language === 'uz' ? 'Savol' : 'Вопрос'}</option>
-                  <option value="other">{language === 'uz' ? 'Boshqa' : 'Другое'}</option>
-                </Form.Select>
-              </Form.Group>
-              
-              <Form.Group className="mb-3">
-                <Form.Label>{language === 'uz' ? 'Xabar' : 'Сообщение'} *</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={4}
-                  placeholder={language === 'uz' ? 'Xabaringizni yozing...' : 'Напишите ваше сообщение...'}
-                  value={feedbackForm.message}
-                  onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
-                  required
-                />
-              </Form.Group>
-              
-              <Button variant="primary" type="submit" disabled={loading} className="w-100">
-                {loading 
-                  ? (language === 'uz' ? 'Yuborilmoqda...' : 'Отправка...') 
-                  : (language === 'uz' ? 'Yuborish' : 'Отправить')}
-              </Button>
-            </Form>
-          </Card.Body>
-        </Card>
+        {success && <Alert variant="success" className="mb-3">{success}</Alert>}
 
         {/* My Feedback History */}
-        <h6 className="mb-3">{language === 'uz' ? 'Mening murojaatlarim' : 'Мои обращения'}</h6>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="mb-0">{language === 'uz' ? 'Mening murojaatlarim' : 'Мои обращения'}</h6>
+          <Button variant="dark" size="sm" onClick={openFeedbackModal}>
+            {language === 'uz' ? 'Yangi murojaat' : 'Новое обращение'}
+          </Button>
+        </div>
         
         {loadingFeedback ? (
           <div className="text-center py-4">
@@ -219,6 +197,52 @@ function Feedback() {
           })
         )}
       </Container>
+
+      <Modal show={showFeedbackModal} onHide={closeFeedbackModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{language === 'uz' ? 'Yangi murojaat' : 'Новое обращение'}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleSubmit}>
+          <Modal.Body>
+            {error && <Alert variant="danger">{error}</Alert>}
+
+            <Form.Group className="mb-3">
+              <Form.Label>{language === 'uz' ? 'Murojaat turi' : 'Тип обращения'}</Form.Label>
+              <Form.Select
+                value={feedbackForm.type}
+                onChange={(e) => setFeedbackForm({ ...feedbackForm, type: e.target.value })}
+              >
+                <option value="complaint">{language === 'uz' ? 'Shikoyat' : 'Жалоба'}</option>
+                <option value="suggestion">{language === 'uz' ? 'Taklif' : 'Предложение'}</option>
+                <option value="question">{language === 'uz' ? 'Savol' : 'Вопрос'}</option>
+                <option value="other">{language === 'uz' ? 'Boshqa' : 'Другое'}</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group>
+              <Form.Label>{language === 'uz' ? 'Xabar' : 'Сообщение'} *</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={4}
+                placeholder={language === 'uz' ? 'Xabaringizni yozing...' : 'Напишите ваше сообщение...'}
+                value={feedbackForm.message}
+                onChange={(e) => setFeedbackForm({ ...feedbackForm, message: e.target.value })}
+                required
+              />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closeFeedbackModal} disabled={loading}>
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button variant="primary" type="submit" disabled={loading}>
+              {loading
+                ? (language === 'uz' ? 'Yuborilmoqda...' : 'Отправка...')
+                : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
 
       <BottomNav />
     </>
