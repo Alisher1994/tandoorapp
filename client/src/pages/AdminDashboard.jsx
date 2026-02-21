@@ -3491,14 +3491,6 @@ function AdminDashboard() {
                               <div className="fw-bold small text-uppercase mb-1">Click</div>
                               {clickPaymentLink ? (
                                 <>
-                                  <a
-                                    href={clickPaymentLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="small text-break d-block mb-2 text-decoration-none"
-                                  >
-                                    {clickPaymentLink}
-                                  </a>
                                   <Button
                                     size="sm"
                                     className="fw-bold px-2 py-1"
@@ -3507,7 +3499,7 @@ function AdminDashboard() {
                                     rel="noreferrer"
                                     style={{ backgroundColor: '#00BAE0', border: 'none', color: '#fff' }}
                                   >
-                                    {language === 'uz' ? 'Ochish ↗' : 'Открыть ↗'}
+                                    {language === 'uz' ? "To'lash" : 'Оплатить'}
                                   </Button>
                                 </>
                               ) : (
@@ -3541,14 +3533,6 @@ function AdminDashboard() {
                               <div className="fw-bold small text-uppercase mb-1">Payme</div>
                               {paymePaymentLink ? (
                                 <>
-                                  <a
-                                    href={paymePaymentLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="small text-break d-block mb-2 text-decoration-none"
-                                  >
-                                    {paymePaymentLink}
-                                  </a>
                                   <Button
                                     size="sm"
                                     className="fw-bold px-2 py-1"
@@ -3557,7 +3541,7 @@ function AdminDashboard() {
                                     rel="noreferrer"
                                     style={{ backgroundColor: '#3d7ea6', border: 'none', color: '#fff' }}
                                   >
-                                    {language === 'uz' ? 'Ochish ↗' : 'Открыть ↗'}
+                                    {language === 'uz' ? "To'lash" : 'Оплатить'}
                                   </Button>
                                 </>
                               ) : (
