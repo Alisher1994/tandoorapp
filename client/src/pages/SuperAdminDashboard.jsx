@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'rea
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import {
   Container, Row, Col, Card, Table, Button, Form, Modal,
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
@@ -187,6 +188,8 @@ function SuperAdminDashboard() {
   const [categoryForm, setCategoryForm] = useState({ id: null, name_ru: '', name_uz: '', image_url: '', sort_order: 0, parent_id: null });
   const [editingLevel, setEditingLevel] = useState(0);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isImportingCategories, setIsImportingCategories] = useState(false);
+  const categoryImportInputRef = useRef(null);
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
@@ -527,6 +530,9 @@ function SuperAdminDashboard() {
     getCategorySubcategoriesCount(category) === 0
   );
 
+  const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const getCategoryKey = (parentId, name) => `${parentId ?? 'root'}::${normalizeCategoryName(name).toLowerCase()}`;
+
   const getNextAvailableSortOrder = (parentId) => {
     const existingOrders = (categories || [])
       .filter((c) => c.parent_id === parentId && c.sort_order != null)
@@ -738,6 +744,266 @@ function SuperAdminDashboard() {
       });
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка удаления категории');
+    }
+  };
+
+  const handleExportCategories = () => {
+    if (!categories?.length) {
+      setError('Нет категорий для экспорта');
+      return;
+    }
+
+    const sortCategories = (list) => [...list].sort((a, b) => {
+      const aSort = a.sort_order ?? 9999;
+      const bSort = b.sort_order ?? 9999;
+      if (aSort !== bSort) return aSort - bSort;
+      return String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru');
+    });
+
+    const childrenMap = new Map();
+    categories.forEach((cat) => {
+      const parentKey = cat.parent_id ?? 'root';
+      if (!childrenMap.has(parentKey)) childrenMap.set(parentKey, []);
+      childrenMap.get(parentKey).push(cat);
+    });
+    for (const [key, value] of childrenMap.entries()) {
+      childrenMap.set(key, sortCategories(value));
+    }
+
+    const rows = [];
+    const walk = (node, path = []) => {
+      const currentPath = [...path, {
+        ru: node.name_ru || '',
+        uz: node.name_uz || ''
+      }];
+      const children = childrenMap.get(node.id) || [];
+
+      if (currentPath.length >= CATEGORY_LEVEL_COUNT || children.length === 0) {
+        rows.push({
+          'Уровень 1 (RU)': currentPath[0]?.ru || '',
+          'Уровень 1 (UZ)': currentPath[0]?.uz || '',
+          'Уровень 2 (RU)': currentPath[1]?.ru || '',
+          'Уровень 2 (UZ)': currentPath[1]?.uz || '',
+          'Уровень 3 (RU)': currentPath[2]?.ru || '',
+          'Уровень 3 (UZ)': currentPath[2]?.uz || '',
+          'Путь (RU)': currentPath.map((p) => p.ru).filter(Boolean).join(' > '),
+          'Путь (UZ)': currentPath.map((p) => p.uz).filter(Boolean).join(' > ')
+        });
+        return;
+      }
+
+      children.forEach((child) => walk(child, currentPath));
+    };
+
+    (childrenMap.get('root') || []).forEach((root) => walk(root, []));
+
+    const sheet = XLSX.utils.json_to_sheet(rows, {
+      header: [
+        'Уровень 1 (RU)', 'Уровень 1 (UZ)',
+        'Уровень 2 (RU)', 'Уровень 2 (UZ)',
+        'Уровень 3 (RU)', 'Уровень 3 (UZ)',
+        'Путь (RU)', 'Путь (UZ)'
+      ]
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, 'Категории');
+
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `categories_export_${stamp}.xlsx`);
+    setSuccess(`Экспортировано категорий: ${rows.length}`);
+  };
+
+  const parseCategoryImportLevels = (row, index) => {
+    const cleaned = (row || []).map((cell) => normalizeCategoryName(cell));
+    if (!cleaned.some(Boolean)) return null;
+
+    const firstCell = cleaned[0] || '';
+    const secondCell = cleaned[1] || '';
+    const thirdCell = cleaned[2] || '';
+    const fourthCell = cleaned[3] || '';
+    const fifthCell = cleaned[4] || '';
+    const sixthCell = cleaned[5] || '';
+    const seventhCell = cleaned[6] || '';
+    const eighthCell = cleaned[7] || '';
+
+    const isHeaderRow = index === 0 && cleaned
+      .join(' ')
+      .toLowerCase()
+      .match(/уров|катег|path|путь|ru|uz|level/);
+    if (isHeaderRow) return null;
+
+    let levels = [];
+    const hasRuUzColumns = [fifthCell, sixthCell, seventhCell, eighthCell].some(Boolean) ||
+      (cleaned.length >= 6 && [secondCell, fourthCell, sixthCell].some(Boolean));
+
+    if (hasRuUzColumns) {
+      const levelCandidates = [
+        { ru: firstCell, uz: secondCell },
+        { ru: thirdCell, uz: fourthCell },
+        { ru: fifthCell, uz: sixthCell }
+      ];
+      levels = levelCandidates.filter((l) => l.ru || l.uz);
+
+      const pathRu = seventhCell;
+      const pathUz = eighthCell;
+      if (!levels.length && pathRu.includes('>')) {
+        const ruParts = pathRu.split('>').map((part) => normalizeCategoryName(part)).filter(Boolean);
+        const uzParts = pathUz.includes('>')
+          ? pathUz.split('>').map((part) => normalizeCategoryName(part)).filter(Boolean)
+          : [];
+        levels = ruParts.map((ru, i) => ({ ru, uz: uzParts[i] || '' }));
+      }
+    } else {
+      const inlinePath = [firstCell, secondCell, thirdCell].filter(Boolean).length <= 1 && firstCell.includes('>');
+      const pathColumn = fourthCell && fourthCell.includes('>');
+
+      if (inlinePath) {
+        levels = firstCell
+          .split('>')
+          .map((part) => normalizeCategoryName(part))
+          .filter(Boolean)
+          .map((ru) => ({ ru, uz: '' }));
+      } else if (pathColumn) {
+        levels = fourthCell
+          .split('>')
+          .map((part) => normalizeCategoryName(part))
+          .filter(Boolean)
+          .map((ru) => ({ ru, uz: '' }));
+      } else {
+        levels = [firstCell, secondCell, thirdCell]
+          .filter(Boolean)
+          .map((ru) => ({ ru, uz: '' }));
+      }
+    }
+
+    if (!levels.length) return null;
+    if (levels.length > CATEGORY_LEVEL_COUNT) {
+      return { error: `Строка ${index + 1}: больше ${CATEGORY_LEVEL_COUNT} уровней` };
+    }
+
+    for (let i = 0; i < levels.length; i++) {
+      if (!levels[i].ru) {
+        return { error: `Строка ${index + 1}: отсутствует название RU на уровне ${i + 1}` };
+      }
+    }
+
+    return { levels };
+  };
+
+  const handleImportCategoriesFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsImportingCategories(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+
+      if (!rows.length) {
+        setError('Файл пустой');
+        return;
+      }
+
+      const parsedRows = [];
+      const parseErrors = [];
+      rows.forEach((row, idx) => {
+        const parsed = parseCategoryImportLevels(row, idx);
+        if (!parsed) return;
+        if (parsed.error) {
+          parseErrors.push(parsed.error);
+          return;
+        }
+        parsedRows.push(parsed.levels);
+      });
+
+      if (!parsedRows.length) {
+        setError(parseErrors[0] || 'Не найдено строк для импорта');
+        return;
+      }
+
+      const categoryMap = new Map();
+      const siblingMaxSort = new Map();
+      categories.forEach((cat) => {
+        const name = normalizeCategoryName(cat.name_ru);
+        if (!name) return;
+
+        const key = getCategoryKey(cat.parent_id ?? null, name);
+        categoryMap.set(key, cat);
+
+        const parentKey = cat.parent_id ?? null;
+        const sortVal = Number.isFinite(Number(cat.sort_order)) ? Number(cat.sort_order) : 0;
+        siblingMaxSort.set(parentKey, Math.max(siblingMaxSort.get(parentKey) || 0, sortVal));
+      });
+
+      const getNextSortOrder = (parentId) => {
+        const next = (siblingMaxSort.get(parentId) || 0) + 1;
+        siblingMaxSort.set(parentId, next);
+        return next;
+      };
+
+      let createdCount = 0;
+      let skippedDuplicates = 0;
+
+      let updatedUzCount = 0;
+
+      for (const levels of parsedRows) {
+        let parentId = null;
+
+        for (const levelItem of levels) {
+          const levelNameRu = normalizeCategoryName(levelItem.ru);
+          const levelNameUz = normalizeCategoryName(levelItem.uz);
+          if (!levelNameRu) continue;
+
+          const key = getCategoryKey(parentId, levelNameRu);
+          const existing = categoryMap.get(key);
+          if (existing) {
+            const existingUz = normalizeCategoryName(existing.name_uz);
+            if (levelNameUz && existingUz !== levelNameUz) {
+              const updatedResp = await axios.put(`${API_URL}/superadmin/categories/${existing.id}`, {
+                ...existing,
+                name_uz: levelNameUz
+              });
+              const updatedCategory = updatedResp.data;
+              categoryMap.set(key, updatedCategory);
+              updatedUzCount += 1;
+              parentId = updatedCategory.id;
+              continue;
+            }
+
+            parentId = existing.id;
+            skippedDuplicates += 1;
+            continue;
+          }
+
+          const payload = {
+            name_ru: levelNameRu,
+            name_uz: levelNameUz || '',
+            image_url: '',
+            sort_order: getNextSortOrder(parentId),
+            parent_id: parentId
+          };
+
+          const created = await axios.post(`${API_URL}/superadmin/categories`, payload);
+          const createdCategory = created.data;
+          categoryMap.set(key, createdCategory);
+          parentId = createdCategory.id;
+          createdCount += 1;
+        }
+      }
+
+      await loadCategories();
+      setCategoryLevels(Array(CATEGORY_LEVEL_COUNT).fill(null));
+      const issues = parseErrors.length ? ` Ошибок строк: ${parseErrors.length}.` : '';
+      setSuccess(`Импорт завершен. Создано: ${createdCount}. Обновлено UZ: ${updatedUzCount}. Совпадений: ${skippedDuplicates}.${issues}`);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Ошибка импорта категорий');
+    } finally {
+      setIsImportingCategories(false);
     }
   };
 
@@ -1531,7 +1797,31 @@ function SuperAdminDashboard() {
               <Tab eventKey="categories" title={`📁 ${t('categories')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4">
                   <h5 className="fw-bold mb-0">{t('saManageCategories')}</h5>
-                  <Badge className="badge-custom bg-info bg-opacity-10 text-info">{CATEGORY_LEVEL_COUNT} уровня</Badge>
+                  <div className="d-flex align-items-center gap-2">
+                    <input
+                      ref={categoryImportInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="d-none"
+                      onChange={handleImportCategoriesFile}
+                    />
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={handleExportCategories}
+                    >
+                      Экспорт
+                    </Button>
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={() => categoryImportInputRef.current?.click()}
+                      disabled={isImportingCategories}
+                    >
+                      {isImportingCategories ? 'Импорт...' : 'Импорт'}
+                    </Button>
+                    <Badge className="badge-custom bg-info bg-opacity-10 text-info">{CATEGORY_LEVEL_COUNT} уровня</Badge>
+                  </div>
                 </div>
                 {loading ? (
                   <div className="text-center p-5"><Spinner animation="border" /></div>
@@ -1592,10 +1882,14 @@ function SuperAdminDashboard() {
                                 </div>
                               </div>
                             ) : levelCategories.length === 0 ? (
-                              <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
-                                <div className="mb-2 opacity-25" style={{ fontSize: '2rem' }}>📁</div>
-                                <small className="fw-medium">{t('saEmptyLevel')}</small>
-                              </div>
+                              levelIndex === CATEGORY_LEVEL_COUNT - 1 ? (
+                                <div className="h-100"></div>
+                              ) : (
+                                <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+                                  <div className="mb-2 opacity-25" style={{ fontSize: '2rem' }}>📁</div>
+                                  <small className="fw-medium">{t('saEmptyLevel')}</small>
+                                </div>
+                              )
                             ) : (
                               <div className="list-group list-group-flush">
                                 {levelCategories?.map(cat => (
