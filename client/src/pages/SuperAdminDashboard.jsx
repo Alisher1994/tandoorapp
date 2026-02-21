@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
@@ -278,6 +278,8 @@ function SuperAdminDashboard() {
     default_starting_balance: 100000,
     default_order_cost: 1000
   });
+  const [isCentralTokenVisible, setIsCentralTokenVisible] = useState(false);
+  const centralTokenHideTimeoutRef = useRef(null);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
   const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
@@ -311,6 +313,14 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'restaurants') loadRestaurants();
   }, [restaurantsPage, restaurantsLimit]);
+
+  useEffect(() => {
+    return () => {
+      if (centralTokenHideTimeoutRef.current) {
+        clearTimeout(centralTokenHideTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'operators') loadOperators();
@@ -551,6 +561,26 @@ function SuperAdminDashboard() {
     } catch (err) {
       setError('Ошибка сохранения настроек');
     }
+  };
+
+  const handleCentralTokenPreview = () => {
+    if (!billingSettings.superadmin_bot_token) return;
+
+    if (centralTokenHideTimeoutRef.current) {
+      clearTimeout(centralTokenHideTimeoutRef.current);
+      centralTokenHideTimeoutRef.current = null;
+    }
+
+    if (isCentralTokenVisible) {
+      setIsCentralTokenVisible(false);
+      return;
+    }
+
+    setIsCentralTokenVisible(true);
+    centralTokenHideTimeoutRef.current = setTimeout(() => {
+      setIsCentralTokenVisible(false);
+      centralTokenHideTimeoutRef.current = null;
+    }, 2000);
   };
 
   const customerRestaurantOptions = useMemo(() => {
@@ -1835,13 +1865,31 @@ function SuperAdminDashboard() {
                           <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
                             Токен центрального Telegram-бота
                           </Form.Label>
-                          <Form.Control
-                            type="password"
-                            className="form-control-custom"
-                            placeholder="123456789:AA..."
-                            value={billingSettings.superadmin_bot_token || ''}
-                            onChange={e => setBillingSettings({ ...billingSettings, superadmin_bot_token: e.target.value })}
-                          />
+                          <div className="position-relative">
+                            <Form.Control
+                              type={isCentralTokenVisible ? 'text' : 'password'}
+                              className="form-control-custom"
+                              placeholder="123456789:AA..."
+                              value={billingSettings.superadmin_bot_token || ''}
+                              style={{ paddingRight: '2.4rem' }}
+                              onChange={e => {
+                                setIsCentralTokenVisible(false);
+                                setBillingSettings({ ...billingSettings, superadmin_bot_token: e.target.value });
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="position-absolute top-50 end-0 translate-middle-y text-muted p-0 me-2"
+                              style={{ lineHeight: 1 }}
+                              onClick={handleCentralTokenPreview}
+                              disabled={!billingSettings.superadmin_bot_token}
+                              title={isCentralTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
+                              aria-label={isCentralTokenVisible ? 'Скрыть токен' : 'Показать токен'}
+                            >
+                              <i className={`bi ${isCentralTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
+                            </Button>
+                          </div>
                           <Form.Text className="text-muted small">
                             Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
                           </Form.Text>
