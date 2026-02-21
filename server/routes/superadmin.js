@@ -21,6 +21,71 @@ router.use(requireSuperAdmin);
 
 const { sendBalanceNotification } = require('../bot/notifications');
 
+const MAX_CATEGORY_LEVEL = 3;
+const CATEGORY_CHAIN_GUARD_LIMIT = 50;
+
+const normalizeCategoryId = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const getCategoryLevelById = async (client, categoryId, disallowId = null) => {
+  let level = 0;
+  let currentId = normalizeCategoryId(categoryId);
+  const visited = new Set();
+  const forbiddenId = normalizeCategoryId(disallowId);
+
+  while (currentId) {
+    if (visited.has(currentId)) {
+      throw new Error('CATEGORY_CYCLE');
+    }
+    if (forbiddenId && currentId === forbiddenId) {
+      throw new Error('CATEGORY_CYCLE');
+    }
+    visited.add(currentId);
+
+    const result = await client.query(
+      'SELECT id, parent_id FROM categories WHERE id = $1',
+      [currentId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error('CATEGORY_NOT_FOUND');
+    }
+
+    level += 1;
+    if (level > CATEGORY_CHAIN_GUARD_LIMIT) {
+      throw new Error('CATEGORY_CHAIN_TOO_DEEP');
+    }
+
+    currentId = normalizeCategoryId(result.rows[0].parent_id);
+  }
+
+  return level;
+};
+
+const getCategorySubtreeDepth = async (client, categoryId) => {
+  const result = await client.query(`
+    WITH RECURSIVE category_tree AS (
+      SELECT id, parent_id, 1 AS depth
+      FROM categories
+      WHERE id = $1
+
+      UNION ALL
+
+      SELECT c.id, c.parent_id, ct.depth + 1
+      FROM categories c
+      INNER JOIN category_tree ct ON c.parent_id = ct.id
+      WHERE ct.depth < $2
+    )
+    SELECT COALESCE(MAX(depth), 1)::int AS max_depth
+    FROM category_tree
+  `, [categoryId, CATEGORY_CHAIN_GUARD_LIMIT]);
+
+  return result.rows[0]?.max_depth || 1;
+};
+
 
 // =====================================================
 // РЕСТОРАНЫ
@@ -683,7 +748,14 @@ router.get('/operators', async (req, res) => {
 // Получить все категории
 router.get('/categories', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM categories ORDER BY sort_order, name_ru');
+    const result = await pool.query(`
+      SELECT
+        c.*,
+        (SELECT COUNT(*)::int FROM products p WHERE p.category_id = c.id) AS products_count,
+        (SELECT COUNT(*)::int FROM categories sc WHERE sc.parent_id = c.id) AS subcategories_count
+      FROM categories c
+      ORDER BY c.sort_order, c.name_ru
+    `);
     res.json(result.rows || []);
   } catch (error) {
     console.error('Get categories error:', error);
@@ -695,11 +767,36 @@ router.get('/categories', async (req, res) => {
 router.post('/categories', async (req, res) => {
   try {
     const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
+    const normalizedParentId = normalizeCategoryId(parent_id);
+    const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
+
+    if (normalizedParentId) {
+      let parentLevel = 0;
+      try {
+        parentLevel = await getCategoryLevelById(pool, normalizedParentId);
+      } catch (e) {
+        if (e.message === 'CATEGORY_NOT_FOUND') {
+          return res.status(400).json({ error: 'Родительская категория не найдена' });
+        }
+        if (e.message === 'CATEGORY_CYCLE') {
+          return res.status(400).json({ error: 'Обнаружена циклическая связь категорий' });
+        }
+        if (e.message === 'CATEGORY_CHAIN_TOO_DEEP') {
+          return res.status(400).json({ error: 'Обнаружена некорректная цепочка категорий' });
+        }
+        throw e;
+      }
+
+      if (parentLevel + 1 > MAX_CATEGORY_LEVEL) {
+        return res.status(400).json({ error: `Максимальная вложенность категорий: ${MAX_CATEGORY_LEVEL} уровня` });
+      }
+    }
+
     const result = await pool.query(`
       INSERT INTO categories (name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [name_ru, name_uz, image_url, sort_order || 0, parent_id || null, restaurant_id || null]);
+    `, [name_ru, name_uz, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Create category error:', error);
@@ -711,6 +808,9 @@ router.post('/categories', async (req, res) => {
 router.put('/categories/:id', async (req, res) => {
   try {
     const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
+    const normalizedParentId = normalizeCategoryId(parent_id);
+    const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
+    const categoryId = Number.parseInt(req.params.id, 10);
 
     // Get old values
     const oldResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
@@ -719,13 +819,41 @@ router.put('/categories/:id', async (req, res) => {
     }
     const oldCategory = oldResult.rows[0];
 
+    if (normalizedParentId && normalizedParentId === categoryId) {
+      return res.status(400).json({ error: 'Категория не может быть родителем самой себя' });
+    }
+
+    let parentLevel = 0;
+    if (normalizedParentId) {
+      try {
+        parentLevel = await getCategoryLevelById(pool, normalizedParentId, categoryId);
+      } catch (e) {
+        if (e.message === 'CATEGORY_NOT_FOUND') {
+          return res.status(400).json({ error: 'Родительская категория не найдена' });
+        }
+        if (e.message === 'CATEGORY_CYCLE') {
+          return res.status(400).json({ error: 'Нельзя переместить категорию в свою подкатегорию' });
+        }
+        if (e.message === 'CATEGORY_CHAIN_TOO_DEEP') {
+          return res.status(400).json({ error: 'Обнаружена некорректная цепочка категорий' });
+        }
+        throw e;
+      }
+    }
+
+    const subtreeDepth = await getCategorySubtreeDepth(pool, categoryId);
+    const resultingMaxLevel = parentLevel + subtreeDepth;
+    if (resultingMaxLevel > MAX_CATEGORY_LEVEL) {
+      return res.status(400).json({ error: `Максимальная вложенность категорий: ${MAX_CATEGORY_LEVEL} уровня` });
+    }
+
     const result = await pool.query(`
       UPDATE categories SET
         name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, 
         parent_id = $5, restaurant_id = $6, updated_at = CURRENT_TIMESTAMP
       WHERE id = $7
       RETURNING *
-    `, [name_ru, name_uz, image_url, sort_order || 0, parent_id || null, restaurant_id || null, req.params.id]);
+    `, [name_ru, name_uz, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId, req.params.id]);
 
     const category = result.rows[0];
 

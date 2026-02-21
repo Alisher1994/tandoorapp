@@ -15,6 +15,7 @@ const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 const YandexLocationPicker = lazy(() => import('../components/YandexLocationPicker'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const CATEGORY_LEVEL_COUNT = 3;
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -181,7 +182,7 @@ function SuperAdminDashboard() {
 
   // Categories
   const [categories, setCategories] = useState([]);
-  const [categoryLevels, setCategoryLevels] = useState([null, null, null, null, null]);
+  const [categoryLevels, setCategoryLevels] = useState(() => Array(CATEGORY_LEVEL_COUNT).fill(null));
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [categoryForm, setCategoryForm] = useState({ id: null, name_ru: '', name_uz: '', image_url: '', sort_order: 0, parent_id: null });
   const [editingLevel, setEditingLevel] = useState(0);
@@ -503,11 +504,18 @@ function SuperAdminDashboard() {
   const handleCategorySelect = (levelIndex, category) => {
     const newLevels = [...categoryLevels];
     newLevels[levelIndex] = category;
-    for (let i = levelIndex + 1; i < 5; i++) {
+    for (let i = levelIndex + 1; i < CATEGORY_LEVEL_COUNT; i++) {
       newLevels[i] = null;
     }
     setCategoryLevels(newLevels);
   };
+
+  const getCategoryProductsCount = (category) => Number(category?.products_count || 0);
+  const getCategorySubcategoriesCount = (category) => Number(category?.subcategories_count || 0);
+  const canDeleteCategory = (category) => (
+    getCategoryProductsCount(category) === 0 &&
+    getCategorySubcategoriesCount(category) === 0
+  );
 
   const getNextAvailableSortOrder = (parentId) => {
     const existingOrders = (categories || [])
@@ -678,12 +686,26 @@ function SuperAdminDashboard() {
   };
 
   const deleteCategory = async (categoryId) => {
-    if (!window.confirm('Вы уверены, что хотите удалить эту категорию? Предварительно убедитесь, что в ней нет товаров и подкатегорий.')) return;
+    const categoryToDelete = categories.find((c) => c.id === categoryId);
+    if (categoryToDelete && !canDeleteCategory(categoryToDelete)) {
+      setError('Категорию нельзя удалить: в ней есть товары или подкатегории');
+      return;
+    }
+
+    if (!window.confirm('Вы уверены, что хотите удалить эту категорию?')) return;
     try {
       await axios.delete(`${API_URL}/superadmin/categories/${categoryId}`);
       setSuccess('Категория удалена');
       loadCategories();
-      setCategoryLevels(prev => prev.map(cat => cat && cat.id === categoryId ? null : cat));
+      setCategoryLevels((prev) => {
+        const idx = prev.findIndex((cat) => cat?.id === categoryId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        for (let i = idx; i < CATEGORY_LEVEL_COUNT; i++) {
+          next[i] = null;
+        }
+        return next;
+      });
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка удаления категории');
     }
@@ -1479,13 +1501,13 @@ function SuperAdminDashboard() {
               <Tab eventKey="categories" title={`📁 ${t('categories')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4">
                   <h5 className="fw-bold mb-0">{t('saManageCategories')}</h5>
-                  <Badge className="badge-custom bg-info bg-opacity-10 text-info">{t('saLevels')}</Badge>
+                  <Badge className="badge-custom bg-info bg-opacity-10 text-info">{CATEGORY_LEVEL_COUNT} уровня</Badge>
                 </div>
                 {loading ? (
                   <div className="text-center p-5"><Spinner animation="border" /></div>
                 ) : (
                   <div className="d-flex gap-3 pb-3" style={{ overflowX: 'auto', minHeight: '450px' }}>
-                    {[0, 1, 2, 3, 4].map(levelIndex => {
+                    {Array.from({ length: CATEGORY_LEVEL_COUNT }, (_, idx) => idx).map(levelIndex => {
                       const parentCategory = levelIndex === 0 ? null : categoryLevels[levelIndex - 1];
                       const isVisible = levelIndex === 0 || parentCategory !== null;
 
@@ -1558,6 +1580,19 @@ function SuperAdminDashboard() {
                                         onClick={(e) => { e.stopPropagation(); openCategoryModal(levelIndex, null, cat); }}
                                       >
                                         <i className="bi bi-pencil" style={{ fontSize: '11px' }}></i>
+                                      </Button>
+                                      <Button
+                                        variant="link"
+                                        className={`p-0 ${canDeleteCategory(cat) ? 'text-danger' : 'text-muted opacity-50'}`}
+                                        title={
+                                          canDeleteCategory(cat)
+                                            ? 'Удалить категорию'
+                                            : `Нельзя удалить: товары (${getCategoryProductsCount(cat)}), подкатегории (${getCategorySubcategoriesCount(cat)})`
+                                        }
+                                        disabled={!canDeleteCategory(cat)}
+                                        onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
+                                      >
+                                        <i className="bi bi-trash" style={{ fontSize: '11px' }}></i>
                                       </Button>
                                     </div>
                                   </div>
@@ -2684,11 +2719,11 @@ function SuperAdminDashboard() {
 
       {/* Category Modal */}
       <Modal show={showCategoryModal} onHide={() => setShowCategoryModal(false)}>
-        <Modal.Header closeButton>
+          <Modal.Header closeButton>
           <Modal.Title>
             {categoryForm.id ? 'Редактировать категорию' : 'Добавить категорию'}
             <div className="text-muted" style={{ fontSize: '0.9rem' }}>
-              Уровень {editingLevel + 1}
+              Уровень {editingLevel + 1} из {CATEGORY_LEVEL_COUNT}
             </div>
           </Modal.Title>
         </Modal.Header>
