@@ -1980,10 +1980,10 @@ function SuperAdminDashboard() {
                       return (
                         <Card
                           key={levelIndex}
-                          className={`admin-card border-0 ${!isVisible ? 'opacity-50' : ''}`}
+                          className={`admin-card admin-section-panel border-0 ${!isVisible ? 'opacity-50' : ''}`}
                           style={{ minWidth: 0, width: '100%', background: isVisible ? '#fff' : '#f8fafc' }}
                         >
-                          <Card.Header className="admin-card-header d-flex justify-content-between align-items-center py-3">
+                          <Card.Header className="admin-card-header admin-section-panel-header d-flex justify-content-between align-items-center py-3">
                             <div>
                               <div className="fw-bold text-dark small text-uppercase letter-spacing-1 mb-0">
                                 {levelIndex === 0 ? t('saMainLevel') : `${t('saLevel')} ${levelIndex + 1}`}
@@ -2018,13 +2018,13 @@ function SuperAdminDashboard() {
                                 </div>
                               )
                             ) : (
-                              <div className="list-group list-group-flush">
+                              <div className="list-group list-group-flush category-level-list">
                                 {levelCategories?.map(cat => (
                                   <div
                                     key={cat?.id}
-                                    className={`list-group-item list-group-item-action border-0 d-flex align-items-center justify-content-between py-2 px-3 ${categoryLevels[levelIndex]?.id === cat?.id ? 'bg-primary bg-opacity-10 border-start border-primary border-3' : ''}`}
+                                    className={`list-group-item list-group-item-action border-0 d-flex align-items-center justify-content-between py-2 px-3 category-list-item ${categoryLevels[levelIndex]?.id === cat?.id ? 'is-active' : ''}`}
                                     onClick={() => handleCategorySelect(levelIndex, cat)}
-                                    style={{ cursor: 'pointer', borderRadius: '8px', marginBottom: '4px' }}
+                                    style={{ cursor: 'pointer' }}
                                   >
                                     <div className="d-flex align-items-center gap-2 overflow-hidden">
                                       {cat?.image_url ? (
@@ -2198,8 +2198,8 @@ function SuperAdminDashboard() {
 
                 <Row className="g-4">
                   <Col md={7}>
-                    <Card className="admin-card border-0 shadow-sm h-100">
-                      <Card.Header className="bg-white py-3">
+                    <Card className="admin-card admin-section-panel border-0 h-100">
+                      <Card.Header className="admin-section-panel-header py-3">
                         <h6 className="mb-0 fw-bold">{t('paymentRequisitesInfo')}</h6>
                       </Card.Header>
                       <Card.Body className="p-4">
@@ -2276,8 +2276,8 @@ function SuperAdminDashboard() {
                   </Col>
 
                   <Col md={5}>
-                    <Card className="admin-card border-0 shadow-sm h-100">
-                      <Card.Header className="bg-white py-3">
+                    <Card className="admin-card admin-section-panel border-0 h-100">
+                      <Card.Header className="admin-section-panel-header py-3">
                         <h6 className="mb-0 fw-bold">{t('defaultFinancialParams')}</h6>
                       </Card.Header>
                       <Card.Body className="p-4">
