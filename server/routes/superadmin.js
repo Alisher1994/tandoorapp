@@ -13,6 +13,7 @@ const {
   ENTITY_TYPES
 } = require('../services/activityLogger');
 const { reloadBot } = require('../bot/bot');
+const { reloadMultiBots } = require('../bot/multiBotManager');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -278,6 +279,12 @@ router.post('/restaurants', async (req, res) => {
 
     const restaurant = result.rows[0];
 
+    try {
+      await reloadMultiBots();
+    } catch (reloadErr) {
+      console.error('Multi-bot reload warning after restaurant create:', reloadErr.message);
+    }
+
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -415,6 +422,12 @@ router.put('/restaurants/:id', async (req, res) => {
 
     const restaurant = result.rows[0];
 
+    try {
+      await reloadMultiBots();
+    } catch (reloadErr) {
+      console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
+    }
+
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -538,6 +551,12 @@ router.delete('/restaurants/:id', async (req, res) => {
         userAgent: getUserAgentFromRequest(req)
       });
 
+      try {
+        await reloadMultiBots();
+      } catch (reloadErr) {
+        console.error('Multi-bot reload warning after restaurant deactivate:', reloadErr.message);
+      }
+
       return res.json({ message: 'Ресторан деактивирован (есть связанные заказы)' });
     }
 
@@ -555,6 +574,12 @@ router.delete('/restaurants/:id', async (req, res) => {
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
+
+    try {
+      await reloadMultiBots();
+    } catch (reloadErr) {
+      console.error('Multi-bot reload warning after restaurant delete:', reloadErr.message);
+    }
 
     res.json({ message: 'Ресторан удален' });
   } catch (error) {

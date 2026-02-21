@@ -9,6 +9,7 @@ const {
   ACTION_TYPES,
   ENTITY_TYPES
 } = require('../services/activityLogger');
+const { reloadMultiBots } = require('../bot/multiBotManager');
 
 const router = express.Router();
 
@@ -344,6 +345,12 @@ router.put('/restaurant', async (req, res) => {
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       restaurantId
     ]);
+
+    try {
+      await reloadMultiBots();
+    } catch (reloadErr) {
+      console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
+    }
 
     res.json(result.rows[0]);
   } catch (error) {

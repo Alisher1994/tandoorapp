@@ -1409,6 +1409,38 @@ async function initMultiBots() {
   }
 }
 
+async function stopMultiBots() {
+  for (const [, data] of restaurantBots) {
+    const currentBot = data?.bot;
+    if (!currentBot) continue;
+
+    try {
+      currentBot.removeAllListeners();
+    } catch (e) {
+      console.warn('Multi-bot listener cleanup warning:', e.message);
+    }
+
+    try {
+      await currentBot.stopPolling();
+    } catch (e) {
+      // ignore: bot can be in webhook mode
+    }
+
+    try {
+      await currentBot.deleteWebHook();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  restaurantBots.clear();
+}
+
+async function reloadMultiBots() {
+  await stopMultiBots();
+  await initMultiBots();
+}
+
 // Get bot by token
 function getBotByToken(token) {
   const botData = restaurantBots.get(token);
@@ -1443,6 +1475,7 @@ function processWebhook(restaurantId, update) {
 
 module.exports = {
   initMultiBots,
+  reloadMultiBots,
   getBotByToken,
   getBotByRestaurantId,
   getAllBots,
