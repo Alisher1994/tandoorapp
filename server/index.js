@@ -158,7 +158,7 @@ async function startServer() {
     }
 
     // Initialize legacy Telegram bot (fallback for old system)
-    initBot();
+    await initBot();
 
     // Initialize multi-bot system for all restaurants
     await initMultiBots();

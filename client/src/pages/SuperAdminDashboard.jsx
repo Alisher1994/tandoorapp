@@ -188,6 +188,7 @@ function SuperAdminDashboard() {
 
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
+    superadmin_bot_token: '',
     card_number: '',
     card_holder: '',
     phone_number: '',
@@ -1600,6 +1601,22 @@ function SuperAdminDashboard() {
                         <h6 className="mb-0 fw-bold">{t('defaultFinancialParams')}</h6>
                       </Card.Header>
                       <Card.Body className="p-4">
+                        <Form.Group className="mb-4">
+                          <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                            Токен центрального Telegram-бота
+                          </Form.Label>
+                          <Form.Control
+                            type="password"
+                            className="form-control-custom"
+                            placeholder="123456789:AA..."
+                            value={billingSettings.superadmin_bot_token || ''}
+                            onChange={e => setBillingSettings({ ...billingSettings, superadmin_bot_token: e.target.value })}
+                          />
+                          <Form.Text className="text-muted small">
+                            Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
+                          </Form.Text>
+                        </Form.Group>
+
                         <Form.Group className="mb-0">
                           <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>
                           <Form.Control

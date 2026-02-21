@@ -12,6 +12,7 @@ const {
   ACTION_TYPES,
   ENTITY_TYPES
 } = require('../services/activityLogger');
+const { reloadBot } = require('../bot/bot');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -63,7 +64,8 @@ router.put('/billing-settings', async (req, res) => {
     const {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link,
-      default_starting_balance, default_order_cost
+      default_starting_balance, default_order_cost,
+      superadmin_bot_token
     } = req.body;
 
     const result = await pool.query(`
@@ -71,6 +73,7 @@ router.put('/billing-settings', async (req, res) => {
       SET card_number = $1, card_holder = $2, phone_number = $3, 
           telegram_username = $4, click_link = $5, payme_link = $6,
           default_starting_balance = $7, default_order_cost = $8,
+          superadmin_bot_token = $9,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -78,8 +81,15 @@ router.put('/billing-settings', async (req, res) => {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link,
       parseFloat(default_starting_balance) || 100000,
-      parseFloat(default_order_cost) || 1000
+      parseFloat(default_order_cost) || 1000,
+      superadmin_bot_token ? String(superadmin_bot_token).trim() : null
     ]);
+
+    try {
+      await reloadBot();
+    } catch (reloadErr) {
+      console.error('Bot reload warning after settings update:', reloadErr.message);
+    }
 
     res.json(result.rows[0]);
   } catch (error) {
@@ -1277,7 +1287,8 @@ router.put('/billing/settings', async (req, res) => {
   try {
     const {
       card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link, default_starting_balance, default_order_cost
+      click_link, payme_link, default_starting_balance, default_order_cost,
+      superadmin_bot_token
     } = req.body;
 
     const result = await pool.query(`
@@ -1285,13 +1296,21 @@ router.put('/billing/settings', async (req, res) => {
       SET card_number = $1, card_holder = $2, phone_number = $3, 
           telegram_username = $4, click_link = $5, payme_link = $6, 
           default_starting_balance = $7, default_order_cost = $8,
+          superadmin_bot_token = $9,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link, default_starting_balance, default_order_cost
+      click_link, payme_link, default_starting_balance, default_order_cost,
+      superadmin_bot_token ? String(superadmin_bot_token).trim() : null
     ]);
+
+    try {
+      await reloadBot();
+    } catch (reloadErr) {
+      console.error('Bot reload warning after settings update:', reloadErr.message);
+    }
 
     res.json(result.rows[0]);
   } catch (error) {

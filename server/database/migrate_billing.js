@@ -27,6 +27,7 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         default_starting_balance DECIMAL(12, 2) DEFAULT 100000.00,
         default_order_cost DECIMAL(12, 2) DEFAULT 1000.00,
+        superadmin_bot_token VARCHAR(255),
         card_number VARCHAR(50),
         card_holder VARCHAR(255),
         phone_number VARCHAR(50),
@@ -40,6 +41,10 @@ async function migrate() {
         await pool.query(`
       INSERT INTO billing_settings (id) 
       SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM billing_settings WHERE id = 1);
+    `);
+        await pool.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS superadmin_bot_token VARCHAR(255);
     `);
         console.log('✅ Billing settings table created.');
 

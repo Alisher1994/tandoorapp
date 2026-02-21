@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 let bot = null;
+let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 
 // Generate login token for auto-login
 function generateLoginToken(userId, username) {
@@ -48,6 +49,22 @@ function buildWebLoginUrl() {
 
 function getOnboardingStateKey(userId) {
   return `onboard_${userId}`;
+}
+
+async function resolveSuperadminBotToken() {
+  try {
+    const result = await pool.query(
+      'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
+    );
+    const tokenFromDb = result.rows[0]?.superadmin_bot_token;
+    if (tokenFromDb && String(tokenFromDb).trim()) {
+      return String(tokenFromDb).trim();
+    }
+  } catch (error) {
+    console.warn('⚠️  Failed to load superadmin bot token from DB:', error.message);
+  }
+
+  return process.env.TELEGRAM_BOT_TOKEN || '';
 }
 
 // Check if point is inside polygon (ray casting algorithm)
@@ -156,11 +173,12 @@ function isRestaurantOpen(openTime, closeTime) {
   return nowMinutes >= openMinutes || nowMinutes < closeMinutes;
 }
 
-function initBot() {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+async function initBot() {
+  const token = await resolveSuperadminBotToken();
+  activeSuperadminBotToken = token || '';
   
   if (!token) {
-    console.warn('⚠️  TELEGRAM_BOT_TOKEN not set, bot will not be initialized');
+    console.warn('⚠️  Superadmin bot token not set, bot will not be initialized');
     return;
   }
   
@@ -1216,7 +1234,7 @@ function initBot() {
         const orderData = orderCheck.rows[0];
         
         // If restaurant has its own bot token (different from env), skip - multi-bot handles it
-        if (orderData.telegram_bot_token && orderData.telegram_bot_token !== process.env.TELEGRAM_BOT_TOKEN) {
+        if (orderData.telegram_bot_token && orderData.telegram_bot_token !== activeSuperadminBotToken) {
           console.log(`⏭️ Skipping confirm for order ${orderId} - handled by multi-bot system`);
           return;
         }
@@ -1294,7 +1312,7 @@ function initBot() {
       // If restaurant has its own bot token (different from env), skip - multi-bot handles it
       if (orderCheck.rows.length > 0 && 
           orderCheck.rows[0].telegram_bot_token && 
-          orderCheck.rows[0].telegram_bot_token !== process.env.TELEGRAM_BOT_TOKEN) {
+          orderCheck.rows[0].telegram_bot_token !== activeSuperadminBotToken) {
         console.log(`⏭️ Skipping reject for order ${orderId} - handled by multi-bot system`);
         return;
       }
@@ -1434,4 +1452,37 @@ function getBot() {
   return bot;
 }
 
-module.exports = { initBot, getBot };
+function getActiveSuperadminBotToken() {
+  return activeSuperadminBotToken;
+}
+
+async function stopBot() {
+  if (!bot) return;
+
+  try {
+    bot.removeAllListeners();
+  } catch (e) {
+    console.warn('Bot listener cleanup warning:', e.message);
+  }
+
+  try {
+    await bot.stopPolling();
+  } catch (e) {
+    // no-op: bot may be in webhook mode
+  }
+
+  try {
+    await bot.deleteWebHook();
+  } catch (e) {
+    // no-op
+  }
+
+  bot = null;
+}
+
+async function reloadBot() {
+  await stopBot();
+  await initBot();
+}
+
+module.exports = { initBot, getBot, reloadBot, getActiveSuperadminBotToken };
