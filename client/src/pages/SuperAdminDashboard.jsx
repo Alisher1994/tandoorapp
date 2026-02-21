@@ -99,7 +99,16 @@ const SearchableRestaurantFilter = ({
   const selectedRestaurant = restaurants.find((restaurant) => String(restaurant.id) === String(value));
 
   return (
-    <Dropdown show={show} onToggle={(nextShow) => setShow(nextShow)} autoClose="outside" style={{ width }}>
+    <Dropdown
+      show={show}
+      onToggle={(nextShow) => {
+        setShow(nextShow);
+        if (nextShow) onSearchChange('');
+      }}
+      autoClose="outside"
+      popperConfig={{ strategy: 'fixed' }}
+      style={{ width, position: 'relative', zIndex: show ? 1200 : 1 }}
+    >
       <Dropdown.Toggle
         variant="light"
         className="form-control-custom w-100 d-flex align-items-center justify-content-between text-start"
@@ -108,7 +117,7 @@ const SearchableRestaurantFilter = ({
         <span className="text-truncate">{selectedRestaurant?.name || t('saAllShops')}</span>
       </Dropdown.Toggle>
 
-      <Dropdown.Menu style={{ width: '100%', maxHeight: '320px', overflowY: 'auto' }}>
+      <Dropdown.Menu style={{ width, maxHeight: '320px', overflowY: 'auto', zIndex: 1210 }}>
         <div className="px-2 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <Form.Control
             className="form-control-custom"

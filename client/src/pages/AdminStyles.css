@@ -381,6 +381,109 @@ body::-webkit-scrollbar,
     font-weight: 500;
 }
 
+/* Order details modal redesign */
+.order-details-modal-body {
+    background: #f8f9fb;
+}
+
+.order-details-side,
+.order-items-side {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.order-items-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 520px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.order-item-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #eceff3;
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: #ffffff;
+}
+
+.order-item-number {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #3b5bdb;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.order-item-photo {
+    width: 46px;
+    min-width: 46px;
+    height: 46px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f2f4f7;
+    border: 1px solid #eceff3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #8a94a6;
+}
+
+.order-item-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.order-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.order-item-title {
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.2;
+}
+
+.order-item-caption {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.order-item-total {
+    font-weight: 700;
+    color: #111827;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.order-items-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed #d7dbe3;
+    padding-top: 10px;
+}
+
+.order-items-total strong {
+    font-size: 16px;
+}
+
 /* Custom Modal Tabs */
 .custom-restaurant-tabs {
     border-bottom: 1px solid var(--border-color) !important;

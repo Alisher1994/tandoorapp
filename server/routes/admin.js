@@ -102,20 +102,22 @@ router.get('/orders', async (req, res) => {
                json_agg(
                  json_build_object(
                    'id', oi.id,
-                   'product_name', oi.product_name,
-                   'quantity', oi.quantity,
-                   'unit', oi.unit,
-                   'price', oi.price,
-                   'total', oi.total
-                 )
-               ) FILTER (WHERE oi.id IS NOT NULL),
-               '[]'
-             ) as items
+                    'product_name', oi.product_name,
+                    'quantity', oi.quantity,
+                    'unit', oi.unit,
+                    'price', oi.price,
+                    'total', oi.total,
+                    'image_url', p.image_url
+                  )
+                ) FILTER (WHERE oi.id IS NOT NULL),
+                '[]'
+              ) as items
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN users pb ON o.processed_by = pb.id
       LEFT JOIN restaurants r ON o.restaurant_id = r.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN products p ON oi.product_id = p.id
       WHERE 1=1
     `;
     const params = [];

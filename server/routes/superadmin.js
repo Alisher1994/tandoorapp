@@ -619,12 +619,9 @@ router.get('/operators', async (req, res) => {
 
     if (restaurant_id) {
       params.push(restaurant_id);
-      whereClauses.push(`(
-        u.active_restaurant_id = $${params.length}
-        OR EXISTS (
-          SELECT 1 FROM operator_restaurants opr_filter
-          WHERE opr_filter.user_id = u.id AND opr_filter.restaurant_id = $${params.length}
-        )
+      whereClauses.push(`EXISTS (
+        SELECT 1 FROM operator_restaurants opr_filter
+        WHERE opr_filter.user_id = u.id AND opr_filter.restaurant_id = $${params.length}
       )`);
     }
 

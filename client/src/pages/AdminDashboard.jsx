@@ -740,6 +740,7 @@ function AdminDashboard() {
       setEditingItems([...editingItems, {
         product_id: product.id,
         product_name: product.name_ru,
+        image_url: product.image_url || null,
         quantity: 1,
         unit: product.unit || 'шт',
         price: parseFloat(product.price),
@@ -1276,6 +1277,12 @@ function AdminDashboard() {
 
     const config = statusConfig[status] || { variant: 'secondary', text: status };
     return <Badge bg={config.variant}>{config.text}</Badge>;
+  };
+
+  const getPaymentMethodLabel = (paymentMethod) => {
+    if (paymentMethod === 'cash') return 'Наличные';
+    if (paymentMethod === 'card') return 'Карта';
+    return paymentMethod || '-';
   };
 
   const openOrderModal = (order) => {
@@ -2444,30 +2451,32 @@ function AdminDashboard() {
                               )}
                             </td>
                             <td>
-                              <Button
-                                className="action-btn bg-primary bg-opacity-10 text-primary border-0 me-1"
-                                size="sm"
-                                onClick={() => openProductModal(product)}
-                                title="Редактировать"
-                              >
-                                <EditIcon />
-                              </Button>
-                              <Button
-                                className="action-btn bg-info bg-opacity-10 text-info border-0 me-1"
-                                size="sm"
-                                onClick={() => duplicateProduct(product)}
-                                title="Дублировать"
-                              >
-                                <CopyIcon />
-                              </Button>
-                              <Button
-                                className="action-btn bg-danger bg-opacity-10 text-danger border-0"
-                                size="sm"
-                                onClick={() => handleDeleteProduct(product.id)}
-                                title="Удалить"
-                              >
-                                <TrashIcon />
-                              </Button>
+                              <div className="d-inline-flex flex-nowrap gap-1">
+                                <Button
+                                  className="action-btn bg-primary bg-opacity-10 text-primary border-0"
+                                  size="sm"
+                                  onClick={() => openProductModal(product)}
+                                  title="Редактировать"
+                                >
+                                  <EditIcon />
+                                </Button>
+                                <Button
+                                  className="action-btn bg-info bg-opacity-10 text-info border-0"
+                                  size="sm"
+                                  onClick={() => duplicateProduct(product)}
+                                  title="Дублировать"
+                                >
+                                  <CopyIcon />
+                                </Button>
+                                <Button
+                                  className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                  size="sm"
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  title="Удалить"
+                                >
+                                  <TrashIcon />
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -3058,13 +3067,19 @@ function AdminDashboard() {
         </Card>
 
         {/* Order Details Modal */}
-        <Modal show={showOrderModal} onHide={() => setShowOrderModal(false)} size="lg">
+        <Modal show={showOrderModal} onHide={() => setShowOrderModal(false)}>
           <Modal.Header closeButton>
-            <Modal.Title>Заказ #{selectedOrder?.order_number}</Modal.Title>
+            <Modal.Title className="d-flex align-items-center gap-2">
+              <span>Заказ #{selectedOrder?.order_number}</span>
+              {selectedOrder && getStatusBadge(selectedOrder.status)}
+            </Modal.Title>
           </Modal.Header>
-          <Modal.Body>
+          <Modal.Body className="order-details-modal-body">
             {selectedOrder && (
               <>
+                <Row className="g-3 order-details-modal-layout">
+                  <Col md={8} className="order-md-2">
+                <div className="order-details-side">
                 <div className="mb-3">
                   <strong>Клиент:</strong> {selectedOrder.customer_name}
                 </div>
@@ -3080,6 +3095,22 @@ function AdminDashboard() {
                     📞 Позвонить
                   </a>
                 </div>
+                <div className="mb-3">
+                  <strong>Дата заказа:</strong>{' '}
+                  {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('ru-RU') : '-'}
+                </div>
+                <div className="mb-3">
+                  <strong>Дата/время доставки:</strong>{' '}
+                  {[selectedOrder.delivery_date, selectedOrder.delivery_time].filter(Boolean).join(', ') || 'Как можно скорее'}
+                </div>
+                <div className="mb-3">
+                  <strong>Оплата:</strong> {getPaymentMethodLabel(selectedOrder.payment_method)}
+                </div>
+                {selectedOrder.comment && (
+                  <div className="mb-3 p-2 bg-light rounded">
+                    <strong>Комментарий клиента:</strong> {selectedOrder.comment}
+                  </div>
+                )}
                 <div className="mb-3">
                   <strong>Адрес:</strong> {selectedOrder.delivery_address}
 
@@ -3101,7 +3132,7 @@ function AdminDashboard() {
                               title="delivery-map"
                               src={`https://yandex.ru/map-widget/v1/?pt=${lng},${lat}&z=16&l=map`}
                               width="100%"
-                              height="200"
+                              height="250"
                               frameBorder="0"
                             />
                           </div>
@@ -3260,7 +3291,11 @@ function AdminDashboard() {
                     );
                   })()}
                 </div>
+                </div>
 
+                  </Col>
+                  <Col md={4} className="order-md-1">
+                  <div className="order-items-side">
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
                   <div className="mb-3">
                     <div className="d-flex justify-content-between align-items-center mb-2">
@@ -3281,52 +3316,82 @@ function AdminDashboard() {
                       )}
                     </div>
 
-                    <Table className="mt-2" size="sm">
-                      <thead>
-                        <tr>
-                          <th>Товар</th>
-                          <th>Кол-во</th>
-                          <th>Цена</th>
-                          <th>Сумма</th>
-                          {isEditingItems && <th></th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(isEditingItems ? editingItems : selectedOrder.items).map((item, idx) => (
-                          <tr key={idx}>
-                            <td>{item.product_name}</td>
-                            <td>
-                              {isEditingItems ? (
-                                <div className="d-flex align-items-center gap-1">
-                                  <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, -1)}>-</Button>
-                                  <span className="mx-1">{item.quantity}</span>
-                                  <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, 1)}>+</Button>
-                                </div>
-                              ) : (
-                                `${item.quantity} ${item.unit}`
-                              )}
-                            </td>
-                            <td>{formatPrice(item.price)}</td>
-                            <td>{formatPrice(item.quantity * item.price)}</td>
-                            {isEditingItems && (
-                              <td>
-                                <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>X</Button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
+                    {!isEditingItems ? (
+                      <>
+                        <div className="order-items-stack mt-2">
+                          {selectedOrder.items.map((item, idx) => {
+                            const imageUrl = item.image_url
+                              ? (String(item.image_url).startsWith('http')
+                                ? item.image_url
+                                : `${API_URL.replace('/api', '')}${item.image_url}`)
+                              : null;
+                            const lineTotal = parseFloat(item.total || (item.quantity * item.price) || 0);
 
-                    {/* Add product dropdown when editing */}
-                    {isEditingItems && (
+                            return (
+                              <div key={`${item.product_name}-${idx}`} className="order-item-line">
+                                <div className="order-item-number">{idx + 1}</div>
+                                <div className="order-item-photo">
+                                  {imageUrl ? (
+                                    <img src={imageUrl} alt={item.product_name} />
+                                  ) : (
+                                    <span>🍽</span>
+                                  )}
+                                </div>
+                                <div className="order-item-content">
+                                  <div className="order-item-title">{item.product_name}</div>
+                                  <div className="order-item-caption">{item.quantity} {item.unit || 'шт'} x {formatPrice(item.price)} сум</div>
+                                </div>
+                                <div className="order-item-total">{formatPrice(lineTotal)} сум</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="order-items-total mt-3">
+                          <span>Итого</span>
+                          <strong>{formatPrice(selectedOrder.total_amount)} сум</strong>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Table className="mt-2" size="sm">
+                          <thead>
+                            <tr>
+                              <th>Товар</th>
+                              <th>Кол-во</th>
+                              <th>Цена</th>
+                              <th>Сумма</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {editingItems.map((item, idx) => (
+                              <tr key={idx}>
+                                <td>{item.product_name}</td>
+                                <td>
+                                  <div className="d-flex align-items-center gap-1">
+                                    <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, -1)}>-</Button>
+                                    <span className="mx-1">{item.quantity}</span>
+                                    <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, 1)}>+</Button>
+                                  </div>
+                                </td>
+                                <td>{formatPrice(item.price)}</td>
+                                <td>{formatPrice(item.quantity * item.price)}</td>
+                                <td>
+                                  <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>X</Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+
+                        {/* Add product dropdown when editing */}
                       <Form.Group className="mt-2">
                         <Form.Label className="small">Добавить товар:</Form.Label>
                         <Form.Select
                           size="sm"
                           onChange={(e) => {
                             if (e.target.value) {
-                              const product = products.find(p => p.id === parseInt(e.target.value));
+                              const product = products.find(p => p.id === parseInt(e.target.value, 10));
                               if (product) addProductToOrder(product);
                               e.target.value = '';
                             }
@@ -3338,16 +3403,17 @@ function AdminDashboard() {
                           ))}
                         </Form.Select>
                       </Form.Group>
-                    )}
 
-                    {/* New total when editing */}
-                    {isEditingItems && (
                       <div className="mt-2 text-end">
                         <strong>Новая сумма: {formatPrice(editingItems.reduce((sum, i) => sum + (i.quantity * i.price), 0))} сум</strong>
                       </div>
+                      </>
                     )}
                   </div>
                 )}
+                  </div>
+                  </Col>
+                </Row>
               </>
             )}
           </Modal.Body>
