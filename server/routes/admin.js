@@ -92,6 +92,9 @@ router.get('/orders', async (req, res) => {
     let query = `
       SELECT o.*, u.username, u.full_name as user_name, u.telegram_id,
              r.name as restaurant_name,
+             r.balance as restaurant_balance,
+             r.order_cost as restaurant_order_cost,
+             r.is_free_tier as restaurant_is_free_tier,
              pb.full_name as processed_by_name,
              COALESCE(
                json_agg(
@@ -134,14 +137,20 @@ router.get('/orders', async (req, res) => {
       paramCount++;
     }
 
-    query += ' GROUP BY o.id, u.username, u.full_name, u.telegram_id, r.name, pb.full_name ORDER BY o.created_at DESC';
+    query += ' GROUP BY o.id, u.username, u.full_name, u.telegram_id, r.name, r.balance, r.order_cost, r.is_free_tier, pb.full_name ORDER BY o.created_at DESC';
 
     const result = await pool.query(query, params);
 
-    // Mask sensitive data if not paid and not free tier
+    // Mask sensitive data only for NEW orders when restaurant balance is insufficient.
+    // Processed orders must always show full customer data.
     const processedRows = result.rows.map(order => {
-      // If order is paid OR it's a free tier restaurant, show full data
-      if (order.is_paid || req.user.restaurant_is_free_tier) {
+      const isProcessedOrder = order.status && order.status !== 'new';
+      const isFreeTier = Boolean(order.restaurant_is_free_tier);
+      const restaurantBalance = parseFloat(order.restaurant_balance || 0);
+      const orderCost = parseFloat(order.restaurant_order_cost || 1000);
+      const canViewNewOrderSensitiveData = isFreeTier || order.is_paid || restaurantBalance >= orderCost;
+
+      if (isProcessedOrder || canViewNewOrderSensitiveData) {
         return order;
       }
 

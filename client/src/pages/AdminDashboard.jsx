@@ -339,9 +339,19 @@ function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // Update every 10 seconds
+    if (user?.role === 'operator' || user?.role === 'superadmin') {
+      fetchUser();
+    }
+
+    const interval = setInterval(() => {
+      fetchData();
+      if (user?.role === 'operator' || user?.role === 'superadmin') {
+        fetchUser();
+      }
+    }, 10000); // Update every 10 seconds
+
     return () => clearInterval(interval);
-  }, [statusFilter, user?.active_restaurant_id]);
+  }, [statusFilter, user?.active_restaurant_id, user?.role]);
 
   useEffect(() => {
     if (user?.active_restaurant_id) {
