@@ -287,7 +287,7 @@ router.put('/restaurant', async (req, res) => {
 
     const {
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
-      start_time, end_time, click_url, payme_url, support_username,
+      operator_registration_code, start_time, end_time, click_url, payme_url, support_username,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
@@ -309,24 +309,26 @@ router.put('/restaurant', async (req, res) => {
           click_url = $9,
           payme_url = $10,
           support_username = $11,
-          latitude = $12,
-          longitude = $13,
-          delivery_base_radius = $14,
-          delivery_base_price = $15,
-          delivery_price_per_km = $16,
-          is_delivery_enabled = $17,
-          delivery_zone = $18,
-          msg_new = $19,
-          msg_preparing = $20,
-          msg_delivering = $21,
-          msg_delivered = $22,
-          msg_cancelled = $23,
+          operator_registration_code = $12,
+          latitude = $13,
+          longitude = $14,
+          delivery_base_radius = $15,
+          delivery_base_price = $16,
+          delivery_price_per_km = $17,
+          is_delivery_enabled = $18,
+          delivery_zone = $19,
+          msg_new = $20,
+          msg_preparing = $21,
+          msg_delivering = $22,
+          msg_delivered = $23,
+          msg_cancelled = $24,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $24
+      WHERE id = $25
       RETURNING *
     `, [
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
       start_time, end_time, click_url, payme_url, support_username,
+      operator_registration_code || null,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled,
       delivery_zone ? JSON.stringify(delivery_zone) : null,

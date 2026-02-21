@@ -11,6 +11,7 @@ client/node_modules/
 client/build/
 client/dist/
 *.log
+tmp/
 
 # IDE
 .vscode/
@@ -32,4 +33,3 @@ Thumbs.db
 # Uploads (keep folder structure)
 uploads/*
 !uploads/.gitkeep
-

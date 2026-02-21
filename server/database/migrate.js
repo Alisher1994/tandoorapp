@@ -56,6 +56,7 @@ async function migrate() {
       'msg_delivered TEXT',
       'msg_cancelled TEXT',
       'support_username VARCHAR(100)',
+      'operator_registration_code VARCHAR(64)',
       'service_fee DECIMAL(10, 2) DEFAULT 0',
       'latitude DECIMAL(10, 8)',
       'longitude DECIMAL(11, 8)',
@@ -233,10 +234,17 @@ async function migrate() {
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        is_blocked BOOLEAN DEFAULT false,
         first_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, restaurant_id)
       )
+    `);
+
+    // Ensure user_restaurants has blocking flag for per-restaurant access control
+    await client.query(`
+      ALTER TABLE user_restaurants
+      ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false
     `);
     console.log('✅ User_restaurants table ready');
 

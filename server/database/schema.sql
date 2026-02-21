@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   phone VARCHAR(20),
   telegram_bot_token VARCHAR(255),
   telegram_group_id VARCHAR(100),
+  operator_registration_code VARCHAR(64),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -36,6 +37,17 @@ CREATE TABLE IF NOT EXISTS operator_restaurants (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, restaurant_id)
+);
+
+-- Связь клиентов с ресторанами (взаимодействия и блокировка по ресторану)
+CREATE TABLE IF NOT EXISTS user_restaurants (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  is_blocked BOOLEAN DEFAULT false,
+  first_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, restaurant_id)
 );
 
@@ -148,6 +160,8 @@ CREATE INDEX IF NOT EXISTS idx_users_active_restaurant ON users(active_restauran
 
 CREATE INDEX IF NOT EXISTS idx_operator_restaurants_user ON operator_restaurants(user_id);
 CREATE INDEX IF NOT EXISTS idx_operator_restaurants_restaurant ON operator_restaurants(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_user_restaurants_user ON user_restaurants(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_restaurants_restaurant ON user_restaurants(restaurant_id);
 
 CREATE INDEX IF NOT EXISTS idx_categories_restaurant ON categories(restaurant_id);
 

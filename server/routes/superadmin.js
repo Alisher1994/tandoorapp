@@ -225,7 +225,7 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
@@ -240,11 +240,11 @@ router.post('/restaurants', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO restaurants (
         name, address, phone, logo_url, delivery_zone, 
-        telegram_bot_token, telegram_group_id, start_time, end_time, 
+        telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
         balance, order_cost
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `, [
       name,
@@ -254,6 +254,7 @@ router.post('/restaurants', async (req, res) => {
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       telegram_bot_token,
       telegram_group_id,
+      operator_registration_code || null,
       start_time,
       end_time,
       click_url || null,
@@ -290,7 +291,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
+    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
 
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -364,16 +365,17 @@ router.put('/restaurants/:id', async (req, res) => {
           click_url = $11,
           payme_url = $12,
           support_username = $13,
-          service_fee = $14,
-          latitude = $15,
-          longitude = $16,
-          delivery_base_radius = $17,
-          delivery_base_price = $18,
-          delivery_price_per_km = $19,
-          is_delivery_enabled = $20,
-          order_cost = $21,
+          operator_registration_code = $14,
+          service_fee = $15,
+          latitude = $16,
+          longitude = $17,
+          delivery_base_radius = $18,
+          delivery_base_price = $19,
+          delivery_price_per_km = $20,
+          is_delivery_enabled = $21,
+          order_cost = $22,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $22
+      WHERE id = $23
       RETURNING *
     `, [
       name,
@@ -389,6 +391,7 @@ router.put('/restaurants/:id', async (req, res) => {
       click_url || null,
       payme_url || null,
       support_username || null,
+      operator_registration_code || null,
       parseFloat(service_fee) || 0,
       latitude ? parseFloat(latitude) : null,
       longitude ? parseFloat(longitude) : null,
@@ -922,13 +925,14 @@ router.get('/customers', async (req, res) => {
     let query = `
       SELECT 
         u.id as user_id, u.id as association_id, u.username, u.full_name, u.phone, u.telegram_id, 
-        u.is_active as user_is_active, false as is_blocked, u.created_at,
+        u.is_active as user_is_active, COALESCE(ur.is_blocked, false) as is_blocked, u.created_at,
         r.name as restaurant_name,
         COUNT(o.id) as orders_count,
         COALESCE(SUM(o.total_amount), 0) as total_spent,
         MAX(o.created_at) as last_order_date
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
+      LEFT JOIN user_restaurants ur ON ur.user_id = u.id AND ur.restaurant_id = u.active_restaurant_id
       LEFT JOIN orders o ON u.id = o.user_id
       WHERE u.role = 'customer'
     `;
@@ -942,10 +946,10 @@ router.get('/customers', async (req, res) => {
     if (status === 'active') {
       query += ` AND u.is_active = true`;
     } else if (status === 'blocked') {
-      query += ` AND u.is_active = false`;
+      query += ` AND (u.is_active = false OR COALESCE(ur.is_blocked, false) = true)`;
     }
 
-    query += ` GROUP BY u.id, r.name ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` GROUP BY u.id, r.name, ur.is_blocked ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
@@ -960,7 +964,12 @@ router.get('/customers', async (req, res) => {
     if (status === 'active') {
       countQuery += ` AND is_active = true`;
     } else if (status === 'blocked') {
-      countQuery += ` AND is_active = false`;
+      countQuery += ` AND (
+        is_active = false OR EXISTS (
+          SELECT 1 FROM user_restaurants ur
+          WHERE ur.user_id = users.id AND ur.is_blocked = true
+        )
+      )`;
     }
     const countResult = await pool.query(countQuery, countParams);
 

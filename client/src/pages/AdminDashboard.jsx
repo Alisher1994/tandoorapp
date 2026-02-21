@@ -2707,6 +2707,17 @@ function AdminDashboard() {
                                     </Form.Group>
                                   </Col>
                                   <Col md={12}>
+                                    <Form.Group className="mb-3">
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Код регистрации оператора</Form.Label>
+                                      <Form.Control
+                                        type="text"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.operator_registration_code || ''}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, operator_registration_code: e.target.value.trim() })}
+                                        placeholder="например: OPERATOR-2026"
+                                      />
+                                      <Form.Text className="text-muted">Команда в боте: <code>/operator КОД</code></Form.Text>
+                                    </Form.Group>
                                     {isSuperAdmin && (
                                       <Form.Group className="mb-3">
                                         <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
@@ -4468,4 +4479,3 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
-

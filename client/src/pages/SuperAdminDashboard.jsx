@@ -129,6 +129,7 @@ function SuperAdminDashboard() {
     delivery_zone: null,
     telegram_bot_token: '',
     telegram_group_id: '',
+    operator_registration_code: '',
     start_time: '',
     end_time: '',
     click_url: '',
@@ -624,6 +625,7 @@ function SuperAdminDashboard() {
         delivery_zone: restaurant.delivery_zone || null,
         telegram_bot_token: restaurant.telegram_bot_token || '',
         telegram_group_id: restaurant.telegram_group_id || '',
+        operator_registration_code: restaurant.operator_registration_code || '',
         start_time: restaurant.start_time || '',
         end_time: restaurant.end_time || '',
         click_url: restaurant.click_url || '',
@@ -647,6 +649,7 @@ function SuperAdminDashboard() {
         delivery_zone: null,
         telegram_bot_token: '',
         telegram_group_id: '',
+        operator_registration_code: '',
         start_time: '',
         end_time: '',
         click_url: '',
@@ -1811,6 +1814,19 @@ function SuperAdminDashboard() {
                           />
                         </div>
                         <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-person-badge"></i> Telegram username администратора для поддержки. Будет отображаться для клиентов.</Form.Text>
+                      </Form.Group>
+                    </Col>
+                    <Col md={12}>
+                      <Form.Group className="mb-4">
+                        <Form.Label className="fw-medium text-secondary">Код регистрации оператора</Form.Label>
+                        <Form.Control
+                          value={restaurantForm.operator_registration_code || ''}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, operator_registration_code: e.target.value.trim() })}
+                          placeholder="например: OPERATOR-2026"
+                        />
+                        <Form.Text className="text-muted mt-2 d-block">
+                          <i className="bi bi-key"></i> Операторы используют команду <code>/operator КОД</code> в этом боте.
+                        </Form.Text>
                       </Form.Group>
                     </Col>
                   </Row>

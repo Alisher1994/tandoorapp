@@ -2,12 +2,14 @@ const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
 
 // Store for registration states: Map<`${botToken}_${telegramUserId}`, state>
 const registrationStates = new Map();
+const passwordResetCooldown = new Map();
 
 // Generate login token for auto-login
 function generateLoginToken(userId, username) {
@@ -19,8 +21,26 @@ function generateLoginToken(userId, username) {
 }
 
 function buildCatalogUrl(appUrl, token) {
+  if (!appUrl) return null;
   const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
   return `${trimmed}/catalog?token=${token}`;
+}
+
+function generateTemporaryPassword(length = 12) {
+  const raw = crypto.randomBytes(24).toString('base64url').replace(/[^a-zA-Z0-9]/g, '');
+  return raw.slice(0, length);
+}
+
+async function generateUniqueOperatorUsername(restaurantId, telegramUserId) {
+  for (let i = 0; i < 10; i++) {
+    const suffix = crypto.randomBytes(2).toString('hex');
+    const username = `op_${restaurantId}_${telegramUserId}_${suffix}`;
+    const exists = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
+    if (exists.rows.length === 0) {
+      return username;
+    }
+  }
+  return `op_${restaurantId}_${Date.now()}`;
 }
 
 // Check if point is inside polygon
@@ -103,10 +123,23 @@ async function isLocationInRestaurantZone(restaurantId, lat, lng) {
 // Check if user is blocked (globally or for specific restaurant)
 async function checkBlockedUser(bot, chatId, userId, restaurantId) {
   try {
-    const userResult = await pool.query(
-      'SELECT u.is_active, ur.is_blocked FROM users u LEFT JOIN user_restaurants ur ON u.id = ur.user_id AND ur.restaurant_id = $2 WHERE u.telegram_id = $1',
-      [userId, restaurantId]
-    );
+    let userResult;
+    try {
+      userResult = await pool.query(
+        'SELECT u.is_active, ur.is_blocked FROM users u LEFT JOIN user_restaurants ur ON u.id = ur.user_id AND ur.restaurant_id = $2 WHERE u.telegram_id = $1',
+        [userId, restaurantId]
+      );
+    } catch (queryError) {
+      // Backward compatibility: DB may not yet have user_restaurants.is_blocked column
+      if (queryError.code === '42703') {
+        userResult = await pool.query(
+          'SELECT u.is_active, false as is_blocked FROM users u WHERE u.telegram_id = $1',
+          [userId]
+        );
+      } else {
+        throw queryError;
+      }
+    }
 
     if (userResult.rows.length > 0) {
       const { is_active, is_blocked } = userResult.rows[0];
@@ -143,6 +176,15 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   // Helper to get state key - includes chatId for group handling
   const getStateKey = (userId, chatId) => `${botToken}_${chatId || ''}_${userId}`;
+
+  const buildMainMenuButtons = (loginUrl) => {
+    const menuButtons = [];
+    if (loginUrl) {
+      menuButtons.push([{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]);
+    }
+    menuButtons.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
+    return menuButtons;
+  };
 
   // /start command
   bot.onText(/\/start/, async (msg) => {
@@ -187,25 +229,48 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
         `, [user.id, restaurantId]);
 
-        // Generate login URL
-        const token = generateLoginToken(user.id, user.username);
-        const loginUrl = buildCatalogUrl(appUrl, token);
+        // Operator/superadmin: send to web login, not customer menu
+        if (user.role === 'operator' || user.role === 'superadmin') {
+          const loginBaseUrl = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+          const loginUrl = loginBaseUrl
+            ? `${loginBaseUrl.endsWith('/') ? loginBaseUrl.slice(0, -1) : loginBaseUrl}/login`
+            : null;
 
-        bot.sendMessage(chatId,
-          `👋 С возвращением, ${user.full_name}!\n\n` +
-          `🏪 Ресторан: <b>${restaurantName}</b>`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
-                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }],
-                [{ text: '⚙️ Изменить данные', callback_data: 'edit_profile' }],
-                [{ text: '💬 Жалобы и предложения', callback_data: 'feedback' }]
-              ]
+          bot.sendMessage(chatId,
+            `👋 С возвращением, ${user.full_name || user.username}!\n\n` +
+            `🧑‍💼 Роль: <b>${user.role === 'superadmin' ? 'Суперадмин' : 'Оператор'}</b>\n` +
+            `🏪 Ресторан: <b>${restaurantName}</b>\n\n` +
+            `${loginUrl ? 'Используйте кнопку ниже для входа в систему.' : '⚠️ URL входа не настроен. Обратитесь к администратору.'}`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: loginUrl
+                ? {
+                  inline_keyboard: [[{ text: '🔐 Войти в систему', url: loginUrl }]]
+                }
+                : undefined
             }
-          }
-        );
+          );
+        } else {
+          // Generate login URL
+          const token = generateLoginToken(user.id, user.username);
+          const loginUrl = buildCatalogUrl(appUrl, token);
+
+          bot.sendMessage(chatId,
+            `👋 С возвращением, ${user.full_name}!\n\n` +
+            `🏪 Ресторан: <b>${restaurantName}</b>` +
+            `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  ...buildMainMenuButtons(loginUrl),
+                  [{ text: '⚙️ Изменить данные', callback_data: 'edit_profile' }],
+                  [{ text: '💬 Жалобы и предложения', callback_data: 'feedback' }]
+                ]
+              }
+            }
+          );
+        }
       } else {
         // Start registration
         registrationStates.set(getStateKey(userId, chatId), { step: 'waiting_contact', restaurantId });
@@ -267,13 +332,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       const loginUrl = buildCatalogUrl(appUrl, token);
 
       bot.sendMessage(chatId,
-        `🍽️ <b>${restaurantName}</b>\n\nНажмите кнопку ниже, чтобы открыть меню:`,
+        `🍽️ <b>${restaurantName}</b>\n\n` +
+        (loginUrl
+          ? 'Нажмите кнопку ниже, чтобы открыть меню:'
+          : '⚠️ Web App URL не настроен. Обратитесь к администратору.'),
         {
           parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: [
-              [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]
-            ]
+            inline_keyboard: buildMainMenuButtons(loginUrl)
           }
         }
       );
@@ -281,6 +347,192 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       console.error('Menu command error:', error);
       bot.sendMessage(chatId, '❌ Произошла ошибка');
     }
+  });
+
+  // /reset_password command
+  bot.onText(/\/reset_password/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    try {
+      if (msg.chat.type !== 'private') {
+        await bot.sendMessage(chatId, '⚠️ Восстановление пароля доступно только в личном чате с ботом.');
+        return;
+      }
+
+      if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
+
+      const userResult = await pool.query(
+        'SELECT id, username FROM users WHERE telegram_id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+        return;
+      }
+
+      const stateKey = getStateKey(userId, chatId);
+      registrationStates.set(stateKey, {
+        step: 'waiting_password_reset_confirm',
+        dbUserId: userResult.rows[0].id,
+        username: userResult.rows[0].username,
+        restaurantId
+      });
+
+      await bot.sendMessage(
+        chatId,
+        '🔐 <b>Восстановление пароля</b>\n\nПодтвердите действие. Мы сгенерируем новый временный пароль.',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ Подтвердить', callback_data: 'reset_password_confirm' }],
+              [{ text: '❌ Отмена', callback_data: 'reset_password_cancel' }]
+            ]
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Reset password command error:', error);
+      bot.sendMessage(chatId, '❌ Ошибка восстановления пароля. Попробуйте позже.');
+    }
+  });
+
+  const processOperatorRegistration = async (msg, inputCode = '') => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const normalizedCode = (inputCode || '').trim();
+
+    try {
+      if (msg.chat.type !== 'private') {
+        await bot.sendMessage(chatId, '⚠️ Регистрация оператора доступна только в личном чате с ботом.');
+        return;
+      }
+
+      const restaurantResult = await pool.query(
+        'SELECT operator_registration_code FROM restaurants WHERE id = $1',
+        [restaurantId]
+      );
+
+      const inviteCode = (restaurantResult.rows[0]?.operator_registration_code || '').trim();
+      if (!inviteCode) {
+        await bot.sendMessage(chatId, '❌ Регистрация оператора не настроена. Обратитесь к владельцу ресторана.');
+        return;
+      }
+
+      if (!normalizedCode) {
+        registrationStates.set(getStateKey(userId, chatId), {
+          step: 'waiting_operator_invite_code',
+          restaurantId
+        });
+        await bot.sendMessage(chatId, '🧑‍💼 Введите код приглашения оператора:');
+        return;
+      }
+
+      if (normalizedCode !== inviteCode) {
+        await bot.sendMessage(chatId, '❌ Неверный код приглашения.');
+        return;
+      }
+
+      const existingUserResult = await pool.query(
+        'SELECT id, username, role FROM users WHERE telegram_id = $1',
+        [userId]
+      );
+
+      let login;
+      let plainPassword = null;
+      let dbUserId;
+
+      if (existingUserResult.rows.length > 0) {
+        const existing = existingUserResult.rows[0];
+
+        if (existing.role === 'customer') {
+          await bot.sendMessage(
+            chatId,
+            '❌ Этот Telegram-аккаунт уже зарегистрирован как клиент. Для оператора используйте другой Telegram-аккаунт.'
+          );
+          return;
+        }
+
+        dbUserId = existing.id;
+        login = existing.username;
+
+        if (existing.role === 'superadmin') {
+          await pool.query(
+            `UPDATE users
+             SET active_restaurant_id = $1,
+                 is_active = true,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [restaurantId, dbUserId]
+          );
+        } else {
+          await pool.query(
+            `UPDATE users
+             SET role = 'operator',
+                 active_restaurant_id = $1,
+                 is_active = true,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [restaurantId, dbUserId]
+          );
+        }
+      } else {
+        const generatedUsername = await generateUniqueOperatorUsername(restaurantId, userId);
+        plainPassword = generateTemporaryPassword(12);
+        const hashedPassword = await bcrypt.hash(plainPassword, 10);
+        const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ') || `Operator ${userId}`;
+
+        const inserted = await pool.query(
+          `INSERT INTO users (telegram_id, username, password, full_name, role, is_active, active_restaurant_id)
+           VALUES ($1, $2, $3, $4, 'operator', true, $5)
+           RETURNING id, username`,
+          [userId, generatedUsername, hashedPassword, fullName, restaurantId]
+        );
+
+        dbUserId = inserted.rows[0].id;
+        login = inserted.rows[0].username;
+      }
+
+      await pool.query(
+        `INSERT INTO operator_restaurants (user_id, restaurant_id)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id, restaurant_id) DO NOTHING`,
+        [dbUserId, restaurantId]
+      );
+
+      const loginBaseUrl = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+      const loginUrl = loginBaseUrl
+        ? `${loginBaseUrl.endsWith('/') ? loginBaseUrl.slice(0, -1) : loginBaseUrl}/login`
+        : null;
+
+      await bot.sendMessage(
+        chatId,
+        `✅ <b>Регистрация оператора выполнена</b>\n\n` +
+        `Логин: <code>${login}</code>\n` +
+        `${plainPassword ? `Пароль: <code>${plainPassword}</code>\n` : 'Пароль: используйте текущий\n'}` +
+        `Ресторан: <b>${restaurantName}</b>\n\n` +
+        `Команда для сброса пароля: /reset_password`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: loginUrl
+            ? {
+              inline_keyboard: [[{ text: '🔐 Перейти ко входу', url: loginUrl }]]
+            }
+            : undefined
+        }
+      );
+    } catch (error) {
+      console.error('Operator registration error:', error);
+      bot.sendMessage(chatId, '❌ Ошибка регистрации оператора. Попробуйте позже.');
+    }
+  };
+
+  // /operator command - self registration flow for operators
+  bot.onText(/\/operator(?:\s+(.+))?/, async (msg, match) => {
+    const inputCode = (match?.[1] || '').trim();
+    await processOperatorRegistration(msg, inputCode);
   });
 
   // Handle contact sharing
@@ -394,6 +646,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         }
       );
+    }
+
+    if (state.step === 'waiting_operator_invite_code') {
+      registrationStates.delete(stateKey);
+      await processOperatorRegistration(msg, text.trim());
+      return;
     }
 
     // Handle rejection reason
@@ -638,15 +896,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         registrationStates.delete(getStateKey(userId, chatId));
 
         bot.sendMessage(chatId,
-          `✅ Отлично! Доставка доступна!\n\n🏪 Ресторан: <b>${restaurantName}</b>`,
+          `✅ Отлично! Доставка доступна!\n\n🏪 Ресторан: <b>${restaurantName}</b>` +
+          `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
           {
             parse_mode: 'HTML',
             reply_markup: {
               remove_keyboard: true,
-              inline_keyboard: [
-                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
-                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
-              ]
+              inline_keyboard: buildMainMenuButtons(loginUrl)
             }
           }
         );
@@ -692,15 +948,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       bot.sendMessage(chatId,
         `✅ Регистрация успешна!\n\n` +
         `🏪 Ресторан: <b>${restaurantName}</b>\n` +
-        `📍 Доставка по вашему адресу доступна!`,
+        `📍 Доставка по вашему адресу доступна!` +
+        `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
         {
           parse_mode: 'HTML',
           reply_markup: {
             remove_keyboard: true,
-            inline_keyboard: [
-              [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
-              [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
-            ]
+            inline_keyboard: buildMainMenuButtons(loginUrl)
           }
         }
       );
@@ -712,7 +966,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   // Handle callback queries
   bot.on('callback_query', async (query) => {
-    const chatId = query.message.chat.id;
+    const chatId = query.message?.chat?.id;
+    if (!chatId) {
+      return;
+    }
     const userId = query.from.id;
     const data = query.data;
 
@@ -776,7 +1033,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       // Handle feedback
       if (data === 'feedback') {
-        registrationStates.set(getStateKey(userId), {
+        registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_feedback_type',
           restaurantId
         });
@@ -797,6 +1054,97 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             }
           }
         );
+      }
+
+      // Start reset password flow from inline menu
+      if (data === 'reset_password') {
+        const userResult = await pool.query(
+          'SELECT id, username FROM users WHERE telegram_id = $1',
+          [userId]
+        );
+
+        if (userResult.rows.length === 0) {
+          bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+          return;
+        }
+
+        registrationStates.set(getStateKey(userId, chatId), {
+          step: 'waiting_password_reset_confirm',
+          dbUserId: userResult.rows[0].id,
+          username: userResult.rows[0].username,
+          restaurantId
+        });
+
+        bot.sendMessage(
+          chatId,
+          '🔐 <b>Восстановление пароля</b>\n\nПодтвердите действие. Мы сгенерируем новый временный пароль.',
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '✅ Подтвердить', callback_data: 'reset_password_confirm' }],
+                [{ text: '❌ Отмена', callback_data: 'reset_password_cancel' }]
+              ]
+            }
+          }
+        );
+      }
+
+      // Confirm password reset
+      if (data === 'reset_password_confirm') {
+        const stateKey = getStateKey(userId, chatId);
+        const state = registrationStates.get(stateKey);
+
+        if (!state || state.step !== 'waiting_password_reset_confirm') {
+          bot.sendMessage(chatId, 'ℹ️ Запрос восстановления устарел. Отправьте /reset_password снова.');
+          return;
+        }
+
+        const cooldownKey = `${botToken}_${userId}_password_reset`;
+        const now = Date.now();
+        const lastResetAt = passwordResetCooldown.get(cooldownKey);
+        const cooldownMs = 5 * 60 * 1000;
+
+        if (lastResetAt && now - lastResetAt < cooldownMs) {
+          const leftSec = Math.ceil((cooldownMs - (now - lastResetAt)) / 1000);
+          bot.sendMessage(chatId, `⏳ Подождите ${leftSec} сек. перед повторным восстановлением.`);
+          return;
+        }
+
+        const temporaryPassword = generateTemporaryPassword();
+        const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+        const updateResult = await pool.query(
+          `UPDATE users
+           SET password = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND telegram_id = $3
+           RETURNING username`,
+          [hashedPassword, state.dbUserId, userId]
+        );
+
+        if (updateResult.rows.length === 0) {
+          registrationStates.delete(stateKey);
+          bot.sendMessage(chatId, '❌ Не удалось обновить пароль. Попробуйте позже.');
+          return;
+        }
+
+        passwordResetCooldown.set(cooldownKey, now);
+        registrationStates.delete(stateKey);
+
+        bot.sendMessage(
+          chatId,
+          `✅ <b>Пароль обновлен</b>\n\n` +
+          `Логин: <code>${updateResult.rows[0].username}</code>\n` +
+          `Временный пароль: <code>${temporaryPassword}</code>\n\n` +
+          `Рекомендуется войти в систему и сменить пароль.`,
+          { parse_mode: 'HTML' }
+        );
+      }
+
+      // Cancel password reset
+      if (data === 'reset_password_cancel') {
+        registrationStates.delete(getStateKey(userId, chatId));
+        bot.sendMessage(chatId, '❌ Восстановление пароля отменено.');
       }
 
       // Handle feedback type selection
@@ -848,6 +1196,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               inline_keyboard: [
                 [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
                 [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
+                [{ text: '🔐 Восстановить пароль', callback_data: 'reset_password' }],
                 [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
               ]
             }
