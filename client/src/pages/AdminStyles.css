@@ -447,7 +447,7 @@ body::-webkit-scrollbar,
 
 .order-meta-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -509,6 +509,44 @@ body::-webkit-scrollbar,
     padding: 8px 10px;
     color: #334155;
     line-height: 1.35;
+}
+
+.order-meta-processed {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.order-meta-processed-icon {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #ffffff;
+    background: #2f9e44;
+    line-height: 1;
+}
+
+.order-meta-processed-icon.is-cancelled {
+    background: #dc3545;
+}
+
+.order-meta-processed-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.order-meta-time {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #6b7280;
 }
 
 .order-items-content {
@@ -621,6 +659,11 @@ body::-webkit-scrollbar,
 .order-details-modal-content .order-stepper {
     padding: 0;
     align-items: flex-start;
+    column-gap: 6px;
+}
+
+.order-details-modal-content .stepper-step {
+    min-width: 0;
 }
 
 .order-details-modal-content .stepper-step .stepper-circle {
@@ -628,9 +671,9 @@ body::-webkit-scrollbar,
     height: 30px;
     font-size: 12px;
     border-width: 1px;
-    background: #ffffff;
-    border-color: #cfd8e3;
-    color: #64748b;
+    background: #ffffff !important;
+    border-color: #cfd8e3 !important;
+    color: #64748b !important;
     box-shadow: none;
 }
 
@@ -641,13 +684,12 @@ body::-webkit-scrollbar,
 
 .order-details-modal-content .stepper-step.completed .stepper-circle,
 .order-details-modal-content .stepper-step.active .stepper-circle {
-    background: #2f9e44;
-    border-color: #2f9e44;
-    color: #ffffff;
+    background: #2f9e44 !important;
+    border-color: #2f9e44 !important;
+    color: #ffffff !important;
 }
 
-.order-details-modal-content .stepper-step.active .stepper-circle,
-.order-details-modal-content .stepper-step.cancelled.active .stepper-circle {
+.order-details-modal-content .stepper-step.active .stepper-circle {
     animation: none;
     box-shadow: 0 0 0 3px rgba(47, 158, 68, 0.18);
 }
@@ -656,6 +698,17 @@ body::-webkit-scrollbar,
     background: #dc3545 !important;
     border-color: #dc3545 !important;
     color: #ffffff;
+}
+
+.order-details-modal-content .stepper-step.cancelled.active .stepper-circle {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.18);
+}
+
+.order-details-modal-content .stepper-circle-ok {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
 }
 
 .order-details-modal-content .stepper-line-container {
@@ -685,7 +738,13 @@ body::-webkit-scrollbar,
 .order-details-modal-content .stepper-label {
     margin-top: 6px;
     font-size: 10px;
+    line-height: 1.15;
     color: #64748b;
+    max-width: 84px;
+    text-align: center;
+    word-break: break-word;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .order-details-modal-content .stepper-step.completed .stepper-label,
@@ -710,6 +769,10 @@ body::-webkit-scrollbar,
 
     .order-items-stack {
         max-height: 420px;
+    }
+
+    .order-meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

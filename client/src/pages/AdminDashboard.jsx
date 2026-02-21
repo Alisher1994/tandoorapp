@@ -3157,6 +3157,24 @@ function AdminDashboard() {
                       <span className="order-meta-label">Оплата</span>
                       <div className="order-meta-value">{getPaymentMethodLabel(selectedOrder.payment_method)}</div>
                     </div>
+                    {selectedOrder.processed_by_name && (
+                      <div className="order-meta-item">
+                        <span className="order-meta-label">
+                          {selectedOrder.status === 'cancelled' ? 'Отменил' : 'Обработал'}
+                        </span>
+                        <div className="order-meta-value order-meta-processed">
+                          <span className={`order-meta-processed-icon ${selectedOrder.status === 'cancelled' ? 'is-cancelled' : ''}`}>
+                            {selectedOrder.status === 'cancelled' ? '✕' : '✓'}
+                          </span>
+                          <span className="order-meta-processed-name">{selectedOrder.processed_by_name}</span>
+                        </div>
+                        {selectedOrder.processed_at && (
+                          <div className="order-meta-time">
+                            {new Date(selectedOrder.processed_at).toLocaleString('ru-RU')}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="order-meta-item order-meta-item-wide">
                       <span className="order-meta-label">Адрес</span>
                       <div className="order-meta-value">{selectedOrder.delivery_address}</div>
@@ -3233,21 +3251,6 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Processed by operator info */}
-                {selectedOrder.processed_by_name && (
-                  <div className="mb-3">
-                    <strong>
-                      {selectedOrder.status === 'cancelled' ? '❌ Отменил:' : '✅ Обработал:'}
-                    </strong>{' '}
-                    {selectedOrder.processed_by_name}
-                    {selectedOrder.processed_at && (
-                      <small className="text-muted ms-2">
-                        ({new Date(selectedOrder.processed_at).toLocaleString('ru-RU')})
-                      </small>
-                    )}
-                  </div>
-                )}
-
                 {/* Admin comment (rejection reason) */}
                 {selectedOrder.admin_comment && (
                   <div className="mb-3 p-2 bg-light rounded">
@@ -3260,10 +3263,10 @@ function AdminDashboard() {
                   <strong className="d-block mb-2">Статус заказа:</strong>
                   {(() => {
                     const statuses = [
-                      { key: 'new', label: 'Новый', num: 1 },
-                      { key: 'preparing', label: 'Готовится', num: 2 },
-                      { key: 'delivering', label: 'Доставляется', num: 3 },
-                      { key: 'delivered', label: 'Доставлен', num: 4 }
+                      { key: 'new', label: 'Принято', shortLabel: 'Принято', num: 1 },
+                      { key: 'preparing', label: 'Готовится', shortLabel: 'Готовится', num: 2 },
+                      { key: 'delivering', label: 'Доставляется', shortLabel: 'В пути', num: 3 },
+                      { key: 'delivered', label: 'Доставлен', shortLabel: 'Доставлен', num: 4 }
                     ];
                     const currentStatus = selectedOrder.status;
                     const isCancelled = currentStatus === 'cancelled';
@@ -3292,6 +3295,8 @@ function AdminDashboard() {
                             const isActive = !isCancelled && currentIdx === idx;
                             const isCancelledStep = isCancelled && cancelledAtIdx === idx;
                             const isPastCancelled = isCancelled && idx < cancelledAtIdx;
+                            const isAcceptedStep = status.key === 'new' && (isActive || isCompleted || isPastCancelled);
+                            const stepValue = isCancelledStep ? '✕' : (isAcceptedStep ? 'OK' : status.num);
 
                             let stepClass = 'stepper-step';
                             if (isCompleted || isPastCancelled) stepClass += ' completed';
@@ -3305,7 +3310,7 @@ function AdminDashboard() {
                                 data-step={status.num}
                               >
                                 <div
-                                  className="stepper-circle"
+                                  className={`stepper-circle ${isAcceptedStep ? 'stepper-circle-ok' : ''}`}
                                   onClick={() => {
                                     if (!isCancelled && currentStatus !== status.key) {
                                       updateOrderStatus(selectedOrder.id, status.key);
@@ -3313,10 +3318,10 @@ function AdminDashboard() {
                                   }}
                                   title={`Изменить на: ${status.label}`}
                                 >
-                                  {isCancelledStep ? '✕' : status.num}
+                                  {stepValue}
                                 </div>
                                 <div className="stepper-label">
-                                  {isCancelledStep ? 'Отменён' : status.label}
+                                  {isCancelledStep ? 'Отменён' : status.shortLabel}
                                 </div>
                               </div>
                             );
