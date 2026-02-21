@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -7,7 +7,6 @@ import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
 import Navbar from 'react-bootstrap/Navbar';
-import Form from 'react-bootstrap/Form';
 import { useAuth } from '../context/AuthContext';
 import { useCart, formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -21,8 +20,8 @@ function Catalog() {
   const [prevRestaurant, setPrevRestaurant] = useState(null);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [activeCategory, setActiveCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
+  const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
@@ -30,10 +29,7 @@ function Catalog() {
   const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
 
-  // Refs for ScrollSpy
-  const categoriesRef = useRef({});
-  const categoryNavRef = useRef(null);
-  const isScrolling = useRef(false);
+  const productGroupRefs = useRef({});
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
@@ -50,6 +46,8 @@ function Catalog() {
   // Load products when restaurant changes
   useEffect(() => {
     if (selectedRestaurant) {
+      setSelectedCategory(null);
+      setActiveSubcategoryTab(null);
       fetchData();
       // Only clear cart if restaurant actually changed (not on first load)
       if (prevRestaurant && prevRestaurant !== selectedRestaurant) {
@@ -59,87 +57,27 @@ function Catalog() {
     }
   }, [selectedRestaurant]);
 
-  // Get scroll container (#root for iOS fix)
   const getScrollContainer = () => document.getElementById('root') || window;
 
-  // ScrollSpy: detect which category is in view
-  const handleScroll = useCallback(() => {
-    if (isScrolling.current || selectedCategory !== null) return;
-
+  const scrollToOffset = (offsetTop) => {
     const scrollContainer = getScrollContainer();
-    const scrollTop = (scrollContainer === window ? window.scrollY : scrollContainer.scrollTop) + 150;
-    let currentCategory = null;
-
-    // Only consider non-empty categories
-    const visibleCategories = categories.filter(cat =>
-      products.some(p => p.category_id === cat.id)
-    );
-
-    for (const category of visibleCategories) {
-      const element = categoriesRef.current[category.id];
-      if (element) {
-        const rect = element.getBoundingClientRect();
-        // For #root scroll, use getBoundingClientRect which is relative to viewport
-        const offsetTop = rect.top + (scrollContainer === window ? window.scrollY : scrollContainer.scrollTop);
-        if (scrollTop >= offsetTop) {
-          currentCategory = category.id;
-        }
-      }
-    }
-
-    if (currentCategory !== activeCategory) {
-      setActiveCategory(currentCategory);
-      // Scroll category nav to show active category
-      if (categoryNavRef.current && currentCategory) {
-        const navItem = categoryNavRef.current.querySelector(`[data-category="${currentCategory}"]`);
-        if (navItem) {
-          navItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-        }
-      }
-    }
-  }, [categories, products, selectedCategory, activeCategory]);
-
-  useEffect(() => {
-    const scrollContainer = getScrollContainer();
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
-
-  // Scroll to category when clicked
-  const scrollToCategory = (categoryId) => {
-    const scrollContainer = getScrollContainer();
-
-    if (categoryId === null) {
-      setSelectedCategory(null);
-      if (scrollContainer === window) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-      return;
-    }
-
-    const element = categoriesRef.current[categoryId];
-    if (element) {
-      isScrolling.current = true;
-      setSelectedCategory(null); // Show all products grouped
-      setActiveCategory(categoryId);
-
-      const rect = element.getBoundingClientRect();
-      const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
-      const offsetTop = rect.top + currentScroll - 130;
-
-      if (scrollContainer === window) {
-        window.scrollTo({ top: offsetTop, behavior: 'smooth' });
-      } else {
-        scrollContainer.scrollTo({ top: offsetTop, behavior: 'smooth' });
-      }
-
-      setTimeout(() => {
-        isScrolling.current = false;
-      }, 500);
+    if (scrollContainer === window) {
+      window.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    } else {
+      scrollContainer.scrollTo({ top: offsetTop, behavior: 'smooth' });
     }
   };
+
+  const scrollToTop = () => scrollToOffset(0);
+
+  const resolveImageUrl = (url) => {
+    if (!url) return '';
+    return url.startsWith('http') ? url : `${API_URL.replace('/api', '')}${url}`;
+  };
+
+  const getCategoryName = (category) => (
+    language === 'uz' && category?.name_uz ? category.name_uz : category?.name_ru
+  );
 
   const fetchRestaurants = async () => {
     try {
@@ -192,6 +130,7 @@ function Catalog() {
     const restaurantId = parseInt(e.target.value);
     setSelectedRestaurant(restaurantId);
     setSelectedCategory(null);
+    setActiveSubcategoryTab(null);
   };
 
   const handleAddToCart = (product) => {
@@ -203,19 +142,193 @@ function Catalog() {
 
   const getCartItem = (productId) => cart.find(item => item.id === productId);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const categoriesById = useMemo(() => {
+    const map = new Map();
+    categories.forEach((category) => map.set(category.id, category));
+    return map;
+  }, [categories]);
+
+  const childrenByParent = useMemo(() => {
+    const map = new Map();
+    categories.forEach((category) => {
+      const key = category.parent_id ?? null;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(category);
+    });
+
+    const getSortVal = (category) => (
+      category.sort_order === null || category.sort_order === undefined ? 9999 : Number(category.sort_order)
+    );
+
+    for (const list of map.values()) {
+      list.sort((a, b) => {
+        const sortDiff = getSortVal(a) - getSortVal(b);
+        if (sortDiff !== 0) return sortDiff;
+        return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
+      });
+    }
+
+    return map;
+  }, [categories]);
+
+  const productCategoryIds = useMemo(() => (
+    new Set(
+      products
+        .map((product) => Number(product.category_id))
+        .filter((id) => Number.isFinite(id))
+    )
+  ), [products]);
+
+  const nonEmptyCategoryIds = useMemo(() => {
+    const memo = new Map();
+
+    const hasProductsDeep = (categoryId) => {
+      if (memo.has(categoryId)) return memo.get(categoryId);
+
+      let hasProducts = productCategoryIds.has(categoryId);
+      const children = childrenByParent.get(categoryId) || [];
+      if (!hasProducts) {
+        for (const child of children) {
+          if (hasProductsDeep(child.id)) {
+            hasProducts = true;
+            break;
+          }
+        }
+      }
+      memo.set(categoryId, hasProducts);
+      return hasProducts;
+    };
+
+    categories.forEach((category) => {
+      hasProductsDeep(category.id);
+    });
+
+    return new Set(
+      [...memo.entries()]
+        .filter(([, hasProducts]) => hasProducts)
+        .map(([id]) => id)
+    );
+  }, [categories, childrenByParent, productCategoryIds]);
+
+  const level1Categories = useMemo(() => (
+    (childrenByParent.get(null) || []).filter((category) => nonEmptyCategoryIds.has(category.id))
+  ), [childrenByParent, nonEmptyCategoryIds]);
+
+  const level2ByLevel1 = useMemo(() => {
+    const map = new Map();
+    level1Categories.forEach((level1) => {
+      map.set(
+        level1.id,
+        (childrenByParent.get(level1.id) || []).filter((category) => nonEmptyCategoryIds.has(category.id))
+      );
+    });
+    return map;
+  }, [childrenByParent, level1Categories, nonEmptyCategoryIds]);
+
+  const selectedLevel2Category = useMemo(() => {
+    if (!selectedCategory) return null;
+    return categoriesById.get(Number(selectedCategory)) || null;
+  }, [selectedCategory, categoriesById]);
+
+  const level3Categories = useMemo(() => {
+    if (!selectedLevel2Category) return [];
+    return (childrenByParent.get(selectedLevel2Category.id) || []).filter((category) => nonEmptyCategoryIds.has(category.id));
+  }, [childrenByParent, nonEmptyCategoryIds, selectedLevel2Category]);
+
+  const directSelectedProducts = useMemo(() => {
+    if (!selectedLevel2Category) return [];
+    return products.filter((product) => Number(product.category_id) === selectedLevel2Category.id);
+  }, [products, selectedLevel2Category]);
+
+  const level3Sections = useMemo(() => (
+    level3Categories
+      .map((category) => ({
+        id: category.id,
+        title: getCategoryName(category),
+        products: products.filter((product) => Number(product.category_id) === category.id)
+      }))
+      .filter((section) => section.products.length > 0)
+  ), [level3Categories, products, language]);
+
+  const hasLevel3Sections = level3Sections.length > 0;
+
+  const level3Tabs = useMemo(() => (
+    hasLevel3Sections ? level3Sections : []
+  ), [hasLevel3Sections, level3Sections]);
+
+  const productSections = useMemo(() => {
+    if (!selectedLevel2Category) return [];
+
+    if (hasLevel3Sections) {
+      const sections = [];
+
+      if (directSelectedProducts.length > 0) {
+        sections.push({
+          id: `direct-${selectedLevel2Category.id}`,
+          title: getCategoryName(selectedLevel2Category),
+          products: directSelectedProducts,
+          tab: false
+        });
+      }
+
+      level3Sections.forEach((section) => {
+        sections.push({
+          id: section.id,
+          title: section.title,
+          products: section.products,
+          tab: true
+        });
+      });
+
+      return sections;
+    }
+
+    if (directSelectedProducts.length === 0) return [];
+    return [{
+      id: selectedLevel2Category.id,
+      title: getCategoryName(selectedLevel2Category),
+      products: directSelectedProducts,
+      tab: false
+    }];
+  }, [selectedLevel2Category, hasLevel3Sections, level3Sections, directSelectedProducts, language]);
+
+  useEffect(() => {
+    productGroupRefs.current = {};
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    if (!selectedCategory || level3Tabs.length === 0) {
+      setActiveSubcategoryTab(null);
+      return;
+    }
+    setActiveSubcategoryTab(level3Tabs[0].id);
+  }, [selectedCategory, level3Tabs]);
+
+  const openLevel2Category = (categoryId) => {
+    setSelectedCategory(categoryId);
+    setActiveSubcategoryTab(null);
+    scrollToTop();
   };
 
-  const filteredProducts = selectedCategory
-    ? products.filter(p => p.category_id === selectedCategory)
-    : products;
+  const closeLevel2Category = () => {
+    setSelectedCategory(null);
+    setActiveSubcategoryTab(null);
+    scrollToTop();
+  };
 
-  // Filter out empty categories (categories with no products)
-  const nonEmptyCategories = categories.filter(category =>
-    products.some(p => p.category_id === category.id)
-  );
+  const scrollToProductGroup = (sectionId) => {
+    const sectionElement = productGroupRefs.current[sectionId];
+    if (!sectionElement) return;
+
+    const scrollContainer = getScrollContainer();
+    const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
+    const rect = sectionElement.getBoundingClientRect();
+    const topOffset = rect.top + currentScroll - 132;
+    setActiveSubcategoryTab(sectionId);
+    scrollToOffset(topOffset);
+  };
 
   const currentRestaurant = restaurants.find(r => r.id === selectedRestaurant);
 
@@ -458,50 +571,31 @@ function Catalog() {
         </div>
       </Navbar>
 
-      {/* Categories - sticky horizontal scroll on full width */}
-      {selectedRestaurant && nonEmptyCategories.length > 0 && (
+      {selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 && (
         <div
-          ref={categoryNavRef}
           style={{
             position: 'sticky',
             top: 56,
             zIndex: 1000,
             overflowX: 'auto',
             whiteSpace: 'nowrap',
-            paddingTop: '12px',
-            paddingBottom: '8px',
-            paddingLeft: '12px',
-            paddingRight: '12px',
+            padding: '10px 12px 8px',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
             backgroundColor: '#f6f4ef',
-            borderBottom: '1px solid var(--border-color)',
-            /* GPU acceleration for smooth scrolling on iOS */
-            transform: 'translateZ(0)',
-            willChange: 'transform',
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden'
+            borderBottom: '1px solid var(--border-color)'
           }}
         >
-          <Button
-            variant={selectedCategory === null && activeCategory === null ? 'primary' : 'outline-primary'}
-            className="me-2 mb-2"
-            size="sm"
-            onClick={() => scrollToCategory(null)}
-          >
-            🍴 {language === 'uz' ? 'Hammasi' : 'Все'}
-          </Button>
-          {nonEmptyCategories.map(category => (
+          {level3Tabs.map((section) => (
             <Button
-              key={category.id}
-              data-category={category.id}
-              variant={(selectedCategory === category.id || activeCategory === category.id) ? 'primary' : 'outline-primary'}
+              key={section.id}
+              variant={activeSubcategoryTab === section.id ? 'primary' : 'outline-primary'}
               className="me-2 mb-2"
               size="sm"
-              onClick={() => scrollToCategory(category.id)}
+              onClick={() => scrollToProductGroup(section.id)}
             >
-              {language === 'uz' && category.name_uz ? category.name_uz : category.name_ru}
+              {section.title}
             </Button>
           ))}
         </div>
@@ -531,57 +625,118 @@ function Catalog() {
               </div>
             )}
 
-            {/* Products - grouped by category when showing "All" */}
             {!loading && selectedCategory === null && (
-              <>
-                {nonEmptyCategories.map(category => {
-                  const categoryProducts = products.filter(p => p.category_id === category.id);
+              <div className="py-3">
+                {level1Categories.map((level1Category) => {
+                  const level2Categories = level2ByLevel1.get(level1Category.id) || [];
+                  if (level2Categories.length === 0) return null;
 
                   return (
-                    <div
-                      key={category.id}
-                      ref={el => categoriesRef.current[category.id] = el}
-                      className="mb-4"
-                    >
-                      <h6 className="mb-3 text-muted fw-bold">{language === 'uz' && category.name_uz ? category.name_uz : category.name_ru}</h6>
-                      <Row>
-                        {categoryProducts.map(product => (
-                          <Col key={product.id} xs={6} sm={4} md={3} lg={2} className="mb-4">
-                            {renderProductCard(product)}
-                          </Col>
-                        ))}
+                    <section key={level1Category.id} className="mb-4">
+                      <h5 className="mb-3 fw-bold">{getCategoryName(level1Category)}</h5>
+                      <Row className="g-3">
+                        {level2Categories.map((level2Category) => {
+                          const categoryImage = resolveImageUrl(level2Category.image_url);
+                          return (
+                            <Col key={level2Category.id} xs={6}>
+                              <button
+                                type="button"
+                                onClick={() => openLevel2Category(level2Category.id)}
+                                className="w-100 border-0 p-0 text-start"
+                                style={{
+                                  borderRadius: '14px',
+                                  overflow: 'hidden',
+                                  background: '#efe9da',
+                                  position: 'relative',
+                                  minHeight: '110px'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #ece7da 0%, #ddd3be 100%)',
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center'
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    background: 'linear-gradient(180deg, rgba(16, 16, 16, 0.45) 0%, rgba(16, 16, 16, 0.12) 55%, rgba(16, 16, 16, 0.18) 100%)'
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    position: 'relative',
+                                    zIndex: 1,
+                                    padding: '10px',
+                                    color: '#ffffff',
+                                    fontWeight: 700,
+                                    fontSize: '0.88rem',
+                                    lineHeight: 1.2
+                                  }}
+                                >
+                                  {getCategoryName(level2Category)}
+                                </div>
+                              </button>
+                            </Col>
+                          );
+                        })}
                       </Row>
-                    </div>
+                    </section>
                   );
                 })}
-              </>
+              </div>
             )}
 
-            {/* Products - single category selected */}
-            {!loading && selectedCategory !== null && (
-              <Row>
-                {filteredProducts.map(product => (
-                  <Col key={product.id} xs={6} sm={4} md={3} lg={2} className="mb-4">
-                    {renderProductCard(product)}
-                  </Col>
+            {!loading && selectedCategory !== null && selectedLevel2Category && (
+              <div className="py-3">
+                <div className="d-flex align-items-center justify-content-between mb-3">
+                  <Button variant="outline-secondary" size="sm" onClick={closeLevel2Category}>
+                    {language === 'uz' ? 'Orqaga' : 'Назад'}
+                  </Button>
+                  <h6 className="mb-0 fw-bold text-dark text-end ms-3">{getCategoryName(selectedLevel2Category)}</h6>
+                </div>
+
+                {productSections.map((section) => (
+                  <section
+                    key={section.id}
+                    ref={(el) => { productGroupRefs.current[section.id] = el; }}
+                    className="mb-4"
+                  >
+                    <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
+                    <Row className="g-3">
+                      {section.products.map((product) => (
+                        <Col key={product.id} xs={6}>
+                          {renderProductCard(product)}
+                        </Col>
+                      ))}
+                    </Row>
+                  </section>
                 ))}
-              </Row>
+              </div>
             )}
 
-            {/* No products */}
-            {!loading && filteredProducts.length === 0 && (
+            {!loading && selectedCategory === null && level1Categories.length === 0 && (
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
-                <p className="text-muted mt-3">
-                  {products.length === 0
-                    ? 'Товары пока не добавлены'
-                    : 'Товары не найдены в выбранной категории'}
-                </p>
-                {isOperator() && products.length === 0 && (
+                <p className="text-muted mt-3">Товары пока не добавлены</p>
+                {isOperator() && (
                   <Button variant="primary" onClick={() => navigate('/admin')}>
                     Добавить товары
                   </Button>
                 )}
+              </div>
+            )}
+
+            {!loading && selectedCategory !== null && productSections.length === 0 && (
+              <div className="text-center py-5">
+                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
+                <p className="text-muted mt-3">
+                  {language === 'uz' ? 'Tanlangan bo‘limda mahsulotlar topilmadi' : 'В выбранном разделе товары не найдены'}
+                </p>
               </div>
             )}
           </>

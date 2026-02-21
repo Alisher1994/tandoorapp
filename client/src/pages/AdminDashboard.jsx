@@ -367,68 +367,93 @@ function AdminDashboard() {
     }
   }, [user?.active_restaurant_id]);
 
+  const applyCategoriesData = (categoriesData = []) => {
+    // Calculate full category paths locally and sort correctly
+    const getCategoryPath = (cat) => {
+      const getSortDisplay = (c) => `[${c.sort_order !== null && c.sort_order !== undefined ? c.sort_order : '-'}] `;
+      let path = getSortDisplay(cat) + cat.name_ru;
+      let current = cat;
+      while (current.parent_id) {
+        const parent = categoriesData.find(c => c.id === current.parent_id);
+        if (parent) {
+          path = `${getSortDisplay(parent)}${parent.name_ru} > ${path}`;
+          current = parent;
+        } else {
+          break;
+        }
+      }
+      return path;
+    };
+
+    // To sort correctly by hierarchy and sort_order, we build a sort_path
+    const getCategorySortPath = (cat) => {
+      const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
+      let path = [String(getSortVal(cat)).padStart(5, '0') + cat.name_ru];
+      let current = cat;
+      while (current.parent_id) {
+        const parent = categoriesData.find(c => c.id === current.parent_id);
+        if (parent) {
+          path.unshift(String(getSortVal(parent)).padStart(5, '0') + parent.name_ru);
+          current = parent;
+        } else {
+          break;
+        }
+      }
+      return path.join(' > ');
+    };
+
+    const enrichedCategories = categoriesData.map(c => ({
+      ...c,
+      full_path: getCategoryPath(c),
+      sort_key: getCategorySortPath(c)
+    })).sort((a, b) => a.sort_key.localeCompare(b.sort_key, 'ru'));
+
+    setCategories(enrichedCategories);
+  };
+
+  const loadCategoriesForProducts = async () => {
+    const response = await axios.get(`${API_URL}/admin/categories`);
+    applyCategoriesData(response.data || []);
+  };
+
   const fetchData = async () => {
     try {
-      const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.all([
+      const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.allSettled([
         axios.get(`${API_URL}/admin/orders${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`),
         axios.get(`${API_URL}/admin/products`),
         axios.get(`${API_URL}/admin/categories`),
         axios.get(`${API_URL}/admin/containers`)
       ]);
 
-      setOrders((ordersRes.data || []).map(order => ({
-        ...order,
-        status: order.status === 'in_progress' ? 'preparing' : order.status,
-        cancelled_at_status: order.cancelled_at_status === 'in_progress'
-          ? 'preparing'
-          : order.cancelled_at_status
-      })));
-      setProducts(productsRes.data);
+      if (ordersRes.status === 'fulfilled') {
+        setOrders((ordersRes.value.data || []).map(order => ({
+          ...order,
+          status: order.status === 'in_progress' ? 'preparing' : order.status,
+          cancelled_at_status: order.cancelled_at_status === 'in_progress'
+            ? 'preparing'
+            : order.cancelled_at_status
+        })));
+      } else {
+        console.error('Orders fetch error:', ordersRes.reason);
+      }
 
-      // Calculate full category paths locally and sort correctly
-      const categoriesData = categoriesRes.data;
-      const getCategoryPath = (cat) => {
-        const getSortDisplay = (c) => `[${c.sort_order !== null && c.sort_order !== undefined ? c.sort_order : '-'}] `;
-        let path = getSortDisplay(cat) + cat.name_ru;
-        let current = cat;
-        while (current.parent_id) {
-          const parent = categoriesData.find(c => c.id === current.parent_id);
-          if (parent) {
-            path = `${getSortDisplay(parent)}${parent.name_ru} > ${path}`;
-            current = parent;
-          } else {
-            break;
-          }
-        }
-        return path;
-      };
+      if (productsRes.status === 'fulfilled') {
+        setProducts(productsRes.value.data || []);
+      } else {
+        console.error('Products fetch error:', productsRes.reason);
+      }
 
-      // To sort correctly by hierarchy and sort_order, we build a sort_path
-      const getCategorySortPath = (cat) => {
-        const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
-        let path = [String(getSortVal(cat)).padStart(5, '0') + cat.name_ru];
-        let current = cat;
-        while (current.parent_id) {
-          const parent = categoriesData.find(c => c.id === current.parent_id);
-          if (parent) {
-            path.unshift(String(getSortVal(parent)).padStart(5, '0') + parent.name_ru);
-            current = parent;
-          } else {
-            break;
-          }
-        }
-        return path.join(' > ');
-      };
+      if (categoriesRes.status === 'fulfilled') {
+        applyCategoriesData(categoriesRes.value.data || []);
+      } else {
+        console.error('Categories fetch error:', categoriesRes.reason);
+      }
 
-      const enrichedCategories = categoriesData.map(c => ({
-        ...c,
-        full_path: getCategoryPath(c),
-        sort_key: getCategorySortPath(c)
-      })).sort((a, b) => a.sort_key.localeCompare(b.sort_key, 'ru'));
-
-      setCategories(enrichedCategories);
-
-      setContainers(containersRes.data);
+      if (containersRes.status === 'fulfilled') {
+        setContainers(containersRes.value.data || []);
+      } else {
+        console.error('Containers fetch error:', containersRes.reason);
+      }
 
       // Fetch feedback stats
       fetchFeedbackStats();
@@ -966,7 +991,15 @@ function AdminDashboard() {
     }
   };
 
-  const openProductModal = (product = null) => {
+  const openProductModal = async (product = null) => {
+    if (!categories.length) {
+      try {
+        await loadCategoriesForProducts();
+      } catch (error) {
+        console.error('Load categories for modal error:', error);
+      }
+    }
+
     if (product) {
       setSelectedProduct(product);
       setProductForm({
@@ -3910,26 +3943,6 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
               </Row>
-
-              <Form.Group className="mb-3">
-                <Form.Label>{t('descriptionRu')}</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={productForm.description_ru}
-                  onChange={(e) => setProductForm({ ...productForm, description_ru: e.target.value })}
-                />
-              </Form.Group>
-
-              <Form.Group className="mb-3">
-                <Form.Label>{t('descriptionUz')}</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={productForm.description_uz}
-                  onChange={(e) => setProductForm({ ...productForm, description_uz: e.target.value })}
-                />
-              </Form.Group>
 
               <Row>
                 <Col md={4}>

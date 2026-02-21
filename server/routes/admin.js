@@ -49,7 +49,7 @@ const findAdminCategoryNameConflict = async ({
   return null;
 };
 
-const validateProductCategorySelection = async ({ categoryId, restaurantId }) => {
+const validateProductCategorySelection = async ({ categoryId }) => {
   if (!categoryId) {
     return { ok: true, category: null };
   }
@@ -57,13 +57,12 @@ const validateProductCategorySelection = async ({ categoryId, restaurantId }) =>
   const categoryCheck = await pool.query(
     `SELECT id, parent_id
      FROM categories
-     WHERE id = $1
-       AND (restaurant_id = $2 OR restaurant_id IS NULL)`,
-    [categoryId, restaurantId]
+     WHERE id = $1`,
+    [categoryId]
   );
 
   if (categoryCheck.rows.length === 0) {
-    return { ok: false, error: 'Категория не найдена для текущего ресторана' };
+    return { ok: false, error: 'Категория не найдена' };
   }
 
   if (categoryCheck.rows[0].parent_id === null) {
