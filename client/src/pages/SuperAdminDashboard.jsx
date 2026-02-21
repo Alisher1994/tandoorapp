@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
@@ -154,11 +154,17 @@ function SuperAdminDashboard() {
   const [restaurantsLimit, setRestaurantsLimit] = useState(15);
   const [operatorsPage, setOperatorsPage] = useState(1);
   const [operatorsLimit, setOperatorsLimit] = useState(15);
+  const [operatorSearch, setOperatorSearch] = useState('');
+  const [operatorRoleFilter, setOperatorRoleFilter] = useState('');
+  const [operatorStatusFilter, setOperatorStatusFilter] = useState('');
+  const [operatorRestaurantFilter, setOperatorRestaurantFilter] = useState('');
+  const [operatorRestaurantSearch, setOperatorRestaurantSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerPage, setCustomerPage] = useState(1);
   const [customerLimit, setCustomerLimit] = useState(15);
   const [customerStatusFilter, setCustomerStatusFilter] = useState('');
   const [customerRestaurantFilter, setCustomerRestaurantFilter] = useState('');
+  const [customerRestaurantSearch, setCustomerRestaurantSearch] = useState('');
   const [logsFilter, setLogsFilter] = useState({
     action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15
   });
@@ -234,7 +240,7 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (activeTab === 'operators') loadOperators();
-  }, [operatorsPage, operatorsLimit]);
+  }, [operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter]);
 
   useEffect(() => {
     if (activeTab === 'customers') loadCustomers();
@@ -294,7 +300,14 @@ function SuperAdminDashboard() {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/superadmin/operators`, {
-        params: { page: operatorsPage, limit: operatorsLimit }
+        params: {
+          page: operatorsPage,
+          limit: operatorsLimit,
+          search: operatorSearch.trim(),
+          role: operatorRoleFilter,
+          status: operatorStatusFilter,
+          restaurant_id: operatorRestaurantFilter
+        }
       });
       const data = Array.isArray(response.data)
         ? { operators: response.data, total: response.data.length }
@@ -311,7 +324,7 @@ function SuperAdminDashboard() {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/superadmin/customers`, {
-        params: { page: customerPage, search: customerSearch, status: customerStatusFilter, restaurant_id: customerRestaurantFilter, limit: customerLimit }
+        params: { page: customerPage, search: customerSearch.trim(), status: customerStatusFilter, restaurant_id: customerRestaurantFilter, limit: customerLimit }
       });
       setCustomers(response.data);
     } catch (err) {
@@ -458,6 +471,34 @@ function SuperAdminDashboard() {
       setError('Ошибка сохранения настроек');
     }
   };
+
+  const customerRestaurantOptions = useMemo(() => {
+    const term = customerRestaurantSearch.trim().toLowerCase();
+    const filtered = allRestaurants.filter((restaurant) => (
+      !term || restaurant.name?.toLowerCase().includes(term)
+    ));
+
+    if (!customerRestaurantFilter) return filtered;
+
+    const selected = allRestaurants.find((restaurant) => String(restaurant.id) === String(customerRestaurantFilter));
+    if (!selected || filtered.some((restaurant) => restaurant.id === selected.id)) return filtered;
+
+    return [selected, ...filtered];
+  }, [allRestaurants, customerRestaurantSearch, customerRestaurantFilter]);
+
+  const operatorRestaurantOptions = useMemo(() => {
+    const term = operatorRestaurantSearch.trim().toLowerCase();
+    const filtered = allRestaurants.filter((restaurant) => (
+      !term || restaurant.name?.toLowerCase().includes(term)
+    ));
+
+    if (!operatorRestaurantFilter) return filtered;
+
+    const selected = allRestaurants.find((restaurant) => String(restaurant.id) === String(operatorRestaurantFilter));
+    if (!selected || filtered.some((restaurant) => restaurant.id === selected.id)) return filtered;
+
+    return [selected, ...filtered];
+  }, [allRestaurants, operatorRestaurantSearch, operatorRestaurantFilter]);
 
   const formatThousands = (value) => {
     if (value === null || value === undefined || value === '') return '';
@@ -1115,6 +1156,56 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
+                <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
+                  <Form.Select
+                    className="form-control-custom"
+                    style={{ width: '170px' }}
+                    value={operatorRoleFilter}
+                    onChange={(e) => { setOperatorRoleFilter(e.target.value); setOperatorsPage(1); }}
+                  >
+                    <option value="">{t('saAllRoles')}</option>
+                    <option value="operator">{t('saRoleOperator')}</option>
+                    <option value="superadmin">{t('saRoleSuperadmin')}</option>
+                  </Form.Select>
+                  <Form.Select
+                    className="form-control-custom"
+                    style={{ width: '160px' }}
+                    value={operatorStatusFilter}
+                    onChange={(e) => { setOperatorStatusFilter(e.target.value); setOperatorsPage(1); }}
+                  >
+                    <option value="">{t('saAllStatuses')}</option>
+                    <option value="active">{t('saStatusActive')}</option>
+                    <option value="inactive">{t('saStatusInactive')}</option>
+                  </Form.Select>
+                  <Form.Control
+                    className="form-control-custom"
+                    type="search"
+                    placeholder={t('saSearchShop')}
+                    style={{ width: '200px' }}
+                    value={operatorRestaurantSearch}
+                    onChange={(e) => setOperatorRestaurantSearch(e.target.value)}
+                  />
+                  <Form.Select
+                    className="form-control-custom"
+                    style={{ width: '220px' }}
+                    value={operatorRestaurantFilter}
+                    onChange={(e) => { setOperatorRestaurantFilter(e.target.value); setOperatorsPage(1); }}
+                  >
+                    <option value="">{t('saAllShops')}</option>
+                    {operatorRestaurantOptions?.map((restaurant) => (
+                      <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
+                    ))}
+                  </Form.Select>
+                  <Form.Control
+                    className="form-control-custom"
+                    type="search"
+                    placeholder={t('saSearchNamePhone')}
+                    style={{ width: '220px' }}
+                    value={operatorSearch}
+                    onChange={(e) => { setOperatorSearch(e.target.value); setOperatorsPage(1); }}
+                  />
+                </div>
+
                 {loading ? (
                   <div className="text-center p-5"><Spinner animation="border" /></div>
                 ) : (
@@ -1195,6 +1286,14 @@ function SuperAdminDashboard() {
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <h5 className="fw-bold mb-0">{t('saListCustomers')} ({customers.total})</h5>
                   <div className="d-flex gap-2 flex-wrap align-items-center">
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      placeholder={t('saSearchShop')}
+                      style={{ width: '200px' }}
+                      value={customerRestaurantSearch}
+                      onChange={(e) => setCustomerRestaurantSearch(e.target.value)}
+                    />
                     <Form.Select
                       className="form-control-custom"
                       style={{ width: '220px' }}
@@ -1202,7 +1301,7 @@ function SuperAdminDashboard() {
                       onChange={(e) => { setCustomerRestaurantFilter(e.target.value); setCustomerPage(1); }}
                     >
                       <option value="">{t('saAllShops')}</option>
-                      {allRestaurants?.map(r => (
+                      {customerRestaurantOptions?.map(r => (
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
                     </Form.Select>

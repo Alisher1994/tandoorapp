@@ -598,6 +598,47 @@ router.delete('/restaurants/:id', async (req, res) => {
 // Получить всех операторов
 router.get('/operators', async (req, res) => {
   try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.max(parseInt(req.query.limit, 10) || 50, 1);
+    const offset = (page - 1) * limit;
+    const { role = '', status = '', search = '', restaurant_id = '' } = req.query;
+
+    const whereClauses = [`u.role IN ('operator', 'superadmin')`];
+    const params = [];
+
+    if (role === 'operator' || role === 'superadmin') {
+      params.push(role);
+      whereClauses.push(`u.role = $${params.length}`);
+    }
+
+    if (status === 'active') {
+      whereClauses.push('u.is_active = true');
+    } else if (status === 'inactive') {
+      whereClauses.push('u.is_active = false');
+    }
+
+    if (restaurant_id) {
+      params.push(restaurant_id);
+      whereClauses.push(`(
+        u.active_restaurant_id = $${params.length}
+        OR EXISTS (
+          SELECT 1 FROM operator_restaurants opr_filter
+          WHERE opr_filter.user_id = u.id AND opr_filter.restaurant_id = $${params.length}
+        )
+      )`);
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      whereClauses.push(`(
+        u.full_name ILIKE $${params.length}
+        OR u.phone ILIKE $${params.length}
+        OR u.username ILIKE $${params.length}
+      )`);
+    }
+
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
     const result = await pool.query(`
       SELECT 
         u.id, u.username, u.full_name, u.phone, u.role, u.is_active, u.created_at,
@@ -613,11 +654,25 @@ router.get('/operators', async (req, res) => {
       LEFT JOIN restaurants ar ON u.active_restaurant_id = ar.id
       LEFT JOIN operator_restaurants opr ON u.id = opr.user_id
       LEFT JOIN restaurants r ON opr.restaurant_id = r.id
-      WHERE u.role IN ('operator', 'superadmin')
+      ${whereSql}
       GROUP BY u.id, ar.name
       ORDER BY u.created_at DESC
-    `);
-    res.json(result.rows);
+      LIMIT $${params.length + 1}
+      OFFSET $${params.length + 2}
+    `, [...params, limit, offset]);
+
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM users u
+      ${whereSql}
+    `, params);
+
+    res.json({
+      operators: result.rows,
+      total: parseInt(countResult.rows[0].total, 10),
+      page,
+      limit
+    });
   } catch (error) {
     console.error('Get operators error:', error);
     res.status(500).json({ error: 'Ошибка получения операторов' });
@@ -954,12 +1009,13 @@ router.delete('/operators/:id', async (req, res) => {
 // Получить всех клиентов
 router.get('/customers', async (req, res) => {
   try {
-    const { page = 1, limit = 50, search = '', status = '' } = req.query;
+    const { page = 1, limit = 50, search = '', status = '', restaurant_id = '' } = req.query;
     const offset = (page - 1) * limit;
 
     let query = `
       SELECT 
-        u.id as user_id, u.id as association_id, u.username, u.full_name, u.phone, u.telegram_id, 
+        u.id as user_id, u.id as association_id, u.username, u.full_name, u.phone, u.telegram_id,
+        u.active_restaurant_id as restaurant_id,
         u.is_active as user_is_active, COALESCE(ur.is_blocked, false) as is_blocked, u.created_at,
         r.name as restaurant_name,
         COUNT(o.id) as orders_count,
@@ -978,13 +1034,18 @@ router.get('/customers', async (req, res) => {
       params.push(`%${search}%`);
     }
 
+    if (restaurant_id) {
+      query += ` AND u.active_restaurant_id = $${params.length + 1}`;
+      params.push(restaurant_id);
+    }
+
     if (status === 'active') {
       query += ` AND u.is_active = true`;
     } else if (status === 'blocked') {
       query += ` AND (u.is_active = false OR COALESCE(ur.is_blocked, false) = true)`;
     }
 
-    query += ` GROUP BY u.id, r.name, ur.is_blocked ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` GROUP BY u.id, u.active_restaurant_id, r.name, ur.is_blocked ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
@@ -995,6 +1056,10 @@ router.get('/customers', async (req, res) => {
     if (search) {
       countQuery += ` AND (full_name ILIKE $2 OR phone ILIKE $2 OR username ILIKE $2)`;
       countParams.push(`%${search}%`);
+    }
+    if (restaurant_id) {
+      countQuery += ` AND active_restaurant_id = $${countParams.length + 1}`;
+      countParams.push(restaurant_id);
     }
     if (status === 'active') {
       countQuery += ` AND is_active = true`;
