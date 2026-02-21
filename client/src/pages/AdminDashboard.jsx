@@ -999,8 +999,20 @@ function AdminDashboard() {
     setShowProductModal(true);
   };
 
+  const getCategoryById = (categoryId) => categories.find((cat) => String(cat.id) === String(categoryId));
+  const isTopLevelCategorySelection = (categoryId) => {
+    const selected = getCategoryById(categoryId);
+    return Boolean(selected && !selected.parent_id);
+  };
+
   const handleProductSubmit = async (e) => {
     e.preventDefault();
+
+    if (isTopLevelCategorySelection(productForm.category_id)) {
+      alert('Товар нельзя добавлять в категорию 1-го уровня. Выберите субкатегорию.');
+      return;
+    }
+
     try {
       const productData = {
         ...productForm,
@@ -3810,27 +3822,41 @@ function AdminDashboard() {
                     <Col md={6} key={`category-level-${level}`}>
                       <Form.Group className="mb-3">
                         <Form.Label>{isRootLevel ? t('categoryRequired') : `${t('subcategoryLevel')} ${level}`}</Form.Label>
-                        <Dropdown>
-                          <Dropdown.Toggle as={CustomToggle} id={`dropdown-category-level-${level}`}>
-                            {dropDownLabel}
-                          </Dropdown.Toggle>
+                        <div className="d-flex align-items-center gap-2">
+                          <Dropdown className="flex-grow-1">
+                            <Dropdown.Toggle as={CustomToggle} id={`dropdown-category-level-${level}`}>
+                              {dropDownLabel}
+                            </Dropdown.Toggle>
 
-                          <Dropdown.Menu as={CustomMenu}>
-                            <Dropdown.Item onClick={() => handleSelect('')}>
-                              {defaultLabel}
-                            </Dropdown.Item>
-                            {currentLevelCategories.map(cat => (
-                              <Dropdown.Item
-                                key={cat.id}
-                                onClick={() => handleSelect(cat.id.toString())}
-                                active={selectedIdForThisLevel.toString() === cat.id.toString()}
-                              >
-                                <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
-                                {cat.name_ru}
+                            <Dropdown.Menu as={CustomMenu}>
+                              <Dropdown.Item onClick={() => handleSelect('')}>
+                                {defaultLabel}
                               </Dropdown.Item>
-                            ))}
-                          </Dropdown.Menu>
-                        </Dropdown>
+                              {currentLevelCategories.map(cat => (
+                                <Dropdown.Item
+                                  key={cat.id}
+                                  onClick={() => handleSelect(cat.id.toString())}
+                                  active={selectedIdForThisLevel.toString() === cat.id.toString()}
+                                >
+                                  <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
+                                  {cat.name_ru}
+                                </Dropdown.Item>
+                              ))}
+                            </Dropdown.Menu>
+                          </Dropdown>
+                          {!isRootLevel && selectedIdForThisLevel && (
+                            <Button
+                              variant="outline-secondary"
+                              type="button"
+                              className="px-2 py-1 lh-1"
+                              title="Снять выбор субкатегории"
+                              aria-label="Снять выбор субкатегории"
+                              onClick={() => handleSelect('')}
+                            >
+                              ×
+                            </Button>
+                          )}
+                        </div>
                         {/* Hidden input to ensure HTML5 validation still catches required field */}
                         {isRootLevel && (
                           <input
@@ -3855,6 +3881,11 @@ function AdminDashboard() {
 
                 return <Row>{dropdownsToRender}</Row>;
               })()}
+              {isTopLevelCategorySelection(productForm.category_id) && (
+                <Alert variant="warning" className="py-2 px-3 small">
+                  В категорию 1-го уровня товар добавлять нельзя. Выберите субкатегорию.
+                </Alert>
+              )}
 
               <Row>
                 <Col md={6}>
@@ -4056,7 +4087,7 @@ function AdminDashboard() {
               <Button variant="secondary" onClick={() => setShowProductModal(false)}>
                 {t('cancel')}
               </Button>
-              <Button variant="primary" type="submit">
+              <Button variant="primary" type="submit" disabled={isTopLevelCategorySelection(productForm.category_id)}>
                 {selectedProduct ? t('save') : t('add')}
               </Button>
             </Modal.Footer>

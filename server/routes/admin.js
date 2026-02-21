@@ -49,6 +49,30 @@ const findAdminCategoryNameConflict = async ({
   return null;
 };
 
+const validateProductCategorySelection = async ({ categoryId, restaurantId }) => {
+  if (!categoryId) {
+    return { ok: true, category: null };
+  }
+
+  const categoryCheck = await pool.query(
+    `SELECT id, parent_id
+     FROM categories
+     WHERE id = $1
+       AND (restaurant_id = $2 OR restaurant_id IS NULL)`,
+    [categoryId, restaurantId]
+  );
+
+  if (categoryCheck.rows.length === 0) {
+    return { ok: false, error: 'Категория не найдена для текущего ресторана' };
+  }
+
+  if (categoryCheck.rows[0].parent_id === null) {
+    return { ok: false, error: 'Товар нельзя добавлять в категорию 1-го уровня. Выберите подкатегорию.' };
+  }
+
+  return { ok: true, category: categoryCheck.rows[0] };
+};
+
 // All routes require authentication and operator/superadmin role
 router.use(authenticate);
 router.use(requireOperator);
@@ -941,14 +965,12 @@ router.post('/products', async (req, res) => {
       return res.status(400).json({ error: 'Название и цена обязательны' });
     }
 
-    if (category_id) {
-      const categoryCheck = await pool.query(
-        'SELECT id FROM categories WHERE id = $1 AND (restaurant_id = $2 OR restaurant_id IS NULL)',
-        [category_id, restaurantId]
-      );
-      if (categoryCheck.rows.length === 0) {
-        return res.status(400).json({ error: 'Категория не найдена для текущего ресторана' });
-      }
+    const categoryValidation = await validateProductCategorySelection({
+      categoryId: category_id,
+      restaurantId
+    });
+    if (!categoryValidation.ok) {
+      return res.status(400).json({ error: categoryValidation.error });
     }
 
     const result = await pool.query(`
@@ -1002,14 +1024,12 @@ router.post('/products/upsert', async (req, res) => {
       return res.status(400).json({ error: 'Название и цена обязательны' });
     }
 
-    if (category_id) {
-      const categoryCheck = await pool.query(
-        'SELECT id FROM categories WHERE id = $1 AND (restaurant_id = $2 OR restaurant_id IS NULL)',
-        [category_id, restaurantId]
-      );
-      if (categoryCheck.rows.length === 0) {
-        return res.status(400).json({ error: 'Категория не найдена для текущего ресторана' });
-      }
+    const categoryValidation = await validateProductCategorySelection({
+      categoryId: category_id,
+      restaurantId
+    });
+    if (!categoryValidation.ok) {
+      return res.status(400).json({ error: categoryValidation.error });
     }
 
     // Проверяем, существует ли товар с таким названием в этой категории (или любой категории если category_id не указан)
@@ -1138,14 +1158,12 @@ router.put('/products/:id', async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа к этому товару' });
     }
 
-    if (category_id) {
-      const categoryCheck = await pool.query(
-        'SELECT id FROM categories WHERE id = $1 AND (restaurant_id = $2 OR restaurant_id IS NULL)',
-        [category_id, oldProduct.restaurant_id]
-      );
-      if (categoryCheck.rows.length === 0) {
-        return res.status(400).json({ error: 'Категория не найдена для текущего ресторана' });
-      }
+    const categoryValidation = await validateProductCategorySelection({
+      categoryId: category_id,
+      restaurantId: oldProduct.restaurant_id
+    });
+    if (!categoryValidation.ok) {
+      return res.status(400).json({ error: categoryValidation.error });
     }
 
     const result = await pool.query(`
