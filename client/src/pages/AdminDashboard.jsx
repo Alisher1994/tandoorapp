@@ -677,11 +677,13 @@ function AdminDashboard() {
         status: newStatus,
         cancel_reason: reason
       });
-      fetchData();
-      fetchUser();
+      await fetchData();
+      await fetchUser();
+      setAlertMessage({ type: 'success', text: 'Статус заказа обновлен' });
       setShowOrderModal(false);
     } catch (error) {
-      alert('Ошибка обновления статуса');
+      const errorText = error.response?.data?.error || 'Ошибка обновления статуса';
+      setAlertMessage({ type: 'danger', text: errorText });
     }
   };
 
@@ -2111,7 +2113,8 @@ function AdminDashboard() {
                                   <Button
                                     variant="success"
                                     size="sm"
-                                    className="action-btn px-2 w-auto"
+                                    className="px-2 w-auto fw-semibold"
+                                    style={{ fontSize: '0.75rem' }}
                                     onClick={() => handleAcceptAndPay(order.id)}
                                     title="Принять и оплатить"
                                   >

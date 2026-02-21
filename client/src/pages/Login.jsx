@@ -70,6 +70,7 @@ function Login() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoFocus
+                autoComplete="username"
               />
             </Form.Group>
 
@@ -81,6 +82,7 @@ function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </Form.Group>
 

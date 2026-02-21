@@ -92,12 +92,12 @@ router.post('/login', async (req, res) => {
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       WHERE LOWER(u.username) = $1
          OR LOWER(u.username) = $2
-         OR COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3
-         OR COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3
+         OR ($3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3)
+         OR ($3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3)
       ORDER BY
         CASE
-          WHEN COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
-          WHEN COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
+          WHEN $3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
+          WHEN $3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
           WHEN LOWER(u.username) = $1 THEN 2
           WHEN LOWER(u.username) = $2 THEN 3
           ELSE 4
@@ -116,7 +116,20 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Аккаунт деактивирован' });
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    let isValidPassword = false;
+    const storedPassword = user.password || '';
+    const isBcryptHash = typeof storedPassword === 'string' && /^\$2[aby]\$\d{2}\$/.test(storedPassword);
+
+    if (isBcryptHash) {
+      isValidPassword = await bcrypt.compare(password, storedPassword);
+    } else {
+      // Backward compatibility for legacy plain-text passwords
+      isValidPassword = password === storedPassword;
+      if (isValidPassword) {
+        const rehashedPassword = await bcrypt.hash(password, 10);
+        await pool.query('UPDATE users SET password = $1 WHERE id = $2', [rehashedPassword, user.id]);
+      }
+    }
 
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
