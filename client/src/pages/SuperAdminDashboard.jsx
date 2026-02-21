@@ -86,6 +86,70 @@ const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onL
   );
 };
 
+const SearchableRestaurantFilter = ({
+  t,
+  value,
+  onChange,
+  restaurants,
+  searchValue,
+  onSearchChange,
+  width = '220px'
+}) => {
+  const [show, setShow] = useState(false);
+  const selectedRestaurant = restaurants.find((restaurant) => String(restaurant.id) === String(value));
+
+  return (
+    <Dropdown show={show} onToggle={(nextShow) => setShow(nextShow)} autoClose="outside" style={{ width }}>
+      <Dropdown.Toggle
+        variant="light"
+        className="form-control-custom w-100 d-flex align-items-center justify-content-between text-start"
+        style={{ minHeight: '40px' }}
+      >
+        <span className="text-truncate">{selectedRestaurant?.name || t('saAllShops')}</span>
+      </Dropdown.Toggle>
+
+      <Dropdown.Menu style={{ width: '100%', maxHeight: '320px', overflowY: 'auto' }}>
+        <div className="px-2 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder={t('saSearchShop')}
+            value={searchValue}
+            onChange={(e) => onSearchChange(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <Dropdown.Divider className="my-1" />
+        <Dropdown.Item
+          active={!value}
+          onClick={() => {
+            onChange('');
+            setShow(false);
+          }}
+        >
+          {t('saAllShops')}
+        </Dropdown.Item>
+        {restaurants.length === 0 ? (
+          <Dropdown.Item disabled>{t('noData')}</Dropdown.Item>
+        ) : (
+          restaurants.map((restaurant) => (
+            <Dropdown.Item
+              key={restaurant.id}
+              active={String(value) === String(restaurant.id)}
+              onClick={() => {
+                onChange(String(restaurant.id));
+                setShow(false);
+              }}
+            >
+              {restaurant.name}
+            </Dropdown.Item>
+          ))
+        )}
+      </Dropdown.Menu>
+    </Dropdown>
+  );
+};
+
 function SuperAdminDashboard() {
   const { user, logout } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -1177,25 +1241,19 @@ function SuperAdminDashboard() {
                     <option value="active">{t('saStatusActive')}</option>
                     <option value="inactive">{t('saStatusInactive')}</option>
                   </Form.Select>
-                  <Form.Control
-                    className="form-control-custom"
-                    type="search"
-                    placeholder={t('saSearchShop')}
-                    style={{ width: '200px' }}
-                    value={operatorRestaurantSearch}
-                    onChange={(e) => setOperatorRestaurantSearch(e.target.value)}
-                  />
-                  <Form.Select
-                    className="form-control-custom"
-                    style={{ width: '220px' }}
+                  <SearchableRestaurantFilter
+                    t={t}
+                    width="220px"
                     value={operatorRestaurantFilter}
-                    onChange={(e) => { setOperatorRestaurantFilter(e.target.value); setOperatorsPage(1); }}
-                  >
-                    <option value="">{t('saAllShops')}</option>
-                    {operatorRestaurantOptions?.map((restaurant) => (
-                      <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
-                    ))}
-                  </Form.Select>
+                    restaurants={operatorRestaurantOptions}
+                    searchValue={operatorRestaurantSearch}
+                    onSearchChange={setOperatorRestaurantSearch}
+                    onChange={(nextValue) => {
+                      setOperatorRestaurantFilter(nextValue);
+                      setOperatorRestaurantSearch('');
+                      setOperatorsPage(1);
+                    }}
+                  />
                   <Form.Control
                     className="form-control-custom"
                     type="search"
@@ -1286,25 +1344,19 @@ function SuperAdminDashboard() {
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <h5 className="fw-bold mb-0">{t('saListCustomers')} ({customers.total})</h5>
                   <div className="d-flex gap-2 flex-wrap align-items-center">
-                    <Form.Control
-                      className="form-control-custom"
-                      type="search"
-                      placeholder={t('saSearchShop')}
-                      style={{ width: '200px' }}
-                      value={customerRestaurantSearch}
-                      onChange={(e) => setCustomerRestaurantSearch(e.target.value)}
-                    />
-                    <Form.Select
-                      className="form-control-custom"
-                      style={{ width: '220px' }}
+                    <SearchableRestaurantFilter
+                      t={t}
+                      width="220px"
                       value={customerRestaurantFilter}
-                      onChange={(e) => { setCustomerRestaurantFilter(e.target.value); setCustomerPage(1); }}
-                    >
-                      <option value="">{t('saAllShops')}</option>
-                      {customerRestaurantOptions?.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                    </Form.Select>
+                      restaurants={customerRestaurantOptions}
+                      searchValue={customerRestaurantSearch}
+                      onSearchChange={setCustomerRestaurantSearch}
+                      onChange={(nextValue) => {
+                        setCustomerRestaurantFilter(nextValue);
+                        setCustomerRestaurantSearch('');
+                        setCustomerPage(1);
+                      }}
+                    />
                     <Form.Select
                       className="form-control-custom"
                       style={{ width: '150px' }}
