@@ -62,17 +62,25 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+    const normalizedUsername = String(username || '').trim();
 
-    if (!username || !password) {
+    if (!normalizedUsername || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
+
+    const usernameLower = normalizedUsername.toLowerCase();
+    const usernameWithAt = normalizedUsername.startsWith('@')
+      ? normalizedUsername.toLowerCase()
+      : `@${normalizedUsername.toLowerCase()}`;
 
     const result = await pool.query(`
       SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
-      WHERE u.username = $1
-    `, [username]);
+      WHERE LOWER(u.username) = $1 OR LOWER(u.username) = $2
+      ORDER BY CASE WHEN LOWER(u.username) = $1 THEN 0 ELSE 1 END
+      LIMIT 1
+    `, [usernameLower, usernameWithAt]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
