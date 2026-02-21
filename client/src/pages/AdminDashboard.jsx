@@ -27,6 +27,7 @@ import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 
 // SVG Icons
 const EditIcon = () => (
@@ -3100,7 +3101,14 @@ function AdminDashboard() {
         </Card>
 
         {/* Order Details Modal */}
-        <Modal show={showOrderModal} onHide={() => setShowOrderModal(false)} size="lg">
+        <Modal
+          show={showOrderModal}
+          onHide={() => setShowOrderModal(false)}
+          size="xl"
+          centered
+          dialogClassName="order-details-modal-dialog"
+          contentClassName="order-details-modal-content"
+        >
           <Modal.Header closeButton>
             <Modal.Title className="d-flex align-items-center gap-2">
               <span>Заказ #{selectedOrder?.order_number}</span>
@@ -3110,7 +3118,7 @@ function AdminDashboard() {
           <Modal.Body className="order-details-modal-body">
             {selectedOrder && (
               <>
-                <Row className="g-3 order-details-modal-layout">
+                <Row className="g-3 order-details-modal-layout h-100">
                   <Col md={8} className="order-md-2">
                 <div className="order-details-side">
                 <div className="mb-3">
@@ -3165,7 +3173,7 @@ function AdminDashboard() {
                               title="delivery-map"
                               src={`https://yandex.ru/map-widget/v1/?pt=${lng},${lat}&z=16&l=map`}
                               width="100%"
-                              height="250"
+                              height="220"
                               frameBorder="0"
                             />
                           </div>
@@ -3330,7 +3338,7 @@ function AdminDashboard() {
                   <Col md={4} className="order-md-1">
                   <div className="order-items-side">
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
-                  <div className="mb-3">
+                  <div className="mb-0 d-flex flex-column h-100">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <strong>Товары:</strong>
                       {!isEditingItems ? (
@@ -3365,9 +3373,17 @@ function AdminDashboard() {
                                 <div className="order-item-number">{idx + 1}</div>
                                 <div className="order-item-photo">
                                   {imageUrl ? (
-                                    <img src={imageUrl} alt={item.product_name} />
+                                    <img
+                                      src={imageUrl}
+                                      alt={item.product_name}
+                                      onError={(e) => {
+                                        if (e.currentTarget.src !== PRODUCT_PLACEHOLDER_IMAGE) {
+                                          e.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
+                                        }
+                                      }}
+                                    />
                                   ) : (
-                                    <span>🍽</span>
+                                    <img src={PRODUCT_PLACEHOLDER_IMAGE} alt="placeholder" />
                                   )}
                                 </div>
                                 <div className="order-item-content">
