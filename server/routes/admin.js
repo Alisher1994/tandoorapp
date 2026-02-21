@@ -13,6 +13,41 @@ const { reloadMultiBots } = require('../bot/multiBotManager');
 
 const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
+const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const findAdminCategoryNameConflict = async ({
+  parentId = null,
+  restaurantId,
+  nameRu,
+  nameUz,
+  excludeId = null
+}) => {
+  const siblings = await pool.query(
+    `SELECT id, name_ru, name_uz
+     FROM categories
+     WHERE restaurant_id = $1
+       AND parent_id IS NOT DISTINCT FROM $2
+       AND ($3::int IS NULL OR id <> $3)`,
+    [restaurantId, parentId, excludeId]
+  );
+
+  const targetRu = normalizeCategoryName(nameRu).toLowerCase();
+  const targetUz = normalizeCategoryName(nameUz).toLowerCase();
+
+  for (const sibling of siblings.rows) {
+    const siblingRu = normalizeCategoryName(sibling.name_ru).toLowerCase();
+    const siblingUz = normalizeCategoryName(sibling.name_uz).toLowerCase();
+
+    if (targetRu && siblingRu === targetRu) {
+      return { field: 'name_ru', existingId: sibling.id };
+    }
+    if (targetUz && siblingUz && siblingUz === targetUz) {
+      return { field: 'name_uz', existingId: sibling.id };
+    }
+  }
+
+  return null;
+};
 
 // All routes require authentication and operator/superadmin role
 router.use(authenticate);
@@ -1325,20 +1360,35 @@ router.post('/categories', async (req, res) => {
   try {
     const { name_ru, name_uz, image_url, sort_order } = req.body;
     const restaurantId = req.user.active_restaurant_id;
+    const normalizedNameRu = normalizeCategoryName(name_ru);
+    const normalizedNameUz = normalizeCategoryName(name_uz);
 
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
 
-    if (!name_ru) {
+    if (!normalizedNameRu) {
       return res.status(400).json({ error: 'Название категории обязательно' });
+    }
+
+    const conflict = await findAdminCategoryNameConflict({
+      parentId: null,
+      restaurantId,
+      nameRu: normalizedNameRu,
+      nameUz: normalizedNameUz
+    });
+    if (conflict) {
+      if (conflict.field === 'name_ru') {
+        return res.status(400).json({ error: 'Категория с таким названием RU уже существует на этом уровне' });
+      }
+      return res.status(400).json({ error: 'Категория с таким названием UZ уже существует на этом уровне' });
     }
 
     const result = await pool.query(`
       INSERT INTO categories(restaurant_id, name_ru, name_uz, image_url, sort_order)
 VALUES($1, $2, $3, $4, $5)
 RETURNING *
-  `, [restaurantId, name_ru, name_uz, image_url, sort_order || 0]);
+  `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0]);
 
     const category = result.rows[0];
 
@@ -1366,6 +1416,12 @@ RETURNING *
 router.put('/categories/:id', async (req, res) => {
   try {
     const { name_ru, name_uz, image_url, sort_order } = req.body;
+    const normalizedNameRu = normalizeCategoryName(name_ru);
+    const normalizedNameUz = normalizeCategoryName(name_uz);
+
+    if (!normalizedNameRu) {
+      return res.status(400).json({ error: 'Название категории обязательно' });
+    }
 
     // Get old values and check access
     const oldResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
@@ -1379,12 +1435,26 @@ router.put('/categories/:id', async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа к этой категории' });
     }
 
+    const conflict = await findAdminCategoryNameConflict({
+      parentId: oldCategory.parent_id ?? null,
+      restaurantId: oldCategory.restaurant_id,
+      nameRu: normalizedNameRu,
+      nameUz: normalizedNameUz,
+      excludeId: Number.parseInt(req.params.id, 10)
+    });
+    if (conflict) {
+      if (conflict.field === 'name_ru') {
+        return res.status(400).json({ error: 'Категория с таким названием RU уже существует на этом уровне' });
+      }
+      return res.status(400).json({ error: 'Категория с таким названием UZ уже существует на этом уровне' });
+    }
+
     const result = await pool.query(`
       UPDATE categories SET
 name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, updated_at = CURRENT_TIMESTAMP
       WHERE id = $5
 RETURNING *
-  `, [name_ru, name_uz, image_url, sort_order || 0, req.params.id]);
+  `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, req.params.id]);
 
     const category = result.rows[0];
 

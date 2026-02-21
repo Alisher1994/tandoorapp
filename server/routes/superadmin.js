@@ -30,6 +30,44 @@ const normalizeCategoryId = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const findSiblingCategoryNameConflict = async ({
+  client,
+  parentId,
+  restaurantId,
+  nameRu,
+  nameUz,
+  excludeId = null
+}) => {
+  const siblings = await client.query(
+    `SELECT id, name_ru, name_uz
+     FROM categories
+     WHERE parent_id IS NOT DISTINCT FROM $1
+       AND restaurant_id IS NOT DISTINCT FROM $2
+       AND ($3::int IS NULL OR id <> $3)`,
+    [parentId, restaurantId, excludeId]
+  );
+
+  const targetRu = normalizeCategoryName(nameRu).toLowerCase();
+  const targetUz = normalizeCategoryName(nameUz).toLowerCase();
+
+  for (const sibling of siblings.rows) {
+    const siblingRu = normalizeCategoryName(sibling.name_ru).toLowerCase();
+    const siblingUz = normalizeCategoryName(sibling.name_uz).toLowerCase();
+
+    if (targetRu && siblingRu === targetRu) {
+      return { field: 'name_ru', existingId: sibling.id };
+    }
+
+    if (targetUz && siblingUz && siblingUz === targetUz) {
+      return { field: 'name_uz', existingId: sibling.id };
+    }
+  }
+
+  return null;
+};
+
 const getCategoryLevelById = async (client, categoryId, disallowId = null) => {
   let level = 0;
   let currentId = normalizeCategoryId(categoryId);
@@ -769,6 +807,12 @@ router.post('/categories', async (req, res) => {
     const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
     const normalizedParentId = normalizeCategoryId(parent_id);
     const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
+    const normalizedNameRu = normalizeCategoryName(name_ru);
+    const normalizedNameUz = normalizeCategoryName(name_uz);
+
+    if (!normalizedNameRu) {
+      return res.status(400).json({ error: 'Название категории (RU) обязательно' });
+    }
 
     if (normalizedParentId) {
       let parentLevel = 0;
@@ -792,11 +836,25 @@ router.post('/categories', async (req, res) => {
       }
     }
 
+    const conflict = await findSiblingCategoryNameConflict({
+      client: pool,
+      parentId: normalizedParentId,
+      restaurantId: normalizedRestaurantId,
+      nameRu: normalizedNameRu,
+      nameUz: normalizedNameUz
+    });
+    if (conflict) {
+      if (conflict.field === 'name_ru') {
+        return res.status(400).json({ error: 'Категория с таким названием RU уже существует на этом уровне' });
+      }
+      return res.status(400).json({ error: 'Категория с таким названием UZ уже существует на этом уровне' });
+    }
+
     const result = await pool.query(`
       INSERT INTO categories (name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [name_ru, name_uz, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId]);
+    `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Create category error:', error);
@@ -811,6 +869,12 @@ router.put('/categories/:id', async (req, res) => {
     const normalizedParentId = normalizeCategoryId(parent_id);
     const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
     const categoryId = Number.parseInt(req.params.id, 10);
+    const normalizedNameRu = normalizeCategoryName(name_ru);
+    const normalizedNameUz = normalizeCategoryName(name_uz);
+
+    if (!normalizedNameRu) {
+      return res.status(400).json({ error: 'Название категории (RU) обязательно' });
+    }
 
     // Get old values
     const oldResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
@@ -847,13 +911,28 @@ router.put('/categories/:id', async (req, res) => {
       return res.status(400).json({ error: `Максимальная вложенность категорий: ${MAX_CATEGORY_LEVEL} уровня` });
     }
 
+    const conflict = await findSiblingCategoryNameConflict({
+      client: pool,
+      parentId: normalizedParentId,
+      restaurantId: normalizedRestaurantId,
+      nameRu: normalizedNameRu,
+      nameUz: normalizedNameUz,
+      excludeId: categoryId
+    });
+    if (conflict) {
+      if (conflict.field === 'name_ru') {
+        return res.status(400).json({ error: 'Категория с таким названием RU уже существует на этом уровне' });
+      }
+      return res.status(400).json({ error: 'Категория с таким названием UZ уже существует на этом уровне' });
+    }
+
     const result = await pool.query(`
       UPDATE categories SET
         name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, 
         parent_id = $5, restaurant_id = $6, updated_at = CURRENT_TIMESTAMP
       WHERE id = $7
       RETURNING *
-    `, [name_ru, name_uz, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId, req.params.id]);
+    `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId, req.params.id]);
 
     const category = result.rows[0];
 

@@ -532,6 +532,22 @@ function SuperAdminDashboard() {
 
   const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const getCategoryKey = (parentId, name) => `${parentId ?? 'root'}::${normalizeCategoryName(name).toLowerCase()}`;
+  const getSiblingNameConflict = ({ parentId, nameRu, nameUz, excludeId = null }) => {
+    const targetRu = normalizeCategoryName(nameRu).toLowerCase();
+    const targetUz = normalizeCategoryName(nameUz).toLowerCase();
+
+    return (categories || []).find((category) => {
+      if ((category.parent_id ?? null) !== (parentId ?? null)) return false;
+      if (excludeId && category.id === excludeId) return false;
+
+      const categoryRu = normalizeCategoryName(category.name_ru).toLowerCase();
+      const categoryUz = normalizeCategoryName(category.name_uz).toLowerCase();
+
+      if (targetRu && categoryRu === targetRu) return true;
+      if (targetUz && categoryUz && categoryUz === targetUz) return true;
+      return false;
+    });
+  };
 
   const getNextAvailableSortOrder = (parentId) => {
     const existingOrders = (categories || [])
@@ -688,8 +704,19 @@ function SuperAdminDashboard() {
 
   const saveCategory = async (e) => {
     e.preventDefault();
-    if (!categoryForm.name_ru.trim()) {
+    if (!normalizeCategoryName(categoryForm.name_ru)) {
       setError('Название категории обязательно');
+      return;
+    }
+
+    const duplicateName = getSiblingNameConflict({
+      parentId: categoryForm.parent_id ?? null,
+      nameRu: categoryForm.name_ru,
+      nameUz: categoryForm.name_uz,
+      excludeId: categoryForm.id || null
+    });
+    if (duplicateName) {
+      setError('На этом уровне уже есть категория с таким названием RU или UZ');
       return;
     }
 
@@ -927,15 +954,23 @@ function SuperAdminDashboard() {
       }
 
       const categoryMap = new Map();
+      const categoryUzMap = new Map();
       const siblingMaxSort = new Map();
       categories.forEach((cat) => {
-        const name = normalizeCategoryName(cat.name_ru);
-        if (!name) return;
+        const ruName = normalizeCategoryName(cat.name_ru);
+        const uzName = normalizeCategoryName(cat.name_uz);
+        const parentId = cat.parent_id ?? null;
 
-        const key = getCategoryKey(cat.parent_id ?? null, name);
-        categoryMap.set(key, cat);
+        if (ruName) {
+          const ruKey = getCategoryKey(parentId, ruName);
+          categoryMap.set(ruKey, cat);
+        }
+        if (uzName) {
+          const uzKey = getCategoryKey(parentId, uzName);
+          categoryUzMap.set(uzKey, cat);
+        }
 
-        const parentKey = cat.parent_id ?? null;
+        const parentKey = parentId;
         const sortVal = Number.isFinite(Number(cat.sort_order)) ? Number(cat.sort_order) : 0;
         siblingMaxSort.set(parentKey, Math.max(siblingMaxSort.get(parentKey) || 0, sortVal));
       });
@@ -948,34 +983,51 @@ function SuperAdminDashboard() {
 
       let createdCount = 0;
       let skippedDuplicates = 0;
-
       let updatedUzCount = 0;
+      let skippedNameConflicts = 0;
 
       for (const levels of parsedRows) {
         let parentId = null;
+        let skipRow = false;
 
         for (const levelItem of levels) {
           const levelNameRu = normalizeCategoryName(levelItem.ru);
           const levelNameUz = normalizeCategoryName(levelItem.uz);
           if (!levelNameRu) continue;
 
-          const key = getCategoryKey(parentId, levelNameRu);
-          const existing = categoryMap.get(key);
-          if (existing) {
-            const existingUz = normalizeCategoryName(existing.name_uz);
+          const ruKey = getCategoryKey(parentId, levelNameRu);
+          const uzKey = levelNameUz ? getCategoryKey(parentId, levelNameUz) : null;
+          const existingByRu = categoryMap.get(ruKey);
+          const existingByUz = uzKey ? categoryUzMap.get(uzKey) : null;
+
+          if (existingByUz && (!existingByRu || existingByUz.id !== existingByRu.id)) {
+            skippedNameConflicts += 1;
+            skipRow = true;
+            break;
+          }
+
+          if (existingByRu) {
+            const existingUz = normalizeCategoryName(existingByRu.name_uz);
             if (levelNameUz && existingUz !== levelNameUz) {
-              const updatedResp = await axios.put(`${API_URL}/superadmin/categories/${existing.id}`, {
-                ...existing,
-                name_uz: levelNameUz
-              });
-              const updatedCategory = updatedResp.data;
-              categoryMap.set(key, updatedCategory);
-              updatedUzCount += 1;
-              parentId = updatedCategory.id;
-              continue;
+              if (!existingUz) {
+                const updatedResp = await axios.put(`${API_URL}/superadmin/categories/${existingByRu.id}`, {
+                  ...existingByRu,
+                  name_uz: levelNameUz
+                });
+                const updatedCategory = updatedResp.data;
+                categoryMap.set(ruKey, updatedCategory);
+                categoryUzMap.set(uzKey, updatedCategory);
+                updatedUzCount += 1;
+                parentId = updatedCategory.id;
+                continue;
+              }
+
+              skippedNameConflicts += 1;
+              skipRow = true;
+              break;
             }
 
-            parentId = existing.id;
+            parentId = existingByRu.id;
             skippedDuplicates += 1;
             continue;
           }
@@ -990,16 +1042,21 @@ function SuperAdminDashboard() {
 
           const created = await axios.post(`${API_URL}/superadmin/categories`, payload);
           const createdCategory = created.data;
-          categoryMap.set(key, createdCategory);
+          categoryMap.set(ruKey, createdCategory);
+          if (levelNameUz) {
+            categoryUzMap.set(uzKey, createdCategory);
+          }
           parentId = createdCategory.id;
           createdCount += 1;
         }
+
+        if (skipRow) continue;
       }
 
       await loadCategories();
       setCategoryLevels(Array(CATEGORY_LEVEL_COUNT).fill(null));
       const issues = parseErrors.length ? ` Ошибок строк: ${parseErrors.length}.` : '';
-      setSuccess(`Импорт завершен. Создано: ${createdCount}. Обновлено UZ: ${updatedUzCount}. Совпадений: ${skippedDuplicates}.${issues}`);
+      setSuccess(`Импорт завершен. Создано: ${createdCount}. Обновлено UZ: ${updatedUzCount}. Совпадений: ${skippedDuplicates}. Пропущено конфликтов RU/UZ: ${skippedNameConflicts}.${issues}`);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Ошибка импорта категорий');
     } finally {
