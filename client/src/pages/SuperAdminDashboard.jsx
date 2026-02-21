@@ -828,24 +828,24 @@ function SuperAdminDashboard() {
   return (
     <div className="min-vh-100 bg-light">
       {/* Header */}
-      <Navbar expand="lg" className="admin-navbar py-3 mb-4 shadow-sm" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'relative', zIndex: 1050 }}>
+      <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container>
           <Navbar.Brand className="d-flex align-items-center gap-2 py-1">
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="admin-brand-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" /><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" /><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" /><path d="M10 6h4" /><path d="M10 10h4" /><path d="M10 14h4" /><path d="M10 18h4" />
               </svg>
             </div>
-            <div className="d-flex flex-column" style={{ lineHeight: 1.2 }}>
-              <span style={{ color: '#fff', fontWeight: 600, fontSize: '15px' }}>
+            <div className="d-flex flex-column admin-brand-meta">
+              <span className="admin-brand-title">
                 Супер-Админ
               </span>
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontWeight: 400 }}>
+              <span className="admin-brand-subtitle">
                 {t('saSubtitle')}
               </span>
             </div>
           </Navbar.Brand>
-          <Navbar.Toggle style={{ border: 'none' }}>
+          <Navbar.Toggle className="admin-navbar-toggle">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" />
             </svg>
@@ -856,38 +856,35 @@ function SuperAdminDashboard() {
                 <Dropdown.Toggle
                   variant="link"
                   bsPrefix="p-0"
-                  className="d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown"
-                  style={{ cursor: 'pointer', border: 'none' }}
+                  className="d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle"
                 >
-                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white" style={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 600 }}>
+                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
                     {user?.username?.charAt(0).toUpperCase() || 'A'}
                   </div>
                   <div className="d-none d-md-block text-start">
                     <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Super Administrator'}</div>
-                    <div className="text-white-50 small" style={{ fontSize: '0.65rem' }}>Administrator</div>
+                    <div className="text-white-50 small admin-user-id">Administrator</div>
                   </div>
                 </Dropdown.Toggle>
 
-                <Dropdown.Menu className="shadow border-0 mt-2 rounded-3" style={{ minWidth: "220px", zIndex: 9999 }}>
+                <Dropdown.Menu className="shadow border-0 mt-2 rounded-3 admin-dropdown-menu">
                   <Dropdown.Item onClick={() => navigate('/admin')} className="d-flex align-items-center gap-2 py-2">
                     <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
                   </Dropdown.Item>
                   <div className="px-3 py-2">
-                    <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: '8px', padding: '4px', width: '100%', gap: '4px' }}>
+                    <div className="admin-lang-switch">
                       <div
                         onClick={language !== 'ru' ? toggleLanguage : undefined}
-                        className={`flex-fill text-center rounded py-1 ${language === 'ru' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
-                        style={{ cursor: 'pointer', transition: 'all 0.2s', fontSize: '13px' }}
+                        className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
                       >
-                        <img src="/ru.svg" alt="RU" style={{ width: 16, height: 12, objectFit: 'cover', marginRight: 6, borderRadius: 2, verticalAlign: 'middle' }} />
+                        <img src="/ru.svg" alt="RU" className="admin-flag" />
                         Рус
                       </div>
                       <div
                         onClick={language !== 'uz' ? toggleLanguage : undefined}
-                        className={`flex-fill text-center rounded py-1 ${language === 'uz' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
-                        style={{ cursor: 'pointer', transition: 'all 0.2s', fontSize: '13px' }}
+                        className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
                       >
-                        <img src="/uz.svg" alt="UZ" style={{ width: 16, height: 12, objectFit: 'cover', marginRight: 6, borderRadius: 2, verticalAlign: 'middle' }} />
+                        <img src="/uz.svg" alt="UZ" className="admin-flag" />
                         O'zb
                       </div>
                     </div>
@@ -905,7 +902,7 @@ function SuperAdminDashboard() {
 
       <Container className="admin-panel">
         {/* Notifications */}
-        <ToastContainer position="top-end" className="p-3" style={{ zIndex: 9999 }}>
+        <ToastContainer position="top-end" className="p-3 admin-toast-top">
           <Toast onClose={() => setError('')} show={!!error} delay={5000} autohide bg="danger" className="text-white">
             <Toast.Header closeButton={false} className="bg-danger text-white border-0">
               <strong className="me-auto">Ошибка</strong>

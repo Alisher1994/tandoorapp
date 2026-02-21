@@ -1290,32 +1290,32 @@ function AdminDashboard() {
 
   return (
     <>
-      <Navbar expand="lg" className="admin-navbar py-3 mb-4 shadow-sm" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'relative', zIndex: 1050 }}>
+      <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container>
           <Navbar.Brand className="d-flex align-items-center gap-2 py-1">
             {user?.active_restaurant_logo ? (
               <img
                 src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
                 alt="Logo"
-                style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 8, border: '2px solid rgba(255,255,255,0.15)' }}
+                className="admin-brand-logo"
               />
             ) : (
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="admin-brand-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z" /><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9" /><path d="M12 3v6" />
                 </svg>
               </div>
             )}
-            <div className="d-flex flex-column" style={{ lineHeight: 1.2 }}>
-              <span style={{ color: '#fff', fontWeight: 600, fontSize: '15px' }}>
+            <div className="d-flex flex-column admin-brand-meta">
+              <span className="admin-brand-title">
                 {user?.active_restaurant_name || t('operatorPanel')}
               </span>
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontWeight: 400 }}>
+              <span className="admin-brand-subtitle">
                 {t('controlPanel')}
               </span>
             </div>
           </Navbar.Brand>
-          <Navbar.Toggle style={{ border: 'none' }}>
+          <Navbar.Toggle className="admin-navbar-toggle">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" />
             </svg>
@@ -1325,7 +1325,7 @@ function AdminDashboard() {
               {/* Restaurant Switcher */}
               {user?.restaurants?.length > 1 && (
                 <NavDropdown
-                  title={<span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px' }}>{t('switchRestaurant')}</span>}
+                  title={<span className="admin-dropdown-title">{t('switchRestaurant')}</span>}
                   id="restaurant-dropdown"
                   align="end"
                 >
@@ -1345,8 +1345,7 @@ function AdminDashboard() {
               {/* Broadcast */}
               <Nav.Link
                 onClick={() => setShowBroadcastModal(true)}
-                style={{ color: 'rgba(255,255,255,0.75)', fontSize: '13px' }}
-                className="px-2"
+                className="px-2 admin-nav-link"
               >
                 {t('broadcast')}
               </Nav.Link>
@@ -1358,21 +1357,18 @@ function AdminDashboard() {
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown h-100"
-                    style={{ cursor: 'pointer', border: 'none', transition: 'all 0.2s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    className="d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown h-100 admin-user-toggle"
                   >
-                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm" style={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 600 }}>
+                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm admin-user-avatar">
                       {user?.username?.charAt(0).toUpperCase() || 'A'}
                     </div>
                     <div className="d-none d-md-block text-start">
                       <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Administrator'}</div>
-                      <div className="text-white-50 small" style={{ fontSize: '0.65rem' }}>ID: {String(user?.id || 0).padStart(5, '0')}</div>
+                      <div className="text-white-50 small admin-user-id">ID: {String(user?.id || 0).padStart(5, '0')}</div>
                     </div>
                   </Dropdown.Toggle>
 
-                  <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4" style={{ minWidth: "240px", zIndex: 9999, padding: '8px' }}>
+                  <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-dropdown-menu-wide">
                     <div className="px-3 py-3 border-bottom mb-2 bg-light rounded-top-4">
                       <div className="fw-bold text-dark">{user?.full_name || user?.username}</div>
                       <div className="text-muted small">{user?.role === 'superadmin' ? 'Super Administrator' : 'Administrator'}</div>
@@ -1385,18 +1381,16 @@ function AdminDashboard() {
                     )}
 
                     <div className="px-2 py-2">
-                      <div className="d-flex bg-light rounded-3 p-1 gap-1">
+                      <div className="admin-lang-switch">
                         <div
                           onClick={language !== 'ru' ? toggleLanguage : undefined}
-                          className={`flex-fill text-center rounded-2 py-1 px-2 transition-all ${language === 'ru' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
-                          style={{ cursor: 'pointer', fontSize: '11px' }}
+                          className={`flex-fill text-center rounded-2 py-1 px-2 transition-all admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
                         >
                           <img src="https://flagcdn.com/w20/ru.png" width="14" alt="RU" className="me-1" /> Рус
                         </div>
                         <div
                           onClick={language !== 'uz' ? toggleLanguage : undefined}
-                          className={`flex-fill text-center rounded-2 py-1 px-2 transition-all ${language === 'uz' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
-                          style={{ cursor: 'pointer', fontSize: '11px' }}
+                          className={`flex-fill text-center rounded-2 py-1 px-2 transition-all admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
                         >
                           <img src="https://flagcdn.com/w20/uz.png" width="14" alt="UZ" className="me-1" /> O'zb
                         </div>

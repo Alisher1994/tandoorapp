@@ -49,8 +49,8 @@ function Login() {
   };
 
   return (
-    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-      <Card style={{ width: '100%', maxWidth: '400px' }} className="shadow">
+    <Container className="d-flex justify-content-center align-items-center login-shell" style={{ minHeight: '100vh' }}>
+      <Card style={{ width: '100%', maxWidth: '420px' }} className="shadow login-card">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
             <div className="mb-3" style={{ fontSize: '3rem' }}>🍽️</div>

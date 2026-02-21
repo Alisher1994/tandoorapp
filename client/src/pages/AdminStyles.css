@@ -18,19 +18,19 @@ body::-webkit-scrollbar,
 }
 
 :root {
-    --primary-color: #4f46e5;
-    --primary-hover: #4338ca;
-    --secondary-bg: #f8fafc;
-    --border-color: #e2e8f0;
-    --text-main: #1e293b;
-    --text-muted: #64748b;
-    --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --card-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --primary-color: #1f1f1f;
+    --primary-hover: #141414;
+    --secondary-bg: #f8f6f1;
+    --border-color: #e7e2d8;
+    --text-main: #1a1a1a;
+    --text-muted: #6f6a61;
+    --card-shadow: 0 10px 30px rgba(17, 17, 17, 0.08);
+    --card-shadow-lg: 0 16px 40px rgba(17, 17, 17, 0.12);
     --radius-md: 12px;
     --radius-lg: 16px;
 
-    --bs-primary: #4f46e5;
-    --bs-primary-rgb: 79, 70, 229;
+    --bs-primary: #1f1f1f;
+    --bs-primary-rgb: 31, 31, 31;
 }
 
 /* Switch styling for dominant blue */
@@ -46,15 +46,136 @@ body::-webkit-scrollbar,
     z-index: 1050 !important;
 }
 
+.admin-navbar-shell {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    z-index: 1050;
+}
+
+.admin-brand-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-brand-logo {
+    width: 36px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.admin-brand-meta {
+    line-height: 1.2;
+}
+
+.admin-brand-title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.admin-brand-subtitle {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.admin-navbar-toggle {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.admin-nav-link {
+    color: rgba(255, 255, 255, 0.75) !important;
+    font-size: 13px;
+}
+
+.admin-dropdown-title {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+}
+
+.admin-user-toggle {
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.admin-user-toggle:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.admin-user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.admin-user-id {
+    font-size: 0.65rem;
+}
+
+.admin-dropdown-menu {
+    min-width: 220px;
+    z-index: 9999;
+}
+
+.admin-dropdown-menu-wide {
+    min-width: 240px;
+    z-index: 9999;
+    padding: 8px;
+}
+
+.admin-lang-switch {
+    display: flex;
+    background: #f1f5f9;
+    border-radius: 8px;
+    padding: 4px;
+    width: 100%;
+    gap: 4px;
+}
+
+.admin-lang-item {
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+.admin-flag {
+    width: 16px;
+    height: 12px;
+    object-fit: cover;
+    margin-right: 6px;
+    border-radius: 2px;
+    vertical-align: middle;
+}
+
+.admin-toast-top {
+    z-index: 9999;
+}
+
 .admin-panel {
     padding-top: 2rem;
     padding-bottom: 4rem;
     background-color: transparent;
 }
 
+.admin-panel .card,
+.admin-panel .admin-card {
+    border: 1px solid var(--border-color);
+}
+
 /* Tabs Styling */
 .admin-tabs {
-    border-bottom: 2px solid #f1f5f9 !important;
+    border-bottom: 1px solid var(--border-color) !important;
     margin-bottom: 2rem;
     gap: 1.5rem;
 }
@@ -85,7 +206,7 @@ body::-webkit-scrollbar,
 .admin-tabs .nav-link.active::after {
     content: '';
     position: absolute;
-    bottom: -2px;
+    bottom: -1px;
     left: 0;
     right: 0;
     height: 2px;
@@ -150,7 +271,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-table tbody tr:hover {
-    background-color: #f1f5f9 !important;
+    background-color: #f8f6f1 !important;
 }
 
 /* Stats Cards */
@@ -187,7 +308,7 @@ body::-webkit-scrollbar,
 .btn-primary-custom:hover {
     background-color: var(--primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    box-shadow: 0 8px 18px rgba(17, 17, 17, 0.2);
 }
 
 .action-btn {
@@ -250,7 +371,7 @@ body::-webkit-scrollbar,
 
 .form-control-custom:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(31, 31, 31, 0.1);
 }
 
 /* Badges */
@@ -262,7 +383,7 @@ body::-webkit-scrollbar,
 
 /* Custom Modal Tabs */
 .custom-restaurant-tabs {
-    border-bottom: 2px solid #e9ecef !important;
+    border-bottom: 1px solid var(--border-color) !important;
 }
 
 .custom-restaurant-tabs .nav-item {
@@ -281,7 +402,7 @@ body::-webkit-scrollbar,
 
 .custom-restaurant-tabs .nav-link:hover {
     color: var(--primary-color);
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--border-color);
 }
 
 .custom-restaurant-tabs .nav-link.active {
