@@ -3118,107 +3118,119 @@ function AdminDashboard() {
           <Modal.Body className="order-details-modal-body">
             {selectedOrder && (
               <>
-                <Row className="g-3 order-details-modal-layout h-100">
+                <Row className="g-3 order-details-modal-layout">
                   <Col md={8} className="order-md-2">
                 <div className="order-details-side">
-                <div className="mb-3">
-                  <strong>Клиент:</strong> {selectedOrder.customer_name}
-                </div>
-                <div className="mb-3">
-                  <strong>Телефон:</strong>{' '}
-                  <a href={`tel:${selectedOrder.customer_phone}`} className="text-decoration-none">
-                    {selectedOrder.customer_phone}
-                  </a>
-                  <a
-                    href={`tel:${selectedOrder.customer_phone}`}
-                    className="btn btn-success btn-sm ms-2"
-                  >
-                    📞 Позвонить
-                  </a>
-                </div>
-                <div className="mb-3">
-                  <strong>Дата заказа:</strong>{' '}
-                  {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('ru-RU') : '-'}
-                </div>
-                <div className="mb-3">
-                  <strong>Дата/время доставки:</strong>{' '}
-                  {formatDeliveryDateTime(selectedOrder.delivery_date, selectedOrder.delivery_time)}
-                </div>
-                <div className="mb-3">
-                  <strong>Оплата:</strong> {getPaymentMethodLabel(selectedOrder.payment_method)}
-                </div>
-                {selectedOrder.comment && (
-                  <div className="mb-3 p-2 bg-light rounded">
-                    <strong>Комментарий клиента:</strong> {selectedOrder.comment}
+                <div className="order-meta-card mb-3">
+                  <div className="order-meta-grid">
+                    <div className="order-meta-item">
+                      <span className="order-meta-label">Клиент</span>
+                      <div className="order-meta-value">{selectedOrder.customer_name || '-'}</div>
+                    </div>
+                    <div className="order-meta-item">
+                      <span className="order-meta-label">Телефон</span>
+                      <div className="order-meta-value order-meta-phone">
+                        <a href={`tel:${selectedOrder.customer_phone}`} className="order-meta-phone-link">
+                          {selectedOrder.customer_phone}
+                        </a>
+                        <a
+                          href={`tel:${selectedOrder.customer_phone}`}
+                          className="btn btn-success btn-sm order-call-btn"
+                        >
+                          Позвонить
+                        </a>
+                      </div>
+                    </div>
+                    <div className="order-meta-item">
+                      <span className="order-meta-label">Дата заказа</span>
+                      <div className="order-meta-value">
+                        {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('ru-RU') : '-'}
+                      </div>
+                    </div>
+                    <div className="order-meta-item">
+                      <span className="order-meta-label">Доставка</span>
+                      <div className="order-meta-value">
+                        {formatDeliveryDateTime(selectedOrder.delivery_date, selectedOrder.delivery_time)}
+                      </div>
+                    </div>
+                    <div className="order-meta-item">
+                      <span className="order-meta-label">Оплата</span>
+                      <div className="order-meta-value">{getPaymentMethodLabel(selectedOrder.payment_method)}</div>
+                    </div>
+                    <div className="order-meta-item order-meta-item-wide">
+                      <span className="order-meta-label">Адрес</span>
+                      <div className="order-meta-value">{selectedOrder.delivery_address}</div>
+
+                      {/* Map and location links */}
+                      {selectedOrder.delivery_coordinates && (() => {
+                        const coords = selectedOrder.delivery_coordinates.split(',').map(c => c.trim());
+                        if (coords.length === 2) {
+                          const [lat, lng] = coords;
+                          const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
+                          const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
+                          const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
+                          const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+                          return (
+                            <div className="mt-2">
+                              {/* Embedded map */}
+                              <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #ddd' }}>
+                                <iframe
+                                  title="delivery-map"
+                                  src={`https://yandex.ru/map-widget/v1/?pt=${lng},${lat}&z=16&l=map`}
+                                  width="100%"
+                                  height="220"
+                                  frameBorder="0"
+                                />
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="d-flex gap-2 flex-wrap">
+                                <a
+                                  href={yandexMapUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-outline-primary btn-sm"
+                                >
+                                  🗺 Яндекс.Карты
+                                </a>
+                                <a
+                                  href={googleMapsUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-outline-secondary btn-sm"
+                                >
+                                  📍 Google Maps
+                                </a>
+                                <a
+                                  href={yandexTaxiUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-warning btn-sm"
+                                >
+                                  🚕 Яндекс.Такси
+                                </a>
+                                <a
+                                  href={yandexNaviUrl}
+                                  className="btn btn-outline-info btn-sm"
+                                >
+                                  🧭 Навигатор
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+
+                    {selectedOrder.comment && (
+                      <div className="order-meta-item order-meta-item-wide">
+                        <span className="order-meta-label">Комментарий клиента</span>
+                        <div className="order-meta-note">{selectedOrder.comment}</div>
+                      </div>
+                    )}
                   </div>
-                )}
-                <div className="mb-3">
-                  <strong>Адрес:</strong> {selectedOrder.delivery_address}
-
-                  {/* Map and location links */}
-                  {selectedOrder.delivery_coordinates && (() => {
-                    const coords = selectedOrder.delivery_coordinates.split(',').map(c => c.trim());
-                    if (coords.length === 2) {
-                      const [lat, lng] = coords;
-                      const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
-                      const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
-                      const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
-                      const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-
-                      return (
-                        <div className="mt-2">
-                          {/* Embedded map */}
-                          <div className="rounded overflow-hidden mb-2" style={{ border: '1px solid #ddd' }}>
-                            <iframe
-                              title="delivery-map"
-                              src={`https://yandex.ru/map-widget/v1/?pt=${lng},${lat}&z=16&l=map`}
-                              width="100%"
-                              height="220"
-                              frameBorder="0"
-                            />
-                          </div>
-
-                          {/* Action buttons */}
-                          <div className="d-flex gap-2 flex-wrap">
-                            <a
-                              href={yandexMapUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-outline-primary btn-sm"
-                            >
-                              🗺 Яндекс.Карты
-                            </a>
-                            <a
-                              href={googleMapsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-outline-secondary btn-sm"
-                            >
-                              📍 Google Maps
-                            </a>
-                            <a
-                              href={yandexTaxiUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-warning btn-sm"
-                            >
-                              🚕 Яндекс.Такси
-                            </a>
-                            <a
-                              href={yandexNaviUrl}
-                              className="btn btn-outline-info btn-sm"
-                            >
-                              🧭 Навигатор
-                            </a>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                <div className="mb-3">
-                  <strong>Сумма:</strong> {formatPrice(selectedOrder.total_amount)} сум
                 </div>
 
                 {/* Processed by operator info */}
@@ -3260,23 +3272,13 @@ function AdminDashboard() {
                       (selectedOrder.cancelled_at_status ?
                         statuses.findIndex(s => s.key === selectedOrder.cancelled_at_status) : 0) : -1;
 
-                    // Calculate progress percentage
-                    let progressPercent = 0;
-                    if (!isCancelled) {
-                      if (currentIdx === 0) progressPercent = 0;
-                      else if (currentIdx === 1) progressPercent = 33;
-                      else if (currentIdx === 2) progressPercent = 66;
-                      else if (currentIdx === 3) progressPercent = 100;
-                    } else {
-                      if (cancelledAtIdx === 0) progressPercent = 0;
-                      else if (cancelledAtIdx === 1) progressPercent = 33;
-                      else if (cancelledAtIdx === 2) progressPercent = 66;
-                      else progressPercent = 33;
-                    }
+                    const segmentPercent = statuses.length > 1 ? 100 / (statuses.length - 1) : 100;
+                    const rawProgressIdx = isCancelled ? Math.max(cancelledAtIdx, 0) : Math.max(currentIdx, 0);
+                    const progressPercent = Math.min(100, rawProgressIdx * segmentPercent);
 
                     return (
-                      <div className="bg-white rounded p-3" style={{ border: '1px solid #eee' }}>
-                        <div className="order-stepper">
+                      <div className="order-status-card">
+                        <div className="order-stepper" style={{ '--step-count': statuses.length }}>
                           <div className="stepper-line-container">
                             <div className="stepper-line-bg"></div>
                             <div
@@ -3338,7 +3340,7 @@ function AdminDashboard() {
                   <Col md={4} className="order-md-1">
                   <div className="order-items-side">
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
-                  <div className="mb-0 d-flex flex-column h-100">
+                  <div className="mb-0 d-flex flex-column order-items-content">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <strong>Товары:</strong>
                       {!isEditingItems ? (
@@ -3395,7 +3397,7 @@ function AdminDashboard() {
                             );
                           })}
                         </div>
-                        <div className="order-items-total mt-3">
+                        <div className="order-items-total">
                           <span>Итого</span>
                           <strong>{formatPrice(selectedOrder.total_amount)} сум</strong>
                         </div>
