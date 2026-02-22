@@ -10,6 +10,58 @@ const restaurantBots = new Map();
 // Store for registration states: Map<`${botToken}_${telegramUserId}`, state>
 const registrationStates = new Map();
 const passwordResetCooldown = new Map();
+const languageSelectionStates = new Map();
+const languagePreferences = new Map();
+
+const BOT_LANGUAGES = ['ru', 'uz'];
+const BOT_TEXTS = {
+  ru: {
+    chooseLanguage: '🌐 Выберите язык системы:',
+    languageSaved: '✅ Язык сохранен.',
+    openMenu: '🍽️ Открыть меню',
+    myOrders: '📋 Мои заказы',
+    welcomeBack: '👋 С возвращением, {name}!',
+    roleLine: '🧑‍💼 Роль: <b>{role}</b>',
+    roleSuperadmin: 'Суперадмин',
+    roleOperator: 'Оператор',
+    restaurantLine: '🏪 Ресторан: <b>{name}</b>',
+    loginHint: 'Используйте кнопку ниже для входа в систему.',
+    loginWarn: '⚠️ URL входа не настроен. Обратитесь к администратору.',
+    loginButton: '🔐 Войти в систему',
+    resetButton: '♻️ Восстановить доступ',
+    editProfile: '⚙️ Изменить данные',
+    feedback: '💬 Жалобы и предложения',
+    welcomeNew: '👋 Добро пожаловать в <b>{name}</b>!\n\n📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
+    shareContact: '📱 Поделиться контактом',
+    thanksName: '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
+    niceToMeet: '👋 Приятно познакомиться, {name}!\n\n📍 Теперь поделитесь вашей геолокацией:',
+    shareLocation: '📍 Поделиться локацией',
+    genericError: '❌ Произошла ошибка. Попробуйте позже.'
+  },
+  uz: {
+    chooseLanguage: '🌐 Tizim tilini tanlang:',
+    languageSaved: '✅ Til saqlandi.',
+    openMenu: '🍽️ Menyuni ochish',
+    myOrders: '📋 Buyurtmalarim',
+    welcomeBack: '👋 Qaytganingiz bilan, {name}!',
+    roleLine: '🧑‍💼 Rol: <b>{role}</b>',
+    roleSuperadmin: 'Superadmin',
+    roleOperator: 'Operator',
+    restaurantLine: '🏪 Restoran: <b>{name}</b>',
+    loginHint: 'Tizimga kirish uchun quyidagi tugmani bosing.',
+    loginWarn: '⚠️ Kirish havolasi sozlanmagan. Administratorga murojaat qiling.',
+    loginButton: '🔐 Tizimga kirish',
+    resetButton: '♻️ Kirishni tiklash',
+    editProfile: '⚙️ Ma’lumotlarni o‘zgartirish',
+    feedback: '💬 Shikoyat va takliflar',
+    welcomeNew: '👋 <b>{name}</b> ga xush kelibsiz!\n\n📱 Ro‘yxatdan o‘tish uchun telefon raqamingizni yuboring:',
+    shareContact: '📱 Kontaktni yuborish',
+    thanksName: '✅ Rahmat!\n\n👤 Endi ismingizni kiriting:',
+    niceToMeet: '👋 Tanishganimdan xursandman, {name}!\n\n📍 Endi geolokatsiyangizni yuboring:',
+    shareLocation: '📍 Lokatsiyani yuborish',
+    genericError: '❌ Xatolik yuz berdi. Keyinroq urinib ko‘ring.'
+  }
+};
 
 // Generate login token for auto-login
 function generateLoginToken(userId, username) {
@@ -45,6 +97,24 @@ function buildWebLoginUrl() {
   if (!base) return null;
   const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
   return `${trimmed}/login`;
+}
+
+function normalizeBotLanguage(value) {
+  const candidate = String(value || '').trim().toLowerCase();
+  return BOT_LANGUAGES.includes(candidate) ? candidate : 'ru';
+}
+
+function getTelegramPreferredLanguage(telegramCode) {
+  const code = String(telegramCode || '').toLowerCase();
+  if (code.startsWith('uz')) return 'uz';
+  return 'ru';
+}
+
+function t(lang, key, vars = {}) {
+  const language = normalizeBotLanguage(lang);
+  const dictionary = BOT_TEXTS[language] || BOT_TEXTS.ru;
+  const template = dictionary[key] || BOT_TEXTS.ru[key] || key;
+  return template.replace(/\{(\w+)\}/g, (_, varName) => String(vars[varName] ?? ''));
 }
 
 function resolveLoginValue(user) {
@@ -198,14 +268,155 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   // Helper to get state key - includes chatId for group handling
   const getStateKey = (userId, chatId) => `${botToken}_${chatId || ''}_${userId}`;
+  const getLangStateKey = (userId, chatId) => `lang_${getStateKey(userId, chatId)}`;
+  const getLangCacheKey = (userId) => `${botToken}_${userId}`;
 
-  const buildMainMenuButtons = (loginUrl) => {
+  const saveUserLanguage = async (userId, lang) => {
+    const normalized = normalizeBotLanguage(lang);
+    languagePreferences.set(getLangCacheKey(userId), normalized);
+    try {
+      await pool.query(
+        'UPDATE users SET bot_language = $1 WHERE telegram_id = $2',
+        [normalized, userId]
+      );
+    } catch (error) {
+      if (error.code !== '42703') {
+        console.error('Save user language warning:', error.message);
+      }
+    }
+    return normalized;
+  };
+
+  const resolveUserLanguage = (user, fallback = 'ru') => {
+    return normalizeBotLanguage(
+      user?.bot_language ||
+      languagePreferences.get(getLangCacheKey(user?.telegram_id)) ||
+      fallback
+    );
+  };
+
+  const buildMainMenuButtons = (loginUrl, lang) => {
     const menuButtons = [];
     if (loginUrl) {
-      menuButtons.push([{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]);
+      menuButtons.push([{ text: t(lang, 'openMenu'), web_app: { url: loginUrl } }]);
     }
-    menuButtons.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
+    menuButtons.push([{ text: t(lang, 'myOrders'), callback_data: 'my_orders' }]);
     return menuButtons;
+  };
+
+  const sendLanguagePicker = async (chatId, userId, lang = 'ru') => {
+    const normalized = normalizeBotLanguage(lang);
+    languageSelectionStates.set(getLangStateKey(userId, chatId), { next: 'start' });
+    await bot.sendMessage(chatId, t(normalized, 'chooseLanguage'), {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🇷🇺 Русский', callback_data: 'set_lang_ru' },
+            { text: '🇺🇿 O`zbekcha', callback_data: 'set_lang_uz' }
+          ]
+        ]
+      }
+    });
+  };
+
+  const showStartMenu = async (msg, lang) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const language = normalizeBotLanguage(lang);
+
+    // Check if user is blocked
+    if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
+
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE telegram_id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length > 0) {
+      const user = userResult.rows[0];
+      languagePreferences.set(getLangCacheKey(userId), language);
+
+      const telegramUsername = msg.from.username;
+      if (telegramUsername && !user.username.startsWith('@')) {
+        await pool.query(
+          'UPDATE users SET active_restaurant_id = $1, username = $2 WHERE id = $3',
+          [restaurantId, `@${telegramUsername}`, user.id]
+        );
+      } else {
+        await pool.query(
+          'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
+          [restaurantId, user.id]
+        );
+      }
+
+      await pool.query(`
+        INSERT INTO user_restaurants (user_id, restaurant_id, last_interaction)
+        VALUES ($1, $2, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, restaurant_id)
+        DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
+      `, [user.id, restaurantId]);
+
+      if (user.role === 'operator' || user.role === 'superadmin') {
+        const loginBaseUrl = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+        const loginUrl = loginBaseUrl
+          ? `${loginBaseUrl.endsWith('/') ? loginBaseUrl.slice(0, -1) : loginBaseUrl}/login`
+          : null;
+
+        await bot.sendMessage(
+          chatId,
+          `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
+          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}\n` +
+          `${t(language, 'restaurantLine', { name: restaurantName })}\n\n` +
+          `${loginUrl ? t(language, 'loginHint') : t(language, 'loginWarn')}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: loginUrl
+              ? {
+                inline_keyboard: [
+                  [{ text: t(language, 'loginButton'), url: loginUrl }],
+                  [{ text: t(language, 'resetButton'), callback_data: 'reset_password' }]
+                ]
+              }
+              : undefined
+          }
+        );
+      } else {
+        const token = generateLoginToken(user.id, user.username);
+        const loginUrl = buildCatalogUrl(appUrl, token);
+
+        await bot.sendMessage(
+          chatId,
+          `${t(language, 'welcomeBack', { name: user.full_name })}\n\n` +
+          `${t(language, 'restaurantLine', { name: restaurantName })}` +
+          `${loginUrl ? '' : `\n\n${t(language, 'loginWarn')}`}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                ...buildMainMenuButtons(loginUrl, language),
+                [{ text: t(language, 'editProfile'), callback_data: 'edit_profile' }],
+                [{ text: t(language, 'feedback'), callback_data: 'feedback' }]
+              ]
+            }
+          }
+        );
+      }
+      return;
+    }
+
+    registrationStates.set(getStateKey(userId, chatId), { step: 'waiting_contact', restaurantId, lang: language });
+    await bot.sendMessage(
+      chatId,
+      t(language, 'welcomeNew', { name: restaurantName }),
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [[{ text: t(language, 'shareContact'), request_contact: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
+      }
+    );
   };
 
   // /start command
@@ -216,114 +427,23 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     console.log(`📱 /start from user ${userId} for restaurant ${restaurantName}`);
 
     try {
-      // Check if user is blocked
-      if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
-
-      // Check if user exists
-      const userResult = await pool.query(
-        'SELECT * FROM users WHERE telegram_id = $1',
-        [userId]
-      );
-
-      if (userResult.rows.length > 0) {
-        const user = userResult.rows[0];
-
-        // Update user's active restaurant and username if available
-        const telegramUsername = msg.from.username;
-        if (telegramUsername && !user.username.startsWith('@')) {
-          // User now has a telegram username, update it
-          await pool.query(
-            'UPDATE users SET active_restaurant_id = $1, username = $2 WHERE id = $3',
-            [restaurantId, `@${telegramUsername}`, user.id]
-          );
-        } else {
-          await pool.query(
-            'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
-            [restaurantId, user.id]
-          );
-        }
-
-        // Track user-restaurant relationship for broadcast
-        await pool.query(`
-          INSERT INTO user_restaurants (user_id, restaurant_id, last_interaction)
-          VALUES ($1, $2, CURRENT_TIMESTAMP)
-          ON CONFLICT (user_id, restaurant_id) 
-          DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
-        `, [user.id, restaurantId]);
-
-        // Operator/superadmin: send to web login, not customer menu
-        if (user.role === 'operator' || user.role === 'superadmin') {
-          const loginBaseUrl = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
-          const loginUrl = loginBaseUrl
-            ? `${loginBaseUrl.endsWith('/') ? loginBaseUrl.slice(0, -1) : loginBaseUrl}/login`
-            : null;
-
-          bot.sendMessage(chatId,
-            `👋 С возвращением, ${user.full_name || user.username}!\n\n` +
-            `🧑‍💼 Роль: <b>${user.role === 'superadmin' ? 'Суперадмин' : 'Оператор'}</b>\n` +
-            `🏪 Ресторан: <b>${restaurantName}</b>\n\n` +
-            `${loginUrl ? 'Используйте кнопку ниже для входа в систему.' : '⚠️ URL входа не настроен. Обратитесь к администратору.'}`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: loginUrl
-                ? {
-                  inline_keyboard: [
-                    [{ text: '🔐 Войти в систему', url: loginUrl }],
-                    [{ text: '♻️ Восстановить доступ', callback_data: 'reset_password' }]
-                  ]
-                }
-                : undefined
-            }
-          );
-        } else {
-          // Generate login URL
-          const token = generateLoginToken(user.id, user.username);
-          const loginUrl = buildCatalogUrl(appUrl, token);
-
-          bot.sendMessage(chatId,
-            `👋 С возвращением, ${user.full_name}!\n\n` +
-            `🏪 Ресторан: <b>${restaurantName}</b>` +
-            `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [
-                  ...buildMainMenuButtons(loginUrl),
-                  [{ text: '⚙️ Изменить данные', callback_data: 'edit_profile' }],
-                  [{ text: '💬 Жалобы и предложения', callback_data: 'feedback' }]
-                ]
-              }
-            }
-          );
-        }
-      } else {
-        // Start registration
-        registrationStates.set(getStateKey(userId, chatId), { step: 'waiting_contact', restaurantId });
-
-        bot.sendMessage(chatId,
-          `👋 Добро пожаловать в <b>${restaurantName}</b>!\n\n` +
-          '📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              keyboard: [[
-                { text: '📱 Поделиться контактом', request_contact: true }
-              ]],
-              resize_keyboard: true,
-              one_time_keyboard: true
-            }
-          }
-        );
-      }
+      const fallbackLang = getTelegramPreferredLanguage(msg.from?.language_code);
+      await sendLanguagePicker(chatId, userId, fallbackLang);
     } catch (error) {
       console.error('Start command error:', error);
-      bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+      bot.sendMessage(chatId, t('ru', 'genericError'));
     }
   });
 
   // /id command
   bot.onText(/\/id/, (msg) => {
     bot.sendMessage(msg.chat.id, `Your Telegram ID: <code>${msg.from.id}</code>`, { parse_mode: 'HTML' });
+  });
+
+  // /lang command
+  bot.onText(/\/lang/, async (msg) => {
+    const fallbackLang = getTelegramPreferredLanguage(msg.from?.language_code);
+    await sendLanguagePicker(msg.chat.id, msg.from.id, fallbackLang);
   });
 
   // /menu command
@@ -346,6 +466,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
 
       const user = userResult.rows[0];
+      const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
 
       // Update active restaurant
       await pool.query(
@@ -359,12 +480,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       bot.sendMessage(chatId,
         `🍽️ <b>${restaurantName}</b>\n\n` +
         (loginUrl
-          ? 'Нажмите кнопку ниже, чтобы открыть меню:'
-          : '⚠️ Web App URL не настроен. Обратитесь к администратору.'),
+          ? (userLang === 'uz' ? 'Menyuni ochish uchun quyidagi tugmani bosing:' : 'Нажмите кнопку ниже, чтобы открыть меню:')
+          : t(userLang, 'loginWarn')),
         {
           parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: buildMainMenuButtons(loginUrl)
+            inline_keyboard: buildMainMenuButtons(loginUrl, userLang)
           }
         }
       );
@@ -434,6 +555,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const normalizedCode = (inputCode || '').trim();
+    const preferredLang = normalizeBotLanguage(
+      languagePreferences.get(getLangCacheKey(userId)) ||
+      getTelegramPreferredLanguage(msg.from?.language_code)
+    );
 
     try {
       if (msg.chat.type !== 'private') {
@@ -495,10 +620,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             `UPDATE users
              SET active_restaurant_id = $1,
                  username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
+                 bot_language = $4,
                  is_active = true,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $2`,
-            [restaurantId, dbUserId, phoneLogin]
+            [restaurantId, dbUserId, phoneLogin, preferredLang]
           );
         } else {
           await pool.query(
@@ -506,10 +632,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
              SET role = 'operator',
                  active_restaurant_id = $1,
                  username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
+                 bot_language = $4,
                  is_active = true,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $2`,
-            [restaurantId, dbUserId, phoneLogin]
+            [restaurantId, dbUserId, phoneLogin, preferredLang]
           );
         }
       } else {
@@ -519,10 +646,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ') || `Operator ${userId}`;
 
         const inserted = await pool.query(
-          `INSERT INTO users (telegram_id, username, password, full_name, role, is_active, active_restaurant_id)
-           VALUES ($1, $2, $3, $4, 'operator', true, $5)
+          `INSERT INTO users (telegram_id, username, password, full_name, role, is_active, active_restaurant_id, bot_language)
+           VALUES ($1, $2, $3, $4, 'operator', true, $5, $6)
            RETURNING id, username`,
-          [userId, generatedUsername, hashedPassword, fullName, restaurantId]
+          [userId, generatedUsername, hashedPassword, fullName, restaurantId, preferredLang]
         );
 
         dbUserId = inserted.rows[0].id;
@@ -580,12 +707,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     // Registration contact flow
     if (state && state.step === 'waiting_contact') {
+      const userLang = normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru');
       state.phone = normalizePhone(contact.phone_number);
       state.step = 'waiting_name';
+      state.lang = userLang;
       registrationStates.set(stateKey, state);
 
       bot.sendMessage(chatId,
-        '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
+        t(userLang, 'thanksName'),
         { reply_markup: { remove_keyboard: true } }
       );
       return;
@@ -667,17 +796,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     if (!state) return;
 
     if (state.step === 'waiting_name') {
+      const userLang = normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru');
       state.name = text;
       state.step = 'waiting_location';
+      state.lang = userLang;
       registrationStates.set(stateKey, state);
 
       bot.sendMessage(chatId,
-        `👋 Приятно познакомиться, ${text}!\n\n` +
-        '📍 Теперь поделитесь вашей геолокацией:',
+        t(userLang, 'niceToMeet', { name: text }),
         {
           reply_markup: {
             keyboard: [[
-              { text: '📍 Поделиться локацией', request_location: true }
+              { text: t(userLang, 'shareLocation'), request_location: true }
             ]],
             resize_keyboard: true,
             one_time_keyboard: true
@@ -940,7 +1070,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             parse_mode: 'HTML',
             reply_markup: {
               remove_keyboard: true,
-              inline_keyboard: buildMainMenuButtons(loginUrl)
+              inline_keyboard: buildMainMenuButtons(
+                loginUrl,
+                normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru')
+              )
             }
           }
         );
@@ -966,20 +1099,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
 
       const userResult = await pool.query(`
-        INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id)
-        VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7, $8)
+        INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id, bot_language)
+        VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7, $8, $9)
         ON CONFLICT (telegram_id) DO UPDATE SET
           full_name = EXCLUDED.full_name,
           phone = EXCLUDED.phone,
           last_latitude = EXCLUDED.last_latitude,
           last_longitude = EXCLUDED.last_longitude,
           active_restaurant_id = EXCLUDED.active_restaurant_id,
+          bot_language = EXCLUDED.bot_language,
           username = CASE
             WHEN EXCLUDED.username <> '' THEN EXCLUDED.username
             ELSE users.username
           END
         RETURNING id
-      `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId]);
+      `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId, normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru')]);
 
       const newUserId = userResult.rows[0].id;
       registrationStates.delete(getStateKey(userId, chatId));
@@ -1003,7 +1137,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           parse_mode: 'HTML',
           reply_markup: {
             remove_keyboard: true,
-            inline_keyboard: buildMainMenuButtons(loginUrl)
+            inline_keyboard: buildMainMenuButtons(
+              loginUrl,
+              normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru')
+            )
           }
         }
       );
@@ -1024,6 +1161,28 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     try {
       bot.answerCallbackQuery(query.id);
+
+      if (data.startsWith('set_lang_')) {
+        const selectedLang = normalizeBotLanguage(data.replace('set_lang_', ''));
+        await saveUserLanguage(userId, selectedLang);
+
+        const langStateKey = getLangStateKey(userId, chatId);
+        const pending = languageSelectionStates.get(langStateKey);
+        languageSelectionStates.delete(langStateKey);
+
+        if (pending?.next === 'start') {
+          await showStartMenu(
+            {
+              chat: query.message.chat,
+              from: query.from
+            },
+            selectedLang
+          );
+        } else {
+          await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'));
+        }
+        return;
+      }
 
       // Check if user is blocked
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;

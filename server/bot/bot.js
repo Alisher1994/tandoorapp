@@ -2,6 +2,9 @@ const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -24,6 +27,54 @@ function buildCatalogUrl(appUrl, token) {
 const registrationStates = new Map();
 // Store for centralized onboarding states in superadmin bot
 const onboardingStates = new Map();
+const languagePreferences = new Map();
+const pendingLanguageActions = new Map();
+
+const BOT_LANGUAGES = ['ru', 'uz'];
+const BOT_TEXTS = {
+  ru: {
+    chooseLanguage: '🌐 Выберите язык системы:',
+    languageSaved: '✅ Язык сохранен.',
+    welcomeBack: '👋 С возвращением, {name}!',
+    roleLine: '🧑‍💼 Роль: <b>{role}</b>',
+    roleSuperadmin: 'Суперадмин',
+    roleOperator: 'Оператор',
+    blockedText: '🚫 <b>Ваш аккаунт заблокирован</b>\n\nДля связи с поддержкой обратитесь к администратору.',
+    supportButton: '📞 Связаться с поддержкой',
+    loginButton: '🔐 Войти в систему',
+    resetButton: '🔐 Восстановить логин и пароль',
+    newOrderButton: '🛒 Новый заказ',
+    myOrdersButton: '📋 Мои заказы',
+    welcomeStart: '👋 Добро пожаловать!\n\nДоступен только сценарий регистрации магазина.',
+    registerStoreButton: '🏪 Регистрация магазина',
+    genericError: '❌ Произошла ошибка. Попробуйте позже.',
+    thanksName: '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
+    niceToMeet: '👋 Приятно познакомиться, {name}!\n\n📍 Теперь поделитесь вашей геолокацией, чтобы мы проверили зону доставки:',
+    shareContact: '📱 Поделиться контактом',
+    shareLocation: '📍 Поделиться локацией'
+  },
+  uz: {
+    chooseLanguage: '🌐 Tizim tilini tanlang:',
+    languageSaved: '✅ Til saqlandi.',
+    welcomeBack: '👋 Qaytganingiz bilan, {name}!',
+    roleLine: '🧑‍💼 Rol: <b>{role}</b>',
+    roleSuperadmin: 'Superadmin',
+    roleOperator: 'Operator',
+    blockedText: '🚫 <b>Hisobingiz bloklangan</b>\n\nYordam uchun administratorga murojaat qiling.',
+    supportButton: '📞 Yordam bilan bog‘lanish',
+    loginButton: '🔐 Tizimga kirish',
+    resetButton: '🔐 Login va parolni tiklash',
+    newOrderButton: '🛒 Yangi buyurtma',
+    myOrdersButton: '📋 Buyurtmalarim',
+    welcomeStart: '👋 Xush kelibsiz!\n\nFaqat do‘kon ro‘yxatdan o‘tish ssenariysi mavjud.',
+    registerStoreButton: '🏪 Do‘konni ro‘yxatdan o‘tkazish',
+    genericError: '❌ Xatolik yuz berdi. Keyinroq urinib ko‘ring.',
+    thanksName: '✅ Rahmat!\n\n👤 Endi ismingizni kiriting:',
+    niceToMeet: '👋 Tanishganimdan xursandman, {name}!\n\n📍 Endi yetkazib berish hududini tekshirish uchun geolokatsiyangizni yuboring:',
+    shareContact: '📱 Kontaktni yuborish',
+    shareLocation: '📍 Lokatsiyani yuborish'
+  }
+};
 
 function normalizePhone(rawPhone) {
   if (!rawPhone) return '';
@@ -45,6 +96,80 @@ function buildWebLoginUrl() {
   if (!base) return null;
   const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
   return `${trimmed}/login`;
+}
+
+function normalizeBotLanguage(value) {
+  const candidate = String(value || '').trim().toLowerCase();
+  return BOT_LANGUAGES.includes(candidate) ? candidate : 'ru';
+}
+
+function getTelegramPreferredLanguage(telegramCode) {
+  const code = String(telegramCode || '').toLowerCase();
+  if (code.startsWith('uz')) return 'uz';
+  return 'ru';
+}
+
+function t(lang, key, vars = {}) {
+  const language = normalizeBotLanguage(lang);
+  const dictionary = BOT_TEXTS[language] || BOT_TEXTS.ru;
+  const template = dictionary[key] || BOT_TEXTS.ru[key] || key;
+  return template.replace(/\{(\w+)\}/g, (_, varName) => String(vars[varName] ?? ''));
+}
+
+async function saveUserLanguage(userId, lang) {
+  const normalized = normalizeBotLanguage(lang);
+  languagePreferences.set(userId, normalized);
+  try {
+    await pool.query(
+      'UPDATE users SET bot_language = $1 WHERE telegram_id = $2',
+      [normalized, userId]
+    );
+  } catch (error) {
+    if (error.code !== '42703') {
+      console.error('Save user language warning:', error.message);
+    }
+  }
+  return normalized;
+}
+
+function resolveUploadsDir() {
+  return process.env.UPLOADS_DIR
+    ? path.resolve(process.env.UPLOADS_DIR)
+    : path.join(__dirname, '../../uploads');
+}
+
+function ensureUploadsDirExists() {
+  const uploadsDir = resolveUploadsDir();
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  return uploadsDir;
+}
+
+function downloadFile(url, destinationPath) {
+  return new Promise((resolve, reject) => {
+    const fileStream = fs.createWriteStream(destinationPath);
+
+    const cleanupWithError = (error) => {
+      fileStream.close(() => {
+        fs.unlink(destinationPath, () => reject(error));
+      });
+    };
+
+    https.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        cleanupWithError(new Error(`Download failed: ${response.statusCode}`));
+        return;
+      }
+
+      response.pipe(fileStream);
+      fileStream.on('finish', () => {
+        fileStream.close(() => resolve(destinationPath));
+      });
+    }).on('error', cleanupWithError);
+
+    fileStream.on('error', cleanupWithError);
+  });
 }
 
 function getOnboardingStateKey(userId) {
@@ -204,22 +329,131 @@ async function initBot() {
     console.log('🤖 Telegram bot initialized with polling');
   }
 
+  async function saveTelegramPhotoAsUpload(fileId) {
+    const fileData = await bot.getFile(fileId);
+    const filePath = fileData?.file_path;
+    if (!filePath) {
+      throw new Error('Telegram file path not found');
+    }
+
+    const ext = path.extname(filePath) || '.jpg';
+    const filename = `logo-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const uploadsDir = ensureUploadsDirExists();
+    const destinationPath = path.join(uploadsDir, filename);
+    const telegramFileUrl = `https://api.telegram.org/file/bot${activeSuperadminBotToken}/${filePath}`;
+
+    await downloadFile(telegramFileUrl, destinationPath);
+    return `/uploads/${filename}`;
+  }
+
+  async function sendLanguagePicker(chatId, userId, nextAction = 'start', defaultLang = 'ru') {
+    pendingLanguageActions.set(userId, nextAction);
+    const activeLang = normalizeBotLanguage(defaultLang);
+    await bot.sendMessage(chatId, t(activeLang, 'chooseLanguage'), {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🇷🇺 Русский', callback_data: 'set_lang_ru' },
+            { text: '🇺🇿 O`zbekcha', callback_data: 'set_lang_uz' }
+          ]
+        ]
+      }
+    });
+  }
+
+  async function sendStartMenu(chatId, userId, lang) {
+    const language = normalizeBotLanguage(lang);
+    const userResult = await pool.query(
+      'SELECT * FROM users WHERE telegram_id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length > 0) {
+      const user = userResult.rows[0];
+
+      if (!user.is_active) {
+        await bot.sendMessage(
+          chatId,
+          t(language, 'blockedText'),
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: t(language, 'supportButton'), url: 'https://t.me/budavron' }]
+              ]
+            }
+          }
+        );
+        return;
+      }
+
+      if (user.role === 'operator' || user.role === 'superadmin') {
+        const loginUrl = buildWebLoginUrl();
+        await bot.sendMessage(
+          chatId,
+          `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
+          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              remove_keyboard: true,
+              inline_keyboard: [
+                ...(loginUrl ? [[{ text: t(language, 'loginButton'), url: loginUrl }]] : []),
+                [{ text: t(language, 'resetButton'), callback_data: 'reset_password' }]
+              ]
+            }
+          }
+        );
+      } else {
+        await bot.sendMessage(
+          chatId,
+          t(language, 'welcomeBack', { name: user.full_name || user.username }),
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              remove_keyboard: true,
+              inline_keyboard: [
+                [{ text: t(language, 'newOrderButton'), callback_data: 'new_order' }],
+                [{ text: t(language, 'myOrdersButton'), callback_data: 'my_orders' }]
+              ]
+            }
+          }
+        );
+      }
+      return;
+    }
+
+    await bot.sendMessage(
+      chatId,
+      t(language, 'welcomeStart'),
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: t(language, 'registerStoreButton'), callback_data: 'onboard_start' }]
+          ]
+        }
+      }
+    );
+  }
+
   async function askOnboardingField(chatId, field) {
+    const userLang = normalizeBotLanguage(languagePreferences.get(chatId) || 'ru');
     const prompts = {
       store_name: '🏪 Введите <b>название магазина</b>:',
       full_name: '👤 Введите <b>ФИО оператора</b>:',
       phone: '📱 Отправьте <b>номер телефона</b>:',
       location: '📍 Отправьте <b>локацию магазина</b>:',
-      logo_url: '🖼️ Отправьте ссылку на <b>логотип</b> (URL):',
+      logo_url: '🖼️ Отправьте <b>фото логотипа</b> или ссылку (URL):',
       bot_token: '🤖 Отправьте <b>Bot Token</b> вашего магазина:',
-      group_id: '👥 Отправьте <b>Chat ID группы</b> для заказов:'
+      group_id: '👥 Нажмите кнопку ниже и <b>поделитесь группой</b> для заказов:'
     };
 
     if (field === 'phone') {
       await bot.sendMessage(chatId, prompts[field], {
         parse_mode: 'HTML',
         reply_markup: {
-          keyboard: [[{ text: '📱 Поделиться контактом', request_contact: true }]],
+          keyboard: [[{ text: t(userLang, 'shareContact'), request_contact: true }]],
           resize_keyboard: true,
           one_time_keyboard: true
         }
@@ -231,9 +465,32 @@ async function initBot() {
       await bot.sendMessage(chatId, prompts[field], {
         parse_mode: 'HTML',
         reply_markup: {
-          keyboard: [[{ text: '📍 Поделиться локацией', request_location: true }]],
+          keyboard: [[{ text: t(userLang, 'shareLocation'), request_location: true }]],
           resize_keyboard: true,
           one_time_keyboard: true
+        }
+      });
+      return;
+    }
+
+    if (field === 'group_id') {
+      await bot.sendMessage(chatId, prompts[field], {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [
+            [{
+              text: '👥 Поделиться группой',
+              request_chat: {
+                request_id: Number(Date.now() % 1000000000),
+                chat_is_channel: false,
+                bot_is_member: true
+              }
+            }],
+            [{ text: '⏭️ Пропустить' }],
+            [{ text: '❌ Отмена' }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false
         }
       });
       return;
@@ -290,11 +547,11 @@ async function initBot() {
       state.step = 'await_group_choice';
       onboardingStates.set(stateKey, state);
       await bot.sendMessage(chatId,
-        '👥 Group Chat ID (необязательно на этом шаге):',
+        '👥 Группа для заказов (необязательно на этом шаге):',
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '➕ Добавить Group ID', callback_data: 'onboard_add_group' }],
+              [{ text: '➕ Поделиться группой', callback_data: 'onboard_add_group' }],
               [{ text: '⏭️ Пропустить', callback_data: 'onboard_skip_group' }]
             ]
           }
@@ -355,6 +612,7 @@ async function initBot() {
       ]);
 
       const restaurant = restaurantResult.rows[0];
+      const preferredLang = normalizeBotLanguage(languagePreferences.get(userId) || 'ru');
 
       let userIdDb;
       const userByTg = await client.query('SELECT id, role FROM users WHERE telegram_id = $1', [userId]);
@@ -377,15 +635,16 @@ async function initBot() {
               role = 'operator',
               is_active = true,
               active_restaurant_id = $5,
+              bot_language = $6,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = $6
-        `, [username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, userIdDb]);
+          WHERE id = $7
+        `, [username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang, userIdDb]);
       } else {
         const insertedUser = await client.query(`
-          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id)
-          VALUES ($1, $2, $3, $4, $5, 'operator', true, $6)
+          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id, bot_language)
+          VALUES ($1, $2, $3, $4, $5, 'operator', true, $6, $7)
           RETURNING id
-        `, [userId, username, hashedPassword, state.full_name, normalizedPhone, restaurant.id]);
+        `, [userId, username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang]);
         userIdDb = insertedUser.rows[0].id;
       }
 
@@ -527,82 +786,19 @@ async function initBot() {
     const userId = msg.from.id;
     
     try {
-      // Check if user exists
-      const userResult = await pool.query(
-        'SELECT * FROM users WHERE telegram_id = $1',
-        [userId]
-      );
-      
-      if (userResult.rows.length > 0) {
-        const user = userResult.rows[0];
-        
-        // Check if user is blocked
-        if (!user.is_active) {
-          bot.sendMessage(chatId, 
-            `🚫 <b>Ваш аккаунт заблокирован</b>\n\n` +
-            `Для связи с поддержкой обратитесь к администратору.`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [
-                  [{ text: '📞 Связаться с поддержкой', url: 'https://t.me/budavron' }]
-                ]
-              }
-            }
-          );
-          return;
-        }
-        
-        if (user.role === 'operator' || user.role === 'superadmin') {
-          const loginUrl = buildWebLoginUrl();
-          bot.sendMessage(chatId,
-            `👋 С возвращением, ${user.full_name || user.username}!\n\n` +
-            `🧑‍💼 Роль: <b>${user.role === 'superadmin' ? 'Суперадмин' : 'Оператор'}</b>`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: {
-                remove_keyboard: true,
-                inline_keyboard: [
-                  ...(loginUrl ? [[{ text: '🔐 Войти в систему', url: loginUrl }]] : []),
-                  [{ text: '🔐 Восстановить логин и пароль', callback_data: 'reset_password' }]
-                ]
-              }
-            }
-          );
-        } else {
-          // Customer menu (without restore action)
-          bot.sendMessage(chatId,
-            `👋 С возвращением, ${user.full_name}!`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: {
-                remove_keyboard: true,
-                inline_keyboard: [
-                  [{ text: '🛒 Новый заказ', callback_data: 'new_order' }],
-                  [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
-                ]
-              }
-            }
-          );
-        }
-      } else {
-        // Show entry point: customer flow or centralized store onboarding
-        bot.sendMessage(chatId,
-          '👋 Добро пожаловать!\n\nДоступен только сценарий регистрации магазина.',
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '🏪 Регистрация магазина', callback_data: 'onboard_start' }]
-              ]
-            }
-          }
-        );
-      }
+      const preferred = getTelegramPreferredLanguage(msg.from?.language_code);
+      await sendLanguagePicker(chatId, userId, 'start', preferred);
     } catch (error) {
       console.error('Start command error:', error);
-      bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+      bot.sendMessage(chatId, t('ru', 'genericError'));
     }
+  });
+
+  bot.onText(/\/lang/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const preferred = getTelegramPreferredLanguage(msg.from?.language_code);
+    await sendLanguagePicker(chatId, userId, 'language_only', preferred);
   });
   
   // =====================================================
@@ -627,17 +823,82 @@ async function initBot() {
     if (!state || state.step !== 'waiting_contact') return;
     
     // Save contact and ask for name
+    const userLang = normalizeBotLanguage(state.lang || languagePreferences.get(userId) || 'ru');
     state.phone = normalizePhone(contact.phone_number);
     state.step = 'waiting_name';
+    state.lang = userLang;
     registrationStates.set(userId, state);
     
     bot.sendMessage(chatId, 
-      '✅ Спасибо!\n\n' +
-      '👤 Теперь введите ваше имя:',
+      t(userLang, 'thanksName'),
       {
         reply_markup: { remove_keyboard: true }
       }
     );
+  });
+
+  // =====================================================
+  // Handle photo messages (onboarding logo upload)
+  // =====================================================
+  bot.on('photo', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    const onboardingKey = getOnboardingStateKey(userId);
+    const onboardingState = onboardingStates.get(onboardingKey);
+    if (!onboardingState || onboardingState.step !== 'await_logo_url') {
+      return;
+    }
+
+    try {
+      const photos = Array.isArray(msg.photo) ? msg.photo : [];
+      const bestPhoto = photos[photos.length - 1];
+      if (!bestPhoto?.file_id) {
+        await bot.sendMessage(chatId, '❌ Не удалось прочитать фото. Отправьте изображение еще раз.');
+        return;
+      }
+
+      const logoPath = await saveTelegramPhotoAsUpload(bestPhoto.file_id);
+      onboardingState.logo_url = logoPath;
+      onboardingStates.set(onboardingKey, onboardingState);
+
+      await bot.sendMessage(chatId, '✅ Логотип получен и сохранен.');
+      await showOptionalStep(chatId, userId, 'bot_token');
+    } catch (error) {
+      console.error('Onboarding logo photo save error:', error);
+      await bot.sendMessage(chatId, '❌ Не удалось сохранить фото. Попробуйте снова или отправьте URL.');
+    }
+  });
+
+  // =====================================================
+  // Handle shared chat (onboarding group link)
+  // =====================================================
+  bot.on('message', async (msg) => {
+    const chatId = msg.chat?.id;
+    const userId = msg.from?.id;
+    const sharedChatId = msg.chat_shared?.chat_id;
+    if (!chatId || !userId || !sharedChatId) {
+      return;
+    }
+
+    const onboardingKey = getOnboardingStateKey(userId);
+    const onboardingState = onboardingStates.get(onboardingKey);
+    if (!onboardingState || onboardingState.step !== 'await_group_share') {
+      return;
+    }
+
+    onboardingState.group_id = String(sharedChatId);
+    onboardingStates.set(onboardingKey, onboardingState);
+
+    await bot.sendMessage(
+      chatId,
+      `✅ Группа подключена.\n\nID группы: <code>${onboardingState.group_id}</code>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: { remove_keyboard: true }
+      }
+    );
+    await finalizeOnboarding(chatId, userId);
   });
   
   // =====================================================
@@ -707,10 +968,30 @@ async function initBot() {
         return;
       }
 
-      if (onboardingState.step === 'await_group_id') {
-        onboardingState.group_id = text.trim();
-        onboardingStates.set(onboardingKey, onboardingState);
-        await finalizeOnboarding(chatId, userId);
+      if (onboardingState.step === 'await_group_share') {
+        const normalizedText = text.trim();
+        if (normalizedText === '⏭️ Пропустить') {
+          onboardingState.group_id = null;
+          onboardingStates.set(onboardingKey, onboardingState);
+          await bot.sendMessage(chatId, '⏭️ Шаг с группой пропущен.', {
+            reply_markup: { remove_keyboard: true }
+          });
+          await finalizeOnboarding(chatId, userId);
+          return;
+        }
+
+        if (normalizedText === '❌ Отмена') {
+          onboardingStates.delete(onboardingKey);
+          await bot.sendMessage(chatId, '❌ Онбординг отменен.', {
+            reply_markup: { remove_keyboard: true }
+          });
+          return;
+        }
+
+        await bot.sendMessage(
+          chatId,
+          'ℹ️ Используйте кнопку "👥 Поделиться группой" или нажмите "⏭️ Пропустить".'
+        );
         return;
       }
     }
@@ -774,17 +1055,18 @@ async function initBot() {
     
     if (state.step === 'waiting_name') {
       // Save name and ask for location
+      const userLang = normalizeBotLanguage(state.lang || languagePreferences.get(userId) || 'ru');
       state.name = text;
       state.step = 'waiting_location';
+      state.lang = userLang;
       registrationStates.set(userId, state);
       
       bot.sendMessage(chatId,
-        `👋 Приятно познакомиться, ${text}!\n\n` +
-        '📍 Теперь поделитесь вашей геолокацией, чтобы мы проверили зону доставки:',
+        t(userLang, 'niceToMeet', { name: text }),
         {
           reply_markup: {
             keyboard: [[
-              { text: '📍 Поделиться локацией', request_location: true }
+              { text: t(userLang, 'shareLocation'), request_location: true }
             ]],
             resize_keyboard: true,
             one_time_keyboard: true
@@ -939,18 +1221,20 @@ async function initBot() {
         }
         
         // Save user with location and get ID
+        const preferredLang = normalizeBotLanguage(state.lang || languagePreferences.get(userId) || 'ru');
         const userResult = await pool.query(`
-          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id)
-          VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7, $8)
+          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id, bot_language)
+          VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7, $8, $9)
           ON CONFLICT (telegram_id) DO UPDATE SET
             full_name = EXCLUDED.full_name,
             phone = EXCLUDED.phone,
             last_latitude = EXCLUDED.last_latitude,
             last_longitude = EXCLUDED.last_longitude,
             active_restaurant_id = EXCLUDED.active_restaurant_id,
+            bot_language = EXCLUDED.bot_language,
             username = CASE WHEN $2 <> '' THEN $2 ELSE users.username END
           RETURNING id
-        `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurant.id]);
+        `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurant.id, preferredLang]);
         
         const newUserId = userResult.rows[0].id;
         
@@ -1156,6 +1440,20 @@ async function initBot() {
     // Answer callback to remove loading state
     bot.answerCallbackQuery(callbackQuery.id);
 
+    if (data.startsWith('set_lang_')) {
+      const selectedLang = normalizeBotLanguage(data.replace('set_lang_', ''));
+      await saveUserLanguage(userId, selectedLang);
+      const pendingAction = pendingLanguageActions.get(userId);
+      pendingLanguageActions.delete(userId);
+
+      if (pendingAction === 'start') {
+        await sendStartMenu(chatId, userId, selectedLang);
+      } else {
+        await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'));
+      }
+      return;
+    }
+
     // =====================================================
     // Central onboarding flow
     // =====================================================
@@ -1221,7 +1519,7 @@ async function initBot() {
       const stateKey = getOnboardingStateKey(userId);
       const state = onboardingStates.get(stateKey);
       if (!state) return;
-      state.step = 'await_group_id';
+      state.step = 'await_group_share';
       onboardingStates.set(stateKey, state);
       await askOnboardingField(chatId, 'group_id');
       return;
@@ -1238,6 +1536,7 @@ async function initBot() {
     }
     
     if (data === 'new_order') {
+      const userLang = normalizeBotLanguage(languagePreferences.get(userId) || 'ru');
       // Start new order flow - ask for location
       registrationStates.set(userId, { 
         step: 'waiting_location_for_order',
@@ -1246,12 +1545,17 @@ async function initBot() {
       
       // Send message with location request keyboard
       await bot.sendMessage(chatId,
-        '📍 Отправьте геолокацию для доставки:',
+        userLang === 'uz'
+          ? '📍 Yetkazib berish uchun geolokatsiyani yuboring:'
+          : '📍 Отправьте геолокацию для доставки:',
         {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: [
-              [{ text: '📍 Отправить геолокацию', request_location: true }]
+              [{
+                text: userLang === 'uz' ? '📍 Geolokatsiyani yuborish' : '📍 Отправить геолокацию',
+                request_location: true
+              }]
             ],
             resize_keyboard: true,
             one_time_keyboard: true
