@@ -29,6 +29,11 @@ const normalizeTokenValue = (value) => {
   return normalized || null;
 };
 
+const normalizeTelegramIdValue = (value) => {
+  const normalized = value === undefined || value === null ? '' : String(value).trim();
+  return normalized || null;
+};
+
 const notifySuperadminTokenChanged = async (telegramId) => {
   if (!telegramId) return;
   const bot = getBot();
@@ -350,10 +355,12 @@ router.put('/billing-settings', async (req, res) => {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link,
       default_starting_balance, default_order_cost,
-      superadmin_bot_token
+      superadmin_bot_token,
+      superadmin_telegram_id
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
+    const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -365,6 +372,7 @@ router.put('/billing-settings', async (req, res) => {
           telegram_username = $4, click_link = $5, payme_link = $6,
           default_starting_balance = $7, default_order_cost = $8,
           superadmin_bot_token = $9,
+          superadmin_telegram_id = $10,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -373,7 +381,8 @@ router.put('/billing-settings', async (req, res) => {
       click_link, payme_link,
       parseFloat(default_starting_balance) || 100000,
       parseFloat(default_order_cost) || 1000,
-      normalizedToken
+      normalizedToken,
+      normalizedSuperadminTelegramId
     ]);
 
     try {
@@ -384,7 +393,8 @@ router.put('/billing-settings', async (req, res) => {
 
     if (normalizedToken && normalizedToken !== previousToken) {
       try {
-        await notifySuperadminTokenChanged(req.user.telegram_id);
+        const notificationTargetId = normalizeTelegramIdValue(result.rows[0]?.superadmin_telegram_id) || req.user.telegram_id;
+        await notifySuperadminTokenChanged(notificationTargetId);
       } catch (notifyErr) {
         console.error('Bot token change notification warning:', notifyErr.message);
       }
@@ -1828,10 +1838,12 @@ router.put('/billing/settings', async (req, res) => {
     const {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, default_starting_balance, default_order_cost,
-      superadmin_bot_token
+      superadmin_bot_token,
+      superadmin_telegram_id
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
+    const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -1843,13 +1855,14 @@ router.put('/billing/settings', async (req, res) => {
           telegram_username = $4, click_link = $5, payme_link = $6, 
           default_starting_balance = $7, default_order_cost = $8,
           superadmin_bot_token = $9,
+          superadmin_telegram_id = $10,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, default_starting_balance, default_order_cost,
-      normalizedToken
+      normalizedToken, normalizedSuperadminTelegramId
     ]);
 
     try {
@@ -1860,7 +1873,8 @@ router.put('/billing/settings', async (req, res) => {
 
     if (normalizedToken && normalizedToken !== previousToken) {
       try {
-        await notifySuperadminTokenChanged(req.user.telegram_id);
+        const notificationTargetId = normalizeTelegramIdValue(result.rows[0]?.superadmin_telegram_id) || req.user.telegram_id;
+        await notifySuperadminTokenChanged(notificationTargetId);
       } catch (notifyErr) {
         console.error('Bot token change notification warning:', notifyErr.message);
       }

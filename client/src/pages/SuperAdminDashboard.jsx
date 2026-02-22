@@ -276,6 +276,7 @@ function SuperAdminDashboard() {
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
     superadmin_bot_token: '',
+    superadmin_telegram_id: '',
     card_number: '',
     card_holder: '',
     phone_number: '',
@@ -574,7 +575,12 @@ function SuperAdminDashboard() {
   const loadBillingSettings = async () => {
     try {
       const response = await axios.get(`${API_URL}/superadmin/billing/settings`);
-      if (response.data) setBillingSettings(response.data);
+      if (response.data) {
+        setBillingSettings((prev) => ({
+          ...prev,
+          ...response.data
+        }));
+      }
     } catch (err) {
       console.error('Load billing settings error:', err);
     }
@@ -2313,6 +2319,22 @@ function SuperAdminDashboard() {
                             </div>
                             <Form.Text className="text-muted small">
                               Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
+                            </Form.Text>
+                          </Form.Group>
+
+                          <Form.Group className="mb-4">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Telegram ID владельца суперадминки
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom"
+                              placeholder="например: 123456789"
+                              value={billingSettings.superadmin_telegram_id || ''}
+                              onChange={e => setBillingSettings({ ...billingSettings, superadmin_telegram_id: e.target.value })}
+                            />
+                            <Form.Text className="text-muted small">
+                              На этот ID отправляется подтверждение при смене токена центрального бота.
                             </Form.Text>
                           </Form.Group>
 
