@@ -412,6 +412,50 @@ router.get('/orders', async (req, res) => {
   }
 });
 
+// Счетчики заказов по статусам (для вкладок UI, независимо от активного фильтра)
+router.get('/orders/status-counts', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+
+    let query = `
+      SELECT
+        COUNT(*)::int AS all_count,
+        COUNT(*) FILTER (WHERE o.status = 'new')::int AS new_count,
+        COUNT(*) FILTER (WHERE o.status IN ('preparing', 'in_progress'))::int AS preparing_count,
+        COUNT(*) FILTER (WHERE o.status = 'delivering')::int AS delivering_count,
+        COUNT(*) FILTER (WHERE o.status = 'delivered')::int AS delivered_count,
+        COUNT(*) FILTER (WHERE o.status = 'cancelled')::int AS cancelled_count
+      FROM orders o
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 1;
+
+    if (restaurantId && req.user.role !== 'superadmin') {
+      query += ` AND o.restaurant_id = $${paramCount}`;
+      params.push(restaurantId);
+      paramCount++;
+    } else if (restaurantId) {
+      query += ` AND o.restaurant_id = $${paramCount}`;
+      params.push(restaurantId);
+      paramCount++;
+    }
+
+    const result = await pool.query(query, params);
+    res.json(result.rows[0] || {
+      all_count: 0,
+      new_count: 0,
+      preparing_count: 0,
+      delivering_count: 0,
+      delivered_count: 0,
+      cancelled_count: 0
+    });
+  } catch (error) {
+    console.error('Admin orders status-counts error:', error);
+    res.status(500).json({ error: 'Ошибка получения счетчиков заказов' });
+  }
+});
+
 
 // Принять заказ и списать баланс
 router.post('/orders/:id/accept-and-pay', async (req, res) => {
@@ -1170,7 +1214,7 @@ router.post('/products', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock, sort_order, container_id
+      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -1194,12 +1238,12 @@ router.post('/products', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, price, unit, barcode, in_stock, sort_order, container_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING *
   `, [
       restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null
+      image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null
     ]);
 
     const product = result.rows[0];
@@ -1229,7 +1273,7 @@ router.post('/products/upsert', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock, sort_order
+      image_url, thumb_url, price, unit, barcode, in_stock, sort_order
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -1303,6 +1347,11 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(image_url);
         paramIndex++;
       }
+      if (thumb_url) {
+        updateFields.push(`thumb_url = $${paramIndex} `);
+        updateValues.push(thumb_url);
+        paramIndex++;
+      }
       if (barcode) {
         updateFields.push(`barcode = $${paramIndex} `);
         updateValues.push(barcode);
@@ -1325,12 +1374,12 @@ RETURNING *
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, price, unit, barcode, in_stock, sort_order
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    image_url, thumb_url, price, unit, barcode, in_stock, sort_order
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *
   `, [
         restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
-        image_url, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0
+        image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0
       ]);
     }
 
@@ -1361,7 +1410,7 @@ router.put('/products/:id', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock, sort_order, container_id
+      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id
     } = req.body;
 
     // Get old values and check access
@@ -1387,13 +1436,13 @@ router.put('/products/:id', async (req, res) => {
     const result = await pool.query(`
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
-  image_url = $6, price = $7, unit = $8, barcode = $9, in_stock = $10, sort_order = $11,
-  container_id = $12, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+  image_url = $6, thumb_url = $7, price = $8, unit = $9, barcode = $10, in_stock = $11, sort_order = $12,
+  container_id = $13, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $14
 RETURNING *
   `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null, req.params.id
+      image_url, thumb_url || null, price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null, req.params.id
     ]);
 
     const product = result.rows[0];

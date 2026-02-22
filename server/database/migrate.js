@@ -120,7 +120,8 @@ async function migrate() {
     // Add columns to products table  
     const productColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
-      { name: 'container_id', type: 'INTEGER' }
+      { name: 'container_id', type: 'INTEGER' },
+      { name: 'thumb_url', type: 'TEXT' }
     ];
 
     for (const col of productColumns) {

@@ -146,6 +146,7 @@ function AdminDashboard() {
     description_ru: '',
     description_uz: '',
     image_url: '',
+    thumb_url: '',
     price: '',
     unit: 'шт',
     in_stock: true,
@@ -1118,6 +1119,7 @@ function AdminDashboard() {
         description_ru: product.description_ru || '',
         description_uz: product.description_uz || '',
         image_url: product.image_url || '',
+        thumb_url: product.thumb_url || '',
         price: product.price || '',
         unit: product.unit || 'шт',
         in_stock: product.in_stock !== false,
@@ -1132,6 +1134,7 @@ function AdminDashboard() {
         description_ru: '',
         description_uz: '',
         image_url: '',
+        thumb_url: '',
         price: '',
         unit: 'шт',
         in_stock: true,
@@ -1246,7 +1249,7 @@ function AdminDashboard() {
     }
   };
 
-  const handleImageUpload = async (file, setImageUrl) => {
+  const handleImageUpload = async (file, setImageUrl, options = {}) => {
     if (!file) return;
 
     // Проверка размера файла (5MB)
@@ -1259,6 +1262,9 @@ function AdminDashboard() {
     try {
       const formData = new FormData();
       formData.append('image', file);
+      if (options.preset) {
+        formData.append('preset', options.preset);
+      }
 
       // axios.defaults.headers уже содержит Authorization токен
       const response = await axios.post(`${API_URL}/upload/image`, formData, {
@@ -1268,7 +1274,8 @@ function AdminDashboard() {
       });
 
       const fullUrl = toAbsoluteFileUrl(response.data?.url || response.data?.imageUrl);
-      setImageUrl(fullUrl);
+      const thumbUrl = toAbsoluteFileUrl(response.data?.thumbUrl || response.data?.thumb_url);
+      setImageUrl(fullUrl, { thumbUrl, response: response.data });
     } catch (error) {
       console.error('Image upload error:', error);
       alert('Ошибка загрузки изображения: ' + (error.response?.data?.error || error.message));
@@ -1314,7 +1321,7 @@ function AdminDashboard() {
   };
 
   // Handle paste from clipboard (Ctrl+V)
-  const handlePaste = async (e, setImageUrl) => {
+  const handlePaste = async (e, setImageUrl, options = {}) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -1323,7 +1330,7 @@ function AdminDashboard() {
         e.preventDefault();
         const file = item.getAsFile();
         if (file) {
-          handleImageUpload(file, setImageUrl);
+          handleImageUpload(file, setImageUrl, options);
         }
         break;
       }
@@ -1340,6 +1347,7 @@ function AdminDashboard() {
       description_ru: '',
       description_uz: '',
       image_url: '', // Empty - admin fills manually
+      thumb_url: '',
       price: '', // Empty - admin fills manually
       unit: product.unit || 'шт',
       in_stock: true
@@ -2645,9 +2653,9 @@ function AdminDashboard() {
                             </td>
                             <td className="text-muted">{index + 1}</td>
                             <td>
-                              {product.image_url ? (
+                              {(product.thumb_url || product.image_url) ? (
                                 <img
-                                  src={product.image_url.startsWith('http') ? product.image_url : `${API_URL.replace('/api', '')}${product.image_url}`}
+                                  src={(product.thumb_url || product.image_url).startsWith('http') ? (product.thumb_url || product.image_url) : `${API_URL.replace('/api', '')}${product.thumb_url || product.image_url}`}
                                   alt={product.name_ru}
                                   style={{
                                     width: 40,
@@ -2657,7 +2665,8 @@ function AdminDashboard() {
                                     cursor: 'pointer'
                                   }}
                                   onClick={() => {
-                                    setPreviewImageUrl(product.image_url.startsWith('http') ? product.image_url : `${API_URL.replace('/api', '')}${product.image_url}`);
+                                    const previewSrc = product.image_url || product.thumb_url;
+                                    setPreviewImageUrl(previewSrc.startsWith('http') ? previewSrc : `${API_URL.replace('/api', '')}${previewSrc}`);
                                     setShowImagePreview(true);
                                   }}
                                 />
@@ -4224,12 +4233,12 @@ function AdminDashboard() {
                         flexDirection: 'column'
                       }}
                       tabIndex={0}
-                      onPaste={(e) => handlePaste(e, (url) => setProductForm({ ...productForm, image_url: url }))}
+                      onPaste={(e) => handlePaste(e, (url, meta) => setProductForm({ ...productForm, image_url: url, thumb_url: meta?.thumbUrl || '' }), { preset: 'product' })}
                       onDrop={(e) => {
                         e.preventDefault();
                         const file = e.dataTransfer.files[0];
                         if (file) {
-                          handleImageUpload(file, (url) => setProductForm({ ...productForm, image_url: url }));
+                          handleImageUpload(file, (url, meta) => setProductForm({ ...productForm, image_url: url, thumb_url: meta?.thumbUrl || '' }), { preset: 'product' });
                         }
                       }}
                       onDragOver={(e) => e.preventDefault()}
@@ -4246,7 +4255,7 @@ function AdminDashboard() {
                             variant="link"
                             size="sm"
                             className="d-block mx-auto mt-1"
-                            onClick={() => setProductForm({ ...productForm, image_url: '' })}
+                            onClick={() => setProductForm({ ...productForm, image_url: '', thumb_url: '' })}
                           >
                             ❌ {t('removeImage')}
                           </Button>
@@ -4267,9 +4276,9 @@ function AdminDashboard() {
                       onChange={(e) => {
                         const file = e.target.files[0];
                         if (file) {
-                          handleImageUpload(file, (url) => {
-                            setProductForm({ ...productForm, image_url: url });
-                          });
+                          handleImageUpload(file, (url, meta) => {
+                            setProductForm({ ...productForm, image_url: url, thumb_url: meta?.thumbUrl || '' });
+                          }, { preset: 'product' });
                         }
                       }}
                       disabled={uploadingImage}
@@ -4287,7 +4296,7 @@ function AdminDashboard() {
                     <Form.Control
                       type="text"
                       value={productForm.image_url}
-                      onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                      onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value, thumb_url: '' })}
                       placeholder="https://example.com/image.jpg"
                       inputMode="url"
                     />
