@@ -75,10 +75,34 @@ body::-webkit-scrollbar,
     line-height: 1.2;
 }
 
+.admin-brand-trigger {
+    cursor: pointer;
+    border-radius: 12px;
+    padding-inline: 8px;
+    margin-inline: -8px;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-brand-trigger:hover,
+.admin-brand-trigger:focus-visible {
+    background: rgba(255, 250, 243, 0.1);
+    box-shadow: 0 0 0 1px rgba(255, 250, 243, 0.14);
+    outline: none;
+}
+
 .admin-brand-title {
     color: #fffaf3;
     font-weight: 600;
     font-size: 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.admin-brand-chevron {
+    font-size: 0.75rem;
+    color: rgba(255, 250, 243, 0.9);
 }
 
 .admin-brand-subtitle {
@@ -110,6 +134,31 @@ body::-webkit-scrollbar,
 
 .admin-user-toggle:hover {
     background: rgba(255, 250, 243, 0.28) !important;
+}
+
+.admin-header-pill-group {
+    min-height: 54px;
+}
+
+.admin-header-pill {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    min-height: 54px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.admin-user-pill {
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-user-pill:hover {
+    background: rgba(255, 255, 255, 0.18) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+.admin-balance-pill {
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .admin-user-avatar {
@@ -156,6 +205,53 @@ body::-webkit-scrollbar,
     margin-right: 6px;
     border-radius: 2px;
     vertical-align: middle;
+}
+
+.admin-restaurant-switch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.admin-restaurant-switch-item {
+    width: 100%;
+    border: 1px solid rgba(143, 109, 70, 0.14);
+    border-radius: 12px;
+    background: #fff;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text-main);
+    text-align: left;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.admin-restaurant-switch-item:hover {
+    background: #fbf7f1;
+    border-color: rgba(143, 109, 70, 0.3);
+}
+
+.admin-restaurant-switch-item.is-active {
+    background: #f7efe3;
+    border-color: rgba(143, 109, 70, 0.35);
+}
+
+.admin-restaurant-switch-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #c7b39a;
+    flex-shrink: 0;
+}
+
+.admin-restaurant-switch-dot.is-active {
+    background: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(143, 109, 70, 0.12);
 }
 
 .admin-toast-top {

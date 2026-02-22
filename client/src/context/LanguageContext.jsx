@@ -31,7 +31,7 @@ const translations = {
     superAdmin: 'Супер-админ',
     logout: 'Выйти',
     selectRestaurant: 'Выберите магазин для работы.',
-    useRestaurantMenu: 'Используйте меню "Переключить магазин" выше.',
+    useRestaurantMenu: 'Нажмите на логотип или название магазина выше, чтобы выбрать другой магазин.',
     restaurantSwitched: 'Магазин переключен',
 
     // Catalog
@@ -455,7 +455,7 @@ const translations = {
     superAdmin: 'Super-admin',
     logout: 'Chiqish',
     selectRestaurant: "Ish uchun do'kon tanlang.",
-    useRestaurantMenu: `Yuqoridagi "Do'konni almashtirish" menyusidan foydalaning.`,
+    useRestaurantMenu: "Boshqa do'konni tanlash uchun yuqoridagi logotip yoki do'kon nomini bosing.",
     restaurantSwitched: "Do'kon almashtirildi",
 
     // Catalog

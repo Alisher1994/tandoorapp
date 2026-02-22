@@ -11,7 +11,6 @@ import Form from 'react-bootstrap/Form';
 import Modal from 'react-bootstrap/Modal';
 import Navbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
-import NavDropdown from 'react-bootstrap/NavDropdown';
 import Dropdown from 'react-bootstrap/Dropdown';
 import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/Tab';
@@ -218,6 +217,8 @@ function AdminDashboard() {
   const [billingInfo, setBillingInfo] = useState({ restaurant: {}, requisites: {} });
   const [billingHistory, setBillingHistory] = useState([]);
   const [loadingBilling, setLoadingBilling] = useState(false);
+  const [showRestaurantPickerModal, setShowRestaurantPickerModal] = useState(false);
+  const [restaurantSwitchSearch, setRestaurantSwitchSearch] = useState('');
 
   // Product filters and search
   const [productSearch, setProductSearch] = useState('');
@@ -1617,9 +1618,15 @@ function AdminDashboard() {
   }
 
   const handleSwitchRestaurant = async (restaurantId) => {
+    if (Number(restaurantId) === Number(user?.active_restaurant_id)) {
+      setShowRestaurantPickerModal(false);
+      return;
+    }
     const result = await switchRestaurant(restaurantId);
     if (result.success) {
       setAlertMessage({ type: 'success', text: 'Магазин переключен' });
+      setShowRestaurantPickerModal(false);
+      setRestaurantSwitchSearch('');
       fetchData();
     } else {
       setAlertMessage({ type: 'danger', text: result.error });
@@ -1631,12 +1638,35 @@ function AdminDashboard() {
     navigate('/login');
   };
 
+  const canSwitchRestaurants = (user?.restaurants?.length || 0) > 1;
+  const normalizedRestaurantSearch = restaurantSwitchSearch.trim().toLowerCase();
+  const filteredRestaurants = (user?.restaurants || []).filter((r) =>
+    !normalizedRestaurantSearch || String(r.name || '').toLowerCase().includes(normalizedRestaurantSearch)
+  );
+
   return (
     <>
       <div className={actionButtonsVisible ? '' : 'action-buttons-hidden'}>
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container>
-          <Navbar.Brand className="d-flex align-items-center gap-2 py-1">
+          <Navbar.Brand
+            as="div"
+            className={`d-flex align-items-center gap-2 py-1 ${canSwitchRestaurants ? 'admin-brand-trigger' : ''}`}
+            role={canSwitchRestaurants ? 'button' : undefined}
+            tabIndex={canSwitchRestaurants ? 0 : undefined}
+            onClick={canSwitchRestaurants ? () => {
+              setRestaurantSwitchSearch('');
+              setShowRestaurantPickerModal(true);
+            } : undefined}
+            onKeyDown={canSwitchRestaurants ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setRestaurantSwitchSearch('');
+                setShowRestaurantPickerModal(true);
+              }
+            } : undefined}
+            aria-label={canSwitchRestaurants ? 'Открыть выбор магазина' : undefined}
+          >
             {user?.active_restaurant_logo ? (
               <img
                 src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
@@ -1652,7 +1682,8 @@ function AdminDashboard() {
             )}
             <div className="d-flex flex-column admin-brand-meta">
               <span className="admin-brand-title">
-                {user?.active_restaurant_name || t('operatorPanel')}
+                {canSwitchRestaurants && <i className="bi bi-chevron-down admin-brand-chevron" aria-hidden="true"></i>}
+                <span>{user?.active_restaurant_name || t('operatorPanel')}</span>
               </span>
               <span className="admin-brand-subtitle">
                 {t('controlPanel')}
@@ -1666,42 +1697,23 @@ function AdminDashboard() {
           </Navbar.Toggle>
           <Navbar.Collapse className="justify-content-end">
             <Nav className="align-items-lg-center gap-lg-1">
-              {/* Restaurant Switcher */}
-              {user?.restaurants?.length > 1 && (
-                <NavDropdown
-                  title={<span className="admin-dropdown-title">{t('switchRestaurant')}</span>}
-                  id="restaurant-dropdown"
-                  align="end"
-                >
-                  {user.restaurants.map(r => (
-                    <NavDropdown.Item
-                      key={r.id}
-                      onClick={() => handleSwitchRestaurant(r.id)}
-                      active={r.id === user.active_restaurant_id}
-                      style={{ fontSize: '13px' }}
-                    >
-                      {r.name}
-                    </NavDropdown.Item>
-                  ))}
-                </NavDropdown>
-              )}
-
               {/* Broadcast */}
               <Nav.Link
                 onClick={() => setShowBroadcastModal(true)}
                 className="px-2 admin-nav-link"
               >
+                <i className="bi bi-megaphone-fill me-1" aria-hidden="true"></i>
                 {t('broadcast')}
               </Nav.Link>
 
               {/* User + Language + Logout group */}
-              <div className="d-flex align-items-center gap-2 ms-lg-2">
+              <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
                 {/* User Profile Dropdown */}
                 <Dropdown align="end">
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown h-100 admin-user-toggle"
+                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none custom-user-dropdown h-100 admin-user-toggle admin-header-pill admin-user-pill"
                   >
                     <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm admin-user-avatar">
                       {user?.username?.charAt(0).toUpperCase() || 'A'}
@@ -1750,7 +1762,7 @@ function AdminDashboard() {
 
                 {/* Separate Balance pill */}
                 <div
-                  className="bg-white bg-opacity-10 py-1 px-3 rounded-pill d-flex flex-column align-items-end text-decoration-none h-100 border border-white border-opacity-10 shadow-sm transition-all"
+                  className="py-1 px-3 rounded-pill d-flex flex-column align-items-end justify-content-center text-decoration-none h-100 shadow-sm transition-all admin-header-pill admin-balance-pill"
                   style={{ cursor: 'pointer', minWidth: '110px' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1758,12 +1770,12 @@ function AdminDashboard() {
                     setShowBalanceModal(true);
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.18)';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
                   }}
                 >
                   <span className="text-white-50 extra-small fw-bold text-uppercase" style={{ fontSize: '0.55rem', letterSpacing: '0.05rem' }}>{t('balance')}</span>
@@ -1774,6 +1786,63 @@ function AdminDashboard() {
           </Navbar.Collapse>
         </Container>
       </Navbar>
+
+      <Modal
+        show={showRestaurantPickerModal}
+        onHide={() => {
+          setShowRestaurantPickerModal(false);
+          setRestaurantSwitchSearch('');
+        }}
+        centered
+        className="admin-modal"
+      >
+        <Modal.Header closeButton className="border-0">
+          <Modal.Title className="d-flex align-items-center gap-2">
+            <i className="bi bi-shop-window"></i>
+            <span>{t('switchRestaurant')}</span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-0">
+          <Form.Group className="mb-3">
+            <Form.Control
+              value={restaurantSwitchSearch}
+              onChange={(e) => setRestaurantSwitchSearch(e.target.value)}
+              placeholder={t('saSearchShop') || 'Поиск магазина...'}
+              autoFocus
+            />
+          </Form.Group>
+
+          <div className="admin-restaurant-switch-list">
+            {filteredRestaurants.length > 0 ? (
+              filteredRestaurants.map((r) => {
+                const isActiveRestaurant = Number(r.id) === Number(user?.active_restaurant_id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => handleSwitchRestaurant(r.id)}
+                    className={`admin-restaurant-switch-item ${isActiveRestaurant ? 'is-active' : ''}`}
+                  >
+                    <div className="d-flex align-items-center gap-2 min-w-0">
+                      <span className={`admin-restaurant-switch-dot ${isActiveRestaurant ? 'is-active' : ''}`} aria-hidden="true" />
+                      <span className="text-truncate fw-semibold">{r.name}</span>
+                    </div>
+                    {isActiveRestaurant && (
+                      <Badge bg="light" text="dark" pill className="border">
+                        Текущий
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="text-center text-muted py-4">
+                Магазины не найдены
+              </div>
+            )}
+          </div>
+        </Modal.Body>
+      </Modal>
 
       <Container className="admin-panel">
         {/* Alerts */}
