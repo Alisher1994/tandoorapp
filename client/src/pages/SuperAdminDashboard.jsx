@@ -667,6 +667,12 @@ function SuperAdminDashboard() {
     }
   };
 
+  const truncateAdLinkText = (value, limit = 12) => {
+    const text = String(value || '');
+    if (text.length <= limit) return text;
+    return `${text.slice(0, limit)}...`;
+  };
+
   const getAdStatusLabel = (status) => {
     const map = {
       active: 'Активна',
@@ -2396,8 +2402,9 @@ function SuperAdminDashboard() {
                                   rel="noreferrer"
                                   className="small text-decoration-none"
                                   style={{ color: 'var(--primary-color)' }}
+                                  title={banner.target_url}
                                 >
-                                  {banner.target_url}
+                                  {truncateAdLinkText(banner.target_url, 12)}
                                 </a>
                               </td>
                               <td style={{ minWidth: '260px' }}>

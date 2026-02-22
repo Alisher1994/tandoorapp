@@ -47,15 +47,33 @@ export function AuthProvider({ children }) {
       const response = await axios.get(`${API_URL}/auth/me`);
       setUser(response.data.user);
       setIsBlocked(false);
+      setSupportUsername(null);
+      return { success: true, user: response.data.user };
     } catch (error) {
+      const status = error.response?.status;
+
       // Check if user is blocked
-      if (error.response?.status === 403 && error.response?.data?.blocked) {
+      if (status === 403 && error.response?.data?.blocked) {
         setIsBlocked(true);
         setSupportUsername(error.response.data.support_username || 'admin');
-      } else {
+        return { success: false, blocked: true };
+      }
+
+      // Logout only when token is invalid/expired/unauthorized
+      if (status === 401) {
         localStorage.removeItem('token');
         delete axios.defaults.headers.common['Authorization'];
+        setUser(null);
+        return { success: false, unauthorized: true };
       }
+
+      // Temporary backend/network errors should not destroy session
+      console.error('fetchUser temporary error (session preserved):', error);
+      return {
+        success: false,
+        temporary: true,
+        error: error.response?.data?.error || error.message || 'Temporary auth error'
+      };
     } finally {
       setLoading(false);
     }
