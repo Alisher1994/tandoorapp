@@ -2622,7 +2622,11 @@ function SuperAdminDashboard() {
                     </Button>
                   </div>
 
-                  <Alert variant={actionButtonsVisible ? 'warning' : 'secondary'} className="border-0 shadow-sm rounded-4 mb-4">
+                  <Alert
+                    variant={actionButtonsVisible ? 'warning' : 'secondary'}
+                    className="border-0 shadow-sm rounded-4 mb-4"
+                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                  >
                     <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
                       <div>
                         <div className="fw-bold">Безопасный режим кнопок действий</div>

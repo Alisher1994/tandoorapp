@@ -127,8 +127,44 @@ const CustomMenu = React.forwardRef(
 );
 
 function AdminDashboard() {
+  const normalizeAdminOrderForUI = (order) => ({
+    ...order,
+    status: order.status === 'in_progress' ? 'preparing' : order.status,
+    cancelled_at_status: order.cancelled_at_status === 'in_progress'
+      ? 'preparing'
+      : order.cancelled_at_status
+  });
+
+  const buildOrderStatusCounts = (ordersList = []) => {
+    const counts = {
+      all: ordersList.length,
+      new: 0,
+      preparing: 0,
+      delivering: 0,
+      delivered: 0,
+      cancelled: 0
+    };
+
+    for (const order of ordersList) {
+      const normalizedStatus = order?.status === 'in_progress' ? 'preparing' : order?.status;
+      if (normalizedStatus && Object.prototype.hasOwnProperty.call(counts, normalizedStatus)) {
+        counts[normalizedStatus] += 1;
+      }
+    }
+
+    return counts;
+  };
+
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [orderStatusCounts, setOrderStatusCounts] = useState({
+    all: 0,
+    new: 0,
+    preparing: 0,
+    delivering: 0,
+    delivered: 0,
+    cancelled: 0
+  });
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -475,23 +511,30 @@ function AdminDashboard() {
   const fetchData = async () => {
     try {
       const hasActiveRestaurant = Boolean(user?.active_restaurant_id);
+      const filteredOrdersUrl = `${API_URL}/admin/orders${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`;
       const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/admin/orders${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`),
+        axios.get(filteredOrdersUrl),
         axios.get(`${API_URL}/admin/products`),
         axios.get(`${API_URL}/admin/categories`),
         hasActiveRestaurant
           ? axios.get(`${API_URL}/admin/containers`)
           : Promise.resolve({ data: [] })
       ]);
+      const allOrdersRes = statusFilter === 'all'
+        ? null
+        : await axios.get(`${API_URL}/admin/orders`).catch((error) => {
+          console.error('Orders counts fetch error:', error);
+          return null;
+        });
 
       if (ordersRes.status === 'fulfilled') {
-        setOrders((ordersRes.value.data || []).map(order => ({
-          ...order,
-          status: order.status === 'in_progress' ? 'preparing' : order.status,
-          cancelled_at_status: order.cancelled_at_status === 'in_progress'
-            ? 'preparing'
-            : order.cancelled_at_status
-        })));
+        const normalizedFilteredOrders = (ordersRes.value.data || []).map(normalizeAdminOrderForUI);
+        setOrders(normalizedFilteredOrders);
+
+        const countsSource = statusFilter === 'all'
+          ? normalizedFilteredOrders
+          : ((allOrdersRes?.data || []).map(normalizeAdminOrderForUI));
+        setOrderStatusCounts(buildOrderStatusCounts(countsSource));
       } else {
         console.error('Orders fetch error:', ordersRes.reason);
       }
@@ -2262,9 +2305,7 @@ function AdminDashboard() {
                       { value: 'cancelled', label: t('statusCancelled'), color: '#b6765d' },
                     ].map(s => {
                       const isActive = statusFilter === s.value;
-                      const count = s.value === 'all'
-                        ? orders.length
-                        : orders.filter(o => o.status === s.value).length;
+                      const count = orderStatusCounts?.[s.value] || 0;
                       return (
                         <button
                           key={s.value}
@@ -2938,7 +2979,11 @@ function AdminDashboard() {
                 </div>
 
                 <div className="p-4 bg-light" style={{ minHeight: '60vh' }}>
-                  <Alert variant={actionButtonsVisible ? 'warning' : 'secondary'} className="border-0 shadow-sm rounded-4 mb-4">
+                  <Alert
+                    variant={actionButtonsVisible ? 'warning' : 'secondary'}
+                    className="border-0 shadow-sm rounded-4 mb-4"
+                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                  >
                     <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
                       <div>
                         <div className="fw-bold">Безопасный режим кнопок действий</div>
