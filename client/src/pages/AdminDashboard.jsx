@@ -2175,12 +2175,12 @@ function AdminDashboard() {
                   {/* Status pill tabs */}
                   <div className="d-flex flex-wrap gap-1">
                     {[
-                      { value: 'all', label: t('allStatuses'), color: '#64748b' },
-                      { value: 'new', label: t('statusNew'), color: '#3b82f6' },
-                      { value: 'preparing', label: t('statusPreparing'), color: '#f59e0b' },
-                      { value: 'delivering', label: t('statusDelivering'), color: '#6366f1' },
-                      { value: 'delivered', label: t('statusDelivered'), color: '#22c55e' },
-                      { value: 'cancelled', label: t('statusCancelled'), color: '#ef4444' },
+                      { value: 'all', label: t('allStatuses'), color: '#8d7557' },
+                      { value: 'new', label: t('statusNew'), color: '#c7a577' },
+                      { value: 'preparing', label: t('statusPreparing'), color: '#b89262' },
+                      { value: 'delivering', label: t('statusDelivering'), color: '#a37c4f' },
+                      { value: 'delivered', label: t('statusDelivered'), color: '#8f6d46' },
+                      { value: 'cancelled', label: t('statusCancelled'), color: '#b6765d' },
                     ].map(s => {
                       const isActive = statusFilter === s.value;
                       const count = s.value === 'all'
@@ -2196,9 +2196,9 @@ function AdminDashboard() {
                             gap: 6,
                             padding: '6px 14px',
                             borderRadius: 20,
-                            border: isActive ? `1.5px solid ${s.color}` : '1.5px solid #e2e8f0',
-                            background: isActive ? s.color : '#fff',
-                            color: isActive ? '#fff' : '#64748b',
+                            border: isActive ? `1.5px solid ${s.color}` : '1.5px solid #dfcfb9',
+                            background: isActive ? s.color : '#fffaf3',
+                            color: isActive ? '#fffaf3' : '#7d6a55',
                             fontSize: '13px',
                             fontWeight: isActive ? 600 : 500,
                             cursor: 'pointer',
@@ -4247,7 +4247,7 @@ function AdminDashboard() {
                       className="border rounded p-3 mb-2 text-center"
                       style={{
                         borderStyle: 'dashed',
-                        background: '#f8f9fa',
+                        background: '#f8efe2',
                         cursor: 'pointer',
                         minHeight: '100px',
                         display: 'flex',
@@ -4256,8 +4256,8 @@ function AdminDashboard() {
                         justifyContent: 'center',
                         transition: 'all 0.2s ease'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.borderColor = '#0d6efd'}
-                      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#dee2e6'}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = '#8f6d46'}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#dfcfb9'}
                       tabIndex={0}
                       onPaste={(e) => handlePaste(e, (url) => setBroadcastForm({ ...broadcastForm, image_url: url }))}
                       onDrop={(e) => {
@@ -4896,7 +4896,7 @@ function AdminDashboard() {
               />
             </div>
 
-            <Alert variant="info" className="border-0 shadow-sm rounded-4 mb-0" style={{ background: 'rgba(59, 130, 246, 0.05)', color: '#1e40af' }}>
+            <Alert variant="info" className="border-0 shadow-sm rounded-4 mb-0" style={{ background: '#f3e6d2', color: '#654a2e' }}>
               <div className="fw-bold mb-1">Инструкция:</div>
               <ol className="small mb-0 ps-3">
                 <li>Нажмите на иконку многоугольника (⬠) справа на карте</li>

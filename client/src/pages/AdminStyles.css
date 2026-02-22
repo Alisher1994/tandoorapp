@@ -990,3 +990,59 @@ body::-webkit-scrollbar,
     border-color: #b9966c !important;
     color: #503921 !important;
 }
+
+.admin-panel .border-primary,
+.admin-panel .border-success,
+.admin-panel .border-info,
+.admin-panel .border-warning,
+.admin-panel .border-danger {
+    border-color: var(--primary-color) !important;
+}
+
+.admin-panel .nav-tabs .nav-link,
+.admin-panel .nav-underline .nav-link {
+    color: #7d6a55 !important;
+}
+
+.admin-panel .nav-tabs .nav-link:hover,
+.admin-panel .nav-underline .nav-link:hover {
+    color: #654a2e !important;
+}
+
+.admin-panel .nav-tabs .nav-link.active,
+.admin-panel .nav-underline .nav-link.active,
+.admin-panel .nav-underline .show>.nav-link {
+    color: #503921 !important;
+    border-color: transparent transparent var(--primary-color) !important;
+}
+
+.admin-panel .form-control,
+.admin-panel .form-select,
+.admin-panel .form-control-custom {
+    background-color: #fffaf3 !important;
+    color: #3d2f21 !important;
+    border-color: #dfcfb9 !important;
+}
+
+.admin-panel .form-control:focus,
+.admin-panel .form-select:focus,
+.admin-panel .form-control-custom:focus {
+    border-color: #8f6d46 !important;
+    box-shadow: 0 0 0 0.2rem rgba(143, 109, 70, 0.12) !important;
+}
+
+.admin-panel input:-webkit-autofill,
+.admin-panel input:-webkit-autofill:hover,
+.admin-panel input:-webkit-autofill:focus,
+.admin-panel textarea:-webkit-autofill,
+.admin-panel select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #fffaf3 inset !important;
+    -webkit-text-fill-color: #3d2f21 !important;
+    transition: background-color 9999s ease-out 0s;
+}
+
+.admin-panel .table-hover>tbody>tr:hover>*,
+.admin-panel .list-group-item:hover {
+    background-color: #f5ecdf !important;
+    color: #3d2f21 !important;
+}
