@@ -646,7 +646,7 @@ function Catalog() {
                                 style={{
                                   borderRadius: '14px',
                                   overflow: 'hidden',
-                                  background: '#efe9da',
+                                  background: '#ffffff',
                                   position: 'relative',
                                   minHeight: '110px'
                                 }}
@@ -656,30 +656,34 @@ function Catalog() {
                                     position: 'absolute',
                                     inset: 0,
                                     backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #ece7da 0%, #ddd3be 100%)',
-                                    backgroundSize: 'cover',
-                                    backgroundPosition: 'center'
-                                  }}
-                                />
-                                <div
-                                  style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    background: 'linear-gradient(180deg, rgba(16, 16, 16, 0.45) 0%, rgba(16, 16, 16, 0.12) 55%, rgba(16, 16, 16, 0.18) 100%)'
-                                  }}
-                                />
-                                <div
-                                  style={{
-                                    position: 'relative',
-                                    zIndex: 1,
-                                    padding: '10px',
-                                    color: '#ffffff',
-                                    fontWeight: 700,
-                                    fontSize: '0.88rem',
-                                    lineHeight: 1.2
-                                  }}
-                                >
-                                  {getCategoryName(level2Category)}
-                                </div>
+                                     backgroundSize: categoryImage ? 'contain' : 'cover',
+                                     backgroundPosition: 'center',
+                                     backgroundRepeat: 'no-repeat',
+                                     backgroundColor: '#ffffff'
+                                   }}
+                                 />
+                                 <div
+                                   style={{
+                                     position: 'relative',
+                                     zIndex: 1,
+                                      padding: '10px',
+                                     color: '#1f1a14',
+                                     fontWeight: 700,
+                                     fontSize: '0.88rem',
+                                     lineHeight: 1.2
+                                   }}
+                                 >
+                                   <span
+                                     style={{
+                                       display: 'inline-block',
+                                       background: 'rgba(255, 255, 255, 0.88)',
+                                       borderRadius: '8px',
+                                       padding: '3px 8px'
+                                     }}
+                                   >
+                                     {getCategoryName(level2Category)}
+                                   </span>
+                                 </div>
                               </button>
                             </Col>
                           );

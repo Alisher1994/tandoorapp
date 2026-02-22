@@ -67,6 +67,13 @@ function Cart() {
   const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
 
+  const themePrimaryTextStyle = { color: 'var(--primary-color)' };
+  const paymentButtonStyle = (isActive) => ({
+    backgroundColor: isActive ? 'var(--primary-color)' : 'var(--surface-color, #fffaf3)',
+    borderColor: isActive ? 'var(--primary-color)' : 'var(--border-color, #dfcfb9)',
+    color: isActive ? '#fff' : 'var(--text-color, #3d2f21)'
+  });
+
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
 
@@ -640,7 +647,7 @@ function Cart() {
                   )}
                   <div className="flex-grow-1 ms-3">
                     <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{language === 'uz' && item.name_uz ? item.name_uz : item.name_ru}</div>
-                    <div className="text-primary fw-bold">
+                    <div className="fw-bold" style={themePrimaryTextStyle}>
                       {formatPrice(item.price)} {t('sum')}
                     </div>
                   </div>
@@ -820,9 +827,10 @@ function Cart() {
                   <div className="d-flex flex-column gap-2">
                     {/* Наличные */}
                     <Button
-                      variant={formData.payment_method === 'cash' ? 'success' : 'outline-secondary'}
+                      variant="light"
                       size="sm"
                       className="w-100"
+                      style={paymentButtonStyle(formData.payment_method === 'cash')}
                       onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
                     >
                       💵 {t('cash')}
@@ -830,17 +838,19 @@ function Cart() {
                     {/* Click и Payme */}
                     <div className="d-flex gap-2">
                       <Button
-                        variant={formData.payment_method === 'click' ? 'success' : 'outline-secondary'}
+                        variant="light"
                         size="sm"
                         className="flex-fill d-flex align-items-center justify-content-center"
+                        style={paymentButtonStyle(formData.payment_method === 'click')}
                         onClick={() => setFormData({ ...formData, payment_method: 'click' })}
                       >
                         <img src="/click.png" alt="Click" style={{ height: 22 }} />
                       </Button>
                       <Button
-                        variant={formData.payment_method === 'payme' ? 'success' : 'outline-secondary'}
+                        variant="light"
                         size="sm"
                         className="flex-fill d-flex align-items-center justify-content-center"
+                        style={paymentButtonStyle(formData.payment_method === 'payme')}
                         onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
                       >
                         <img src="/payme.png" alt="Payme" style={{ height: 22 }} />
@@ -899,7 +909,7 @@ function Cart() {
 
             <div className={`d-flex justify-content-between align-items-center mb-3 ${step === 2 ? 'pt-2 border-top' : ''}`}>
               <span className="text-muted fw-bold">{t('total')}:</span>
-              <span className="fs-4 fw-bold text-primary">{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
+              <span className="fs-4 fw-bold" style={themePrimaryTextStyle}>{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
             </div>
 
             {step === 1 ? (
@@ -1148,7 +1158,7 @@ function Cart() {
               <hr />
               <div className="d-flex justify-content-between fw-bold">
                 <span>{t('total')}:</span>
-                <span className="text-primary">{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
+                <span style={themePrimaryTextStyle}>{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
               </div>
             </div>
 
@@ -1161,7 +1171,7 @@ function Cart() {
                 {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
               </Button>
               <Button
-                variant="success"
+                variant="primary"
                 className="flex-fill"
                 onClick={confirmAndSendOrder}
                 disabled={loading}
