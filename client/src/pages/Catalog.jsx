@@ -14,6 +14,25 @@ import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+const CartLucideIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="8" cy="21" r="1" />
+    <circle cx="19" cy="21" r="1" />
+    <path d="M2.05 2h2l2.66 12.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L22 6H6" />
+  </svg>
+);
+
 function Catalog() {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
@@ -27,7 +46,7 @@ function Catalog() {
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
-  const { addToCart, updateQuantity, clearCart, cart, cartTotal, cartCount } = useCart();
+  const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
   const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
 
@@ -649,6 +668,56 @@ function Catalog() {
     );
   };
 
+  const renderCartTotalBanner = () => (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => navigate('/cart')}
+        style={{
+          width: '100%',
+          border: '1px solid rgba(165,133,92,0.22)',
+          background: (cartTotal || 0) > 0 ? 'rgba(165,133,92,0.10)' : 'rgba(255,255,255,0.85)',
+          color: '#3a2b1b',
+          borderRadius: '12px',
+          padding: '10px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(60, 42, 24, 0.04)'
+        }}
+        title={language === 'uz' ? 'Savatni ochish' : 'Открыть корзину'}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 30,
+            height: 30,
+            borderRadius: 999,
+            background: 'rgba(165,133,92,0.13)',
+            color: 'var(--primary-color)'
+          }}
+        >
+          <CartLucideIcon size={16} />
+        </span>
+        <span
+          style={{
+            marginLeft: 'auto',
+            whiteSpace: 'nowrap',
+            color: 'var(--primary-color)',
+            fontWeight: 700,
+            fontSize: '0.95rem'
+          }}
+        >
+          {formatPrice(cartTotal || 0)} {language === 'uz' ? "so'm" : 'сум'}
+        </span>
+      </button>
+    </div>
+  );
+
   if (loading && restaurants.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
@@ -712,41 +781,21 @@ function Catalog() {
               alt={language === 'ru' ? 'RU' : 'UZ'}
               style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
             />
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6f5538', letterSpacing: '0.04em' }}>
+            <span
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                color: '#6f5538',
+                letterSpacing: '0.04em',
+                lineHeight: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '20px',
+                textShadow: 'none'
+              }}
+            >
               {language === 'ru' ? 'RU' : 'UZ'}
-            </span>
-          </button>
-        </div>
-        <div className="px-3 pb-2">
-          <button
-            type="button"
-            onClick={() => navigate('/cart')}
-            style={{
-              width: '100%',
-              border: '1px solid rgba(165,133,92,0.22)',
-              background: cartCount > 0 ? 'rgba(165,133,92,0.10)' : 'rgba(255,255,255,0.8)',
-              color: '#3a2b1b',
-              borderRadius: '12px',
-              padding: '8px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            title={language === 'uz' ? 'Savatni ochish' : 'Открыть корзину'}
-          >
-            <span className="text-truncate">
-              {cartCount > 0
-                ? (language === 'uz'
-                  ? `Savat: ${cartCount} ta mahsulot`
-                  : `В корзине: ${cartCount} тов.`)
-                : (language === 'uz' ? 'Savat bo‘sh' : 'Корзина пуста')}
-            </span>
-            <span style={{ whiteSpace: 'nowrap', color: 'var(--primary-color)', fontWeight: 700 }}>
-              {formatPrice(cartTotal || 0)} {language === 'uz' ? "so'm" : 'сум'}
             </span>
           </button>
         </div>
@@ -806,6 +855,8 @@ function Catalog() {
                 </div>
               </div>
             )}
+
+            {!loading && renderCartTotalBanner()}
 
             {!loading && selectedCategory === null && (
               <div className="py-3">
