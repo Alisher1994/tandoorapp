@@ -1,5 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
+const jwt = require('jsonwebtoken');
 
 // Cache for restaurant-specific bots
 const restaurantBots = new Map();
@@ -64,6 +65,168 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
+function getPublicBaseUrl() {
+  const candidates = [
+    process.env.BACKEND_URL,
+    process.env.TELEGRAM_WEBHOOK_URL,
+    process.env.FRONTEND_URL,
+    process.env.TELEGRAM_WEB_APP_URL
+  ].filter(Boolean);
+
+  const raw = candidates[0];
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+    // If TELEGRAM_WEBHOOK_URL is used, normalize to site root.
+    url.pathname = '/';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return String(raw).replace(/\/api\/telegram\/webhook.*$/, '').replace(/\/$/, '');
+  }
+}
+
+function buildOrderPreviewUrl(orderId) {
+  const baseUrl = getPublicBaseUrl();
+  if (!baseUrl || !process.env.JWT_SECRET || !orderId) return null;
+
+  const token = jwt.sign(
+    { type: 'order_preview', orderId: Number(orderId) },
+    process.env.JWT_SECRET,
+    { expiresIn: '12h' }
+  );
+
+  return `${baseUrl}/api/orders/operator-preview?token=${encodeURIComponent(token)}`;
+}
+
+function getGroupOrderStatusLine(statusKey, operatorName = '') {
+  const operatorSafe = escapeHtml(operatorName);
+  switch (statusKey) {
+    case 'accepted':
+      return `Статус: ✅ Принят${operatorSafe ? ` (${operatorSafe})` : ''}`;
+    case 'preparing':
+      return `Статус: 👨‍🍳 Готовится${operatorSafe ? ` (${operatorSafe})` : ''}`;
+    case 'delivering':
+      return `Статус: 🚚 Доставляется${operatorSafe ? ` (${operatorSafe})` : ''}`;
+    case 'delivered':
+      return `Статус: ✅ Доставлен${operatorSafe ? ` (${operatorSafe})` : ''}`;
+    case 'cancelled':
+      return `Статус: ❌ Отменен${operatorSafe ? ` (${operatorSafe})` : ''}`;
+    default:
+      return 'Статус: 🆕 Новый';
+  }
+}
+
+function buildGroupOrderNotificationPayload(order, items, options = {}) {
+  const {
+    revealSensitive = false,
+    statusKey = 'new',
+    operatorName = '',
+    includePreviewLink = false,
+    previewUrl = null
+  } = options;
+
+  const itemsList = (items || []).map((item, index) => {
+    const qty = parseFloat(item.quantity);
+    const price = parseFloat(item.price);
+    const total = qty * price;
+    return `${index + 1}. ${escapeHtml(item.product_name)}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
+  }).join('\n\n');
+
+  let locationLine = '';
+  if (revealSensitive) {
+    if (order.delivery_coordinates) {
+      const coords = String(order.delivery_coordinates).split(',').map(c => c.trim());
+      if (coords.length === 2) {
+        const [lat, lng] = coords;
+        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+        locationLine = `<a href="${mapUrl}">📍 Адрес доставки</a>`;
+      }
+    } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
+      locationLine = `📍 Адрес: ${escapeHtml(order.delivery_address)}`;
+    }
+  }
+
+  const deliveryTime = order.delivery_time && order.delivery_time !== 'asap'
+    ? order.delivery_time
+    : 'Как можно быстрее';
+
+  const productsTotal = parseFloat(order.total_amount);
+  const deliveryCost = parseFloat(order.delivery_cost) || 0;
+  const deliveryDistanceKm = parseFloat(order.delivery_distance_km) || 0;
+
+  let deliveryLine = '';
+  if (deliveryCost > 0) {
+    deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} сум`;
+    if (deliveryDistanceKm > 0) {
+      deliveryLine += ` (${deliveryDistanceKm} км)`;
+    }
+    deliveryLine += '\n';
+  }
+
+  const hiddenHint = !revealSensitive
+    ? '🔒 Данные клиента будут показаны после нажатия «Принять».\n\n'
+    : '';
+
+  const customerBlock = revealSensitive
+    ? (
+      (locationLine ? `${locationLine}\n` : '') +
+      `👤 Клиент: ${escapeHtml(order.customer_name)}\n` +
+      `📞 Телефон: ${escapeHtml(order.customer_phone)}\n`
+    )
+    : '';
+
+  const previewLine = includePreviewLink && previewUrl
+    ? `\n🔎 Веб-детали: <a href="${previewUrl}">открыть заказ</a>`
+    : '';
+
+  const message =
+    `<b>ID: ${order.order_number}</b>\n` +
+    `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
+    hiddenHint +
+    customerBlock +
+    `🕐 К времени: ${deliveryTime}\n\n` +
+    `<b>Товары</b>\n\n${itemsList}\n\n` +
+    deliveryLine +
+    `<b>Итого: ${formatPrice(productsTotal)} сум</b>` +
+    previewLine +
+    `\n\n` +
+    (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
+
+  return message;
+}
+
+function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '') {
+  if (stage === 'new') {
+    return {
+      inline_keyboard: [[
+        { text: '✅ Принять', callback_data: `confirm_order_${orderId}` },
+        { text: '❌ Отказать', callback_data: `reject_order_${orderId}` }
+      ]]
+    };
+  }
+
+  if (stage === 'accepted') {
+    return { inline_keyboard: [[{ text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` }]] };
+  }
+
+  if (stage === 'preparing') {
+    return { inline_keyboard: [[{ text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` }]] };
+  }
+
+  if (stage === 'delivering') {
+    return { inline_keyboard: [[{ text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` }]] };
+  }
+
+  if (stage === 'done') {
+    return { inline_keyboard: [[{ text: `✅ Завершено${operatorName ? ': ' + operatorName : ''}`, callback_data: 'done' }]] };
+  }
+
+  return { inline_keyboard: [] };
+}
+
 /**
  * Send order notification to admin group with action buttons
  */
@@ -85,68 +248,11 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
   }
 
   try {
-    // Build items list
-    const itemsList = items.map((item, index) => {
-      const qty = parseFloat(item.quantity);
-      const price = parseFloat(item.price);
-      const total = qty * price;
-      return `${index + 1}. ${escapeHtml(item.product_name)}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
-    }).join('\n\n');
-
-    // Build location link
-    let locationLine = '';
-    if (order.delivery_coordinates) {
-      const coords = order.delivery_coordinates.split(',').map(c => c.trim());
-      if (coords.length === 2) {
-        const [lat, lng] = coords;
-        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        locationLine = `<a href="${mapUrl}">📍 Адрес доставки</a>`;
-      }
-    } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
-      locationLine = `📍 Адрес: ${escapeHtml(order.delivery_address)}`;
-    }
-
-    // Delivery time
-    const deliveryTime = order.delivery_time && order.delivery_time !== 'asap'
-      ? order.delivery_time
-      : 'Как можно быстрее';
-
-    // Calculate total
-    const productsTotal = parseFloat(order.total_amount);
-    const deliveryCost = parseFloat(order.delivery_cost) || 0;
-    const deliveryDistanceKm = parseFloat(order.delivery_distance_km) || 0;
-
-    // Build delivery line
-    let deliveryLine = '';
-    if (deliveryCost > 0) {
-      deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} сум`;
-      if (deliveryDistanceKm > 0) {
-        deliveryLine += ` (${deliveryDistanceKm} км)`;
-      }
-      deliveryLine += '\n';
-    }
-
-    const message =
-      `<b>ID: ${order.order_number}</b>\n` +
-      `Статус: 🆕 Новый\n\n` +
-      (locationLine ? `${locationLine}\n` : '') +
-      `👤 Клиент: ${escapeHtml(order.customer_name)}\n` +
-      `📞 Телефон: ${escapeHtml(order.customer_phone)}\n` +
-      `🕐 К времени: ${deliveryTime}\n\n` +
-      `<b>Товары</b>\n\n${itemsList}\n\n` +
-      deliveryLine +
-      `<b>Итого: ${formatPrice(productsTotal)} сум</b>\n\n` +
-      (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
-
-    // Add action buttons
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: '✅ Подтвердить', callback_data: `confirm_order_${order.id}` },
-          { text: '❌ Отказать', callback_data: `reject_order_${order.id}` }
-        ]
-      ]
-    };
+    const message = buildGroupOrderNotificationPayload(order, items, {
+      revealSensitive: false,
+      statusKey: 'new'
+    });
+    const keyboard = buildGroupOrderActionKeyboard(order.id, 'new');
 
     console.log(`📤 Sending order ${order.id} notification to ${chatId} with buttons`);
 
@@ -344,5 +450,8 @@ module.exports = {
   sendOrderUpdateToUser,
   updateOrderNotificationForCustomerCancel,
   sendBalanceNotification,
-  getRestaurantBot
+  getRestaurantBot,
+  buildGroupOrderNotificationPayload,
+  buildGroupOrderActionKeyboard,
+  buildOrderPreviewUrl
 };

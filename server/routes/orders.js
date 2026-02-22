@@ -2,16 +2,148 @@ const express = require('express');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
 const { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel } = require('../bot/notifications');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;');
 
 function getNowInRestaurantTimezone() {
   const timezone = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
   const nowString = new Date().toLocaleString('en-US', { timeZone: timezone });
   return new Date(nowString);
 }
+
+// Public temporary order preview for Telegram operator links
+router.get('/operator-preview', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) {
+      return res.status(400).send('Missing token');
+    }
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).send('JWT secret is not configured');
+    }
+
+    let payload;
+    try {
+      payload = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (e) {
+      return res.status(401).send('Invalid or expired token');
+    }
+
+    if (!payload || payload.type !== 'order_preview' || !payload.orderId) {
+      return res.status(401).send('Invalid token payload');
+    }
+
+    const orderResult = await pool.query(`
+      SELECT o.*, r.name AS restaurant_name
+      FROM orders o
+      LEFT JOIN restaurants r ON r.id = o.restaurant_id
+      WHERE o.id = $1
+      LIMIT 1
+    `, [payload.orderId]);
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).send('Order not found');
+    }
+
+    const itemsResult = await pool.query(`
+      SELECT oi.*, p.image_url
+      FROM order_items oi
+      LEFT JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = $1
+      ORDER BY oi.id
+    `, [payload.orderId]);
+
+    const order = orderResult.rows[0];
+    const items = itemsResult.rows;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const baseUrl = `${proto}://${host}`;
+    const fmt = (v) => Number.parseFloat(v || 0).toLocaleString('ru-RU');
+
+    const itemsHtml = items.map((item) => {
+      const img = item.image_url
+        ? (String(item.image_url).startsWith('http') ? String(item.image_url) : `${baseUrl}${String(item.image_url).startsWith('/') ? '' : '/'}${String(item.image_url)}`)
+        : '';
+      const lineTotal = (Number(item.quantity) || 0) * (Number(item.price) || 0);
+      return `
+        <div class="item">
+          <div class="thumb-wrap">${img ? `<img class="thumb" src="${escapeHtml(img)}" alt="">` : '<div class="thumb ph">🍽️</div>'}</div>
+          <div class="meta">
+            <div class="name">${escapeHtml(item.product_name)}</div>
+            <div class="sub">${escapeHtml(item.quantity)} x ${fmt(item.price)} сум</div>
+          </div>
+          <div class="sum">${fmt(lineTotal)} сум</div>
+        </div>
+      `;
+    }).join('');
+
+    const html = `
+      <!doctype html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Заказ #${escapeHtml(order.order_number)}</title>
+        <style>
+          body{margin:0;padding:16px;background:#f7f1e8;color:#3d2f21;font-family:Segoe UI,Arial,sans-serif}
+          .card{max-width:820px;margin:0 auto;background:#fffaf3;border:1px solid #dfcfb9;border-radius:16px;overflow:hidden}
+          .head{padding:16px 18px;border-bottom:1px solid #e7dbc8;background:#f8f2e8}
+          .title{font-size:20px;font-weight:700;margin:0 0 4px}
+          .muted{color:#7d6a55;font-size:13px}
+          .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 18px 10px}
+          .box{background:#fff;border:1px solid #eadfce;border-radius:12px;padding:10px}
+          .label{font-size:11px;color:#8f7a62;text-transform:uppercase;font-weight:700;margin-bottom:4px}
+          .val{font-weight:600}
+          .items{padding:6px 18px 16px}
+          .items h3{font-size:15px;margin:8px 0 10px}
+          .item{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #efe5d8}
+          .item:first-of-type{border-top:none}
+          .thumb{width:48px;height:48px;object-fit:cover;border-radius:10px;border:1px solid #eadfce;background:#fff}
+          .thumb.ph{display:flex;align-items:center;justify-content:center;font-size:20px;background:#f1eadf}
+          .name{font-size:14px;font-weight:700}
+          .sub{font-size:12px;color:#7d6a55}
+          .sum{font-size:13px;font-weight:700;white-space:nowrap}
+          .total{margin-top:10px;padding-top:10px;border-top:1px solid #dfcfb9;display:flex;justify-content:space-between;font-weight:700;font-size:16px;color:#8f6d46}
+          @media (max-width:640px){.grid{grid-template-columns:1fr}.item{grid-template-columns:44px 1fr}.sum{grid-column:2}}
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="head">
+            <div class="title">Заказ #${escapeHtml(order.order_number)}</div>
+            <div class="muted">${escapeHtml(order.restaurant_name || 'Магазин')} • ${escapeHtml(new Date(order.created_at).toLocaleString('ru-RU'))}</div>
+          </div>
+          <div class="grid">
+            <div class="box"><div class="label">Статус</div><div class="val">${escapeHtml(order.status)}</div></div>
+            <div class="box"><div class="label">Сумма</div><div class="val">${fmt(order.total_amount)} сум</div></div>
+            <div class="box"><div class="label">Клиент</div><div class="val">${escapeHtml(order.customer_name || '-')}</div></div>
+            <div class="box"><div class="label">Телефон</div><div class="val">${escapeHtml(order.customer_phone || '-')}</div></div>
+            <div class="box" style="grid-column:1/-1"><div class="label">Адрес</div><div class="val">${escapeHtml(order.delivery_address || 'По геолокации')}</div></div>
+          </div>
+          <div class="items">
+            <h3>Товары</h3>
+            ${itemsHtml || '<div class="muted">Нет данных по товарам</div>'}
+            <div class="total"><span>Итого</span><span>${fmt(order.total_amount)} сум</span></div>
+          </div>
+        </div>
+      </body></html>
+    `;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    console.error('Operator preview error:', error);
+    res.status(500).send('Preview error');
+  }
+});
 
 // Get user orders
 router.get('/my-orders', authenticate, async (req, res) => {

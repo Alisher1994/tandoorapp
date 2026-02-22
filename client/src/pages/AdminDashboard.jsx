@@ -1189,6 +1189,12 @@ function AdminDashboard() {
     }
   };
 
+  const isOrderSensitiveDataHidden = (order) => {
+    if (!order) return false;
+    const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+    return normalizedStatus === 'new' && !order.processed_at;
+  };
+
   // Bulk delete selected products
   const handleBulkDeleteProducts = async () => {
     if (selectedProducts.length === 0) return;
@@ -2307,16 +2313,17 @@ function AdminDashboard() {
                       {orders.map(order => {
                         const orderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
                         const needsPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
+                        const hideSensitive = isOrderSensitiveDataHidden(order);
 
                         return (
                           <tr key={order.id}>
                             <td>{order.order_number}</td>
                             <td>
                               <div>
-                                <strong>{order.customer_name}</strong>
+                                <strong>{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</strong>
                                 <br />
                                 <small className={needsPayment ? "text-muted opacity-50" : ""}>
-                                  {order.customer_phone}
+                                  {hideSensitive ? 'Нажмите «Принять»' : order.customer_phone}
                                   {needsPayment && (
                                     <span className="ms-1" title="Требуется оплата">🔒</span>
                                   )}
@@ -3350,27 +3357,42 @@ function AdminDashboard() {
           <Modal.Body className="order-details-modal-body">
             {selectedOrder && (
               <>
+                {(() => {
+                  const hideSensitive = isOrderSensitiveDataHidden(selectedOrder);
+                  return (
+                  <>
                 <Row className="g-3 order-details-modal-layout">
                   <Col md={8} className="order-md-2">
                 <div className="order-details-side">
                 <div className="order-meta-card mb-3">
+                  {hideSensitive && (
+                    <Alert variant="warning" className="mb-3 py-2 px-3">
+                      Данные клиента и адрес будут показаны после подтверждения заказа.
+                    </Alert>
+                  )}
                   <div className="order-meta-grid">
                     <div className="order-meta-item">
                       <span className="order-meta-label">Клиент</span>
-                      <div className="order-meta-value">{selectedOrder.customer_name || '-'}</div>
+                      <div className="order-meta-value">{hideSensitive ? 'Скрыто до принятия' : (selectedOrder.customer_name || '-')}</div>
                     </div>
                     <div className="order-meta-item">
                       <span className="order-meta-label">Телефон</span>
                       <div className="order-meta-value order-meta-phone">
-                        <a href={`tel:${selectedOrder.customer_phone}`} className="order-meta-phone-link">
-                          {selectedOrder.customer_phone}
-                        </a>
-                        <a
-                          href={`tel:${selectedOrder.customer_phone}`}
-                          className="btn btn-success btn-sm order-call-btn"
-                        >
-                          Позвонить
-                        </a>
+                        {hideSensitive ? (
+                          <span className="text-muted">Нажмите «Принять», чтобы увидеть номер</span>
+                        ) : (
+                          <>
+                            <a href={`tel:${selectedOrder.customer_phone}`} className="order-meta-phone-link">
+                              {selectedOrder.customer_phone}
+                            </a>
+                            <a
+                              href={`tel:${selectedOrder.customer_phone}`}
+                              className="btn btn-success btn-sm order-call-btn"
+                            >
+                              Позвонить
+                            </a>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="order-meta-item">
@@ -3409,10 +3431,10 @@ function AdminDashboard() {
                     )}
                     <div className="order-meta-item order-meta-item-wide">
                       <span className="order-meta-label">Адрес</span>
-                      <div className="order-meta-value">{selectedOrder.delivery_address}</div>
+                      <div className="order-meta-value">{hideSensitive ? 'Скрыто до принятия' : selectedOrder.delivery_address}</div>
 
                       {/* Map and location links */}
-                      {selectedOrder.delivery_coordinates && (() => {
+                      {!hideSensitive && selectedOrder.delivery_coordinates && (() => {
                         const coords = selectedOrder.delivery_coordinates.split(',').map(c => c.trim());
                         if (coords.length === 2) {
                           const [lat, lng] = coords;
@@ -3699,9 +3721,12 @@ function AdminDashboard() {
                     )}
                   </div>
                 )}
-                  </div>
-                  </Col>
+                </div>
+              </Col>
                 </Row>
+                  </>
+                  );
+                })()}
               </>
             )}
           </Modal.Body>

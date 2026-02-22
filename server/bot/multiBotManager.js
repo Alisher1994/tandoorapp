@@ -3,6 +3,12 @@ const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const {
+  sendOrderUpdateToUser,
+  buildGroupOrderNotificationPayload,
+  buildGroupOrderActionKeyboard,
+  buildOrderPreviewUrl
+} = require('./notifications');
 
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
@@ -1041,7 +1047,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const data = query.data;
 
     try {
-      bot.answerCallbackQuery(query.id);
+      const safeAnswerCallback = async (options) => {
+        try {
+          await bot.answerCallbackQuery(query.id, options);
+        } catch (_) { }
+      };
+      safeAnswerCallback();
 
       if (data.startsWith('set_lang_')) {
         const selectedLang = normalizeBotLanguage(data.replace('set_lang_', ''));
@@ -1350,64 +1361,212 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         bot.sendMessage(chatId, '❌ Отменено', { reply_markup: { remove_keyboard: true } });
       }
 
-      // Handle order confirmation
-      if (data.startsWith('confirm_order_')) {
-        const orderId = data.split('_')[2];
-        const operatorName = query.from.first_name || 'Оператор';
-        const operatorTelegramId = query.from.id;
-
-        // Find operator user by telegram_id to save processed_by
-        let processedByUserId = null;
+      const getOperatorDbUserId = async () => {
         try {
           const operatorResult = await pool.query(
-            'SELECT id FROM users WHERE telegram_id = $1',
-            [operatorTelegramId]
+            'SELECT id FROM users WHERE telegram_id = $1 LIMIT 1',
+            [userId]
           );
-          if (operatorResult.rows.length > 0) {
-            processedByUserId = operatorResult.rows[0].id;
-          }
-        } catch (e) { }
+          return operatorResult.rows[0]?.id || null;
+        } catch {
+          return null;
+        }
+      };
 
-        // Update order status with processed_by
+      const getOrderWithItems = async (orderId) => {
+        const orderResult = await pool.query(`
+          SELECT o.*, u.telegram_id, r.telegram_bot_token, r.click_url, r.payme_url
+          FROM orders o
+          LEFT JOIN users u ON o.user_id = u.id
+          LEFT JOIN restaurants r ON o.restaurant_id = r.id
+          WHERE o.id = $1
+          LIMIT 1
+        `, [orderId]);
+
+        if (orderResult.rows.length === 0) return null;
+
+        const itemsResult = await pool.query(`
+          SELECT
+            oi.*,
+            COALESCE(p.image_url, '') AS image_url
+          FROM order_items oi
+          LEFT JOIN products p ON p.id = oi.product_id
+          WHERE oi.order_id = $1
+          ORDER BY oi.id
+        `, [orderId]);
+
+        return {
+          order: orderResult.rows[0],
+          items: itemsResult.rows
+        };
+      };
+
+      const editGroupOrderMessage = async ({ order, items, statusKey, operatorName, keyboardStage, revealSensitive = true }) => {
+        const previewUrl = buildOrderPreviewUrl(order.id);
+        const text = buildGroupOrderNotificationPayload(order, items, {
+          revealSensitive,
+          statusKey,
+          operatorName,
+          includePreviewLink: revealSensitive,
+          previewUrl
+        });
+
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: query.message.message_id,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          reply_markup: buildGroupOrderActionKeyboard(order.id, keyboardStage, operatorName)
+        });
+      };
+
+      // Handle order confirmation
+      if (data.startsWith('confirm_order_')) {
+        const orderId = Number(data.split('_')[2]);
+        const operatorName = query.from.first_name || 'Оператор';
+        const processedByUserId = await getOperatorDbUserId();
+
+        const current = await getOrderWithItems(orderId);
+        if (!current) {
+          await safeAnswerCallback({ text: '❌ Заказ не найден', show_alert: true });
+          return;
+        }
+        if (current.order.status !== 'new' || current.order.processed_at) {
+          await safeAnswerCallback({ text: '⚠️ Заказ уже подтвержден', show_alert: false });
+          return;
+        }
+
         await pool.query(
-          `UPDATE orders SET status = 'preparing', processed_at = CURRENT_TIMESTAMP, processed_by = $2 WHERE id = $1`,
+          `UPDATE orders
+           SET processed_at = CURRENT_TIMESTAMP,
+               processed_by = COALESCE($2, processed_by),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
           [orderId, processedByUserId]
         );
 
-        // Get order for customer notification
-        const orderResult = await pool.query(
-          `SELECT o.*, u.telegram_id FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = $1`,
-          [orderId]
+        const refreshed = await getOrderWithItems(orderId);
+
+        if (refreshed?.order?.telegram_id) {
+          try {
+            await bot.sendMessage(
+              refreshed.order.telegram_id,
+              `✅ <b>Заказ #${refreshed.order.order_number} принят!</b>\n\nОператор подтвердил заказ. Следующий статус появится по мере обработки.`,
+              { parse_mode: 'HTML' }
+            );
+          } catch (e) { }
+        }
+
+        try {
+          await editGroupOrderMessage({
+            order: refreshed.order,
+            items: refreshed.items,
+            statusKey: 'accepted',
+            operatorName,
+            keyboardStage: 'accepted',
+            revealSensitive: true
+          });
+        } catch (e) {
+          console.error('Confirm order message update error:', e.message);
+        }
+        await safeAnswerCallback({ text: '✅ Заказ принят' });
+        return;
+      }
+
+      if (data.startsWith('order_step_')) {
+        const parts = data.split('_');
+        const orderId = Number(parts[2]);
+        const nextStatus = parts[3];
+        const operatorName = query.from.first_name || 'Оператор';
+        const processedByUserId = await getOperatorDbUserId();
+        const allowed = ['preparing', 'delivering', 'delivered'];
+        if (!allowed.includes(nextStatus)) {
+          await safeAnswerCallback({ text: '⚠️ Неизвестный шаг', show_alert: false });
+          return;
+        }
+
+        const current = await getOrderWithItems(orderId);
+        if (!current) {
+          await safeAnswerCallback({ text: '❌ Заказ не найден', show_alert: true });
+          return;
+        }
+
+        const currentStatus = current.order.status;
+        const transitionAllowed =
+          (nextStatus === 'preparing' && currentStatus === 'new') ||
+          (nextStatus === 'delivering' && currentStatus === 'preparing') ||
+          (nextStatus === 'delivered' && currentStatus === 'delivering');
+
+        if (!transitionAllowed) {
+          await safeAnswerCallback({ text: '⚠️ Этот шаг уже выполнен или недоступен', show_alert: false });
+          return;
+        }
+
+        await pool.query(
+          `UPDATE orders
+           SET status = $2,
+               processed_at = COALESCE(processed_at, CURRENT_TIMESTAMP),
+               processed_by = COALESCE(processed_by, $3),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [orderId, nextStatus, processedByUserId]
         );
 
-        if (orderResult.rows.length > 0) {
-          const order = orderResult.rows[0];
-          if (order.telegram_id) {
-            try {
-              bot.sendMessage(order.telegram_id,
-                `✅ <b>Заказ #${order.order_number} принят!</b>\n\n👨‍🍳 Ваш заказ готовится.\nОжидайте доставку!`,
-                { parse_mode: 'HTML' }
-              );
-            } catch (e) { }
+        try {
+          await pool.query(
+            'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
+            [orderId, nextStatus, processedByUserId, `Из Telegram-группы: ${operatorName}`]
+          );
+        } catch (e) { }
+
+        const refreshed = await getOrderWithItems(orderId);
+        if (!refreshed) {
+          await safeAnswerCallback({ text: '❌ Заказ не найден', show_alert: true });
+          return;
+        }
+
+        if (refreshed.order.telegram_id) {
+          try {
+            await sendOrderUpdateToUser(
+              refreshed.order.telegram_id,
+              refreshed.order,
+              nextStatus,
+              refreshed.order.telegram_bot_token,
+              {
+                click_url: refreshed.order.click_url,
+                payme_url: refreshed.order.payme_url
+              }
+            );
+          } catch (e) {
+            console.error('Customer status notify error:', e.message);
           }
         }
 
-        // Update the original message text to show status
+        const keyboardStage =
+          nextStatus === 'preparing' ? 'preparing' :
+          nextStatus === 'delivering' ? 'delivering' :
+          'done';
+
         try {
-          const currentMessage = query.message.text || '';
-          const updatedMessage = currentMessage + `\n\n✅ <b>ПРИНЯТ</b>\nОператор: ${operatorName}`;
-          await bot.editMessageText(updatedMessage, {
-            chat_id: chatId,
-            message_id: query.message.message_id,
-            parse_mode: 'HTML'
+          await editGroupOrderMessage({
+            order: refreshed.order,
+            items: refreshed.items,
+            statusKey: nextStatus,
+            operatorName,
+            keyboardStage,
+            revealSensitive: true
           });
         } catch (e) {
-          // Fallback to just removing buttons
-          bot.editMessageReplyMarkup(
-            { inline_keyboard: [[{ text: '✅ Принят: ' + operatorName, callback_data: 'done' }]] },
-            { chat_id: chatId, message_id: query.message.message_id }
-          );
+          console.error('Order step message update error:', e.message);
         }
+
+        const callbackTextMap = {
+          preparing: '👨‍🍳 Статус: Готовится',
+          delivering: '🚚 Статус: Доставляется',
+          delivered: '✅ Статус: Доставлен'
+        };
+        await safeAnswerCallback({ text: callbackTextMap[nextStatus] || '✅ Обновлено' });
+        return;
       }
 
       // Handle order rejection
@@ -1429,6 +1588,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         });
 
         bot.sendMessage(chatId, `📝 Укажите причину отмены заказа #${orderId}:`);
+        return;
       }
 
     } catch (error) {
