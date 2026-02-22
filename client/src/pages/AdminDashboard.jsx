@@ -339,6 +339,14 @@ function AdminDashboard() {
   }, [dashboardYear, user?.active_restaurant_id]);
 
   useEffect(() => {
+    if (!user?.active_restaurant_id) {
+      // No active restaurant yet -> avoid periodic 400 requests (e.g. /admin/containers)
+      if (user?.role === 'operator' || user?.role === 'superadmin') {
+        fetchUser();
+      }
+      return;
+    }
+
     fetchData();
     if (user?.role === 'operator' || user?.role === 'superadmin') {
       fetchUser();
@@ -418,11 +426,14 @@ function AdminDashboard() {
 
   const fetchData = async () => {
     try {
+      const hasActiveRestaurant = Boolean(user?.active_restaurant_id);
       const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.allSettled([
         axios.get(`${API_URL}/admin/orders${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`),
         axios.get(`${API_URL}/admin/products`),
         axios.get(`${API_URL}/admin/categories`),
-        axios.get(`${API_URL}/admin/containers`)
+        hasActiveRestaurant
+          ? axios.get(`${API_URL}/admin/containers`)
+          : Promise.resolve({ data: [] })
       ]);
 
       if (ordersRes.status === 'fulfilled') {

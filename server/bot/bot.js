@@ -453,7 +453,7 @@ async function initBot() {
 
   async function resetAccessByTelegram(chatId, telegramUserId) {
     const userResult = await pool.query(
-      'SELECT id, username, phone FROM users WHERE telegram_id = $1',
+      'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
       [telegramUserId]
     );
 
@@ -463,6 +463,14 @@ async function initBot() {
     }
 
     const user = userResult.rows[0];
+    if (user.role === 'customer') {
+      await bot.sendMessage(
+        chatId,
+        'ℹ️ Для клиентов восстановление через бот отключено. Обратитесь в поддержку магазина.'
+      );
+      return;
+    }
+
     const phoneLogin = normalizePhone(user.phone);
     if (!phoneLogin) {
       await bot.sendMessage(chatId, '❌ Для восстановления нужен номер телефона в профиле.');
@@ -545,21 +553,38 @@ async function initBot() {
           return;
         }
         
-        // User already registered - show inline button for new order
-        bot.sendMessage(chatId, 
-          `👋 С возвращением, ${user.full_name}!`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              remove_keyboard: true,
-              inline_keyboard: [
-                [{ text: '🛒 Новый заказ', callback_data: 'new_order' }],
-                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }],
-                [{ text: '🔐 Восстановить доступ', callback_data: 'reset_password' }]
-              ]
+        if (user.role === 'operator' || user.role === 'superadmin') {
+          const loginUrl = buildWebLoginUrl();
+          bot.sendMessage(chatId,
+            `👋 С возвращением, ${user.full_name || user.username}!\n\n` +
+            `🧑‍💼 Роль: <b>${user.role === 'superadmin' ? 'Суперадмин' : 'Оператор'}</b>`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                remove_keyboard: true,
+                inline_keyboard: [
+                  ...(loginUrl ? [[{ text: '🔐 Войти в систему', url: loginUrl }]] : []),
+                  [{ text: '🔐 Восстановить логин и пароль', callback_data: 'reset_password' }]
+                ]
+              }
             }
-          }
-        );
+          );
+        } else {
+          // Customer menu (without restore action)
+          bot.sendMessage(chatId,
+            `👋 С возвращением, ${user.full_name}!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                remove_keyboard: true,
+                inline_keyboard: [
+                  [{ text: '🛒 Новый заказ', callback_data: 'new_order' }],
+                  [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
+                ]
+              }
+            }
+          );
+        }
       } else {
         // Show entry point: customer flow or centralized store onboarding
         bot.sendMessage(chatId,
@@ -986,7 +1011,7 @@ async function initBot() {
       '/start - Начать регистрацию\n' +
       '/menu - Открыть меню\n' +
       '/orders - Мои заказы\n' +
-      '/reset_password - Восстановить доступ\n' +
+      '/reset_password - Восстановить логин и пароль (оператор/владелец)\n' +
       '/help - Показать справку'
     );
   });

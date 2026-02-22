@@ -2189,148 +2189,150 @@ function SuperAdminDashboard() {
 
               {/* Billing Settings Tab */}
               <Tab eventKey="billing" title={`💰 ${t('billingSettings')}`}>
-                <div className="d-flex justify-content-between align-items-center mb-4">
-                  <h5 className="fw-bold mb-0">{t('billingGlobalSettings')}</h5>
-                  <Button className="btn-primary-custom px-4" onClick={saveBillingSettings}>
-                    {t('saveSettings')}
-                  </Button>
-                </div>
+                <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h5 className="fw-bold mb-0">{t('billingGlobalSettings')}</h5>
+                    <Button type="submit" className="btn-primary-custom px-4">
+                      {t('saveSettings')}
+                    </Button>
+                  </div>
 
-                <Row className="g-4">
-                  <Col md={7}>
-                    <Card className="admin-card admin-section-panel h-100">
-                      <Card.Header className="admin-section-panel-header py-3">
-                        <h6 className="mb-0 fw-bold">{t('paymentRequisitesInfo')}</h6>
-                      </Card.Header>
-                      <Card.Body className="p-4">
-                        <Row className="g-3">
-                          <Col md={6}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="small fw-bold text-muted text-uppercase">{t('cardNumber')}</Form.Label>
-                              <Form.Control
-                                className="form-control-custom"
-                                placeholder="8600 ...."
-                                value={billingSettings.card_number}
-                                onChange={e => setBillingSettings({ ...billingSettings, card_number: e.target.value })}
-                              />
-                            </Form.Group>
-                          </Col>
-                          <Col md={6}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="small fw-bold text-muted text-uppercase">{t('cardHolder')}</Form.Label>
-                              <Form.Control
-                                className="form-control-custom"
-                                placeholder="Имя Фамилия"
-                                value={billingSettings.card_holder}
-                                onChange={e => setBillingSettings({ ...billingSettings, card_holder: e.target.value })}
-                              />
-                            </Form.Group>
-                          </Col>
-                          <Col md={6}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="small fw-bold text-muted text-uppercase">{t('phoneNumber')}</Form.Label>
-                              <Form.Control
-                                className="form-control-custom"
-                                placeholder="+998 ..."
-                                value={billingSettings.phone_number}
-                                onChange={e => setBillingSettings({ ...billingSettings, phone_number: e.target.value })}
-                              />
-                            </Form.Group>
-                          </Col>
-                          <Col md={6}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="small fw-bold text-muted text-uppercase">Telegram Username</Form.Label>
-                              <Form.Control
-                                className="form-control-custom"
-                                placeholder="@username"
-                                value={billingSettings.telegram_username}
-                                onChange={e => setBillingSettings({ ...billingSettings, telegram_username: e.target.value })}
-                              />
-                            </Form.Group>
-                          </Col>
-                          <Col md={6}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка Click</Form.Label>
-                              <Form.Control
-                                className="form-control-custom"
-                                placeholder="https://click.uz/..."
-                                value={billingSettings.click_link}
-                                onChange={e => setBillingSettings({ ...billingSettings, click_link: e.target.value })}
-                              />
-                            </Form.Group>
-                          </Col>
-                          <Col md={6}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка Payme</Form.Label>
-                              <Form.Control
-                                className="form-control-custom"
-                                placeholder="https://payme.uz/..."
-                                value={billingSettings.payme_link}
-                                onChange={e => setBillingSettings({ ...billingSettings, payme_link: e.target.value })}
-                              />
-                            </Form.Group>
-                          </Col>
-                        </Row>
-                      </Card.Body>
-                    </Card>
-                  </Col>
+                  <Row className="g-4">
+                    <Col md={7}>
+                      <Card className="admin-card admin-section-panel h-100">
+                        <Card.Header className="admin-section-panel-header py-3">
+                          <h6 className="mb-0 fw-bold">{t('paymentRequisitesInfo')}</h6>
+                        </Card.Header>
+                        <Card.Body className="p-4">
+                          <Row className="g-3">
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label className="small fw-bold text-muted text-uppercase">{t('cardNumber')}</Form.Label>
+                                <Form.Control
+                                  className="form-control-custom"
+                                  placeholder="8600 ...."
+                                  value={billingSettings.card_number}
+                                  onChange={e => setBillingSettings({ ...billingSettings, card_number: e.target.value })}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label className="small fw-bold text-muted text-uppercase">{t('cardHolder')}</Form.Label>
+                                <Form.Control
+                                  className="form-control-custom"
+                                  placeholder="Имя Фамилия"
+                                  value={billingSettings.card_holder}
+                                  onChange={e => setBillingSettings({ ...billingSettings, card_holder: e.target.value })}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label className="small fw-bold text-muted text-uppercase">{t('phoneNumber')}</Form.Label>
+                                <Form.Control
+                                  className="form-control-custom"
+                                  placeholder="+998 ..."
+                                  value={billingSettings.phone_number}
+                                  onChange={e => setBillingSettings({ ...billingSettings, phone_number: e.target.value })}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label className="small fw-bold text-muted text-uppercase">Telegram Username</Form.Label>
+                                <Form.Control
+                                  className="form-control-custom"
+                                  placeholder="@username"
+                                  value={billingSettings.telegram_username}
+                                  onChange={e => setBillingSettings({ ...billingSettings, telegram_username: e.target.value })}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка Click</Form.Label>
+                                <Form.Control
+                                  className="form-control-custom"
+                                  placeholder="https://click.uz/..."
+                                  value={billingSettings.click_link}
+                                  onChange={e => setBillingSettings({ ...billingSettings, click_link: e.target.value })}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-3">
+                                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка Payme</Form.Label>
+                                <Form.Control
+                                  className="form-control-custom"
+                                  placeholder="https://payme.uz/..."
+                                  value={billingSettings.payme_link}
+                                  onChange={e => setBillingSettings({ ...billingSettings, payme_link: e.target.value })}
+                                />
+                              </Form.Group>
+                            </Col>
+                          </Row>
+                        </Card.Body>
+                      </Card>
+                    </Col>
 
-                  <Col md={5}>
-                    <Card className="admin-card admin-section-panel h-100">
-                      <Card.Header className="admin-section-panel-header py-3">
-                        <h6 className="mb-0 fw-bold">{t('defaultFinancialParams')}</h6>
-                      </Card.Header>
-                      <Card.Body className="p-4">
-                        <Form.Group className="mb-4">
-                          <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                            Токен центрального Telegram-бота
-                          </Form.Label>
-                          <div className="position-relative">
+                    <Col md={5}>
+                      <Card className="admin-card admin-section-panel h-100">
+                        <Card.Header className="admin-section-panel-header py-3">
+                          <h6 className="mb-0 fw-bold">{t('defaultFinancialParams')}</h6>
+                        </Card.Header>
+                        <Card.Body className="p-4">
+                          <Form.Group className="mb-4">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Токен центрального Telegram-бота
+                            </Form.Label>
+                            <div className="position-relative">
+                              <Form.Control
+                                type={isCentralTokenVisible ? 'text' : 'password'}
+                                className="form-control-custom"
+                                placeholder="123456789:AA..."
+                                value={billingSettings.superadmin_bot_token || ''}
+                                style={{ paddingRight: '2.4rem' }}
+                                onChange={e => {
+                                  setIsCentralTokenVisible(false);
+                                  setBillingSettings({ ...billingSettings, superadmin_bot_token: e.target.value });
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                variant="link"
+                                className="position-absolute top-50 end-0 translate-middle-y text-muted p-0 me-2"
+                                style={{ lineHeight: 1 }}
+                                onClick={handleCentralTokenPreview}
+                                disabled={!billingSettings.superadmin_bot_token}
+                                title={isCentralTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
+                                aria-label={isCentralTokenVisible ? 'Скрыть токен' : 'Показать токен'}
+                              >
+                                <i className={`bi ${isCentralTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
+                              </Button>
+                            </div>
+                            <Form.Text className="text-muted small">
+                              Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
+                            </Form.Text>
+                          </Form.Group>
+
+                          <Form.Group className="mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>
                             <Form.Control
-                              type={isCentralTokenVisible ? 'text' : 'password'}
+                              type="number"
                               className="form-control-custom"
-                              placeholder="123456789:AA..."
-                              value={billingSettings.superadmin_bot_token || ''}
-                              style={{ paddingRight: '2.4rem' }}
-                              onChange={e => {
-                                setIsCentralTokenVisible(false);
-                                setBillingSettings({ ...billingSettings, superadmin_bot_token: e.target.value });
-                              }}
+                              value={billingSettings.default_starting_balance}
+                              onChange={e => setBillingSettings({ ...billingSettings, default_starting_balance: e.target.value })}
                             />
-                            <Button
-                              type="button"
-                              variant="link"
-                              className="position-absolute top-50 end-0 translate-middle-y text-muted p-0 me-2"
-                              style={{ lineHeight: 1 }}
-                              onClick={handleCentralTokenPreview}
-                              disabled={!billingSettings.superadmin_bot_token}
-                              title={isCentralTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
-                              aria-label={isCentralTokenVisible ? 'Скрыть токен' : 'Показать токен'}
-                            >
-                              <i className={`bi ${isCentralTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
-                            </Button>
-                          </div>
-                          <Form.Text className="text-muted small">
-                            Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
-                          </Form.Text>
-                        </Form.Group>
-
-                        <Form.Group className="mb-0">
-                          <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>
-                          <Form.Control
-                            type="number"
-                            className="form-control-custom"
-                            value={billingSettings.default_starting_balance}
-                            onChange={e => setBillingSettings({ ...billingSettings, default_starting_balance: e.target.value })}
-                          />
-                          <Form.Text className="text-muted small">
-                            Бонус при создании нового заведения
-                          </Form.Text>
-                        </Form.Group>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
+                            <Form.Text className="text-muted small">
+                              Бонус при создании нового заведения
+                            </Form.Text>
+                          </Form.Group>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  </Row>
+                </Form>
               </Tab>
             </Tabs>
           </Card.Body>

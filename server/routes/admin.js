@@ -375,6 +375,12 @@ router.put('/restaurant', async (req, res) => {
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
     } = req.body;
+    const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
+      ? null
+      : String(telegram_bot_token).trim();
+    const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
+      ? null
+      : String(telegram_group_id).trim();
 
     // Fields that OPERATOR is NOT allowed to change:
     // service_fee, balance, order_cost, is_free_tier
@@ -409,7 +415,7 @@ router.put('/restaurant', async (req, res) => {
       WHERE id = $25
       RETURNING *
     `, [
-      name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
+      name, address, phone, logo_url, normalizedBotToken, normalizedGroupId,
       start_time, end_time, click_url, payme_url, support_username,
       operator_registration_code || null,
       latitude, longitude, delivery_base_radius, delivery_base_price,

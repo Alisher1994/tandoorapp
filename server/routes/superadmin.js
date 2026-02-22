@@ -340,6 +340,12 @@ router.get('/restaurants/:id', async (req, res) => {
 router.post('/restaurants', async (req, res) => {
   try {
     const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
+    const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
+      ? null
+      : String(telegram_bot_token).trim();
+    const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
+      ? null
+      : String(telegram_group_id).trim();
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
@@ -366,8 +372,8 @@ router.post('/restaurants', async (req, res) => {
       phone,
       logo_url,
       delivery_zone ? JSON.stringify(delivery_zone) : null,
-      telegram_bot_token,
-      telegram_group_id,
+      normalizedBotToken,
+      normalizedGroupId,
       operator_registration_code || null,
       start_time,
       end_time,
@@ -412,6 +418,12 @@ router.post('/restaurants', async (req, res) => {
 router.put('/restaurants/:id', async (req, res) => {
   try {
     const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
+    const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
+      ? null
+      : String(telegram_bot_token).trim();
+    const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
+      ? null
+      : String(telegram_group_id).trim();
 
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -503,8 +515,8 @@ router.put('/restaurants/:id', async (req, res) => {
       phone,
       logo_url,
       delivery_zone ? JSON.stringify(delivery_zone) : null,
-      telegram_bot_token,
-      telegram_group_id,
+      normalizedBotToken,
+      normalizedGroupId,
       is_active,
       start_time || null,
       end_time || null,

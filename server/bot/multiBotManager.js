@@ -205,7 +205,6 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       menuButtons.push([{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }]);
     }
     menuButtons.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
-    menuButtons.push([{ text: '🔐 Восстановить доступ', callback_data: 'reset_password' }]);
     return menuButtons;
   };
 
@@ -389,12 +388,17 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
       const userResult = await pool.query(
-        'SELECT id, username, phone FROM users WHERE telegram_id = $1',
+        'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
         [userId]
       );
 
       if (userResult.rows.length === 0) {
         await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+        return;
+      }
+
+      if (userResult.rows[0].role === 'customer') {
+        await bot.sendMessage(chatId, 'ℹ️ Для клиентов восстановление через бот отключено.');
         return;
       }
 
@@ -1104,12 +1108,17 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Start reset password flow from inline menu
       if (data === 'reset_password') {
         const userResult = await pool.query(
-          'SELECT id, username, phone FROM users WHERE telegram_id = $1',
+          'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
           [userId]
         );
 
         if (userResult.rows.length === 0) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+          return;
+        }
+
+        if (userResult.rows[0].role === 'customer') {
+          bot.sendMessage(chatId, 'ℹ️ Для клиентов восстановление через бот отключено.');
           return;
         }
 
@@ -1253,7 +1262,6 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               inline_keyboard: [
                 [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
                 [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
-                [{ text: '🔐 Восстановить логин и пароль', callback_data: 'reset_password' }],
                 [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
               ]
             }
