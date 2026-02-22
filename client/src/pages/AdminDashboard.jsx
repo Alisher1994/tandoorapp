@@ -1713,7 +1713,7 @@ function AdminDashboard() {
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none custom-user-dropdown h-100 admin-user-toggle admin-header-pill admin-user-pill"
+                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill"
                   >
                     <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm admin-user-avatar">
                       {user?.username?.charAt(0).toUpperCase() || 'A'}
@@ -1762,7 +1762,7 @@ function AdminDashboard() {
 
                 {/* Separate Balance pill */}
                 <div
-                  className="py-1 px-3 rounded-pill d-flex flex-column align-items-end justify-content-center text-decoration-none h-100 shadow-sm transition-all admin-header-pill admin-balance-pill"
+                  className="py-1 px-3 rounded-pill d-flex flex-column align-items-end justify-content-center text-decoration-none shadow-sm transition-all admin-header-pill admin-balance-pill"
                   style={{ cursor: 'pointer', minWidth: '110px' }}
                   onClick={(e) => {
                     e.stopPropagation();

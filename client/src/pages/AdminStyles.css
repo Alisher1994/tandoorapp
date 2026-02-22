@@ -313,6 +313,87 @@ body::-webkit-scrollbar,
     padding-top: 1.5rem;
 }
 
+@media (max-width: 991.98px) {
+    .admin-navbar-shell .navbar-collapse {
+        padding-top: 0.5rem;
+        overflow: visible;
+    }
+
+    .admin-navbar-shell .navbar-collapse .navbar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.75rem;
+        width: 100%;
+    }
+
+    .admin-navbar-shell .navbar-collapse .dropdown {
+        position: relative;
+    }
+
+    .admin-navbar-shell .navbar-collapse .dropdown-menu {
+        position: absolute !important;
+        top: calc(100% + 8px);
+        right: 0;
+        left: auto;
+        min-width: min(280px, calc(100vw - 24px));
+        z-index: 1200;
+    }
+
+    .admin-nav-link {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .admin-header-pill-group {
+        width: auto;
+        min-height: 0;
+        align-items: center !important;
+        margin-left: 0 !important;
+    }
+
+    .admin-header-pill {
+        min-height: 44px;
+    }
+
+    .admin-user-toggle {
+        height: auto !important;
+    }
+
+    .admin-tabs {
+        display: flex;
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        gap: 1rem;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        margin-bottom: 1rem;
+        padding-bottom: 2px;
+    }
+
+    .admin-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .admin-tabs .nav-item {
+        flex: 0 0 auto;
+        margin-bottom: 0;
+    }
+
+    .admin-tabs .nav-link {
+        white-space: nowrap;
+        margin-right: 0;
+        padding: 0.75rem 0;
+        font-size: 0.95rem;
+    }
+
+    .admin-tabs+.tab-content {
+        padding-top: 1rem;
+    }
+}
+
 /* Card Styling */
 .admin-card {
     border: none !important;
