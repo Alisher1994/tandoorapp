@@ -668,8 +668,13 @@ function Catalog() {
     );
   };
 
-  const renderCartTotalBanner = () => (
-    <div className="mt-2 mb-2">
+  const hasCartTotalBanner = (cartTotal || 0) > 0;
+
+  const renderCartTotalBanner = () => {
+    if (!hasCartTotalBanner) return null;
+
+    return (
+    <div className="mt-2 mb-0">
       <button
         type="button"
         onClick={() => navigate('/cart')}
@@ -729,7 +734,8 @@ function Catalog() {
         </span>
       </button>
     </div>
-  );
+    );
+  };
 
   if (loading && restaurants.length === 0) {
     return (
@@ -872,7 +878,7 @@ function Catalog() {
             {!loading && renderCartTotalBanner()}
 
             {!loading && selectedCategory === null && (
-              <div className="py-3">
+              <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
                 {level1Categories.map((level1Category) => {
                   const level2Categories = level2ByLevel1.get(level1Category.id) || [];
@@ -937,7 +943,7 @@ function Catalog() {
             )}
 
             {!loading && selectedCategory !== null && selectedLevel2Category && (
-              <div className="py-3">
+              <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
                 <div className="d-flex align-items-center justify-content-between mb-3">
                   <Button variant="outline-secondary" size="sm" onClick={closeLevel2Category}>
