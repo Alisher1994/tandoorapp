@@ -3636,7 +3636,7 @@ function AdminDashboard() {
           centered
           className="admin-modal"
         >
-          <Modal.Header closeButton closeVariant="white" className="text-white border-0" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
+          <Modal.Header closeButton className="border-0" style={{ background: 'linear-gradient(135deg, #b3926b 0%, #8f6d46 100%)', color: '#fffaf3' }}>
             <Modal.Title className="d-flex align-items-center gap-3">
               <span className="fs-3">💰</span>
               <div>
