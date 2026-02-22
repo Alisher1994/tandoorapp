@@ -592,11 +592,21 @@ function Catalog() {
         >
           <div
             key={banner.id}
+            role={banner.click_url ? 'button' : undefined}
+            tabIndex={banner.click_url ? 0 : undefined}
+            onClick={banner.click_url ? () => openAdBannerLink(banner) : undefined}
+            onKeyDown={banner.click_url ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openAdBannerLink(banner);
+              }
+            } : undefined}
             style={{
               position: 'relative',
               minHeight: '150px',
               background: '#fff',
-              animation
+              animation,
+              cursor: banner.click_url ? 'pointer' : 'default'
             }}
           >
             <img
@@ -613,51 +623,6 @@ function Catalog() {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <div
-              style={{
-                position: 'absolute',
-                left: 10,
-                right: 10,
-                bottom: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px'
-              }}
-            >
-              <div
-                style={{
-                  background: 'rgba(255,255,255,0.92)',
-                  color: '#2a2118',
-                  borderRadius: '10px',
-                  padding: '6px 10px',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  flex: 1,
-                  minWidth: 0
-                }}
-                className="text-truncate"
-              >
-                {banner.title}
-              </div>
-              <button
-                type="button"
-                onClick={() => openAdBannerLink(banner)}
-                style={{
-                  border: 'none',
-                  background: 'var(--primary-color)',
-                  color: '#fff',
-                  borderRadius: '10px',
-                  padding: '8px 12px',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {banner.button_text || (language === 'uz' ? 'Ochish' : 'Открыть')}
-              </button>
-            </div>
           </div>
           {adBanners.length > 1 && (
             <div className="d-flex justify-content-center align-items-center gap-1 py-2" style={{ background: '#fff' }}>

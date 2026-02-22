@@ -169,7 +169,7 @@ router.get('/ads-banners', async (req, res) => {
         slot_order: Number(banner.slot_order) || 1,
         display_seconds: Math.max(2, Number(banner.display_seconds) || 5),
         transition_effect: banner.transition_effect || 'fade',
-        click_url: `/api/products/ads-banners/${banner.id}/click`
+        click_url: banner.target_url ? `/api/products/ads-banners/${banner.id}/click` : null
       }));
 
     res.json(banners);

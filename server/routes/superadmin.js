@@ -298,14 +298,15 @@ const normalizeAdBannerPayload = (body) => {
 
   if (!title) return { error: 'Укажите название рекламы' };
   if (!imageUrl) return { error: 'Загрузите изображение рекламы' };
-  if (!targetUrl) return { error: 'Укажите ссылку перехода' };
-  try {
-    const parsedUrl = new URL(targetUrl);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return { error: 'Ссылка должна начинаться с http:// или https://' };
+  if (targetUrl) {
+    try {
+      const parsedUrl = new URL(targetUrl);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return { error: 'Ссылка должна начинаться с http:// или https://' };
+      }
+    } catch (e) {
+      return { error: 'Некорректная ссылка перехода' };
     }
-  } catch (e) {
-    return { error: 'Некорректная ссылка перехода' };
   }
   if (!Number.isInteger(slotOrder) || slotOrder < 1 || slotOrder > AD_BANNER_MAX_SLOTS) {
     return { error: `Позиция слота должна быть от 1 до ${AD_BANNER_MAX_SLOTS}` };
@@ -327,7 +328,7 @@ const normalizeAdBannerPayload = (body) => {
     title,
     image_url: imageUrl,
     button_text: buttonText,
-    target_url: targetUrl,
+    target_url: targetUrl || null,
     slot_order: slotOrder,
     display_seconds: displaySeconds,
     transition_effect: transitionEffect,

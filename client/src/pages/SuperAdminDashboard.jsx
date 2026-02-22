@@ -2791,6 +2791,9 @@ function SuperAdminDashboard() {
               <Form.Group>
                 <Form.Label className="small fw-bold text-muted text-uppercase">Изображение рекламы (JPG / PNG / WEBP / GIF)</Form.Label>
                 <div className="d-flex flex-column gap-2">
+                  <small className="text-muted">
+                    Рекомендуемый размер: 1200x500 px (широкий баннер, соотношение ~2.4:1)
+                  </small>
                   {adBannerForm.image_url && (
                     <div
                       style={{
@@ -2827,26 +2830,15 @@ function SuperAdminDashboard() {
               </Form.Group>
             </Col>
 
-            <Col md={4}>
+            <Col md={12}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Текст кнопки</Form.Label>
-                <Form.Control
-                  className="form-control-custom"
-                  value={adBannerForm.button_text}
-                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, button_text: e.target.value }))}
-                  placeholder="Открыть"
-                />
-              </Form.Group>
-            </Col>
-            <Col md={8}>
-              <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка перехода</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка перехода (необязательно)</Form.Label>
                 <Form.Control
                   className="form-control-custom"
                   type="url"
                   value={adBannerForm.target_url}
                   onChange={(e) => setAdBannerForm((prev) => ({ ...prev, target_url: e.target.value }))}
-                  placeholder="https://..."
+                  placeholder="https://... (если пусто, баннер не кликабельный)"
                 />
               </Form.Group>
             </Col>
