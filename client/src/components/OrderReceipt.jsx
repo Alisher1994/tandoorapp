@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import droneDeliveryVideo from '../assets/animations/drone-delivery.mp4';
 
 function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName }) {
   const [visible, setVisible] = useState(false);
@@ -197,6 +198,31 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
             fontSize: '13px',
             color: '#666'
           }}>
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '170px',
+                margin: '0 auto 12px',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                background: '#f7f2e8',
+                border: '1px solid rgba(0,0,0,0.06)'
+              }}
+            >
+              <video
+                src={droneDeliveryVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
+                style={{
+                  width: '100%',
+                  display: 'block',
+                  maxHeight: '110px',
+                  objectFit: 'cover'
+                }}
+              />
+            </div>
             Спасибо за заказ!
           </div>
 

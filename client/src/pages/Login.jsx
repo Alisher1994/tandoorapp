@@ -6,6 +6,7 @@ import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
+import deliveryTruckVideo from '../assets/animations/delivery-truck.mp4';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -53,7 +54,31 @@ function Login() {
       <Card style={{ width: '100%', maxWidth: '420px' }} className="shadow login-card">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
-            <div className="mb-3" style={{ fontSize: '3rem' }}>🍽️</div>
+            <div
+              className="mx-auto mb-3"
+              style={{
+                width: '100%',
+                maxWidth: '180px',
+                borderRadius: '14px',
+                overflow: 'hidden',
+                background: '#f7f2e8',
+                border: '1px solid rgba(0,0,0,0.06)'
+              }}
+            >
+              <video
+                src={deliveryTruckVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
+                style={{
+                  width: '100%',
+                  display: 'block',
+                  maxHeight: '120px',
+                  objectFit: 'cover'
+                }}
+              />
+            </div>
             <h2>Вход в систему</h2>
             <p className="text-muted">Введите ваши данные для входа</p>
           </div>
