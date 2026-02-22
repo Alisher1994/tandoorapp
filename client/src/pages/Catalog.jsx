@@ -669,7 +669,7 @@ function Catalog() {
   };
 
   const renderCartTotalBanner = () => (
-    <div className="mb-3">
+    <div className="mt-2 mb-2">
       <button
         type="button"
         onClick={() => navigate('/cart')}
@@ -679,7 +679,7 @@ function Catalog() {
           background: (cartTotal || 0) > 0 ? 'rgba(165,133,92,0.10)' : 'rgba(255,255,255,0.85)',
           color: '#3a2b1b',
           borderRadius: '12px',
-          padding: '10px 12px',
+          padding: '11px 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -689,20 +689,33 @@ function Catalog() {
         }}
         title={language === 'uz' ? 'Savatni ochish' : 'Открыть корзину'}
       >
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 30,
-            height: 30,
-            borderRadius: 999,
-            background: 'rgba(165,133,92,0.13)',
-            color: 'var(--primary-color)'
-          }}
-        >
-          <CartLucideIcon size={16} />
-        </span>
+        <div className="d-flex align-items-center gap-2 min-w-0">
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 30,
+              height: 30,
+              borderRadius: 999,
+              background: 'rgba(165,133,92,0.13)',
+              color: 'var(--primary-color)',
+              flexShrink: 0
+            }}
+          >
+            <CartLucideIcon size={16} />
+          </span>
+          <span
+            style={{
+              color: '#6f5538',
+              fontWeight: 500,
+              fontSize: '0.88rem',
+              lineHeight: 1.1
+            }}
+          >
+            {language === 'uz' ? 'Jami summa' : 'Итого сумма'}
+          </span>
+        </div>
         <span
           style={{
             marginLeft: 'auto',
@@ -776,15 +789,10 @@ function Catalog() {
             }}
             title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
           >
-            <img
-              src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-              alt={language === 'ru' ? 'RU' : 'UZ'}
-              style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-            />
             <span
               style={{
                 fontSize: '0.8rem',
-                fontWeight: 700,
+                fontWeight: 500,
                 color: '#6f5538',
                 letterSpacing: '0.04em',
                 lineHeight: 1,
@@ -797,6 +805,11 @@ function Catalog() {
             >
               {language === 'ru' ? 'RU' : 'UZ'}
             </span>
+            <img
+              src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+              alt={language === 'ru' ? 'RU' : 'UZ'}
+              style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+            />
           </button>
         </div>
       </Navbar>
