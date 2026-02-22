@@ -496,7 +496,7 @@ function Catalog() {
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
             {language === 'uz' && product.unit_uz ? product.unit_uz : product.unit}
           </Card.Text>
-          <div className="fw-bold text-primary mt-auto" style={{ fontSize: '0.9rem' }}>
+          <div className="fw-bold mt-auto" style={{ fontSize: '0.9rem', color: 'var(--primary-color)' }}>
             {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
           </div>
         </Card.Body>
@@ -507,7 +507,7 @@ function Catalog() {
   if (loading && restaurants.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-        <div className="spinner-border text-primary" role="status">
+                 <div className="spinner-border" role="status" style={{ color: 'var(--primary-color)' }}>
           <span className="visually-hidden">Загрузка...</span>
         </div>
       </div>
@@ -590,9 +590,10 @@ function Catalog() {
           {level3Tabs.map((section) => (
             <Button
               key={section.id}
-              variant={activeSubcategoryTab === section.id ? 'primary' : 'outline-primary'}
+              variant={activeSubcategoryTab === section.id ? 'primary' : 'outline-secondary'}
               className="me-2 mb-2"
               size="sm"
+              style={activeSubcategoryTab === section.id ? undefined : { borderColor: 'var(--border-color)', color: 'var(--primary-color)' }}
               onClick={() => scrollToProductGroup(section.id)}
             >
               {section.title}
@@ -619,7 +620,7 @@ function Catalog() {
             {/* Loading */}
             {loading && (
               <div className="text-center py-5">
-                <div className="spinner-border text-primary" role="status">
+                <div className="spinner-border" role="status" style={{ color: 'var(--primary-color)' }}>
                   <span className="visually-hidden">Загрузка...</span>
                 </div>
               </div>
@@ -666,24 +667,15 @@ function Catalog() {
                                    style={{
                                      position: 'relative',
                                      zIndex: 1,
-                                      padding: '10px',
-                                     color: '#1f1a14',
-                                     fontWeight: 700,
-                                     fontSize: '0.88rem',
-                                     lineHeight: 1.2
-                                   }}
-                                 >
-                                   <span
-                                     style={{
-                                       display: 'inline-block',
-                                       background: 'rgba(255, 255, 255, 0.88)',
-                                       borderRadius: '8px',
-                                       padding: '3px 8px'
-                                     }}
-                                   >
-                                     {getCategoryName(level2Category)}
-                                   </span>
-                                 </div>
+                                      padding: '8px 8px 0',
+                                      color: '#1f1a14',
+                                      fontWeight: 700,
+                                      fontSize: '0.78rem',
+                                      lineHeight: 1.2
+                                    }}
+                                  >
+                                    {getCategoryName(level2Category)}
+                                  </div>
                               </button>
                             </Col>
                           );

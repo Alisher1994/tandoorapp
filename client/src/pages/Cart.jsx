@@ -602,18 +602,34 @@ function Cart() {
           </h5>
           <div className="d-flex justify-content-center gap-2">
             <div
-              className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 1 ? 'bg-primary text-white' : 'bg-light'}`}
-              style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
+              className="rounded-circle d-flex align-items-center justify-content-center"
+              style={{
+                width: 32,
+                height: 32,
+                fontSize: '0.85rem',
+                fontWeight: 'bold',
+                background: step >= 1 ? 'var(--primary-color)' : 'var(--surface-color, #fffaf3)',
+                color: step >= 1 ? '#fff' : 'var(--text-color)',
+                border: `1px solid ${step >= 1 ? 'var(--primary-color)' : 'var(--border-color, #dfcfb9)'}`
+              }}
             >
               1
             </div>
             <div
               className="align-self-center"
-              style={{ width: 40, height: 2, background: step >= 2 ? '#0d6efd' : '#dee2e6' }}
+              style={{ width: 40, height: 2, background: step >= 2 ? 'var(--primary-color)' : 'var(--border-color, #dee2e6)' }}
             />
             <div
-              className={`rounded-circle d-flex align-items-center justify-content-center ${step >= 2 ? 'bg-primary text-white' : 'bg-light'}`}
-              style={{ width: 32, height: 32, fontSize: '0.85rem', fontWeight: 'bold' }}
+              className="rounded-circle d-flex align-items-center justify-content-center"
+              style={{
+                width: 32,
+                height: 32,
+                fontSize: '0.85rem',
+                fontWeight: 'bold',
+                background: step >= 2 ? 'var(--primary-color)' : 'var(--surface-color, #fffaf3)',
+                color: step >= 2 ? '#fff' : 'var(--text-color)',
+                border: `1px solid ${step >= 2 ? 'var(--primary-color)' : 'var(--border-color, #dfcfb9)'}`
+              }}
             >
               2
             </div>
