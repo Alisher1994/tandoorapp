@@ -96,19 +96,6 @@ function Login() {
             </Button>
           </Form>
 
-          <div className="text-center mt-4 pt-3 border-top">
-            <small className="text-muted">
-              <div className="mb-2">
-                <strong>👤 Клиенты:</strong> Вход по ссылке из Telegram бота
-              </div>
-              <div className="mb-2">
-                <strong>👨‍💼 Операторы:</strong> Логин = номер телефона
-              </div>
-              <div>
-                <strong>🏢 Супер-админ:</strong> Используйте номер телефона или логин
-              </div>
-            </small>
-          </div>
         </Card.Body>
       </Card>
     </Container>
