@@ -205,8 +205,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
                 margin: '0 auto 12px',
                 borderRadius: '12px',
                 overflow: 'hidden',
-                background: '#f7f2e8',
-                border: '1px solid rgba(0,0,0,0.06)'
+                background: '#ffffff'
               }}
             >
               <video

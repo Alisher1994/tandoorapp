@@ -61,8 +61,7 @@ function Login() {
                 maxWidth: '180px',
                 borderRadius: '14px',
                 overflow: 'hidden',
-                background: '#f7f2e8',
-                border: '1px solid rgba(0,0,0,0.06)'
+                background: '#ffffff'
               }}
             >
               <video
