@@ -1046,3 +1046,33 @@ body::-webkit-scrollbar,
     background-color: #f5ecdf !important;
     color: #3d2f21 !important;
 }
+
+/* Remove remaining bluish bootstrap backgrounds in admin/operator UIs */
+.min-vh-100.bg-light,
+.admin-panel .bg-light,
+.admin-panel .table .bg-light,
+.admin-panel .card.bg-light,
+.admin-panel .modal-footer.bg-light,
+.admin-panel .modal-header.bg-light {
+    background-color: #f7f1e8 !important;
+    color: #3d2f21 !important;
+}
+
+.admin-panel .bg-white {
+    background-color: #fffaf3 !important;
+}
+
+.admin-panel .border-light,
+.admin-panel .bg-light.border {
+    border-color: #dfcfb9 !important;
+}
+
+.admin-panel .alert-info {
+    background-color: #f3e6d2 !important;
+    border-color: #dfcfb9 !important;
+    color: #654a2e !important;
+}
+
+.admin-panel .alert-info code {
+    color: #8f6d46 !important;
+}
