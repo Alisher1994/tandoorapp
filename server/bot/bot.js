@@ -588,13 +588,12 @@ async function initBot() {
       } else {
         // Show entry point: customer flow or centralized store onboarding
         bot.sendMessage(chatId,
-          '👋 Добро пожаловать!\n\nВыберите сценарий:',
+          '👋 Добро пожаловать!\n\nДоступен только сценарий регистрации магазина.',
           {
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
-                [{ text: '🏪 Регистрация магазина', callback_data: 'onboard_start' }],
-                [{ text: '🛒 Клиентская регистрация', callback_data: 'legacy_customer_start' }]
+                [{ text: '🏪 Регистрация магазина', callback_data: 'onboard_start' }]
               ]
             }
           }
@@ -1161,16 +1160,9 @@ async function initBot() {
     // Central onboarding flow
     // =====================================================
     if (data === 'legacy_customer_start') {
-      registrationStates.set(userId, { step: 'waiting_contact' });
-      await bot.sendMessage(chatId,
-        '📱 Для регистрации, пожалуйста, поделитесь своим номером телефона:',
-        {
-          reply_markup: {
-            keyboard: [[{ text: '📱 Поделиться контактом', request_contact: true }]],
-            resize_keyboard: true,
-            one_time_keyboard: true
-          }
-        }
+      await bot.sendMessage(
+        chatId,
+        'ℹ️ Клиентская регистрация в этом боте отключена. Используйте Telegram-бот магазина.'
       );
       return;
     }

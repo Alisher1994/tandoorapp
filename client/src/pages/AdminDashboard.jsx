@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
@@ -234,9 +234,17 @@ function AdminDashboard() {
   const [settingsTab, setSettingsTab] = useState('general');
   const [testingBot, setTestingBot] = useState(false);
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
+  const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
+  const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
+  const tokenCountdownArmedRef = useRef(false);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
+  const normalizedInitialRestaurantBotToken = (initialRestaurantBotToken || '').trim();
+  const normalizedCurrentRestaurantBotToken = (restaurantSettings?.telegram_bot_token || '').trim();
+  const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
+    normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
+  const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
 
   // Excel export function
   const exportToExcel = (data, filename, columns) => {
@@ -374,6 +382,29 @@ function AdminDashboard() {
       fetchOperators();
     }
   }, [user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (!restaurantSettings) return;
+
+    if (!isRestaurantBotTokenChanged) {
+      tokenCountdownArmedRef.current = false;
+      setTokenSaveCountdown(0);
+      return;
+    }
+
+    if (!tokenCountdownArmedRef.current) {
+      tokenCountdownArmedRef.current = true;
+      setTokenSaveCountdown(5);
+    }
+  }, [restaurantSettings, isRestaurantBotTokenChanged]);
+
+  useEffect(() => {
+    if (tokenSaveCountdown <= 0) return;
+    const timer = setTimeout(() => {
+      setTokenSaveCountdown((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [tokenSaveCountdown]);
 
   const applyCategoriesData = (categoriesData = []) => {
     // Calculate full category paths locally and sort correctly
@@ -567,22 +598,66 @@ function AdminDashboard() {
   const fetchRestaurantSettings = async () => {
     try {
       const response = await axios.get(`${API_URL}/admin/restaurant`);
-      setRestaurantSettings(response.data);
+      const settings = response.data || {};
+      setRestaurantSettings(settings);
+      setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
+      setTokenSaveCountdown(0);
+      tokenCountdownArmedRef.current = false;
     } catch (error) {
       console.error('Fetch restaurant settings error:', error);
     }
   };
 
   const saveRestaurantSettings = async () => {
+    if (isTokenSaveLocked) return;
+
     setSavingSettings(true);
     try {
-      await axios.put(`${API_URL}/admin/restaurant`, restaurantSettings);
-      setAlertMessage({ type: 'success', text: 'Настройки успешно сохранены' });
+      const response = await axios.put(`${API_URL}/admin/restaurant`, restaurantSettings);
+      const savedSettings = response.data || {};
+      setRestaurantSettings((prev) => ({ ...prev, ...savedSettings }));
+      setInitialRestaurantBotToken((savedSettings.telegram_bot_token || '').trim());
+      setTokenSaveCountdown(0);
+      tokenCountdownArmedRef.current = false;
+
+      const migration = savedSettings.token_migration;
+      const operatorNotification = savedSettings.operator_notification;
+
+      const successLines = ['Настройки успешно сохранены'];
+      if (migration && !migration.skipped) {
+        successLines.push(`Клиенты уведомлены: ${migration.delivered}/${migration.total}`);
+      }
+
+      if (operatorNotification && operatorNotification.failed > 0) {
+        successLines.push(`Операторы уведомлены частично: ${operatorNotification.delivered}/${operatorNotification.total}`);
+        successLines.push('Попросите операторов открыть новый бот и нажать /start.');
+      }
+
+      setAlertMessage({
+        type: operatorNotification && operatorNotification.failed > 0 ? 'warning' : 'success',
+        text: <div style={{ whiteSpace: 'pre-wrap' }}>{successLines.join('\n')}</div>
+      });
       // Refresh user context if needed (logo/name in header)
       fetchUser();
     } catch (error) {
       console.error('Save restaurant settings error:', error);
-      setAlertMessage({ type: 'danger', text: 'Ошибка сохранения настроек' });
+      const backendError = error.response?.data?.error || 'Ошибка сохранения настроек';
+      const migration = error.response?.data?.token_migration;
+      const details = error.response?.data?.details;
+
+      const errorLines = [backendError];
+      if (migration && typeof migration.total === 'number') {
+        errorLines.push(`Клиенты уведомлены: ${migration.delivered}/${migration.total}`);
+        errorLines.push(`Не доставлено: ${migration.failed}`);
+      }
+      if (details) {
+        errorLines.push(`Детали: ${details}`);
+      }
+
+      setAlertMessage({
+        type: 'danger',
+        text: <div style={{ whiteSpace: 'pre-wrap' }}>{errorLines.join('\n')}</div>
+      });
     } finally {
       setSavingSettings(false);
     }
@@ -2878,6 +2953,17 @@ function AdminDashboard() {
                                         value={restaurantSettings.telegram_bot_token || ''}
                                         onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value })}
                                       />
+                                      {isRestaurantBotTokenChanged && (
+                                        <Alert
+                                          variant={isTokenSaveLocked ? 'warning' : 'info'}
+                                          className="mt-2 mb-0 py-2 px-3 small"
+                                        >
+                                          Перед сохранением откройте новый бот и нажмите <code>/start</code>.
+                                          {isTokenSaveLocked
+                                            ? ` Кнопка сохранения станет активной через ${tokenSaveCountdown} сек.`
+                                            : ' Теперь можно сохранять токен.'}
+                                        </Alert>
+                                      )}
                                     </Form.Group>
                                   </Col>
                                   <Col md={6}>
@@ -2963,9 +3049,13 @@ function AdminDashboard() {
                                 variant="primary"
                                 className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
                                 onClick={saveRestaurantSettings}
-                                disabled={savingSettings}
+                                disabled={savingSettings || isTokenSaveLocked}
                               >
-                                {savingSettings ? 'Сохранение...' : 'Сохранить изменения'}
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : 'Сохранить изменения'}
                               </Button>
                             </div>
                           </Card.Body>
@@ -3075,9 +3165,13 @@ function AdminDashboard() {
                                 variant="primary"
                                 className="px-5 py-2 rounded-pill fw-bold btn-primary-custom shadow-none"
                                 onClick={saveRestaurantSettings}
-                                disabled={savingSettings}
+                                disabled={savingSettings || isTokenSaveLocked}
                               >
-                                {savingSettings ? 'Сохранение...' : 'Сохранить изменения'}
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : 'Сохранить изменения'}
                               </Button>
                             </div>
                           </Card.Body>

@@ -12,17 +12,198 @@ const {
   ACTION_TYPES,
   ENTITY_TYPES
 } = require('../services/activityLogger');
-const { reloadBot } = require('../bot/bot');
+const { reloadBot, getBot } = require('../bot/bot');
 const { reloadMultiBots } = require('../bot/multiBotManager');
 
 // All routes require superadmin authentication
 router.use(authenticate);
 router.use(requireSuperAdmin);
 
-const { sendBalanceNotification } = require('../bot/notifications');
+const { sendBalanceNotification, getRestaurantBot } = require('../bot/notifications');
 
 const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
+
+const normalizeTokenValue = (value) => {
+  const normalized = value ? String(value).trim() : '';
+  return normalized || null;
+};
+
+const notifySuperadminTokenChanged = async (telegramId) => {
+  if (!telegramId) return;
+  const bot = getBot();
+  if (!bot) return;
+
+  await bot.sendMessage(
+    telegramId,
+    '✅ Вы успешно сменили токен супер админа.\n🤖 Это ваш новый бот.'
+  );
+};
+
+const normalizeRestaurantTokenForCompare = (value) => (
+  value === undefined || value === null ? '' : String(value).trim()
+);
+
+const notifyCustomersAboutRestaurantBotMigration = async ({
+  restaurantId,
+  restaurantName,
+  oldToken,
+  newToken
+}) => {
+  const previousToken = normalizeRestaurantTokenForCompare(oldToken);
+  const currentToken = normalizeRestaurantTokenForCompare(newToken);
+
+  if (!previousToken || !currentToken || previousToken === currentToken) {
+    return { ok: true, skipped: true, reason: 'unchanged_or_missing_token' };
+  }
+
+  let newBotUsername = null;
+  try {
+    const newBot = getRestaurantBot(currentToken);
+    const me = await newBot.getMe();
+    newBotUsername = me?.username || null;
+  } catch (error) {
+    return { ok: false, error: 'Новый токен бота некорректен или бот недоступен', details: error.message };
+  }
+
+  let oldBot;
+  try {
+    oldBot = getRestaurantBot(previousToken);
+    await oldBot.getMe();
+  } catch (error) {
+    return { ok: false, error: 'Старый бот недоступен. Нельзя уведомить клиентов перед сменой токена', details: error.message };
+  }
+
+  const recipientsResult = await pool.query(
+    `SELECT DISTINCT u.telegram_id
+     FROM users u
+     WHERE u.role = 'customer'
+       AND u.telegram_id IS NOT NULL
+       AND (
+         u.active_restaurant_id = $1
+         OR EXISTS (
+           SELECT 1
+           FROM orders o
+           WHERE o.user_id = u.id
+             AND o.restaurant_id = $1
+         )
+       )`,
+    [restaurantId]
+  );
+
+  const recipients = recipientsResult.rows.map((row) => row.telegram_id).filter(Boolean);
+  if (!recipients.length) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'no_customers',
+      total: 0,
+      delivered: 0,
+      failed: 0,
+      newBotUsername
+    };
+  }
+
+  const newBotLink = newBotUsername ? `https://t.me/${newBotUsername}` : null;
+  const message =
+    `⚠️ Важное обновление от магазина "${restaurantName}"\n\n` +
+    `Мы перешли в новый Telegram-бот для заказов.\n` +
+    `${newBotUsername ? `Новый бот: @${newBotUsername}\n` : ''}` +
+    `${newBotLink ? `Открыть: ${newBotLink}\n` : ''}` +
+    `Пожалуйста, нажмите /start в новом боте, чтобы продолжить получать уведомления и оформлять заказы.`;
+
+  const failures = [];
+  let delivered = 0;
+
+  for (const telegramId of recipients) {
+    try {
+      await oldBot.sendMessage(telegramId, message);
+      delivered += 1;
+    } catch (error) {
+      failures.push({ telegram_id: telegramId, error: error.message });
+    }
+  }
+
+  if (failures.length > 0) {
+    return {
+      ok: false,
+      error: 'Не удалось уведомить всех клиентов через старый бот. Смена токена остановлена.',
+      total: recipients.length,
+      delivered,
+      failed: failures.length,
+      failedRecipients: failures.slice(0, 20),
+      newBotUsername
+    };
+  }
+
+  return {
+    ok: true,
+    total: recipients.length,
+    delivered,
+    failed: 0,
+    newBotUsername
+  };
+};
+
+const notifyRestaurantTokenChanged = async ({
+  restaurantId,
+  restaurantName,
+  oldToken,
+  newToken
+}) => {
+  const previousToken = normalizeRestaurantTokenForCompare(oldToken);
+  const currentToken = normalizeRestaurantTokenForCompare(newToken);
+  if (previousToken === currentToken || !currentToken) {
+    return { skipped: true, reason: 'unchanged_or_empty_token' };
+  }
+
+  let botUsername = null;
+  const recipientsResult = await pool.query(
+    `SELECT DISTINCT u.telegram_id
+     FROM users u
+     INNER JOIN operator_restaurants opr ON opr.user_id = u.id
+     WHERE opr.restaurant_id = $1
+       AND u.telegram_id IS NOT NULL
+       AND u.is_active = true
+       AND u.role IN ('operator', 'superadmin')`,
+    [restaurantId]
+  );
+
+  const recipients = recipientsResult.rows.map((row) => row.telegram_id).filter(Boolean);
+  if (!recipients.length) {
+    return { skipped: true, reason: 'no_operator_recipients' };
+  }
+
+  let bot;
+  try {
+    bot = getRestaurantBot(currentToken);
+    const me = await bot.getMe();
+    botUsername = me?.username || null;
+  } catch (error) {
+    return { skipped: true, reason: 'new_bot_unavailable', details: error.message };
+  }
+
+  const message = `✅ Токен бота магазина успешно обновлен.\n🏪 Магазин: ${restaurantName}\n🤖 Новый бот: ${botUsername ? `@${botUsername}` : 'подключен'}\n\nЕсли сообщение не пришло, откройте новый бот и нажмите /start.`;
+  const failures = [];
+  let delivered = 0;
+
+  for (const telegramId of recipients) {
+    try {
+      await bot.sendMessage(telegramId, message);
+      delivered += 1;
+    } catch (error) {
+      failures.push({ telegram_id: telegramId, error: error.message });
+    }
+  }
+
+  return {
+    total: recipients.length,
+    delivered,
+    failed: failures.length,
+    failedRecipients: failures.slice(0, 20),
+    botUsername
+  };
+};
 
 const normalizeCategoryId = (value) => {
   if (value === undefined || value === null || value === '') return null;
@@ -172,6 +353,12 @@ router.put('/billing-settings', async (req, res) => {
       superadmin_bot_token
     } = req.body;
 
+    const normalizedToken = normalizeTokenValue(superadmin_bot_token);
+    const previousSettings = await pool.query(
+      'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
+    );
+    const previousToken = normalizeTokenValue(previousSettings.rows[0]?.superadmin_bot_token);
+
     const result = await pool.query(`
       UPDATE billing_settings 
       SET card_number = $1, card_holder = $2, phone_number = $3, 
@@ -186,13 +373,21 @@ router.put('/billing-settings', async (req, res) => {
       click_link, payme_link,
       parseFloat(default_starting_balance) || 100000,
       parseFloat(default_order_cost) || 1000,
-      superadmin_bot_token ? String(superadmin_bot_token).trim() : null
+      normalizedToken
     ]);
 
     try {
       await reloadBot();
     } catch (reloadErr) {
       console.error('Bot reload warning after settings update:', reloadErr.message);
+    }
+
+    if (normalizedToken && normalizedToken !== previousToken) {
+      try {
+        await notifySuperadminTokenChanged(req.user.telegram_id);
+      } catch (notifyErr) {
+        console.error('Bot token change notification warning:', notifyErr.message);
+      }
     }
 
     res.json(result.rows[0]);
@@ -431,6 +626,29 @@ router.put('/restaurants/:id', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     const oldValues = oldResult.rows[0];
+    const previousBotToken = normalizeRestaurantTokenForCompare(oldValues.telegram_bot_token);
+    const nextBotToken = normalizedBotToken === null
+      ? previousBotToken
+      : normalizeRestaurantTokenForCompare(normalizedBotToken);
+    const isTokenChanging = normalizedBotToken !== null && nextBotToken !== previousBotToken;
+
+    let customerMigrationResult = null;
+    if (isTokenChanging && nextBotToken) {
+      customerMigrationResult = await notifyCustomersAboutRestaurantBotMigration({
+        restaurantId: parseInt(req.params.id, 10),
+        restaurantName: name || oldValues.name || 'Ваш магазин',
+        oldToken: oldValues.telegram_bot_token,
+        newToken: nextBotToken
+      });
+
+      if (!customerMigrationResult.ok) {
+        return res.status(409).json({
+          error: customerMigrationResult.error,
+          details: customerMigrationResult.details || null,
+          token_migration: customerMigrationResult
+        });
+      }
+    }
 
     console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
 
@@ -543,6 +761,18 @@ router.put('/restaurants/:id', async (req, res) => {
       console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
     }
 
+    let operatorNotificationResult = null;
+    try {
+      operatorNotificationResult = await notifyRestaurantTokenChanged({
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        oldToken: oldValues.telegram_bot_token,
+        newToken: restaurant.telegram_bot_token
+      });
+    } catch (notifyErr) {
+      console.error('Restaurant token change notification warning:', notifyErr.message);
+    }
+
     // Log activity
     await logActivity({
       userId: req.user.id,
@@ -557,7 +787,11 @@ router.put('/restaurants/:id', async (req, res) => {
       userAgent: getUserAgentFromRequest(req)
     });
 
-    res.json(restaurant);
+    res.json({
+      ...restaurant,
+      token_migration: customerMigrationResult,
+      operator_notification: operatorNotificationResult
+    });
   } catch (error) {
     console.error('Update restaurant error:', error);
     res.status(500).json({ error: 'Ошибка обновления ресторана' });
@@ -1597,6 +1831,12 @@ router.put('/billing/settings', async (req, res) => {
       superadmin_bot_token
     } = req.body;
 
+    const normalizedToken = normalizeTokenValue(superadmin_bot_token);
+    const previousSettings = await pool.query(
+      'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
+    );
+    const previousToken = normalizeTokenValue(previousSettings.rows[0]?.superadmin_bot_token);
+
     const result = await pool.query(`
       UPDATE billing_settings
       SET card_number = $1, card_holder = $2, phone_number = $3, 
@@ -1609,13 +1849,21 @@ router.put('/billing/settings', async (req, res) => {
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, default_starting_balance, default_order_cost,
-      superadmin_bot_token ? String(superadmin_bot_token).trim() : null
+      normalizedToken
     ]);
 
     try {
       await reloadBot();
     } catch (reloadErr) {
       console.error('Bot reload warning after settings update:', reloadErr.message);
+    }
+
+    if (normalizedToken && normalizedToken !== previousToken) {
+      try {
+        await notifySuperadminTokenChanged(req.user.telegram_id);
+      } catch (notifyErr) {
+        console.error('Bot token change notification warning:', notifyErr.message);
+      }
     }
 
     res.json(result.rows[0]);
