@@ -4230,10 +4230,11 @@ function AdminDashboard() {
                   <Form.Group className="mb-3">
                     <Form.Label>{t('orEnterUrl')}</Form.Label>
                     <Form.Control
-                      type="url"
+                      type="text"
                       value={productForm.image_url}
                       onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
                       placeholder="https://example.com/image.jpg"
+                      inputMode="url"
                     />
                   </Form.Group>
                 </Col>

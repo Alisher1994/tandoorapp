@@ -4,22 +4,15 @@ const pool = require('../database/connection');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
-// Get all categories (public - for customers, filtered by restaurant)
+// Get all categories (public - for customers, global/shared)
 router.get('/categories', async (req, res) => {
   try {
-    const { restaurant_id } = req.query;
-    
-    let query = 'SELECT * FROM categories WHERE is_active = true';
-    const params = [];
-    
-    if (restaurant_id) {
-      query += ' AND (restaurant_id = $1 OR restaurant_id IS NULL)';
-      params.push(restaurant_id);
-    }
-    
-    query += ' ORDER BY name_ru';
-    
-    const result = await pool.query(query, params);
+    // Categories are global/shared across restaurants.
+    // We intentionally do not filter by restaurant_id here, because
+    // products are already filtered by restaurant on the catalog side.
+    const result = await pool.query(
+      'SELECT * FROM categories WHERE is_active = true ORDER BY name_ru'
+    );
     res.json(result.rows);
   } catch (error) {
     console.error('Categories error:', error);
