@@ -4213,7 +4213,7 @@ function AdminDashboard() {
         </Modal>
 
         {/* Broadcast Modal */}
-        <Modal show={showBroadcastModal} onHide={() => setShowBroadcastModal(false)} size="xl">
+        <Modal show={showBroadcastModal} onHide={() => setShowBroadcastModal(false)} size="xl" className="admin-broadcast-modal">
           <Modal.Header closeButton className="border-0">
             <Modal.Title className="d-flex align-items-center">
               <span className="me-2">📢</span> {t('broadcastTitle') || 'Рассылка уведомлений'}
@@ -4416,7 +4416,7 @@ function AdminDashboard() {
                         ) : (
                           <div className="bg-primary rounded-circle" style={{ width: 24, height: 24 }}></div>
                         )}
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0088cc' }}>{user?.active_restaurant_name || 'Ресторан'}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#8f6d46' }}>{user?.active_restaurant_name || 'Ресторан'}</span>
                       </div>
                       {broadcastForm.image_url && <div className="px-2 pb-2"><img src={broadcastForm.image_url} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} /></div>}
                       <div className="px-3 pb-2 pt-1">
@@ -4549,7 +4549,11 @@ function AdminDashboard() {
                 variant="primary"
                 onClick={sendBroadcast}
                 className="px-5 py-2 rounded-pill fw-bold"
-                style={{ background: isScheduled ? '#28a745' : '#0088cc', border: 'none' }}
+                style={{
+                  background: isScheduled ? '#8f6d46' : '#a88355',
+                  border: '1px solid #8f6d46',
+                  color: '#fffaf3'
+                }}
                 disabled={broadcastLoading || !broadcastForm.message.trim()}
               >
                 {broadcastLoading ? '...' : isScheduled ? '📅 Запланировать' : '🚀 Отправить всем'}

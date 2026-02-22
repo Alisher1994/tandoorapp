@@ -1076,3 +1076,55 @@ body::-webkit-scrollbar,
 .admin-panel .alert-info code {
     color: #8f6d46 !important;
 }
+
+/* Modal-level beige overrides (portal modals are outside .admin-panel) */
+.modal .modal-content {
+    background-color: #fffaf3;
+    color: #3d2f21;
+}
+
+.modal .nav-tabs {
+    border-bottom: 1px solid #dfcfb9 !important;
+}
+
+.modal .nav-tabs .nav-link {
+    color: #7d6a55 !important;
+    border-color: transparent !important;
+}
+
+.modal .nav-tabs .nav-link:hover {
+    color: #654a2e !important;
+    border-color: transparent transparent #dfcfb9 !important;
+}
+
+.modal .nav-tabs .nav-link.active {
+    color: #503921 !important;
+    background-color: #fffaf3 !important;
+    border-color: #dfcfb9 #dfcfb9 #fffaf3 !important;
+}
+
+.modal .bg-light,
+.modal .table .bg-light,
+.modal .card.bg-light {
+    background-color: #f7f1e8 !important;
+    color: #3d2f21 !important;
+}
+
+.modal .bg-white {
+    background-color: #fffaf3 !important;
+}
+
+.modal .border-light,
+.modal .bg-light.border {
+    border-color: #dfcfb9 !important;
+}
+
+.modal .alert-info {
+    background-color: #f3e6d2 !important;
+    border-color: #dfcfb9 !important;
+    color: #654a2e !important;
+}
+
+.modal .text-info {
+    color: #8f6d46 !important;
+}
