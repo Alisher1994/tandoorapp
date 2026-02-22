@@ -673,6 +673,12 @@ function SuperAdminDashboard() {
     return `${text.slice(0, limit)}...`;
   };
 
+  const truncateAdTitleText = (value, limit = 10) => {
+    const text = String(value || '').trim();
+    if (text.length <= limit) return text;
+    return `${text.slice(0, limit)}...`;
+  };
+
   const getAdStatusLabel = (status) => {
     const map = {
       active: 'Активна',
@@ -2371,7 +2377,7 @@ function SuperAdminDashboard() {
                                   #{banner.slot_order}
                                 </Badge>
                               </td>
-                              <td style={{ minWidth: '260px' }}>
+                              <td style={{ minWidth: '210px' }}>
                                 <div className="d-flex align-items-center gap-3">
                                   <div
                                     style={{
@@ -2389,25 +2395,34 @@ function SuperAdminDashboard() {
                                     ) : null}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="fw-semibold text-truncate" style={{ maxWidth: '260px' }}>{banner.title}</div>
+                                    <div
+                                      className="fw-semibold text-truncate"
+                                      style={{ maxWidth: '120px' }}
+                                      title={banner.title || ''}
+                                    >
+                                      {truncateAdTitleText(banner.title, 10)}
+                                    </div>
                                     <div className="small text-muted">ID: {banner.id}</div>
                                   </div>
                                 </div>
                               </td>
-                              <td style={{ minWidth: '240px' }}>
-                                <div className="fw-semibold">{banner.button_text || 'Открыть'}</div>
-                                <a
-                                  href={banner.target_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="small text-decoration-none"
-                                  style={{ color: 'var(--primary-color)' }}
-                                  title={banner.target_url}
-                                >
-                                  {truncateAdLinkText(banner.target_url, 12)}
-                                </a>
+                              <td style={{ minWidth: '170px' }}>
+                                {banner.target_url ? (
+                                  <a
+                                    href={banner.target_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="small text-decoration-none"
+                                    style={{ color: 'var(--primary-color)' }}
+                                    title={banner.target_url}
+                                  >
+                                    {truncateAdLinkText(banner.target_url, 12)}
+                                  </a>
+                                ) : (
+                                  <span className="small text-muted">Без ссылки</span>
+                                )}
                               </td>
-                              <td style={{ minWidth: '260px' }}>
+                              <td style={{ minWidth: '220px' }}>
                                 <div className="small"><strong>Старт:</strong> {formatAdDate(banner.start_at)}</div>
                                 <div className="small"><strong>Конец:</strong> {formatAdDate(banner.end_at)}</div>
                                 <div className="small text-muted">
@@ -2425,31 +2440,34 @@ function SuperAdminDashboard() {
                                   {getAdStatusLabel(banner.runtime_status)}
                                 </Badge>
                               </td>
-                              <td style={{ minWidth: '190px' }}>
+                              <td style={{ minWidth: '150px' }}>
                                 <div className="small">Просмотры: <strong>{banner.total_views || 0}</strong></div>
                                 <div className="small">Уникальные: <strong>{banner.unique_views || 0}</strong></div>
                                 <div className="small">Клики: <strong>{banner.total_clicks || 0}</strong></div>
                               </td>
-                              <td className="text-end">
-                                <div className="d-flex gap-2 justify-content-end flex-wrap">
+                              <td className="text-end" style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                                <div className="d-inline-flex gap-1 justify-content-end align-items-center">
                                   <Form.Check
                                     type="switch"
                                     id={`ad-toggle-${banner.id}`}
                                     checked={!!banner.is_enabled}
                                     onChange={() => toggleAdBanner(banner)}
                                     title={banner.is_enabled ? 'Выключить рекламу' : 'Включить рекламу'}
+                                    className="mb-0 me-1"
                                   />
                                   <Button
                                     variant="light"
-                                    className="action-btn text-primary"
+                                    className="action-btn text-primary p-1"
                                     onClick={() => openAdBannerModal(banner)}
+                                    title="Редактировать"
                                   >
                                     ✏️
                                   </Button>
                                   <Button
                                     variant="light"
-                                    className="action-btn text-danger"
+                                    className="action-btn text-danger p-1"
                                     onClick={() => deleteAdBanner(banner)}
+                                    title="Архивировать"
                                   >
                                     🗂️
                                   </Button>
