@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.error || 'Ошибка переключения ресторана'
+        error: error.response?.data?.error || 'Ошибка переключения магазина'
       };
     }
   };

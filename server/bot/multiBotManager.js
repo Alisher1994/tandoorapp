@@ -9,6 +9,7 @@ const {
   buildGroupOrderActionKeyboard,
   buildOrderPreviewUrl
 } = require('./notifications');
+const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
@@ -30,7 +31,7 @@ const BOT_TEXTS = {
     roleLine: '🧑‍💼 Роль: <b>{role}</b>',
     roleSuperadmin: 'Суперадмин',
     roleOperator: 'Оператор',
-    restaurantLine: '🏪 Ресторан: <b>{name}</b>',
+    restaurantLine: '🏪 Магазин: <b>{name}</b>',
     loginHint: 'Используйте кнопку ниже для входа в систему.',
     loginWarn: '⚠️ URL входа не настроен. Обратитесь к администратору.',
     loginButton: '🔐 Войти в систему',
@@ -53,7 +54,7 @@ const BOT_TEXTS = {
     roleLine: '🧑‍💼 Rol: <b>{role}</b>',
     roleSuperadmin: 'Superadmin',
     roleOperator: 'Operator',
-    restaurantLine: '🏪 Restoran: <b>{name}</b>',
+    restaurantLine: "🏪 Do'kon: <b>{name}</b>",
     loginHint: 'Tizimga kirish uchun quyidagi tugmani bosing.',
     loginWarn: '⚠️ Kirish havolasi sozlanmagan. Administratorga murojaat qiling.',
     loginButton: '🔐 Tizimga kirish',
@@ -586,7 +587,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     await bot.sendMessage(
       chatId,
       'ℹ️ Саморегистрация операторов через код отключена.\n' +
-      'Добавляйте сотрудников через веб-панель ресторана в разделе "Операторы".'
+      'Добавляйте сотрудников через веб-панель магазина в разделе "Операторы".'
     );
   };
 
@@ -917,7 +918,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       );
 
       if (restaurantResult.rows.length === 0) {
-        bot.sendMessage(chatId, '❌ Ресторан не найден', { reply_markup: { remove_keyboard: true } });
+        bot.sendMessage(chatId, '❌ Магазин не найден', { reply_markup: { remove_keyboard: true } });
         return;
       }
 
@@ -928,7 +929,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       if (!inZone) {
         bot.sendMessage(chatId,
-          `😔 К сожалению, ваш адрес находится за пределами зоны доставки ресторана <b>${restaurantName}</b>.`,
+          `😔 К сожалению, ваш адрес находится за пределами зоны доставки магазина <b>${restaurantName}</b>.`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
         );
         registrationStates.delete(getStateKey(userId, chatId));
@@ -941,7 +942,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       if (!isRestaurantOpen(startTime, endTime)) {
         bot.sendMessage(chatId,
-          `😔 Извините, ресторан <b>${restaurantName}</b> работает с ${startTime || '??:??'} до ${endTime || '??:??'}.\n\nПопробуйте позже!`,
+          `😔 Извините, магазин <b>${restaurantName}</b> работает с ${startTime || '??:??'} до ${endTime || '??:??'}.\n\nПопробуйте позже!`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
         );
         registrationStates.delete(getStateKey(userId, chatId));
@@ -963,7 +964,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         registrationStates.delete(getStateKey(userId, chatId));
 
         bot.sendMessage(chatId,
-          `✅ Отлично! Доставка доступна!\n\n🏪 Ресторан: <b>${restaurantName}</b>` +
+          `✅ Отлично! Доставка доступна!\n\n🏪 Магазин: <b>${restaurantName}</b>` +
           `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
           {
             parse_mode: 'HTML',
@@ -1017,7 +1018,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       bot.sendMessage(chatId,
         `✅ Регистрация успешна!\n\n` +
-        `🏪 Ресторан: <b>${restaurantName}</b>\n` +
+        `🏪 Магазин: <b>${restaurantName}</b>\n` +
         `📍 Доставка по вашему адресу доступна!` +
         `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
         {
@@ -1436,14 +1437,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           return;
         }
 
-        await pool.query(
-          `UPDATE orders
-           SET processed_at = CURRENT_TIMESTAMP,
-               processed_by = COALESCE($2, processed_by),
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [orderId, processedByUserId]
-        );
+        const billingResult = await ensureOrderPaidForProcessing({
+          orderId,
+          actorUserId: processedByUserId,
+          markProcessedByUserId: processedByUserId
+        });
+        if (!billingResult.ok) {
+          const text = billingResult.code === 'INSUFFICIENT_BALANCE'
+            ? '❌ Недостаточно средств на балансе магазина'
+            : (billingResult.error || '❌ Не удалось принять заказ');
+          await safeAnswerCallback({ text, show_alert: true });
+          return;
+        }
 
         const refreshed = await getOrderWithItems(orderId);
 
@@ -1500,6 +1505,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         if (!transitionAllowed) {
           await safeAnswerCallback({ text: '⚠️ Этот шаг уже выполнен или недоступен', show_alert: false });
           return;
+        }
+
+        if (nextStatus === 'preparing') {
+          const billingResult = await ensureOrderPaidForProcessing({
+            orderId,
+            actorUserId: processedByUserId,
+            markProcessedByUserId: processedByUserId
+          });
+          if (!billingResult.ok) {
+            const text = billingResult.code === 'INSUFFICIENT_BALANCE'
+              ? '❌ Недостаточно средств на балансе магазина'
+              : (billingResult.error || '❌ Не удалось перевести заказ в обработку');
+            await safeAnswerCallback({ text, show_alert: true });
+            return;
+          }
         }
 
         await pool.query(

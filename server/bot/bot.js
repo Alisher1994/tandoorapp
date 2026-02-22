@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -1158,7 +1159,7 @@ async function initBot() {
         
         if (!isRestaurantOpen(startTime, endTime)) {
           bot.sendMessage(chatId,
-            `😔 Извините, данный ресторан работает с ${startTime || '??:??'} по ${endTime || '??:??'}.\n\nПопробуйте позже!`,
+            `😔 Извините, данный магазин работает с ${startTime || '??:??'} по ${endTime || '??:??'}.\n\nПопробуйте позже!`,
             { reply_markup: { remove_keyboard: true } }
           );
           registrationStates.delete(userId);
@@ -1203,7 +1204,7 @@ async function initBot() {
           if (!loginUrl) {
             bot.sendMessage(chatId,
               `✅ Отлично! Доставка доступна!\n\n` +
-              `🏪 Ресторан: <b>${restaurant.name}</b>\n\n` +
+              `🏪 Магазин: <b>${restaurant.name}</b>\n\n` +
               `⚠️ Ошибка выдачи ссылки. Попробуйте команду /menu.`,
               { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
             );
@@ -1212,7 +1213,7 @@ async function initBot() {
           
           bot.sendMessage(chatId,
             `✅ Отлично! Доставка доступна!\n\n` +
-            `🏪 Ресторан: <b>${restaurant.name}</b>`,
+            `🏪 Магазин: <b>${restaurant.name}</b>`,
             {
               parse_mode: 'HTML',
               reply_markup: {
@@ -1260,7 +1261,7 @@ async function initBot() {
         
         bot.sendMessage(chatId,
           `✅ Регистрация успешна!\n\n` +
-          `🏪 Ресторан: <b>${restaurant.name}</b>\n` +
+          `🏪 Магазин: <b>${restaurant.name}</b>\n` +
           `📍 Доставка по вашему адресу доступна!`,
           {
             parse_mode: 'HTML',
@@ -1648,6 +1649,15 @@ async function initBot() {
         
         if (orderData.status !== 'new') {
           bot.answerCallbackQuery(callbackQuery.id, { text: '⚠️ Заказ уже обработан', show_alert: true });
+          return;
+        }
+
+        const billingResult = await ensureOrderPaidForProcessing({ orderId });
+        if (!billingResult.ok) {
+          const text = billingResult.code === 'INSUFFICIENT_BALANCE'
+            ? '❌ Недостаточно средств на балансе магазина'
+            : (billingResult.error || '❌ Не удалось принять заказ');
+          bot.answerCallbackQuery(callbackQuery.id, { text, show_alert: true });
           return;
         }
         

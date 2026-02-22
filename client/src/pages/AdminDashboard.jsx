@@ -168,6 +168,7 @@ function AdminDashboard() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mainTab, setMainTab] = useState('dashboard');
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
@@ -413,15 +414,16 @@ function AdminDashboard() {
       fetchUser();
     }
 
+    const refreshIntervalMs = mainTab === 'orders' ? 3000 : 10000;
     const interval = setInterval(() => {
       fetchData();
       if (user?.role === 'operator' || user?.role === 'superadmin') {
         fetchUser();
       }
-    }, 10000); // Update every 10 seconds
+    }, refreshIntervalMs);
 
     return () => clearInterval(interval);
-  }, [statusFilter, user?.active_restaurant_id, user?.role]);
+  }, [statusFilter, user?.active_restaurant_id, user?.role, mainTab]);
 
   useEffect(() => {
     if (user?.active_restaurant_id) {
@@ -821,7 +823,7 @@ function AdminDashboard() {
   };
 
   const deleteOperator = async (id) => {
-    if (!window.confirm('Вы уверены, что хотите удалить этого оператора из ресторана?')) return;
+    if (!window.confirm('Вы уверены, что хотите удалить этого оператора из магазина?')) return;
     try {
       await axios.delete(`${API_URL}/admin/operators/${id}`);
       setAlertMessage({ type: 'success', text: 'Оператор удален' });
@@ -1617,7 +1619,7 @@ function AdminDashboard() {
   const handleSwitchRestaurant = async (restaurantId) => {
     const result = await switchRestaurant(restaurantId);
     if (result.success) {
-      setAlertMessage({ type: 'success', text: 'Ресторан переключен' });
+      setAlertMessage({ type: 'success', text: 'Магазин переключен' });
       fetchData();
     } else {
       setAlertMessage({ type: 'danger', text: result.error });
@@ -1796,7 +1798,7 @@ function AdminDashboard() {
 
         <Card className="admin-card">
           <Card.Body>
-            <Tabs defaultActiveKey="dashboard" className="admin-tabs">
+            <Tabs activeKey={mainTab} onSelect={(k) => setMainTab(k || 'dashboard')} className="admin-tabs">
               {/* Dashboard Tab */}
               <Tab eventKey="dashboard" title={t('dashboard')}>
                 {/* Filters */}
@@ -1848,8 +1850,8 @@ function AdminDashboard() {
                     <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                       <Card.Body className="text-white">
                         <div>
-                          <h6 className="text-white-50 mb-1">{t('revenue')}</h6>
-                          <h3 className="mb-0">{formatPrice(analytics.revenue)} {t('sum')}</h3>
+                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenue')}</h6>
+                          <h3 className="mb-0 text-white">{formatPrice(analytics.revenue)} {t('sum')}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -1858,8 +1860,8 @@ function AdminDashboard() {
                     <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
                       <Card.Body className="text-white">
                         <div>
-                          <h6 className="text-white-50 mb-1">{t('ordersCount')}</h6>
-                          <h3 className="mb-0">{analytics.ordersCount}</h3>
+                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersCount')}</h6>
+                          <h3 className="mb-0 text-white">{analytics.ordersCount}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -1868,8 +1870,8 @@ function AdminDashboard() {
                     <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
                       <Card.Body className="text-white">
                         <div>
-                          <h6 className="text-white-50 mb-1">{t('averageCheck')}</h6>
-                          <h3 className="mb-0">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
+                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('averageCheck')}</h6>
+                          <h3 className="mb-0 text-white">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -1961,8 +1963,8 @@ function AdminDashboard() {
                         <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
                           <Card.Body className="text-white">
                             <div>
-                              <h6 className="text-white-50 mb-1">{t('revenueForYear')}</h6>
-                              <h3 className="mb-0">{formatPrice(yearlyAnalytics.totalRevenue)} {t('sum')}</h3>
+                              <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenueForYear')}</h6>
+                              <h3 className="mb-0 text-white">{formatPrice(yearlyAnalytics.totalRevenue)} {t('sum')}</h3>
                             </div>
                           </Card.Body>
                         </Card>
@@ -1971,8 +1973,8 @@ function AdminDashboard() {
                         <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%)' }}>
                           <Card.Body className="text-white">
                             <div>
-                              <h6 className="text-white-50 mb-1">{t('ordersForYear')}</h6>
-                              <h3 className="mb-0">{yearlyAnalytics.totalOrders}</h3>
+                              <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersForYear')}</h6>
+                              <h3 className="mb-0 text-white">{yearlyAnalytics.totalOrders}</h3>
                             </div>
                           </Card.Body>
                         </Card>
@@ -1981,8 +1983,8 @@ function AdminDashboard() {
                         <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)' }}>
                           <Card.Body className="text-white">
                             <div>
-                              <h6 className="text-white-50 mb-1">{t('avgCheckForYear')}</h6>
-                              <h3 className="mb-0">{formatPrice(yearlyAnalytics.averageCheck)} {t('sum')}</h3>
+                              <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('avgCheckForYear')}</h6>
+                              <h3 className="mb-0 text-white">{formatPrice(yearlyAnalytics.averageCheck)} {t('sum')}</h3>
                             </div>
                           </Card.Body>
                         </Card>
@@ -2392,9 +2394,6 @@ function AdminDashboard() {
                                 {getStatusBadge(orderStatus)}
                                 {needsPayment && orderStatus === 'new' && (
                                   <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты</Badge>
-                                )}
-                                {order.is_paid && (
-                                  <Badge bg="success" style={{ fontSize: '0.65rem' }}>Оплачен</Badge>
                                 )}
                               </div>
                             </td>
@@ -3010,7 +3009,7 @@ function AdminDashboard() {
                             <Row className="gy-4">
                               <Col md={6}>
                                 <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название ресторана</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название магазина</Form.Label>
                                   <Form.Control
                                     type="text"
                                     className="form-control-custom"
@@ -3351,7 +3350,7 @@ function AdminDashboard() {
                       {settingsTab === 'operators' && (
                         <>
                           <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h5 className="fw-bold mb-0">Операторы ресторана</h5>
+                            <h5 className="fw-bold mb-0">Операторы магазина</h5>
                             <Button
                               variant="primary"
                               className="rounded-pill px-4 fw-bold shadow-sm btn-primary-custom"
@@ -4604,7 +4603,7 @@ function AdminDashboard() {
                         ) : (
                           <div className="bg-primary rounded-circle" style={{ width: 24, height: 24 }}></div>
                         )}
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#8f6d46' }}>{user?.active_restaurant_name || 'Ресторан'}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#8f6d46' }}>{user?.active_restaurant_name || 'Магазин'}</span>
                       </div>
                       {broadcastForm.image_url && <div className="px-2 pb-2"><img src={broadcastForm.image_url} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} /></div>}
                       <div className="px-3 pb-2 pt-1">

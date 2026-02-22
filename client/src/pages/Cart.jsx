@@ -1144,7 +1144,7 @@ function Cart() {
             {!isDeliveryEnabled && (
               <Alert variant="info" className="mb-3 border-0 bg-light text-dark">
                 <div className="fw-bold mb-1">🛍 {language === 'uz' ? 'O\'zingiz olib ketish' : 'Самовывоз'}</div>
-                <div className="small">Заказ будет готов в ресторане. Подходите к кассе и назовите свое имя или телефон.</div>
+                <div className="small">Заказ будет готов в магазине. Подходите к кассе и назовите свое имя или телефон.</div>
               </Alert>
             )}
 

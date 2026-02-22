@@ -693,7 +693,7 @@ function Catalog() {
             )}
           </Navbar.Brand>
 
-          {/* Language switcher with flag */}
+          {/* Language switcher with flag + label */}
           <button
             onClick={toggleLanguage}
             style={{
@@ -712,6 +712,9 @@ function Catalog() {
               alt={language === 'ru' ? 'RU' : 'UZ'}
               style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
             />
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6f5538', letterSpacing: '0.04em' }}>
+              {language === 'ru' ? 'RU' : 'UZ'}
+            </span>
           </button>
         </div>
         <div className="px-3 pb-2">
@@ -785,9 +788,9 @@ function Catalog() {
         {restaurants.length === 0 && (
           <div className="text-center py-5">
             <div style={{ fontSize: '4rem' }}>🏪</div>
-            <h4 className="mt-3">Рестораны не найдены</h4>
+            <h4 className="mt-3">Магазины не найдены</h4>
             <p className="text-muted">
-              Пока нет активных ресторанов. Пожалуйста, попробуйте позже.
+              Пока нет активных магазинов. Пожалуйста, попробуйте позже.
             </p>
           </div>
         )}

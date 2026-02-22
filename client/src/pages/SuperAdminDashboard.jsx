@@ -394,7 +394,7 @@ function SuperAdminDashboard() {
         : response.data;
       setRestaurants(data);
     } catch (err) {
-      setError('Ошибка загрузки ресторанов');
+      setError('Ошибка загрузки магазинов');
     } finally {
       setLoading(false);
     }
@@ -486,7 +486,7 @@ function SuperAdminDashboard() {
     // Now customer object contains restaurant_id and is_blocked for specific shop
     const currentIsBlocked = customer.is_blocked || !customer.user_is_active;
     const action = currentIsBlocked ? 'разблокировать' : 'заблокировать';
-    const scopeName = `в магазине/ресторане "${customer.restaurant_name}"`;
+    const scopeName = `в магазине "${customer.restaurant_name}"`;
 
     if (!window.confirm(`Вы уверены, что хотите ${action} клиента ${customer.full_name || customer.username} ${scopeName}?`)) {
       return;
@@ -934,7 +934,7 @@ function SuperAdminDashboard() {
         ...topupForm,
         amount: amountValue
       });
-      setSuccess(`Баланс ресторана "${topupRestaurant.name}" пополнен`);
+      setSuccess(`Баланс магазина "${topupRestaurant.name}" пополнен`);
       setShowTopupModal(false);
       setTopupForm({ amount: '', description: '' });
       loadRestaurants();
@@ -1455,26 +1455,26 @@ function SuperAdminDashboard() {
     try {
       if (editingRestaurant) {
         await axios.put(`${API_URL}/superadmin/restaurants/${editingRestaurant.id}`, restaurantForm);
-        setSuccess('Ресторан обновлен');
+        setSuccess('Магазин обновлен');
       } else {
         await axios.post(`${API_URL}/superadmin/restaurants`, restaurantForm);
-        setSuccess('Ресторан создан');
+        setSuccess('Магазин создан');
       }
       setShowRestaurantModal(false);
       loadRestaurants();
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка сохранения ресторана');
+      setError(err.response?.data?.error || 'Ошибка сохранения магазина');
     }
   };
 
   const handleDeleteRestaurant = async (id) => {
-    if (!window.confirm('Удалить этот ресторан?')) return;
+    if (!window.confirm('Удалить этот магазин?')) return;
     try {
       await axios.delete(`${API_URL}/superadmin/restaurants/${id}`);
-      setSuccess('Ресторан удален');
+      setSuccess('Магазин удален');
       loadRestaurants();
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка удаления ресторана');
+      setError(err.response?.data?.error || 'Ошибка удаления магазина');
     }
   };
 
@@ -1595,9 +1595,9 @@ function SuperAdminDashboard() {
       'delete_user': 'Удаление пользователя',
       'block_user': 'Блокировка пользователя',
       'unblock_user': 'Разблокировка пользователя',
-      'create_restaurant': 'Создание ресторана',
-      'update_restaurant': 'Изменение ресторана',
-      'delete_restaurant': 'Удаление ресторана',
+      'create_restaurant': 'Создание магазина',
+      'update_restaurant': 'Изменение магазина',
+      'delete_restaurant': 'Удаление магазина',
       'login': 'Вход в систему',
       'logout': 'Выход из системы'
     };
@@ -3036,11 +3036,11 @@ function SuperAdminDashboard() {
                   <Row>
                     <Col md={6}>
                       <Form.Group className="mb-3">
-                        <Form.Label className="fw-medium text-secondary">Название магазина / ресторана *</Form.Label>
+                        <Form.Label className="fw-medium text-secondary">Название магазина *</Form.Label>
                         <Form.Control
                           value={restaurantForm.name}
                           onChange={(e) => setRestaurantForm({ ...restaurantForm, name: e.target.value })}
-                          placeholder="Название ресторана"
+                          placeholder="Название магазина"
                         />
                       </Form.Group>
                     </Col>
@@ -3061,7 +3061,7 @@ function SuperAdminDashboard() {
                     <Form.Control
                       value={restaurantForm.address}
                       onChange={(e) => setRestaurantForm({ ...restaurantForm, address: e.target.value })}
-                      placeholder="Адрес ресторана"
+                      placeholder="Адрес магазина"
                     />
                   </Form.Group>
 
@@ -3088,7 +3088,7 @@ function SuperAdminDashboard() {
                       </Form.Group>
                     </Col>
                   </Row>
-                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> Если не указано, ресторан считается открытым всегда.</Form.Text>
+                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> Если не указано, магазин считается открытым всегда.</Form.Text>
 
                   <hr className="my-4" />
                   <h6 className="fw-bold text-dark mb-3">📍 {t('saCoordinates')}</h6>
@@ -3129,7 +3129,7 @@ function SuperAdminDashboard() {
                     </Suspense>
                   </div>
                   <Form.Text className="text-muted mt-2 d-block">
-                    <i className="bi bi-cursor"></i> Кликните на карту или перетащите маркер, чтобы задать координаты ресторана.
+                    <i className="bi bi-cursor"></i> Кликните на карту или перетащите маркер, чтобы задать координаты магазина.
                   </Form.Text>
                 </div>
               </Tab>
@@ -3439,7 +3439,7 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
             <Form.Group className="mb-3">
-              <Form.Label>Доступ к ресторанам</Form.Label>
+              <Form.Label>Доступ к магазинам</Form.Label>
               <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                 {allRestaurants.filter(r => r.is_active).map(r => (
                   <Form.Check
@@ -3456,7 +3456,7 @@ function SuperAdminDashboard() {
                   />
                 ))}
                 {allRestaurants.filter(r => r.is_active).length === 0 && (
-                  <p className="text-muted mb-0">Нет активных ресторанов</p>
+                  <p className="text-muted mb-0">Нет активных магазинов</p>
                 )}
               </div>
             </Form.Group>
@@ -3635,7 +3635,7 @@ function SuperAdminDashboard() {
                     <Col md={6}>
                       <p className="mb-2"><strong>Дата создания:</strong> {formatDate(selectedOrder.created_at)}</p>
                       <p className="mb-2"><strong>Дата обновления:</strong> {formatDate(selectedOrder.updated_at)}</p>
-                      <p className="mb-2"><strong>Ресторан:</strong> {selectedOrder.restaurant_name || '-'}</p>
+                      <p className="mb-2"><strong>Магазин:</strong> {selectedOrder.restaurant_name || '-'}</p>
                       <p className="mb-2"><strong>Обработал:</strong> {selectedOrder.processed_by_name || '-'}</p>
                     </Col>
                     <Col md={6}>
