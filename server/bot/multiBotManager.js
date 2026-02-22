@@ -92,6 +92,30 @@ function normalizePhone(rawPhone) {
   return trimmed.replace(/\D/g, '');
 }
 
+async function resolveUniqueCustomerUsername(preferredUsername, telegramUserId) {
+  const ownerId = String(telegramUserId);
+  let candidate = String(preferredUsername || '').trim() || `user_${ownerId}`;
+
+  const existing = await pool.query(
+    'SELECT telegram_id FROM users WHERE username = $1 LIMIT 1',
+    [candidate]
+  );
+
+  if (existing.rows.length === 0 || String(existing.rows[0].telegram_id || '') === ownerId) {
+    return candidate;
+  }
+
+  const base = `user_${ownerId}`;
+  candidate = base;
+  let suffix = 1;
+
+  while (true) {
+    const conflict = await pool.query('SELECT 1 FROM users WHERE username = $1 LIMIT 1', [candidate]);
+    if (conflict.rows.length === 0) return candidate;
+    candidate = `${base}_${suffix++}`;
+  }
+}
+
 function buildWebLoginUrl() {
   const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
   if (!base) return null;
@@ -951,21 +975,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       // New user registration - complete it
       const phoneLogin = normalizePhone(state.phone);
-      const username = phoneLogin || `user_${userId}`;
+      const username = await resolveUniqueCustomerUsername(phoneLogin || `user_${userId}`, userId);
       const password = Math.random().toString(36).slice(-8);
       const hashedPassword = await bcrypt.hash(password, 10);
-
-      if (phoneLogin) {
-        const ownerCheck = await pool.query(
-          'SELECT id FROM users WHERE username = $1 AND telegram_id <> $2',
-          [phoneLogin, userId]
-        );
-        if (ownerCheck.rows.length > 0) {
-          bot.sendMessage(chatId, '❌ Этот номер уже зарегистрирован. Используйте другой номер или восстановление доступа.');
-          registrationStates.delete(getStateKey(userId, chatId));
-          return;
-        }
-      }
 
       const userResult = await pool.query(`
         INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, last_latitude, last_longitude, active_restaurant_id, bot_language)
