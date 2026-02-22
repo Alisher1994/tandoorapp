@@ -291,6 +291,26 @@ function SuperAdminDashboard() {
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
   const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
+  const [adBanners, setAdBanners] = useState([]);
+  const [adBannersMeta, setAdBannersMeta] = useState({ max_slots: 10, active_now_count: 0 });
+  const [adBannersLoading, setAdBannersLoading] = useState(false);
+  const [adBannerStatusFilter, setAdBannerStatusFilter] = useState('all');
+  const [showAdBannerModal, setShowAdBannerModal] = useState(false);
+  const [editingAdBanner, setEditingAdBanner] = useState(null);
+  const [uploadingAdBannerImage, setUploadingAdBannerImage] = useState(false);
+  const [adBannerForm, setAdBannerForm] = useState({
+    title: '',
+    image_url: '',
+    button_text: 'Открыть',
+    target_url: '',
+    slot_order: 1,
+    display_seconds: 5,
+    transition_effect: 'fade',
+    start_at: '',
+    end_at: '',
+    repeat_days: [],
+    is_enabled: true
+  });
 
   // Load data on tab change
   // Auto-hide notifications
@@ -315,6 +335,7 @@ function SuperAdminDashboard() {
     if (activeTab === 'customers') loadCustomers();
     if (activeTab === 'logs') loadLogs();
     if (activeTab === 'categories') loadCategories();
+    if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') loadBillingSettings();
   }, [activeTab]);
 
@@ -341,6 +362,10 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'logs') loadLogs();
   }, [logsFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'ads') loadAdBanners();
+  }, [activeTab, adBannerStatusFilter]);
 
   // API calls
   const loadStats = async () => {
@@ -613,6 +638,199 @@ function SuperAdminDashboard() {
       setIsCentralTokenVisible(false);
       centralTokenHideTimeoutRef.current = null;
     }, 2000);
+  };
+
+  const adWeekdayOptions = useMemo(() => ([
+    { value: 1, label: 'Пн' },
+    { value: 2, label: 'Вт' },
+    { value: 3, label: 'Ср' },
+    { value: 4, label: 'Чт' },
+    { value: 5, label: 'Пт' },
+    { value: 6, label: 'Сб' },
+    { value: 0, label: 'Вс' }
+  ]), []);
+
+  const toDatetimeLocalValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const formatAdDate = (value) => {
+    if (!value) return '—';
+    try {
+      return new Date(value).toLocaleString('ru-RU');
+    } catch (e) {
+      return value;
+    }
+  };
+
+  const getAdStatusLabel = (status) => {
+    const map = {
+      active: 'Активна',
+      scheduled: 'Запланирована',
+      finished: 'Завершена',
+      disabled: 'Выключена',
+      paused_by_days: 'По расписанию (сейчас скрыта)',
+      deleted: 'Архивирована'
+    };
+    return map[status] || status;
+  };
+
+  const getAdStatusBadgeClass = (status) => {
+    if (status === 'active') return 'bg-success bg-opacity-10 text-success';
+    if (status === 'scheduled') return 'bg-info bg-opacity-10 text-info';
+    if (status === 'finished' || status === 'deleted') return 'bg-secondary bg-opacity-10 text-muted';
+    if (status === 'disabled' || status === 'paused_by_days') return 'bg-warning bg-opacity-10 text-warning';
+    return 'bg-secondary bg-opacity-10 text-muted';
+  };
+
+  const resetAdBannerForm = () => {
+    setEditingAdBanner(null);
+    setAdBannerForm({
+      title: '',
+      image_url: '',
+      button_text: 'Открыть',
+      target_url: '',
+      slot_order: 1,
+      display_seconds: 5,
+      transition_effect: 'fade',
+      start_at: '',
+      end_at: '',
+      repeat_days: [],
+      is_enabled: true
+    });
+  };
+
+  const openAdBannerModal = (banner = null) => {
+    if (!banner) {
+      resetAdBannerForm();
+      setShowAdBannerModal(true);
+      return;
+    }
+
+    setEditingAdBanner(banner);
+    setAdBannerForm({
+      title: banner.title || '',
+      image_url: banner.image_url || '',
+      button_text: banner.button_text || 'Открыть',
+      target_url: banner.target_url || '',
+      slot_order: banner.slot_order || 1,
+      display_seconds: banner.display_seconds || 5,
+      transition_effect: banner.transition_effect || 'fade',
+      start_at: toDatetimeLocalValue(banner.start_at),
+      end_at: toDatetimeLocalValue(banner.end_at),
+      repeat_days: Array.isArray(banner.repeat_days) ? banner.repeat_days.map(Number) : [],
+      is_enabled: !!banner.is_enabled
+    });
+    setShowAdBannerModal(true);
+  };
+
+  const loadAdBanners = async () => {
+    try {
+      setAdBannersLoading(true);
+      const response = await axios.get(`${API_URL}/superadmin/ads/banners`, {
+        params: { status: adBannerStatusFilter }
+      });
+      setAdBanners(response.data?.items || []);
+      setAdBannersMeta({
+        max_slots: response.data?.max_slots || 10,
+        active_now_count: response.data?.active_now_count || 0
+      });
+    } catch (err) {
+      console.error('Load ad banners error:', err);
+      setError(err.response?.data?.error || 'Ошибка загрузки рекламы');
+    } finally {
+      setAdBannersLoading(false);
+    }
+  };
+
+  const handleAdBannerImageUpload = async (file) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Файл рекламы слишком большой (макс. 8MB)');
+      return;
+    }
+    setUploadingAdBannerImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const fullUrl = response.data?.url
+        ? `${window.location.origin}${response.data.url}`
+        : (response.data?.imageUrl ? `${window.location.origin}${response.data.imageUrl}` : '');
+      setAdBannerForm((prev) => ({ ...prev, image_url: fullUrl }));
+      setSuccess('Изображение рекламы загружено');
+    } catch (err) {
+      console.error('Ad banner image upload error:', err);
+      setError('Ошибка загрузки изображения рекламы');
+    } finally {
+      setUploadingAdBannerImage(false);
+    }
+  };
+
+  const saveAdBanner = async () => {
+    try {
+      const payload = {
+        ...adBannerForm,
+        slot_order: Number(adBannerForm.slot_order),
+        display_seconds: Number(adBannerForm.display_seconds),
+        repeat_days: (adBannerForm.repeat_days || []).map(Number).sort((a, b) => a - b),
+        start_at: adBannerForm.start_at ? new Date(adBannerForm.start_at).toISOString() : null,
+        end_at: adBannerForm.end_at ? new Date(adBannerForm.end_at).toISOString() : null
+      };
+
+      if (editingAdBanner?.id) {
+        await axios.put(`${API_URL}/superadmin/ads/banners/${editingAdBanner.id}`, payload);
+        setSuccess('Рекламный слот обновлен');
+      } else {
+        await axios.post(`${API_URL}/superadmin/ads/banners`, payload);
+        setSuccess('Рекламный слот создан');
+      }
+      setShowAdBannerModal(false);
+      resetAdBannerForm();
+      loadAdBanners();
+    } catch (err) {
+      console.error('Save ad banner error:', err);
+      setError(err.response?.data?.error || 'Ошибка сохранения рекламного слота');
+    }
+  };
+
+  const toggleAdBanner = async (banner) => {
+    try {
+      await axios.patch(`${API_URL}/superadmin/ads/banners/${banner.id}/toggle`);
+      setSuccess(`Реклама ${banner.is_enabled ? 'выключена' : 'включена'}`);
+      loadAdBanners();
+    } catch (err) {
+      console.error('Toggle ad banner error:', err);
+      setError(err.response?.data?.error || 'Ошибка переключения рекламы');
+    }
+  };
+
+  const deleteAdBanner = async (banner) => {
+    const ok = window.confirm(`Архивировать рекламу "${banner.title}"?`);
+    if (!ok) return;
+    try {
+      await axios.delete(`${API_URL}/superadmin/ads/banners/${banner.id}`);
+      setSuccess('Реклама отправлена в архив');
+      loadAdBanners();
+    } catch (err) {
+      console.error('Delete ad banner error:', err);
+      setError(err.response?.data?.error || 'Ошибка архивирования рекламы');
+    }
+  };
+
+  const toggleAdBannerWeekday = (weekday) => {
+    setAdBannerForm((prev) => {
+      const current = new Set((prev.repeat_days || []).map(Number));
+      if (current.has(weekday)) current.delete(weekday);
+      else current.add(weekday);
+      return { ...prev, repeat_days: [...current].sort((a, b) => a - b) };
+    });
   };
 
   const customerRestaurantOptions = useMemo(() => {
@@ -2076,6 +2294,176 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
+              {/* Ads Tab */}
+              <Tab eventKey="ads" title="📢 Реклама">
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                  <div>
+                    <h5 className="fw-bold mb-1">Рекламные баннеры</h5>
+                    <div className="d-flex flex-wrap gap-2">
+                      <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
+                        Активно сейчас: {adBannersMeta.active_now_count}
+                      </Badge>
+                      <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                        Макс. слотов: {adBannersMeta.max_slots}
+                      </Badge>
+                      <Badge className="badge-custom bg-info bg-opacity-10 text-info">
+                        Всего записей: {adBanners.length}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '220px' }}
+                      value={adBannerStatusFilter}
+                      onChange={(e) => setAdBannerStatusFilter(e.target.value)}
+                    >
+                      <option value="all">Все (активные + история)</option>
+                      <option value="active">Активные сейчас</option>
+                      <option value="scheduled">Запланированные</option>
+                      <option value="paused_by_days">Скрытые по дням недели</option>
+                      <option value="disabled">Выключенные</option>
+                      <option value="finished">Завершенные</option>
+                    </Form.Select>
+                    <Button className="btn-primary-custom" onClick={() => openAdBannerModal()}>
+                      + Добавить рекламу
+                    </Button>
+                  </div>
+                </div>
+
+                <Alert className="mb-4" variant="light" style={{ border: '1px solid var(--border-color)' }}>
+                  <div className="small">
+                    Баннеры показываются клиентам в самом верху каталога перед группами категорий.
+                    Если активных баннеров нет, каталог отображается как обычно.
+                    Ссылки и кнопки управляются только из суперадминки.
+                  </div>
+                </Alert>
+
+                {adBannersLoading ? (
+                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                ) : (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table align-middle">
+                        <thead>
+                          <tr>
+                            <th>Слот</th>
+                            <th>Баннер</th>
+                            <th>Кнопка / Ссылка</th>
+                            <th>Расписание</th>
+                            <th>Анимация</th>
+                            <th>Статус</th>
+                            <th>Статистика</th>
+                            <th className="text-end">Действия</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adBanners.map((banner) => (
+                            <tr key={banner.id}>
+                              <td>
+                                <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                  #{banner.slot_order}
+                                </Badge>
+                              </td>
+                              <td style={{ minWidth: '260px' }}>
+                                <div className="d-flex align-items-center gap-3">
+                                  <div
+                                    style={{
+                                      width: '72px',
+                                      height: '48px',
+                                      borderRadius: '8px',
+                                      overflow: 'hidden',
+                                      border: '1px solid var(--border-color)',
+                                      background: '#fff',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {banner.image_url ? (
+                                      <img src={banner.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : null}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="fw-semibold text-truncate" style={{ maxWidth: '260px' }}>{banner.title}</div>
+                                    <div className="small text-muted">ID: {banner.id}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ minWidth: '240px' }}>
+                                <div className="fw-semibold">{banner.button_text || 'Открыть'}</div>
+                                <a
+                                  href={banner.target_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="small text-decoration-none"
+                                  style={{ color: 'var(--primary-color)' }}
+                                >
+                                  {banner.target_url}
+                                </a>
+                              </td>
+                              <td style={{ minWidth: '260px' }}>
+                                <div className="small"><strong>Старт:</strong> {formatAdDate(banner.start_at)}</div>
+                                <div className="small"><strong>Конец:</strong> {formatAdDate(banner.end_at)}</div>
+                                <div className="small text-muted">
+                                  Дни: {Array.isArray(banner.repeat_days) && banner.repeat_days.length
+                                    ? adWeekdayOptions.filter((d) => banner.repeat_days.includes(d.value)).map((d) => d.label).join(', ')
+                                    : 'каждый день'}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="small text-capitalize">{banner.transition_effect || 'fade'}</div>
+                                <div className="small text-muted">{banner.display_seconds || 5} сек.</div>
+                              </td>
+                              <td>
+                                <Badge className={`badge-custom ${getAdStatusBadgeClass(banner.runtime_status)}`}>
+                                  {getAdStatusLabel(banner.runtime_status)}
+                                </Badge>
+                              </td>
+                              <td style={{ minWidth: '190px' }}>
+                                <div className="small">Просмотры: <strong>{banner.total_views || 0}</strong></div>
+                                <div className="small">Уникальные: <strong>{banner.unique_views || 0}</strong></div>
+                                <div className="small">Клики: <strong>{banner.total_clicks || 0}</strong></div>
+                              </td>
+                              <td className="text-end">
+                                <div className="d-flex gap-2 justify-content-end flex-wrap">
+                                  <Form.Check
+                                    type="switch"
+                                    id={`ad-toggle-${banner.id}`}
+                                    checked={!!banner.is_enabled}
+                                    onChange={() => toggleAdBanner(banner)}
+                                    title={banner.is_enabled ? 'Выключить рекламу' : 'Включить рекламу'}
+                                  />
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-primary"
+                                    onClick={() => openAdBannerModal(banner)}
+                                  >
+                                    ✏️
+                                  </Button>
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-danger"
+                                    onClick={() => deleteAdBanner(banner)}
+                                  >
+                                    🗂️
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {adBanners.length === 0 && (
+                            <tr>
+                              <td colSpan="8" className="text-center py-5 text-muted">
+                                Рекламных слотов пока нет
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+                  </>
+                )}
+              </Tab>
+
               {/* Logs Tab */}
               <Tab eventKey="logs" title={`📋 ${t('logs')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
@@ -2360,6 +2748,194 @@ function SuperAdminDashboard() {
           </Card.Body>
         </Card>
       </Container>
+
+      <Modal show={showAdBannerModal} onHide={() => setShowAdBannerModal(false)} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{editingAdBanner ? 'Редактировать рекламу' : 'Добавить рекламу'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col md={7}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Название (внутреннее)</Form.Label>
+                <Form.Control
+                  className="form-control-custom"
+                  value={adBannerForm.title}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Например: Акция на доставку"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={5}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Позиция слота (1-10)</Form.Label>
+                <Form.Control
+                  type="number"
+                  min={1}
+                  max={10}
+                  className="form-control-custom"
+                  value={adBannerForm.slot_order}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, slot_order: e.target.value }))}
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Изображение рекламы (JPG / PNG / WEBP / GIF)</Form.Label>
+                <div className="d-flex flex-column gap-2">
+                  {adBannerForm.image_url && (
+                    <div
+                      style={{
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        background: '#fff'
+                      }}
+                    >
+                      <img
+                        src={adBannerForm.image_url}
+                        alt="ad-preview"
+                        style={{ width: '100%', maxHeight: '210px', objectFit: 'cover', display: 'block' }}
+                      />
+                    </div>
+                  )}
+                  <Form.Control
+                    className="form-control-custom"
+                    placeholder="https://example.com/banner.jpg или /uploads/..."
+                    value={adBannerForm.image_url}
+                    onChange={(e) => setAdBannerForm((prev) => ({ ...prev, image_url: e.target.value }))}
+                  />
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <Form.Control
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="form-control-custom"
+                      onChange={(e) => handleAdBannerImageUpload(e.target.files?.[0])}
+                      disabled={uploadingAdBannerImage}
+                    />
+                    {uploadingAdBannerImage && <small className="text-muted">Загрузка...</small>}
+                  </div>
+                </div>
+              </Form.Group>
+            </Col>
+
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Текст кнопки</Form.Label>
+                <Form.Control
+                  className="form-control-custom"
+                  value={adBannerForm.button_text}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, button_text: e.target.value }))}
+                  placeholder="Открыть"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={8}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка перехода</Form.Label>
+                <Form.Control
+                  className="form-control-custom"
+                  type="url"
+                  value={adBannerForm.target_url}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, target_url: e.target.value }))}
+                  placeholder="https://..."
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Переход</Form.Label>
+                <Form.Select
+                  className="form-control-custom"
+                  value={adBannerForm.transition_effect}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, transition_effect: e.target.value }))}
+                >
+                  <option value="fade">Fade</option>
+                  <option value="slide">Slide</option>
+                  <option value="none">Без анимации</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Показ (сек)</Form.Label>
+                <Form.Control
+                  type="number"
+                  min={2}
+                  max={60}
+                  className="form-control-custom"
+                  value={adBannerForm.display_seconds}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, display_seconds: e.target.value }))}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4} className="d-flex align-items-end">
+              <Form.Check
+                type="switch"
+                id="ad-banner-enabled-switch"
+                label="Реклама включена"
+                checked={!!adBannerForm.is_enabled}
+                onChange={(e) => setAdBannerForm((prev) => ({ ...prev, is_enabled: e.target.checked }))}
+              />
+            </Col>
+
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Начало показа</Form.Label>
+                <Form.Control
+                  type="datetime-local"
+                  className="form-control-custom"
+                  value={adBannerForm.start_at}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, start_at: e.target.value }))}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Окончание показа</Form.Label>
+                <Form.Control
+                  type="datetime-local"
+                  className="form-control-custom"
+                  value={adBannerForm.end_at}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, end_at: e.target.value }))}
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Дни показа (если не выбрано — каждый день)</Form.Label>
+                <div className="d-flex flex-wrap gap-2">
+                  {adWeekdayOptions.map((day) => {
+                    const active = (adBannerForm.repeat_days || []).includes(day.value);
+                    return (
+                      <Button
+                        key={day.value}
+                        type="button"
+                        size="sm"
+                        variant={active ? 'primary' : 'outline-secondary'}
+                        className={active ? '' : 'text-muted'}
+                        onClick={() => toggleAdBannerWeekday(day.value)}
+                        style={active ? undefined : { borderColor: 'var(--border-color)' }}
+                      >
+                        {day.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAdBannerModal(false)}>Отмена</Button>
+          <Button className="btn-primary-custom" onClick={saveAdBanner}>
+            {editingAdBanner ? 'Сохранить изменения' : 'Создать слот'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Restaurant Modal */}
       <Modal show={showRestaurantModal} onHide={() => setShowRestaurantModal(false)} size="lg">

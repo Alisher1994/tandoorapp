@@ -218,6 +218,126 @@ const normalizeCategoryId = (value) => {
 
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
+const AD_BANNER_MAX_SLOTS = 10;
+const AD_TRANSITIONS = new Set(['none', 'fade', 'slide']);
+const TASHKENT_TZ = 'Asia/Tashkent';
+
+const normalizeAdRepeatDays = (value) => {
+  let days = [];
+  if (Array.isArray(value)) {
+    days = value;
+  } else if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) days = parsed;
+    } catch (e) {
+      days = value.split(',').map((v) => v.trim());
+    }
+  }
+
+  const normalized = [...new Set(
+    days
+      .map((day) => Number.parseInt(day, 10))
+      .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+  )].sort((a, b) => a - b);
+
+  return normalized;
+};
+
+const parseOptionalDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getTashkentWeekday = (date = new Date()) => {
+  const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: TASHKENT_TZ })
+    .format(date)
+    .toLowerCase();
+  const map = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  return map[dayName];
+};
+
+const isAdBannerVisibleNow = (banner, now = new Date()) => {
+  if (!banner || banner.is_deleted || !banner.is_enabled) return false;
+  const startAt = banner.start_at ? new Date(banner.start_at) : null;
+  const endAt = banner.end_at ? new Date(banner.end_at) : null;
+  if (startAt && now < startAt) return false;
+  if (endAt && now > endAt) return false;
+  const repeatDays = Array.isArray(banner.repeat_days) ? banner.repeat_days : normalizeAdRepeatDays(banner.repeat_days);
+  if (repeatDays.length > 0) {
+    const day = getTashkentWeekday(now);
+    if (!repeatDays.includes(day)) return false;
+  }
+  return true;
+};
+
+const getAdBannerStatus = (banner, now = new Date()) => {
+  if (banner.is_deleted) return 'deleted';
+  if (!banner.is_enabled) return 'disabled';
+  const startAt = banner.start_at ? new Date(banner.start_at) : null;
+  const endAt = banner.end_at ? new Date(banner.end_at) : null;
+  if (startAt && now < startAt) return 'scheduled';
+  if (endAt && now > endAt) return 'finished';
+  if (!isAdBannerVisibleNow(banner, now)) return 'paused_by_days';
+  return 'active';
+};
+
+const normalizeAdBannerPayload = (body) => {
+  const title = String(body.title || '').trim();
+  const imageUrl = String(body.image_url || '').trim();
+  const buttonText = String(body.button_text || 'Открыть').trim() || 'Открыть';
+  const targetUrl = String(body.target_url || '').trim();
+  const slotOrder = Number.parseInt(body.slot_order, 10);
+  const displaySeconds = Number.parseInt(body.display_seconds, 10);
+  const transitionEffect = String(body.transition_effect || 'fade').trim().toLowerCase();
+  const startAt = parseOptionalDate(body.start_at);
+  const endAt = parseOptionalDate(body.end_at);
+  const repeatDays = normalizeAdRepeatDays(body.repeat_days);
+  const isEnabled = body.is_enabled === undefined ? true : !!body.is_enabled;
+
+  if (!title) return { error: 'Укажите название рекламы' };
+  if (!imageUrl) return { error: 'Загрузите изображение рекламы' };
+  if (!targetUrl) return { error: 'Укажите ссылку перехода' };
+  try {
+    const parsedUrl = new URL(targetUrl);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return { error: 'Ссылка должна начинаться с http:// или https://' };
+    }
+  } catch (e) {
+    return { error: 'Некорректная ссылка перехода' };
+  }
+  if (!Number.isInteger(slotOrder) || slotOrder < 1 || slotOrder > AD_BANNER_MAX_SLOTS) {
+    return { error: `Позиция слота должна быть от 1 до ${AD_BANNER_MAX_SLOTS}` };
+  }
+  if (!Number.isInteger(displaySeconds) || displaySeconds < 2 || displaySeconds > 60) {
+    return { error: 'Длительность показа должна быть от 2 до 60 секунд' };
+  }
+  if (!AD_TRANSITIONS.has(transitionEffect)) {
+    return { error: 'Некорректный тип анимации перехода' };
+  }
+  if ((body.start_at && !startAt) || (body.end_at && !endAt)) {
+    return { error: 'Некорректная дата начала или окончания' };
+  }
+  if (startAt && endAt && endAt <= startAt) {
+    return { error: 'Дата окончания должна быть позже даты начала' };
+  }
+
+  return {
+    title,
+    image_url: imageUrl,
+    button_text: buttonText,
+    target_url: targetUrl,
+    slot_order: slotOrder,
+    display_seconds: displaySeconds,
+    transition_effect: transitionEffect,
+    start_at: startAt ? startAt.toISOString() : null,
+    end_at: endAt ? endAt.toISOString() : null,
+    repeat_days: repeatDays,
+    is_enabled: isEnabled
+  };
+};
+
 const findSiblingCategoryNameConflict = async ({
   client,
   parentId,
@@ -1814,6 +1934,234 @@ router.get('/stats', async (req, res) => {
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
+// =====================================================
+// GLOBAL ADS (SUPERADMIN ONLY)
+// =====================================================
+
+const mapAdBannerRow = (row) => {
+  const repeatDays = Array.isArray(row.repeat_days) ? row.repeat_days : normalizeAdRepeatDays(row.repeat_days);
+  const banner = { ...row, repeat_days: repeatDays };
+  return {
+    ...banner,
+    is_visible_now: isAdBannerVisibleNow(banner),
+    runtime_status: getAdBannerStatus(banner)
+  };
+};
+
+router.get('/ads/banners', async (req, res) => {
+  try {
+    const { status = 'all', include_deleted = 'false' } = req.query;
+    const includeDeleted = include_deleted === 'true';
+
+    const result = await pool.query(`
+      SELECT
+        b.*,
+        cu.username AS created_by_username,
+        uu.username AS updated_by_username,
+        COALESCE(stats.total_views, 0)::int AS total_views,
+        COALESCE(stats.unique_views, 0)::int AS unique_views,
+        COALESCE(stats.total_clicks, 0)::int AS total_clicks,
+        stats.last_view_at,
+        stats.last_click_at
+      FROM ad_banners b
+      LEFT JOIN users cu ON cu.id = b.created_by
+      LEFT JOIN users uu ON uu.id = b.updated_by
+      LEFT JOIN (
+        SELECT
+          e.banner_id,
+          COUNT(*) FILTER (WHERE e.event_type = 'view') AS total_views,
+          COUNT(*) FILTER (WHERE e.event_type = 'click') AS total_clicks,
+          COUNT(DISTINCT CASE
+            WHEN e.event_type = 'view' THEN COALESCE(e.user_id::text, NULLIF(e.viewer_key, ''), NULLIF(e.ip_address, ''))
+            ELSE NULL
+          END) AS unique_views,
+          MAX(e.created_at) FILTER (WHERE e.event_type = 'view') AS last_view_at,
+          MAX(e.created_at) FILTER (WHERE e.event_type = 'click') AS last_click_at
+        FROM ad_banner_events e
+        GROUP BY e.banner_id
+      ) stats ON stats.banner_id = b.id
+      WHERE ($1::boolean = true OR b.is_deleted = false)
+      ORDER BY b.slot_order ASC, b.created_at DESC
+    `, [includeDeleted]);
+
+    const allRows = result.rows.map(mapAdBannerRow);
+    let rows = allRows;
+    if (status !== 'all') {
+      rows = rows.filter((row) => row.runtime_status === status);
+    }
+
+    const activeNowCount = allRows.filter((row) => row.is_visible_now).length;
+    res.json({
+      items: rows,
+      max_slots: AD_BANNER_MAX_SLOTS,
+      active_now_count: activeNowCount
+    });
+  } catch (error) {
+    console.error('Get ad banners error:', error);
+    res.status(500).json({ error: 'Ошибка получения рекламных баннеров' });
+  }
+});
+
+router.post('/ads/banners', async (req, res) => {
+  try {
+    const payload = normalizeAdBannerPayload(req.body);
+    if (payload.error) {
+      return res.status(400).json({ error: payload.error });
+    }
+
+    const activeCountResult = await pool.query(
+      `SELECT COUNT(*)::int AS count
+       FROM ad_banners
+       WHERE is_deleted = false`
+    );
+    if ((activeCountResult.rows[0]?.count || 0) >= 1000) {
+      return res.status(400).json({ error: 'Слишком много записей рекламы. Очистите историю.' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO ad_banners (
+        title, image_url, button_text, target_url,
+        slot_order, display_seconds, transition_effect,
+        start_at, end_at, repeat_days, is_enabled,
+        created_by, updated_by
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)
+      RETURNING *
+    `, [
+      payload.title,
+      payload.image_url,
+      payload.button_text,
+      payload.target_url,
+      payload.slot_order,
+      payload.display_seconds,
+      payload.transition_effect,
+      payload.start_at,
+      payload.end_at,
+      JSON.stringify(payload.repeat_days),
+      payload.is_enabled,
+      req.user.id,
+      req.user.id
+    ]);
+
+    res.status(201).json(mapAdBannerRow(result.rows[0]));
+  } catch (error) {
+    console.error('Create ad banner error:', error);
+    res.status(500).json({ error: 'Ошибка создания рекламного баннера' });
+  }
+});
+
+router.put('/ads/banners/:id', async (req, res) => {
+  try {
+    const bannerId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(bannerId)) {
+      return res.status(400).json({ error: 'Некорректный ID баннера' });
+    }
+
+    const exists = await pool.query('SELECT id FROM ad_banners WHERE id = $1 AND is_deleted = false', [bannerId]);
+    if (!exists.rows.length) {
+      return res.status(404).json({ error: 'Баннер не найден' });
+    }
+
+    const payload = normalizeAdBannerPayload(req.body);
+    if (payload.error) {
+      return res.status(400).json({ error: payload.error });
+    }
+
+    const result = await pool.query(`
+      UPDATE ad_banners
+      SET title = $1,
+          image_url = $2,
+          button_text = $3,
+          target_url = $4,
+          slot_order = $5,
+          display_seconds = $6,
+          transition_effect = $7,
+          start_at = $8,
+          end_at = $9,
+          repeat_days = $10::jsonb,
+          is_enabled = $11,
+          updated_by = $12,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $13
+      RETURNING *
+    `, [
+      payload.title,
+      payload.image_url,
+      payload.button_text,
+      payload.target_url,
+      payload.slot_order,
+      payload.display_seconds,
+      payload.transition_effect,
+      payload.start_at,
+      payload.end_at,
+      JSON.stringify(payload.repeat_days),
+      payload.is_enabled,
+      req.user.id,
+      bannerId
+    ]);
+
+    res.json(mapAdBannerRow(result.rows[0]));
+  } catch (error) {
+    console.error('Update ad banner error:', error);
+    res.status(500).json({ error: 'Ошибка обновления рекламного баннера' });
+  }
+});
+
+router.patch('/ads/banners/:id/toggle', async (req, res) => {
+  try {
+    const bannerId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(bannerId)) {
+      return res.status(400).json({ error: 'Некорректный ID баннера' });
+    }
+
+    const result = await pool.query(`
+      UPDATE ad_banners
+      SET is_enabled = NOT is_enabled,
+          updated_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND is_deleted = false
+      RETURNING *
+    `, [bannerId, req.user.id]);
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Баннер не найден' });
+    }
+
+    res.json(mapAdBannerRow(result.rows[0]));
+  } catch (error) {
+    console.error('Toggle ad banner error:', error);
+    res.status(500).json({ error: 'Ошибка переключения рекламы' });
+  }
+});
+
+router.delete('/ads/banners/:id', async (req, res) => {
+  try {
+    const bannerId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(bannerId)) {
+      return res.status(400).json({ error: 'Некорректный ID баннера' });
+    }
+
+    const result = await pool.query(`
+      UPDATE ad_banners
+      SET is_deleted = true,
+          is_enabled = false,
+          updated_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND is_deleted = false
+      RETURNING id
+    `, [bannerId, req.user.id]);
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Баннер не найден' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete ad banner error:', error);
+    res.status(500).json({ error: 'Ошибка удаления рекламы' });
   }
 });
 

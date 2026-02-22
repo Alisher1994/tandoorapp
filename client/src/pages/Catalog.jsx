@@ -20,6 +20,8 @@ function Catalog() {
   const [prevRestaurant, setPrevRestaurant] = useState(null);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [adBanners, setAdBanners] = useState([]);
+  const [activeAdIndex, setActiveAdIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
@@ -30,6 +32,7 @@ function Catalog() {
   const navigate = useNavigate();
 
   const productGroupRefs = useRef({});
+  const viewedAdsRef = useRef(new Set());
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
@@ -105,9 +108,10 @@ function Catalog() {
 
     setLoading(true);
     try {
-      const [categoriesRes, productsRes] = await Promise.all([
+      const [categoriesRes, productsRes, adsRes] = await Promise.all([
         axios.get(`${API_URL}/products/categories?restaurant_id=${selectedRestaurant}`),
-        axios.get(`${API_URL}/products?restaurant_id=${selectedRestaurant}`)
+        axios.get(`${API_URL}/products?restaurant_id=${selectedRestaurant}`),
+        axios.get(`${API_URL}/products/ads-banners?restaurant_id=${selectedRestaurant}`)
       ]);
 
       setCategories((categoriesRes.data || []).sort((a, b) => {
@@ -117,10 +121,18 @@ function Catalog() {
         return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
       }));
       setProducts(productsRes.data || []);
+      setAdBanners((adsRes.data || []).sort((a, b) => {
+        const slotDiff = (a.slot_order || 999) - (b.slot_order || 999);
+        if (slotDiff !== 0) return slotDiff;
+        return (a.id || 0) - (b.id || 0);
+      }));
+      setActiveAdIndex(0);
+      viewedAdsRef.current = new Set();
     } catch (error) {
       console.error('Error fetching data:', error);
       setCategories([]);
       setProducts([]);
+      setAdBanners([]);
     } finally {
       setLoading(false);
     }
@@ -332,6 +344,55 @@ function Catalog() {
 
   const currentRestaurant = restaurants.find(r => r.id === selectedRestaurant);
 
+  const getAdViewerKey = () => {
+    try {
+      const key = 'catalog_ad_viewer_key';
+      let value = localStorage.getItem(key);
+      if (!value) {
+        value = `v_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+        localStorage.setItem(key, value);
+      }
+      return value;
+    } catch (e) {
+      return `v_fallback_${Date.now()}`;
+    }
+  };
+
+  useEffect(() => {
+    if (!adBanners.length) return undefined;
+    const activeBanner = adBanners[activeAdIndex] || adBanners[0];
+    if (!activeBanner) return undefined;
+
+    const timeout = setTimeout(() => {
+      setActiveAdIndex((prev) => ((prev + 1) % adBanners.length));
+    }, Math.max(2, Number(activeBanner.display_seconds) || 5) * 1000);
+
+    return () => clearTimeout(timeout);
+  }, [adBanners, activeAdIndex]);
+
+  useEffect(() => {
+    const activeBanner = adBanners[activeAdIndex];
+    if (!activeBanner || !selectedRestaurant) return;
+    const trackKey = `${selectedRestaurant}:${activeBanner.id}`;
+    if (viewedAdsRef.current.has(trackKey)) return;
+    viewedAdsRef.current.add(trackKey);
+
+    axios.post(`${API_URL}/products/ads-banners/${activeBanner.id}/view`, {
+      viewer_key: getAdViewerKey(),
+      restaurant_id: selectedRestaurant
+    }).catch((error) => {
+      console.error('Ad view track error:', error);
+    });
+  }, [adBanners, activeAdIndex, selectedRestaurant]);
+
+  const openAdBannerLink = (banner) => {
+    if (!banner?.click_url) return;
+    const viewerKey = encodeURIComponent(getAdViewerKey());
+    const restaurantId = selectedRestaurant ? `&restaurant_id=${selectedRestaurant}` : '';
+    const separator = banner.click_url.includes('?') ? '&' : '?';
+    window.open(`${banner.click_url}${separator}viewer_key=${viewerKey}${restaurantId}`, '_blank', 'noopener,noreferrer');
+  };
+
   // Product card component
   const renderProductCard = (product) => {
     const cartItem = getCartItem(product.id);
@@ -504,6 +565,125 @@ function Catalog() {
     );
   };
 
+  const renderAdBannerCarousel = () => {
+    if (!adBanners.length) return null;
+    const banner = adBanners[activeAdIndex] || adBanners[0];
+    if (!banner) return null;
+
+    const transitionEffect = banner.transition_effect || 'fade';
+    let animation = 'none';
+    if (transitionEffect === 'fade') animation = 'catalogAdFadeIn 360ms ease';
+    if (transitionEffect === 'slide') animation = 'catalogAdSlideIn 360ms ease';
+
+    return (
+      <div className="mb-3">
+        <style>{`
+          @keyframes catalogAdFadeIn { from { opacity: 0.2; } to { opacity: 1; } }
+          @keyframes catalogAdSlideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+        `}</style>
+        <div
+          style={{
+            borderRadius: '16px',
+            overflow: 'hidden',
+            background: '#fff',
+            border: '1px solid rgba(165,133,92,0.18)',
+            boxShadow: '0 8px 20px rgba(60, 42, 24, 0.05)'
+          }}
+        >
+          <div
+            key={banner.id}
+            style={{
+              position: 'relative',
+              minHeight: '150px',
+              background: '#fff',
+              animation
+            }}
+          >
+            <img
+              src={resolveImageUrl(banner.image_url)}
+              alt={banner.title || 'Реклама'}
+              style={{
+                width: '100%',
+                height: '150px',
+                objectFit: 'cover',
+                display: 'block',
+                background: '#fff'
+              }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: 10,
+                right: 10,
+                bottom: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px'
+              }}
+            >
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.92)',
+                  color: '#2a2118',
+                  borderRadius: '10px',
+                  padding: '6px 10px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  flex: 1,
+                  minWidth: 0
+                }}
+                className="text-truncate"
+              >
+                {banner.title}
+              </div>
+              <button
+                type="button"
+                onClick={() => openAdBannerLink(banner)}
+                style={{
+                  border: 'none',
+                  background: 'var(--primary-color)',
+                  color: '#fff',
+                  borderRadius: '10px',
+                  padding: '8px 12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {banner.button_text || (language === 'uz' ? 'Ochish' : 'Открыть')}
+              </button>
+            </div>
+          </div>
+          {adBanners.length > 1 && (
+            <div className="d-flex justify-content-center align-items-center gap-1 py-2" style={{ background: '#fff' }}>
+              {adBanners.map((item, idx) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveAdIndex(idx)}
+                  aria-label={`banner-${idx + 1}`}
+                  style={{
+                    width: idx === activeAdIndex ? 18 : 6,
+                    height: 6,
+                    borderRadius: 999,
+                    border: 'none',
+                    background: idx === activeAdIndex ? 'var(--primary-color)' : 'rgba(165,133,92,0.25)',
+                    transition: 'all 180ms ease'
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading && restaurants.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
@@ -628,6 +808,7 @@ function Catalog() {
 
             {!loading && selectedCategory === null && (
               <div className="py-3">
+                {renderAdBannerCarousel()}
                 {level1Categories.map((level1Category) => {
                   const level2Categories = level2ByLevel1.get(level1Category.id) || [];
                   if (level2Categories.length === 0) return null;
@@ -692,6 +873,7 @@ function Catalog() {
 
             {!loading && selectedCategory !== null && selectedLevel2Category && (
               <div className="py-3">
+                {renderAdBannerCarousel()}
                 <div className="d-flex align-items-center justify-content-between mb-3">
                   <Button variant="outline-secondary" size="sm" onClick={closeLevel2Category}>
                     {language === 'uz' ? 'Orqaga' : 'Назад'}

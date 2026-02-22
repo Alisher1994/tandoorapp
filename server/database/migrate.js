@@ -509,6 +509,109 @@ async function migrate() {
 
     console.log('✅ Billing tables and settings ready');
 
+    // =====================================================
+    // Step 11: Global Ad Banners (superadmin-managed)
+    // =====================================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ad_banners (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        image_url TEXT NOT NULL,
+        button_text VARCHAR(120) NOT NULL DEFAULT 'Открыть',
+        target_url TEXT NOT NULL,
+        slot_order INTEGER NOT NULL DEFAULT 1,
+        display_seconds INTEGER NOT NULL DEFAULT 5,
+        transition_effect VARCHAR(20) NOT NULL DEFAULT 'fade',
+        start_at TIMESTAMP NULL,
+        end_at TIMESTAMP NULL,
+        repeat_days JSONB NOT NULL DEFAULT '[]'::jsonb,
+        is_enabled BOOLEAN NOT NULL DEFAULT true,
+        is_deleted BOOLEAN NOT NULL DEFAULT false,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ad_banner_events (
+        id SERIAL PRIMARY KEY,
+        banner_id INTEGER NOT NULL REFERENCES ad_banners(id) ON DELETE CASCADE,
+        event_type VARCHAR(20) NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL,
+        viewer_key VARCHAR(128),
+        ip_address VARCHAR(128),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Ensure new columns exist if table was created earlier with an older schema
+    const adBannerColumns = [
+      'title VARCHAR(255)',
+      'image_url TEXT',
+      `button_text VARCHAR(120) DEFAULT 'Открыть'`,
+      'target_url TEXT',
+      'slot_order INTEGER DEFAULT 1',
+      'display_seconds INTEGER DEFAULT 5',
+      `transition_effect VARCHAR(20) DEFAULT 'fade'`,
+      'start_at TIMESTAMP NULL',
+      'end_at TIMESTAMP NULL',
+      `repeat_days JSONB DEFAULT '[]'::jsonb`,
+      'is_enabled BOOLEAN DEFAULT true',
+      'is_deleted BOOLEAN DEFAULT false',
+      'created_by INTEGER REFERENCES users(id) ON DELETE SET NULL',
+      'updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL',
+      'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+      'updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+    ];
+    for (const col of adBannerColumns) {
+      try {
+        await client.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS ${col}`);
+      } catch (e) { }
+    }
+
+    const adEventColumns = [
+      'banner_id INTEGER REFERENCES ad_banners(id) ON DELETE CASCADE',
+      'event_type VARCHAR(20)',
+      'user_id INTEGER REFERENCES users(id) ON DELETE SET NULL',
+      'restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL',
+      'viewer_key VARCHAR(128)',
+      'ip_address VARCHAR(128)',
+      'user_agent TEXT',
+      'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+    ];
+    for (const col of adEventColumns) {
+      try {
+        await client.query(`ALTER TABLE ad_banner_events ADD COLUMN IF NOT EXISTS ${col}`);
+      } catch (e) { }
+    }
+
+    await client.query(`ALTER TABLE ad_banners ALTER COLUMN repeat_days SET DEFAULT '[]'::jsonb`);
+    await client.query(`UPDATE ad_banners SET repeat_days = '[]'::jsonb WHERE repeat_days IS NULL`);
+
+    await client.query(`
+      ALTER TABLE ad_banners
+      ADD CONSTRAINT IF NOT EXISTS ad_banners_transition_effect_check
+      CHECK (transition_effect IN ('none', 'fade', 'slide'))
+    `).catch(() => {});
+
+    await client.query(`
+      ALTER TABLE ad_banner_events
+      ADD CONSTRAINT IF NOT EXISTS ad_banner_events_type_check
+      CHECK (event_type IN ('view', 'click'))
+    `).catch(() => {});
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banners_enabled_slot ON ad_banners(is_enabled, is_deleted, slot_order)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banners_start_end ON ad_banners(start_at, end_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_banner ON ad_banner_events(banner_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_type ON ad_banner_events(event_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_created ON ad_banner_events(created_at DESC)');
+    console.log('✅ Ad banners tables ready');
+
     // await client.query('COMMIT');
     console.log('✅ Migration completed successfully!');
     return true;
