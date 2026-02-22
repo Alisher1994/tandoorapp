@@ -27,7 +27,7 @@ function Catalog() {
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
-  const { addToCart, updateQuantity, clearCart, cart } = useCart();
+  const { addToCart, updateQuantity, clearCart, cart, cartTotal, cartCount } = useCart();
   const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
 
@@ -712,6 +712,39 @@ function Catalog() {
               alt={language === 'ru' ? 'RU' : 'UZ'}
               style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
             />
+          </button>
+        </div>
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={() => navigate('/cart')}
+            style={{
+              width: '100%',
+              border: '1px solid rgba(165,133,92,0.22)',
+              background: cartCount > 0 ? 'rgba(165,133,92,0.10)' : 'rgba(255,255,255,0.8)',
+              color: '#3a2b1b',
+              borderRadius: '12px',
+              padding: '8px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            title={language === 'uz' ? 'Savatni ochish' : 'Открыть корзину'}
+          >
+            <span className="text-truncate">
+              {cartCount > 0
+                ? (language === 'uz'
+                  ? `Savat: ${cartCount} ta mahsulot`
+                  : `В корзине: ${cartCount} тов.`)
+                : (language === 'uz' ? 'Savat bo‘sh' : 'Корзина пуста')}
+            </span>
+            <span style={{ whiteSpace: 'nowrap', color: 'var(--primary-color)', fontWeight: 700 }}>
+              {formatPrice(cartTotal || 0)} {language === 'uz' ? "so'm" : 'сум'}
+            </span>
           </button>
         </div>
       </Navbar>

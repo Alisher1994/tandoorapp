@@ -22,6 +22,7 @@ import InputGroup from 'react-bootstrap/InputGroup';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import * as XLSX from 'xlsx';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
@@ -251,6 +252,11 @@ function AdminDashboard() {
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
+  const {
+    actionButtonsVisible,
+    actionButtonsRemainingLabel,
+    setActionButtonsVisible
+  } = useTimedActionButtonsVisibility();
   const normalizedInitialRestaurantBotToken = (initialRestaurantBotToken || '').trim();
   const normalizedCurrentRestaurantBotToken = (restaurantSettings?.telegram_bot_token || '').trim();
   const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
@@ -1582,6 +1588,7 @@ function AdminDashboard() {
 
   return (
     <>
+      <div className={actionButtonsVisible ? '' : 'action-buttons-hidden'}>
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container>
           <Navbar.Brand className="d-flex align-items-center gap-2 py-1">
@@ -2931,6 +2938,25 @@ function AdminDashboard() {
                 </div>
 
                 <div className="p-4 bg-light" style={{ minHeight: '60vh' }}>
+                  <Alert variant={actionButtonsVisible ? 'warning' : 'secondary'} className="border-0 shadow-sm rounded-4 mb-4">
+                    <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+                      <div>
+                        <div className="fw-bold">Безопасный режим кнопок действий</div>
+                        <div className="small text-muted">
+                          Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение работает 10 минут.
+                          {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
+                        </div>
+                      </div>
+                      <Form.Check
+                        type="switch"
+                        id="admin-action-buttons-visibility-switch"
+                        className="fw-semibold"
+                        label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
+                        checked={actionButtonsVisible}
+                        onChange={(e) => setActionButtonsVisible(e.target.checked)}
+                      />
+                    </div>
+                  </Alert>
                   {restaurantSettings ? (
                     <>
                       {settingsTab === 'general' && (
@@ -5035,6 +5061,7 @@ function AdminDashboard() {
         </Modal>
 
       </Container>
+      </div>
     </>
   );
 }

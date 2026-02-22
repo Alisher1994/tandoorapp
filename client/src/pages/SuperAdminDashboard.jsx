@@ -10,6 +10,7 @@ import {
 } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
@@ -164,6 +165,11 @@ const SearchableRestaurantFilter = ({
 function SuperAdminDashboard() {
   const { user, logout } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
+  const {
+    actionButtonsVisible,
+    actionButtonsRemainingLabel,
+    setActionButtonsVisible
+  } = useTimedActionButtonsVisibility();
   const navigate = useNavigate();
 
   // State
@@ -1604,7 +1610,7 @@ function SuperAdminDashboard() {
   };
 
   return (
-    <div className="min-vh-100 bg-light">
+    <div className={`min-vh-100 bg-light ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
       {/* Header */}
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container>
@@ -2615,6 +2621,26 @@ function SuperAdminDashboard() {
                       {t('saveSettings')}
                     </Button>
                   </div>
+
+                  <Alert variant={actionButtonsVisible ? 'warning' : 'secondary'} className="border-0 shadow-sm rounded-4 mb-4">
+                    <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+                      <div>
+                        <div className="fw-bold">Безопасный режим кнопок действий</div>
+                        <div className="small text-muted">
+                          Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение действует 10 минут.
+                          {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
+                        </div>
+                      </div>
+                      <Form.Check
+                        type="switch"
+                        id="superadmin-action-buttons-visibility-switch"
+                        className="fw-semibold"
+                        label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
+                        checked={actionButtonsVisible}
+                        onChange={(e) => setActionButtonsVisible(e.target.checked)}
+                      />
+                    </div>
+                  </Alert>
 
                   <Row className="g-4">
                     <Col md={7}>

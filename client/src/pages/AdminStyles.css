@@ -372,6 +372,11 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+/* Safety mode: hide edit/delete action buttons by default until temporary toggle is enabled */
+.action-buttons-hidden .action-btn {
+    display: none !important;
+}
+
 /* Product table action buttons: no glow/shadow */
 .product-table-actions .action-btn,
 .product-table-actions .action-btn:hover,
