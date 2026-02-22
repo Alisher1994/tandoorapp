@@ -313,6 +313,56 @@ body::-webkit-scrollbar,
     padding-top: 1.5rem;
 }
 
+.admin-settings-pill-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    padding: 0 0 12px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.admin-settings-pill-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.admin-settings-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1.5px solid #dfcfb9;
+    background: #fffaf3;
+    color: #7d6a55;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.admin-settings-pill-btn:hover {
+    border-color: rgba(143, 109, 70, 0.35);
+    color: var(--primary-color);
+}
+
+.admin-settings-pill-btn.is-active {
+    border-color: var(--primary-color);
+    background: var(--primary-color);
+    color: #fffaf3;
+    font-weight: 600;
+}
+
+.admin-product-toolbar-actions {
+    flex-wrap: wrap;
+}
+
 @media (max-width: 991.98px) {
     .admin-navbar-shell .navbar-collapse {
         padding-top: 0.5rem;
@@ -391,6 +441,41 @@ body::-webkit-scrollbar,
 
     .admin-tabs+.tab-content {
         padding-top: 1rem;
+    }
+
+    .admin-product-toolbar {
+        align-items: center !important;
+    }
+
+    .admin-product-toolbar-actions {
+        width: 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .admin-product-toolbar-actions::-webkit-scrollbar {
+        display: none;
+    }
+
+    .admin-product-toolbar-actions .btn {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding-inline: 12px !important;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .admin-mobile-section-title {
+        display: none;
+    }
+
+    .admin-product-toolbar {
+        margin-bottom: 0.75rem !important;
     }
 }
 

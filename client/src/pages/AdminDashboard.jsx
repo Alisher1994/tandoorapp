@@ -2552,17 +2552,20 @@ function AdminDashboard() {
 
               <Tab eventKey="products" title={t('products')}>
 
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="mb-0">{t('products')}</h5>
-                  <div className="d-flex gap-2">
+                <div className="d-flex justify-content-between align-items-center mb-3 admin-product-toolbar">
+                  <h5 className="mb-0 admin-mobile-section-title">{t('products')}</h5>
+                  <div className="d-flex gap-2 admin-product-toolbar-actions">
                     <Button variant="dark" className="btn-primary-custom" onClick={exportProducts}>
-                      {t('downloadExcel')}
+                      <span className="d-none d-md-inline">{t('downloadExcel')}</span>
+                      <span className="d-md-none">Экспорт</span>
                     </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={() => setShowExcelModal(true)}>
-                      {t('importExcel')}
+                      <span className="d-none d-md-inline">{t('importExcel')}</span>
+                      <span className="d-md-none">Импорт</span>
                     </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={() => openProductModal()}>
-                      {t('addProduct')}
+                      <span className="d-none d-md-inline">{t('addProduct')}</span>
+                      <span className="d-md-none">Добавить</span>
                     </Button>
                   </div>
                 </div>
@@ -2861,7 +2864,7 @@ function AdminDashboard() {
               <Tab eventKey="containers" title={t('containers')}>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5>{t('containers')}</h5>
+                  <h5 className="admin-mobile-section-title">{t('containers')}</h5>
                   <Button variant="primary" className="btn-primary-custom" onClick={() => openContainerModal()}>
                     {t('add')}
                   </Button>
@@ -2929,7 +2932,7 @@ function AdminDashboard() {
               }>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5>{t('customerAppeals')}</h5>
+                  <h5 className="admin-mobile-section-title">{t('customerAppeals')}</h5>
                   <div className="d-flex gap-2">
                     <Form.Select
                       size="sm"
@@ -3033,17 +3036,27 @@ function AdminDashboard() {
 
               <Tab eventKey="settings" title={<span>{t('settings')}</span>}>
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
-                  <Nav variant="tabs" activeKey={settingsTab} onSelect={(k) => setSettingsTab(k)} className="border-0">
-                    <Nav.Item>
-                      <Nav.Link eventKey="general" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'general' ? 'border-primary text-primary' : 'text-muted'}`}>Общие</Nav.Link>
-                    </Nav.Item>
-                    <Nav.Item>
-                      <Nav.Link eventKey="delivery" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'delivery' ? 'border-primary text-primary' : 'text-muted'}`}>Доставка</Nav.Link>
-                    </Nav.Item>
-                    <Nav.Item>
-                      <Nav.Link eventKey="operators" className={`px-4 py-3 fw-bold border-0 border-bottom border-3 ${settingsTab === 'operators' ? 'border-primary text-primary' : 'text-muted'}`}>Операторы</Nav.Link>
-                    </Nav.Item>
-                  </Nav>
+                  <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
+                    {[
+                      { key: 'general', label: 'Общие' },
+                      { key: 'delivery', label: 'Доставка' },
+                      { key: 'operators', label: 'Операторы' }
+                    ].map((tab) => {
+                      const isActive = settingsTab === tab.key;
+                      return (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          role="tab"
+                          aria-selected={isActive}
+                          className={`admin-settings-pill-btn ${isActive ? 'is-active' : ''}`}
+                          onClick={() => setSettingsTab(tab.key)}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="p-4 bg-light" style={{ minHeight: '60vh' }}>
@@ -3419,7 +3432,7 @@ function AdminDashboard() {
                       {settingsTab === 'operators' && (
                         <>
                           <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h5 className="fw-bold mb-0">Операторы магазина</h5>
+                            <h5 className="fw-bold mb-0 admin-mobile-section-title">Операторы магазина</h5>
                             <Button
                               variant="primary"
                               className="rounded-pill px-4 fw-bold shadow-sm btn-primary-custom"
