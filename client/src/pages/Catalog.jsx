@@ -665,14 +665,17 @@ function Catalog() {
                                  />
                                  <div
                                    style={{
-                                     position: 'relative',
+                                     position: 'absolute',
+                                     top: 0,
+                                     left: 0,
+                                     right: 0,
                                      zIndex: 1,
                                       padding: '8px 8px 0',
-                                      color: '#1f1a14',
-                                      fontWeight: 700,
-                                      fontSize: '0.78rem',
-                                      lineHeight: 1.2
-                                    }}
+                                     color: '#1f1a14',
+                                     fontWeight: 700,
+                                     fontSize: '0.78rem',
+                                     lineHeight: 1.2
+                                   }}
                                   >
                                     {getCategoryName(level2Category)}
                                   </div>
