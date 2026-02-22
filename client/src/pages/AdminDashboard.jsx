@@ -28,6 +28,13 @@ import DeliveryZonePicker from '../components/DeliveryZonePicker';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
+const toAbsoluteFileUrl = (value) => {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const base = API_URL.replace(/\/api$/, '');
+  const normalized = String(value).startsWith('/') ? String(value) : `/${value}`;
+  return `${base}${normalized}`;
+};
 
 // SVG Icons
 const EditIcon = () => (
@@ -145,7 +152,9 @@ function AdminDashboard() {
     container_id: ''
   });
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
+  const restaurantLogoInputRef = useRef(null);
 
   // Broadcast state
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -1238,14 +1247,49 @@ function AdminDashboard() {
         }
       });
 
-      // Получаем полный URL
-      const fullUrl = window.location.origin + response.data.url;
+      const fullUrl = toAbsoluteFileUrl(response.data?.url || response.data?.imageUrl);
       setImageUrl(fullUrl);
     } catch (error) {
       console.error('Image upload error:', error);
       alert('Ошибка загрузки изображения: ' + (error.response?.data?.error || error.message));
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleRestaurantLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type?.startsWith('image/')) {
+      setAlertMessage({ type: 'warning', text: 'Можно загружать только изображения' });
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAlertMessage({ type: 'warning', text: 'Файл слишком большой. Максимум 5MB' });
+      e.target.value = '';
+      return;
+    }
+
+    setUploadingRestaurantLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const logoUrl = toAbsoluteFileUrl(response.data?.url || response.data?.imageUrl);
+      setRestaurantSettings((prev) => ({ ...prev, logo_url: logoUrl }));
+      setAlertMessage({ type: 'success', text: 'Логотип загружен. Нажмите "Сохранить изменения".' });
+    } catch (error) {
+      console.error('Restaurant logo upload error:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки логотипа' });
+    } finally {
+      setUploadingRestaurantLogo(false);
+      e.target.value = '';
     }
   };
 
@@ -2902,7 +2946,7 @@ function AdminDashboard() {
                                   <div className="d-flex gap-3 align-items-center">
                                     {restaurantSettings.logo_url && (
                                       <img
-                                        src={restaurantSettings.logo_url}
+                                        src={toAbsoluteFileUrl(restaurantSettings.logo_url)}
                                         alt="Logo"
                                         className="rounded-3"
                                         style={{ width: 64, height: 64, objectFit: 'cover' }}
@@ -2915,6 +2959,34 @@ function AdminDashboard() {
                                       onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_url: e.target.value })}
                                       placeholder="https://example.com/logo.png"
                                     />
+                                  </div>
+                                  <div className="d-flex flex-wrap gap-2 mt-2">
+                                    <input
+                                      ref={restaurantLogoInputRef}
+                                      type="file"
+                                      accept="image/*"
+                                      className="d-none"
+                                      onChange={handleRestaurantLogoUpload}
+                                    />
+                                    <Button
+                                      variant="outline-primary"
+                                      size="sm"
+                                      className="px-3 fw-bold"
+                                      onClick={() => restaurantLogoInputRef.current?.click()}
+                                      disabled={uploadingRestaurantLogo}
+                                    >
+                                      {uploadingRestaurantLogo ? '⏳ Загрузка...' : '📁 Загрузить файл логотипа'}
+                                    </Button>
+                                    {restaurantSettings.logo_url && (
+                                      <Button
+                                        variant="outline-secondary"
+                                        size="sm"
+                                        className="px-3 fw-bold"
+                                        onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
+                                      >
+                                        Очистить
+                                      </Button>
+                                    )}
                                   </div>
                                 </Form.Group>
                               </Col>
