@@ -2942,24 +2942,15 @@ function AdminDashboard() {
                               </Col>
                               <Col md={12}>
                                 <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Logo URL</Form.Label>
-                                  <div className="d-flex gap-3 align-items-center">
-                                    {restaurantSettings.logo_url && (
-                                      <img
-                                        src={toAbsoluteFileUrl(restaurantSettings.logo_url)}
-                                        alt="Logo"
-                                        className="rounded-3"
-                                        style={{ width: 64, height: 64, objectFit: 'cover' }}
-                                      />
-                                    )}
-                                    <Form.Control
-                                      type="text"
-                                      className="form-control-custom flex-grow-1"
-                                      value={restaurantSettings.logo_url || ''}
-                                      onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_url: e.target.value })}
-                                      placeholder="https://example.com/logo.png"
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Логотип</Form.Label>
+                                  {restaurantSettings.logo_url && (
+                                    <img
+                                      src={toAbsoluteFileUrl(restaurantSettings.logo_url)}
+                                      alt="Logo"
+                                      className="rounded-3 d-block mb-2"
+                                      style={{ width: 64, height: 64, objectFit: 'cover' }}
                                     />
-                                  </div>
+                                  )}
                                   <div className="d-flex flex-wrap gap-2 mt-2">
                                     <input
                                       ref={restaurantLogoInputRef}
@@ -3050,17 +3041,6 @@ function AdminDashboard() {
                                     </Form.Group>
                                   </Col>
                                   <Col md={12}>
-                                    <Form.Group className="mb-3">
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Код регистрации оператора</Form.Label>
-                                      <Form.Control
-                                        type="text"
-                                        className="form-control-custom"
-                                        value={restaurantSettings.operator_registration_code || ''}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, operator_registration_code: e.target.value.trim() })}
-                                        placeholder="например: OPERATOR-2026"
-                                      />
-                                      <Form.Text className="text-muted">Команда в боте: <code>/operator КОД</code></Form.Text>
-                                    </Form.Group>
                                     {isSuperAdmin && (
                                       <Form.Group className="mb-3">
                                         <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>

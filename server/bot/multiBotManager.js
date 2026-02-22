@@ -551,149 +551,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   });
 
-  const processOperatorRegistration = async (msg, inputCode = '') => {
+  const processOperatorRegistration = async (msg) => {
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const normalizedCode = (inputCode || '').trim();
-    const preferredLang = normalizeBotLanguage(
-      languagePreferences.get(getLangCacheKey(userId)) ||
-      getTelegramPreferredLanguage(msg.from?.language_code)
+    await bot.sendMessage(
+      chatId,
+      'ℹ️ Саморегистрация операторов через код отключена.\n' +
+      'Добавляйте сотрудников через веб-панель ресторана в разделе "Операторы".'
     );
-
-    try {
-      if (msg.chat.type !== 'private') {
-        await bot.sendMessage(chatId, '⚠️ Регистрация оператора доступна только в личном чате с ботом.');
-        return;
-      }
-
-      const restaurantResult = await pool.query(
-        'SELECT operator_registration_code FROM restaurants WHERE id = $1',
-        [restaurantId]
-      );
-
-      const inviteCode = (restaurantResult.rows[0]?.operator_registration_code || '').trim();
-      if (!inviteCode) {
-        await bot.sendMessage(chatId, '❌ Регистрация оператора не настроена. Обратитесь к владельцу ресторана.');
-        return;
-      }
-
-      if (!normalizedCode) {
-        registrationStates.set(getStateKey(userId, chatId), {
-          step: 'waiting_operator_invite_code',
-          restaurantId
-        });
-        await bot.sendMessage(chatId, '🧑‍💼 Введите код приглашения оператора:');
-        return;
-      }
-
-      if (normalizedCode !== inviteCode) {
-        await bot.sendMessage(chatId, '❌ Неверный код приглашения.');
-        return;
-      }
-
-      const existingUserResult = await pool.query(
-        'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
-        [userId]
-      );
-
-      let login;
-      let plainPassword = null;
-      let dbUserId;
-
-      if (existingUserResult.rows.length > 0) {
-        const existing = existingUserResult.rows[0];
-
-        if (existing.role === 'customer') {
-          await bot.sendMessage(
-            chatId,
-            '❌ Этот Telegram-аккаунт уже зарегистрирован как клиент. Для оператора используйте другой Telegram-аккаунт.'
-          );
-          return;
-        }
-
-        dbUserId = existing.id;
-        const phoneLogin = normalizePhone(existing.phone);
-        login = phoneLogin || existing.username;
-
-        if (existing.role === 'superadmin') {
-          await pool.query(
-            `UPDATE users
-             SET active_restaurant_id = $1,
-                 username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
-                 bot_language = $4,
-                 is_active = true,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2`,
-            [restaurantId, dbUserId, phoneLogin, preferredLang]
-          );
-        } else {
-          await pool.query(
-            `UPDATE users
-             SET role = 'operator',
-                 active_restaurant_id = $1,
-                 username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
-                 bot_language = $4,
-                 is_active = true,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2`,
-            [restaurantId, dbUserId, phoneLogin, preferredLang]
-          );
-        }
-      } else {
-        const generatedUsername = await generateUniqueOperatorUsername(restaurantId, userId);
-        plainPassword = generateTemporaryPassword(12);
-        const hashedPassword = await bcrypt.hash(plainPassword, 10);
-        const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ') || `Operator ${userId}`;
-
-        const inserted = await pool.query(
-          `INSERT INTO users (telegram_id, username, password, full_name, role, is_active, active_restaurant_id, bot_language)
-           VALUES ($1, $2, $3, $4, 'operator', true, $5, $6)
-           RETURNING id, username`,
-          [userId, generatedUsername, hashedPassword, fullName, restaurantId, preferredLang]
-        );
-
-        dbUserId = inserted.rows[0].id;
-        login = inserted.rows[0].username;
-      }
-
-      await pool.query(
-        `INSERT INTO operator_restaurants (user_id, restaurant_id)
-         VALUES ($1, $2)
-         ON CONFLICT (user_id, restaurant_id) DO NOTHING`,
-        [dbUserId, restaurantId]
-      );
-
-      const loginBaseUrl = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
-      const loginUrl = loginBaseUrl
-        ? `${loginBaseUrl.endsWith('/') ? loginBaseUrl.slice(0, -1) : loginBaseUrl}/login`
-        : null;
-
-      await bot.sendMessage(
-        chatId,
-        `✅ <b>Регистрация оператора выполнена</b>\n\n` +
-        `Логин: <code>${login}</code>\n` +
-        `${plainPassword ? `Пароль: <code>${plainPassword}</code>\n` : 'Пароль: используйте текущий\n'}` +
-        `Ресторан: <b>${restaurantName}</b>\n\n` +
-        `Команда для сброса пароля: /reset_password`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: loginUrl
-            ? {
-              inline_keyboard: [[{ text: '🔐 Перейти ко входу', url: loginUrl }]]
-            }
-            : undefined
-        }
-      );
-    } catch (error) {
-      console.error('Operator registration error:', error);
-      bot.sendMessage(chatId, '❌ Ошибка регистрации оператора. Попробуйте позже.');
-    }
   };
 
-  // /operator command - self registration flow for operators
-  bot.onText(/\/operator(?:\s+(.+))?/, async (msg, match) => {
-    const inputCode = (match?.[1] || '').trim();
-    await processOperatorRegistration(msg, inputCode);
+  // /operator command - disabled
+  bot.onText(/\/operator(?:\s+(.+))?/, async (msg) => {
+    await processOperatorRegistration(msg);
   });
 
   // Handle contact sharing
@@ -818,7 +687,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     if (state.step === 'waiting_operator_invite_code') {
       registrationStates.delete(stateKey);
-      await processOperatorRegistration(msg, text.trim());
+      await processOperatorRegistration(msg);
       return;
     }
 

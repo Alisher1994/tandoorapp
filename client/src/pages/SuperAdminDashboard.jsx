@@ -2552,19 +2552,6 @@ function SuperAdminDashboard() {
                         <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-person-badge"></i> Telegram username администратора для поддержки. Будет отображаться для клиентов.</Form.Text>
                       </Form.Group>
                     </Col>
-                    <Col md={12}>
-                      <Form.Group className="mb-4">
-                        <Form.Label className="fw-medium text-secondary">Код регистрации оператора</Form.Label>
-                        <Form.Control
-                          value={restaurantForm.operator_registration_code || ''}
-                          onChange={(e) => setRestaurantForm({ ...restaurantForm, operator_registration_code: e.target.value.trim() })}
-                          placeholder="например: OPERATOR-2026"
-                        />
-                        <Form.Text className="text-muted mt-2 d-block">
-                          <i className="bi bi-key"></i> Операторы используют команду <code>/operator КОД</code> в этом боте.
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
                   </Row>
                 </div>
               </Tab>
