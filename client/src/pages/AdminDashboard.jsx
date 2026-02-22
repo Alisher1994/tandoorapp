@@ -245,6 +245,7 @@ function AdminDashboard() {
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
+  const [isRestaurantBotTokenVisible, setIsRestaurantBotTokenVisible] = useState(false);
   const tokenCountdownArmedRef = useRef(false);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
@@ -704,6 +705,19 @@ function AdminDashboard() {
     } finally {
       setTestingBot(false);
     }
+  };
+
+  const handleRestaurantTokenPreview = () => {
+    if (!restaurantSettings?.telegram_bot_token) return;
+    if (isRestaurantBotTokenVisible) {
+      setIsRestaurantBotTokenVisible(false);
+      return;
+    }
+
+    setIsRestaurantBotTokenVisible(true);
+    setTimeout(() => {
+      setIsRestaurantBotTokenVisible(false);
+    }, 2000);
   };
 
   const fetchOperators = async () => {
@@ -3010,12 +3024,28 @@ function AdminDashboard() {
                                   <Col md={6}>
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
-                                      <Form.Control
-                                        type="password"
-                                        className="form-control-custom"
-                                        value={restaurantSettings.telegram_bot_token || ''}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value })}
-                                      />
+                                      <InputGroup>
+                                        <Form.Control
+                                          type={isRestaurantBotTokenVisible ? 'text' : 'password'}
+                                          className="form-control-custom"
+                                          value={restaurantSettings.telegram_bot_token || ''}
+                                          onChange={e => {
+                                            setIsRestaurantBotTokenVisible(false);
+                                            setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
+                                          }}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline-secondary"
+                                          className="px-3"
+                                          onClick={handleRestaurantTokenPreview}
+                                          disabled={!restaurantSettings.telegram_bot_token}
+                                          title={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
+                                          aria-label={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать токен'}
+                                        >
+                                          <i className={`bi ${isRestaurantBotTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
+                                        </Button>
+                                      </InputGroup>
                                       {isRestaurantBotTokenChanged && (
                                         <Alert
                                           variant={isTokenSaveLocked ? 'warning' : 'info'}

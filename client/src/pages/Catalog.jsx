@@ -634,7 +634,7 @@ function Catalog() {
 
                   return (
                     <section key={level1Category.id} className="mb-4">
-                      <h5 className="mb-3 fw-bold">{getCategoryName(level1Category)}</h5>
+                      <h5 className="mb-3 fw-bold" style={{ fontSize: '1.1rem' }}>{getCategoryName(level1Category)}</h5>
                       <Row className="g-3">
                         {level2Categories.map((level2Category) => {
                           const categoryImage = resolveImageUrl(level2Category.image_url);
@@ -666,14 +666,14 @@ function Catalog() {
                                  <div
                                    style={{
                                      position: 'absolute',
-                                     top: 0,
-                                     left: 0,
-                                     right: 0,
-                                     zIndex: 1,
-                                      padding: '8px 8px 0',
-                                     color: '#1f1a14',
-                                     fontWeight: 700,
-                                     fontSize: '0.78rem',
+                                      top: 4,
+                                      left: 0,
+                                      right: 0,
+                                      zIndex: 1,
+                                      padding: '6px 10px 0',
+                                      color: '#1f1a14',
+                                      fontWeight: 700,
+                                      fontSize: '0.78rem',
                                      lineHeight: 1.2
                                    }}
                                   >
