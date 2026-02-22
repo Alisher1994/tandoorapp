@@ -368,6 +368,18 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+/* Product table action buttons: no glow/shadow */
+.product-table-actions .action-btn,
+.product-table-actions .action-btn:hover,
+.product-table-actions .action-btn:focus,
+.product-table-actions .action-btn:focus-visible,
+.product-table-actions .action-btn:active {
+    box-shadow: none !important;
+    outline: none !important;
+    transform: none !important;
+    filter: none !important;
+}
+
 /* Pagination */
 .pagination {
     gap: 0.25rem;

@@ -2541,7 +2541,7 @@ function AdminDashboard() {
                               )}
                             </td>
                             <td>
-                              <div className="d-inline-flex flex-nowrap gap-1">
+                              <div className="d-inline-flex flex-nowrap gap-1 product-table-actions">
                                 <Button
                                   className="action-btn bg-primary bg-opacity-10 text-primary border-0"
                                   size="sm"
