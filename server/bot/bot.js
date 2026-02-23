@@ -1156,8 +1156,9 @@ async function initBot() {
         // Check working hours
         const startTime = restaurant.start_time ? restaurant.start_time.substring(0, 5) : null;
         const endTime = restaurant.end_time ? restaurant.end_time.substring(0, 5) : null;
+        const isOpenNow = isRestaurantOpen(startTime, endTime);
         
-        if (!isRestaurantOpen(startTime, endTime)) {
+        if (!isOpenNow && state.isExistingUser) {
           bot.sendMessage(chatId,
             `😔 Извините, данный магазин работает с ${startTime || '??:??'} по ${endTime || '??:??'}.\n\nПопробуйте позже!`,
             { reply_markup: { remove_keyboard: true } }
@@ -1262,7 +1263,8 @@ async function initBot() {
         bot.sendMessage(chatId,
           `✅ Регистрация успешна!\n\n` +
           `🏪 Магазин: <b>${restaurant.name}</b>\n` +
-          `📍 Доставка по вашему адресу доступна!`,
+          `📍 Доставка по вашему адресу доступна!` +
+          (!isOpenNow ? `\n\nℹ️ Сейчас магазин закрыт и работает с ${startTime || '??:??'} по ${endTime || '??:??'}. Заказ можно оформить в рабочее время.` : ''),
           {
             parse_mode: 'HTML',
             reply_markup: {

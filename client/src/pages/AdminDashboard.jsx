@@ -249,6 +249,8 @@ function AdminDashboard() {
     price: '',
     unit: 'шт',
     in_stock: true,
+    season_scope: 'all',
+    is_hidden_catalog: false,
     container_id: ''
   });
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -415,13 +417,23 @@ function AdminDashboard() {
   };
 
   const exportProducts = () => {
+    const seasonLabels = {
+      all: 'Всесезонный',
+      spring: 'Весна',
+      summer: 'Лето',
+      autumn: 'Осень',
+      winter: 'Зима'
+    };
     exportToExcel(products, 'products', [
       { header: 'Название (RU)', accessor: (p) => p.name_ru },
       { header: 'Название (UZ)', accessor: (p) => p.name_uz },
       { header: 'Категория', accessor: (p) => p.category_name },
       { header: 'Цена', accessor: (p) => p.price },
       { header: 'Единица', accessor: (p) => p.unit },
-      { header: 'Статус', accessor: (p) => p.in_stock ? 'Активен' : 'Скрыт' },
+      { header: 'В наличии', accessor: (p) => p.in_stock ? 'Да' : 'Нет' },
+      { header: 'Сезонность', accessor: (p) => seasonLabels[p.season_scope || 'all'] || 'Всесезонный' },
+      { header: 'Скрыть из каталога', accessor: (p) => p.is_hidden_catalog ? 'Да' : 'Нет' },
+      { header: 'Статус', accessor: (p) => p.in_stock ? 'Активен' : 'Нет в наличии' },
     ]);
   };
 
@@ -1560,6 +1572,8 @@ function AdminDashboard() {
         price: product.price || '',
         unit: product.unit || 'шт',
         in_stock: product.in_stock !== false,
+        season_scope: product.season_scope || 'all',
+        is_hidden_catalog: !!product.is_hidden_catalog,
         container_id: product.container_id || ''
       });
     } else {
@@ -1575,6 +1589,8 @@ function AdminDashboard() {
         price: '',
         unit: 'шт',
         in_stock: true,
+        season_scope: 'all',
+        is_hidden_catalog: false,
         container_id: ''
       });
     }
@@ -1787,7 +1803,9 @@ function AdminDashboard() {
       thumb_url: '',
       price: '', // Empty - admin fills manually
       unit: product.unit || 'шт',
-      in_stock: true
+      in_stock: true,
+      season_scope: product.season_scope || 'all',
+      is_hidden_catalog: !!product.is_hidden_catalog
     });
     setShowProductModal(true);
   };
@@ -1846,6 +1864,24 @@ function AdminDashboard() {
 
         for (const row of jsonData) {
           try {
+            const parseYesNo = (value, fallback) => {
+              if (value === undefined || value === null || value === '') return fallback;
+              const v = String(value).trim().toLowerCase();
+              if (['да', 'yes', 'y', 'true', '1', 'ha'].includes(v)) return true;
+              if (['нет', 'no', 'n', 'false', '0', "yo'q", 'yoq'].includes(v)) return false;
+              return fallback;
+            };
+            const parseSeasonScope = (value) => {
+              if (value === undefined || value === null || value === '') return undefined;
+              const v = String(value).trim().toLowerCase();
+              if (['all', 'всесезонный', 'все', 'hammasi', 'barcha'].includes(v)) return 'all';
+              if (['spring', 'весна', 'bahor'].includes(v)) return 'spring';
+              if (['summer', 'лето', 'yoz'].includes(v)) return 'summer';
+              if (['autumn', 'fall', 'осень', 'kuz'].includes(v)) return 'autumn';
+              if (['winter', 'зима', 'qish'].includes(v)) return 'winter';
+              return undefined;
+            };
+
             // Map Excel columns to product fields
             const productData = {
               category_id: row['Категория ID'] || row['category_id'] || '',
@@ -1853,7 +1889,9 @@ function AdminDashboard() {
               name_uz: row['Название (UZ)'] || row['name_uz'] || '',
               price: parseFloat(row['Цена'] || row['price'] || 0),
               unit: row['Единица'] || row['unit'] || 'шт',
-              in_stock: true
+              in_stock: parseYesNo(row['В наличии'] ?? row['in_stock'], true),
+              season_scope: parseSeasonScope(row['Сезонность'] ?? row['season_scope']),
+              is_hidden_catalog: parseYesNo(row['Скрыть из каталога'] ?? row['is_hidden_catalog'], undefined)
             };
 
             // Find category by name if category_id not provided
@@ -3256,11 +3294,26 @@ function AdminDashboard() {
                             <td>{categories.find(c => c.id === product.category_id)?.full_path || product.category_name || '-'}</td>
                             <td>{formatPrice(product.price)} сум</td>
                             <td>
-                              {product.in_stock ? (
-                                <Badge bg="success">Активен</Badge>
-                              ) : (
-                                <Badge bg="secondary">Скрыт</Badge>
-                              )}
+                              <div className="d-flex flex-column gap-1 align-items-start">
+                                {product.in_stock ? (
+                                  <Badge bg="success">В наличии</Badge>
+                                ) : (
+                                  <Badge bg="secondary">Нет в наличии</Badge>
+                                )}
+                                {product.is_hidden_catalog && (
+                                  <Badge bg="dark">Скрыт из каталога</Badge>
+                                )}
+                                {(product.season_scope && product.season_scope !== 'all') && (
+                                  <Badge bg="info">
+                                    {{
+                                      spring: 'Весна',
+                                      summer: 'Лето',
+                                      autumn: 'Осень',
+                                      winter: 'Зима'
+                                    }[product.season_scope] || product.season_scope}
+                                  </Badge>
+                                )}
+                              </div>
                             </td>
                             <td>
                               <div className="d-inline-flex flex-nowrap gap-1 product-table-actions">
@@ -5017,6 +5070,46 @@ function AdminDashboard() {
               </Row>
 
               <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Сезонность товара</Form.Label>
+                    <Form.Select
+                      value={productForm.season_scope || 'all'}
+                      onChange={(e) => setProductForm({ ...productForm, season_scope: e.target.value })}
+                    >
+                      <option value="all">Всесезонный товар</option>
+                      <option value="spring">Весна</option>
+                      <option value="summer">Лето</option>
+                      <option value="autumn">Осень</option>
+                      <option value="winter">Зима</option>
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      В каталоге товар показывается только в выбранный сезон (или круглый год для всесезонного).
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <div className="d-flex flex-column gap-3 pt-md-4">
+                    <Form.Check
+                      type="switch"
+                      label="Показывать как нет в наличии"
+                      checked={!productForm.in_stock}
+                      onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
+                    />
+                    <Form.Check
+                      type="switch"
+                      label="Полностью скрыть из каталога"
+                      checked={!!productForm.is_hidden_catalog}
+                      onChange={(e) => setProductForm({ ...productForm, is_hidden_catalog: e.target.checked })}
+                    />
+                    <small className="text-muted">
+                      Этот режим скрывает товар из клиентского каталога полностью.
+                    </small>
+                  </div>
+                </Col>
+              </Row>
+
+              <Row>
                 <Col md={4}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('priceSum')}</Form.Label>
@@ -5155,19 +5248,6 @@ function AdminDashboard() {
                 </Col>
               </Row>
 
-              {selectedProduct && (
-                <Form.Group className="mb-3">
-                  <Form.Check
-                    type="switch"
-                    label={t('hideProduct')}
-                    checked={!productForm.in_stock}
-                    onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
-                  />
-                  <Form.Text className="text-muted">
-                    {t('hideProductNote')}
-                  </Form.Text>
-                </Form.Group>
-              )}
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" onClick={() => setShowProductModal(false)}>
@@ -5544,7 +5624,10 @@ function AdminDashboard() {
               Дополнительные столбцы:<br />
               • <code>Категория</code> — название категории<br />
               • <code>Название (UZ)</code> — название на узбекском<br />
-              • <code>Единица</code> — единица измерения (шт, кг, порция и т.д.)
+              • <code>Единица</code> — единица измерения (шт, кг, порция и т.д.)<br />
+              • <code>В наличии</code> — Да/Нет<br />
+              • <code>Сезонность</code> — Всесезонный / Весна / Лето / Осень / Зима<br />
+              • <code>Скрыть из каталога</code> — Да/Нет
             </Alert>
 
             <Form.Group className="mb-3">

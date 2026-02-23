@@ -939,8 +939,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Check working hours
       const startTime = restaurant.start_time ? restaurant.start_time.substring(0, 5) : null;
       const endTime = restaurant.end_time ? restaurant.end_time.substring(0, 5) : null;
+      const isOpenNow = isRestaurantOpen(startTime, endTime);
 
-      if (!isRestaurantOpen(startTime, endTime)) {
+      if (!isOpenNow && (state.isExistingUser || state.step === 'checking_delivery')) {
         bot.sendMessage(chatId,
           `😔 Извините, магазин <b>${restaurantName}</b> работает с ${startTime || '??:??'} до ${endTime || '??:??'}.\n\nПопробуйте позже!`,
           { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
@@ -1020,6 +1021,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         `✅ Регистрация успешна!\n\n` +
         `🏪 Магазин: <b>${restaurantName}</b>\n` +
         `📍 Доставка по вашему адресу доступна!` +
+        (!isOpenNow ? `\n\nℹ️ Сейчас магазин закрыт и работает с ${startTime || '??:??'} до ${endTime || '??:??'}. Заказ можно оформить в рабочее время.` : '') +
         `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
         {
           parse_mode: 'HTML',

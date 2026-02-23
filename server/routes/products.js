@@ -5,6 +5,13 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const TASHKENT_TZ = 'Asia/Tashkent';
+const getCurrentSeasonScope = (date = new Date()) => {
+  const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
+  if ([12, 1, 2].includes(month)) return 'winter';
+  if ([3, 4, 5].includes(month)) return 'spring';
+  if ([6, 7, 8].includes(month)) return 'summer';
+  return 'autumn';
+};
 
 const getClientIp = (req) => (
   req.headers['x-forwarded-for']?.split(',')[0]?.trim()
@@ -76,6 +83,7 @@ router.get('/categories', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { category_id, in_stock, restaurant_id } = req.query;
+    const currentSeasonScope = getCurrentSeasonScope();
     
     let query = `
       SELECT p.*, c.name_ru as category_name,
@@ -84,9 +92,11 @@ router.get('/', async (req, res) => {
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN containers cnt ON p.container_id = cnt.id
       WHERE 1=1
+        AND COALESCE(p.is_hidden_catalog, false) = false
+        AND COALESCE(NULLIF(p.season_scope, ''), 'all') IN ('all', $1)
     `;
-    const params = [];
-    let paramCount = 1;
+    const params = [currentSeasonScope];
+    let paramCount = 2;
     
     if (restaurant_id) {
       query += ` AND p.restaurant_id = $${paramCount}`;

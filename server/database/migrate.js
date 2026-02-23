@@ -121,7 +121,9 @@ async function migrate() {
     const productColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
       { name: 'container_id', type: 'INTEGER' },
-      { name: 'thumb_url', type: 'TEXT' }
+      { name: 'thumb_url', type: 'TEXT' },
+      { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
+      { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' }
     ];
 
     for (const col of productColumns) {
@@ -132,6 +134,12 @@ async function migrate() {
       }
     }
     console.log('✅ Products table updated');
+    await client.query(`UPDATE products SET season_scope = 'all' WHERE season_scope IS NULL OR season_scope = ''`).catch(() => {});
+    await client.query(`
+      ALTER TABLE products
+      ADD CONSTRAINT IF NOT EXISTS products_season_scope_check
+      CHECK (season_scope IN ('all', 'spring', 'summer', 'autumn', 'winter'))
+    `).catch(() => {});
 
     // =====================================================
     // Create containers table (посуда/тара)

@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS products (
   unit VARCHAR(20) DEFAULT 'шт',
   barcode VARCHAR(100),
   in_stock BOOLEAN DEFAULT true,
+  season_scope VARCHAR(16) DEFAULT 'all',
+  is_hidden_catalog BOOLEAN DEFAULT false,
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

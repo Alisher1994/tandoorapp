@@ -14,6 +14,11 @@ const { reloadMultiBots } = require('../bot/multiBotManager');
 const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
+const normalizeProductSeasonScope = (value, fallback = 'all') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
+};
 const normalizeRestaurantTokenForCompare = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
@@ -1214,7 +1219,8 @@ router.post('/products', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id
+      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id,
+      season_scope, is_hidden_catalog
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -1235,15 +1241,18 @@ router.post('/products', async (req, res) => {
       return res.status(400).json({ error: categoryValidation.error });
     }
 
+    const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
+
     const result = await pool.query(`
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id, season_scope, is_hidden_catalog
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *
   `, [
       restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null
+      image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null,
+      normalizedSeasonScope, !!is_hidden_catalog
     ]);
 
     const product = result.rows[0];
@@ -1273,7 +1282,8 @@ router.post('/products/upsert', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, price, unit, barcode, in_stock, sort_order
+      image_url, thumb_url, price, unit, barcode, in_stock, sort_order,
+      season_scope, is_hidden_catalog
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -1362,6 +1372,18 @@ router.post('/products/upsert', async (req, res) => {
       updateValues.push(in_stock !== false);
       paramIndex++;
 
+      if (season_scope !== undefined) {
+        updateFields.push(`season_scope = $${paramIndex} `);
+        updateValues.push(normalizedSeasonScope);
+        paramIndex++;
+      }
+
+      if (is_hidden_catalog !== undefined) {
+        updateFields.push(`is_hidden_catalog = $${paramIndex} `);
+        updateValues.push(!!is_hidden_catalog);
+        paramIndex++;
+      }
+
       updateValues.push(existingProduct.rows[0].id);
 
       result = await pool.query(`
@@ -1374,12 +1396,13 @@ RETURNING *
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, price, unit, barcode, in_stock, sort_order
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    image_url, thumb_url, price, unit, barcode, in_stock, sort_order, season_scope, is_hidden_catalog
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING *
   `, [
         restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
-        image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0
+        image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0,
+        normalizedSeasonScope, !!is_hidden_catalog
       ]);
     }
 
@@ -1410,7 +1433,8 @@ router.put('/products/:id', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id
+      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id,
+      season_scope, is_hidden_catalog
     } = req.body;
 
     // Get old values and check access
@@ -1433,16 +1457,19 @@ router.put('/products/:id', async (req, res) => {
       return res.status(400).json({ error: categoryValidation.error });
     }
 
+    const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, oldProduct.season_scope || 'all');
+
     const result = await pool.query(`
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, price = $8, unit = $9, barcode = $10, in_stock = $11, sort_order = $12,
-  container_id = $13, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+  container_id = $13, season_scope = $14, is_hidden_catalog = $15, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $16
 RETURNING *
   `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url || null, price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null, req.params.id
+      image_url, thumb_url || null, price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null,
+      normalizedSeasonScope, !!is_hidden_catalog, req.params.id
     ]);
 
     const product = result.rows[0];
@@ -2654,3 +2681,4 @@ pl.id,
 });
 
 module.exports = router;
+    const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
