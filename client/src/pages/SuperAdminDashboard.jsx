@@ -777,6 +777,7 @@ function SuperAdminDashboard() {
     try {
       const formData = new FormData();
       formData.append('image', file);
+      formData.append('preset', 'ad');
       const response = await axios.post(`${API_URL}/upload/image`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -1648,6 +1649,118 @@ function SuperAdminDashboard() {
     }
   };
 
+  const adI18n = language === 'uz'
+    ? {
+        tab: 'Reklama',
+        title: 'Reklama bannerlari',
+        activeNow: 'Hozir faol',
+        maxSlots: 'Maks. slotlar',
+        totalRecords: 'Jami yozuvlar',
+        filters: 'Filtrlar',
+        addAd: "Reklama qo'shish",
+        allStatuses: 'Hammasi (faol + tarix)',
+        active: 'Hozir faol',
+        scheduled: 'Rejalashtirilgan',
+        pausedByDays: 'Hafta kunlari bo‘yicha yashirin',
+        disabled: "O'chirilgan",
+        finished: 'Yakunlangan',
+        alertText: 'Bannerlar mijozlarga katalogning yuqori qismida kategoriya guruhlaridan oldin ko‘rsatiladi. Faol bannerlar bo‘lmasa, katalog odatdagidek ko‘rinadi. Havolalar va boshqaruv tugmalari faqat superadmin tomonidan boshqariladi.',
+        colSlot: 'Slot',
+        colBanner: 'Banner',
+        colLink: 'Havola',
+        colSchedule: 'Jadval',
+        colAnimation: 'Animatsiya',
+        colStatus: 'Holat',
+        colStats: 'Statistika',
+        colActions: 'Amallar',
+        noLink: 'Havola yo‘q',
+        start: 'Boshlanish',
+        end: 'Tugash',
+        days: 'Kunlar',
+        everyDay: 'har kuni',
+        sec: 'sek.',
+        views: "Ko'rishlar",
+        unique: 'Unikal',
+        clicks: 'Bosishlar',
+        noSlots: 'Hozircha reklama slotlari yo‘q',
+        editTitle: 'Reklamani tahrirlash',
+        addTitle: "Reklama qo'shish",
+        internalName: 'Nom (ichki)',
+        internalNamePlaceholder: 'Masalan: Yetkazib berish aksiyasi',
+        slotPosition: 'Slot pozitsiyasi (1-10)',
+        imageLabel: 'Reklama rasmi (JPG / PNG / WEBP / GIF)',
+        imageRecommended: 'Tavsiya etilgan o‘lcham: 1200x500 px (keng banner, nisbat ~2.4:1)',
+        imagePlaceholder: 'https://example.com/banner.jpg yoki /uploads/...',
+        uploading: 'Yuklanmoqda...',
+        targetUrl: "O'tish havolasi (ixtiyoriy)",
+        targetUrlPlaceholder: 'https://... (bo‘sh bo‘lsa, banner bosilmaydi)',
+        transition: "O'tish",
+        noAnimation: 'Animatsiyasiz',
+        displaySec: "Ko'rsatish (sek)",
+        enabled: 'Reklama yoqilgan',
+        startDisplay: "Ko'rsatish boshlanishi",
+        endDisplay: "Ko'rsatish tugashi",
+        daysDisplay: 'Ko‘rsatish kunlari (tanlanmasa — har kuni)',
+        cancel: 'Bekor qilish',
+        saveChanges: "O'zgarishlarni saqlash",
+        createSlot: 'Slot yaratish'
+      }
+    : {
+        tab: 'Реклама',
+        title: 'Рекламные баннеры',
+        activeNow: 'Активно сейчас',
+        maxSlots: 'Макс. слотов',
+        totalRecords: 'Всего записей',
+        filters: 'Фильтры',
+        addAd: 'Добавить рекламу',
+        allStatuses: 'Все (активные + история)',
+        active: 'Активные сейчас',
+        scheduled: 'Запланированные',
+        pausedByDays: 'Скрытые по дням недели',
+        disabled: 'Выключенные',
+        finished: 'Завершенные',
+        alertText: 'Баннеры показываются клиентам в самом верху каталога перед группами категорий. Если активных баннеров нет, каталог отображается как обычно. Ссылки и кнопки управляются только из суперадминки.',
+        colSlot: 'Слот',
+        colBanner: 'Баннер',
+        colLink: 'Кнопка / Ссылка',
+        colSchedule: 'Расписание',
+        colAnimation: 'Анимация',
+        colStatus: 'Статус',
+        colStats: 'Статистика',
+        colActions: 'Действия',
+        noLink: 'Без ссылки',
+        start: 'Старт',
+        end: 'Конец',
+        days: 'Дни',
+        everyDay: 'каждый день',
+        sec: 'сек.',
+        views: 'Просмотры',
+        unique: 'Уникальные',
+        clicks: 'Клики',
+        noSlots: 'Рекламных слотов пока нет',
+        editTitle: 'Редактировать рекламу',
+        addTitle: 'Добавить рекламу',
+        internalName: 'Название (внутреннее)',
+        internalNamePlaceholder: 'Например: Акция на доставку',
+        slotPosition: 'Позиция слота (1-10)',
+        imageLabel: 'Изображение рекламы (JPG / PNG / WEBP / GIF)',
+        imageRecommended: 'Рекомендуемый размер: 1200x500 px (широкий баннер, соотношение ~2.4:1)',
+        imagePlaceholder: 'https://example.com/banner.jpg или /uploads/...',
+        uploading: 'Загрузка...',
+        targetUrl: 'Ссылка перехода (необязательно)',
+        targetUrlPlaceholder: 'https://... (если пусто, баннер не кликабельный)',
+        transition: 'Переход',
+        noAnimation: 'Без анимации',
+        displaySec: 'Показ (сек)',
+        enabled: 'Реклама включена',
+        startDisplay: 'Начало показа',
+        endDisplay: 'Окончание показа',
+        daysDisplay: 'Дни показа (если не выбрано — каждый день)',
+        cancel: 'Отмена',
+        saveChanges: 'Сохранить изменения',
+        createSlot: 'Создать слот'
+      };
+
   const renderMobileFiltersSheetContent = () => {
     if (activeTab === 'restaurants') {
       return (
@@ -1773,12 +1886,12 @@ function SuperAdminDashboard() {
           value={adBannerStatusFilter}
           onChange={(e) => setAdBannerStatusFilter(e.target.value)}
         >
-          <option value="all">Все (активные + история)</option>
-          <option value="active">Активные сейчас</option>
-          <option value="scheduled">Запланированные</option>
-          <option value="paused_by_days">Скрытые по дням недели</option>
-          <option value="disabled">Выключенные</option>
-          <option value="finished">Завершенные</option>
+          <option value="all">{adI18n.allStatuses}</option>
+          <option value="active">{adI18n.active}</option>
+          <option value="scheduled">{adI18n.scheduled}</option>
+          <option value="paused_by_days">{adI18n.pausedByDays}</option>
+          <option value="disabled">{adI18n.disabled}</option>
+          <option value="finished">{adI18n.finished}</option>
         </Form.Select>
       );
     }
@@ -2669,29 +2782,29 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Ads Tab */}
-              <Tab eventKey="ads" title="📢 Реклама">
+              <Tab eventKey="ads" title={`📢 ${adI18n.tab}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <div className="superadmin-mobile-hide-title">
-                    <h5 className="fw-bold mb-1">Рекламные баннеры</h5>
+                    <h5 className="fw-bold mb-1">{adI18n.title}</h5>
                     <div className="d-flex flex-wrap gap-2">
                       <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
-                        Активно сейчас: {adBannersMeta.active_now_count}
+                        {adI18n.activeNow}: {adBannersMeta.active_now_count}
                       </Badge>
                       <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
-                        Макс. слотов: {adBannersMeta.max_slots}
+                        {adI18n.maxSlots}: {adBannersMeta.max_slots}
                       </Badge>
                       <Badge className="badge-custom bg-info bg-opacity-10 text-info">
-                        Всего записей: {adBanners.length}
+                        {adI18n.totalRecords}: {adBanners.length}
                       </Badge>
                     </div>
                   </div>
                   <div className="d-flex d-lg-none align-items-center gap-2 w-100">
                     <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
-                      <i className="bi bi-funnel"></i> Фильтры
+                      <i className="bi bi-funnel"></i> {adI18n.filters}
                     </Button>
                     <Button className="btn-primary-custom ms-auto" onClick={() => openAdBannerModal()}>
-                      <span className="d-none d-sm-inline">+ Добавить рекламу</span>
-                      <span className="d-sm-none">Добавить</span>
+                      <span className="d-none d-sm-inline">+ {adI18n.addAd}</span>
+                      <span className="d-sm-none">{language === 'uz' ? "Qo'shish" : 'Добавить'}</span>
                     </Button>
                   </div>
                   <div className="d-none d-lg-flex align-items-center gap-2 flex-wrap">
@@ -2701,24 +2814,22 @@ function SuperAdminDashboard() {
                       value={adBannerStatusFilter}
                       onChange={(e) => setAdBannerStatusFilter(e.target.value)}
                     >
-                      <option value="all">Все (активные + история)</option>
-                      <option value="active">Активные сейчас</option>
-                      <option value="scheduled">Запланированные</option>
-                      <option value="paused_by_days">Скрытые по дням недели</option>
-                      <option value="disabled">Выключенные</option>
-                      <option value="finished">Завершенные</option>
+                      <option value="all">{adI18n.allStatuses}</option>
+                      <option value="active">{adI18n.active}</option>
+                      <option value="scheduled">{adI18n.scheduled}</option>
+                      <option value="paused_by_days">{adI18n.pausedByDays}</option>
+                      <option value="disabled">{adI18n.disabled}</option>
+                      <option value="finished">{adI18n.finished}</option>
                     </Form.Select>
                     <Button className="btn-primary-custom" onClick={() => openAdBannerModal()}>
-                      + Добавить рекламу
+                      + {adI18n.addAd}
                     </Button>
                   </div>
                 </div>
 
                 <Alert className="mb-4" variant="light" style={{ border: '1px solid var(--border-color)' }}>
                   <div className="small">
-                    Баннеры показываются клиентам в самом верху каталога перед группами категорий.
-                    Если активных баннеров нет, каталог отображается как обычно.
-                    Ссылки и кнопки управляются только из суперадминки.
+                    {adI18n.alertText}
                   </div>
                 </Alert>
 
@@ -2730,14 +2841,14 @@ function SuperAdminDashboard() {
                       <Table responsive hover className="admin-table align-middle">
                         <thead>
                           <tr>
-                            <th>Слот</th>
-                            <th>Баннер</th>
-                            <th>Кнопка / Ссылка</th>
-                            <th>Расписание</th>
-                            <th>Анимация</th>
-                            <th>Статус</th>
-                            <th>Статистика</th>
-                            <th className="text-end">Действия</th>
+                            <th>{adI18n.colSlot}</th>
+                            <th>{adI18n.colBanner}</th>
+                            <th>{adI18n.colLink}</th>
+                            <th>{adI18n.colSchedule}</th>
+                            <th>{adI18n.colAnimation}</th>
+                            <th>{adI18n.colStatus}</th>
+                            <th>{adI18n.colStats}</th>
+                            <th className="text-end">{adI18n.colActions}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2790,21 +2901,21 @@ function SuperAdminDashboard() {
                                     {truncateAdLinkText(banner.target_url, 12)}
                                   </a>
                                 ) : (
-                                  <span className="small text-muted">Без ссылки</span>
+                                  <span className="small text-muted">{adI18n.noLink}</span>
                                 )}
                               </td>
                               <td style={{ minWidth: '220px' }}>
-                                <div className="small"><strong>Старт:</strong> {formatAdDate(banner.start_at)}</div>
-                                <div className="small"><strong>Конец:</strong> {formatAdDate(banner.end_at)}</div>
+                                <div className="small"><strong>{adI18n.start}:</strong> {formatAdDate(banner.start_at)}</div>
+                                <div className="small"><strong>{adI18n.end}:</strong> {formatAdDate(banner.end_at)}</div>
                                 <div className="small text-muted">
-                                  Дни: {Array.isArray(banner.repeat_days) && banner.repeat_days.length
+                                  {adI18n.days}: {Array.isArray(banner.repeat_days) && banner.repeat_days.length
                                     ? adWeekdayOptions.filter((d) => banner.repeat_days.includes(d.value)).map((d) => d.label).join(', ')
-                                    : 'каждый день'}
+                                    : adI18n.everyDay}
                                 </div>
                               </td>
                               <td>
                                 <div className="small text-capitalize">{banner.transition_effect || 'fade'}</div>
-                                <div className="small text-muted">{banner.display_seconds || 5} сек.</div>
+                                <div className="small text-muted">{banner.display_seconds || 5} {adI18n.sec}</div>
                               </td>
                               <td>
                                 <Badge className={`badge-custom ${getAdStatusBadgeClass(banner.runtime_status)}`}>
@@ -2812,9 +2923,9 @@ function SuperAdminDashboard() {
                                 </Badge>
                               </td>
                               <td style={{ minWidth: '150px' }}>
-                                <div className="small">Просмотры: <strong>{banner.total_views || 0}</strong></div>
-                                <div className="small">Уникальные: <strong>{banner.unique_views || 0}</strong></div>
-                                <div className="small">Клики: <strong>{banner.total_clicks || 0}</strong></div>
+                                <div className="small">{adI18n.views}: <strong>{banner.total_views || 0}</strong></div>
+                                <div className="small">{adI18n.unique}: <strong>{banner.unique_views || 0}</strong></div>
+                                <div className="small">{adI18n.clicks}: <strong>{banner.total_clicks || 0}</strong></div>
                               </td>
                               <td className="text-end" style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
                                 <div className="d-inline-flex gap-1 justify-content-end align-items-center">
@@ -2849,7 +2960,7 @@ function SuperAdminDashboard() {
                           {adBanners.length === 0 && (
                             <tr>
                               <td colSpan="8" className="text-center py-5 text-muted">
-                                Рекламных слотов пока нет
+                                {adI18n.noSlots}
                               </td>
                             </tr>
                           )}
@@ -3175,24 +3286,24 @@ function SuperAdminDashboard() {
 
       <Modal show={showAdBannerModal} onHide={() => setShowAdBannerModal(false)} size="lg" centered>
         <Modal.Header closeButton>
-          <Modal.Title>{editingAdBanner ? 'Редактировать рекламу' : 'Добавить рекламу'}</Modal.Title>
+          <Modal.Title>{editingAdBanner ? adI18n.editTitle : adI18n.addTitle}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Row className="g-3">
             <Col md={7}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Название (внутреннее)</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.internalName}</Form.Label>
                 <Form.Control
                   className="form-control-custom"
                   value={adBannerForm.title}
                   onChange={(e) => setAdBannerForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="Например: Акция на доставку"
+                  placeholder={adI18n.internalNamePlaceholder}
                 />
               </Form.Group>
             </Col>
             <Col md={5}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Позиция слота (1-10)</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.slotPosition}</Form.Label>
                 <Form.Control
                   type="number"
                   min={1}
@@ -3206,10 +3317,10 @@ function SuperAdminDashboard() {
 
             <Col md={12}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Изображение рекламы (JPG / PNG / WEBP / GIF)</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.imageLabel}</Form.Label>
                 <div className="d-flex flex-column gap-2">
                   <small className="text-muted">
-                    Рекомендуемый размер: 1200x500 px (широкий баннер, соотношение ~2.4:1)
+                    {adI18n.imageRecommended}
                   </small>
                   {adBannerForm.image_url && (
                     <div
@@ -3229,7 +3340,7 @@ function SuperAdminDashboard() {
                   )}
                   <Form.Control
                     className="form-control-custom"
-                    placeholder="https://example.com/banner.jpg или /uploads/..."
+                    placeholder={adI18n.imagePlaceholder}
                     value={adBannerForm.image_url}
                     onChange={(e) => setAdBannerForm((prev) => ({ ...prev, image_url: e.target.value }))}
                   />
@@ -3241,7 +3352,7 @@ function SuperAdminDashboard() {
                       onChange={(e) => handleAdBannerImageUpload(e.target.files?.[0])}
                       disabled={uploadingAdBannerImage}
                     />
-                    {uploadingAdBannerImage && <small className="text-muted">Загрузка...</small>}
+                    {uploadingAdBannerImage && <small className="text-muted">{adI18n.uploading}</small>}
                   </div>
                 </div>
               </Form.Group>
@@ -3249,20 +3360,20 @@ function SuperAdminDashboard() {
 
             <Col md={12}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка перехода (необязательно)</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.targetUrl}</Form.Label>
                 <Form.Control
                   className="form-control-custom"
                   type="url"
                   value={adBannerForm.target_url}
                   onChange={(e) => setAdBannerForm((prev) => ({ ...prev, target_url: e.target.value }))}
-                  placeholder="https://... (если пусто, баннер не кликабельный)"
+                  placeholder={adI18n.targetUrlPlaceholder}
                 />
               </Form.Group>
             </Col>
 
             <Col md={4}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Переход</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.transition}</Form.Label>
                 <Form.Select
                   className="form-control-custom"
                   value={adBannerForm.transition_effect}
@@ -3270,13 +3381,13 @@ function SuperAdminDashboard() {
                 >
                   <option value="fade">Fade</option>
                   <option value="slide">Slide</option>
-                  <option value="none">Без анимации</option>
+                  <option value="none">{adI18n.noAnimation}</option>
                 </Form.Select>
               </Form.Group>
             </Col>
             <Col md={4}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Показ (сек)</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.displaySec}</Form.Label>
                 <Form.Control
                   type="number"
                   min={2}
@@ -3291,7 +3402,7 @@ function SuperAdminDashboard() {
               <Form.Check
                 type="switch"
                 id="ad-banner-enabled-switch"
-                label="Реклама включена"
+                label={adI18n.enabled}
                 checked={!!adBannerForm.is_enabled}
                 onChange={(e) => setAdBannerForm((prev) => ({ ...prev, is_enabled: e.target.checked }))}
               />
@@ -3299,7 +3410,7 @@ function SuperAdminDashboard() {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Начало показа</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.startDisplay}</Form.Label>
                 <Form.Control
                   type="datetime-local"
                   className="form-control-custom"
@@ -3310,7 +3421,7 @@ function SuperAdminDashboard() {
             </Col>
             <Col md={6}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Окончание показа</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.endDisplay}</Form.Label>
                 <Form.Control
                   type="datetime-local"
                   className="form-control-custom"
@@ -3322,7 +3433,7 @@ function SuperAdminDashboard() {
 
             <Col md={12}>
               <Form.Group>
-                <Form.Label className="small fw-bold text-muted text-uppercase">Дни показа (если не выбрано — каждый день)</Form.Label>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.daysDisplay}</Form.Label>
                 <div className="d-flex flex-wrap gap-2">
                   {adWeekdayOptions.map((day) => {
                     const active = (adBannerForm.repeat_days || []).includes(day.value);
@@ -3346,9 +3457,9 @@ function SuperAdminDashboard() {
           </Row>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowAdBannerModal(false)}>Отмена</Button>
+          <Button variant="secondary" onClick={() => setShowAdBannerModal(false)}>{adI18n.cancel}</Button>
           <Button className="btn-primary-custom" onClick={saveAdBanner}>
-            {editingAdBanner ? 'Сохранить изменения' : 'Создать слот'}
+            {editingAdBanner ? adI18n.saveChanges : adI18n.createSlot}
           </Button>
         </Modal.Footer>
       </Modal>

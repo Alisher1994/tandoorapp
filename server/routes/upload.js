@@ -36,6 +36,8 @@ const upload = multer({
 const PRODUCT_MAX_WIDTH = 1600;
 const PRODUCT_MAX_HEIGHT = 1600;
 const PRODUCT_THUMB_SIZE = 320;
+const AD_MAX_WIDTH = 1920;
+const AD_MAX_HEIGHT = 1080;
 const DEFAULT_MAX_WIDTH = 2400;
 const DEFAULT_MAX_HEIGHT = 2400;
 
@@ -74,8 +76,9 @@ const optimizeAndSaveImage = async (file, preset) => {
   }
 
   const isProductPreset = preset === 'product';
-  const maxWidth = isProductPreset ? PRODUCT_MAX_WIDTH : DEFAULT_MAX_WIDTH;
-  const maxHeight = isProductPreset ? PRODUCT_MAX_HEIGHT : DEFAULT_MAX_HEIGHT;
+  const isAdPreset = preset === 'ad' || preset === 'ad_banner';
+  const maxWidth = isProductPreset ? PRODUCT_MAX_WIDTH : (isAdPreset ? AD_MAX_WIDTH : DEFAULT_MAX_WIDTH);
+  const maxHeight = isProductPreset ? PRODUCT_MAX_HEIGHT : (isAdPreset ? AD_MAX_HEIGHT : DEFAULT_MAX_HEIGHT);
 
   let pipeline = sharp(file.buffer, { failOnError: true })
     .rotate()
@@ -86,11 +89,11 @@ const optimizeAndSaveImage = async (file, preset) => {
       withoutEnlargement: true
     });
 
-  // Для карточек товара используем WebP как основной формат (лучший размер/качество для веба).
-  if (isProductPreset) {
+  // Для карточек товара и рекламных баннеров используем WebP как основной формат.
+  if (isProductPreset || isAdPreset) {
     const outputBuffer = await pipeline
       .webp({
-        quality: 82,
+        quality: isAdPreset ? 80 : 82,
         alphaQuality: 85,
         effort: 5,
         smartSubsample: true
@@ -98,6 +101,10 @@ const optimizeAndSaveImage = async (file, preset) => {
       .toBuffer();
 
     const filename = await saveBufferToUploads(outputBuffer, '.webp');
+
+    if (!isProductPreset) {
+      return makeUploadResult(filename);
+    }
 
     const thumbBuffer = await sharp(file.buffer, { failOnError: true })
       .rotate()

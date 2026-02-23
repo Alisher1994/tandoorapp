@@ -469,7 +469,6 @@ body::-webkit-scrollbar,
 
     .superadmin-stats-grid {
         row-gap: 12px !important;
-        column-gap: 12px !important;
     }
 
     .superadmin-stat-card .card-body {
@@ -479,9 +478,12 @@ body::-webkit-scrollbar,
     }
 
     .superadmin-stat-label {
-        min-height: 34px;
+        min-height: 20px;
         font-size: 0.82rem;
-        word-break: break-word;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
 
     .admin-product-toolbar {
@@ -547,6 +549,11 @@ body::-webkit-scrollbar,
     .superadmin-stat-card h4 {
         font-size: 1.75rem;
         line-height: 1;
+    }
+
+    .superadmin-stat-card .card-body > div:last-child {
+        min-width: 0;
+        flex: 1 1 auto;
     }
 }
 
