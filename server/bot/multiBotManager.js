@@ -123,11 +123,17 @@ async function resolveUniqueCustomerUsername(preferredUsername, telegramUserId) 
   }
 }
 
-function buildWebLoginUrl() {
+function buildWebLoginUrl(params = {}) {
   const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
   if (!base) return null;
   const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
-  return `${trimmed}/login`;
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    search.set(key, String(value));
+  });
+  const query = search.toString();
+  return `${trimmed}/login${query ? `?${query}` : ''}`;
 }
 
 function normalizeBotLanguage(value) {
@@ -388,10 +394,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       `, [user.id, restaurantId]);
 
       if (user.role === 'operator' || user.role === 'superadmin') {
-        const loginBaseUrl = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
-        const loginUrl = loginBaseUrl
-          ? `${loginBaseUrl.endsWith('/') ? loginBaseUrl.slice(0, -1) : loginBaseUrl}/login`
-          : null;
+        const loginUrl = buildWebLoginUrl({
+          portal: 'admin',
+          restaurantId,
+          source: 'restaurant_bot'
+        });
 
         await bot.sendMessage(
           chatId,
@@ -560,6 +567,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         dbUserId: userResult.rows[0].id,
         username: userResult.rows[0].username,
         phone: userResult.rows[0].phone,
+        role: userResult.rows[0].role,
         restaurantId
       });
 
@@ -1181,6 +1189,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           dbUserId: userResult.rows[0].id,
           username: userResult.rows[0].username,
           phone: userResult.rows[0].phone,
+          role: userResult.rows[0].role,
           restaurantId
         });
 
@@ -1243,7 +1252,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         passwordResetCooldown.set(cooldownKey, now);
         registrationStates.delete(stateKey);
         const effectiveLogin = normalizedLogin || resolveLoginValue(updateResult.rows[0]);
-        const loginUrl = buildWebLoginUrl();
+        const loginUrl = buildWebLoginUrl({
+          portal: state.role === 'customer' ? 'customer' : 'admin',
+          restaurantId: state.restaurantId || restaurantId,
+          source: 'restaurant_bot'
+        });
 
         bot.sendMessage(
           chatId,
@@ -1410,7 +1423,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           revealSensitive,
           statusKey,
           operatorName,
-          includePreviewLink: revealSensitive,
+          includePreviewLink: false,
           previewUrl
         });
 
@@ -1419,7 +1432,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           message_id: query.message.message_id,
           parse_mode: 'HTML',
           disable_web_page_preview: true,
-          reply_markup: buildGroupOrderActionKeyboard(order.id, keyboardStage, operatorName)
+          reply_markup: buildGroupOrderActionKeyboard(order.id, keyboardStage, operatorName, { previewUrl })
         });
       };
 

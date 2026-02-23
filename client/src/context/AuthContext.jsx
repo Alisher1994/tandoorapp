@@ -79,11 +79,13 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const login = async (username, password) => {
+  const login = async (username, password, options = {}) => {
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
         username,
-        password
+        password,
+        portal: options.portal || '',
+        restaurant_id: options.restaurantId || null
       });
       
       const { token, user } = response.data;

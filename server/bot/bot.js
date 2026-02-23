@@ -116,11 +116,17 @@ function passwordFromPhone(phone) {
   return digits.slice(-4).padStart(4, '0');
 }
 
-function buildWebLoginUrl() {
+function buildWebLoginUrl(params = {}) {
   const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
   if (!base) return null;
   const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
-  return `${trimmed}/login`;
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    search.set(key, String(value));
+  });
+  const query = search.toString();
+  return `${trimmed}/login${query ? `?${query}` : ''}`;
 }
 
 function normalizeBotLanguage(value) {
@@ -413,7 +419,7 @@ async function initBot() {
       }
 
       if (user.role === 'operator' || user.role === 'superadmin') {
-        const loginUrl = buildWebLoginUrl();
+        const loginUrl = buildWebLoginUrl({ portal: 'admin', source: 'superadmin_bot' });
         await bot.sendMessage(
           chatId,
           `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
@@ -682,7 +688,7 @@ async function initBot() {
       await client.query('COMMIT');
       onboardingStates.delete(stateKey);
 
-      const loginUrl = buildWebLoginUrl();
+      const loginUrl = buildWebLoginUrl({ portal: 'admin', source: 'superadmin_bot' });
       const locationText = state.location
         ? `${state.location.latitude.toFixed(6)}, ${state.location.longitude.toFixed(6)}`
         : 'не указана';
@@ -773,7 +779,7 @@ async function initBot() {
       [hashedPassword, phoneLogin, user.id]
     );
 
-    const loginUrl = buildWebLoginUrl();
+    const loginUrl = buildWebLoginUrl({ portal: 'admin', source: 'superadmin_bot' });
     await bot.sendMessage(
       chatId,
       `✅ <b>Доступ восстановлен</b>\n\n` +

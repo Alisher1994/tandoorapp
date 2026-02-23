@@ -22,6 +22,60 @@ function normalizePhone(rawPhone) {
   return trimmed.replace(/\D/g, '');
 }
 
+function normalizeLoginPortal(value) {
+  const portal = String(value || '').trim().toLowerCase();
+  if (['customer', 'admin', 'operator', 'superadmin'].includes(portal)) {
+    return portal;
+  }
+  return '';
+}
+
+function parseOptionalInt(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getPortalRoleRank(role, portal) {
+  if (!portal) return 0;
+
+  const ranksByPortal = {
+    customer: { customer: 0, operator: 1, superadmin: 2 },
+    admin: { operator: 0, superadmin: 1, customer: 2 },
+    operator: { operator: 0, superadmin: 1, customer: 2 },
+    superadmin: { superadmin: 0, operator: 1, customer: 2 }
+  };
+
+  const rankMap = ranksByPortal[portal] || {};
+  return Number.isFinite(rankMap[role]) ? rankMap[role] : 99;
+}
+
+function isRoleAllowedForPortal(role, portal) {
+  if (!portal) return true;
+  if (portal === 'customer') return role === 'customer';
+  if (portal === 'admin') return role === 'operator' || role === 'superadmin';
+  if (portal === 'operator') return role === 'operator' || role === 'superadmin';
+  if (portal === 'superadmin') return role === 'superadmin';
+  return true;
+}
+
+async function verifyPasswordCandidate(password, user) {
+  let isValidPassword = false;
+  const storedPassword = user?.password || '';
+  const isBcryptHash = typeof storedPassword === 'string' && /^\$2[aby]\$\d{2}\$/.test(storedPassword);
+
+  if (isBcryptHash) {
+    isValidPassword = await bcrypt.compare(password, storedPassword);
+  } else {
+    isValidPassword = password === storedPassword;
+    if (isValidPassword) {
+      const rehashedPassword = await bcrypt.hash(password, 10);
+      await pool.query('UPDATE users SET password = $1 WHERE id = $2', [rehashedPassword, user.id]);
+    }
+  }
+
+  return isValidPassword;
+}
+
 // Register (only for customers via Telegram bot)
 router.post('/register', async (req, res) => {
   try {
@@ -70,8 +124,10 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, portal, restaurant_id } = req.body;
     const identifier = String(username || '').trim();
+    const requestedPortal = normalizeLoginPortal(portal);
+    const requestedRestaurantId = parseOptionalInt(restaurant_id);
 
     if (!identifier || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
@@ -87,51 +143,82 @@ router.post('/login', async (req, res) => {
     const result = await pool.query(`
       SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo,
              r.service_fee as active_restaurant_service_fee,
-             r.is_delivery_enabled as active_restaurant_is_delivery_enabled
+             r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
+             CASE
+               WHEN $3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
+               WHEN $3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
+               WHEN LOWER(u.username) = $1 THEN 2
+               WHEN LOWER(u.username) = $2 THEN 3
+               ELSE 4
+             END AS login_match_priority,
+             CASE
+               WHEN $4::int IS NULL THEN false
+               ELSE EXISTS (
+                 SELECT 1
+                 FROM operator_restaurants opr
+                 WHERE opr.user_id = u.id
+                   AND opr.restaurant_id = $4::int
+               )
+             END AS matches_portal_restaurant
       FROM users u
       LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       WHERE LOWER(u.username) = $1
          OR LOWER(u.username) = $2
          OR ($3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3)
          OR ($3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3)
-      ORDER BY
-        CASE
-          WHEN $3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
-          WHEN $3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
-          WHEN LOWER(u.username) = $1 THEN 2
-          WHEN LOWER(u.username) = $2 THEN 3
-          ELSE 4
-        END
-      LIMIT 1
-    `, [usernameLower, usernameWithAt, phoneDigits]);
+      ORDER BY login_match_priority ASC, u.id DESC
+      LIMIT 20
+    `, [usernameLower, usernameWithAt, phoneDigits, requestedRestaurantId]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 
-    const user = result.rows[0];
+    const sortedCandidates = [...result.rows].sort((a, b) => {
+      const aRoleRank = getPortalRoleRank(a.role, requestedPortal);
+      const bRoleRank = getPortalRoleRank(b.role, requestedPortal);
+      if (aRoleRank !== bRoleRank) return aRoleRank - bRoleRank;
 
-    // Check if user is active
-    if (!user.is_active) {
-      return res.status(403).json({ error: 'Аккаунт деактивирован' });
-    }
-
-    let isValidPassword = false;
-    const storedPassword = user.password || '';
-    const isBcryptHash = typeof storedPassword === 'string' && /^\$2[aby]\$\d{2}\$/.test(storedPassword);
-
-    if (isBcryptHash) {
-      isValidPassword = await bcrypt.compare(password, storedPassword);
-    } else {
-      // Backward compatibility for legacy plain-text passwords
-      isValidPassword = password === storedPassword;
-      if (isValidPassword) {
-        const rehashedPassword = await bcrypt.hash(password, 10);
-        await pool.query('UPDATE users SET password = $1 WHERE id = $2', [rehashedPassword, user.id]);
+      if (requestedPortal && requestedPortal !== 'customer' && requestedRestaurantId) {
+        const aRestaurantRank = a.matches_portal_restaurant ? 0 : 1;
+        const bRestaurantRank = b.matches_portal_restaurant ? 0 : 1;
+        if (aRestaurantRank !== bRestaurantRank) return aRestaurantRank - bRestaurantRank;
       }
+
+      const aMatchRank = Number(a.login_match_priority ?? 99);
+      const bMatchRank = Number(b.login_match_priority ?? 99);
+      if (aMatchRank !== bMatchRank) return aMatchRank - bMatchRank;
+
+      return Number(b.id || 0) - Number(a.id || 0);
+    });
+
+    const preferredCandidates = requestedPortal
+      ? sortedCandidates.filter((candidate) => isRoleAllowedForPortal(candidate.role, requestedPortal))
+      : [];
+    const candidatesToCheck = requestedPortal && preferredCandidates.length > 0
+      ? preferredCandidates
+      : sortedCandidates;
+
+    let user = null;
+    let inactiveUserMatched = false;
+
+    for (const candidate of candidatesToCheck) {
+      const isValidPassword = await verifyPasswordCandidate(password, candidate);
+      if (!isValidPassword) continue;
+
+      if (!candidate.is_active) {
+        inactiveUserMatched = true;
+        continue;
+      }
+
+      user = candidate;
+      break;
     }
 
-    if (!isValidPassword) {
+    if (!user) {
+      if (inactiveUserMatched) {
+        return res.status(403).json({ error: 'Аккаунт деактивирован' });
+      }
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 

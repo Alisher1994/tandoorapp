@@ -88,6 +88,29 @@ function getPublicBaseUrl() {
   }
 }
 
+function getFrontendBaseUrl() {
+  const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+  if (!base) return null;
+  return String(base).replace(/\/$/, '');
+}
+
+function buildCustomerCatalogUrl(order) {
+  const baseUrl = getFrontendBaseUrl();
+  if (!baseUrl || !process.env.JWT_SECRET || !order?.user_id) return null;
+
+  const token = jwt.sign(
+    {
+      userId: Number(order.user_id),
+      username: order.customer_phone || order.customer_name || `user_${order.user_id}`,
+      autoLogin: true
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+
+  return `${baseUrl}/catalog?token=${encodeURIComponent(token)}`;
+}
+
 function buildOrderPreviewUrl(orderId) {
   const baseUrl = getPublicBaseUrl();
   if (!baseUrl || !process.env.JWT_SECRET || !orderId) return null;
@@ -178,10 +201,6 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     )
     : '';
 
-  const previewLine = includePreviewLink && previewUrl
-    ? `\n🔎 Веб-детали: <a href="${previewUrl}">открыть заказ</a>`
-    : '';
-
   const message =
     `<b>ID: ${order.order_number}</b>\n` +
     `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
@@ -191,40 +210,49 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     `<b>Товары</b>\n\n${itemsList}\n\n` +
     deliveryLine +
     `<b>Итого: ${formatPrice(productsTotal)} сум</b>` +
-    previewLine +
     `\n\n` +
     (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
 
   return message;
 }
 
-function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '') {
+function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '', options = {}) {
+  const previewUrl = options?.previewUrl || null;
+  const previewButton = previewUrl
+    ? { text: '🔎 Детали', url: previewUrl }
+    : null;
+
+  const withPreview = (row) => {
+    if (!previewButton) return row;
+    return [...row, previewButton];
+  };
+
   if (stage === 'new') {
     return {
-      inline_keyboard: [[
+      inline_keyboard: [withPreview([
         { text: '✅ Принять', callback_data: `confirm_order_${orderId}` },
         { text: '❌ Отказать', callback_data: `reject_order_${orderId}` }
-      ]]
+      ])]
     };
   }
 
   if (stage === 'accepted') {
-    return { inline_keyboard: [[{ text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` }]] };
+    return { inline_keyboard: [withPreview([{ text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` }])] };
   }
 
   if (stage === 'preparing') {
-    return { inline_keyboard: [[{ text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` }]] };
+    return { inline_keyboard: [withPreview([{ text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` }])] };
   }
 
   if (stage === 'delivering') {
-    return { inline_keyboard: [[{ text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` }]] };
+    return { inline_keyboard: [withPreview([{ text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` }])] };
   }
 
   if (stage === 'done') {
-    return { inline_keyboard: [[{ text: `✅ Завершено${operatorName ? ': ' + operatorName : ''}`, callback_data: 'done' }]] };
+    return { inline_keyboard: [withPreview([{ text: `✅ Завершено${operatorName ? ': ' + operatorName : ''}`, callback_data: 'done' }])] };
   }
 
-  return { inline_keyboard: [] };
+  return { inline_keyboard: previewButton ? [[previewButton]] : [] };
 }
 
 /**
@@ -252,7 +280,9 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       revealSensitive: false,
       statusKey: 'new'
     });
-    const keyboard = buildGroupOrderActionKeyboard(order.id, 'new');
+    const keyboard = buildGroupOrderActionKeyboard(order.id, 'new', '', {
+      previewUrl: buildOrderPreviewUrl(order.id)
+    });
 
     console.log(`📤 Sending order ${order.id} notification to ${chatId} with buttons`);
 
@@ -369,17 +399,23 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       `Сумма заказа: ${formatPrice(order.total_amount)} сум` +
       paymentLine;
 
-    // Add "New Order" button for delivered/cancelled orders (not for new - they have payment link)
-    const showNewOrderButton = status === 'delivered' || status === 'cancelled';
+    const catalogUrl = buildCustomerCatalogUrl(order);
+    const inlineKeyboard = [];
+
+    if (catalogUrl) {
+      inlineKeyboard.push([{ text: '🍽️ Открыть меню', url: catalogUrl }]);
+    }
+    inlineKeyboard.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
+
+    // Keep quick re-order button for completed/cancelled statuses
+    if (status === 'delivered' || status === 'cancelled') {
+      inlineKeyboard.push([{ text: '🛒 Новый заказ', callback_data: 'new_order' }]);
+    }
 
     const options = {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
-      reply_markup: showNewOrderButton ? {
-        inline_keyboard: [
-          [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
-        ]
-      } : undefined
+      reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined
     };
 
     await bot.sendMessage(telegramId, message, options);

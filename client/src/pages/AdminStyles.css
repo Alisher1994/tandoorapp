@@ -18,14 +18,14 @@ body::-webkit-scrollbar,
 }
 
 :root {
-    --primary-color: #8f6d46;
-    --primary-hover: #6f5334;
-    --secondary-bg: #f4e7d4;
-    --border-color: #dfcfb9;
-    --text-main: #3d2f21;
-    --text-muted: #7d6a55;
-    --card-shadow: 0 10px 30px rgba(98, 73, 44, 0.08);
-    --card-shadow-lg: 0 16px 40px rgba(98, 73, 44, 0.12);
+    --primary-color: #88552e;
+    --primary-hover: #63391b;
+    --secondary-bg: #f8ead7;
+    --border-color: #e6d4bf;
+    --text-main: #2f2217;
+    --text-muted: #7d6854;
+    --card-shadow: 0 16px 36px rgba(81, 54, 28, 0.08);
+    --card-shadow-lg: 0 22px 48px rgba(81, 54, 28, 0.14);
     --radius-md: 12px;
     --radius-lg: 16px;
 
@@ -47,10 +47,14 @@ body::-webkit-scrollbar,
 }
 
 .admin-navbar-shell {
-    background: linear-gradient(135deg, #b3926b 0%, #8f6d46 100%);
-    border-bottom: 1px solid rgba(255, 250, 243, 0.45);
+    background:
+        radial-gradient(circle at 12% 30%, rgba(255, 255, 255, 0.14), transparent 34%),
+        radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.09), transparent 32%),
+        linear-gradient(135deg, #ba8854 0%, #8a5a2f 48%, #6d4121 100%);
+    border-bottom: 1px solid rgba(255, 250, 243, 0.22);
     position: relative;
     z-index: 1050;
+    box-shadow: 0 10px 26px rgba(61, 39, 18, 0.14);
 }
 
 .admin-brand-icon {
@@ -261,7 +265,10 @@ body::-webkit-scrollbar,
 .admin-panel {
     padding-top: 2rem;
     padding-bottom: 4rem;
-    background-color: transparent;
+    background:
+        radial-gradient(circle at 4% 2%, rgba(217, 161, 95, 0.14), transparent 36%),
+        radial-gradient(circle at 96% 4%, rgba(136, 85, 46, 0.10), transparent 32%),
+        linear-gradient(180deg, #fbf6ef 0%, #f6efe4 52%, #efe3d1 100%);
 }
 
 .admin-panel .card,
@@ -618,7 +625,8 @@ body::-webkit-scrollbar,
     border-radius: var(--radius-lg) !important;
     box-shadow: var(--card-shadow);
     overflow: hidden;
-    background: #ffffff;
+    background: linear-gradient(180deg, rgba(255, 250, 243, 0.96), rgba(255, 250, 243, 0.9));
+    border: 1px solid rgba(136, 85, 46, 0.08) !important;
 }
 
 .admin-card>.card-body {
@@ -1315,9 +1323,10 @@ body::-webkit-scrollbar,
 
 /* Enhancements for Modal Fields */
 .modal-content {
-    border: none;
+    border: 1px solid rgba(136, 85, 46, 0.12);
     border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(98, 73, 44, 0.12);
+    box-shadow: 0 22px 54px rgba(61, 39, 18, 0.16);
+    background: linear-gradient(180deg, rgba(255, 250, 243, 0.98), rgba(248, 239, 226, 0.96));
 }
 
 .modal-header {

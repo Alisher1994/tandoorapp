@@ -15,6 +15,16 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const searchParams = new URLSearchParams(window.location.search);
+  const loginPortal = (searchParams.get('portal') || '').toLowerCase();
+  const restaurantIdParam = searchParams.get('restaurantId') || searchParams.get('restaurant_id') || '';
+
+  const portalTitles = {
+    admin: 'Вход для администратора',
+    operator: 'Вход для оператора',
+    superadmin: 'Вход для суперадмина',
+    customer: 'Вход для клиента'
+  };
 
   // Redirect if already logged in
   useEffect(() => {
@@ -38,7 +48,10 @@ function Login() {
     setError('');
     setLoading(true);
 
-    const result = await login(username, password);
+    const result = await login(username, password, {
+      portal: loginPortal,
+      restaurantId: restaurantIdParam
+    });
     
     if (result.success) {
       // Login will set user, useEffect will handle redirect
@@ -54,6 +67,13 @@ function Login() {
       <Card style={{ width: '100%', maxWidth: '420px' }} className="shadow login-card">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
+            {(loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'superadmin' || loginPortal === 'customer') && (
+              <div className="mb-3">
+                <span className="login-context-chip">
+                  {loginPortal === 'customer' ? 'Client Portal' : 'Admin Portal'}
+                </span>
+              </div>
+            )}
             <div
               className="mx-auto mb-3"
               style={{
@@ -78,8 +98,12 @@ function Login() {
                 }}
               />
             </div>
-            <h2>Вход в систему</h2>
-            <p className="text-muted">Введите ваши данные для входа</p>
+            <h2>{portalTitles[loginPortal] || 'Вход в систему'}</h2>
+            <p className="text-muted">
+              {loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'superadmin'
+                ? 'Введите данные администратора'
+                : 'Введите ваши данные для входа'}
+            </p>
           </div>
 
           {error && <Alert variant="danger">{error}</Alert>}
@@ -113,7 +137,7 @@ function Login() {
             <Button
               variant="primary"
               type="submit"
-              className="w-100"
+              className="w-100 rounded-pill py-2 fw-semibold"
               disabled={loading}
             >
               {loading ? 'Вход...' : 'Войти'}

@@ -23,16 +23,19 @@ function BottomNav() {
   return (
     <nav style={{
       position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      background: 'var(--surface-color)',
-      borderTop: '1px solid var(--border-color)',
+      bottom: 10,
+      left: 10,
+      right: 10,
+      background: 'rgba(255, 250, 243, 0.88)',
+      border: '1px solid rgba(143, 109, 70, 0.18)',
       display: 'flex',
       justifyContent: 'space-around',
-      padding: '8px 0 12px',
+      padding: '8px 6px 10px',
       zIndex: 1000,
-      boxShadow: '0 -6px 18px rgba(0,0,0,0.08)'
+      boxShadow: '0 14px 34px rgba(52, 36, 18, 0.14)',
+      borderRadius: 20,
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)'
     }}>
       {navItems.map((item) => (
         <button
@@ -42,23 +45,30 @@ function BottomNav() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            background: 'none',
-            border: 'none',
-            padding: '4px 16px',
+            background: isActive(item.path) ? 'rgba(143, 109, 70, 0.08)' : 'transparent',
+            border: isActive(item.path) ? '1px solid rgba(143, 109, 70, 0.16)' : '1px solid transparent',
+            borderRadius: 14,
+            padding: '6px 14px',
             cursor: 'pointer',
             position: 'relative',
-            opacity: isActive(item.path) ? 1 : 0.65,
-            transform: isActive(item.path) ? 'scale(1.05)' : 'scale(1)',
-            transition: 'all 0.2s'
+            opacity: isActive(item.path) ? 1 : 0.72,
+            transform: isActive(item.path) ? 'translateY(-1px)' : 'translateY(0)',
+            transition: 'all 0.2s ease',
+            minWidth: 70
           }}
         >
-          <span style={{ fontSize: '24px', marginBottom: '2px' }}>
+          <span style={{
+            fontSize: '22px',
+            marginBottom: '2px',
+            filter: isActive(item.path) ? 'none' : 'grayscale(0.1)'
+          }}>
             {item.icon}
           </span>
           <span style={{ 
             fontSize: '11px', 
             fontWeight: isActive(item.path) ? '600' : '400',
-            color: isActive(item.path) ? 'var(--accent-color)' : 'var(--text-secondary)'
+            color: isActive(item.path) ? 'var(--primary-color)' : 'var(--text-secondary)',
+            letterSpacing: '0.02em'
           }}>
             {item.label}
           </span>
@@ -68,9 +78,9 @@ function BottomNav() {
             <span style={{
               position: 'absolute',
               top: 0,
-              right: 8,
-              background: 'var(--accent-color)',
-              color: '#1a1a1a',
+              right: 6,
+              background: 'linear-gradient(135deg, #be8d56, #8f6d46)',
+              color: '#fff',
               fontSize: '10px',
               fontWeight: 'bold',
               minWidth: '18px',
@@ -91,4 +101,3 @@ function BottomNav() {
 }
 
 export default BottomNav;
-
