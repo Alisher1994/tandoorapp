@@ -867,12 +867,12 @@ function Catalog() {
               const productName = getProductName(product);
               const imageUrl = resolveImageUrl(product.thumb_url || product.image_url);
               const category = categoriesById.get(Number(product.category_id));
+              const cartItem = getCartItem(product.id);
+              const qty = cartItem?.quantity || 0;
+              const isAvailable = product.in_stock !== false;
               return (
-                <button
+                <div
                   key={`search-result-${product.id}`}
-                  type="button"
-                  onClick={() => openProductFromSearch(product)}
-                  className="w-100 border-0 bg-white text-start"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -900,18 +900,91 @@ function Catalog() {
                       <span style={{ opacity: 0.5 }}>📦</span>
                     )}
                   </div>
-                  <div className="min-w-0 flex-grow-1">
+                  <button
+                    type="button"
+                    onClick={() => openProductFromSearch(product)}
+                    className="border-0 bg-transparent p-0 text-start min-w-0 flex-grow-1"
+                    style={{ minWidth: 0 }}
+                  >
                     <div className="fw-semibold text-truncate" style={{ color: '#3a2b1b', fontSize: '0.92rem' }}>
                       {productName}
                     </div>
                     <div className="small text-muted text-truncate">
                       {category ? getCategoryName(category) : (language === 'uz' ? 'Kategoriya' : 'Категория')}
                     </div>
+                  </button>
+                  <div className="d-flex flex-column align-items-end" style={{ minWidth: 94 }}>
+                    {isAvailable ? (
+                      qty > 0 ? (
+                        <div
+                          className="d-flex align-items-center justify-content-between rounded-pill px-1"
+                          style={{
+                            background: 'rgba(165,133,92,0.10)',
+                            border: '1px solid rgba(165,133,92,0.2)',
+                            minWidth: 90,
+                            height: 32
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
+                            style={{ width: 26, height: 26, color: '#6f5538', fontSize: '16px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateQuantity(product.id, qty - 1);
+                            }}
+                            aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                          >
+                            -
+                          </button>
+                          <span style={{ fontWeight: 700, color: '#3a2b1b', fontSize: '0.86rem', minWidth: 18, textAlign: 'center' }}>
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
+                            style={{ width: 26, height: 26, color: 'var(--primary-color)', fontSize: '16px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateQuantity(product.id, qty + 1);
+                            }}
+                            aria-label={language === 'uz' ? 'Ko‘paytirish' : 'Увеличить'}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(product);
+                          }}
+                          className="btn btn-sm rounded-pill"
+                          style={{
+                            minWidth: 90,
+                            height: 32,
+                            background: 'var(--primary-color)',
+                            border: '1px solid var(--primary-color)',
+                            color: '#fff'
+                          }}
+                        >
+                          +
+                        </button>
+                      )
+                    ) : (
+                      <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>
+                        {language === 'uz' ? 'Mavjud emas' : 'Нет'}
+                      </span>
+                    )}
+                    <div
+                      className="text-end mt-1"
+                      style={{ color: 'var(--primary-color)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.83rem' }}
+                    >
+                      {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
+                    </div>
                   </div>
-                  <div className="text-end" style={{ color: 'var(--primary-color)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                    {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
-                  </div>
-                </button>
+                </div>
               );
             })}
           </div>
