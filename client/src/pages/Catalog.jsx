@@ -868,7 +868,7 @@ function Catalog() {
   };
 
   const renderCatalogSearch = () => (
-    <div className="mt-2 mb-2">
+    <div className="mt-2 mb-0">
       <div
         style={{
           border: '1px solid rgba(165,133,92,0.22)',
