@@ -162,6 +162,165 @@ const SearchableRestaurantFilter = ({
   );
 };
 
+const MiniBarChart = ({
+  title,
+  rows = [],
+  getLabel,
+  getValue,
+  secondaryValue,
+  color = 'linear-gradient(90deg, #8b6a3f 0%, #c89b5c 100%)',
+  maxItems = 8,
+  emptyText = 'Нет данных'
+}) => {
+  const items = (Array.isArray(rows) ? rows : []).slice(0, maxItems);
+  const maxValue = Math.max(1, ...items.map((row) => Number(getValue?.(row) || 0)));
+
+  return (
+    <Card className="border-0 shadow-sm h-100">
+      <Card.Body>
+        <h6 className="mb-3">{title}</h6>
+        {items.length === 0 ? (
+          <div className="text-muted small py-4 text-center">{emptyText}</div>
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            {items.map((row, idx) => {
+              const label = String(getLabel?.(row) || '—');
+              const value = Number(getValue?.(row) || 0);
+              const percent = Math.max(0, Math.min(100, (value / maxValue) * 100));
+              const extra = secondaryValue ? secondaryValue(row) : null;
+              return (
+                <div key={`${label}-${idx}`}>
+                  <div className="d-flex align-items-center justify-content-between gap-2 mb-1">
+                    <div className="small fw-medium text-truncate" title={label}>{label}</div>
+                    <div className="small text-muted text-nowrap">
+                      {value}
+                      {extra ? ` · ${extra}` : ''}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      height: 8,
+                      borderRadius: 999,
+                      background: 'rgba(0,0,0,0.06)',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.max(percent, value > 0 ? 6 : 0)}%`,
+                        height: '100%',
+                        borderRadius: 999,
+                        background: color,
+                        transition: 'width 200ms ease'
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card.Body>
+    </Card>
+  );
+};
+
+const MiniLineChart = ({
+  title,
+  rows = [],
+  xKey = 'day',
+  lines = [],
+  emptyText = 'Нет данных'
+}) => {
+  const source = [...(Array.isArray(rows) ? rows : [])].slice(0, 30).reverse();
+  const width = 640;
+  const height = 220;
+  const pad = { top: 16, right: 16, bottom: 30, left: 36 };
+  const chartWidth = width - pad.left - pad.right;
+  const chartHeight = height - pad.top - pad.bottom;
+
+  const values = source.flatMap((row) => lines.map((line) => Number(row?.[line.key] || 0)));
+  const maxValue = Math.max(1, ...values);
+
+  const toPoint = (index, value) => {
+    const x = pad.left + (source.length <= 1 ? chartWidth / 2 : (index / (source.length - 1)) * chartWidth);
+    const y = pad.top + chartHeight - (Number(value || 0) / maxValue) * chartHeight;
+    return { x, y };
+  };
+
+  const paths = lines.map((line) => {
+    const points = source.map((row, idx) => toPoint(idx, row?.[line.key]));
+    const d = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    return { ...line, points, d };
+  });
+
+  const gridLines = 4;
+
+  return (
+    <Card className="border-0 shadow-sm">
+      <Card.Body>
+        <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-2">
+          <h6 className="mb-0">{title}</h6>
+          <div className="d-flex flex-wrap gap-2">
+            {lines.map((line) => (
+              <span key={line.key} className="small text-muted d-inline-flex align-items-center gap-1">
+                <span style={{ width: 10, height: 10, borderRadius: 999, background: line.color, display: 'inline-block' }} />
+                {line.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        {source.length === 0 ? (
+          <div className="text-muted small py-4 text-center">{emptyText}</div>
+        ) : (
+          <div>
+            <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="220" role="img" aria-label={title}>
+              <rect x="0" y="0" width={width} height={height} fill="white" rx="12" />
+              {Array.from({ length: gridLines + 1 }).map((_, i) => {
+                const y = pad.top + (i / gridLines) * chartHeight;
+                const value = Math.round(maxValue - (i / gridLines) * maxValue);
+                return (
+                  <g key={`g-${i}`}>
+                    <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="rgba(0,0,0,0.08)" strokeDasharray="4 4" />
+                    <text x={pad.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#8a8a8a">{value}</text>
+                  </g>
+                );
+              })}
+
+              {paths.map((path) => (
+                <path key={path.key} d={path.d} fill="none" stroke={path.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+              {paths.map((path) => (
+                <g key={`${path.key}-pts`}>
+                  {path.points.map((point, idx) => (
+                    <circle key={`${path.key}-${idx}`} cx={point.x} cy={point.y} r="2.8" fill={path.color} />
+                  ))}
+                </g>
+              ))}
+
+              {source.map((row, idx) => {
+                const { x } = toPoint(idx, 0);
+                const raw = row?.[xKey];
+                let label = '';
+                try {
+                  label = raw ? new Date(raw).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
+                } catch {
+                  label = String(raw || '');
+                }
+                return (
+                  <text key={`x-${idx}`} x={x} y={height - 10} textAnchor="middle" fontSize="10" fill="#8a8a8a">
+                    {label}
+                  </text>
+                );
+              })}
+            </svg>
+          </div>
+        )}
+      </Card.Body>
+    </Card>
+  );
+};
+
 function SuperAdminDashboard() {
   const { user, logout } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -307,7 +466,12 @@ function SuperAdminDashboard() {
   const [adBannerImageMeta, setAdBannerImageMeta] = useState(null);
   const [adBannerStatusFilter, setAdBannerStatusFilter] = useState('all');
   const [showAdBannerModal, setShowAdBannerModal] = useState(false);
+  const [showAdAnalyticsModal, setShowAdAnalyticsModal] = useState(false);
   const [editingAdBanner, setEditingAdBanner] = useState(null);
+  const [analyticsAdBanner, setAnalyticsAdBanner] = useState(null);
+  const [adBannerAnalytics, setAdBannerAnalytics] = useState(null);
+  const [adBannerAnalyticsLoading, setAdBannerAnalyticsLoading] = useState(false);
+  const [adBannerAnalyticsDays, setAdBannerAnalyticsDays] = useState(30);
   const [uploadingAdBannerImage, setUploadingAdBannerImage] = useState(false);
   const [adBannerForm, setAdBannerForm] = useState({
     title: '',
@@ -377,6 +541,11 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'ads') loadAdBanners();
   }, [activeTab, adBannerStatusFilter]);
+
+  useEffect(() => {
+    if (!showAdAnalyticsModal || !analyticsAdBanner?.id) return;
+    loadAdBannerAnalytics(analyticsAdBanner.id, adBannerAnalyticsDays);
+  }, [showAdAnalyticsModal, analyticsAdBanner?.id, adBannerAnalyticsDays]);
 
   // API calls
   const loadStats = async () => {
@@ -710,6 +879,65 @@ function SuperAdminDashboard() {
     return 'bg-secondary bg-opacity-10 text-muted';
   };
 
+  const formatAdAnalyticsDate = (value) => {
+    if (!value) return '—';
+    try {
+      return new Date(value).toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+    } catch {
+      return String(value);
+    }
+  };
+
+  const formatAdAnalyticsDay = (value) => {
+    if (!value) return '—';
+    try {
+      return new Date(value).toLocaleDateString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+    } catch {
+      return String(value);
+    }
+  };
+
+  const formatAnalyticsPercent = (value) => {
+    const num = Number(value || 0);
+    return `${num.toFixed(2)}%`;
+  };
+
+  const formatDeviceTypeLabel = (type) => {
+    const map = language === 'uz'
+      ? { mobile: 'Telefon', tablet: 'Planshet', desktop: 'Kompyuter', smarttv: 'TV' }
+      : { mobile: 'Телефон', tablet: 'Планшет', desktop: 'ПК', smarttv: 'TV' };
+    return map[type] || type || (language === 'uz' ? "Noma'lum" : 'Неизвестно');
+  };
+
+  const buildBrowserAnalyticsLabel = (item) => {
+    const base = item?.browser_name || 'Unknown';
+    if (item?.app_container) return `${item.app_container} / ${base}`;
+    return base;
+  };
+
+  const buildDeviceAnalyticsLabel = (item) => {
+    const parts = [
+      item?.device_brand,
+      item?.device_model && item.device_model !== item?.device_brand ? item.device_model : null
+    ].filter(Boolean);
+    const primary = parts.join(' ') || (item?.device_model || formatDeviceTypeLabel(item?.device_type));
+    const os = [item?.os_name, item?.os_version].filter(Boolean).join(' ');
+    return os ? `${primary} · ${os}` : primary;
+  };
+
+  const aggregateAdAnalyticsRows = (rows, getKey) => {
+    const map = new Map();
+    for (const row of (Array.isArray(rows) ? rows : [])) {
+      const key = String(getKey(row) || '').trim() || 'Unknown';
+      const current = map.get(key) || { key, views: 0, clicks: 0, unique_views: 0 };
+      current.views += Number(row?.views || 0);
+      current.clicks += Number(row?.clicks || 0);
+      current.unique_views += Number(row?.unique_views || 0);
+      map.set(key, current);
+    }
+    return [...map.values()].sort((a, b) => (b.views - a.views) || (b.clicks - a.clicks) || a.key.localeCompare(b.key));
+  };
+
   const resetAdBannerForm = () => {
     setEditingAdBanner(null);
     setAdBannerImageMeta(null);
@@ -771,6 +999,29 @@ function SuperAdminDashboard() {
     } finally {
       setAdBannersLoading(false);
     }
+  };
+
+  const loadAdBannerAnalytics = async (bannerId, days = adBannerAnalyticsDays) => {
+    try {
+      setAdBannerAnalyticsLoading(true);
+      const params = {};
+      if (days === 'all' || days === null) params.days = 'all';
+      else params.days = Number(days) || 30;
+      const response = await axios.get(`${API_URL}/superadmin/ads/banners/${bannerId}/analytics`, { params });
+      setAdBannerAnalytics(response.data || null);
+    } catch (err) {
+      console.error('Load ad analytics error:', err);
+      setError(err.response?.data?.error || 'Ошибка загрузки аналитики рекламы');
+    } finally {
+      setAdBannerAnalyticsLoading(false);
+    }
+  };
+
+  const openAdAnalyticsModal = (banner) => {
+    if (!banner?.id) return;
+    setAnalyticsAdBanner(banner);
+    setAdBannerAnalytics(null);
+    setShowAdAnalyticsModal(true);
   };
 
   const handleAdBannerImageUpload = async (file) => {
@@ -1746,7 +1997,22 @@ function SuperAdminDashboard() {
         daysDisplay: 'Ko‘rsatish kunlari (tanlanmasa — har kuni)',
         cancel: 'Bekor qilish',
         saveChanges: "O'zgarishlarni saqlash",
-        createSlot: 'Slot yaratish'
+        createSlot: 'Slot yaratish',
+        analytics: 'Analitika',
+        analyticsTitle: 'Banner analitikasi',
+        analyticsRange: 'Davr',
+        analyticsViews: "Ko'rishlar",
+        analyticsClicks: 'Bosishlar',
+        analyticsUnique: 'Unikal ko‘rishlar',
+        analyticsCtr: 'CTR',
+        analyticsLastView: "Oxirgi ko'rish",
+        analyticsLastClick: 'Oxirgi bosish',
+        analyticsByDay: 'Kunlar bo‘yicha',
+        analyticsBrowsers: 'Brauzerlar',
+        analyticsDevices: 'Qurilmalar',
+        analyticsGeo: 'Shaharlar / hududlar',
+        analyticsCountries: 'Mamlakatlar',
+        analyticsNoData: "Analitika ma'lumoti hali yo'q"
       }
     : {
         tab: 'Реклама',
@@ -1801,7 +2067,22 @@ function SuperAdminDashboard() {
         daysDisplay: 'Дни показа (если не выбрано — каждый день)',
         cancel: 'Отмена',
         saveChanges: 'Сохранить изменения',
-        createSlot: 'Создать слот'
+        createSlot: 'Создать слот',
+        analytics: 'Аналитика',
+        analyticsTitle: 'Аналитика баннера',
+        analyticsRange: 'Период',
+        analyticsViews: 'Просмотры',
+        analyticsClicks: 'Клики',
+        analyticsUnique: 'Уникальные просмотры',
+        analyticsCtr: 'CTR',
+        analyticsLastView: 'Последний просмотр',
+        analyticsLastClick: 'Последний клик',
+        analyticsByDay: 'По дням',
+        analyticsBrowsers: 'Браузеры',
+        analyticsDevices: 'Устройства',
+        analyticsGeo: 'Города / регионы',
+        analyticsCountries: 'Страны',
+        analyticsNoData: 'Данных аналитики пока нет'
       };
 
   const renderMobileFiltersSheetContent = () => {
@@ -2982,6 +3263,14 @@ function SuperAdminDashboard() {
                                   />
                                   <Button
                                     variant="light"
+                                    className="text-info p-1"
+                                    onClick={() => openAdAnalyticsModal(banner)}
+                                    title={adI18n.analytics}
+                                  >
+                                    📈
+                                  </Button>
+                                  <Button
+                                    variant="light"
                                     className="action-btn text-primary p-1"
                                     onClick={() => openAdBannerModal(banner)}
                                     title="Редактировать"
@@ -3337,6 +3626,378 @@ function SuperAdminDashboard() {
           </Card.Body>
         </Card>
       </Container>
+
+      <Modal
+        show={showAdAnalyticsModal}
+        onHide={() => setShowAdAnalyticsModal(false)}
+        size="xl"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {adI18n.analyticsTitle}
+            {analyticsAdBanner?.title ? ` · ${analyticsAdBanner.title}` : ''}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-3">
+            <div className="d-flex align-items-center gap-3 min-w-0">
+              {analyticsAdBanner?.image_url ? (
+                <div
+                  style={{
+                    width: '96px',
+                    height: '56px',
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-color)',
+                    background: '#fff',
+                    flexShrink: 0
+                  }}
+                >
+                  <img src={analyticsAdBanner.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ) : null}
+              <div className="min-w-0">
+                <div className="fw-semibold text-truncate">{analyticsAdBanner?.title || `ID ${analyticsAdBanner?.id || ''}`}</div>
+                <div className="small text-muted">
+                  #{analyticsAdBanner?.slot_order || '—'} · {getAdStatusLabel(analyticsAdBanner?.runtime_status)}
+                </div>
+              </div>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <span className="small text-muted text-nowrap">{adI18n.analyticsRange}:</span>
+              <Form.Select
+                size="sm"
+                className="form-control-custom"
+                style={{ minWidth: '140px' }}
+                value={String(adBannerAnalyticsDays)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setAdBannerAnalyticsDays(next === 'all' ? 'all' : Number(next));
+                }}
+              >
+                <option value="7">7 дней</option>
+                <option value="30">30 дней</option>
+                <option value="90">90 дней</option>
+                <option value="all">{language === 'uz' ? 'Barcha vaqt' : 'За всё время'}</option>
+              </Form.Select>
+            </div>
+          </div>
+
+          {adBannerAnalyticsLoading ? (
+            <div className="text-center py-5">
+              <Spinner animation="border" />
+            </div>
+          ) : !adBannerAnalytics ? (
+            <Alert variant="light" className="mb-0" style={{ border: '1px solid var(--border-color)' }}>
+              {adI18n.analyticsNoData}
+            </Alert>
+          ) : (
+            <>
+              <Row className="g-3 mb-3">
+                <Col xs={6} md={3}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="small text-muted">{adI18n.analyticsViews}</div>
+                      <div className="fs-4 fw-bold">{adBannerAnalytics?.overview?.total_views || 0}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col xs={6} md={3}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="small text-muted">{adI18n.analyticsClicks}</div>
+                      <div className="fs-4 fw-bold">{adBannerAnalytics?.overview?.total_clicks || 0}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col xs={6} md={3}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="small text-muted">{adI18n.analyticsUnique}</div>
+                      <div className="fs-4 fw-bold">{adBannerAnalytics?.overview?.unique_views || 0}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col xs={6} md={3}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="small text-muted">{adI18n.analyticsCtr}</div>
+                      <div className="fs-4 fw-bold">{formatAnalyticsPercent(adBannerAnalytics?.overview?.ctr)}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
+              <Row className="g-3 mb-3">
+                <Col md={6}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="small text-muted">{adI18n.analyticsLastView}</div>
+                      <div className="fw-semibold">{formatAdAnalyticsDate(adBannerAnalytics?.overview?.last_view_at)}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+                <Col md={6}>
+                  <Card className="h-100 border-0 shadow-sm">
+                    <Card.Body>
+                      <div className="small text-muted">{adI18n.analyticsLastClick}</div>
+                      <div className="fw-semibold">{formatAdAnalyticsDate(adBannerAnalytics?.overview?.last_click_at)}</div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+
+              <Row className="g-3 mb-3">
+                <Col xs={12}>
+                  <MiniLineChart
+                    title={adI18n.analyticsByDay}
+                    rows={adBannerAnalytics?.daily || []}
+                    xKey="day"
+                    lines={[
+                      { key: 'views', label: adI18n.analyticsViews, color: '#8b6a3f' },
+                      { key: 'clicks', label: adI18n.analyticsClicks, color: '#2f80ed' },
+                      { key: 'unique_views', label: adI18n.analyticsUnique, color: '#27ae60' }
+                    ]}
+                    emptyText={adI18n.analyticsNoData}
+                  />
+                </Col>
+                <Col lg={4}>
+                  <MiniBarChart
+                    title={adI18n.analyticsBrowsers}
+                    rows={adBannerAnalytics?.browsers || []}
+                    getLabel={(row) => buildBrowserAnalyticsLabel(row)}
+                    getValue={(row) => row.views}
+                    secondaryValue={(row) => `${adI18n.analyticsClicks}: ${row.clicks || 0}`}
+                    color="linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%)"
+                    emptyText={adI18n.analyticsNoData}
+                  />
+                </Col>
+                <Col lg={4}>
+                  <MiniBarChart
+                    title={adI18n.analyticsDevices}
+                    rows={aggregateAdAnalyticsRows(adBannerAnalytics?.devices || [], (row) => (
+                      row?.device_model || row?.device_brand || formatDeviceTypeLabel(row?.device_type)
+                    ))}
+                    getLabel={(row) => row.key}
+                    getValue={(row) => row.views}
+                    secondaryValue={(row) => `${adI18n.analyticsClicks}: ${row.clicks || 0}`}
+                    color="linear-gradient(90deg, #8b5cf6 0%, #ec4899 100%)"
+                    emptyText={adI18n.analyticsNoData}
+                  />
+                </Col>
+                <Col lg={4}>
+                  <MiniBarChart
+                    title={adI18n.analyticsGeo}
+                    rows={adBannerAnalytics?.cities || []}
+                    getLabel={(row) => [row.city, row.region, row.country].filter(Boolean).join(', ')}
+                    getValue={(row) => row.views}
+                    secondaryValue={(row) => `${adI18n.analyticsClicks}: ${row.clicks || 0}`}
+                    color="linear-gradient(90deg, #16a34a 0%, #84cc16 100%)"
+                    emptyText={adI18n.analyticsNoData}
+                  />
+                </Col>
+              </Row>
+
+              <Row className="g-3">
+                <Col lg={6}>
+                  <Card className="border-0 shadow-sm h-100">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <h6 className="mb-0">{adI18n.analyticsBrowsers}</h6>
+                        <small className="text-muted">{adI18n.analyticsViews}/{adI18n.analyticsClicks}</small>
+                      </div>
+                      <div className="table-responsive">
+                        <Table size="sm" className="align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Brauzer' : 'Браузер'}</th>
+                              <th className="text-end">{adI18n.analyticsViews}</th>
+                              <th className="text-end">{adI18n.analyticsClicks}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(adBannerAnalytics?.browsers || []).slice(0, 10).map((row, idx) => (
+                              <tr key={`${row.browser_name}-${row.app_container || 'na'}-${idx}`}>
+                                <td>
+                                  <div className="fw-medium">{buildBrowserAnalyticsLabel(row)}</div>
+                                  <div className="small text-muted">
+                                    {[row.browser_version, row.is_in_app_browser ? (language === 'uz' ? 'WebView' : 'WebView') : null].filter(Boolean).join(' · ') || '—'}
+                                  </div>
+                                </td>
+                                <td className="text-end">{row.views || 0}</td>
+                                <td className="text-end">{row.clicks || 0}</td>
+                              </tr>
+                            ))}
+                            {(!adBannerAnalytics?.browsers || adBannerAnalytics.browsers.length === 0) && (
+                              <tr>
+                                <td colSpan="3" className="text-center text-muted py-3">{adI18n.analyticsNoData}</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col lg={6}>
+                  <Card className="border-0 shadow-sm h-100">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <h6 className="mb-0">{adI18n.analyticsDevices}</h6>
+                        <small className="text-muted">{language === 'uz' ? 'Tur / Model' : 'Тип / модель'}</small>
+                      </div>
+                      <div className="table-responsive">
+                        <Table size="sm" className="align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Qurilma' : 'Устройство'}</th>
+                              <th className="text-end">{adI18n.analyticsViews}</th>
+                              <th className="text-end">{adI18n.analyticsClicks}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(adBannerAnalytics?.devices || []).slice(0, 10).map((row, idx) => (
+                              <tr key={`${row.device_type}-${row.device_brand || 'na'}-${row.device_model || 'na'}-${idx}`}>
+                                <td>
+                                  <div className="fw-medium text-truncate" title={buildDeviceAnalyticsLabel(row)}>
+                                    {buildDeviceAnalyticsLabel(row)}
+                                  </div>
+                                  <div className="small text-muted">{formatDeviceTypeLabel(row.device_type)}</div>
+                                </td>
+                                <td className="text-end">{row.views || 0}</td>
+                                <td className="text-end">{row.clicks || 0}</td>
+                              </tr>
+                            ))}
+                            {(!adBannerAnalytics?.devices || adBannerAnalytics.devices.length === 0) && (
+                              <tr>
+                                <td colSpan="3" className="text-center text-muted py-3">{adI18n.analyticsNoData}</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col lg={6}>
+                  <Card className="border-0 shadow-sm h-100">
+                    <Card.Body>
+                      <h6 className="mb-2">{adI18n.analyticsGeo}</h6>
+                      <div className="table-responsive">
+                        <Table size="sm" className="align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Joylashuv' : 'Локация'}</th>
+                              <th className="text-end">{adI18n.analyticsViews}</th>
+                              <th className="text-end">{adI18n.analyticsClicks}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(adBannerAnalytics?.cities || []).slice(0, 10).map((row, idx) => (
+                              <tr key={`${row.country}-${row.region}-${row.city}-${idx}`}>
+                                <td>
+                                  <div className="fw-medium">{row.city || 'Unknown'}</div>
+                                  <div className="small text-muted">{[row.region, row.country].filter(Boolean).join(', ')}</div>
+                                </td>
+                                <td className="text-end">{row.views || 0}</td>
+                                <td className="text-end">{row.clicks || 0}</td>
+                              </tr>
+                            ))}
+                            {(!adBannerAnalytics?.cities || adBannerAnalytics.cities.length === 0) && (
+                              <tr>
+                                <td colSpan="3" className="text-center text-muted py-3">{adI18n.analyticsNoData}</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col lg={6}>
+                  <Card className="border-0 shadow-sm h-100">
+                    <Card.Body>
+                      <h6 className="mb-2">{adI18n.analyticsCountries}</h6>
+                      <div className="table-responsive">
+                        <Table size="sm" className="align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Mamlakat' : 'Страна'}</th>
+                              <th className="text-end">{adI18n.analyticsViews}</th>
+                              <th className="text-end">{adI18n.analyticsClicks}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(adBannerAnalytics?.countries || []).slice(0, 10).map((row, idx) => (
+                              <tr key={`${row.country}-${idx}`}>
+                                <td>{row.country || 'Unknown'}</td>
+                                <td className="text-end">{row.views || 0}</td>
+                                <td className="text-end">{row.clicks || 0}</td>
+                              </tr>
+                            ))}
+                            {(!adBannerAnalytics?.countries || adBannerAnalytics.countries.length === 0) && (
+                              <tr>
+                                <td colSpan="3" className="text-center text-muted py-3">{adI18n.analyticsNoData}</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+
+                <Col xs={12}>
+                  <Card className="border-0 shadow-sm">
+                    <Card.Body>
+                      <h6 className="mb-2">{adI18n.analyticsByDay}</h6>
+                      <div className="table-responsive">
+                        <Table size="sm" className="align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                              <th className="text-end">{adI18n.analyticsViews}</th>
+                              <th className="text-end">{adI18n.analyticsUnique}</th>
+                              <th className="text-end">{adI18n.analyticsClicks}</th>
+                              <th className="text-end">{adI18n.analyticsCtr}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(adBannerAnalytics?.daily || []).slice(0, 14).map((row, idx) => {
+                              const rowCtr = row.views ? ((row.clicks || 0) / row.views) * 100 : 0;
+                              return (
+                                <tr key={`${row.day}-${idx}`}>
+                                  <td>{formatAdAnalyticsDay(row.day)}</td>
+                                  <td className="text-end">{row.views || 0}</td>
+                                  <td className="text-end">{row.unique_views || 0}</td>
+                                  <td className="text-end">{row.clicks || 0}</td>
+                                  <td className="text-end">{formatAnalyticsPercent(rowCtr)}</td>
+                                </tr>
+                              );
+                            })}
+                            {(!adBannerAnalytics?.daily || adBannerAnalytics.daily.length === 0) && (
+                              <tr>
+                                <td colSpan="5" className="text-center text-muted py-3">{adI18n.analyticsNoData}</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </Table>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Col>
+              </Row>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAdAnalyticsModal(false)}>{adI18n.cancel}</Button>
+        </Modal.Footer>
+      </Modal>
 
       <Modal show={showAdBannerModal} onHide={() => setShowAdBannerModal(false)} size="lg" centered>
         <Modal.Header closeButton>

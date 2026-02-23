@@ -1,6 +1,8 @@
 const express = require('express');
 const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
+const UAParser = require('ua-parser-js');
+const geoip = require('geoip-lite');
 
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
@@ -61,6 +63,161 @@ const getOptionalAuthUserId = (req) => {
   } catch (e) {
     return null;
   }
+};
+
+const sanitizeTextValue = (value, maxLength = 120) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+};
+
+const normalizeIpForGeoLookup = (value) => {
+  const raw = sanitizeTextValue(value, 128);
+  if (!raw) return null;
+  let ip = raw;
+  if (ip.includes(',')) ip = ip.split(',')[0].trim();
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  if (ip === '::1') return '127.0.0.1';
+  return ip;
+};
+
+const isPrivateIp = (ip) => {
+  if (!ip) return true;
+  if (ip === '127.0.0.1' || ip === '0.0.0.0') return true;
+  if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  if (ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80:')) return true;
+  return false;
+};
+
+const detectAppContainer = (userAgent) => {
+  const ua = String(userAgent || '');
+  if (!ua) return null;
+  if (/Telegram/i.test(ua)) return 'Telegram';
+  if (/Instagram/i.test(ua)) return 'Instagram';
+  if (/FBAN|FBAV|FB_IAB|Facebook/i.test(ua)) return 'Facebook';
+  if (/TikTok/i.test(ua)) return 'TikTok';
+  if (/Line\//i.test(ua)) return 'LINE';
+  if (/WhatsApp/i.test(ua)) return 'WhatsApp';
+  return null;
+};
+
+const inferDeviceTypeFromUa = (userAgent) => {
+  const ua = String(userAgent || '');
+  if (!ua) return 'desktop';
+  if (/iPad|Tablet|Tab\b|SM-T|Lenovo Tab|Nexus 7|Nexus 10/i.test(ua)) return 'tablet';
+  if (/Mobile|Android|iPhone|Windows Phone/i.test(ua)) return 'mobile';
+  return 'desktop';
+};
+
+const collectAdEventClientMeta = (req) => {
+  const userAgent = sanitizeTextValue(req.headers['user-agent'] || '', 1024);
+  const parser = new UAParser(userAgent || undefined);
+  const result = parser.getResult();
+
+  const appContainer = detectAppContainer(userAgent);
+  const isInAppBrowser = Boolean(
+    appContainer ||
+    /; wv\)/i.test(userAgent || '') ||
+    /\bwv\b/i.test(userAgent || '')
+  );
+
+  const deviceType = sanitizeTextValue(result.device?.type, 24) || inferDeviceTypeFromUa(userAgent);
+  const deviceBrand = sanitizeTextValue(result.device?.vendor, 80);
+  const deviceModel = sanitizeTextValue(result.device?.model, 120)
+    || (/(iPhone)/i.test(userAgent || '') ? 'iPhone' : null)
+    || (/(iPad)/i.test(userAgent || '') ? 'iPad' : null);
+
+  const browserName = sanitizeTextValue(result.browser?.name, 80);
+  const browserVersion = sanitizeTextValue(result.browser?.version, 40);
+  const osName = sanitizeTextValue(result.os?.name, 60);
+  const osVersion = sanitizeTextValue(result.os?.version, 40);
+
+  const ipAddress = getClientIp(req);
+  const normalizedIp = normalizeIpForGeoLookup(ipAddress);
+  let country = null;
+  let region = null;
+  let city = null;
+
+  if (normalizedIp && !isPrivateIp(normalizedIp)) {
+    try {
+      const geo = geoip.lookup(normalizedIp);
+      if (geo) {
+        country = sanitizeTextValue(geo.country, 80);
+        region = sanitizeTextValue(geo.region, 120);
+        city = sanitizeTextValue(geo.city, 120);
+      }
+    } catch (e) {
+      // Ignore geo lookup errors; tracking should not fail due to enrichment.
+    }
+  }
+
+  return {
+    ipAddress,
+    userAgent,
+    deviceType,
+    deviceBrand,
+    deviceModel,
+    browserName,
+    browserVersion,
+    osName,
+    osVersion,
+    appContainer,
+    isInAppBrowser,
+    country,
+    region,
+    city
+  };
+};
+
+const insertAdBannerEvent = async ({
+  bannerId,
+  eventType,
+  userId,
+  restaurantId,
+  viewerKey,
+  req
+}) => {
+  const meta = collectAdEventClientMeta(req);
+
+  await pool.query(
+    `INSERT INTO ad_banner_events (
+      banner_id, event_type, user_id, restaurant_id, viewer_key, ip_address, user_agent,
+      device_type, device_brand, device_model,
+      browser_name, browser_version, os_name, os_version,
+      app_container, is_in_app_browser,
+      country, region, city
+    )
+     VALUES (
+      $1, $2, $3, $4, $5, $6, $7,
+      $8, $9, $10,
+      $11, $12, $13, $14,
+      $15, $16,
+      $17, $18, $19
+    )`,
+    [
+      bannerId,
+      eventType,
+      userId,
+      restaurantId,
+      viewerKey,
+      meta.ipAddress,
+      meta.userAgent,
+      meta.deviceType,
+      meta.deviceBrand,
+      meta.deviceModel,
+      meta.browserName,
+      meta.browserVersion,
+      meta.osName,
+      meta.osVersion,
+      meta.appContainer,
+      meta.isInAppBrowser,
+      meta.country,
+      meta.region,
+      meta.city
+    ]
+  );
 };
 
 // Get all categories (public - for customers, global/shared)
@@ -213,18 +370,14 @@ router.post('/ads-banners/:id/view', async (req, res) => {
     const restaurantIdRaw = req.body?.restaurant_id;
     const restaurantId = Number.isInteger(Number(restaurantIdRaw)) ? Number(restaurantIdRaw) : null;
 
-    await pool.query(
-      `INSERT INTO ad_banner_events (banner_id, event_type, user_id, restaurant_id, viewer_key, ip_address, user_agent)
-       VALUES ($1, 'view', $2, $3, $4, $5, $6)`,
-      [
-        bannerId,
-        getOptionalAuthUserId(req),
-        restaurantId,
-        viewerKey,
-        getClientIp(req),
-        req.headers['user-agent'] || null
-      ]
-    );
+    await insertAdBannerEvent({
+      bannerId,
+      eventType: 'view',
+      userId: getOptionalAuthUserId(req),
+      restaurantId,
+      viewerKey,
+      req
+    });
 
     res.json({ tracked: true });
   } catch (error) {
@@ -254,18 +407,14 @@ router.get('/ads-banners/:id/click', async (req, res) => {
     const viewerKey = String(req.query.viewer_key || '').trim().slice(0, 128) || null;
     const restaurantId = Number.isInteger(Number(req.query.restaurant_id)) ? Number(req.query.restaurant_id) : null;
 
-    await pool.query(
-      `INSERT INTO ad_banner_events (banner_id, event_type, user_id, restaurant_id, viewer_key, ip_address, user_agent)
-       VALUES ($1, 'click', $2, $3, $4, $5, $6)`,
-      [
-        bannerId,
-        getOptionalAuthUserId(req),
-        restaurantId,
-        viewerKey,
-        getClientIp(req),
-        req.headers['user-agent'] || null
-      ]
-    );
+    await insertAdBannerEvent({
+      bannerId,
+      eventType: 'click',
+      userId: getOptionalAuthUserId(req),
+      restaurantId,
+      viewerKey,
+      req
+    });
 
     res.redirect(banner.target_url);
   } catch (error) {

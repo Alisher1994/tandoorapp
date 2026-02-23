@@ -554,6 +554,18 @@ async function migrate() {
         viewer_key VARCHAR(128),
         ip_address VARCHAR(128),
         user_agent TEXT,
+        device_type VARCHAR(24),
+        device_brand VARCHAR(80),
+        device_model VARCHAR(120),
+        browser_name VARCHAR(80),
+        browser_version VARCHAR(40),
+        os_name VARCHAR(60),
+        os_version VARCHAR(40),
+        app_container VARCHAR(80),
+        is_in_app_browser BOOLEAN DEFAULT false,
+        country VARCHAR(80),
+        region VARCHAR(120),
+        city VARCHAR(120),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -591,6 +603,18 @@ async function migrate() {
       'viewer_key VARCHAR(128)',
       'ip_address VARCHAR(128)',
       'user_agent TEXT',
+      'device_type VARCHAR(24)',
+      'device_brand VARCHAR(80)',
+      'device_model VARCHAR(120)',
+      'browser_name VARCHAR(80)',
+      'browser_version VARCHAR(40)',
+      'os_name VARCHAR(60)',
+      'os_version VARCHAR(40)',
+      'app_container VARCHAR(80)',
+      'is_in_app_browser BOOLEAN DEFAULT false',
+      'country VARCHAR(80)',
+      'region VARCHAR(120)',
+      'city VARCHAR(120)',
       'created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
     ];
     for (const col of adEventColumns) {
@@ -620,6 +644,10 @@ async function migrate() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_banner ON ad_banner_events(banner_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_type ON ad_banner_events(event_type)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_created ON ad_banner_events(created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_banner_created ON ad_banner_events(banner_id, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_browser ON ad_banner_events(browser_name)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_device_brand ON ad_banner_events(device_brand)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_geo ON ad_banner_events(country, region, city)');
     console.log('✅ Ad banners tables ready');
 
     // await client.query('COMMIT');

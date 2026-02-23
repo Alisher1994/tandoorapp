@@ -1952,6 +1952,25 @@ const mapAdBannerRow = (row) => {
   };
 };
 
+const parseAdAnalyticsDays = (value) => {
+  if (value === 'all') return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed)) return 30;
+  return Math.min(Math.max(parsed, 1), 365);
+};
+
+const buildAdAnalyticsWhere = ({ bannerId, days }) => {
+  const params = [bannerId];
+  let sql = 'e.banner_id = $1';
+  if (days) {
+    params.push(days);
+    sql += ` AND e.created_at >= (NOW() - ($2::int * INTERVAL '1 day'))`;
+  }
+  return { sql, params };
+};
+
+const mapPgInt = (value) => Number.parseInt(value, 10) || 0;
+
 router.get('/ads/banners', async (req, res) => {
   try {
     const { status = 'all', include_deleted = 'false' } = req.query;
@@ -2003,6 +2022,206 @@ router.get('/ads/banners', async (req, res) => {
   } catch (error) {
     console.error('Get ad banners error:', error);
     res.status(500).json({ error: 'Ошибка получения рекламных баннеров' });
+  }
+});
+
+router.get('/ads/banners/:id/analytics', async (req, res) => {
+  try {
+    const bannerId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(bannerId)) {
+      return res.status(400).json({ error: 'Некорректный ID баннера' });
+    }
+
+    const days = parseAdAnalyticsDays(req.query.days);
+
+    const bannerResult = await pool.query(
+      `SELECT b.*, cu.username AS created_by_username, uu.username AS updated_by_username
+       FROM ad_banners b
+       LEFT JOIN users cu ON cu.id = b.created_by
+       LEFT JOIN users uu ON uu.id = b.updated_by
+       WHERE b.id = $1`,
+      [bannerId]
+    );
+
+    if (!bannerResult.rows.length) {
+      return res.status(404).json({ error: 'Баннер не найден' });
+    }
+
+    const banner = mapAdBannerRow(bannerResult.rows[0]);
+    const where = buildAdAnalyticsWhere({ bannerId, days });
+    const uniqueViewerExpr = `COALESCE(e.user_id::text, NULLIF(e.viewer_key, ''), NULLIF(e.ip_address, ''))`;
+
+    const overviewResult = await pool.query(
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE e.event_type = 'view')::int AS total_views,
+        COUNT(*) FILTER (WHERE e.event_type = 'click')::int AS total_clicks,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'view' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_views,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'click' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_clicks,
+        MAX(e.created_at) FILTER (WHERE e.event_type = 'view') AS last_view_at,
+        MAX(e.created_at) FILTER (WHERE e.event_type = 'click') AS last_click_at
+      FROM ad_banner_events e
+      WHERE ${where.sql}
+      `,
+      where.params
+    );
+
+    const dailyResult = await pool.query(
+      `
+      SELECT
+        DATE_TRUNC('day', e.created_at) AS day,
+        COUNT(*) FILTER (WHERE e.event_type = 'view')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'click')::int AS clicks,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'view' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_views
+      FROM ad_banner_events e
+      WHERE ${where.sql}
+      GROUP BY DATE_TRUNC('day', e.created_at)
+      ORDER BY day DESC
+      LIMIT 90
+      `,
+      where.params
+    );
+
+    const browserStatsResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(e.browser_name, ''), 'Unknown') AS browser_name,
+        NULLIF(e.browser_version, '') AS browser_version,
+        NULLIF(e.app_container, '') AS app_container,
+        COALESCE(e.is_in_app_browser, false) AS is_in_app_browser,
+        COUNT(*) FILTER (WHERE e.event_type = 'view')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'click')::int AS clicks,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'view' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_views
+      FROM ad_banner_events e
+      WHERE ${where.sql}
+      GROUP BY 1,2,3,4
+      HAVING COUNT(*) FILTER (WHERE e.event_type IN ('view','click')) > 0
+      ORDER BY views DESC, clicks DESC, browser_name ASC
+      LIMIT 20
+      `,
+      where.params
+    );
+
+    const deviceStatsResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(e.device_type, ''), 'desktop') AS device_type,
+        NULLIF(e.device_brand, '') AS device_brand,
+        NULLIF(e.device_model, '') AS device_model,
+        COALESCE(NULLIF(e.os_name, ''), 'Unknown') AS os_name,
+        NULLIF(e.os_version, '') AS os_version,
+        COUNT(*) FILTER (WHERE e.event_type = 'view')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'click')::int AS clicks,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'view' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_views
+      FROM ad_banner_events e
+      WHERE ${where.sql}
+      GROUP BY 1,2,3,4,5
+      HAVING COUNT(*) FILTER (WHERE e.event_type IN ('view','click')) > 0
+      ORDER BY views DESC, clicks DESC
+      LIMIT 20
+      `,
+      where.params
+    );
+
+    const countryStatsResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(e.country, ''), 'Unknown') AS country,
+        COUNT(*) FILTER (WHERE e.event_type = 'view')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'click')::int AS clicks,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'view' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_views
+      FROM ad_banner_events e
+      WHERE ${where.sql}
+      GROUP BY 1
+      HAVING COUNT(*) FILTER (WHERE e.event_type IN ('view','click')) > 0
+      ORDER BY views DESC, clicks DESC
+      LIMIT 15
+      `,
+      where.params
+    );
+
+    const cityStatsResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(e.country, ''), 'Unknown') AS country,
+        COALESCE(NULLIF(e.region, ''), 'Unknown') AS region,
+        COALESCE(NULLIF(e.city, ''), 'Unknown') AS city,
+        COUNT(*) FILTER (WHERE e.event_type = 'view')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'click')::int AS clicks,
+        COUNT(DISTINCT CASE WHEN e.event_type = 'view' THEN ${uniqueViewerExpr} ELSE NULL END)::int AS unique_views
+      FROM ad_banner_events e
+      WHERE ${where.sql}
+      GROUP BY 1,2,3
+      HAVING COUNT(*) FILTER (WHERE e.event_type IN ('view','click')) > 0
+      ORDER BY views DESC, clicks DESC
+      LIMIT 20
+      `,
+      where.params
+    );
+
+    const overviewRow = overviewResult.rows[0] || {};
+    const totalViews = mapPgInt(overviewRow.total_views);
+    const totalClicks = mapPgInt(overviewRow.total_clicks);
+    const uniqueViews = mapPgInt(overviewRow.unique_views);
+    const ctr = totalViews > 0 ? Number(((totalClicks / totalViews) * 100).toFixed(2)) : 0;
+
+    res.json({
+      banner,
+      range: {
+        days: days || 'all'
+      },
+      overview: {
+        total_views: totalViews,
+        total_clicks: totalClicks,
+        unique_views: uniqueViews,
+        unique_clicks: mapPgInt(overviewRow.unique_clicks),
+        ctr,
+        last_view_at: overviewRow.last_view_at || null,
+        last_click_at: overviewRow.last_click_at || null
+      },
+      daily: dailyResult.rows.map((row) => ({
+        day: row.day,
+        views: mapPgInt(row.views),
+        clicks: mapPgInt(row.clicks),
+        unique_views: mapPgInt(row.unique_views)
+      })),
+      browsers: browserStatsResult.rows.map((row) => ({
+        browser_name: row.browser_name,
+        browser_version: row.browser_version || null,
+        app_container: row.app_container || null,
+        is_in_app_browser: !!row.is_in_app_browser,
+        views: mapPgInt(row.views),
+        clicks: mapPgInt(row.clicks),
+        unique_views: mapPgInt(row.unique_views)
+      })),
+      devices: deviceStatsResult.rows.map((row) => ({
+        device_type: row.device_type || 'desktop',
+        device_brand: row.device_brand || null,
+        device_model: row.device_model || null,
+        os_name: row.os_name || null,
+        os_version: row.os_version || null,
+        views: mapPgInt(row.views),
+        clicks: mapPgInt(row.clicks),
+        unique_views: mapPgInt(row.unique_views)
+      })),
+      countries: countryStatsResult.rows.map((row) => ({
+        country: row.country || 'Unknown',
+        views: mapPgInt(row.views),
+        clicks: mapPgInt(row.clicks),
+        unique_views: mapPgInt(row.unique_views)
+      })),
+      cities: cityStatsResult.rows.map((row) => ({
+        country: row.country || 'Unknown',
+        region: row.region || 'Unknown',
+        city: row.city || 'Unknown',
+        views: mapPgInt(row.views),
+        clicks: mapPgInt(row.clicks),
+        unique_views: mapPgInt(row.unique_views)
+      }))
+    });
+  } catch (error) {
+    console.error('Get ad banner analytics error:', error);
+    res.status(500).json({ error: 'Ошибка получения аналитики рекламы' });
   }
 });
 
