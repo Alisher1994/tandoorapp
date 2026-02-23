@@ -45,6 +45,9 @@ function Catalog() {
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
+  const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
+  const [catalogSearchPlaceholderDeleting, setCatalogSearchPlaceholderDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
@@ -223,6 +226,29 @@ function Catalog() {
     [catalogSearchQuery]
   );
 
+  const catalogSearchPlaceholderPhrases = useMemo(() => (
+    language === 'uz'
+      ? [
+        'Tovar qidirish uchun nomini yozing',
+        'Masalan "Kartoshka"',
+        'Bolalar kitobi',
+        'Gullar',
+        'Non'
+      ]
+      : [
+        'Для поиска товара напишите имя товара',
+        'Например "Картошка"',
+        'Книга детская',
+        'Цветы',
+        'Хлеб'
+      ]
+  ), [language]);
+
+  const animatedCatalogSearchPlaceholder = useMemo(() => {
+    const phrase = catalogSearchPlaceholderPhrases[catalogSearchPlaceholderPhraseIndex] || '';
+    return phrase.slice(0, catalogSearchPlaceholderCharIndex);
+  }, [catalogSearchPlaceholderPhrases, catalogSearchPlaceholderPhraseIndex, catalogSearchPlaceholderCharIndex]);
+
   const getLevel2CategoryIdForProduct = (product) => {
     let current = categoriesById.get(Number(product?.category_id));
     if (!current) return null;
@@ -254,6 +280,58 @@ function Catalog() {
         return aName.localeCompare(bName, language === 'uz' ? 'uz' : 'ru');
       });
   }, [products, normalizedCatalogSearch, language, categoriesById]);
+
+  useEffect(() => {
+    setCatalogSearchPlaceholderPhraseIndex(0);
+    setCatalogSearchPlaceholderCharIndex(0);
+    setCatalogSearchPlaceholderDeleting(false);
+  }, [language]);
+
+  useEffect(() => {
+    if (!catalogSearchPlaceholderPhrases.length) return undefined;
+
+    const currentPhrase = catalogSearchPlaceholderPhrases[catalogSearchPlaceholderPhraseIndex] || '';
+    const isTyping = !catalogSearchPlaceholderDeleting;
+    let delay = isTyping ? 55 : 28;
+
+    if (!catalogSearchPlaceholderDeleting && catalogSearchPlaceholderCharIndex < currentPhrase.length) {
+      delay = 55;
+    } else if (!catalogSearchPlaceholderDeleting && catalogSearchPlaceholderCharIndex === currentPhrase.length) {
+      delay = 1200;
+    } else if (catalogSearchPlaceholderDeleting && catalogSearchPlaceholderCharIndex > 0) {
+      delay = 22;
+    } else {
+      delay = 280;
+    }
+
+    const timer = setTimeout(() => {
+      if (!catalogSearchPlaceholderDeleting && catalogSearchPlaceholderCharIndex < currentPhrase.length) {
+        setCatalogSearchPlaceholderCharIndex((prev) => prev + 1);
+        return;
+      }
+
+      if (!catalogSearchPlaceholderDeleting && catalogSearchPlaceholderCharIndex === currentPhrase.length) {
+        setCatalogSearchPlaceholderDeleting(true);
+        return;
+      }
+
+      if (catalogSearchPlaceholderDeleting && catalogSearchPlaceholderCharIndex > 0) {
+        setCatalogSearchPlaceholderCharIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+
+      setCatalogSearchPlaceholderDeleting(false);
+      setCatalogSearchPlaceholderPhraseIndex((prev) => (prev + 1) % catalogSearchPlaceholderPhrases.length);
+      setCatalogSearchPlaceholderCharIndex(0);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [
+    catalogSearchPlaceholderPhrases,
+    catalogSearchPlaceholderPhraseIndex,
+    catalogSearchPlaceholderCharIndex,
+    catalogSearchPlaceholderDeleting
+  ]);
 
   const nonEmptyCategoryIds = useMemo(() => {
     const memo = new Map();
@@ -802,14 +880,14 @@ function Catalog() {
       >
         <div className="d-flex align-items-center gap-2">
           <span style={{ color: '#8f6d46', fontSize: '0.95rem' }}>🔎</span>
-          <input
-            type="search"
-            value={catalogSearchQuery}
-            onChange={(e) => setCatalogSearchQuery(e.target.value)}
-            placeholder={language === 'uz' ? 'Tovar qidirish...' : 'Поиск товара...'}
-            style={{
-              flex: 1,
-              border: 'none',
+            <input
+              type="search"
+              value={catalogSearchQuery}
+              onChange={(e) => setCatalogSearchQuery(e.target.value)}
+              placeholder={animatedCatalogSearchPlaceholder || (language === 'uz' ? 'Tovar qidirish...' : 'Поиск товара...')}
+              style={{
+                flex: 1,
+                border: 'none',
               outline: 'none',
               background: 'transparent',
               color: '#3a2b1b',

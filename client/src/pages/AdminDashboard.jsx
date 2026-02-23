@@ -2971,7 +2971,12 @@ function AdminDashboard() {
                         const hideSensitive = isOrderSensitiveDataHidden(order);
 
                         return (
-                          <tr key={order.id}>
+                          <tr
+                            key={order.id}
+                            onDoubleClick={() => openOrderModal(order)}
+                            style={{ cursor: 'pointer' }}
+                            title="Двойное нажатие: открыть заказ"
+                          >
                             <td>{order.order_number}</td>
                             <td>
                               <div>
@@ -3254,7 +3259,13 @@ function AdminDashboard() {
                     <tbody>
                       {pagedProducts
                         .map((product, index) => (
-                          <tr key={product.id} className={selectedProducts.includes(product.id) ? 'table-active' : ''}>
+                          <tr
+                            key={product.id}
+                            className={selectedProducts.includes(product.id) ? 'table-active' : ''}
+                            onDoubleClick={() => openProductModal(product)}
+                            style={{ cursor: 'pointer' }}
+                            title="Двойное нажатие: открыть товар"
+                          >
                             <td>
                               <Form.Check
                                 type="checkbox"
@@ -3359,11 +3370,6 @@ function AdminDashboard() {
                     setProductsPage(1);
                   }}
                 />
-
-                {/* Results count */}
-                <div className="text-muted small">
-                  {t('found')}: {filteredProductsForTable.length} {t('of')} {products.length}
-                </div>
 
               </Tab>
 
