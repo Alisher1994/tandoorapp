@@ -129,6 +129,25 @@ function buildWebLoginUrl(params = {}) {
   return `${trimmed}/login${query ? `?${query}` : ''}`;
 }
 
+async function resolvePreferredAdminTelegramUser(telegramId) {
+  const result = await pool.query(`
+    SELECT *
+    FROM users
+    WHERE telegram_id = $1
+    ORDER BY
+      CASE
+        WHEN role = 'superadmin' THEN 0
+        WHEN role = 'operator' THEN 1
+        WHEN role = 'customer' THEN 2
+        ELSE 3
+      END,
+      id DESC
+    LIMIT 1
+  `, [telegramId]);
+
+  return result.rows[0] || null;
+}
+
 function normalizeBotLanguage(value) {
   const candidate = String(value || '').trim().toLowerCase();
   return BOT_LANGUAGES.includes(candidate) ? candidate : 'ru';
@@ -394,13 +413,9 @@ async function initBot() {
 
   async function sendStartMenu(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE telegram_id = $1',
-      [userId]
-    );
+    const user = await resolvePreferredAdminTelegramUser(userId);
 
-    if (userResult.rows.length > 0) {
-      const user = userResult.rows[0];
+    if (user) {
 
       if (!user.is_active) {
         await bot.sendMessage(
@@ -742,17 +757,12 @@ async function initBot() {
   }
 
   async function resetAccessByTelegram(chatId, telegramUserId) {
-    const userResult = await pool.query(
-      'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
-      [telegramUserId]
-    );
+    const user = await resolvePreferredAdminTelegramUser(telegramUserId);
 
-    if (userResult.rows.length === 0) {
+    if (!user) {
       await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
       return;
     }
-
-    const user = userResult.rows[0];
     if (user.role === 'customer') {
       await bot.sendMessage(
         chatId,

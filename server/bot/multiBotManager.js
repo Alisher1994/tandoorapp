@@ -332,6 +332,38 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     );
   };
 
+  const resolvePreferredTelegramUser = async (telegramId) => {
+    const result = await pool.query(`
+      SELECT
+        u.*,
+        EXISTS (
+          SELECT 1
+          FROM operator_restaurants opr
+          WHERE opr.user_id = u.id
+            AND opr.restaurant_id = $2
+        ) AS is_operator_for_restaurant
+      FROM users u
+      WHERE u.telegram_id = $1
+      ORDER BY
+        CASE
+          WHEN u.role = 'superadmin' THEN 0
+          WHEN u.role = 'operator' AND EXISTS (
+            SELECT 1
+            FROM operator_restaurants opr
+            WHERE opr.user_id = u.id
+              AND opr.restaurant_id = $2
+          ) THEN 1
+          WHEN u.role = 'customer' THEN 2
+          WHEN u.role = 'operator' THEN 3
+          ELSE 4
+        END,
+        u.id DESC
+      LIMIT 1
+    `, [telegramId, restaurantId]);
+
+    return result.rows[0] || null;
+  };
+
   const buildMainMenuButtons = (loginUrl, lang) => {
     const menuButtons = [];
     if (loginUrl) {
@@ -364,13 +396,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     // Check if user is blocked
     if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE telegram_id = $1',
-      [userId]
-    );
+    const user = await resolvePreferredTelegramUser(userId);
 
-    if (userResult.rows.length > 0) {
-      const user = userResult.rows[0];
+    if (user) {
       languagePreferences.set(getLangCacheKey(userId), language);
 
       const telegramUsername = msg.from.username;
@@ -493,17 +521,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Check if user is blocked
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
-      const userResult = await pool.query(
-        'SELECT * FROM users WHERE telegram_id = $1',
-        [userId]
-      );
+      const user = await resolvePreferredTelegramUser(userId);
 
-      if (userResult.rows.length === 0) {
+      if (!user) {
         bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
         return;
       }
-
-      const user = userResult.rows[0];
       const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
 
       // Update active restaurant
@@ -512,21 +535,47 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         [restaurantId, user.id]
       );
 
-      const token = generateLoginToken(user.id, user.username);
-      const loginUrl = buildCatalogUrl(appUrl, token);
+      if (user.role === 'operator' || user.role === 'superadmin') {
+        const loginUrl = buildWebLoginUrl({
+          portal: 'admin',
+          restaurantId,
+          source: 'restaurant_bot'
+        });
 
-      bot.sendMessage(chatId,
-        `🍽️ <b>${restaurantName}</b>\n\n` +
-        (loginUrl
-          ? (userLang === 'uz' ? 'Menyuni ochish uchun quyidagi tugmani bosing:' : 'Нажмите кнопку ниже, чтобы открыть меню:')
-          : t(userLang, 'loginWarn')),
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: buildMainMenuButtons(loginUrl, userLang)
+        bot.sendMessage(
+          chatId,
+          `${t(userLang, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
+          `${t(userLang, 'roleLine', { role: user.role === 'superadmin' ? t(userLang, 'roleSuperadmin') : t(userLang, 'roleOperator') })}\n` +
+          `${t(userLang, 'restaurantLine', { name: restaurantName })}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: loginUrl
+              ? {
+                inline_keyboard: [
+                  [{ text: t(userLang, 'loginButton'), url: loginUrl }],
+                  [{ text: t(userLang, 'resetButton'), callback_data: 'reset_password' }]
+                ]
+              }
+              : undefined
           }
-        }
-      );
+        );
+      } else {
+        const token = generateLoginToken(user.id, user.username);
+        const loginUrl = buildCatalogUrl(appUrl, token);
+
+        bot.sendMessage(chatId,
+          `🍽️ <b>${restaurantName}</b>\n\n` +
+          (loginUrl
+            ? (userLang === 'uz' ? 'Menyuni ochish uchun quyidagi tugmani bosing:' : 'Нажмите кнопку ниже, чтобы открыть меню:')
+            : t(userLang, 'loginWarn')),
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: buildMainMenuButtons(loginUrl, userLang)
+            }
+          }
+        );
+      }
     } catch (error) {
       console.error('Menu command error:', error);
       bot.sendMessage(chatId, '❌ Произошла ошибка');
@@ -546,17 +595,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
-      const userResult = await pool.query(
-        'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
-        [userId]
-      );
+      const user = await resolvePreferredTelegramUser(userId);
 
-      if (userResult.rows.length === 0) {
+      if (!user) {
         await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
         return;
       }
 
-      if (userResult.rows[0].role === 'customer') {
+      if (user.role === 'customer') {
         await bot.sendMessage(chatId, 'ℹ️ Для клиентов восстановление через бот отключено.');
         return;
       }
@@ -564,10 +610,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       const stateKey = getStateKey(userId, chatId);
       registrationStates.set(stateKey, {
         step: 'waiting_password_reset_confirm',
-        dbUserId: userResult.rows[0].id,
-        username: userResult.rows[0].username,
-        phone: userResult.rows[0].phone,
-        role: userResult.rows[0].role,
+        dbUserId: user.id,
+        username: user.username,
+        phone: user.phone,
+        role: user.role,
         restaurantId
       });
 
@@ -1169,27 +1215,24 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       // Start reset password flow from inline menu
       if (data === 'reset_password') {
-        const userResult = await pool.query(
-          'SELECT id, username, phone, role FROM users WHERE telegram_id = $1',
-          [userId]
-        );
+        const user = await resolvePreferredTelegramUser(userId);
 
-        if (userResult.rows.length === 0) {
+        if (!user) {
           bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
           return;
         }
 
-        if (userResult.rows[0].role === 'customer') {
+        if (user.role === 'customer') {
           bot.sendMessage(chatId, 'ℹ️ Для клиентов восстановление через бот отключено.');
           return;
         }
 
         registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_password_reset_confirm',
-          dbUserId: userResult.rows[0].id,
-          username: userResult.rows[0].username,
-          phone: userResult.rows[0].phone,
-          role: userResult.rows[0].role,
+          dbUserId: user.id,
+          username: user.username,
+          phone: user.phone,
+          role: user.role,
           restaurantId
         });
 
