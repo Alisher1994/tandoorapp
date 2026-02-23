@@ -593,6 +593,7 @@ async function migrate() {
 
     await client.query(`ALTER TABLE ad_banners ALTER COLUMN repeat_days SET DEFAULT '[]'::jsonb`);
     await client.query(`UPDATE ad_banners SET repeat_days = '[]'::jsonb WHERE repeat_days IS NULL`);
+    await client.query(`ALTER TABLE ad_banners ALTER COLUMN target_url DROP NOT NULL`).catch(() => {});
 
     await client.query(`
       ALTER TABLE ad_banners

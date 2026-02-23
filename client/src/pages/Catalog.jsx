@@ -44,6 +44,7 @@ function Catalog() {
   const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
@@ -70,6 +71,7 @@ function Catalog() {
     if (selectedRestaurant) {
       setSelectedCategory(null);
       setActiveSubcategoryTab(null);
+      setCatalogSearchQuery('');
       fetchData();
       // Only clear cart if restaurant actually changed (not on first load)
       if (prevRestaurant && prevRestaurant !== selectedRestaurant) {
@@ -99,6 +101,10 @@ function Catalog() {
 
   const getCategoryName = (category) => (
     language === 'uz' && category?.name_uz ? category.name_uz : category?.name_ru
+  );
+
+  const getProductName = (product) => (
+    language === 'uz' && product?.name_uz ? product.name_uz : product?.name_ru
   );
 
   const fetchRestaurants = async () => {
@@ -211,6 +217,43 @@ function Catalog() {
         .filter((id) => Number.isFinite(id))
     )
   ), [products]);
+
+  const normalizedCatalogSearch = useMemo(
+    () => String(catalogSearchQuery || '').trim().toLowerCase(),
+    [catalogSearchQuery]
+  );
+
+  const getLevel2CategoryIdForProduct = (product) => {
+    let current = categoriesById.get(Number(product?.category_id));
+    if (!current) return null;
+    while (current?.parent_id) {
+      const parent = categoriesById.get(Number(current.parent_id));
+      if (!parent) break;
+      if (!parent.parent_id) {
+        return current.id;
+      }
+      current = parent;
+    }
+    return current?.id || null;
+  };
+
+  const catalogSearchResults = useMemo(() => {
+    if (!normalizedCatalogSearch) return [];
+    return products
+      .filter((product) => {
+        const ru = String(product?.name_ru || '').toLowerCase();
+        const uz = String(product?.name_uz || '').toLowerCase();
+        return ru.includes(normalizedCatalogSearch) || uz.includes(normalizedCatalogSearch);
+      })
+      .sort((a, b) => {
+        const aName = String(getProductName(a) || '').toLowerCase();
+        const bName = String(getProductName(b) || '').toLowerCase();
+        const aStarts = aName.startsWith(normalizedCatalogSearch) ? 0 : 1;
+        const bStarts = bName.startsWith(normalizedCatalogSearch) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+        return aName.localeCompare(bName, language === 'uz' ? 'uz' : 'ru');
+      });
+  }, [products, normalizedCatalogSearch, language, categoriesById]);
 
   const nonEmptyCategoryIds = useMemo(() => {
     const memo = new Map();
@@ -737,6 +780,146 @@ function Catalog() {
     );
   };
 
+  const openProductFromSearch = (product) => {
+    const level2CategoryId = getLevel2CategoryIdForProduct(product);
+    if (level2CategoryId) {
+      setSelectedCategory(level2CategoryId);
+      setActiveSubcategoryTab(null);
+      scrollToTop();
+    }
+  };
+
+  const renderCatalogSearch = () => (
+    <div className="mt-2 mb-2">
+      <div
+        style={{
+          border: '1px solid rgba(165,133,92,0.22)',
+          background: '#fff',
+          borderRadius: 12,
+          padding: '10px 12px',
+          boxShadow: '0 2px 8px rgba(60, 42, 24, 0.04)'
+        }}
+      >
+        <div className="d-flex align-items-center gap-2">
+          <span style={{ color: '#8f6d46', fontSize: '0.95rem' }}>🔎</span>
+          <input
+            type="search"
+            value={catalogSearchQuery}
+            onChange={(e) => setCatalogSearchQuery(e.target.value)}
+            placeholder={language === 'uz' ? 'Tovar qidirish...' : 'Поиск товара...'}
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              color: '#3a2b1b',
+              fontSize: '0.92rem'
+            }}
+          />
+          {catalogSearchQuery && (
+            <button
+              type="button"
+              onClick={() => setCatalogSearchQuery('')}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#8f6d46',
+                fontSize: '1rem',
+                lineHeight: 1,
+                padding: 0
+              }}
+              aria-label={language === 'uz' ? 'Qidiruvni tozalash' : 'Очистить поиск'}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCatalogSearchResults = () => {
+    if (!normalizedCatalogSearch) return null;
+
+    return (
+      <div className="pt-2 pb-3">
+        <div className="d-flex align-items-center justify-content-between mb-2">
+          <h6 className="mb-0 fw-bold" style={{ color: '#4b3a27' }}>
+            {language === 'uz' ? 'Topilgan tovarlar' : 'Найденные товары'}
+          </h6>
+          <small className="text-muted">{catalogSearchResults.length}</small>
+        </div>
+
+        {catalogSearchResults.length === 0 ? (
+          <div className="text-center py-4 text-muted">
+            {language === 'uz' ? 'Mos tovar topilmadi' : 'Товары не найдены'}
+          </div>
+        ) : (
+          <div
+            style={{
+              background: '#fff',
+              border: '1px solid rgba(165,133,92,0.18)',
+              borderRadius: 14,
+              overflow: 'hidden'
+            }}
+          >
+            {catalogSearchResults.map((product, index) => {
+              const productName = getProductName(product);
+              const imageUrl = resolveImageUrl(product.thumb_url || product.image_url);
+              const category = categoriesById.get(Number(product.category_id));
+              return (
+                <button
+                  key={`search-result-${product.id}`}
+                  type="button"
+                  onClick={() => openProductFromSearch(product)}
+                  className="w-100 border-0 bg-white text-start"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderBottom: index === catalogSearchResults.length - 1 ? 'none' : '1px solid rgba(165,133,92,0.12)'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      background: '#f3eee4',
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={productName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ opacity: 0.5 }}>📦</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-grow-1">
+                    <div className="fw-semibold text-truncate" style={{ color: '#3a2b1b', fontSize: '0.92rem' }}>
+                      {productName}
+                    </div>
+                    <div className="small text-muted text-truncate">
+                      {category ? getCategoryName(category) : (language === 'uz' ? 'Kategoriya' : 'Категория')}
+                    </div>
+                  </div>
+                  <div className="text-end" style={{ color: 'var(--primary-color)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                    {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading && restaurants.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
@@ -876,8 +1059,10 @@ function Catalog() {
             )}
 
             {!loading && renderCartTotalBanner()}
+            {!loading && renderCatalogSearch()}
+            {!loading && normalizedCatalogSearch && renderCatalogSearchResults()}
 
-            {!loading && selectedCategory === null && (
+            {!loading && !normalizedCatalogSearch && selectedCategory === null && (
               <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
                 {level1Categories.map((level1Category) => {
@@ -942,7 +1127,7 @@ function Catalog() {
               </div>
             )}
 
-            {!loading && selectedCategory !== null && selectedLevel2Category && (
+            {!loading && !normalizedCatalogSearch && selectedCategory !== null && selectedLevel2Category && (
               <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
                 <div className="d-flex align-items-center justify-content-between mb-3">
@@ -971,7 +1156,7 @@ function Catalog() {
               </div>
             )}
 
-            {!loading && selectedCategory === null && level1Categories.length === 0 && (
+            {!loading && !normalizedCatalogSearch && selectedCategory === null && level1Categories.length === 0 && (
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
                 <p className="text-muted mt-3">Товары пока не добавлены</p>
@@ -983,7 +1168,7 @@ function Catalog() {
               </div>
             )}
 
-            {!loading && selectedCategory !== null && productSections.length === 0 && (
+            {!loading && !normalizedCatalogSearch && selectedCategory !== null && productSections.length === 0 && (
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
                 <p className="text-muted mt-3">

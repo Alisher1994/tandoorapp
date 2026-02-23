@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
@@ -18,6 +18,7 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Alert from 'react-bootstrap/Alert';
 import InputGroup from 'react-bootstrap/InputGroup';
+import Pagination from 'react-bootstrap/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -125,6 +126,63 @@ const CustomMenu = React.forwardRef(
   },
 );
 
+const AdminListPagination = ({ current, total, limit, onPageChange, onLimitChange, limitOptions = [15, 20, 30, 50] }) => {
+  const { t } = useLanguage();
+  const totalPages = Math.max(1, Math.ceil((total || 0) / limit));
+  if (!total) return null;
+
+  const shownCount = Math.min(limit, Math.max(0, total - (current - 1) * limit));
+  const items = [];
+  const maxPages = 5;
+  let startPage = Math.max(1, current - Math.floor(maxPages / 2));
+  let endPage = Math.min(totalPages, startPage + maxPages - 1);
+  if (endPage - startPage + 1 < maxPages) {
+    startPage = Math.max(1, endPage - maxPages + 1);
+  }
+
+  if (startPage > 1) {
+    items.push(<Pagination.Item key={1} onClick={() => onPageChange(1)}>1</Pagination.Item>);
+    if (startPage > 2) items.push(<Pagination.Ellipsis key="start-ellipsis" disabled />);
+  }
+  for (let page = startPage; page <= endPage; page += 1) {
+    items.push(
+      <Pagination.Item key={page} active={page === current} onClick={() => onPageChange(page)}>
+        {page}
+      </Pagination.Item>
+    );
+  }
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) items.push(<Pagination.Ellipsis key="end-ellipsis" disabled />);
+    items.push(<Pagination.Item key={totalPages} onClick={() => onPageChange(totalPages)}>{totalPages}</Pagination.Item>);
+  }
+
+  return (
+    <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4 px-2 gap-3" style={{ width: '100%' }}>
+      <div className="d-flex align-items-center gap-3">
+        {onLimitChange && (
+          <div className="d-flex align-items-center gap-2">
+            <span className="small text-muted">{t('saShow') || 'Показать по:'}</span>
+            <Form.Select
+              size="sm"
+              style={{ width: '75px', borderRadius: '8px', border: '1px solid #e2e8f0', cursor: 'pointer' }}
+              value={limit}
+              onChange={(e) => onLimitChange(parseInt(e.target.value, 10))}
+            >
+              {limitOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </Form.Select>
+          </div>
+        )}
+        <div className="small text-muted text-nowrap">
+          {(t('saShown') || 'Показано')} {shownCount} {(t('saOf') || 'из')} {total} {(t('saRecords') || 'записей')}
+        </div>
+      </div>
+      <Pagination className="mb-0">{items}</Pagination>
+    </div>
+  );
+};
+
 function AdminDashboard() {
   const normalizeAdminOrderForUI = (order) => ({
     ...order,
@@ -164,7 +222,11 @@ function AdminDashboard() {
     delivered: 0,
     cancelled: 0
   });
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersLimit, setOrdersLimit] = useState(15);
   const [products, setProducts] = useState([]);
+  const [productsPage, setProductsPage] = useState(1);
+  const [productsLimit, setProductsLimit] = useState(15);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState('dashboard');
@@ -462,11 +524,55 @@ function AdminDashboard() {
   }, [mainTab, user?.active_restaurant_id, customerSearch, customerStatusFilter, customerPage, customerLimit]);
 
   useEffect(() => {
+    setOrdersPage(1);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    setProductsPage(1);
+  }, [productSearch, productCategoryFilter, productSubcategoryFilter, productStatusFilter]);
+
+  useEffect(() => {
     if (user?.active_restaurant_id) {
       fetchRestaurantSettings();
       fetchOperators();
     }
   }, [user?.active_restaurant_id]);
+
+  const filteredProductsForTable = useMemo(() => (
+    products.filter((product) => {
+      if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
+      if (productSubcategoryFilter !== 'all') {
+        if (product.category_id !== parseInt(productSubcategoryFilter, 10)) return false;
+      } else if (productCategoryFilter !== 'all') {
+        const rootId = parseInt(productCategoryFilter, 10);
+        const childIds = categories.filter((c) => c.parent_id === rootId).map((c) => c.id);
+        if (product.category_id !== rootId && !childIds.includes(product.category_id)) return false;
+      }
+      if (productStatusFilter === 'active' && !product.in_stock) return false;
+      if (productStatusFilter === 'hidden' && product.in_stock) return false;
+      return true;
+    })
+  ), [products, categories, productSearch, productCategoryFilter, productSubcategoryFilter, productStatusFilter]);
+
+  const pagedOrders = useMemo(() => {
+    const start = (ordersPage - 1) * ordersLimit;
+    return orders.slice(start, start + ordersLimit);
+  }, [orders, ordersPage, ordersLimit]);
+
+  const pagedProducts = useMemo(() => {
+    const start = (productsPage - 1) * productsLimit;
+    return filteredProductsForTable.slice(start, start + productsLimit);
+  }, [filteredProductsForTable, productsPage, productsLimit]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(orders.length / ordersLimit));
+    if (ordersPage > totalPages) setOrdersPage(totalPages);
+  }, [orders.length, ordersLimit, ordersPage]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredProductsForTable.length / productsLimit));
+    if (productsPage > totalPages) setProductsPage(totalPages);
+  }, [filteredProductsForTable.length, productsLimit, productsPage]);
 
   useEffect(() => {
     if (!restaurantSettings) return;
@@ -2821,7 +2927,7 @@ function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map(order => {
+                      {pagedOrders.map(order => {
                         const orderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
                         const needsPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
                         const hideSensitive = isOrderSensitiveDataHidden(order);
@@ -2931,6 +3037,17 @@ function AdminDashboard() {
                     </tbody>
                   </Table>
                 </div>
+
+                <AdminListPagination
+                  current={ordersPage}
+                  total={orders.length}
+                  limit={ordersLimit}
+                  onPageChange={setOrdersPage}
+                  onLimitChange={(value) => {
+                    setOrdersLimit(value);
+                    setOrdersPage(1);
+                  }}
+                />
 
               </Tab>
 
@@ -3078,39 +3195,11 @@ function AdminDashboard() {
                           <Form.Check
                             type="checkbox"
                             checked={(() => {
-                              const filteredIds = products
-                                .filter(product => {
-                                  if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
-                                  if (productSubcategoryFilter !== 'all') {
-                                    if (product.category_id !== parseInt(productSubcategoryFilter)) return false;
-                                  } else if (productCategoryFilter !== 'all') {
-                                    const rootId = parseInt(productCategoryFilter);
-                                    const childIds = categories.filter(c => c.parent_id === rootId).map(c => c.id);
-                                    if (product.category_id !== rootId && !childIds.includes(product.category_id)) return false;
-                                  }
-                                  if (productStatusFilter === 'active' && !product.in_stock) return false;
-                                  if (productStatusFilter === 'hidden' && product.in_stock) return false;
-                                  return true;
-                                })
-                                .map(p => p.id);
+                              const filteredIds = filteredProductsForTable.map(p => p.id);
                               return filteredIds.length > 0 && filteredIds.every(id => selectedProducts.includes(id));
                             })()}
                             onChange={() => {
-                              const filteredIds = products
-                                .filter(product => {
-                                  if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
-                                  if (productSubcategoryFilter !== 'all') {
-                                    if (product.category_id !== parseInt(productSubcategoryFilter)) return false;
-                                  } else if (productCategoryFilter !== 'all') {
-                                    const rootId = parseInt(productCategoryFilter);
-                                    const childIds = categories.filter(c => c.parent_id === rootId).map(c => c.id);
-                                    if (product.category_id !== rootId && !childIds.includes(product.category_id)) return false;
-                                  }
-                                  if (productStatusFilter === 'active' && !product.in_stock) return false;
-                                  if (productStatusFilter === 'hidden' && product.in_stock) return false;
-                                  return true;
-                                })
-                                .map(p => p.id);
+                              const filteredIds = filteredProductsForTable.map(p => p.id);
                               toggleSelectAllProducts(filteredIds);
                             }}
                           />
@@ -3125,29 +3214,7 @@ function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {products
-                        .filter(product => {
-                          // Search filter
-                          if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) {
-                            return false;
-                          }
-                          // Category filter
-                          if (productSubcategoryFilter !== 'all') {
-                            if (product.category_id !== parseInt(productSubcategoryFilter)) return false;
-                          } else if (productCategoryFilter !== 'all') {
-                            const rootId = parseInt(productCategoryFilter);
-                            const childIds = categories.filter(c => c.parent_id === rootId).map(c => c.id);
-                            if (product.category_id !== rootId && !childIds.includes(product.category_id)) return false;
-                          }
-                          // Status filter
-                          if (productStatusFilter === 'active' && !product.in_stock) {
-                            return false;
-                          }
-                          if (productStatusFilter === 'hidden' && product.in_stock) {
-                            return false;
-                          }
-                          return true;
-                        })
+                      {pagedProducts
                         .map((product, index) => (
                           <tr key={product.id} className={selectedProducts.includes(product.id) ? 'table-active' : ''}>
                             <td>
@@ -3157,7 +3224,7 @@ function AdminDashboard() {
                                 onChange={() => toggleProductSelection(product.id)}
                               />
                             </td>
-                            <td className="text-muted">{index + 1}</td>
+                            <td className="text-muted">{(productsPage - 1) * productsLimit + index + 1}</td>
                             <td>
                               {(product.thumb_url || product.image_url) ? (
                                 <img
@@ -3229,21 +3296,20 @@ function AdminDashboard() {
                   </Table>
                 </div>
 
+                <AdminListPagination
+                  current={productsPage}
+                  total={filteredProductsForTable.length}
+                  limit={productsLimit}
+                  onPageChange={setProductsPage}
+                  onLimitChange={(value) => {
+                    setProductsLimit(value);
+                    setProductsPage(1);
+                  }}
+                />
+
                 {/* Results count */}
                 <div className="text-muted small">
-                  {t('found')}: {products.filter(product => {
-                    if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
-                    if (productSubcategoryFilter !== 'all') {
-                      if (product.category_id !== parseInt(productSubcategoryFilter)) return false;
-                    } else if (productCategoryFilter !== 'all') {
-                      const rootId = parseInt(productCategoryFilter);
-                      const childIds = categories.filter(c => c.parent_id === rootId).map(c => c.id);
-                      if (product.category_id !== rootId && !childIds.includes(product.category_id)) return false;
-                    }
-                    if (productStatusFilter === 'active' && !product.in_stock) return false;
-                    if (productStatusFilter === 'hidden' && product.in_stock) return false;
-                    return true;
-                  }).length} {t('of')} {products.length}
+                  {t('found')}: {filteredProductsForTable.length} {t('of')} {products.length}
                 </div>
 
               </Tab>
@@ -3545,30 +3611,16 @@ function AdminDashboard() {
                       </Table>
                     </div>
 
-                    <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 mt-3">
-                      <div className="small text-muted">
-                        Показано: {(customers.customers || []).length} / {customers.total || 0}
-                      </div>
-                      <div className="d-flex align-items-center gap-2">
-                        <Button
-                          variant="outline-secondary"
-                          size="sm"
-                          disabled={customerPage <= 1}
-                          onClick={() => setCustomerPage((p) => Math.max(p - 1, 1))}
-                        >
-                          Назад
-                        </Button>
-                        <span className="small text-muted">Стр. {customerPage}</span>
-                        <Button
-                          variant="outline-secondary"
-                          size="sm"
-                          disabled={customerPage * customerLimit >= (customers.total || 0)}
-                          onClick={() => setCustomerPage((p) => p + 1)}
-                        >
-                          Вперед
-                        </Button>
-                      </div>
-                    </div>
+                    <AdminListPagination
+                      current={customerPage}
+                      total={customers.total || 0}
+                      limit={customerLimit}
+                      onPageChange={setCustomerPage}
+                      onLimitChange={(value) => {
+                        setCustomerLimit(value);
+                        setCustomerPage(1);
+                      }}
+                    />
                   </>
                 )}
               </Tab>

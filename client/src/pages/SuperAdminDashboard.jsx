@@ -302,6 +302,9 @@ function SuperAdminDashboard() {
   const [adBanners, setAdBanners] = useState([]);
   const [adBannersMeta, setAdBannersMeta] = useState({ max_slots: 10, active_now_count: 0 });
   const [adBannersLoading, setAdBannersLoading] = useState(false);
+  const [adBannersPage, setAdBannersPage] = useState(1);
+  const [adBannersLimit, setAdBannersLimit] = useState(15);
+  const [adBannerImageMeta, setAdBannerImageMeta] = useState(null);
   const [adBannerStatusFilter, setAdBannerStatusFilter] = useState('all');
   const [showAdBannerModal, setShowAdBannerModal] = useState(false);
   const [editingAdBanner, setEditingAdBanner] = useState(null);
@@ -709,6 +712,7 @@ function SuperAdminDashboard() {
 
   const resetAdBannerForm = () => {
     setEditingAdBanner(null);
+    setAdBannerImageMeta(null);
     setAdBannerForm({
       title: '',
       image_url: '',
@@ -732,6 +736,7 @@ function SuperAdminDashboard() {
     }
 
     setEditingAdBanner(banner);
+    setAdBannerImageMeta(null);
     setAdBannerForm({
       title: banner.title || '',
       image_url: banner.image_url || '',
@@ -755,6 +760,7 @@ function SuperAdminDashboard() {
         params: { status: adBannerStatusFilter }
       });
       setAdBanners(response.data?.items || []);
+      setAdBannersPage(1);
       setAdBannersMeta({
         max_slots: response.data?.max_slots || 10,
         active_now_count: response.data?.active_now_count || 0
@@ -775,6 +781,25 @@ function SuperAdminDashboard() {
     }
     setUploadingAdBannerImage(true);
     try {
+      const imageDimensions = await new Promise((resolve) => {
+        try {
+          const objectUrl = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+            const result = { width: img.naturalWidth || img.width, height: img.naturalHeight || img.height };
+            URL.revokeObjectURL(objectUrl);
+            resolve(result);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(null);
+          };
+          img.src = objectUrl;
+        } catch {
+          resolve(null);
+        }
+      });
+
       const formData = new FormData();
       formData.append('image', file);
       formData.append('preset', 'ad');
@@ -785,6 +810,7 @@ function SuperAdminDashboard() {
         ? `${window.location.origin}${response.data.url}`
         : (response.data?.imageUrl ? `${window.location.origin}${response.data.imageUrl}` : '');
       setAdBannerForm((prev) => ({ ...prev, image_url: fullUrl }));
+      setAdBannerImageMeta(imageDimensions);
       setSuccess('Изображение рекламы загружено');
     } catch (err) {
       console.error('Ad banner image upload error:', err);
@@ -817,7 +843,14 @@ function SuperAdminDashboard() {
       loadAdBanners();
     } catch (err) {
       console.error('Save ad banner error:', err);
-      setError(err.response?.data?.error || 'Ошибка сохранения рекламного слота');
+      const serverError = err.response?.data?.error;
+      const serverDetails = err.response?.data?.details;
+      const fallbackHint = adBannerImageMeta
+        ? ` Размер вашего баннера: ${adBannerImageMeta.width}x${adBannerImageMeta.height}px. Рекомендуемый размер: 1200x300px (или похожая широкая пропорция 4:1).`
+        : ' Рекомендуемый размер баннера: 1200x300px (широкий формат).';
+      const baseMessage = serverError || 'Ошибка сохранения рекламного слота';
+      const detailsText = serverDetails ? ` Причина: ${serverDetails}.` : '';
+      setError(`${baseMessage}.${detailsText}${fallbackHint}`.replace(/\.\./g, '.'));
     }
   };
 
@@ -867,6 +900,16 @@ function SuperAdminDashboard() {
 
     return [selected, ...filtered];
   }, [allRestaurants, customerRestaurantSearch, customerRestaurantFilter]);
+
+  const pagedAdBanners = useMemo(() => {
+    const start = (adBannersPage - 1) * adBannersLimit;
+    return adBanners.slice(start, start + adBannersLimit);
+  }, [adBanners, adBannersPage, adBannersLimit]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil((adBanners.length || 0) / adBannersLimit));
+    if (adBannersPage > totalPages) setAdBannersPage(totalPages);
+  }, [adBanners.length, adBannersLimit, adBannersPage]);
 
   const operatorRestaurantOptions = useMemo(() => {
     const term = operatorRestaurantSearch.trim().toLowerCase();
@@ -2852,7 +2895,7 @@ function SuperAdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {adBanners.map((banner) => (
+                          {pagedAdBanners.map((banner) => (
                             <tr key={banner.id}>
                               <td>
                                 <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
@@ -2967,6 +3010,17 @@ function SuperAdminDashboard() {
                         </tbody>
                       </Table>
                     </div>
+                    <DataPagination
+                      current={adBannersPage}
+                      total={adBanners.length}
+                      limit={adBannersLimit}
+                      onPageChange={setAdBannersPage}
+                      onLimitChange={(val) => {
+                        setAdBannersLimit(val);
+                        setAdBannersPage(1);
+                      }}
+                      limitOptions={[15, 20, 30, 50]}
+                    />
                   </>
                 )}
               </Tab>

@@ -2050,6 +2050,18 @@ router.post('/ads/banners', async (req, res) => {
     res.status(201).json(mapAdBannerRow(result.rows[0]));
   } catch (error) {
     console.error('Create ad banner error:', error);
+    if (error?.code === '23502' && error?.column === 'target_url') {
+      return res.status(400).json({
+        error: 'Ссылка баннера сейчас необязательна, но в базе ещё старая схема',
+        details: 'Нужен деплой/перезапуск с актуальной миграцией (колонка target_url должна быть nullable)'
+      });
+    }
+    if (error?.code === '23514') {
+      return res.status(400).json({
+        error: 'Проверьте параметры рекламы',
+        details: error.constraint || 'Нарушено ограничение данных баннера'
+      });
+    }
     res.status(500).json({ error: 'Ошибка создания рекламного баннера' });
   }
 });
@@ -2107,6 +2119,18 @@ router.put('/ads/banners/:id', async (req, res) => {
     res.json(mapAdBannerRow(result.rows[0]));
   } catch (error) {
     console.error('Update ad banner error:', error);
+    if (error?.code === '23502' && error?.column === 'target_url') {
+      return res.status(400).json({
+        error: 'Ссылка баннера сейчас необязательна, но в базе ещё старая схема',
+        details: 'Нужен деплой/перезапуск с актуальной миграцией (колонка target_url должна быть nullable)'
+      });
+    }
+    if (error?.code === '23514') {
+      return res.status(400).json({
+        error: 'Проверьте параметры рекламы',
+        details: error.constraint || 'Нарушено ограничение данных баннера'
+      });
+    }
     res.status(500).json({ error: 'Ошибка обновления рекламного баннера' });
   }
 });
