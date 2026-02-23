@@ -287,6 +287,21 @@ function AdminDashboard() {
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
   const [isRestaurantBotTokenVisible, setIsRestaurantBotTokenVisible] = useState(false);
   const tokenCountdownArmedRef = useRef(false);
+  const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
+  const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
+
+  // Customers (operator-scoped)
+  const [customers, setCustomers] = useState({ customers: [], total: 0, page: 1, limit: 20 });
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerStatusFilter, setCustomerStatusFilter] = useState('');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerLimit, setCustomerLimit] = useState(15);
+  const [showCustomerOrdersModal, setShowCustomerOrdersModal] = useState(false);
+  const [selectedCustomerProfile, setSelectedCustomerProfile] = useState(null);
+  const [customerOrdersHistory, setCustomerOrdersHistory] = useState({ orders: [], total: 0, page: 1, limit: 10 });
+  const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
+  const [customerOrdersPage, setCustomerOrdersPage] = useState(1);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -300,6 +315,15 @@ function AdminDashboard() {
   const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
     normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
+  const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
+  const orderStatusPillItems = [
+    { value: 'all', label: t('allStatuses'), color: '#8d7557' },
+    { value: 'new', label: t('statusNew'), color: '#c7a577' },
+    { value: 'preparing', label: t('statusPreparing'), color: '#b89262' },
+    { value: 'delivering', label: t('statusDelivering'), color: '#a37c4f' },
+    { value: 'delivered', label: t('statusDelivered'), color: '#8f6d46' },
+    { value: 'cancelled', label: t('statusCancelled'), color: '#b6765d' },
+  ];
 
   // Excel export function
   const exportToExcel = (data, filename, columns) => {
@@ -431,6 +455,11 @@ function AdminDashboard() {
       fetchFeedback();
     }
   }, [feedbackFilter, user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (mainTab !== 'clients' || !user?.active_restaurant_id) return;
+    fetchCustomers();
+  }, [mainTab, user?.active_restaurant_id, customerSearch, customerStatusFilter, customerPage, customerLimit]);
 
   useEffect(() => {
     if (user?.active_restaurant_id) {
@@ -588,6 +617,256 @@ function AdminDashboard() {
     } catch (error) {
       console.error('Error fetching feedback stats:', error);
     }
+  };
+
+  const fetchCustomers = async () => {
+    if (!user?.active_restaurant_id) {
+      setCustomers({ customers: [], total: 0, page: 1, limit: customerLimit });
+      return;
+    }
+
+    setCustomersLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/customers`, {
+        params: {
+          page: customerPage,
+          limit: customerLimit,
+          search: customerSearch.trim(),
+          status: customerStatusFilter
+        }
+      });
+      const data = response.data || {};
+      setCustomers({
+        customers: data.customers || [],
+        total: data.total || 0,
+        page: data.page || customerPage,
+        limit: data.limit || customerLimit
+      });
+    } catch (error) {
+      console.error('Error fetching admin customers:', error);
+      setAlertMessage({ type: 'danger', text: 'Ошибка загрузки клиентов' });
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  const fetchCustomerOrdersHistory = async (customerId, page = 1) => {
+    setCustomerOrdersLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/customers/${customerId}/orders`, {
+        params: { page, limit: 10 }
+      });
+      const data = response.data || {};
+      setCustomerOrdersHistory({
+        orders: (data.orders || []).map(normalizeAdminOrderForUI),
+        total: data.total || 0,
+        page: data.page || page,
+        limit: data.limit || 10
+      });
+      setSelectedCustomerProfile(data.customer || null);
+      setCustomerOrdersPage(data.page || page);
+    } catch (error) {
+      console.error('Error fetching customer order history:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки истории заказов' });
+    } finally {
+      setCustomerOrdersLoading(false);
+    }
+  };
+
+  const openCustomerOrdersModal = (customer) => {
+    setSelectedCustomerProfile(customer);
+    setCustomerOrdersHistory({ orders: [], total: 0, page: 1, limit: 10 });
+    setCustomerOrdersPage(1);
+    setShowCustomerOrdersModal(true);
+    fetchCustomerOrdersHistory(customer.user_id, 1);
+  };
+
+  const resetActiveTabMobileFilters = () => {
+    if (mainTab === 'orders') {
+      setStatusFilter('all');
+      return;
+    }
+    if (mainTab === 'products') {
+      setProductSearch('');
+      setProductCategoryFilter('all');
+      setProductSubcategoryFilter('all');
+      setProductStatusFilter('all');
+      return;
+    }
+    if (mainTab === 'feedback') {
+      setFeedbackFilter({ status: '', type: '' });
+      return;
+    }
+    if (mainTab === 'clients') {
+      setCustomerSearch('');
+      setCustomerStatusFilter('');
+      setCustomerPage(1);
+    }
+  };
+
+  const renderMobileFiltersSheetContent = () => {
+    if (mainTab === 'orders') {
+      return (
+        <div className="d-grid gap-2">
+          <div className="small text-muted fw-semibold">Статус заказов</div>
+          {orderStatusPillItems.map((s) => {
+            const isActive = statusFilter === s.value;
+            const count = orderStatusCounts?.[s.value] || 0;
+            return (
+              <button
+                key={`mobile-order-status-${s.value}`}
+                type="button"
+                className="btn text-start d-flex align-items-center justify-content-between"
+                onClick={() => setStatusFilter(s.value)}
+                style={{
+                  borderRadius: 12,
+                  border: `1px solid ${isActive ? s.color : '#dfcfb9'}`,
+                  background: isActive ? `${s.color}12` : '#fff',
+                  color: '#5b4a37'
+                }}
+              >
+                <span className="d-flex align-items-center gap-2">
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                  {s.label}
+                </span>
+                {count > 0 && (
+                  <Badge pill style={{ background: `${s.color}15`, color: s.color, border: `1px solid ${s.color}25` }}>
+                    {count}
+                  </Badge>
+                )}
+              </button>
+            );
+          })}
+          <Button variant="outline-secondary" onClick={exportOrders}>
+            Экспорт заказов
+          </Button>
+        </div>
+      );
+    }
+
+    if (mainTab === 'products') {
+      return (
+        <div className="d-grid gap-3">
+          <Form.Group>
+            <Form.Label className="small text-muted">Поиск</Form.Label>
+            <Form.Control
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder={t('searchByName')}
+            />
+          </Form.Group>
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('category')}</Form.Label>
+            <Form.Select
+              value={productCategoryFilter}
+              onChange={(e) => {
+                setProductCategoryFilter(e.target.value);
+                setProductSubcategoryFilter('all');
+              }}
+            >
+              <option value="all">{t('allCategories')}</option>
+              {categories.filter(c => !c.parent_id).map(cat => (
+                <option key={`mobile-root-cat-${cat.id}`} value={String(cat.id)}>
+                  {cat.name_ru}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('subcategory') || 'Подкатегория'}</Form.Label>
+            <Form.Select
+              value={productSubcategoryFilter}
+              onChange={(e) => setProductSubcategoryFilter(e.target.value)}
+            >
+              <option value="all">{t('allCategories')}</option>
+              {categories
+                .filter(c => productCategoryFilter !== 'all' && c.parent_id === parseInt(productCategoryFilter))
+                .map(sub => (
+                  <option key={`mobile-sub-cat-${sub.id}`} value={String(sub.id)}>
+                    {sub.name_ru}
+                  </option>
+                ))}
+            </Form.Select>
+          </Form.Group>
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('status')}</Form.Label>
+            <Form.Select value={productStatusFilter} onChange={(e) => setProductStatusFilter(e.target.value)}>
+              <option value="all">{t('allStatuses')}</option>
+              <option value="active">{t('activeProducts')}</option>
+              <option value="hidden">{t('hiddenProducts')}</option>
+            </Form.Select>
+          </Form.Group>
+        </div>
+      );
+    }
+
+    if (mainTab === 'feedback') {
+      return (
+        <div className="d-grid gap-3">
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('type')}</Form.Label>
+            <Form.Select
+              value={feedbackFilter.type}
+              onChange={(e) => setFeedbackFilter((prev) => ({ ...prev, type: e.target.value }))}
+            >
+              <option value="">{t('allTypes')}</option>
+              <option value="complaint">{t('complaint')}</option>
+              <option value="suggestion">{t('suggestion')}</option>
+              <option value="question">{t('question')}</option>
+              <option value="other">{t('other')}</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('status')}</Form.Label>
+            <Form.Select
+              value={feedbackFilter.status}
+              onChange={(e) => setFeedbackFilter((prev) => ({ ...prev, status: e.target.value }))}
+            >
+              <option value="">{t('allStatuses')}</option>
+              <option value="new">{t('statusNew')}</option>
+              <option value="in_progress">{t('inProgress')}</option>
+              <option value="resolved">{t('resolved')}</option>
+              <option value="closed">{t('closed')}</option>
+            </Form.Select>
+          </Form.Group>
+        </div>
+      );
+    }
+
+    if (mainTab === 'clients') {
+      return (
+        <div className="d-grid gap-3">
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('search')}</Form.Label>
+            <Form.Control
+              type="search"
+              value={customerSearch}
+              onChange={(e) => {
+                setCustomerSearch(e.target.value);
+                setCustomerPage(1);
+              }}
+              placeholder={`${t('client')}: имя / телефон / username`}
+            />
+          </Form.Group>
+          <Form.Group>
+            <Form.Label className="small text-muted">{t('status')}</Form.Label>
+            <Form.Select
+              value={customerStatusFilter}
+              onChange={(e) => {
+                setCustomerStatusFilter(e.target.value);
+                setCustomerPage(1);
+              }}
+            >
+              <option value="">{t('allStatuses')}</option>
+              <option value="active">Активен</option>
+              <option value="blocked">Заблокирован</option>
+            </Form.Select>
+          </Form.Group>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const openFeedbackDetail = (fb) => {
@@ -1708,8 +1987,8 @@ function AdminDashboard() {
 
               {/* User + Language + Logout group */}
               <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
-                {/* User Profile Dropdown */}
-                <Dropdown align="end">
+                {/* User Profile Dropdown (desktop) */}
+                <Dropdown align="end" className="d-none d-lg-block">
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
@@ -1759,6 +2038,22 @@ function AdminDashboard() {
                     </Dropdown.Item>
                   </Dropdown.Menu>
                 </Dropdown>
+
+                {/* Mobile account button -> bottom sheet */}
+                <button
+                  type="button"
+                  className="d-flex d-lg-none align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none border-0 custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill"
+                  style={{ background: 'rgba(255,255,255,0.1)' }}
+                  onClick={() => setShowMobileAccountSheet(true)}
+                >
+                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm admin-user-avatar">
+                    {user?.username?.charAt(0).toUpperCase() || 'A'}
+                  </div>
+                  <div className="text-start">
+                    <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Administrator'}</div>
+                    <div className="text-white-50 small admin-user-id">ID: {String(user?.id || 0).padStart(5, '0')}</div>
+                  </div>
+                </button>
 
                 {/* Separate Balance pill */}
                 <div
@@ -1842,6 +2137,94 @@ function AdminDashboard() {
             )}
           </div>
         </Modal.Body>
+      </Modal>
+
+      <Modal
+        show={showMobileAccountSheet}
+        onHide={() => setShowMobileAccountSheet(false)}
+        centered
+        dialogClassName="mobile-bottom-sheet"
+        className="d-lg-none"
+      >
+        <Modal.Header closeButton className="border-0 pb-2">
+          <Modal.Title className="fs-6 fw-bold d-flex align-items-center gap-2">
+            <span className="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center text-white" style={{ width: 30, height: 30 }}>
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
+            </span>
+            {user?.full_name || user?.username || 'Administrator'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-0">
+          <div className="d-grid gap-2">
+            {isSuperAdmin() && (
+              <Button
+                variant="light"
+                className="text-start d-flex align-items-center gap-2"
+                onClick={() => {
+                  setShowMobileAccountSheet(false);
+                  navigate('/superadmin');
+                }}
+              >
+                <i className="bi bi-shield-lock"></i> {t('superAdmin')}
+              </Button>
+            )}
+
+            <div className="p-2 rounded-3" style={{ background: '#f7efe3' }}>
+              <div className="small text-muted mb-2 fw-semibold">Язык</div>
+              <div className="admin-lang-switch">
+                <div
+                  onClick={language !== 'ru' ? toggleLanguage : undefined}
+                  className={`flex-fill text-center rounded-2 py-1 px-2 admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
+                >
+                  <img src="https://flagcdn.com/w20/ru.png" width="14" alt="RU" className="me-1" /> Рус
+                </div>
+                <div
+                  onClick={language !== 'uz' ? toggleLanguage : undefined}
+                  className={`flex-fill text-center rounded-2 py-1 px-2 admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
+                >
+                  <img src="https://flagcdn.com/w20/uz.png" width="14" alt="UZ" className="me-1" /> O'zb
+                </div>
+              </div>
+            </div>
+
+            <Button
+              variant="light"
+              className="text-danger text-start d-flex align-items-center gap-2"
+              onClick={() => {
+                setShowMobileAccountSheet(false);
+                handleLogout();
+              }}
+            >
+              <i className="bi bi-box-arrow-right"></i> {t('logout')}
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <Modal
+        show={showMobileFiltersSheet && hasMobileFilterSheet}
+        onHide={() => setShowMobileFiltersSheet(false)}
+        centered
+        dialogClassName="mobile-bottom-sheet"
+        className="d-lg-none"
+      >
+        <Modal.Header closeButton className="border-0 pb-2">
+          <Modal.Title className="fs-6 fw-bold d-flex align-items-center gap-2">
+            <i className="bi bi-funnel"></i>
+            Фильтры
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-0">
+          {renderMobileFiltersSheetContent()}
+        </Modal.Body>
+        <Modal.Footer className="border-0 pt-0 d-flex gap-2">
+          <Button variant="light" className="flex-fill" onClick={resetActiveTabMobileFilters}>
+            Сбросить
+          </Button>
+          <Button className="btn-primary-custom flex-fill" onClick={() => setShowMobileFiltersSheet(false)}>
+            Применить
+          </Button>
+        </Modal.Footer>
       </Modal>
 
       <Container className="admin-panel">
@@ -2364,17 +2747,10 @@ function AdminDashboard() {
 
               <Tab eventKey="orders" title={t('orders')}>
 
-                <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2 admin-order-toolbar">
                   {/* Status pill tabs */}
-                  <div className="d-flex flex-wrap gap-1">
-                    {[
-                      { value: 'all', label: t('allStatuses'), color: '#8d7557' },
-                      { value: 'new', label: t('statusNew'), color: '#c7a577' },
-                      { value: 'preparing', label: t('statusPreparing'), color: '#b89262' },
-                      { value: 'delivering', label: t('statusDelivering'), color: '#a37c4f' },
-                      { value: 'delivered', label: t('statusDelivered'), color: '#8f6d46' },
-                      { value: 'cancelled', label: t('statusCancelled'), color: '#b6765d' },
-                    ].map(s => {
+                  <div className="d-flex flex-wrap gap-1 admin-order-status-tabs">
+                    {orderStatusPillItems.map(s => {
                       const isActive = statusFilter === s.value;
                       const count = orderStatusCounts?.[s.value] || 0;
                       return (
@@ -2395,8 +2771,10 @@ function AdminDashboard() {
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             whiteSpace: 'nowrap',
+                            flexShrink: 0,
                           }}
                         >
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: isActive ? 'rgba(255,255,255,0.9)' : s.color, flexShrink: 0 }} />
                           {s.label}
                           {count > 0 && (
                             <span style={{
@@ -2419,9 +2797,15 @@ function AdminDashboard() {
                       );
                     })}
                   </div>
-                  <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
-                    {t('downloadExcel')}
-                  </Button>
+                  <div className="d-flex align-items-center gap-2">
+                    <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none" onClick={() => setShowMobileFiltersSheet(true)}>
+                      <i className="bi bi-funnel"></i> Фильтр
+                    </Button>
+                    <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
+                      <span className="d-none d-md-inline">{t('downloadExcel')}</span>
+                      <span className="d-md-none">Экспорт</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="admin-table-container">
@@ -2555,6 +2939,9 @@ function AdminDashboard() {
                 <div className="d-flex justify-content-between align-items-center mb-3 admin-product-toolbar">
                   <h5 className="mb-0 admin-mobile-section-title">{t('products')}</h5>
                   <div className="d-flex gap-2 admin-product-toolbar-actions">
+                    <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none" onClick={() => setShowMobileFiltersSheet(true)}>
+                      <i className="bi bi-funnel"></i> Фильтр
+                    </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={exportProducts}>
                       <span className="d-none d-md-inline">{t('downloadExcel')}</span>
                       <span className="d-md-none">Экспорт</span>
@@ -2571,7 +2958,7 @@ function AdminDashboard() {
                 </div>
 
                 {/* Filters and Search */}
-                <Row className="mb-3 g-2">
+                <Row className="mb-3 g-2 d-none d-lg-flex">
                   <Col md={3}>
                     <InputGroup size="sm">
                       <InputGroup.Text>🔍</InputGroup.Text>
@@ -2933,7 +3320,10 @@ function AdminDashboard() {
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="admin-mobile-section-title">{t('customerAppeals')}</h5>
-                  <div className="d-flex gap-2">
+                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтр
+                  </Button>
+                  <div className="d-none d-lg-flex gap-2">
                     <Form.Select
                       size="sm"
                       style={{ width: 'auto' }}
@@ -3031,6 +3421,155 @@ function AdminDashboard() {
                       </tbody>
                     </Table>
                   </div>
+                )}
+              </Tab>
+
+              <Tab eventKey="clients" title={t('clients')}>
+                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                  <h5 className="admin-mobile-section-title mb-0">{t('clients')} ({customers.total || 0})</h5>
+                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтр
+                  </Button>
+                  <div className="d-none d-lg-flex gap-2 flex-wrap">
+                    <Form.Control
+                      size="sm"
+                      type="search"
+                      style={{ width: 240 }}
+                      placeholder="Поиск клиента"
+                      value={customerSearch}
+                      onChange={(e) => {
+                        setCustomerSearch(e.target.value);
+                        setCustomerPage(1);
+                      }}
+                    />
+                    <Form.Select
+                      size="sm"
+                      style={{ width: 170 }}
+                      value={customerStatusFilter}
+                      onChange={(e) => {
+                        setCustomerStatusFilter(e.target.value);
+                        setCustomerPage(1);
+                      }}
+                    >
+                      <option value="">{t('allStatuses')}</option>
+                      <option value="active">Активен</option>
+                      <option value="blocked">Заблокирован</option>
+                    </Form.Select>
+                    <Form.Select
+                      size="sm"
+                      style={{ width: 120 }}
+                      value={customerLimit}
+                      onChange={(e) => {
+                        setCustomerLimit(parseInt(e.target.value, 10));
+                        setCustomerPage(1);
+                      }}
+                    >
+                      <option value={15}>15</option>
+                      <option value={20}>20</option>
+                      <option value={30}>30</option>
+                      <option value={50}>50</option>
+                    </Form.Select>
+                  </div>
+                </div>
+
+                {customersLoading ? (
+                  <div className="text-center py-5 text-muted">Загрузка клиентов...</div>
+                ) : (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table mb-0">
+                        <thead>
+                          <tr>
+                            <th>{t('client')}</th>
+                            <th>Telegram</th>
+                            <th>{t('orders')}</th>
+                            <th>{t('amount')}</th>
+                            <th>{t('status')}</th>
+                            <th>{t('date')}</th>
+                            <th>{t('actions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(customers.customers || []).map((c) => {
+                            const isBlocked = c.is_blocked || !c.user_is_active;
+                            return (
+                              <tr key={`admin-customer-${c.user_id}`}>
+                                <td>
+                                  <div className="fw-semibold">{c.full_name || c.username || `ID ${c.user_id}`}</div>
+                                  <small className="text-muted">{c.phone || '-'}</small>
+                                </td>
+                                <td>
+                                  {c.telegram_id ? (
+                                    <Badge bg="info" className="bg-opacity-10 text-info border border-info-subtle">
+                                      {c.telegram_id}
+                                    </Badge>
+                                  ) : '-'}
+                                </td>
+                                <td>
+                                  <Badge bg={Number(c.orders_count) > 0 ? 'success' : 'secondary'} className="bg-opacity-10 border">
+                                    {c.orders_count || 0}
+                                  </Badge>
+                                </td>
+                                <td className="fw-semibold">{formatPrice(c.total_spent || 0)} {t('sum')}</td>
+                                <td>
+                                  {isBlocked ? (
+                                    <Badge bg="warning" text="dark">Ограничен</Badge>
+                                  ) : (
+                                    <Badge bg="success">Активен</Badge>
+                                  )}
+                                </td>
+                                <td>
+                                  <small>{c.last_order_date ? new Date(c.last_order_date).toLocaleString('ru-RU') : '-'}</small>
+                                </td>
+                                <td>
+                                  <Button
+                                    className="action-btn bg-info bg-opacity-10 text-info border-0"
+                                    size="sm"
+                                    title="История заказов"
+                                    onClick={() => openCustomerOrdersModal(c)}
+                                  >
+                                    <EyeIcon />
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {(customers.customers || []).length === 0 && (
+                            <tr>
+                              <td colSpan="7" className="text-center py-4 text-muted">
+                                Клиенты не найдены
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+
+                    <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 mt-3">
+                      <div className="small text-muted">
+                        Показано: {(customers.customers || []).length} / {customers.total || 0}
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          disabled={customerPage <= 1}
+                          onClick={() => setCustomerPage((p) => Math.max(p - 1, 1))}
+                        >
+                          Назад
+                        </Button>
+                        <span className="small text-muted">Стр. {customerPage}</span>
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          disabled={customerPage * customerLimit >= (customers.total || 0)}
+                          onClick={() => setCustomerPage((p) => p + 1)}
+                        >
+                          Вперед
+                        </Button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </Tab>
 
@@ -3499,6 +4038,114 @@ function AdminDashboard() {
             </Tabs>
           </Card.Body>
         </Card>
+
+        <Modal
+          show={showCustomerOrdersModal}
+          onHide={() => setShowCustomerOrdersModal(false)}
+          size="xl"
+          centered
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>История заказов клиента</Modal.Title>
+          </Modal.Header>
+          <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <Card className="mb-3 border-0 bg-light">
+              <Card.Body className="py-3">
+                <Row className="g-3">
+                  <Col md={4}>
+                    <div className="small text-muted">Клиент</div>
+                    <div className="fw-semibold">{selectedCustomerProfile?.full_name || selectedCustomerProfile?.username || '-'}</div>
+                  </Col>
+                  <Col md={4}>
+                    <div className="small text-muted">Телефон</div>
+                    <div>{selectedCustomerProfile?.phone || '-'}</div>
+                  </Col>
+                  <Col md={4}>
+                    <div className="small text-muted">Всего заказов в магазине</div>
+                    <div className="fw-semibold">{customerOrdersHistory.total || 0}</div>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+
+            {customerOrdersLoading ? (
+              <div className="text-center py-4 text-muted">Загрузка истории...</div>
+            ) : (customerOrdersHistory.orders || []).length === 0 ? (
+              <div className="text-center py-4 text-muted">У этого клиента пока нет заказов в текущем магазине</div>
+            ) : (
+              <>
+                <div className="admin-table-container">
+                  <Table responsive hover className="admin-table mb-0">
+                    <thead>
+                      <tr>
+                        <th>№</th>
+                        <th>{t('date')}</th>
+                        <th>{t('amount')}</th>
+                        <th>{t('status')}</th>
+                        <th>Оплата</th>
+                        <th>{t('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customerOrdersHistory.orders.map((order) => (
+                        <tr key={`customer-order-${order.id}`}>
+                          <td className="fw-semibold">#{order.order_number}</td>
+                          <td><small>{order.created_at ? new Date(order.created_at).toLocaleString('ru-RU') : '-'}</small></td>
+                          <td>{formatPrice(order.total_amount || 0)} {t('sum')}</td>
+                          <td>{getStatusBadge(order.status)}</td>
+                          <td><small>{getPaymentMethodLabel(order.payment_method)}</small></td>
+                          <td>
+                            <Button
+                              size="sm"
+                              variant="outline-primary"
+                              onClick={() => openOrderModal(order)}
+                            >
+                              Детали
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+                <div className="d-flex justify-content-between align-items-center mt-3 gap-2">
+                  <span className="small text-muted">Стр. {customerOrdersPage}</span>
+                  <div className="d-flex gap-2">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      disabled={customerOrdersPage <= 1 || customerOrdersLoading || !selectedCustomerProfile?.id}
+                      onClick={() => {
+                        const nextPage = Math.max(customerOrdersPage - 1, 1);
+                        setCustomerOrdersPage(nextPage);
+                        fetchCustomerOrdersHistory(selectedCustomerProfile.id, nextPage);
+                      }}
+                    >
+                      Назад
+                    </Button>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      disabled={(customerOrdersPage * (customerOrdersHistory.limit || 10)) >= (customerOrdersHistory.total || 0) || customerOrdersLoading || !selectedCustomerProfile?.id}
+                      onClick={() => {
+                        const nextPage = customerOrdersPage + 1;
+                        setCustomerOrdersPage(nextPage);
+                        fetchCustomerOrdersHistory(selectedCustomerProfile.id, nextPage);
+                      }}
+                    >
+                      Вперед
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowCustomerOrdersModal(false)}>
+              {t('close') || 'Закрыть'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
 
         {/* Order Details Modal */}
         <Modal

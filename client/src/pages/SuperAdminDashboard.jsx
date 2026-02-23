@@ -2665,7 +2665,7 @@ function SuperAdminDashboard() {
                   <div className="text-center p-5"><Spinner animation="border" /></div>
                 ) : (
                   <div
-                    className="pb-3"
+                    className="pb-3 superadmin-categories-grid"
                     style={{
                       display: 'grid',
                       gridTemplateColumns: `repeat(${CATEGORY_LEVEL_COUNT}, minmax(0, 1fr))`,

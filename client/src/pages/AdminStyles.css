@@ -363,6 +363,15 @@ body::-webkit-scrollbar,
     flex-wrap: wrap;
 }
 
+.admin-order-status-tabs {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.admin-order-status-tabs::-webkit-scrollbar {
+    display: none;
+}
+
 .btn-mobile-filter {
     display: inline-flex;
     align-items: center;
@@ -467,6 +476,23 @@ body::-webkit-scrollbar,
         padding-top: 1rem;
     }
 
+    .admin-order-toolbar {
+        align-items: flex-start !important;
+    }
+
+    .admin-order-status-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        max-width: 100%;
+        padding-bottom: 2px;
+    }
+
+    .admin-order-status-tabs>* {
+        flex: 0 0 auto;
+    }
+
     .superadmin-stats-grid {
         row-gap: 12px !important;
     }
@@ -554,6 +580,33 @@ body::-webkit-scrollbar,
     .superadmin-stat-card .card-body > div:last-child {
         min-width: 0;
         flex: 1 1 auto;
+    }
+
+    .superadmin-categories-grid {
+        display: flex !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 12px !important;
+        min-height: auto !important;
+        width: 100%;
+        padding-bottom: 4px;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .superadmin-categories-grid::-webkit-scrollbar {
+        display: none;
+    }
+
+    .superadmin-categories-grid>.card {
+        flex: 0 0 min(86vw, 320px);
+        width: min(86vw, 320px) !important;
+        scroll-snap-align: start;
+    }
+
+    .superadmin-categories-grid .card-body {
+        height: 360px !important;
     }
 }
 

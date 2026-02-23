@@ -2415,6 +2415,183 @@ COUNT(*) FILTER(WHERE status = 'new') as new_count,
 });
 
 // =====================================================
+// КЛИЕНТЫ (ТОЛЬКО ТЕКУЩИЙ МАГАЗИН)
+// =====================================================
+
+router.get('/customers', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.json({ customers: [], total: 0, page: 1, limit: 20 });
+    }
+
+    const page = Math.max(parseInt(req.query.page || 1, 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || 20, 10), 1), 100);
+    const search = String(req.query.search || '').trim();
+    const status = String(req.query.status || '').trim();
+    const offset = (page - 1) * limit;
+
+    const params = [restaurantId];
+    let paramIndex = 2;
+    let where = `
+      WHERE u.role = 'customer'
+        AND EXISTS (
+          SELECT 1
+          FROM orders o_exists
+          WHERE o_exists.user_id = u.id
+            AND o_exists.restaurant_id = $1
+        )
+    `;
+
+    if (search) {
+      where += ` AND (
+        u.full_name ILIKE $${paramIndex}
+        OR u.phone ILIKE $${paramIndex}
+        OR u.username ILIKE $${paramIndex}
+      )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (status === 'active') {
+      where += ` AND u.is_active = true AND COALESCE(ur.is_blocked, false) = false`;
+    } else if (status === 'blocked') {
+      where += ` AND (u.is_active = false OR COALESCE(ur.is_blocked, false) = true)`;
+    }
+
+    const listQuery = `
+      SELECT
+        u.id AS user_id,
+        u.username,
+        u.full_name,
+        u.phone,
+        u.telegram_id,
+        u.is_active AS user_is_active,
+        COALESCE(ur.is_blocked, false) AS is_blocked,
+        u.created_at,
+        COUNT(o.id)::int AS orders_count,
+        COALESCE(SUM(o.total_amount), 0) AS total_spent,
+        MAX(o.created_at) AS last_order_date
+      FROM users u
+      LEFT JOIN user_restaurants ur
+        ON ur.user_id = u.id AND ur.restaurant_id = $1
+      LEFT JOIN orders o
+        ON o.user_id = u.id AND o.restaurant_id = $1
+      ${where}
+      GROUP BY u.id, ur.is_blocked
+      ORDER BY MAX(o.created_at) DESC NULLS LAST, u.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    const listResult = await pool.query(listQuery, [...params, limit, offset]);
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS count
+      FROM users u
+      LEFT JOIN user_restaurants ur
+        ON ur.user_id = u.id AND ur.restaurant_id = $1
+      ${where}
+    `;
+    const countResult = await pool.query(countQuery, params);
+
+    res.json({
+      customers: listResult.rows,
+      total: countResult.rows[0]?.count || 0,
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Admin customers error:', error);
+    res.status(500).json({ error: 'Ошибка получения клиентов магазина' });
+  }
+});
+
+router.get('/customers/:id/orders', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Сначала выберите магазин' });
+    }
+
+    const page = Math.max(parseInt(req.query.page || 1, 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || 10, 10), 1), 100);
+    const offset = (page - 1) * limit;
+    const customerId = parseInt(req.params.id, 10);
+
+    const customerResult = await pool.query(
+      `
+      SELECT u.id, u.full_name, u.username, u.phone, u.telegram_id
+      FROM users u
+      WHERE u.id = $1
+        AND u.role = 'customer'
+        AND EXISTS (
+          SELECT 1
+          FROM orders o
+          WHERE o.user_id = u.id
+            AND o.restaurant_id = $2
+        )
+      `,
+      [customerId, restaurantId]
+    );
+
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Клиент не найден в этом магазине' });
+    }
+
+    const ordersResult = await pool.query(
+      `
+      SELECT
+        o.id, o.order_number, o.status, o.total_amount, o.payment_method,
+        o.customer_name, o.customer_phone, o.delivery_address, o.delivery_coordinates,
+        o.delivery_date, o.delivery_time, o.comment, o.created_at, o.updated_at,
+        o.is_paid, o.cancel_reason, o.cancelled_at_status,
+        r.name AS restaurant_name, r.id AS restaurant_id,
+        u_operator.full_name AS processed_by_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', oi.id,
+              'product_id', oi.product_id,
+              'product_name', oi.product_name,
+              'quantity', oi.quantity,
+              'unit', oi.unit,
+              'price', oi.price,
+              'total', oi.quantity * oi.price
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'
+        ) AS items
+      FROM orders o
+      LEFT JOIN restaurants r ON o.restaurant_id = r.id
+      LEFT JOIN users u_operator ON o.processed_by = u_operator.id
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.user_id = $1
+        AND o.restaurant_id = $2
+      GROUP BY o.id, r.name, r.id, u_operator.full_name
+      ORDER BY o.created_at DESC
+      LIMIT $3 OFFSET $4
+      `,
+      [customerId, restaurantId, limit, offset]
+    );
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM orders WHERE user_id = $1 AND restaurant_id = $2',
+      [customerId, restaurantId]
+    );
+
+    res.json({
+      customer: customerResult.rows[0],
+      orders: ordersResult.rows,
+      total: countResult.rows[0]?.count || 0,
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Admin customer orders error:', error);
+    res.status(500).json({ error: 'Ошибка получения заказов клиента' });
+  }
+});
+
+// =====================================================
 // USER PROFILE LOGS (история изменений профиля)
 // =====================================================
 
