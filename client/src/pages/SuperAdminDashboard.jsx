@@ -177,6 +177,8 @@ function SuperAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
+  const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
 
   // Data
   const [stats, setStats] = useState({});
@@ -1609,6 +1611,232 @@ function SuperAdminDashboard() {
     navigate('/login');
   };
 
+  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs'].includes(activeTab);
+
+  const resetActiveTabFilters = () => {
+    if (activeTab === 'restaurants') {
+      setRestaurantsNameFilter('');
+      setRestaurantsStatusFilter('');
+      setRestaurantsSelectFilter('');
+      setRestaurantsSelectSearch('');
+      setRestaurantsPage(1);
+      return;
+    }
+    if (activeTab === 'operators') {
+      setOperatorRoleFilter('');
+      setOperatorStatusFilter('');
+      setOperatorRestaurantFilter('');
+      setOperatorRestaurantSearch('');
+      setOperatorSearch('');
+      setOperatorsPage(1);
+      return;
+    }
+    if (activeTab === 'customers') {
+      setCustomerRestaurantFilter('');
+      setCustomerRestaurantSearch('');
+      setCustomerStatusFilter('');
+      setCustomerSearch('');
+      setCustomerPage(1);
+      return;
+    }
+    if (activeTab === 'ads') {
+      setAdBannerStatusFilter('all');
+      return;
+    }
+    if (activeTab === 'logs') {
+      setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15 });
+    }
+  };
+
+  const renderMobileFiltersSheetContent = () => {
+    if (activeTab === 'restaurants') {
+      return (
+        <div className="d-flex flex-column gap-3">
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder="Поиск по названию..."
+            value={restaurantsNameFilter}
+            onChange={(e) => { setRestaurantsNameFilter(e.target.value); setRestaurantsPage(1); }}
+          />
+          <SearchableRestaurantFilter
+            t={t}
+            width="100%"
+            value={restaurantsSelectFilter}
+            restaurants={restaurantsFilterOptions}
+            searchValue={restaurantsSelectSearch}
+            onSearchChange={setRestaurantsSelectSearch}
+            onChange={(nextValue) => {
+              setRestaurantsSelectFilter(nextValue);
+              setRestaurantsSelectSearch('');
+              setRestaurantsPage(1);
+            }}
+          />
+          <Form.Select
+            className="form-control-custom"
+            value={restaurantsStatusFilter}
+            onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
+          >
+            <option value="">Все статусы</option>
+            <option value="active">Активные</option>
+            <option value="inactive">Неактивные</option>
+          </Form.Select>
+        </div>
+      );
+    }
+
+    if (activeTab === 'operators') {
+      return (
+        <div className="d-flex flex-column gap-3">
+          <Form.Select
+            className="form-control-custom"
+            value={operatorRoleFilter}
+            onChange={(e) => { setOperatorRoleFilter(e.target.value); setOperatorsPage(1); }}
+          >
+            <option value="">{t('saAllRoles')}</option>
+            <option value="operator">{t('saRoleOperator')}</option>
+            <option value="superadmin">{t('saRoleSuperadmin')}</option>
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={operatorStatusFilter}
+            onChange={(e) => { setOperatorStatusFilter(e.target.value); setOperatorsPage(1); }}
+          >
+            <option value="">{t('saAllStatuses')}</option>
+            <option value="active">{t('saStatusActive')}</option>
+            <option value="inactive">{t('saStatusInactive')}</option>
+          </Form.Select>
+          <SearchableRestaurantFilter
+            t={t}
+            width="100%"
+            value={operatorRestaurantFilter}
+            restaurants={operatorRestaurantOptions}
+            searchValue={operatorRestaurantSearch}
+            onSearchChange={setOperatorRestaurantSearch}
+            onChange={(nextValue) => {
+              setOperatorRestaurantFilter(nextValue);
+              setOperatorRestaurantSearch('');
+              setOperatorsPage(1);
+            }}
+          />
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder={t('saSearchNamePhone')}
+            value={operatorSearch}
+            onChange={(e) => { setOperatorSearch(e.target.value); setOperatorsPage(1); }}
+          />
+        </div>
+      );
+    }
+
+    if (activeTab === 'customers') {
+      return (
+        <div className="d-flex flex-column gap-3">
+          <SearchableRestaurantFilter
+            t={t}
+            width="100%"
+            value={customerRestaurantFilter}
+            restaurants={customerRestaurantOptions}
+            searchValue={customerRestaurantSearch}
+            onSearchChange={setCustomerRestaurantSearch}
+            onChange={(nextValue) => {
+              setCustomerRestaurantFilter(nextValue);
+              setCustomerRestaurantSearch('');
+              setCustomerPage(1);
+            }}
+          />
+          <Form.Select
+            className="form-control-custom"
+            value={customerStatusFilter}
+            onChange={(e) => { setCustomerStatusFilter(e.target.value); setCustomerPage(1); }}
+          >
+            <option value="">{t('saAllStatuses')}</option>
+            <option value="active">{t('saStatusActive')}</option>
+            <option value="blocked">{t('saStatusBlocked')}</option>
+          </Form.Select>
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder={t('saSearch')}
+            value={customerSearch}
+            onChange={(e) => { setCustomerSearch(e.target.value); setCustomerPage(1); }}
+          />
+        </div>
+      );
+    }
+
+    if (activeTab === 'ads') {
+      return (
+        <Form.Select
+          className="form-control-custom"
+          value={adBannerStatusFilter}
+          onChange={(e) => setAdBannerStatusFilter(e.target.value)}
+        >
+          <option value="all">Все (активные + история)</option>
+          <option value="active">Активные сейчас</option>
+          <option value="scheduled">Запланированные</option>
+          <option value="paused_by_days">Скрытые по дням недели</option>
+          <option value="disabled">Выключенные</option>
+          <option value="finished">Завершенные</option>
+        </Form.Select>
+      );
+    }
+
+    if (activeTab === 'logs') {
+      return (
+        <div className="d-flex flex-column gap-3">
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            value={logsFilter.start_date}
+            onChange={(e) => setLogsFilter(prev => ({ ...prev, start_date: e.target.value, page: 1 }))}
+          />
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            value={logsFilter.end_date}
+            onChange={(e) => setLogsFilter(prev => ({ ...prev, end_date: e.target.value, page: 1 }))}
+          />
+          <Form.Select
+            className="form-control-custom"
+            value={logsFilter.user_id}
+            onChange={(e) => setLogsFilter(prev => ({ ...prev, user_id: e.target.value, page: 1 }))}
+          >
+            <option value="">{t('saAllUsers')}</option>
+            {allOperators?.map(op => (
+              <option key={op.id} value={op.id}>{op.full_name || op.username}</option>
+            ))}
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={logsFilter.restaurant_id}
+            onChange={(e) => setLogsFilter(prev => ({ ...prev, restaurant_id: e.target.value, page: 1 }))}
+          >
+            <option value="">{t('saAllShops')}</option>
+            {allRestaurants?.map(r => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={logsFilter.action_type}
+            onChange={(e) => setLogsFilter(prev => ({ ...prev, action_type: e.target.value, page: 1 }))}
+          >
+            <option value="">{t('saAllActions')}</option>
+            <option value="create_product">Создание товара</option>
+            <option value="update_product">Изменение товара</option>
+            <option value="delete_product">Удаление товара</option>
+            <option value="update_order_status">Изменение заказа</option>
+            <option value="login">Вход</option>
+          </Form.Select>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className={`min-vh-100 bg-light ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
       {/* Header */}
@@ -1636,7 +1864,22 @@ function SuperAdminDashboard() {
           </Navbar.Toggle>
           <Navbar.Collapse className="justify-content-end">
             <Nav className="align-items-lg-center gap-lg-1">
-              <Dropdown align="end" className="ms-lg-2">
+              <button
+                type="button"
+                onClick={() => setShowMobileAccountSheet(true)}
+                className="d-lg-none d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none border-0 custom-user-dropdown admin-user-toggle"
+                style={{ color: '#fffaf3' }}
+              >
+                <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
+                  {user?.username?.charAt(0).toUpperCase() || 'A'}
+                </div>
+                <div className="text-start">
+                  <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Super Administrator'}</div>
+                  <div className="text-white-50 small admin-user-id">Administrator</div>
+                </div>
+              </button>
+
+              <Dropdown align="end" className="ms-lg-2 d-none d-lg-block">
                 <Dropdown.Toggle
                   variant="link"
                   bsPrefix="p-0"
@@ -1684,6 +1927,94 @@ function SuperAdminDashboard() {
         </Container>
       </Navbar>
 
+      <Modal
+        show={showMobileAccountSheet}
+        onHide={() => setShowMobileAccountSheet(false)}
+        centered
+        dialogClassName="mobile-bottom-sheet"
+        className="d-lg-none"
+      >
+        <Modal.Header closeButton className="border-0 pb-2">
+          <Modal.Title className="fs-6 fw-bold d-flex align-items-center gap-2">
+            <span className="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center text-white" style={{ width: 30, height: 30 }}>
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
+            </span>
+            {user?.full_name || user?.username || 'Super Administrator'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-0">
+          <div className="d-grid gap-2">
+            <Button
+              variant="light"
+              className="text-start d-flex align-items-center gap-2"
+              onClick={() => {
+                setShowMobileAccountSheet(false);
+                navigate('/admin');
+              }}
+            >
+              <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
+            </Button>
+
+            <div className="p-2 rounded-3" style={{ background: '#f7efe3' }}>
+              <div className="small text-muted mb-2 fw-semibold">Язык</div>
+              <div className="admin-lang-switch">
+                <div
+                  onClick={language !== 'ru' ? toggleLanguage : undefined}
+                  className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
+                >
+                  <img src="/ru.svg" alt="RU" className="admin-flag" />
+                  Рус
+                </div>
+                <div
+                  onClick={language !== 'uz' ? toggleLanguage : undefined}
+                  className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
+                >
+                  <img src="/uz.svg" alt="UZ" className="admin-flag" />
+                  O'zb
+                </div>
+              </div>
+            </div>
+
+            <Button
+              variant="light"
+              className="text-danger text-start d-flex align-items-center gap-2"
+              onClick={() => {
+                setShowMobileAccountSheet(false);
+                handleLogout();
+              }}
+            >
+              <i className="bi bi-box-arrow-right"></i> Выйти
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <Modal
+        show={showMobileFiltersSheet && hasMobileFilterSheet}
+        onHide={() => setShowMobileFiltersSheet(false)}
+        centered
+        dialogClassName="mobile-bottom-sheet"
+        className="d-lg-none"
+      >
+        <Modal.Header closeButton className="border-0 pb-2">
+          <Modal.Title className="fs-6 fw-bold d-flex align-items-center gap-2">
+            <i className="bi bi-funnel"></i>
+            Фильтры
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-0">
+          {renderMobileFiltersSheetContent()}
+        </Modal.Body>
+        <Modal.Footer className="border-0 pt-0 d-flex gap-2">
+          <Button variant="light" className="flex-fill" onClick={resetActiveTabFilters}>
+            Сбросить
+          </Button>
+          <Button className="btn-primary-custom flex-fill" onClick={() => setShowMobileFiltersSheet(false)}>
+            Применить
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       <Container className="admin-panel">
         {/* Notifications */}
         <ToastContainer position="top-end" className="p-3 admin-toast-top">
@@ -1705,47 +2036,47 @@ function SuperAdminDashboard() {
         </ToastContainer>
 
         {/* Stats */}
-        <Row className="mb-4 g-4">
+        <Row className="mb-4 g-4 superadmin-stats-grid">
           <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0">
+            <Card className="admin-card stat-card border-0 superadmin-stat-card">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-primary bg-opacity-10 text-primary mb-0">🏪</div>
                 <div>
                   <h4 className="fw-bold mb-0 text-dark">{stats.restaurants_count || 0}</h4>
-                  <small className="text-muted fw-semibold">{t('saRestaurantsCount')}</small>
+                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saRestaurantsCount')}</small>
                 </div>
               </Card.Body>
             </Card>
           </Col>
           <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0">
+            <Card className="admin-card stat-card border-0 superadmin-stat-card">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-success bg-opacity-10 text-success mb-0">👥</div>
                 <div>
                   <h4 className="fw-bold mb-0 text-dark">{stats.operators_count || 0}</h4>
-                  <small className="text-muted fw-semibold">{t('saOperatorsCount')}</small>
+                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saOperatorsCount')}</small>
                 </div>
               </Card.Body>
             </Card>
           </Col>
           <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0">
+            <Card className="admin-card stat-card border-0 superadmin-stat-card">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-info bg-opacity-10 text-info mb-0">👤</div>
                 <div>
                   <h4 className="fw-bold mb-0 text-dark">{stats.customers_count || 0}</h4>
-                  <small className="text-muted fw-semibold">{t('saCustomersCount')}</small>
+                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saCustomersCount')}</small>
                 </div>
               </Card.Body>
             </Card>
           </Col>
           <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0">
+            <Card className="admin-card stat-card border-0 superadmin-stat-card">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-warning bg-opacity-10 text-warning mb-0">📦</div>
                 <div>
                   <h4 className="fw-bold mb-0 text-dark">{stats.new_orders_count || 0}</h4>
-                  <small className="text-muted fw-semibold">{t('saNewOrdersCount')}</small>
+                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saNewOrdersCount')}</small>
                 </div>
               </Card.Body>
             </Card>
@@ -1760,10 +2091,20 @@ function SuperAdminDashboard() {
               {/* Restaurants Tab */}
               <Tab eventKey="restaurants" title={`🏪 ${t('restaurants')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="fw-bold mb-0">{t('saManageRestaurants')}</h5>
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageRestaurants')}</h5>
                 </div>
 
-                <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
+                <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
+                  <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтры
+                  </Button>
+                  <Button className="btn-primary-custom ms-auto" onClick={() => openRestaurantModal()}>
+                    <span className="d-none d-sm-inline">{t('saAddRestaurant')}</span>
+                    <span className="d-sm-none">Добавить</span>
+                  </Button>
+                </div>
+
+                <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
                   <Form.Control
                     className="form-control-custom"
                     type="search"
@@ -1910,10 +2251,20 @@ function SuperAdminDashboard() {
               {/* Operators Tab */}
               <Tab eventKey="operators" title={`👥 ${t('operators')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="fw-bold mb-0">{t('saManageOperators')}</h5>
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageOperators')}</h5>
                 </div>
 
-                <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
+                <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
+                  <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтры
+                  </Button>
+                  <Button className="btn-primary-custom ms-auto" onClick={() => openOperatorModal()}>
+                    <span className="d-none d-sm-inline">{t('saAddOperator')}</span>
+                    <span className="d-sm-none">Добавить</span>
+                  </Button>
+                </div>
+
+                <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
                   <Form.Select
                     className="form-control-custom"
                     style={{ width: '170px' }}
@@ -2038,8 +2389,11 @@ function SuperAdminDashboard() {
               {/* Customers Tab */}
               <Tab eventKey="customers" title={`👤 ${t('clients')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <h5 className="fw-bold mb-0">{t('saListCustomers')} ({customers.total})</h5>
-                  <div className="d-flex gap-2 flex-wrap align-items-center">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saListCustomers')} ({customers.total})</h5>
+                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтры
+                  </Button>
+                  <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center">
                     <SearchableRestaurantFilter
                       t={t}
                       width="220px"
@@ -2165,7 +2519,7 @@ function SuperAdminDashboard() {
               {/* Categories Tab */}
               <Tab eventKey="categories" title={`📁 ${t('categories')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4">
-                  <h5 className="fw-bold mb-0">{t('saManageCategories')}</h5>
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageCategories')}</h5>
                   <div className="d-flex align-items-center gap-2">
                     <input
                       ref={categoryImportInputRef}
@@ -2179,7 +2533,8 @@ function SuperAdminDashboard() {
                       size="sm"
                       onClick={handleExportCategories}
                     >
-                      Экспорт
+                      <span className="d-none d-sm-inline">Экспорт</span>
+                      <span className="d-sm-none">Экспорт</span>
                     </Button>
                     <Button
                       variant="outline-primary"
@@ -2187,7 +2542,8 @@ function SuperAdminDashboard() {
                       onClick={() => categoryImportInputRef.current?.click()}
                       disabled={isImportingCategories}
                     >
-                      {isImportingCategories ? 'Импорт...' : 'Импорт'}
+                      <span className="d-none d-sm-inline">{isImportingCategories ? 'Импорт...' : 'Импорт'}</span>
+                      <span className="d-sm-none">{isImportingCategories ? '...' : 'Импорт'}</span>
                     </Button>
                     <Badge className="badge-custom bg-info bg-opacity-10 text-info">{CATEGORY_LEVEL_COUNT} уровня</Badge>
                   </div>
@@ -2315,7 +2671,7 @@ function SuperAdminDashboard() {
               {/* Ads Tab */}
               <Tab eventKey="ads" title="📢 Реклама">
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <div>
+                  <div className="superadmin-mobile-hide-title">
                     <h5 className="fw-bold mb-1">Рекламные баннеры</h5>
                     <div className="d-flex flex-wrap gap-2">
                       <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
@@ -2329,7 +2685,16 @@ function SuperAdminDashboard() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                  <div className="d-flex d-lg-none align-items-center gap-2 w-100">
+                    <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
+                      <i className="bi bi-funnel"></i> Фильтры
+                    </Button>
+                    <Button className="btn-primary-custom ms-auto" onClick={() => openAdBannerModal()}>
+                      <span className="d-none d-sm-inline">+ Добавить рекламу</span>
+                      <span className="d-sm-none">Добавить</span>
+                    </Button>
+                  </div>
+                  <div className="d-none d-lg-flex align-items-center gap-2 flex-wrap">
                     <Form.Select
                       className="form-control-custom"
                       style={{ width: '220px' }}
@@ -2498,8 +2863,11 @@ function SuperAdminDashboard() {
               {/* Logs Tab */}
               <Tab eventKey="logs" title={`📋 ${t('logs')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <h5 className="fw-bold mb-0">{t('activityLog')}</h5>
-                  <div className="d-flex gap-2 align-items-center flex-wrap">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('activityLog')}</h5>
+                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтры
+                  </Button>
+                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap">
                     <Form.Control
                       type="date"
                       className="form-control-custom"
@@ -2616,9 +2984,10 @@ function SuperAdminDashboard() {
               <Tab eventKey="billing" title={`💰 ${t('billingSettings')}`}>
                 <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
                   <div className="d-flex justify-content-between align-items-center mb-4">
-                    <h5 className="fw-bold mb-0">{t('billingGlobalSettings')}</h5>
+                    <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('billingGlobalSettings')}</h5>
                     <Button type="submit" className="btn-primary-custom px-4">
-                      {t('saveSettings')}
+                      <span className="d-none d-sm-inline">{t('saveSettings')}</span>
+                      <span className="d-sm-none">Сохранить</span>
                     </Button>
                   </div>
 

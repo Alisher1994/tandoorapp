@@ -363,6 +363,30 @@ body::-webkit-scrollbar,
     flex-wrap: wrap;
 }
 
+.btn-mobile-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 10px !important;
+    white-space: nowrap;
+}
+
+.superadmin-stat-label {
+    display: block;
+    line-height: 1.2;
+}
+
+.mobile-bottom-sheet .modal-dialog {
+    margin: auto 0 0 0;
+    max-width: 100%;
+}
+
+.mobile-bottom-sheet .modal-content {
+    border-radius: 16px 16px 0 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
 @media (max-width: 991.98px) {
     .admin-navbar-shell .navbar-collapse {
         padding-top: 0.5rem;
@@ -443,6 +467,23 @@ body::-webkit-scrollbar,
         padding-top: 1rem;
     }
 
+    .superadmin-stats-grid {
+        row-gap: 12px !important;
+        column-gap: 12px !important;
+    }
+
+    .superadmin-stat-card .card-body {
+        min-height: 124px;
+        padding: 14px !important;
+        align-items: center !important;
+    }
+
+    .superadmin-stat-label {
+        min-height: 34px;
+        font-size: 0.82rem;
+        word-break: break-word;
+    }
+
     .admin-product-toolbar {
         align-items: center !important;
     }
@@ -467,6 +508,15 @@ body::-webkit-scrollbar,
         padding-inline: 12px !important;
         white-space: nowrap;
     }
+
+    .mobile-bottom-sheet .modal-dialog {
+        margin: auto 0 0 0;
+        width: 100%;
+    }
+
+    .mobile-bottom-sheet .modal-content {
+        border-radius: 16px 16px 0 0;
+    }
 }
 
 @media (max-width: 767.98px) {
@@ -476,6 +526,27 @@ body::-webkit-scrollbar,
 
     .admin-product-toolbar {
         margin-bottom: 0.75rem !important;
+    }
+
+    .superadmin-mobile-hide-title {
+        display: none !important;
+    }
+
+    .superadmin-stat-card .card-body {
+        min-height: 112px;
+        gap: 10px !important;
+    }
+
+    .superadmin-stat-card .stat-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+
+    .superadmin-stat-card h4 {
+        font-size: 1.75rem;
+        line-height: 1;
     }
 }
 
