@@ -1706,7 +1706,7 @@ function SuperAdminDashboard() {
 
         {/* Stats */}
         <Row className="mb-4 g-4">
-          <Col md={3}>
+          <Col xs={6} md={3}>
             <Card className="admin-card stat-card border-0">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-primary bg-opacity-10 text-primary mb-0">🏪</div>
@@ -1717,7 +1717,7 @@ function SuperAdminDashboard() {
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
+          <Col xs={6} md={3}>
             <Card className="admin-card stat-card border-0">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-success bg-opacity-10 text-success mb-0">👥</div>
@@ -1728,7 +1728,7 @@ function SuperAdminDashboard() {
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
+          <Col xs={6} md={3}>
             <Card className="admin-card stat-card border-0">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-info bg-opacity-10 text-info mb-0">👤</div>
@@ -1739,7 +1739,7 @@ function SuperAdminDashboard() {
               </Card.Body>
             </Card>
           </Col>
-          <Col md={3}>
+          <Col xs={6} md={3}>
             <Card className="admin-card stat-card border-0">
               <Card.Body className="p-4 d-flex align-items-center gap-3">
                 <div className="stat-icon bg-warning bg-opacity-10 text-warning mb-0">📦</div>
