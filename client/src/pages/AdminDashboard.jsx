@@ -318,11 +318,11 @@ function AdminDashboard() {
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const orderStatusPillItems = [
     { value: 'all', label: t('allStatuses'), color: '#8d7557' },
-    { value: 'new', label: t('statusNew'), color: '#c7a577' },
-    { value: 'preparing', label: t('statusPreparing'), color: '#b89262' },
-    { value: 'delivering', label: t('statusDelivering'), color: '#a37c4f' },
-    { value: 'delivered', label: t('statusDelivered'), color: '#8f6d46' },
-    { value: 'cancelled', label: t('statusCancelled'), color: '#b6765d' },
+    { value: 'new', label: t('statusNew'), color: '#3b82f6' },
+    { value: 'preparing', label: t('statusPreparing'), color: '#f59e0b' },
+    { value: 'delivering', label: t('statusDelivering'), color: '#06b6d4' },
+    { value: 'delivered', label: t('statusDelivered'), color: '#16a34a' },
+    { value: 'cancelled', label: t('statusCancelled'), color: '#ef4444' },
   ];
 
   // Excel export function
@@ -2749,7 +2749,7 @@ function AdminDashboard() {
 
                 <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2 admin-order-toolbar">
                   {/* Status pill tabs */}
-                  <div className="d-flex flex-wrap gap-1 admin-order-status-tabs">
+                  <div className="d-flex gap-1 admin-order-status-tabs">
                     {orderStatusPillItems.map(s => {
                       const isActive = statusFilter === s.value;
                       const count = orderStatusCounts?.[s.value] || 0;

@@ -364,6 +364,13 @@ body::-webkit-scrollbar,
 }
 
 .admin-order-status-tabs {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    max-width: 100%;
+    width: 100%;
+    padding-bottom: 2px;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -481,12 +488,7 @@ body::-webkit-scrollbar,
     }
 
     .admin-order-status-tabs {
-        flex-wrap: nowrap !important;
-        overflow-x: auto;
-        overflow-y: hidden;
-        white-space: nowrap;
-        max-width: 100%;
-        padding-bottom: 2px;
+        width: 100%;
     }
 
     .admin-order-status-tabs>* {
