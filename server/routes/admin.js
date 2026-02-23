@@ -2681,4 +2681,3 @@ pl.id,
 });
 
 module.exports = router;
-    const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
