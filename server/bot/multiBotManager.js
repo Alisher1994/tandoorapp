@@ -1479,7 +1479,33 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             selectedLang
           );
         } else {
-          await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'));
+          const user = await resolvePreferredTelegramUser(userId);
+          if (!user) {
+            await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'));
+            return;
+          }
+
+          if (user.role === 'operator' || user.role === 'superadmin') {
+            const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
+              expiresIn: '1h',
+              role: user.role
+            });
+            const loginUrl = buildWebLoginUrl({
+              portal: 'admin',
+              restaurantId,
+              source: 'restaurant_bot',
+              token: adminAutoLoginToken
+            });
+            await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'), {
+              reply_markup: buildAdminReplyKeyboard(loginUrl, selectedLang)
+            });
+          } else {
+            const token = generateLoginToken(user.id, user.username || `user_${user.id}`);
+            const loginUrl = buildCatalogUrl(appUrl, token);
+            await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'), {
+              reply_markup: buildCustomerReplyKeyboard(loginUrl, selectedLang)
+            });
+          }
         }
         return;
       }
