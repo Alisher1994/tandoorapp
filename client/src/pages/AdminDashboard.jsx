@@ -3821,130 +3821,161 @@ function AdminDashboard() {
                 </div>
 
                 <div className="p-4 bg-light" style={{ minHeight: '60vh' }}>
-                  <Alert
-                    variant={actionButtonsVisible ? 'warning' : 'secondary'}
-                    className="border-0 shadow-sm rounded-4 mb-4"
-                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
-                  >
-                    <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
-                      <div>
-                        <div className="fw-bold">Безопасный режим кнопок действий</div>
-                        <div className="small text-muted">
-                          Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение работает 10 минут.
-                          {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
-                        </div>
-                      </div>
-                      <Form.Check
-                        type="switch"
-                        id="admin-action-buttons-visibility-switch"
-                        className="fw-semibold"
-                        label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
-                        checked={actionButtonsVisible}
-                        onChange={(e) => setActionButtonsVisible(e.target.checked)}
-                      />
-                    </div>
-                  </Alert>
                   {restaurantSettings ? (
                     <>
                       {settingsTab === 'general' && (
                         <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
                           <Card.Body className="p-4">
                             <Row className="gy-4">
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название магазина</Form.Label>
-                                  <Form.Control
-                                    type="text"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.name}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, name: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Телефон</Form.Label>
-                                  <Form.Control
-                                    type="text"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.phone}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, phone: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
                               <Col md={12}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес</Form.Label>
-                                  <Form.Control
-                                    type="text"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.address}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, address: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={12}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Логотип</Form.Label>
-                                  {restaurantSettings.logo_url && (
-                                    <img
-                                      src={toAbsoluteFileUrl(restaurantSettings.logo_url)}
-                                      alt="Logo"
-                                      className="rounded-3 d-block mb-2"
-                                      style={{ width: 64, height: 64, objectFit: 'cover' }}
-                                    />
-                                  )}
-                                  <div className="d-flex flex-wrap gap-2 mt-2">
-                                    <input
-                                      ref={restaurantLogoInputRef}
-                                      type="file"
-                                      accept="image/*"
-                                      className="d-none"
-                                      onChange={handleRestaurantLogoUpload}
-                                    />
-                                    <Button
-                                      variant="outline-primary"
-                                      size="sm"
-                                      className="px-3 fw-bold"
-                                      onClick={() => restaurantLogoInputRef.current?.click()}
-                                      disabled={uploadingRestaurantLogo}
-                                    >
-                                      {uploadingRestaurantLogo ? '⏳ Загрузка...' : '📁 Загрузить файл логотипа'}
-                                    </Button>
-                                    {restaurantSettings.logo_url && (
-                                      <Button
-                                        variant="outline-secondary"
-                                        size="sm"
-                                        className="px-3 fw-bold"
-                                        onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
-                                      >
-                                        Очистить
-                                      </Button>
-                                    )}
-                                  </div>
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Начало работы</Form.Label>
-                                  <Form.Control
-                                    type="time"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.start_time || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, start_time: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={6}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Конец работы</Form.Label>
-                                  <Form.Control
-                                    type="time"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.end_time || ''}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, end_time: e.target.value })}
-                                  />
-                                </Form.Group>
+                                <div className="admin-store-profile-group">
+                                  <Row className="g-4 align-items-stretch">
+                                    <Col xl={4} lg={5}>
+                                      <div className="admin-store-profile-side h-100">
+                                        <Form.Group className="mb-4">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Логотип магазина</Form.Label>
+                                          <input
+                                            ref={restaurantLogoInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="d-none"
+                                            onChange={handleRestaurantLogoUpload}
+                                          />
+                                          <div className="admin-store-logo-slot">
+                                            <button
+                                              type="button"
+                                              className="admin-store-logo-preview"
+                                              onClick={() => restaurantLogoInputRef.current?.click()}
+                                              disabled={uploadingRestaurantLogo}
+                                              aria-label="Выбрать логотип магазина"
+                                            >
+                                              {restaurantSettings.logo_url ? (
+                                                <img
+                                                  src={toAbsoluteFileUrl(restaurantSettings.logo_url)}
+                                                  alt="Логотип магазина"
+                                                  className="admin-store-logo-image"
+                                                />
+                                              ) : (
+                                                <div className="admin-store-logo-empty">
+                                                  <i className="bi bi-image fs-3" aria-hidden="true" />
+                                                  <span>{uploadingRestaurantLogo ? 'Загрузка...' : 'Выбрать логотип'}</span>
+                                                </div>
+                                              )}
+                                            </button>
+                                            <div className="admin-store-logo-slot-actions">
+                                              <Button
+                                                type="button"
+                                                variant="outline-primary"
+                                                size="sm"
+                                                className="fw-bold flex-fill"
+                                                onClick={() => restaurantLogoInputRef.current?.click()}
+                                                disabled={uploadingRestaurantLogo}
+                                              >
+                                                {uploadingRestaurantLogo ? '⏳ Загрузка...' : 'Выбрать'}
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                className="fw-bold flex-fill"
+                                                onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
+                                                disabled={!restaurantSettings.logo_url}
+                                              >
+                                                Удалить
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </Form.Group>
+
+                                        <Alert
+                                          variant={actionButtonsVisible ? 'warning' : 'secondary'}
+                                          className="border-0 shadow-sm rounded-4 mb-0 admin-store-safety-alert"
+                                          style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                                        >
+                                          <div className="d-flex flex-column gap-3">
+                                            <div>
+                                              <div className="fw-bold">Безопасный режим кнопок действий</div>
+                                              <div className="small text-muted">
+                                                Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение работает 10 минут.
+                                                {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
+                                              </div>
+                                            </div>
+                                            <Form.Check
+                                              type="switch"
+                                              id="admin-action-buttons-visibility-switch"
+                                              className="fw-semibold"
+                                              label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
+                                              checked={actionButtonsVisible}
+                                              onChange={(e) => setActionButtonsVisible(e.target.checked)}
+                                            />
+                                          </div>
+                                        </Alert>
+                                      </div>
+                                    </Col>
+
+                                    <Col xl={8} lg={7}>
+                                      <div className="admin-store-profile-fields h-100">
+                                        <Row className="gy-4">
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название магазина</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.name}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, name: e.target.value })}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Телефон</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.phone}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, phone: e.target.value })}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={12}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.address}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, address: e.target.value })}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Начало работы</Form.Label>
+                                              <Form.Control
+                                                type="time"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.start_time || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, start_time: e.target.value })}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Конец работы</Form.Label>
+                                              <Form.Control
+                                                type="time"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.end_time || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, end_time: e.target.value })}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                        </Row>
+                                      </div>
+                                    </Col>
+                                  </Row>
+                                </div>
                               </Col>
 
                               <Col md={12} className="border-top pt-4">

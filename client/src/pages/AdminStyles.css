@@ -1615,3 +1615,98 @@ body::-webkit-scrollbar,
 .admin-panel .form-check-input {
     accent-color: #8f6d46;
 }
+
+.admin-store-profile-group {
+    border: 1px solid rgba(143, 109, 70, 0.12);
+    background: rgba(255, 250, 243, 0.88);
+    border-radius: 18px;
+    padding: 1rem;
+}
+
+.admin-store-profile-side,
+.admin-store-profile-fields {
+    background: rgba(255, 255, 255, 0.52);
+    border: 1px solid rgba(143, 109, 70, 0.08);
+    border-radius: 14px;
+    padding: 0.9rem;
+}
+
+.admin-store-logo-slot {
+    border: 1px dashed rgba(143, 109, 70, 0.28);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 250, 243, 0.95), rgba(248, 241, 232, 0.95));
+    padding: 0.75rem;
+}
+
+.admin-store-logo-preview {
+    width: 100%;
+    min-height: 150px;
+    border: 1px solid rgba(143, 109, 70, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.admin-store-logo-preview:hover:not(:disabled) {
+    border-color: rgba(143, 109, 70, 0.32);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.admin-store-logo-preview:disabled {
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.admin-store-logo-image {
+    width: 100%;
+    max-width: 210px;
+    max-height: 120px;
+    object-fit: contain;
+    border-radius: 10px;
+}
+
+.admin-store-logo-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    color: #8f6d46;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.admin-store-logo-slot-actions {
+    margin-top: 0.7rem;
+    display: flex;
+    gap: 0.55rem;
+}
+
+.admin-store-logo-slot-actions .btn {
+    min-width: 0;
+}
+
+.admin-store-safety-alert .form-check {
+    margin-bottom: 0;
+}
+
+.admin-store-safety-alert .form-check-label {
+    color: #503921;
+}
+
+@media (max-width: 991.98px) {
+    .admin-store-profile-side,
+    .admin-store-profile-fields {
+        padding: 0.85rem;
+    }
+
+    .admin-store-logo-preview {
+        min-height: 128px;
+    }
+}
