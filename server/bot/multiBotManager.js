@@ -923,7 +923,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       try {
         // Get current user data
         const userResult = await pool.query(
-          'SELECT id, phone FROM users WHERE telegram_id = $1',
+          'SELECT id, phone, username, bot_language FROM users WHERE telegram_id = $1',
           [userId]
         );
 
@@ -958,12 +958,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           console.log('Profile log table may not exist:', logError.message);
         }
 
+        const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
+        const loginUrl = buildCatalogUrl(appUrl, generateLoginToken(user.id, newPhone || user.username || `user_${userId}`));
+
         await cleanupFlowMessages(chatId, stateKey);
         bot.sendMessage(chatId,
           `✅ <b>Телефон успешно изменен!</b>\n\n` +
           `Было: ${oldPhone}\n` +
           `Стало: ${newPhone}`,
-          { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+          {
+            parse_mode: 'HTML',
+            reply_markup: buildCustomerReplyKeyboard(loginUrl, userLang)
+          }
         );
 
         registrationStates.delete(stateKey);
@@ -1214,7 +1220,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       try {
         // Get current user data
         const userResult = await pool.query(
-          'SELECT id, full_name FROM users WHERE telegram_id = $1',
+          'SELECT id, full_name, username, bot_language FROM users WHERE telegram_id = $1',
           [userId]
         );
 
@@ -1245,12 +1251,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           console.log('Profile log table may not exist:', logError.message);
         }
 
+        const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
+        const loginUrl = buildCatalogUrl(appUrl, generateLoginToken(user.id, user.username || `user_${userId}`));
+
         await cleanupFlowMessages(chatId, stateKey);
         bot.sendMessage(chatId,
           `✅ <b>Имя успешно изменено!</b>\n\n` +
           `Было: ${oldName}\n` +
           `Стало: ${newName}`,
-          { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+          {
+            parse_mode: 'HTML',
+            reply_markup: buildCustomerReplyKeyboard(loginUrl, userLang)
+          }
         );
 
         registrationStates.delete(stateKey);
@@ -1703,7 +1715,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const editStateKey = getStateKey(userId, chatId);
         await cleanupFlowMessages(chatId, editStateKey);
         registrationStates.delete(editStateKey);
-        bot.sendMessage(chatId, '❌ Отменено', { reply_markup: { remove_keyboard: true } });
+        const user = await resolvePreferredTelegramUser(userId);
+        if (!user) {
+          bot.sendMessage(chatId, '❌ Отменено', { reply_markup: { remove_keyboard: true } });
+          return;
+        }
+        const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(query.from?.language_code));
+        const loginUrl = buildCatalogUrl(appUrl, generateLoginToken(user.id, user.username || `user_${userId}`));
+        bot.sendMessage(chatId, '❌ Отменено', {
+          reply_markup: buildCustomerReplyKeyboard(loginUrl, userLang)
+        });
       }
 
       const getOperatorDbUserId = async () => {
