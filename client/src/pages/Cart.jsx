@@ -100,6 +100,16 @@ function Cart() {
     }
     return parts;
   }, [formData.house, formData.apartment, formData.door_code, language]);
+  const selectedSavedAddress = useMemo(
+    () => savedAddresses.find((a) => a.id === selectedAddressId) || null,
+    [savedAddresses, selectedAddressId]
+  );
+  const hasDistinctAddressLine = (addr) => {
+    const name = String(addr?.name || '').trim().toLowerCase();
+    const address = String(addr?.address || '').trim().toLowerCase();
+    if (!address) return false;
+    return address !== name;
+  };
 
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
@@ -807,15 +817,23 @@ function Cart() {
                     <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
 
                     {/* Если есть выбранный адрес */}
-                    {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
+                    {selectedSavedAddress ? (
                       <div className="p-3 rounded mb-2 cart-surface-panel">
-                        <div className="d-flex align-items-start">
+                        <div className="d-flex align-items-center">
                           <span className="me-2">📍</span>
                           <div className="flex-grow-1">
-                            <div className="fw-bold">{savedAddresses.find(a => a.id === selectedAddressId)?.name}</div>
-                            <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
+                            <div className="fw-bold">{selectedSavedAddress.name}</div>
+                            {hasDistinctAddressLine(selectedSavedAddress) && (
+                              <div className="small text-muted">{selectedSavedAddress.address}</div>
+                            )}
                           </div>
-                          <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 text-decoration-none fw-medium"
+                            style={{ ...themePrimaryTextStyle, whiteSpace: 'nowrap' }}
+                            onClick={() => setShowAddressModal(true)}
+                          >
                             {language === 'uz' ? 'Mening manzillarim' : 'Мои адреса'}
                           </Button>
                         </div>
@@ -823,7 +841,7 @@ function Cart() {
                     ) : savedAddresses.length > 0 ? (
                       /* Есть сохранённые адреса но не выбран - быстрый выбор */
                       <div className="mb-2">
-                        <div className="d-flex flex-wrap gap-2 mb-2">
+                    <div className="d-flex flex-wrap gap-2 mb-2">
                           {savedAddresses.slice(0, 3).map(addr => (
                             <Button
                               key={addr.id}
@@ -1165,11 +1183,29 @@ function Cart() {
                   </div>
                   <div className="flex-grow-1">
                     <div className="fw-bold">{addr.name}</div>
-                    <div className="text-muted small">{addr.address}</div>
+                    {hasDistinctAddressLine(addr) && (
+                      <div className="text-muted small">{addr.address}</div>
+                    )}
                   </div>
-                  {selectedAddressId === addr.id && (
-                    <span className="text-success">✓</span>
-                  )}
+                  <div className="d-flex align-items-center gap-2 ms-2">
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="p-0 text-danger text-decoration-none"
+                      title={language === 'uz' ? "Manzilni o'chirish" : 'Удалить адрес'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        deleteAddress(addr.id);
+                      }}
+                    >
+                      🗑️
+                    </Button>
+                    {selectedAddressId === addr.id && (
+                      <span className="text-success">✓</span>
+                    )}
+                  </div>
                 </ListGroup.Item>
               ))}
             </ListGroup>
@@ -1183,7 +1219,8 @@ function Cart() {
                 setShowLocationModal(true);
               }}
             >
-              ➕ {language === 'uz' ? "Manzil qo'shish" : 'Добавить адрес'}
+              <span className="fw-bold text-white me-2">+</span>
+              <span>{language === 'uz' ? "Manzil qo'shish" : 'Добавить адрес'}</span>
             </Button>
           </Modal.Footer>
         </Modal>
@@ -1237,11 +1274,15 @@ function Cart() {
               <Alert variant="warning" className="mb-3">
                 <div className="fw-bold mb-1">📍 {language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}:</div>
                 <div>
-                  {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
+                  {selectedSavedAddress ? (
                     <>
-                      <strong>{savedAddresses.find(a => a.id === selectedAddressId)?.name}</strong>
-                      <br />
-                      {savedAddresses.find(a => a.id === selectedAddressId)?.address}
+                      <strong>{selectedSavedAddress.name}</strong>
+                      {hasDistinctAddressLine(selectedSavedAddress) && (
+                        <>
+                          <br />
+                          {selectedSavedAddress.address}
+                        </>
+                      )}
                     </>
                   ) : formData.delivery_address || (language === 'uz' ? 'Joriy joylashuv' : 'По геолокации')}
                   {addressDetailsParts.length > 0 && (
