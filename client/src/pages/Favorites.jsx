@@ -167,45 +167,58 @@ function Favorites() {
                           </button>
                         </div>
 
-                        <div className="d-flex align-items-center justify-content-between mt-2 gap-2 flex-wrap">
-                          <div
-                            className="d-flex align-items-center rounded-pill"
-                            style={{
-                              background: '#f8f2e8',
-                              border: '1px solid rgba(143, 109, 70, 0.18)',
-                              padding: '2px'
-                            }}
-                          >
-                            <button
-                              type="button"
-                              className="btn btn-sm border-0 bg-transparent"
-                              style={{ width: 30, height: 30, lineHeight: 1, color: '#6f5538' }}
-                              onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) - 1)}
-                            >
-                              −
-                            </button>
-                            <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#3a2b1b' }}>
-                              {Math.max(1, Number(item.favorite_quantity) || 1)}
-                            </span>
-                            <button
-                              type="button"
-                              className="btn btn-sm border-0 bg-transparent"
-                              style={{ width: 30, height: 30, lineHeight: 1, color: 'var(--primary-color)' }}
-                              onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) + 1)}
-                            >
-                              +
-                            </button>
-                          </div>
-
-                          <div className="d-flex align-items-center gap-2 ms-auto">
-                            {cartQty > 0 && (
-                              <Badge bg="light" text="dark" style={{ border: '1px solid rgba(143, 109, 70, 0.18)' }}>
+                        <div className="mt-3">
+                          {cartQty > 0 && (
+                            <div className="d-flex justify-content-end mb-2">
+                              <Badge
+                                bg="light"
+                                text="dark"
+                                style={{
+                                  border: '1px solid rgba(143, 109, 70, 0.18)',
+                                  fontWeight: 500
+                                }}
+                              >
                                 {language === 'uz' ? 'Savatda' : 'В корзине'}: {cartQty}
                               </Badge>
-                            )}
+                            </div>
+                          )}
+
+                          <div className="d-flex align-items-center gap-2">
+                            <div
+                              className="d-flex align-items-center rounded-pill"
+                              style={{
+                                background: '#f8f2e8',
+                                border: '1px solid rgba(143, 109, 70, 0.18)',
+                                padding: '2px',
+                                minWidth: 90
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="btn btn-sm border-0 bg-transparent"
+                                style={{ width: 30, height: 30, lineHeight: 1, color: '#6f5538' }}
+                                onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) - 1)}
+                              >
+                                −
+                              </button>
+                              <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#3a2b1b' }}>
+                                {Math.max(1, Number(item.favorite_quantity) || 1)}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-sm border-0 bg-transparent"
+                                style={{ width: 30, height: 30, lineHeight: 1, color: 'var(--primary-color)' }}
+                                onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) + 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+
                             <Button
                               size="sm"
                               variant="primary"
+                              className="ms-auto"
+                              style={{ minWidth: 116 }}
                               onClick={() => addFavoriteToCart(item)}
                               disabled={item.in_stock === false}
                             >

@@ -227,13 +227,13 @@ function Orders() {
                     <div className="mb-2 small">
                       <span className="text-muted">{t('payment')}:</span>{' '}
                       {order.payment_method === 'click' ? (
-                        <><img src="/click.png" alt="Click" style={{ height: 16, marginRight: 4 }} /> Click</>
+                        <img src="/click.png" alt="Click" style={{ height: 16, verticalAlign: 'middle' }} />
                       ) : order.payment_method === 'payme' ? (
-                        <><img src="/payme.png" alt="Payme" style={{ height: 16, marginRight: 4 }} /> Payme</>
+                        <img src="/payme.png" alt="Payme" style={{ height: 16, verticalAlign: 'middle' }} />
                       ) : order.payment_method === 'uzum' ? (
-                        <><img src="/uzum.png" alt="Uzum" style={{ height: 16, marginRight: 4 }} /> Uzum</>
+                        <img src="/uzum.png" alt="Uzum" style={{ height: 16, verticalAlign: 'middle' }} />
                       ) : order.payment_method === 'xazna' ? (
-                        <><img src="/xazna.png" alt="Xazna" style={{ height: 16, marginRight: 4 }} /> Xazna</>
+                        <img src="/xazna.png" alt="Xazna" style={{ height: 16, verticalAlign: 'middle' }} />
                       ) : order.payment_method === 'card' ? (
                         '💳 Карта'
                       ) : (
