@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
-import Badge from 'react-bootstrap/Badge';
 import { useAuth } from '../context/AuthContext';
-import { useCart, formatPrice } from '../context/CartContext';
+import { formatPrice } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
@@ -17,7 +16,6 @@ function Favorites() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, language, toggleLanguage } = useLanguage();
-  const { cart, addToCart } = useCart();
   const { favorites, removeFavorite, updateFavoriteQuantity } = useFavorites();
 
   const getProductName = (product) => (
@@ -39,11 +37,6 @@ function Favorites() {
     if (aActive !== bActive) return aActive ? -1 : 1;
     return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
   });
-
-  const addFavoriteToCart = (item) => {
-    const count = Math.max(1, Number(item.favorite_quantity) || 1);
-    addToCart({ ...item }, count);
-  };
 
   return (
     <>
@@ -114,7 +107,6 @@ function Favorites() {
           <div className="d-flex flex-column gap-3">
             {favoritesSorted.map((item) => {
               const imageUrl = resolveImageUrl(item.thumb_url || item.image_url);
-              const cartQty = cart.find((cartItem) => Number(cartItem.id) === Number(item.id))?.quantity || 0;
               const itemName = getProductName(item);
               const itemUnit = getUnitName(item);
               return (
@@ -150,8 +142,39 @@ function Favorites() {
                             {itemUnit && (
                               <div className="small text-muted mt-1">{itemUnit}</div>
                             )}
-                            <div className="fw-bold mt-1" style={{ color: 'var(--primary-color)' }}>
-                              {formatPrice(item.price)} {t('sum')}
+                            <div className="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                              <div className="fw-bold" style={{ color: 'var(--primary-color)' }}>
+                                {formatPrice(item.price)} {t('sum')}
+                              </div>
+                              <div
+                                className="d-flex align-items-center rounded-pill"
+                                style={{
+                                  background: '#f8f2e8',
+                                  border: '1px solid rgba(143, 109, 70, 0.18)',
+                                  padding: '2px',
+                                  minWidth: 90
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  className="btn btn-sm border-0 bg-transparent"
+                                  style={{ width: 30, height: 30, lineHeight: 1, color: '#6f5538' }}
+                                  onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) - 1)}
+                                >
+                                  −
+                                </button>
+                                <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#3a2b1b' }}>
+                                  {Math.max(1, Number(item.favorite_quantity) || 1)}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm border-0 bg-transparent"
+                                  style={{ width: 30, height: 30, lineHeight: 1, color: 'var(--primary-color)' }}
+                                  onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) + 1)}
+                                >
+                                  +
+                                </button>
+                              </div>
                             </div>
                           </div>
 
@@ -167,67 +190,6 @@ function Favorites() {
                           </button>
                         </div>
 
-                        <div className="mt-3">
-                          {cartQty > 0 && (
-                            <div className="d-flex justify-content-end mb-2">
-                              <Badge
-                                bg="light"
-                                text="dark"
-                                style={{
-                                  border: '1px solid rgba(143, 109, 70, 0.18)',
-                                  fontWeight: 500
-                                }}
-                              >
-                                {language === 'uz' ? 'Savatda' : 'В корзине'}: {cartQty}
-                              </Badge>
-                            </div>
-                          )}
-
-                          <div className="d-flex align-items-center gap-2">
-                            <div
-                              className="d-flex align-items-center rounded-pill"
-                              style={{
-                                background: '#f8f2e8',
-                                border: '1px solid rgba(143, 109, 70, 0.18)',
-                                padding: '2px',
-                                minWidth: 90
-                              }}
-                            >
-                              <button
-                                type="button"
-                                className="btn btn-sm border-0 bg-transparent"
-                                style={{ width: 30, height: 30, lineHeight: 1, color: '#6f5538' }}
-                                onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) - 1)}
-                              >
-                                −
-                              </button>
-                              <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#3a2b1b' }}>
-                                {Math.max(1, Number(item.favorite_quantity) || 1)}
-                              </span>
-                              <button
-                                type="button"
-                                className="btn btn-sm border-0 bg-transparent"
-                                style={{ width: 30, height: 30, lineHeight: 1, color: 'var(--primary-color)' }}
-                                onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) + 1)}
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              className="ms-auto"
-                              style={{ minWidth: 116 }}
-                              onClick={() => addFavoriteToCart(item)}
-                              disabled={item.in_stock === false}
-                            >
-                              {item.in_stock === false
-                                ? (language === 'uz' ? 'Yo‘q' : 'Нет')
-                                : (language === 'uz' ? "Savatga qo'shish" : 'В корзину')}
-                            </Button>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </Card.Body>
