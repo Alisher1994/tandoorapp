@@ -135,7 +135,7 @@ function Favorites() {
 
                       <div className="flex-grow-1" style={{ minWidth: 0 }}>
                         <div className="d-flex align-items-start justify-content-between gap-2">
-                          <div style={{ minWidth: 0 }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
                             <div
                               className="fw-semibold"
                               style={{
@@ -153,7 +153,7 @@ function Favorites() {
                             {itemUnit && (
                               <div className="small text-muted mt-1" style={{ minHeight: '1.1em' }}>{itemUnit}</div>
                             )}
-                            <div className="d-flex align-items-center justify-content-between gap-2 mt-2">
+                            <div className="d-flex align-items-center justify-content-between gap-2 mt-2" style={{ width: '100%' }}>
                               <div className="fw-bold" style={{ color: 'var(--primary-color)' }}>
                                 {formatPrice(item.price)} {t('sum')}
                               </div>
