@@ -4112,7 +4112,6 @@ function AdminDashboard() {
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
                                         <img src="/click.png" alt="Click" style={{ height: 16, objectFit: 'contain' }} />
-                                        <span>Click URL</span>
                                       </Form.Label>
                                       <InputGroup>
                                         <Form.Control
@@ -4129,7 +4128,6 @@ function AdminDashboard() {
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
                                         <img src="/payme.png" alt="Payme" style={{ height: 16, objectFit: 'contain' }} />
-                                        <span>Payme URL</span>
                                       </Form.Label>
                                       <InputGroup>
                                         <Form.Control
@@ -4146,7 +4144,6 @@ function AdminDashboard() {
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
                                         <img src="/uzum.png" alt="Uzum" style={{ height: 16, objectFit: 'contain' }} />
-                                        <span>Uzum URL</span>
                                       </Form.Label>
                                       <InputGroup>
                                         <Form.Control
@@ -4163,7 +4160,6 @@ function AdminDashboard() {
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
                                         <img src="/xazna.png" alt="Xazna" style={{ height: 16, objectFit: 'contain' }} />
-                                        <span>Xazna URL</span>
                                       </Form.Label>
                                       <InputGroup>
                                         <Form.Control
