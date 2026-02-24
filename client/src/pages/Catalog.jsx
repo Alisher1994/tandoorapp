@@ -35,6 +35,24 @@ const CartLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
+const SearchLucideIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.3-4.3" />
+  </svg>
+);
+
 function Catalog() {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
@@ -966,11 +984,23 @@ function Catalog() {
           background: compact ? 'rgba(255,255,255,0.95)' : '#fff',
           borderRadius: 12,
           padding: '10px 12px',
-          boxShadow: compact ? '0 6px 18px rgba(60, 42, 24, 0.08)' : '0 2px 8px rgba(60, 42, 24, 0.04)'
+          boxShadow: 'none'
         }}
       >
         <div className="d-flex align-items-center gap-2">
-          <span style={{ color: '#8f6d46', fontSize: '0.95rem' }}>🔎</span>
+          <span
+            style={{
+              width: 18,
+              height: 18,
+              color: '#8f6d46',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}
+          >
+            <SearchLucideIcon size={16} color="#8f6d46" />
+          </span>
             <input
               ref={catalogSearchInputRef}
               type="search"
@@ -1215,7 +1245,7 @@ function Catalog() {
               transition: 'all 0.22s ease'
             }}
           >
-            🔎
+            <SearchLucideIcon size={17} color="#6f5538" />
           </button>
 
           {/* Center logo */}
@@ -1272,6 +1302,7 @@ function Catalog() {
         <div
           className="px-3"
           style={{
+            width: '100%',
             overflow: 'hidden',
             maxHeight: isHeaderSearchOpen ? 88 : 0,
             opacity: isHeaderSearchOpen ? 1 : 0,
