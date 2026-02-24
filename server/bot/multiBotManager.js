@@ -389,7 +389,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       keyboard: [
         [loginUrl ? { text: t(lang, 'openMenu'), web_app: { url: loginUrl } } : { text: t(lang, 'openMenu') }],
         [{ text: t(lang, 'myOrders') }],
-        [{ text: t(lang, 'contactButton') }]
+        [{ text: t(lang, 'contactButton') }],
+        [{ text: t(lang, 'editProfile') }]
       ],
       resize_keyboard: true
     };
@@ -521,7 +522,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     let message = '📦 <b>Ваши заказы:</b>\n\n';
 
     ordersResult.rows.forEach((order) => {
-      message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум\n`;
+      const createdAt = order.created_at ? new Date(order.created_at) : null;
+      const dateLabel = createdAt && !Number.isNaN(createdAt.getTime())
+        ? createdAt.toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).replace(',', '')
+        : '';
+      message += `${statusEmoji[order.status] || '📦'} №${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум${dateLabel ? ` (${dateLabel})` : ''}\n`;
     });
 
     await bot.sendMessage(chatId, message, {
@@ -615,6 +625,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       [t('uz', 'myOrders'), 'my_orders'],
       [t('ru', 'contactButton'), 'contact'],
       [t('uz', 'contactButton'), 'contact'],
+      [t('ru', 'editProfile'), 'edit_profile'],
+      [t('uz', 'editProfile'), 'edit_profile'],
       [t('ru', 'openMenu'), 'open_menu'],
       [t('uz', 'openMenu'), 'open_menu'],
       [t('ru', 'adminPanelButton'), 'admin_panel'],
@@ -1004,6 +1016,32 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             ? resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code))
             : getTelegramPreferredLanguage(msg.from?.language_code);
           await sendRestaurantContactInfo(chatId, userLang);
+          return;
+        }
+
+        if (action === 'edit_profile') {
+          const userResult = await pool.query('SELECT full_name, phone FROM users WHERE telegram_id = $1', [userId]);
+          if (userResult.rows.length === 0) {
+            await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+            return;
+          }
+          const user = userResult.rows[0];
+          await bot.sendMessage(chatId,
+            `⚙️ <b>Ваши данные:</b>\n\n` +
+            `👤 Имя: ${user.full_name}\n` +
+            `📱 Телефон: ${user.phone}\n\n` +
+            `Выберите, что хотите изменить:`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
+                  [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
+                  [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
+                ]
+              }
+            }
+          );
           return;
         }
 
