@@ -20,6 +20,11 @@ const { initBroadcastWorker } = require('./services/broadcastWorker');
 const app = express();
 // Railway автоматически устанавливает PORT, используем его
 const PORT = process.env.PORT || 3000;
+const APP_BUILD_VERSION = process.env.RAILWAY_DEPLOYMENT_ID
+  || process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.SOURCE_VERSION
+  || `local-${Date.now()}`;
+const APP_BUILD_TIMESTAMP = new Date().toISOString();
 
 // Логируем какой порт используется
 console.log(`📌 PORT from environment: ${process.env.PORT || 'not set, using default 3000'}`);
@@ -52,6 +57,17 @@ app.use('/uploads', express.static(uploadsPath));
 // Root route for Railway health check
 app.get('/', (req, res) => {
   res.redirect('/login');
+});
+
+// App version for client-side update checks (no cache)
+app.get('/version.json', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.json({
+    version: APP_BUILD_VERSION,
+    built_at: APP_BUILD_TIMESTAMP
+  });
 });
 
 // Health check (before other routes)
@@ -111,11 +127,27 @@ if (process.env.NODE_ENV === 'production') {
   const fs = require('fs');
 
   if (fs.existsSync(buildPath)) {
-    app.use(express.static(buildPath));
+    app.use(express.static(buildPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          return;
+        }
+
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
     console.log('✅ Static files served from:', buildPath);
 
     // Serve React app (catch-all route must be last)
     app.get('*', (req, res) => {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.sendFile(path.join(buildPath, 'index.html'));
     });
   } else {

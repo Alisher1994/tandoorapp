@@ -14,12 +14,14 @@ import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
 import CatalogGate from './components/CatalogGate';
+import AppVersionWatcher from './components/AppVersionWatcher';
 
 function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
         <CartProvider>
+        <AppVersionWatcher />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/catalog" element={<CatalogGate />} />

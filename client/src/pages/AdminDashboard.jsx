@@ -349,6 +349,7 @@ function AdminDashboard() {
   const [testedBotInfo, setTestedBotInfo] = useState(null);
   const [botProfileLookupLoading, setBotProfileLookupLoading] = useState(false);
   const [botProfileLookupError, setBotProfileLookupError] = useState('');
+  const [copiedTelegramField, setCopiedTelegramField] = useState('');
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
@@ -383,7 +384,6 @@ function AdminDashboard() {
   const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
     normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
-  const botProfilePreviewText = `Имя бота: ${testedBotInfo?.first_name || '—'}\nUsername: ${testedBotInfo?.username ? `@${testedBotInfo.username}` : '—'}`;
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const orderStatusPillItems = [
     { value: 'all', label: t('allStatuses'), color: '#8d7557' },
@@ -1209,6 +1209,33 @@ function AdminDashboard() {
       });
     } finally {
       setTestingBot(false);
+    }
+  };
+
+  const copyTelegramMetaField = async (value, fieldKey) => {
+    const text = String(value || '').trim();
+    if (!text || text === '—') return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const temp = document.createElement('textarea');
+        temp.value = text;
+        temp.setAttribute('readonly', '');
+        temp.style.position = 'absolute';
+        temp.style.left = '-9999px';
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+      }
+      setCopiedTelegramField(fieldKey);
+      window.setTimeout(() => {
+        setCopiedTelegramField((prev) => (prev === fieldKey ? '' : prev));
+      }, 1400);
+    } catch (error) {
+      setAlertMessage({ type: 'warning', text: 'Не удалось скопировать значение' });
     }
   };
 
@@ -3919,7 +3946,7 @@ function AdminDashboard() {
                               <Col md={12} className="border-top pt-4">
                                 <h6 className="fw-bold mb-3">Telegram Интеграция</h6>
                                 <Row className="gy-3">
-                                  <Col md={6}>
+                                  <Col md={4}>
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
                                       <InputGroup>
@@ -3946,49 +3973,9 @@ function AdminDashboard() {
                                           <i className={`bi ${isRestaurantBotTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
                                         </Button>
                                       </InputGroup>
-                                      {isRestaurantBotTokenChanged && (
-                                        <Alert
-                                          variant={isTokenSaveLocked ? 'warning' : 'info'}
-                                          className="mt-2 mb-0 py-2 px-3 small"
-                                        >
-                                          Перед сохранением откройте новый бот и нажмите <code>/start</code>.
-                                          {isTokenSaveLocked
-                                            ? ` Кнопка сохранения станет активной через ${tokenSaveCountdown} сек.`
-                                            : ' Теперь можно сохранять токен.'}
-                                        </Alert>
-                                      )}
-                                      <Row className="g-2 mt-2">
-                                        <Col xs={12} sm="auto">
-                                          <Button
-                                            variant="outline-primary"
-                                            size="sm"
-                                            className="w-100 px-3 py-2 rounded-3 fw-bold"
-                                            onClick={testBot}
-                                            disabled={testingBot}
-                                          >
-                                            {testingBot ? '⌛ Проверка...' : '🔍 Проверить'}
-                                          </Button>
-                                        </Col>
-                                        <Col>
-                                          <Form.Control
-                                            as="textarea"
-                                            rows={2}
-                                            readOnly
-                                            className="form-control-custom small"
-                                            style={{ resize: 'none' }}
-                                            value={botProfilePreviewText}
-                                          />
-                                        </Col>
-                                      </Row>
-                                      {botProfileLookupLoading && (
-                                        <div className="mt-2 small text-muted">⌛ Определяем имя и username бота...</div>
-                                      )}
-                                      {!botProfileLookupLoading && botProfileLookupError && (
-                                        <div className="mt-2 small text-danger">{botProfileLookupError}</div>
-                                      )}
                                     </Form.Group>
                                   </Col>
-                                  <Col md={6}>
+                                  <Col md={4}>
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Group ID (чат для заказов)</Form.Label>
                                       <Form.Control
@@ -3999,8 +3986,72 @@ function AdminDashboard() {
                                       />
                                     </Form.Group>
                                   </Col>
-                                  {isSuperAdmin && (
-                                    <Col md={12}>
+                                  <Col md={4}>
+                                    <Form.Group className="h-100 d-flex flex-column">
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Проверка</Form.Label>
+                                      <Button
+                                        variant="outline-primary"
+                                        className="w-100 px-3 py-2 rounded-3 fw-bold mt-auto"
+                                        onClick={testBot}
+                                        disabled={testingBot}
+                                      >
+                                        {testingBot ? '⌛ Проверка...' : '🔍 Проверить'}
+                                      </Button>
+                                    </Form.Group>
+                                  </Col>
+
+                                  <Col md={4}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Имя бота</Form.Label>
+                                      <InputGroup>
+                                        <Form.Control
+                                          type="text"
+                                          readOnly
+                                          className="form-control-custom"
+                                          value={testedBotInfo?.first_name || '—'}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline-secondary"
+                                          className="px-3"
+                                          onClick={() => copyTelegramMetaField(testedBotInfo?.first_name, 'bot_name')}
+                                          disabled={!testedBotInfo?.first_name}
+                                          title="Копировать имя бота"
+                                          aria-label="Копировать имя бота"
+                                        >
+                                          {copiedTelegramField === 'bot_name' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                        </Button>
+                                      </InputGroup>
+                                    </Form.Group>
+                                  </Col>
+
+                                  <Col md={4}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Юзернейм бота</Form.Label>
+                                      <InputGroup>
+                                        <Form.Control
+                                          type="text"
+                                          readOnly
+                                          className="form-control-custom"
+                                          value={testedBotInfo?.username ? `@${testedBotInfo.username}` : '—'}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline-secondary"
+                                          className="px-3"
+                                          onClick={() => copyTelegramMetaField(testedBotInfo?.username ? `@${testedBotInfo.username}` : '', 'bot_username')}
+                                          disabled={!testedBotInfo?.username}
+                                          title="Копировать юзернейм бота"
+                                          aria-label="Копировать юзернейм бота"
+                                        >
+                                          {copiedTelegramField === 'bot_username' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                        </Button>
+                                      </InputGroup>
+                                    </Form.Group>
+                                  </Col>
+
+                                  <Col md={4}>
+                                    {isSuperAdmin ? (
                                       <Form.Group>
                                         <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
                                         <Form.Control
@@ -4010,6 +4061,41 @@ function AdminDashboard() {
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
                                         />
                                       </Form.Group>
+                                    ) : (
+                                      <Form.Group>
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
+                                        <Form.Control
+                                          type="text"
+                                          className="form-control-custom"
+                                          value="Только для суперадмина"
+                                          readOnly
+                                          disabled
+                                        />
+                                      </Form.Group>
+                                    )}
+                                  </Col>
+
+                                  {isRestaurantBotTokenChanged && (
+                                    <Col md={12}>
+                                      <Alert
+                                        variant={isTokenSaveLocked ? 'warning' : 'info'}
+                                        className="mb-0 py-2 px-3 small"
+                                      >
+                                        Перед сохранением откройте новый бот и нажмите <code>/start</code>.
+                                        {isTokenSaveLocked
+                                          ? ` Кнопка сохранения станет активной через ${tokenSaveCountdown} сек.`
+                                          : ' Теперь можно сохранять токен.'}
+                                      </Alert>
+                                    </Col>
+                                  )}
+                                  {(botProfileLookupLoading || botProfileLookupError) && (
+                                    <Col md={12}>
+                                      {botProfileLookupLoading && (
+                                        <div className="small text-muted">⌛ Определяем имя и username бота...</div>
+                                      )}
+                                      {!botProfileLookupLoading && botProfileLookupError && (
+                                        <div className="small text-danger">{botProfileLookupError}</div>
+                                      )}
                                     </Col>
                                   )}
                                 </Row>
