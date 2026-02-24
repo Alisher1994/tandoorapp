@@ -649,10 +649,10 @@ async function initBot() {
       const restaurantResult = await client.query(`
         INSERT INTO restaurants (
           name, phone, logo_url, telegram_bot_token, telegram_group_id,
-          latitude, longitude, delivery_base_radius, is_delivery_enabled,
+          latitude, longitude, start_time, end_time, delivery_base_radius, is_delivery_enabled,
           balance, order_cost, is_active
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 3, true, $8, $9, true)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, '07:00', '23:59', 3, true, $8, $9, true)
         RETURNING id, name
       `, [
         state.store_name,
