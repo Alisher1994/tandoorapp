@@ -739,7 +739,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       return;
     }
 
-    const stateKey = getStateKey(userId, chatId);
+    let stateKey = getStateKey(userId, chatId);
     registrationStates.set(stateKey, ensureFlowStateMeta({ step: 'waiting_contact', restaurantId, lang: language }));
     await sendTrackedFlowMessage(
       stateKey,
@@ -973,7 +973,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     if (text.startsWith('/')) return;
 
     // Check state first with chatId (for groups), then without (for private)
-    const stateKey = getStateKey(userId, chatId);
+    let stateKey = getStateKey(userId, chatId);
     let state = registrationStates.get(stateKey);
     if (state) {
       ensureFlowStateMeta(state);
