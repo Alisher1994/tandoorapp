@@ -3523,7 +3523,9 @@ function SuperAdminDashboard() {
                             </Col>
                             <Col md={6}>
                               <Form.Group className="mb-3">
-                                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка Click</Form.Label>
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-flex align-items-center">
+                                  <img src="/click.png" alt="Click" style={{ height: 16, objectFit: 'contain' }} />
+                                </Form.Label>
                                 <Form.Control
                                   className="form-control-custom"
                                   placeholder="https://click.uz/..."
@@ -3534,7 +3536,9 @@ function SuperAdminDashboard() {
                             </Col>
                             <Col md={6}>
                               <Form.Group className="mb-3">
-                                <Form.Label className="small fw-bold text-muted text-uppercase">Ссылка Payme</Form.Label>
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-flex align-items-center">
+                                  <img src="/payme.png" alt="Payme" style={{ height: 16, objectFit: 'contain' }} />
+                                </Form.Label>
                                 <Form.Control
                                   className="form-control-custom"
                                   placeholder="https://payme.uz/..."
