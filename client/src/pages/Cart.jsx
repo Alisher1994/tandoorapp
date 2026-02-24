@@ -1228,7 +1228,6 @@ function Cart() {
         {/* Модалка сохранения нового адреса */}
         <Modal show={showNewAddressModal} onHide={() => setShowNewAddressModal(false)} centered>
           <Modal.Header closeButton className="border-0">
-            <Modal.Title className="fs-5">💾 {language === 'uz' ? 'Manzilni saqlash' : 'Сохранить адрес'}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <Form.Group className="mb-3">
@@ -1258,7 +1257,7 @@ function Cart() {
                 onClick={saveNewAddress}
                 disabled={!newAddressForm.name}
               >
-                💾 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
+                {language === 'uz' ? 'Saqlash' : 'Сохранить'}
               </Button>
             </div>
           </Modal.Body>
