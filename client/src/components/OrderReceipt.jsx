@@ -188,7 +188,17 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
             fontSize: '12px',
             color: '#666'
           }}>
-            {order?.payment_method === 'card' ? '💳 Оплата картой' : '💵 Оплата наличными'}
+            {order?.payment_method === 'card'
+              ? '💳 Оплата картой'
+              : order?.payment_method === 'click'
+                ? '💳 Оплата через Click'
+                : order?.payment_method === 'payme'
+                  ? '💳 Оплата через Payme'
+                  : order?.payment_method === 'uzum'
+                    ? '💳 Оплата через Uzum'
+                    : order?.payment_method === 'xazna'
+                      ? '💳 Оплата через Xazna'
+                      : '💵 Оплата наличными'}
           </div>
 
           {/* Thank you message */}

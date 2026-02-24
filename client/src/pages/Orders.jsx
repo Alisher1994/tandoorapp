@@ -230,6 +230,12 @@ function Orders() {
                         <><img src="/click.png" alt="Click" style={{ height: 16, marginRight: 4 }} /> Click</>
                       ) : order.payment_method === 'payme' ? (
                         <><img src="/payme.png" alt="Payme" style={{ height: 16, marginRight: 4 }} /> Payme</>
+                      ) : order.payment_method === 'uzum' ? (
+                        <><img src="/uzum.png" alt="Uzum" style={{ height: 16, marginRight: 4 }} /> Uzum</>
+                      ) : order.payment_method === 'xazna' ? (
+                        <><img src="/xazna.png" alt="Xazna" style={{ height: 16, marginRight: 4 }} /> Xazna</>
+                      ) : order.payment_method === 'card' ? (
+                        '💳 Карта'
                       ) : (
                         `💵 ${t('cash')}`
                       )}

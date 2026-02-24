@@ -73,6 +73,17 @@ function Cart() {
     borderColor: isActive ? 'var(--primary-color)' : 'var(--border-color, #dfcfb9)',
     color: isActive ? '#fff' : 'var(--text-color, #3d2f21)'
   });
+  const onlinePaymentOptions = useMemo(() => ([
+    { key: 'click', url: restaurant?.click_url, logo: '/click.png', alt: 'Click' },
+    { key: 'payme', url: restaurant?.payme_url, logo: '/payme.png', alt: 'Payme' },
+    { key: 'uzum', url: restaurant?.uzum_url, logo: '/uzum.png', alt: 'Uzum' },
+    { key: 'xazna', url: restaurant?.xazna_url, logo: '/xazna.png', alt: 'Xazna' }
+  ].filter((item) => Boolean(String(item.url || '').trim()))), [
+    restaurant?.click_url,
+    restaurant?.payme_url,
+    restaurant?.uzum_url,
+    restaurant?.xazna_url
+  ]);
 
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
@@ -194,6 +205,14 @@ function Cart() {
     };
     fetchAddresses();
   }, []);
+
+  useEffect(() => {
+    if (formData.payment_method === 'cash') return;
+    const selectedIsAvailable = onlinePaymentOptions.some((option) => option.key === formData.payment_method);
+    if (!selectedIsAvailable) {
+      setFormData((prev) => (prev.payment_method === 'cash' ? prev : { ...prev, payment_method: 'cash' }));
+    }
+  }, [formData.payment_method, onlinePaymentOptions]);
 
   // Выбор адреса из списка
   const selectAddress = (addr) => {
@@ -485,19 +504,13 @@ function Cart() {
       // Clear cart first
       clearCart();
 
-      // Открываем ссылку на оплату если выбран Click или Payme
-      if (formData.payment_method === 'click' && restaurant?.click_url) {
-        // Используем Telegram WebApp для открытия ссылки
+      // Открываем ссылку на оплату если выбран онлайн-способ и ссылка настроена
+      const selectedPaymentOption = onlinePaymentOptions.find((option) => option.key === formData.payment_method);
+      if (selectedPaymentOption?.url) {
         if (window.Telegram?.WebApp?.openLink) {
-          window.Telegram.WebApp.openLink(restaurant.click_url);
+          window.Telegram.WebApp.openLink(selectedPaymentOption.url);
         } else {
-          window.open(restaurant.click_url, '_blank');
-        }
-      } else if (formData.payment_method === 'payme' && restaurant?.payme_url) {
-        if (window.Telegram?.WebApp?.openLink) {
-          window.Telegram.WebApp.openLink(restaurant.payme_url);
-        } else {
-          window.open(restaurant.payme_url, '_blank');
+          window.open(selectedPaymentOption.url, '_blank');
         }
       }
 
@@ -851,27 +864,25 @@ function Cart() {
                     >
                       💵 {t('cash')}
                     </Button>
-                    {/* Click и Payme */}
-                    <div className="d-flex gap-2">
-                      <Button
-                        variant="light"
-                        size="sm"
-                        className="flex-fill d-flex align-items-center justify-content-center"
-                        style={paymentButtonStyle(formData.payment_method === 'click')}
-                        onClick={() => setFormData({ ...formData, payment_method: 'click' })}
-                      >
-                        <img src="/click.png" alt="Click" style={{ height: 22 }} />
-                      </Button>
-                      <Button
-                        variant="light"
-                        size="sm"
-                        className="flex-fill d-flex align-items-center justify-content-center"
-                        style={paymentButtonStyle(formData.payment_method === 'payme')}
-                        onClick={() => setFormData({ ...formData, payment_method: 'payme' })}
-                      >
-                        <img src="/payme.png" alt="Payme" style={{ height: 22 }} />
-                      </Button>
-                    </div>
+                    {onlinePaymentOptions.length > 0 && (
+                      <div className="d-flex gap-2 flex-wrap">
+                        {onlinePaymentOptions.map((option) => (
+                          <Button
+                            key={option.key}
+                            variant="light"
+                            size="sm"
+                            className="flex-fill d-flex align-items-center justify-content-center"
+                            style={{
+                              ...paymentButtonStyle(formData.payment_method === option.key),
+                              minWidth: onlinePaymentOptions.length > 2 ? 'calc(50% - 4px)' : undefined
+                            }}
+                            onClick={() => setFormData({ ...formData, payment_method: option.key })}
+                          >
+                            <img src={option.logo} alt={option.alt} style={{ height: 22, objectFit: 'contain' }} />
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </Form.Group>
               </Card.Body>

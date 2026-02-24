@@ -1450,7 +1450,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       const getOrderWithItems = async (orderId) => {
         const orderResult = await pool.query(`
-          SELECT o.*, u.telegram_id, r.telegram_bot_token, r.click_url, r.payme_url
+          SELECT o.*, u.telegram_id, r.telegram_bot_token, r.click_url, r.payme_url, r.uzum_url, r.xazna_url
           FROM orders o
           LEFT JOIN users u ON o.user_id = u.id
           LEFT JOIN restaurants r ON o.restaurant_id = r.id
@@ -1628,7 +1628,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               refreshed.order.telegram_bot_token,
               {
                 click_url: refreshed.order.click_url,
-                payme_url: refreshed.order.payme_url
+                payme_url: refreshed.order.payme_url,
+                uzum_url: refreshed.order.uzum_url,
+                xazna_url: refreshed.order.xazna_url
               }
             );
           } catch (e) {

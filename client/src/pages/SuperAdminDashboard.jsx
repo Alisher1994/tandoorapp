@@ -4738,7 +4738,11 @@ function SuperAdminDashboard() {
                         </td>
                         <td>
                           {order.payment_method === 'cash' ? '💵 Наличные' :
-                            order.payment_method === 'card' ? '💳 Карта' : order.payment_method}
+                            order.payment_method === 'card' ? '💳 Карта' :
+                              order.payment_method === 'click' ? 'Click' :
+                                order.payment_method === 'payme' ? 'Payme' :
+                                  order.payment_method === 'uzum' ? 'Uzum' :
+                                    order.payment_method === 'xazna' ? 'Xazna' : order.payment_method}
                         </td>
                         <td><small>{order.processed_by_name || '-'}</small></td>
                         <td>
@@ -4834,7 +4838,14 @@ function SuperAdminDashboard() {
                       <p className="mb-2"><strong>Обработал:</strong> {selectedOrder.processed_by_name || '-'}</p>
                     </Col>
                     <Col md={6}>
-                      <p className="mb-2"><strong>Способ оплаты:</strong> {selectedOrder.payment_method === 'cash' ? '💵 Наличные' : '💳 Карта'}</p>
+                      <p className="mb-2"><strong>Способ оплаты:</strong> {
+                        selectedOrder.payment_method === 'cash' ? '💵 Наличные' :
+                          selectedOrder.payment_method === 'card' ? '💳 Карта' :
+                            selectedOrder.payment_method === 'click' ? 'Click' :
+                              selectedOrder.payment_method === 'payme' ? 'Payme' :
+                                selectedOrder.payment_method === 'uzum' ? 'Uzum' :
+                                  selectedOrder.payment_method === 'xazna' ? 'Xazna' : selectedOrder.payment_method
+                      }</p>
                       <p className="mb-2"><strong>Дата доставки:</strong> {selectedOrder.delivery_date || '-'} {selectedOrder.delivery_time || ''}</p>
                     </Col>
                   </Row>

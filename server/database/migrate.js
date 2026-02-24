@@ -50,6 +50,8 @@ async function migrate() {
       'end_time VARCHAR(5)',
       'click_url TEXT',
       'payme_url TEXT',
+      'uzum_url TEXT',
+      'xazna_url TEXT',
       'msg_new TEXT',
       'msg_preparing TEXT',
       'msg_delivering TEXT',

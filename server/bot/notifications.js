@@ -328,6 +328,8 @@ function replacePlaceholders(template, order) {
     'cash': 'Наличные',
     'click': 'Click',
     'payme': 'Payme',
+    'uzum': 'Uzum',
+    'xazna': 'Xazna',
     'card': 'Карта'
   };
 
@@ -390,6 +392,10 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
         paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.click_url}">Click</a>`;
       } else if (order.payment_method === 'payme' && restaurantPaymentUrls.payme_url) {
         paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.payme_url}">Payme</a>`;
+      } else if (order.payment_method === 'uzum' && restaurantPaymentUrls.uzum_url) {
+        paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.uzum_url}">Uzum</a>`;
+      } else if (order.payment_method === 'xazna' && restaurantPaymentUrls.xazna_url) {
+        paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.xazna_url}">Xazna</a>`;
       }
     }
 

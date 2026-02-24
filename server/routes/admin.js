@@ -593,7 +593,7 @@ router.put('/restaurant', async (req, res) => {
 
     const {
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
-      operator_registration_code, start_time, end_time, click_url, payme_url, support_username,
+      operator_registration_code, start_time, end_time, click_url, payme_url, uzum_url, xazna_url, support_username,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
@@ -643,26 +643,28 @@ router.put('/restaurant', async (req, res) => {
           end_time = $8,
           click_url = $9,
           payme_url = $10,
-          support_username = $11,
-          operator_registration_code = $12,
-          latitude = $13,
-          longitude = $14,
-          delivery_base_radius = $15,
-          delivery_base_price = $16,
-          delivery_price_per_km = $17,
-          is_delivery_enabled = $18,
-          delivery_zone = $19,
-          msg_new = $20,
-          msg_preparing = $21,
-          msg_delivering = $22,
-          msg_delivered = $23,
-          msg_cancelled = $24,
+          uzum_url = $11,
+          xazna_url = $12,
+          support_username = $13,
+          operator_registration_code = $14,
+          latitude = $15,
+          longitude = $16,
+          delivery_base_radius = $17,
+          delivery_base_price = $18,
+          delivery_price_per_km = $19,
+          is_delivery_enabled = $20,
+          delivery_zone = $21,
+          msg_new = $22,
+          msg_preparing = $23,
+          msg_delivering = $24,
+          msg_delivered = $25,
+          msg_cancelled = $26,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $25
+      WHERE id = $27
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedBotToken, normalizedGroupId,
-      start_time, end_time, click_url, payme_url, support_username,
+      start_time, end_time, click_url, payme_url, uzum_url, xazna_url, support_username,
       operator_registration_code || null,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled,

@@ -2043,6 +2043,10 @@ function AdminDashboard() {
   const getPaymentMethodLabel = (paymentMethod) => {
     if (paymentMethod === 'cash') return 'Наличные';
     if (paymentMethod === 'card') return 'Карта';
+    if (paymentMethod === 'click') return 'Click';
+    if (paymentMethod === 'payme') return 'Payme';
+    if (paymentMethod === 'uzum') return 'Uzum';
+    if (paymentMethod === 'xazna') return 'Xazna';
     return paymentMethod || '-';
   };
 
@@ -4106,24 +4110,82 @@ function AdminDashboard() {
                                 <Row className="gy-3">
                                   <Col md={6}>
                                     <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Click URL</Form.Label>
-                                      <Form.Control
-                                        type="text"
-                                        className="form-control-custom"
-                                        value={restaurantSettings.click_url || ''}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
-                                      />
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
+                                        <img src="/click.png" alt="Click" style={{ height: 16, objectFit: 'contain' }} />
+                                        <span>Click URL</span>
+                                      </Form.Label>
+                                      <InputGroup>
+                                        <InputGroup.Text className="bg-white border-end-0 px-2">
+                                          <img src="/click.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
+                                        </InputGroup.Text>
+                                        <Form.Control
+                                          type="text"
+                                          className="form-control-custom border-start-0"
+                                          value={restaurantSettings.click_url || ''}
+                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
+                                          placeholder="https://..."
+                                        />
+                                      </InputGroup>
                                     </Form.Group>
                                   </Col>
                                   <Col md={6}>
                                     <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Payme URL</Form.Label>
-                                      <Form.Control
-                                        type="text"
-                                        className="form-control-custom"
-                                        value={restaurantSettings.payme_url || ''}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_url: e.target.value })}
-                                      />
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
+                                        <img src="/payme.png" alt="Payme" style={{ height: 16, objectFit: 'contain' }} />
+                                        <span>Payme URL</span>
+                                      </Form.Label>
+                                      <InputGroup>
+                                        <InputGroup.Text className="bg-white border-end-0 px-2">
+                                          <img src="/payme.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
+                                        </InputGroup.Text>
+                                        <Form.Control
+                                          type="text"
+                                          className="form-control-custom border-start-0"
+                                          value={restaurantSettings.payme_url || ''}
+                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_url: e.target.value })}
+                                          placeholder="https://..."
+                                        />
+                                      </InputGroup>
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
+                                        <img src="/uzum.png" alt="Uzum" style={{ height: 16, objectFit: 'contain' }} />
+                                        <span>Uzum URL</span>
+                                      </Form.Label>
+                                      <InputGroup>
+                                        <InputGroup.Text className="bg-white border-end-0 px-2">
+                                          <img src="/uzum.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
+                                        </InputGroup.Text>
+                                        <Form.Control
+                                          type="text"
+                                          className="form-control-custom border-start-0"
+                                          value={restaurantSettings.uzum_url || ''}
+                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, uzum_url: e.target.value })}
+                                          placeholder="https://..."
+                                        />
+                                      </InputGroup>
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
+                                        <img src="/xazna.png" alt="Xazna" style={{ height: 16, objectFit: 'contain' }} />
+                                        <span>Xazna URL</span>
+                                      </Form.Label>
+                                      <InputGroup>
+                                        <InputGroup.Text className="bg-white border-end-0 px-2">
+                                          <img src="/xazna.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
+                                        </InputGroup.Text>
+                                        <Form.Control
+                                          type="text"
+                                          className="form-control-custom border-start-0"
+                                          value={restaurantSettings.xazna_url || ''}
+                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, xazna_url: e.target.value })}
+                                          placeholder="https://..."
+                                        />
+                                      </InputGroup>
                                     </Form.Group>
                                   </Col>
                                 </Row>
