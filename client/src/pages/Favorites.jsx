@@ -136,11 +136,22 @@ function Favorites() {
                       <div className="flex-grow-1" style={{ minWidth: 0 }}>
                         <div className="d-flex align-items-start justify-content-between gap-2">
                           <div style={{ minWidth: 0 }}>
-                            <div className="fw-semibold" style={{ color: '#3a2b1b', lineHeight: 1.2 }}>
+                            <div
+                              className="fw-semibold"
+                              style={{
+                                color: '#3a2b1b',
+                                lineHeight: 1.2,
+                                minHeight: '2.4em',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}
+                            >
                               {itemName}
                             </div>
                             {itemUnit && (
-                              <div className="small text-muted mt-1">{itemUnit}</div>
+                              <div className="small text-muted mt-1" style={{ minHeight: '1.1em' }}>{itemUnit}</div>
                             )}
                             <div className="d-flex align-items-center justify-content-between gap-2 mt-2">
                               <div className="fw-bold" style={{ color: 'var(--primary-color)' }}>
