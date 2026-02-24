@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
-import HeartIcon from './HeartIcon';
 
 function BottomNav() {
   const navigate = useNavigate();
@@ -20,7 +19,7 @@ function BottomNav() {
   
   const navItems = [
     { path: '/', icon: '🏠', label: t('menu') },
-    { path: '/favorites', icon: 'heart', label: t('favorites') || 'Избранные', badge: favoriteCount },
+    { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
     { path: '/orders', icon: '📋', label: t('orders') },
     { path: '/feedback', icon: '💬', label: t('feedback') || 'Жалобы' },
@@ -117,22 +116,14 @@ function BottomNav() {
             minWidth: isCompact ? 50 : 70
           }}
         >
-          {(() => {
-            const active = isActive(item.path);
-            const iconColor = active ? 'var(--primary-color)' : '#7a6448';
-            return (
           <span style={{
             fontSize: isCompact ? '18px' : '22px',
             lineHeight: 1,
             marginBottom: isCompact ? 0 : '2px',
             filter: isActive(item.path) ? 'none' : 'grayscale(0.1)'
           }}>
-            {item.icon === 'heart'
-              ? <HeartIcon size={isCompact ? 16 : 19} filled={active} color={iconColor} />
-              : item.icon}
+            {item.icon}
           </span>
-            );
-          })()}
           <span style={{ 
             fontSize: '11px', 
             fontWeight: isActive(item.path) ? '600' : '400',
