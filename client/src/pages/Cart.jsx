@@ -49,7 +49,6 @@ function Cart() {
   });
 
   const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
-  const [showDeliveryTimeOptions, setShowDeliveryTimeOptions] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -628,42 +627,35 @@ function Cart() {
           box-shadow: 0 0 0 2px rgba(160, 110, 55, 0.08) !important;
           background: #fff !important;
         }
-        .cart-dropdown-trigger {
+        .cart-surface-panel {
           background: #f8f6f1 !important;
           border: 1px solid rgba(135, 98, 57, 0.22) !important;
           border-radius: 12px !important;
-          color: #3d2f21 !important;
-          min-height: 46px;
         }
-        .cart-dropdown-trigger:hover,
-        .cart-dropdown-trigger:active,
-        .cart-dropdown-trigger:focus {
-          background: #fffaf3 !important;
-          border-color: rgba(160, 110, 55, 0.32) !important;
-          color: #3d2f21 !important;
-          box-shadow: none !important;
-        }
-        .cart-dropdown-panel {
-          background: #fbf9f4;
-          border: 1px solid rgba(135, 98, 57, 0.18);
+        .cart-segmented-switch {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          padding: 6px;
+          background: #f8f6f1;
+          border: 1px solid rgba(135, 98, 57, 0.22);
           border-radius: 12px;
-          padding: 8px;
         }
-        .cart-dropdown-option-btn {
+        .cart-segmented-option {
           width: 100%;
-          text-align: left;
           border-radius: 10px !important;
           border: 1px solid rgba(135, 98, 57, 0.18) !important;
           background: #fff !important;
           color: #3d2f21 !important;
+          min-height: 40px;
         }
-        .cart-dropdown-option-btn:hover,
-        .cart-dropdown-option-btn:focus {
+        .cart-segmented-option:hover,
+        .cart-segmented-option:focus {
           background: #f7f1e7 !important;
           border-color: rgba(160, 110, 55, 0.26) !important;
           box-shadow: none !important;
         }
-        .cart-dropdown-option-btn.is-active {
+        .cart-segmented-option.is-active {
           background: rgba(168, 112, 53, 0.10) !important;
           border-color: rgba(160, 110, 55, 0.42) !important;
           color: #7a4b1a !important;
@@ -797,7 +789,7 @@ function Cart() {
                   onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
                   onFocus={handleCommentFocus}
                   placeholder={t('commentPlaceholder')}
-                  className="border-0 bg-light"
+                  className="cart-surface-field"
                 />
               </Form.Group>
             </Card.Body>
@@ -816,7 +808,7 @@ function Cart() {
 
                     {/* Если есть выбранный адрес */}
                     {selectedAddressId && savedAddresses.find(a => a.id === selectedAddressId) ? (
-                      <div className="p-3 bg-light rounded mb-2">
+                      <div className="p-3 rounded mb-2 cart-surface-panel">
                         <div className="d-flex align-items-start">
                           <span className="me-2">📍</span>
                           <div className="flex-grow-1">
@@ -878,7 +870,7 @@ function Cart() {
                           value={formData.house}
                           onChange={(e) => setFormData({ ...formData, house: e.target.value })}
                           placeholder={language === 'uz' ? 'Uy' : 'Дом'}
-                          className="border-0 bg-light"
+                          className="cart-surface-field"
                         />
                       </div>
                       <div className="col-6">
@@ -887,7 +879,7 @@ function Cart() {
                           value={formData.apartment}
                           onChange={(e) => setFormData({ ...formData, apartment: e.target.value })}
                           placeholder={language === 'uz' ? 'Kvartira' : 'Квартира'}
-                          className="border-0 bg-light"
+                          className="cart-surface-field"
                         />
                       </div>
                       <div className="col-12">
@@ -896,7 +888,7 @@ function Cart() {
                           value={formData.door_code}
                           onChange={(e) => setFormData({ ...formData, door_code: e.target.value })}
                           placeholder={language === 'uz' ? 'Eshik kodi / domofon' : 'Код двери / домофон'}
-                          className="border-0 bg-light"
+                          className="cart-surface-field"
                         />
                       </div>
                     </div>
@@ -913,7 +905,7 @@ function Cart() {
                     value={formData.customer_phone}
                     onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
                     placeholder="+998 90 123 45 67"
-                    className="border-0 bg-light"
+                    className="cart-surface-field"
                     required
                   />
                 </Form.Group>
@@ -921,45 +913,26 @@ function Cart() {
                 {/* Время доставки */}
                 <Form.Group className="mb-3">
                   <Form.Label className="small text-muted mb-1">{t('deliveryTime')}</Form.Label>
-                  <Button
-                    type="button"
-                    variant="light"
-                    className="w-100 d-flex align-items-center justify-content-between cart-dropdown-trigger"
-                    onClick={() => setShowDeliveryTimeOptions(prev => !prev)}
-                  >
-                    <span className="fw-medium">
-                      {deliveryTimeMode === 'scheduled' ? `🕐 ${t('scheduled')}` : `🚀 ${t('asap')}`}
-                    </span>
-                    <span className="text-muted small">{showDeliveryTimeOptions ? '▲' : '▼'}</span>
-                  </Button>
-                  {showDeliveryTimeOptions && (
-                    <div className="d-flex flex-column gap-2 mt-2 cart-dropdown-panel">
-                      <Button
-                        type="button"
-                        variant="light"
-                        size="sm"
-                        className={`cart-dropdown-option-btn ${deliveryTimeMode === 'asap' ? 'is-active' : ''}`}
-                        onClick={() => {
-                          setDeliveryTimeMode('asap');
-                          setShowDeliveryTimeOptions(false);
-                        }}
-                      >
-                        🚀 {t('asap')}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="light"
-                        size="sm"
-                        className={`cart-dropdown-option-btn ${deliveryTimeMode === 'scheduled' ? 'is-active' : ''}`}
-                        onClick={() => {
-                          setDeliveryTimeMode('scheduled');
-                          setShowDeliveryTimeOptions(false);
-                        }}
-                      >
-                        🕐 {t('scheduled')}
-                      </Button>
-                    </div>
-                  )}
+                  <div className="cart-segmented-switch">
+                    <Button
+                      type="button"
+                      variant="light"
+                      size="sm"
+                      className={`cart-segmented-option ${deliveryTimeMode === 'asap' ? 'is-active' : ''}`}
+                      onClick={() => setDeliveryTimeMode('asap')}
+                    >
+                      🚀 {t('asap')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="light"
+                      size="sm"
+                      className={`cart-segmented-option ${deliveryTimeMode === 'scheduled' ? 'is-active' : ''}`}
+                      onClick={() => setDeliveryTimeMode('scheduled')}
+                    >
+                      🕐 {t('scheduled')}
+                    </Button>
+                  </div>
                   {deliveryTimeMode === 'scheduled' && (
                     <Form.Select
                       className="cart-select-custom mt-2"
