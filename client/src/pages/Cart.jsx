@@ -616,6 +616,72 @@ function Cart() {
             border-radius: 18px;
           }
         }
+        .cart-surface-field {
+          background: #f8f6f1 !important;
+          border: 1px solid rgba(135, 98, 57, 0.22) !important;
+          border-radius: 12px !important;
+          color: #3d2f21;
+          min-height: 44px;
+        }
+        .cart-surface-field:focus {
+          border-color: rgba(160, 110, 55, 0.45) !important;
+          box-shadow: 0 0 0 2px rgba(160, 110, 55, 0.08) !important;
+          background: #fff !important;
+        }
+        .cart-dropdown-trigger {
+          background: #f8f6f1 !important;
+          border: 1px solid rgba(135, 98, 57, 0.22) !important;
+          border-radius: 12px !important;
+          color: #3d2f21 !important;
+          min-height: 46px;
+        }
+        .cart-dropdown-trigger:hover,
+        .cart-dropdown-trigger:active,
+        .cart-dropdown-trigger:focus {
+          background: #fffaf3 !important;
+          border-color: rgba(160, 110, 55, 0.32) !important;
+          color: #3d2f21 !important;
+          box-shadow: none !important;
+        }
+        .cart-dropdown-panel {
+          background: #fbf9f4;
+          border: 1px solid rgba(135, 98, 57, 0.18);
+          border-radius: 12px;
+          padding: 8px;
+        }
+        .cart-dropdown-option-btn {
+          width: 100%;
+          text-align: left;
+          border-radius: 10px !important;
+          border: 1px solid rgba(135, 98, 57, 0.18) !important;
+          background: #fff !important;
+          color: #3d2f21 !important;
+        }
+        .cart-dropdown-option-btn:hover,
+        .cart-dropdown-option-btn:focus {
+          background: #f7f1e7 !important;
+          border-color: rgba(160, 110, 55, 0.26) !important;
+          box-shadow: none !important;
+        }
+        .cart-dropdown-option-btn.is-active {
+          background: rgba(168, 112, 53, 0.10) !important;
+          border-color: rgba(160, 110, 55, 0.42) !important;
+          color: #7a4b1a !important;
+          font-weight: 600;
+        }
+        .cart-select-custom {
+          background: #f8f6f1 !important;
+          border: 1px solid rgba(135, 98, 57, 0.22) !important;
+          border-radius: 12px !important;
+          color: #3d2f21 !important;
+          min-height: 46px;
+          box-shadow: none !important;
+        }
+        .cart-select-custom:focus {
+          border-color: rgba(160, 110, 55, 0.45) !important;
+          box-shadow: 0 0 0 2px rgba(160, 110, 55, 0.08) !important;
+          background: #fff !important;
+        }
       `}</style>
       {/* Header with language switcher */}
       <div className="bg-white shadow-sm py-3 mb-3">
@@ -858,9 +924,8 @@ function Cart() {
                   <Button
                     type="button"
                     variant="light"
-                    className="w-100 d-flex align-items-center justify-content-between border-0 bg-light"
+                    className="w-100 d-flex align-items-center justify-content-between cart-dropdown-trigger"
                     onClick={() => setShowDeliveryTimeOptions(prev => !prev)}
-                    style={{ minHeight: 42 }}
                   >
                     <span className="fw-medium">
                       {deliveryTimeMode === 'scheduled' ? `🕐 ${t('scheduled')}` : `🚀 ${t('asap')}`}
@@ -868,12 +933,12 @@ function Cart() {
                     <span className="text-muted small">{showDeliveryTimeOptions ? '▲' : '▼'}</span>
                   </Button>
                   {showDeliveryTimeOptions && (
-                    <div className="d-flex flex-column gap-2 mt-2">
+                    <div className="d-flex flex-column gap-2 mt-2 cart-dropdown-panel">
                       <Button
                         type="button"
-                        variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
+                        variant="light"
                         size="sm"
-                        className="text-start"
+                        className={`cart-dropdown-option-btn ${deliveryTimeMode === 'asap' ? 'is-active' : ''}`}
                         onClick={() => {
                           setDeliveryTimeMode('asap');
                           setShowDeliveryTimeOptions(false);
@@ -883,9 +948,9 @@ function Cart() {
                       </Button>
                       <Button
                         type="button"
-                        variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
+                        variant="light"
                         size="sm"
-                        className="text-start"
+                        className={`cart-dropdown-option-btn ${deliveryTimeMode === 'scheduled' ? 'is-active' : ''}`}
                         onClick={() => {
                           setDeliveryTimeMode('scheduled');
                           setShowDeliveryTimeOptions(false);
@@ -897,7 +962,7 @@ function Cart() {
                   )}
                   {deliveryTimeMode === 'scheduled' && (
                     <Form.Select
-                      className="border-0 bg-light mt-2"
+                      className="cart-select-custom mt-2"
                       value={formData.delivery_time}
                       onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
                     >
@@ -1158,27 +1223,12 @@ function Cart() {
           <Modal.Body>
             <Form.Group className="mb-3">
               <Form.Label>{language === 'uz' ? 'Manzil nomi' : 'Название адреса'}</Form.Label>
-              <div className="d-flex gap-2 mb-2">
-                <Button
-                  variant={newAddressForm.name === 'Дом' ? 'primary' : 'outline-secondary'}
-                  size="sm"
-                  onClick={() => setNewAddressForm({ ...newAddressForm, name: '' })}
-                >
-                  🏠 {language === 'uz' ? 'Uy' : 'Дом'}
-                </Button>
-                <Button
-                  variant={newAddressForm.name === 'Работа' ? 'primary' : 'outline-secondary'}
-                  size="sm"
-                  onClick={() => setNewAddressForm({ ...newAddressForm, name: '' })}
-                >
-                  💼 {language === 'uz' ? 'Ish' : 'Работа'}
-                </Button>
-              </div>
               <Form.Control
                 type="text"
                 value={newAddressForm.name}
                 onChange={(e) => setNewAddressForm({ ...newAddressForm, name: e.target.value })}
-                placeholder={language === 'uz' ? 'Yoki boshqa nom' : 'Или другое название'}
+                placeholder={language === 'uz' ? 'Masalan: Uy, Ofis, Dacha' : 'Например: Дом, Офис, Дача'}
+                className="cart-surface-field"
               />
             </Form.Group>
             <div className="d-flex gap-2">
