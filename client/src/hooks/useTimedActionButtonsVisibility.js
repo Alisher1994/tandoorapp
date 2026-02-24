@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const ACTION_BUTTONS_VISIBILITY_KEY = 'ui_action_buttons_visible_until';
+const ACTION_BUTTONS_VISIBILITY_INIT_KEY = 'ui_action_buttons_visibility_initialized';
 export const ACTION_BUTTONS_VISIBILITY_TTL_MS = 10 * 60 * 1000;
 const HOTKEY_SEQUENCE = '111';
 const HOTKEY_RESET_MS = 1200;
@@ -28,6 +29,22 @@ const writeVisibleUntil = (timestamp) => {
   }
 };
 
+const readInitialized = () => {
+  try {
+    return localStorage.getItem(ACTION_BUTTONS_VISIBILITY_INIT_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const writeInitialized = () => {
+  try {
+    localStorage.setItem(ACTION_BUTTONS_VISIBILITY_INIT_KEY, '1');
+  } catch {
+    // ignore storage errors
+  }
+};
+
 const getRemainingMs = () => {
   const visibleUntil = readVisibleUntil();
   const remaining = visibleUntil - Date.now();
@@ -43,14 +60,22 @@ export function useTimedActionButtonsVisibility() {
   const [remainingMs, setRemainingMs] = useState(() => {
     const current = getRemainingMs();
     if (current > 0) return current;
-    const initialVisibleUntil = Date.now() + ACTION_BUTTONS_VISIBILITY_TTL_MS;
-    writeVisibleUntil(initialVisibleUntil);
-    return Math.max(0, initialVisibleUntil - Date.now());
+
+    // Auto-enable only on the first visit to avoid re-enabling after manual switch-off.
+    if (!readInitialized()) {
+      writeInitialized();
+      const initialVisibleUntil = Date.now() + ACTION_BUTTONS_VISIBILITY_TTL_MS;
+      writeVisibleUntil(initialVisibleUntil);
+      return Math.max(0, initialVisibleUntil - Date.now());
+    }
+
+    return 0;
   });
   const hotkeyBufferRef = useRef('');
   const hotkeyTimerRef = useRef(null);
 
   const enableForTenMinutes = useCallback(() => {
+    writeInitialized();
     const visibleUntil = Date.now() + ACTION_BUTTONS_VISIBILITY_TTL_MS;
     writeVisibleUntil(visibleUntil);
     setRemainingMs(Math.max(0, visibleUntil - Date.now()));
