@@ -575,6 +575,41 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   };
 
+  const sendEditProfileMenu = async (chatId, userId) => {
+    const userResult = await pool.query('SELECT full_name, phone FROM users WHERE telegram_id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+      return false;
+    }
+
+    const user = userResult.rows[0];
+    const editStateKey = getStateKey(userId, chatId);
+    registrationStates.set(editStateKey, ensureFlowStateMeta({
+      step: 'waiting_edit_profile_action',
+      restaurantId
+    }));
+
+    await sendTrackedFlowMessage(
+      editStateKey,
+      chatId,
+      `⚙️ <b>Ваши данные:</b>\n\n` +
+      `👤 Имя: ${user.full_name}\n` +
+      `📱 Телефон: ${user.phone}\n\n` +
+      `Выберите, что хотите изменить:`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
+            [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
+            [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
+          ]
+        }
+      }
+    );
+    return true;
+  };
+
   const sendOpenMenuFallback = async (msg, action = 'open_menu') => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -1026,28 +1061,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
 
         if (action === 'edit_profile') {
-          const userResult = await pool.query('SELECT full_name, phone FROM users WHERE telegram_id = $1', [userId]);
-          if (userResult.rows.length === 0) {
-            await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
-            return;
-          }
-          const user = userResult.rows[0];
-          await bot.sendMessage(chatId,
-            `⚙️ <b>Ваши данные:</b>\n\n` +
-            `👤 Имя: ${user.full_name}\n` +
-            `📱 Телефон: ${user.phone}\n\n` +
-            `Выберите, что хотите изменить:`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [
-                  [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
-                  [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
-                  [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
-                ]
-              }
-            }
-          );
+          await sendEditProfileMenu(chatId, userId);
           return;
         }
 
@@ -1642,29 +1656,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       // Handle edit profile
       if (data === 'edit_profile') {
-        const userResult = await pool.query('SELECT full_name, phone FROM users WHERE telegram_id = $1', [userId]);
-        if (userResult.rows.length === 0) {
-          bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
-          return;
-        }
-        const user = userResult.rows[0];
-
-        bot.sendMessage(chatId,
-          `⚙️ <b>Ваши данные:</b>\n\n` +
-          `👤 Имя: ${user.full_name}\n` +
-          `📱 Телефон: ${user.phone}\n\n` +
-          `Выберите, что хотите изменить:`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '✏️ Изменить имя', callback_data: 'edit_name' }],
-                [{ text: '📱 Изменить телефон', callback_data: 'edit_phone' }],
-                [{ text: '❌ Отмена', callback_data: 'edit_cancel' }]
-              ]
-            }
-          }
-        );
+        await sendEditProfileMenu(chatId, userId);
       }
 
       // Handle edit name
