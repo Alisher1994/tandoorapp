@@ -71,11 +71,12 @@ const BOT_TEXTS = {
 };
 
 // Generate login token for auto-login
-function generateLoginToken(userId, username) {
+function generateLoginToken(userId, username, options = {}) {
+  const { expiresIn = '30d', role = '' } = options;
   return jwt.sign(
-    { userId, username, autoLogin: true },
+    { userId, username, autoLogin: true, ...(role ? { role } : {}) },
     process.env.JWT_SECRET,
-    { expiresIn: '30d' }
+    { expiresIn }
   );
 }
 
@@ -422,10 +423,15 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       `, [user.id, restaurantId]);
 
       if (user.role === 'operator' || user.role === 'superadmin') {
+        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
+          expiresIn: '1h',
+          role: user.role
+        });
         const loginUrl = buildWebLoginUrl({
           portal: 'admin',
           restaurantId,
-          source: 'restaurant_bot'
+          source: 'restaurant_bot',
+          token: adminAutoLoginToken
         });
 
         await bot.sendMessage(
@@ -536,10 +542,15 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       );
 
       if (user.role === 'operator' || user.role === 'superadmin') {
+        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
+          expiresIn: '1h',
+          role: user.role
+        });
         const loginUrl = buildWebLoginUrl({
           portal: 'admin',
           restaurantId,
-          source: 'restaurant_bot'
+          source: 'restaurant_bot',
+          token: adminAutoLoginToken
         });
 
         bot.sendMessage(
@@ -1295,10 +1306,15 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         passwordResetCooldown.set(cooldownKey, now);
         registrationStates.delete(stateKey);
         const effectiveLogin = normalizedLogin || resolveLoginValue(updateResult.rows[0]);
+        const adminAutoLoginToken = generateLoginToken(state.dbUserId, effectiveLogin, {
+          expiresIn: '1h',
+          role: state.role
+        });
         const loginUrl = buildWebLoginUrl({
           portal: state.role === 'customer' ? 'customer' : 'admin',
           restaurantId: state.restaurantId || restaurantId,
-          source: 'restaurant_bot'
+          source: 'restaurant_bot',
+          token: adminAutoLoginToken
         });
 
         bot.sendMessage(

@@ -11,11 +11,12 @@ let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 
 // Generate login token for auto-login
-function generateLoginToken(userId, username) {
+function generateLoginToken(userId, username, options = {}) {
+  const { expiresIn = '30d', role = '' } = options;
   return jwt.sign(
-    { userId, username, autoLogin: true },
+    { userId, username, autoLogin: true, ...(role ? { role } : {}) },
     process.env.JWT_SECRET,
-    { expiresIn: '30d' } // Token valid for 30 days
+    { expiresIn } // Token valid for configured period
   );
 }
 
@@ -434,7 +435,15 @@ async function initBot() {
       }
 
       if (user.role === 'operator' || user.role === 'superadmin') {
-        const loginUrl = buildWebLoginUrl({ portal: 'admin', source: 'superadmin_bot' });
+        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
+          expiresIn: '1h',
+          role: user.role
+        });
+        const loginUrl = buildWebLoginUrl({
+          portal: 'admin',
+          source: 'superadmin_bot',
+          token: adminAutoLoginToken
+        });
         await bot.sendMessage(
           chatId,
           `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
@@ -703,7 +712,15 @@ async function initBot() {
       await client.query('COMMIT');
       onboardingStates.delete(stateKey);
 
-      const loginUrl = buildWebLoginUrl({ portal: 'admin', source: 'superadmin_bot' });
+      const adminAutoLoginToken = generateLoginToken(userIdDb, username, {
+        expiresIn: '1h',
+        role: 'operator'
+      });
+      const loginUrl = buildWebLoginUrl({
+        portal: 'admin',
+        source: 'superadmin_bot',
+        token: adminAutoLoginToken
+      });
       const locationText = state.location
         ? `${state.location.latitude.toFixed(6)}, ${state.location.longitude.toFixed(6)}`
         : 'не указана';
@@ -789,7 +806,15 @@ async function initBot() {
       [hashedPassword, phoneLogin, user.id]
     );
 
-    const loginUrl = buildWebLoginUrl({ portal: 'admin', source: 'superadmin_bot' });
+    const adminAutoLoginToken = generateLoginToken(user.id, user.username || phoneLogin, {
+      expiresIn: '1h',
+      role: user.role
+    });
+    const loginUrl = buildWebLoginUrl({
+      portal: 'admin',
+      source: 'superadmin_bot',
+      token: adminAutoLoginToken
+    });
     await bot.sendMessage(
       chatId,
       `✅ <b>Доступ восстановлен</b>\n\n` +

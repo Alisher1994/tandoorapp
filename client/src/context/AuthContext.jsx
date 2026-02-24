@@ -25,8 +25,11 @@ export function AuthProvider({ children }) {
       localStorage.setItem('token', tokenFromUrl);
       axios.defaults.headers.common['Authorization'] = `Bearer ${tokenFromUrl}`;
       
-      // Remove token from URL to clean up
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Remove only token from URL, keep portal/restaurant context for login page behavior
+      urlParams.delete('token');
+      const remainingQuery = urlParams.toString();
+      const nextUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}`;
+      window.history.replaceState({}, document.title, nextUrl);
       
       await fetchUser();
       return;
