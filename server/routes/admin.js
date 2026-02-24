@@ -712,6 +712,13 @@ router.post('/test-bot', async (req, res) => {
 
     const { getRestaurantBot } = require('../bot/notifications');
     const bot = getRestaurantBot(botToken);
+    let botProfile = null;
+
+    try {
+      botProfile = await bot.getMe();
+    } catch (err) {
+      return res.status(400).json({ error: `Не удалось проверить Bot Token: ${err.message}` });
+    }
 
     const results = [];
     const errors = [];
@@ -722,7 +729,7 @@ router.post('/test-bot', async (req, res) => {
         await bot.sendMessage(telegramId, '🤖 Бот запущен и работает!');
         results.push('✅ Сообщение "Бот запущен" отправлено вам в личные сообщения.');
       } catch (err) {
-        errors.push(`❌ В личку: ${err.message}. Возможно, вы не начали диалог с ботом @${(await bot.getMe()).username}`);
+        errors.push(`❌ В личку: ${err.message}. Возможно, вы не начали диалог с ботом @${botProfile?.username || 'bot'}`);
       }
     } else {
       results.push('⚠️ Ваш Telegram ID не привязан к этому аккаунту! Чтобы получать уведомления в личку, добавьте свой ID в настройках вашего профиля.');
@@ -745,7 +752,12 @@ router.post('/test-bot', async (req, res) => {
       success: errors.length === 0,
       message: errors.length === 0 ? 'Тестирование завершено успешно!' : 'Тестирование завершено с ошибками',
       details: results,
-      errors: errors
+      errors: errors,
+      bot: botProfile ? {
+        id: botProfile.id,
+        username: botProfile.username || '',
+        first_name: botProfile.first_name || ''
+      } : null
     });
   } catch (error) {
     console.error('Test bot error:', error);

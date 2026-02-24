@@ -346,6 +346,7 @@ function AdminDashboard() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
   const [testingBot, setTestingBot] = useState(false);
+  const [testedBotInfo, setTestedBotInfo] = useState(null);
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
@@ -1136,7 +1137,8 @@ function AdminDashboard() {
         groupId: restaurantSettings.telegram_group_id
       });
 
-      const { message, details, errors, success } = response.data;
+      const { message, details, errors, success, bot } = response.data;
+      setTestedBotInfo(bot || null);
 
       let fullText = message + '\n\n' + details.join('\n');
       if (errors && errors.length > 0) {
@@ -1149,6 +1151,7 @@ function AdminDashboard() {
       });
     } catch (error) {
       console.error('Test bot error:', error);
+      setTestedBotInfo(null);
       setAlertMessage({
         type: 'danger',
         text: 'Ошибка при проверке: ' + (error.response?.data?.error || error.message)
@@ -3875,6 +3878,7 @@ function AdminDashboard() {
                                           value={restaurantSettings.telegram_bot_token || ''}
                                           onChange={e => {
                                             setIsRestaurantBotTokenVisible(false);
+                                            setTestedBotInfo(null);
                                             setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
                                           }}
                                         />
@@ -3900,6 +3904,18 @@ function AdminDashboard() {
                                             ? ` Кнопка сохранения станет активной через ${tokenSaveCountdown} сек.`
                                             : ' Теперь можно сохранять токен.'}
                                         </Alert>
+                                      )}
+                                      {testedBotInfo && (
+                                        <div
+                                          className="mt-2 p-2 rounded-3 small"
+                                          style={{
+                                            border: '1px solid rgba(143,109,70,0.15)',
+                                            background: 'rgba(255,250,243,0.9)'
+                                          }}
+                                        >
+                                          <div><strong>Имя бота:</strong> {testedBotInfo.first_name || '—'}</div>
+                                          <div><strong>Username:</strong> {testedBotInfo.username ? `@${testedBotInfo.username}` : '—'}</div>
+                                        </div>
                                       )}
                                     </Form.Group>
                                   </Col>
