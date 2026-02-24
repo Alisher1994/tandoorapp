@@ -703,7 +703,7 @@ router.put('/restaurant', async (req, res) => {
 // Проверить работу бота (отправка тестовых сообщений)
 router.post('/test-bot', async (req, res) => {
   try {
-    const { botToken, groupId } = req.body;
+    const { botToken, groupId, profileOnly } = req.body;
     const telegramId = req.user.telegram_id;
 
     if (!botToken) {
@@ -718,6 +718,20 @@ router.post('/test-bot', async (req, res) => {
       botProfile = await bot.getMe();
     } catch (err) {
       return res.status(400).json({ error: `Не удалось проверить Bot Token: ${err.message}` });
+    }
+
+    const serializedBotProfile = botProfile ? {
+      id: botProfile.id,
+      username: botProfile.username || '',
+      first_name: botProfile.first_name || ''
+    } : null;
+
+    if (profileOnly) {
+      return res.json({
+        success: true,
+        message: 'Данные бота получены',
+        bot: serializedBotProfile
+      });
     }
 
     const results = [];
@@ -753,11 +767,7 @@ router.post('/test-bot', async (req, res) => {
       message: errors.length === 0 ? 'Тестирование завершено успешно!' : 'Тестирование завершено с ошибками',
       details: results,
       errors: errors,
-      bot: botProfile ? {
-        id: botProfile.id,
-        username: botProfile.username || '',
-        first_name: botProfile.first_name || ''
-      } : null
+      bot: serializedBotProfile
     });
   } catch (error) {
     console.error('Test bot error:', error);

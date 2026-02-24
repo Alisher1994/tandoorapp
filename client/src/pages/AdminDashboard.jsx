@@ -347,6 +347,8 @@ function AdminDashboard() {
   const [settingsTab, setSettingsTab] = useState('general');
   const [testingBot, setTestingBot] = useState(false);
   const [testedBotInfo, setTestedBotInfo] = useState(null);
+  const [botProfileLookupLoading, setBotProfileLookupLoading] = useState(false);
+  const [botProfileLookupError, setBotProfileLookupError] = useState('');
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
@@ -610,6 +612,53 @@ function AdminDashboard() {
     }, 1000);
     return () => clearTimeout(timer);
   }, [tokenSaveCountdown]);
+
+  useEffect(() => {
+    const rawToken = restaurantSettings?.telegram_bot_token || '';
+    const token = rawToken.trim();
+
+    if (!restaurantSettings) return;
+
+    if (!token) {
+      setTestedBotInfo(null);
+      setBotProfileLookupError('');
+      setBotProfileLookupLoading(false);
+      return;
+    }
+
+    // Avoid noisy validation errors while the user is still typing a partial token.
+    if (!token.includes(':') || token.length < 20) {
+      setTestedBotInfo(null);
+      setBotProfileLookupError('');
+      setBotProfileLookupLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setBotProfileLookupLoading(true);
+      try {
+        const response = await axios.post(`${API_URL}/admin/test-bot`, {
+          botToken: token,
+          profileOnly: true
+        });
+        if (cancelled) return;
+        setTestedBotInfo(response.data?.bot || null);
+        setBotProfileLookupError('');
+      } catch (error) {
+        if (cancelled) return;
+        setTestedBotInfo(null);
+        setBotProfileLookupError(error.response?.data?.error || 'Ошибка получения данных бота');
+      } finally {
+        if (!cancelled) setBotProfileLookupLoading(false);
+      }
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [restaurantSettings?.telegram_bot_token]);
 
   const applyCategoriesData = (categoriesData = []) => {
     // Calculate full category paths locally and sort correctly
@@ -1131,6 +1180,7 @@ function AdminDashboard() {
       return;
     }
     setTestingBot(true);
+    setBotProfileLookupError('');
     try {
       const response = await axios.post(`${API_URL}/admin/test-bot`, {
         botToken: restaurantSettings.telegram_bot_token,
@@ -3879,6 +3929,7 @@ function AdminDashboard() {
                                           onChange={e => {
                                             setIsRestaurantBotTokenVisible(false);
                                             setTestedBotInfo(null);
+                                            setBotProfileLookupError('');
                                             setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
                                           }}
                                         />
@@ -3916,6 +3967,12 @@ function AdminDashboard() {
                                           <div><strong>Имя бота:</strong> {testedBotInfo.first_name || '—'}</div>
                                           <div><strong>Username:</strong> {testedBotInfo.username ? `@${testedBotInfo.username}` : '—'}</div>
                                         </div>
+                                      )}
+                                      {botProfileLookupLoading && (
+                                        <div className="mt-2 small text-muted">⌛ Определяем имя и username бота...</div>
+                                      )}
+                                      {!botProfileLookupLoading && botProfileLookupError && (
+                                        <div className="mt-2 small text-danger">{botProfileLookupError}</div>
                                       )}
                                     </Form.Group>
                                   </Col>
