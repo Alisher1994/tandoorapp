@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 
 // Cache for restaurant-specific bots
 const restaurantBots = new Map();
+const customerOrderStatusMessageCache = new Map();
 
 // Lazy import to avoid circular dependency
 function getDefaultBot() {
@@ -424,7 +425,45 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined
     };
 
-    await bot.sendMessage(telegramId, message, options);
+    const cacheKey = `${botToken || 'default'}:${telegramId}:${order?.id || order?.order_number || 'order'}`;
+    const cached = customerOrderStatusMessageCache.get(cacheKey);
+
+    if (cached?.messageId) {
+      try {
+        await bot.editMessageText(message, {
+          chat_id: telegramId,
+          message_id: cached.messageId,
+          parse_mode: options.parse_mode,
+          disable_web_page_preview: options.disable_web_page_preview,
+          reply_markup: options.reply_markup
+        });
+        customerOrderStatusMessageCache.set(cacheKey, {
+          messageId: cached.messageId,
+          status,
+          updatedAt: Date.now()
+        });
+        console.log(`✅ Order update edited for user ${telegramId}`);
+        return;
+      } catch (editError) {
+        const editMessage = String(editError?.message || '').toLowerCase();
+        if (!editMessage.includes('message is not modified')) {
+          try {
+            await bot.deleteMessage(telegramId, cached.messageId);
+          } catch (_) { }
+        } else {
+          return;
+        }
+      }
+    }
+
+    const sent = await bot.sendMessage(telegramId, message, options);
+    if (sent?.message_id) {
+      customerOrderStatusMessageCache.set(cacheKey, {
+        messageId: sent.message_id,
+        status,
+        updatedAt: Date.now()
+      });
+    }
     console.log(`✅ Order update sent to user ${telegramId}`);
   } catch (error) {
     console.error('Send order update error:', error);
