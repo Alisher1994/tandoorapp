@@ -383,6 +383,7 @@ function AdminDashboard() {
   const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
     normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
+  const botProfilePreviewText = `Имя бота: ${testedBotInfo?.first_name || '—'}\nUsername: ${testedBotInfo?.username ? `@${testedBotInfo.username}` : '—'}`;
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const orderStatusPillItems = [
     { value: 'all', label: t('allStatuses'), color: '#8d7557' },
@@ -3956,18 +3957,29 @@ function AdminDashboard() {
                                             : ' Теперь можно сохранять токен.'}
                                         </Alert>
                                       )}
-                                      {testedBotInfo && (
-                                        <div
-                                          className="mt-2 p-2 rounded-3 small"
-                                          style={{
-                                            border: '1px solid rgba(143,109,70,0.15)',
-                                            background: 'rgba(255,250,243,0.9)'
-                                          }}
-                                        >
-                                          <div><strong>Имя бота:</strong> {testedBotInfo.first_name || '—'}</div>
-                                          <div><strong>Username:</strong> {testedBotInfo.username ? `@${testedBotInfo.username}` : '—'}</div>
-                                        </div>
-                                      )}
+                                      <Row className="g-2 mt-2">
+                                        <Col xs={12} sm="auto">
+                                          <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            className="w-100 px-3 py-2 rounded-3 fw-bold"
+                                            onClick={testBot}
+                                            disabled={testingBot}
+                                          >
+                                            {testingBot ? '⌛ Проверка...' : '🔍 Проверить'}
+                                          </Button>
+                                        </Col>
+                                        <Col>
+                                          <Form.Control
+                                            as="textarea"
+                                            rows={2}
+                                            readOnly
+                                            className="form-control-custom small"
+                                            style={{ resize: 'none' }}
+                                            value={botProfilePreviewText}
+                                          />
+                                        </Col>
+                                      </Row>
                                       {botProfileLookupLoading && (
                                         <div className="mt-2 small text-muted">⌛ Определяем имя и username бота...</div>
                                       )}
@@ -3987,9 +3999,9 @@ function AdminDashboard() {
                                       />
                                     </Form.Group>
                                   </Col>
-                                  <Col md={12}>
-                                    {isSuperAdmin && (
-                                      <Form.Group className="mb-3">
+                                  {isSuperAdmin && (
+                                    <Col md={12}>
+                                      <Form.Group>
                                         <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
                                         <Form.Control
                                           type="text"
@@ -3998,19 +4010,8 @@ function AdminDashboard() {
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
                                         />
                                       </Form.Group>
-                                    )}
-                                    <div className="d-grid d-md-flex mt-2">
-                                      <Button
-                                        variant="outline-primary"
-                                        size="sm"
-                                        className="px-4 py-2 rounded-3 fw-bold"
-                                        onClick={testBot}
-                                        disabled={testingBot}
-                                      >
-                                        {testingBot ? '⌛ Проверка...' : '🔍 Проверить работу бота'}
-                                      </Button>
-                                    </div>
-                                  </Col>
+                                    </Col>
+                                  )}
                                 </Row>
                               </Col>
 
