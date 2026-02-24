@@ -124,10 +124,11 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password, portal, restaurant_id } = req.body;
+    const { username, password, portal, restaurant_id, account_user_id } = req.body;
     const identifier = String(username || '').trim();
     const requestedPortal = normalizeLoginPortal(portal);
     const requestedRestaurantId = parseOptionalInt(restaurant_id);
+    const requestedAccountUserId = parseOptionalInt(account_user_id);
 
     if (!identifier || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
@@ -201,6 +202,7 @@ router.post('/login', async (req, res) => {
 
     let user = null;
     let inactiveUserMatched = false;
+    const validCandidates = [];
 
     for (const candidate of candidatesToCheck) {
       const isValidPassword = await verifyPasswordCandidate(password, candidate);
@@ -210,16 +212,41 @@ router.post('/login', async (req, res) => {
         inactiveUserMatched = true;
         continue;
       }
-
-      user = candidate;
-      break;
+      validCandidates.push(candidate);
     }
 
-    if (!user) {
+    if (validCandidates.length === 0) {
       if (inactiveUserMatched) {
         return res.status(403).json({ error: 'Аккаунт деактивирован' });
       }
       return res.status(401).json({ error: 'Неверный логин или пароль' });
+    }
+
+    if (!requestedPortal && !requestedAccountUserId && validCandidates.length > 1) {
+      const distinctIds = new Set(validCandidates.map((candidate) => candidate.id));
+      if (distinctIds.size > 1) {
+        return res.status(409).json({
+          requires_account_choice: true,
+          message: 'Найдено несколько аккаунтов с этими данными. Выберите, в какой аккаунт войти.',
+          accounts: validCandidates.map((candidate) => ({
+            id: candidate.id,
+            role: candidate.role,
+            full_name: candidate.full_name,
+            phone: candidate.phone,
+            username: candidate.username,
+            active_restaurant_name: candidate.active_restaurant_name
+          }))
+        });
+      }
+    }
+
+    if (requestedAccountUserId) {
+      user = validCandidates.find((candidate) => Number(candidate.id) === requestedAccountUserId) || null;
+      if (!user) {
+        return res.status(401).json({ error: 'Выбранный аккаунт недоступен для этих данных входа' });
+      }
+    } else {
+      user = validCandidates[0];
     }
 
     const token = jwt.sign(

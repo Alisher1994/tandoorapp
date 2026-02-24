@@ -6,6 +6,7 @@ import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
+import Modal from 'react-bootstrap/Modal';
 import deliveryTruckVideo from '../assets/animations/delivery-truck.mp4';
 
 function Login() {
@@ -13,6 +14,9 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showAccountChoiceModal, setShowAccountChoiceModal] = useState(false);
+  const [accountChoiceMessage, setAccountChoiceMessage] = useState('');
+  const [accountChoices, setAccountChoices] = useState([]);
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(window.location.search);
@@ -61,18 +65,51 @@ function Login() {
     }
   };
 
+  const getAccountRoleLabel = (role) => {
+    if (role === 'superadmin') return 'Суперадмин';
+    if (role === 'operator') return 'Оператор';
+    if (role === 'customer') return 'Клиент';
+    return role || 'Аккаунт';
+  };
+
+  const buildLoginOptions = (extra = {}) => ({
+    portal: loginPortal,
+    restaurantId: restaurantIdParam,
+    ...extra
+  });
+
+  const handleAccountChoice = async (accountId) => {
+    setError('');
+    setLoading(true);
+    const result = await login(username, password, buildLoginOptions({ accountUserId: accountId }));
+    if (result.success) {
+      setShowAccountChoiceModal(false);
+      setAccountChoices([]);
+      setAccountChoiceMessage('');
+    } else if (result.requiresAccountChoice) {
+      setAccountChoices(result.accounts || []);
+      setAccountChoiceMessage(result.message || 'Выберите аккаунт');
+      setShowAccountChoiceModal(true);
+    } else {
+      setShowAccountChoiceModal(false);
+      setError(result.error);
+    }
+    setLoading(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const result = await login(username, password, {
-      portal: loginPortal,
-      restaurantId: restaurantIdParam
-    });
+    const result = await login(username, password, buildLoginOptions());
     
     if (result.success) {
       // Login will set user, useEffect will handle redirect
+    } else if (result.requiresAccountChoice) {
+      setAccountChoices(result.accounts || []);
+      setAccountChoiceMessage(result.message || 'Выберите аккаунт');
+      setShowAccountChoiceModal(true);
     } else {
       setError(result.error);
     }
@@ -164,6 +201,58 @@ function Login() {
 
         </Card.Body>
       </Card>
+
+      <Modal
+        show={showAccountChoiceModal}
+        onHide={() => !loading && setShowAccountChoiceModal(false)}
+        centered
+      >
+        <Modal.Header closeButton={!loading}>
+          <Modal.Title>Выберите аккаунт</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {accountChoiceMessage && (
+            <Alert variant="info" className="mb-3">
+              {accountChoiceMessage}
+            </Alert>
+          )}
+          <div className="d-flex flex-column gap-2">
+            {accountChoices.map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                disabled={loading}
+                onClick={() => handleAccountChoice(account.id)}
+                className="text-start"
+                style={{
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--surface-color)',
+                  borderRadius: 12,
+                  padding: '12px 14px'
+                }}
+              >
+                <div className="d-flex justify-content-between align-items-center gap-2">
+                  <strong>{getAccountRoleLabel(account.role)}</strong>
+                  {account.active_restaurant_name && (
+                    <span className="text-muted" style={{ fontSize: 12 }}>{account.active_restaurant_name}</span>
+                  )}
+                </div>
+                <div className="small text-muted">
+                  {account.full_name || account.username || '—'}
+                </div>
+                {account.phone && (
+                  <div className="small text-muted">{account.phone}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAccountChoiceModal(false)} disabled={loading}>
+            Отмена
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 }

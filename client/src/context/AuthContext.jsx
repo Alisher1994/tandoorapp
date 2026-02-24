@@ -88,7 +88,8 @@ export function AuthProvider({ children }) {
         username,
         password,
         portal: options.portal || '',
-        restaurant_id: options.restaurantId || null
+        restaurant_id: options.restaurantId || null,
+        account_user_id: options.accountUserId || null
       });
       
       const { token, user } = response.data;
@@ -97,6 +98,14 @@ export function AuthProvider({ children }) {
       setUser(user);
       return { success: true };
     } catch (error) {
+      if (error.response?.status === 409 && error.response?.data?.requires_account_choice) {
+        return {
+          success: false,
+          requiresAccountChoice: true,
+          accounts: error.response.data.accounts || [],
+          message: error.response.data.message || 'Выберите аккаунт'
+        };
+      }
       return {
         success: false,
         error: error.response?.data?.error || 'Ошибка входа'
