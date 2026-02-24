@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database/connection');
 const bcrypt = require('bcryptjs');
+const TelegramBot = require('node-telegram-bot-api');
 const { authenticate, requireSuperAdmin } = require('../middleware/auth');
 const {
   logActivity,
@@ -32,6 +33,42 @@ const normalizeTokenValue = (value) => {
 const normalizeTelegramIdValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   return normalized || null;
+};
+
+const resolveCentralBotMeta = async (token) => {
+  const normalizedToken = normalizeTokenValue(token);
+  if (!normalizedToken) {
+    return {
+      superadmin_bot_name: null,
+      superadmin_bot_username: null
+    };
+  }
+
+  const bot = new TelegramBot(normalizedToken);
+  const me = await bot.getMe();
+
+  return {
+    superadmin_bot_name: me?.first_name || null,
+    superadmin_bot_username: me?.username ? `@${me.username}` : null
+  };
+};
+
+const enrichBillingSettingsWithCentralBotMeta = async (settings) => {
+  const baseSettings = settings || {};
+
+  try {
+    return {
+      ...baseSettings,
+      ...(await resolveCentralBotMeta(baseSettings.superadmin_bot_token))
+    };
+  } catch (error) {
+    return {
+      ...baseSettings,
+      superadmin_bot_name: null,
+      superadmin_bot_username: null,
+      superadmin_bot_meta_error: error.message
+    };
+  }
 };
 
 const notifySuperadminTokenChanged = async (telegramId) => {
@@ -462,7 +499,8 @@ router.get('/restaurants', async (req, res) => {
 router.get('/billing-settings', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
-    res.json(result.rows[0] || {});
+    const payload = await enrichBillingSettingsWithCentralBotMeta(result.rows[0] || {});
+    res.json(payload);
   } catch (error) {
     console.error('Get billing settings error:', error);
     res.status(500).json({ error: 'Ошибка получения настроек биллинга' });
@@ -521,7 +559,8 @@ router.put('/billing-settings', async (req, res) => {
       }
     }
 
-    res.json(result.rows[0]);
+    const payload = await enrichBillingSettingsWithCentralBotMeta(result.rows[0]);
+    res.json(payload);
   } catch (error) {
     console.error('Update billing settings error:', error);
     res.status(500).json({ error: 'Ошибка обновления настроек биллинга' });
@@ -2417,7 +2456,8 @@ router.delete('/ads/banners/:id', async (req, res) => {
 router.get('/billing/settings', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
-    res.json(result.rows[0] || {});
+    const payload = await enrichBillingSettingsWithCentralBotMeta(result.rows[0] || {});
+    res.json(payload);
   } catch (error) {
     console.error('Get billing settings error:', error);
     res.status(500).json({ error: 'Ошибка получения настроек' });
@@ -2472,10 +2512,53 @@ router.put('/billing/settings', async (req, res) => {
       }
     }
 
-    res.json(result.rows[0]);
+    const payload = await enrichBillingSettingsWithCentralBotMeta(result.rows[0]);
+    res.json(payload);
   } catch (error) {
     console.error('Update billing settings error:', error);
     res.status(500).json({ error: 'Ошибка сохранения настроек' });
+  }
+});
+
+// Проверить центрального бота и отправить тестовое сообщение
+router.post('/billing/settings/test-bot', async (req, res) => {
+  try {
+    const {
+      superadmin_bot_token,
+      superadmin_telegram_id
+    } = req.body || {};
+
+    const token = normalizeTokenValue(superadmin_bot_token);
+    const telegramId = normalizeTelegramIdValue(superadmin_telegram_id);
+
+    if (!token) {
+      return res.status(400).json({ error: 'Введите токен центрального Telegram-бота' });
+    }
+
+    if (!telegramId) {
+      return res.status(400).json({ error: 'Введите Telegram ID владельца суперадминки' });
+    }
+
+    const bot = new TelegramBot(token);
+    const me = await bot.getMe();
+
+    await bot.sendMessage(
+      telegramId,
+      '✅ Тестовое сообщение\nБот работает'
+    );
+
+    res.json({
+      success: true,
+      message: 'Тестовое сообщение отправлено. Проверьте Telegram.',
+      superadmin_bot_name: me?.first_name || null,
+      superadmin_bot_username: me?.username ? `@${me.username}` : null
+    });
+  } catch (error) {
+    console.error('Test central bot error:', error);
+    res.status(400).json({
+      error: 'Не удалось проверить бота или отправить тестовое сообщение',
+      details: error.message
+    });
   }
 });
 

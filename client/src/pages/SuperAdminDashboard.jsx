@@ -443,6 +443,8 @@ function SuperAdminDashboard() {
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
     superadmin_bot_token: '',
+    superadmin_bot_name: '',
+    superadmin_bot_username: '',
     superadmin_telegram_id: '',
     card_number: '',
     card_holder: '',
@@ -455,6 +457,7 @@ function SuperAdminDashboard() {
   });
   const [isCentralTokenVisible, setIsCentralTokenVisible] = useState(false);
   const centralTokenHideTimeoutRef = useRef(null);
+  const [isTestingCentralBot, setIsTestingCentralBot] = useState(false);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
   const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
@@ -793,10 +796,48 @@ function SuperAdminDashboard() {
 
   const saveBillingSettings = async () => {
     try {
-      await axios.put(`${API_URL}/superadmin/billing/settings`, billingSettings);
+      const response = await axios.put(`${API_URL}/superadmin/billing/settings`, billingSettings);
+      if (response.data) {
+        setBillingSettings((prev) => ({
+          ...prev,
+          ...response.data
+        }));
+      }
       setSuccess('Настройки биллинга сохранены');
     } catch (err) {
       setError('Ошибка сохранения настроек');
+    }
+  };
+
+  const testCentralBot = async () => {
+    if (!billingSettings.superadmin_bot_token) {
+      setError('Введите токен центрального Telegram-бота');
+      return;
+    }
+
+    if (!billingSettings.superadmin_telegram_id) {
+      setError('Введите Telegram ID владельца суперадминки');
+      return;
+    }
+
+    try {
+      setIsTestingCentralBot(true);
+      const response = await axios.post(`${API_URL}/superadmin/billing/settings/test-bot`, {
+        superadmin_bot_token: billingSettings.superadmin_bot_token,
+        superadmin_telegram_id: billingSettings.superadmin_telegram_id
+      });
+
+      setBillingSettings((prev) => ({
+        ...prev,
+        superadmin_bot_name: response.data?.superadmin_bot_name || '',
+        superadmin_bot_username: response.data?.superadmin_bot_username || ''
+      }));
+
+      setSuccess(response.data?.message || 'Тестовое сообщение отправлено');
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Ошибка проверки бота');
+    } finally {
+      setIsTestingCentralBot(false);
     }
   };
 
@@ -3571,7 +3612,12 @@ function SuperAdminDashboard() {
                                 style={{ paddingRight: '2.4rem' }}
                                 onChange={e => {
                                   setIsCentralTokenVisible(false);
-                                  setBillingSettings({ ...billingSettings, superadmin_bot_token: e.target.value });
+                                  setBillingSettings({
+                                    ...billingSettings,
+                                    superadmin_bot_token: e.target.value,
+                                    superadmin_bot_name: '',
+                                    superadmin_bot_username: ''
+                                  });
                                 }}
                               />
                               <Button
@@ -3592,6 +3638,37 @@ function SuperAdminDashboard() {
                             </Form.Text>
                           </Form.Group>
 
+                          <Row className="g-3 mb-4">
+                            <Col md={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  Название бота
+                                </Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  className="form-control-custom"
+                                  value={billingSettings.superadmin_bot_name || ''}
+                                  readOnly
+                                  placeholder="Появится после сохранения/проверки токена"
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  Никнейм бота
+                                </Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  className="form-control-custom"
+                                  value={billingSettings.superadmin_bot_username || ''}
+                                  readOnly
+                                  placeholder="@username"
+                                />
+                              </Form.Group>
+                            </Col>
+                          </Row>
+
                           <Form.Group className="mb-4">
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
                               Telegram ID владельца суперадминки
@@ -3607,6 +3684,25 @@ function SuperAdminDashboard() {
                               На этот ID отправляется подтверждение при смене токена центрального бота.
                             </Form.Text>
                           </Form.Group>
+
+                          <div className="mb-4">
+                            <Button
+                              type="button"
+                              className="btn-primary-custom px-3"
+                              onClick={testCentralBot}
+                              disabled={isTestingCentralBot || !billingSettings.superadmin_bot_token || !billingSettings.superadmin_telegram_id}
+                            >
+                              {isTestingCentralBot ? (
+                                <>
+                                  <Spinner animation="border" size="sm" className="me-2" />
+                                  Проверка...
+                                </>
+                              ) : 'Проверить'}
+                            </Button>
+                            <div className="text-muted small mt-2">
+                              Отправит тестовый текст "Бот работает" на указанный Telegram ID.
+                            </div>
+                          </div>
 
                           <Form.Group className="mb-0">
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>
