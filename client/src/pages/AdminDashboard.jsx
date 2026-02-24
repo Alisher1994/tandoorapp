@@ -351,6 +351,7 @@ function AdminDashboard() {
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
   const [isRestaurantBotTokenVisible, setIsRestaurantBotTokenVisible] = useState(false);
   const tokenCountdownArmedRef = useRef(false);
+  const rowDoubleTapRef = useRef({ key: '', at: 0 });
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
 
@@ -2011,6 +2012,29 @@ function AdminDashboard() {
     setShowOrderModal(true);
   };
 
+  const isInteractiveTableRowTarget = (target) => {
+    if (!target || typeof target.closest !== 'function') return false;
+    return Boolean(target.closest(
+      'button, a, input, label, select, textarea, summary, [role="button"], .dropdown-toggle, .form-check-input'
+    ));
+  };
+
+  const handleRowTouchOpen = (event, rowKey, onOpen) => {
+    if (isInteractiveTableRowTarget(event.target)) return;
+
+    const now = Date.now();
+    const prev = rowDoubleTapRef.current;
+    const isDoubleTap = prev.key === rowKey && (now - prev.at) <= 450;
+
+    if (isDoubleTap) {
+      rowDoubleTapRef.current = { key: '', at: 0 };
+      onOpen();
+      return;
+    }
+
+    rowDoubleTapRef.current = { key: rowKey, at: now };
+  };
+
   const normalizePaymentLink = (value) => {
     if (!value) return '';
     let link = String(value).trim();
@@ -2974,8 +2998,9 @@ function AdminDashboard() {
                           <tr
                             key={order.id}
                             onDoubleClick={() => openOrderModal(order)}
+                            onTouchEnd={(e) => handleRowTouchOpen(e, `order-${order.id}`, () => openOrderModal(order))}
                             style={{ cursor: 'pointer' }}
-                            title="Двойное нажатие: открыть заказ"
+                            title="Двойной клик / двойной тап: открыть заказ"
                           >
                             <td>{order.order_number}</td>
                             <td>
@@ -3263,8 +3288,9 @@ function AdminDashboard() {
                             key={product.id}
                             className={selectedProducts.includes(product.id) ? 'table-active' : ''}
                             onDoubleClick={() => openProductModal(product)}
+                            onTouchEnd={(e) => handleRowTouchOpen(e, `product-${product.id}`, () => openProductModal(product))}
                             style={{ cursor: 'pointer' }}
-                            title="Двойное нажатие: открыть товар"
+                            title="Двойной клик / двойной тап: открыть товар"
                           >
                             <td>
                               <Form.Check
