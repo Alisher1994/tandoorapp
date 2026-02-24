@@ -13,7 +13,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { user, login } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(window.location.search);
   const loginPortal = (searchParams.get('portal') || '').toLowerCase();
@@ -26,12 +26,30 @@ function Login() {
     customer: 'Вход для клиента'
   };
 
+  const isRoleCompatibleWithPortal = (role, portal) => {
+    if (!portal) return true;
+    if (portal === 'customer') return role === 'customer';
+    if (portal === 'admin') return role === 'operator' || role === 'superadmin';
+    if (portal === 'operator') return role === 'operator' || role === 'superadmin';
+    if (portal === 'superadmin') return role === 'superadmin';
+    return true;
+  };
+
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
+      if (!isRoleCompatibleWithPortal(user.role, loginPortal)) {
+        setError(
+          loginPortal === 'customer'
+            ? 'Обнаружена активная сессия администратора. Выполняем выход для входа клиента...'
+            : 'Обнаружена активная клиентская сессия. Выполняем выход для входа администратора...'
+        );
+        logout();
+        return;
+      }
       redirectBasedOnRole(user.role);
     }
-  }, [user]);
+  }, [user, loginPortal]);
 
   const redirectBasedOnRole = (role) => {
     if (role === 'superadmin') {
