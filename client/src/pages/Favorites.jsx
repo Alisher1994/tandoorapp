@@ -9,6 +9,7 @@ import { useCart, formatPrice } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
+import HeartIcon from '../components/HeartIcon';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -60,7 +61,7 @@ function Favorites() {
                 style={{ objectFit: 'contain' }}
               />
             ) : (
-              <span style={{ fontSize: '1.5rem' }}>❤️</span>
+              <HeartIcon size={20} filled color="var(--primary-color)" />
             )}
             <button
               onClick={toggleLanguage}
@@ -84,7 +85,10 @@ function Favorites() {
       <Container className="py-2" style={{ maxWidth: '600px' }}>
         <div className="d-flex align-items-center justify-content-between mb-3">
           <h5 className="mb-0" style={{ color: '#4b3a27', fontWeight: 700 }}>
-            ❤️ {t('favorites') || (language === 'uz' ? 'Saralanganlar' : 'Избранные')}
+            <span className="me-2" style={{ verticalAlign: 'middle', display: 'inline-flex' }}>
+              <HeartIcon size={18} filled color="var(--primary-color)" />
+            </span>
+            {t('favorites') || (language === 'uz' ? 'Saralanganlar' : 'Избранные')}
           </h5>
           <small className="text-muted">{favoritesSorted.length}</small>
         </div>
@@ -157,9 +161,9 @@ function Favorites() {
                             className="border-0 bg-transparent p-0"
                             aria-label={language === 'uz' ? 'Saralanganlardan olib tashlash' : 'Убрать из избранного'}
                             title={language === 'uz' ? 'Saralanganlardan olib tashlash' : 'Убрать из избранного'}
-                            style={{ lineHeight: 1, fontSize: '1.25rem' }}
+                            style={{ lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                           >
-                            ❤️
+                            <HeartIcon size={18} filled color="#de4f6f" />
                           </button>
                         </div>
 
@@ -229,4 +233,3 @@ function Favorites() {
 }
 
 export default Favorites;
-

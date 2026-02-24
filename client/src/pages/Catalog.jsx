@@ -12,6 +12,7 @@ import { useCart, formatPrice } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
+import HeartIcon from '../components/HeartIcon';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -46,6 +47,8 @@ function Catalog() {
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [isHeaderSearchOpen, setIsHeaderSearchOpen] = useState(false);
+  const [catalogHeaderHeight, setCatalogHeaderHeight] = useState(56);
   const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
   const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
   const [catalogSearchPlaceholderDeleting, setCatalogSearchPlaceholderDeleting] = useState(false);
@@ -58,6 +61,8 @@ function Catalog() {
 
   const productGroupRefs = useRef({});
   const viewedAdsRef = useRef(new Set());
+  const catalogHeaderRef = useRef(null);
+  const catalogSearchInputRef = useRef(null);
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
@@ -342,6 +347,47 @@ function Catalog() {
     catalogSearchPlaceholderDeleting
   ]);
 
+  useEffect(() => {
+    if (catalogSearchQuery && !isHeaderSearchOpen) {
+      setIsHeaderSearchOpen(true);
+    }
+  }, [catalogSearchQuery, isHeaderSearchOpen]);
+
+  useEffect(() => {
+    if (!isHeaderSearchOpen) return;
+    const timer = setTimeout(() => {
+      catalogSearchInputRef.current?.focus();
+    }, 160);
+    return () => clearTimeout(timer);
+  }, [isHeaderSearchOpen]);
+
+  useEffect(() => {
+    const headerEl = catalogHeaderRef.current;
+    if (!headerEl) return undefined;
+
+    const updateHeaderHeight = () => {
+      const nextHeight = Math.round(headerEl.getBoundingClientRect().height || 56);
+      setCatalogHeaderHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    };
+
+    updateHeaderHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(updateHeaderHeight);
+      ro.observe(headerEl);
+      return () => ro.disconnect();
+    }
+
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
+
+  const clearCatalogSearch = () => setCatalogSearchQuery('');
+
+  const toggleHeaderSearch = () => {
+    setIsHeaderSearchOpen((prev) => !prev);
+  };
+
   const nonEmptyCategoryIds = useMemo(() => {
     const memo = new Map();
 
@@ -618,11 +664,10 @@ function Catalog() {
               padding: 0,
               zIndex: 4,
               boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-              fontSize: '14px',
               lineHeight: 1
             }}
           >
-            {favoriteActive ? '♥' : '♡'}
+            <HeartIcon size={16} filled={favoriteActive} color={favoriteActive ? '#ffffff' : '#8f6d46'} />
           </button>
 
           {/* Quantity controls on image */}
@@ -913,20 +958,21 @@ function Catalog() {
     }
   };
 
-  const renderCatalogSearch = () => (
-    <div className="mt-2 mb-0">
+  const renderCatalogSearch = ({ compact = false } = {}) => (
+    <div className={compact ? 'mt-0 mb-0' : 'mt-2 mb-0'}>
       <div
         style={{
           border: '1px solid rgba(165,133,92,0.22)',
-          background: '#fff',
+          background: compact ? 'rgba(255,255,255,0.95)' : '#fff',
           borderRadius: 12,
           padding: '10px 12px',
-          boxShadow: '0 2px 8px rgba(60, 42, 24, 0.04)'
+          boxShadow: compact ? '0 6px 18px rgba(60, 42, 24, 0.08)' : '0 2px 8px rgba(60, 42, 24, 0.04)'
         }}
       >
         <div className="d-flex align-items-center gap-2">
           <span style={{ color: '#8f6d46', fontSize: '0.95rem' }}>🔎</span>
             <input
+              ref={catalogSearchInputRef}
               type="search"
               value={catalogSearchQuery}
               onChange={(e) => setCatalogSearchQuery(e.target.value)}
@@ -943,7 +989,7 @@ function Catalog() {
           {catalogSearchQuery && (
             <button
               type="button"
-              onClick={() => setCatalogSearchQuery('')}
+              onClick={clearCatalogSearch}
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -1130,6 +1176,7 @@ function Catalog() {
   return (
     <>
       <Navbar
+        ref={catalogHeaderRef}
         expand="lg"
         className="mb-0"
         style={{
@@ -1145,8 +1192,31 @@ function Catalog() {
         }}
       >
         <div className="d-flex justify-content-between align-items-center w-100 px-3">
-          {/* Empty space for balance */}
-          <div style={{ width: '40px' }} />
+          <button
+            type="button"
+            onClick={toggleHeaderSearch}
+            aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+            title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: 12,
+              border: isHeaderSearchOpen || normalizedCatalogSearch
+                ? '1px solid rgba(143, 109, 70, 0.22)'
+                : '1px solid transparent',
+              background: isHeaderSearchOpen || normalizedCatalogSearch
+                ? 'rgba(255,255,255,0.7)'
+                : 'transparent',
+              color: '#6f5538',
+              fontSize: '1rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.22s ease'
+            }}
+          >
+            🔎
+          </button>
 
           {/* Center logo */}
           <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto">
@@ -1198,13 +1268,29 @@ function Catalog() {
             />
           </button>
         </div>
+
+        <div
+          className="px-3"
+          style={{
+            overflow: 'hidden',
+            maxHeight: isHeaderSearchOpen ? 88 : 0,
+            opacity: isHeaderSearchOpen ? 1 : 0,
+            transform: `translateY(${isHeaderSearchOpen ? 0 : -8}px)`,
+            transition: 'max-height 0.28s ease, opacity 0.22s ease, transform 0.28s ease',
+            pointerEvents: isHeaderSearchOpen ? 'auto' : 'none'
+          }}
+        >
+          <div style={{ padding: '0 0 10px' }}>
+            {renderCatalogSearch({ compact: true })}
+          </div>
+        </div>
       </Navbar>
 
       {selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 && (
         <div
           style={{
             position: 'sticky',
-            top: 56,
+            top: catalogHeaderHeight,
             zIndex: 1000,
             overflowX: 'auto',
             whiteSpace: 'nowrap',
@@ -1256,7 +1342,6 @@ function Catalog() {
             )}
 
             {!loading && renderCartTotalBanner()}
-            {!loading && renderCatalogSearch()}
             {!loading && normalizedCatalogSearch && renderCatalogSearchResults()}
 
             {!loading && !normalizedCatalogSearch && selectedCategory === null && (
