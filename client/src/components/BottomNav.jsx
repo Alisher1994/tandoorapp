@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 
 function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { cart } = useCart();
+  const { favoriteCount } = useFavorites();
   const { t } = useLanguage();
   const [isCompact, setIsCompact] = useState(false);
   const lastScrollTopRef = useRef(0);
@@ -17,6 +19,7 @@ function BottomNav() {
   
   const navItems = [
     { path: '/', icon: '🏠', label: t('menu') },
+    { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
     { path: '/orders', icon: '📋', label: t('orders') },
     { path: '/feedback', icon: '💬', label: t('feedback') || 'Жалобы' },

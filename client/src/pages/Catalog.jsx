@@ -9,6 +9,7 @@ import Button from 'react-bootstrap/Button';
 import Navbar from 'react-bootstrap/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { useCart, formatPrice } from '../context/CartContext';
+import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 
@@ -51,6 +52,7 @@ function Catalog() {
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const { language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
 
@@ -175,6 +177,13 @@ function Catalog() {
 
   const handleAddToCart = (product) => {
     addToCart({
+      ...product,
+      restaurant_id: selectedRestaurant
+    });
+  };
+
+  const handleToggleFavorite = (product) => {
+    toggleFavorite({
       ...product,
       restaurant_id: selectedRestaurant
     });
@@ -540,6 +549,7 @@ function Catalog() {
     const qty = cartItem?.quantity || 0;
     const overlayKey = `qty_open_${product.id}`;
     const isOpen = catalogQtyOpen?.[overlayKey];
+    const favoriteActive = isFavorite(product.id);
 
     return (
       <Card className="h-100 shadow-sm border-0">
@@ -578,6 +588,42 @@ function Catalog() {
               <span className="badge bg-secondary">{language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}</span>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleToggleFavorite(product);
+            }}
+            aria-label={favoriteActive
+              ? (language === 'uz' ? 'Saralanganlardan olib tashlash' : 'Убрать из избранного')
+              : (language === 'uz' ? 'Saralanganlarga qo‘shish' : 'Добавить в избранное')}
+            title={favoriteActive
+              ? (language === 'uz' ? 'Saralanganlardan olib tashlash' : 'Убрать из избранного')
+              : (language === 'uz' ? 'Saralanganlarga qo‘shish' : 'Добавить в избранное')}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 30,
+              height: 30,
+              borderRadius: '999px',
+              border: '1px solid rgba(255,255,255,0.55)',
+              background: favoriteActive ? 'rgba(255, 95, 125, 0.94)' : 'rgba(255,255,255,0.92)',
+              color: favoriteActive ? '#fff' : '#8f6d46',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              zIndex: 4,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+              fontSize: '14px',
+              lineHeight: 1
+            }}
+          >
+            {favoriteActive ? '♥' : '♡'}
+          </button>
 
           {/* Quantity controls on image */}
           {product.in_stock && (

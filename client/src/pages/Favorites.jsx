@@ -1,0 +1,232 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import Container from 'react-bootstrap/Container';
+import Card from 'react-bootstrap/Card';
+import Button from 'react-bootstrap/Button';
+import Badge from 'react-bootstrap/Badge';
+import { useAuth } from '../context/AuthContext';
+import { useCart, formatPrice } from '../context/CartContext';
+import { useFavorites } from '../context/FavoritesContext';
+import { useLanguage } from '../context/LanguageContext';
+import BottomNav from '../components/BottomNav';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+function Favorites() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { t, language, toggleLanguage } = useLanguage();
+  const { cart, addToCart } = useCart();
+  const { favorites, removeFavorite, updateFavoriteQuantity } = useFavorites();
+
+  const getProductName = (product) => (
+    language === 'uz' && product?.name_uz ? product.name_uz : product?.name_ru
+  );
+
+  const getUnitName = (product) => (
+    language === 'uz' && product?.unit_uz ? product.unit_uz : product?.unit
+  );
+
+  const resolveImageUrl = (url) => {
+    if (!url) return '';
+    return url.startsWith('http') ? url : `${API_URL.replace('/api', '')}${url}`;
+  };
+
+  const favoritesSorted = [...favorites].sort((a, b) => {
+    const aActive = Number(a.restaurant_id) === Number(user?.active_restaurant_id);
+    const bActive = Number(b.restaurant_id) === Number(user?.active_restaurant_id);
+    if (aActive !== bActive) return aActive ? -1 : 1;
+    return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
+  });
+
+  const addFavoriteToCart = (item) => {
+    const count = Math.max(1, Number(item.favorite_quantity) || 1);
+    addToCart({ ...item }, count);
+  };
+
+  return (
+    <>
+      <div className="bg-white shadow-sm py-3 mb-3">
+        <Container style={{ maxWidth: '600px' }}>
+          <div className="d-flex align-items-center justify-content-between">
+            <div style={{ width: '40px' }} />
+            {user?.active_restaurant_logo ? (
+              <img
+                src={String(user.active_restaurant_logo).startsWith('http')
+                  ? user.active_restaurant_logo
+                  : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
+                alt="Logo"
+                height="36"
+                style={{ objectFit: 'contain' }}
+              />
+            ) : (
+              <span style={{ fontSize: '1.5rem' }}>❤️</span>
+            )}
+            <button
+              onClick={toggleLanguage}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              <img
+                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+                alt={language === 'ru' ? 'RU' : 'UZ'}
+                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+              />
+            </button>
+          </div>
+        </Container>
+      </div>
+
+      <Container className="py-2" style={{ maxWidth: '600px' }}>
+        <div className="d-flex align-items-center justify-content-between mb-3">
+          <h5 className="mb-0" style={{ color: '#4b3a27', fontWeight: 700 }}>
+            ❤️ {t('favorites') || (language === 'uz' ? 'Saralanganlar' : 'Избранные')}
+          </h5>
+          <small className="text-muted">{favoritesSorted.length}</small>
+        </div>
+
+        {favoritesSorted.length === 0 ? (
+          <Card className="border-0 shadow-sm">
+            <Card.Body className="text-center py-4">
+              <div style={{ fontSize: '2rem' }} className="mb-2">🤍</div>
+              <div className="fw-semibold mb-1">
+                {language === 'uz' ? 'Saralanganlar bo‘sh' : 'Избранное пусто'}
+              </div>
+              <div className="text-muted small mb-3">
+                {language === 'uz'
+                  ? 'Katalogda yurakcha bosib tovarlarni saqlang'
+                  : 'Нажмите на сердечко в карточке товара, чтобы сохранить'}
+              </div>
+              <Button variant="primary" onClick={() => navigate('/')}>
+                {language === 'uz' ? 'Menyuga o‘tish' : 'Перейти в меню'}
+              </Button>
+            </Card.Body>
+          </Card>
+        ) : (
+          <div className="d-flex flex-column gap-3">
+            {favoritesSorted.map((item) => {
+              const imageUrl = resolveImageUrl(item.thumb_url || item.image_url);
+              const cartQty = cart.find((cartItem) => Number(cartItem.id) === Number(item.id))?.quantity || 0;
+              const itemName = getProductName(item);
+              const itemUnit = getUnitName(item);
+              return (
+                <Card key={`favorite-${item.id}`} className="border-0 shadow-sm">
+                  <Card.Body className="p-3">
+                    <div className="d-flex gap-3 align-items-start">
+                      <div
+                        style={{
+                          width: 72,
+                          height: 72,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          background: '#f3eee4',
+                          flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {imageUrl ? (
+                          <img src={imageUrl} alt={itemName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <span style={{ opacity: 0.5, fontSize: '1.6rem' }}>📦</span>
+                        )}
+                      </div>
+
+                      <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <div style={{ minWidth: 0 }}>
+                            <div className="fw-semibold" style={{ color: '#3a2b1b', lineHeight: 1.2 }}>
+                              {itemName}
+                            </div>
+                            {itemUnit && (
+                              <div className="small text-muted mt-1">{itemUnit}</div>
+                            )}
+                            <div className="fw-bold mt-1" style={{ color: 'var(--primary-color)' }}>
+                              {formatPrice(item.price)} {t('sum')}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeFavorite(item.id)}
+                            className="border-0 bg-transparent p-0"
+                            aria-label={language === 'uz' ? 'Saralanganlardan olib tashlash' : 'Убрать из избранного'}
+                            title={language === 'uz' ? 'Saralanganlardan olib tashlash' : 'Убрать из избранного'}
+                            style={{ lineHeight: 1, fontSize: '1.25rem' }}
+                          >
+                            ❤️
+                          </button>
+                        </div>
+
+                        <div className="d-flex align-items-center justify-content-between mt-2 gap-2 flex-wrap">
+                          <div
+                            className="d-flex align-items-center rounded-pill"
+                            style={{
+                              background: '#f8f2e8',
+                              border: '1px solid rgba(143, 109, 70, 0.18)',
+                              padding: '2px'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="btn btn-sm border-0 bg-transparent"
+                              style={{ width: 30, height: 30, lineHeight: 1, color: '#6f5538' }}
+                              onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) - 1)}
+                            >
+                              −
+                            </button>
+                            <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#3a2b1b' }}>
+                              {Math.max(1, Number(item.favorite_quantity) || 1)}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-sm border-0 bg-transparent"
+                              style={{ width: 30, height: 30, lineHeight: 1, color: 'var(--primary-color)' }}
+                              onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) + 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <div className="d-flex align-items-center gap-2 ms-auto">
+                            {cartQty > 0 && (
+                              <Badge bg="light" text="dark" style={{ border: '1px solid rgba(143, 109, 70, 0.18)' }}>
+                                {language === 'uz' ? 'Savatda' : 'В корзине'}: {cartQty}
+                              </Badge>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => addFavoriteToCart(item)}
+                              disabled={item.in_stock === false}
+                            >
+                              {item.in_stock === false
+                                ? (language === 'uz' ? 'Yo‘q' : 'Нет')
+                                : (language === 'uz' ? "Savatga qo'shish" : 'В корзину')}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card.Body>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ height: '70px' }} />
+      </Container>
+
+      <BottomNav />
+    </>
+  );
+}
+
+export default Favorites;
+

@@ -19,6 +19,7 @@ const translations = {
 
     // Navigation
     menu: 'Меню',
+    favorites: 'Избранные',
     cart: 'Корзина',
     orders: 'Заказы',
     feedback: 'Жалобы',
@@ -443,6 +444,7 @@ const translations = {
 
     // Navigation
     menu: 'Menyu',
+    favorites: 'Saralanganlar',
     cart: 'Savat',
     orders: 'Buyurtmalar',
     feedback: 'Shikoyat',
