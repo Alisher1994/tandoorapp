@@ -37,6 +37,9 @@ function Cart() {
   const [formData, setFormData] = useState({
     delivery_address: user?.last_address || '',
     delivery_coordinates: savedCoordinates,
+    house: '',
+    apartment: '',
+    door_code: '',
     customer_name: user?.full_name || 'Клиент',
     customer_phone: user?.phone || '',
     payment_method: 'cash',
@@ -46,6 +49,7 @@ function Cart() {
   });
 
   const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
+  const [showDeliveryTimeOptions, setShowDeliveryTimeOptions] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -84,6 +88,19 @@ function Cart() {
     restaurant?.uzum_url,
     restaurant?.xazna_url
   ]);
+  const addressDetailsParts = useMemo(() => {
+    const parts = [];
+    if (String(formData.house || '').trim()) {
+      parts.push(`${language === 'uz' ? 'uy' : 'дом'} ${String(formData.house).trim()}`);
+    }
+    if (String(formData.apartment || '').trim()) {
+      parts.push(`${language === 'uz' ? 'kv' : 'кв'} ${String(formData.apartment).trim()}`);
+    }
+    if (String(formData.door_code || '').trim()) {
+      parts.push(`${language === 'uz' ? 'kod' : 'код'} ${String(formData.door_code).trim()}`);
+    }
+    return parts;
+  }, [formData.house, formData.apartment, formData.door_code, language]);
 
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
@@ -460,10 +477,14 @@ function Cart() {
     try {
       const restaurant_id = cart[0]?.restaurant_id || user?.active_restaurant_id;
 
-      // Если нет адреса но есть локация - указываем что доставка по локации
-      const deliveryAddress = !isDeliveryEnabled
+      // Если нет адреса но есть локация - указываем что доставка по локации.
+      // Детали адреса (дом/квартира/код) добавляем в ту же строку для операторов.
+      const baseDeliveryAddress = !isDeliveryEnabled
         ? 'Самовывоз'
         : (formData.delivery_address || (hasLocation ? 'По геолокации' : ''));
+      const deliveryAddress = !isDeliveryEnabled
+        ? baseDeliveryAddress
+        : [baseDeliveryAddress, addressDetailsParts.join(', ')].filter(Boolean).join(', ');
 
       const orderData = {
         items: cart.map(item => ({
@@ -573,6 +594,29 @@ function Cart() {
 
   return (
     <>
+      <style>{`
+        .cart-addresses-sheet-modal {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          margin: 0 auto;
+          width: min(500px, calc(100vw - 16px));
+        }
+        .cart-addresses-sheet-modal .modal-content {
+          border-radius: 18px 18px 0 0;
+          overflow: hidden;
+        }
+        @media (min-width: 576px) {
+          .cart-addresses-sheet-modal {
+            bottom: 8px;
+            width: min(500px, calc(100vw - 32px));
+          }
+          .cart-addresses-sheet-modal .modal-content {
+            border-radius: 18px;
+          }
+        }
+      `}</style>
       {/* Header with language switcher */}
       <div className="bg-white shadow-sm py-3 mb-3">
         <Container style={{ maxWidth: '500px' }}>
@@ -608,13 +652,6 @@ function Cart() {
       </div>
 
       <Container className="py-3" style={{ maxWidth: '500px' }}>
-        {/* Заголовок с номером шага */}
-        <div className="text-center mb-4">
-          <h5 className="mb-2">
-            {step === 1 ? `🛒 ${t('yourOrder')}` : `📍 ${t('delivery')}`}
-          </h5>
-        </div>
-
         {error && <Alert variant="danger" className="py-2 mb-3">{error}</Alert>}
 
         {/* ШАГ 1: Список товаров */}
@@ -721,7 +758,7 @@ function Cart() {
                             <div className="small text-muted">{savedAddresses.find(a => a.id === selectedAddressId)?.address}</div>
                           </div>
                           <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => setShowAddressModal(true)}>
-                            {language === 'uz' ? "O'zgartirish" : 'Изменить'}
+                            {language === 'uz' ? 'Mening manzillarim' : 'Мои адреса'}
                           </Button>
                         </div>
                       </div>
@@ -763,6 +800,43 @@ function Cart() {
                   </div>
                 )}
 
+                {isDeliveryEnabled && (
+                  <Form.Group className="mb-3">
+                    <Form.Label className="small text-muted mb-1">
+                      {language === 'uz' ? 'Manzil tafsilotlari' : 'Детали адреса'}
+                    </Form.Label>
+                    <div className="row g-2">
+                      <div className="col-6">
+                        <Form.Control
+                          type="text"
+                          value={formData.house}
+                          onChange={(e) => setFormData({ ...formData, house: e.target.value })}
+                          placeholder={language === 'uz' ? 'Uy' : 'Дом'}
+                          className="border-0 bg-light"
+                        />
+                      </div>
+                      <div className="col-6">
+                        <Form.Control
+                          type="text"
+                          value={formData.apartment}
+                          onChange={(e) => setFormData({ ...formData, apartment: e.target.value })}
+                          placeholder={language === 'uz' ? 'Kvartira' : 'Квартира'}
+                          className="border-0 bg-light"
+                        />
+                      </div>
+                      <div className="col-12">
+                        <Form.Control
+                          type="text"
+                          value={formData.door_code}
+                          onChange={(e) => setFormData({ ...formData, door_code: e.target.value })}
+                          placeholder={language === 'uz' ? 'Eshik kodi / domofon' : 'Код двери / домофон'}
+                          className="border-0 bg-light"
+                        />
+                      </div>
+                    </div>
+                  </Form.Group>
+                )}
+
                 {/* Телефон */}
                 <Form.Group className="mb-3">
                   <Form.Label className="small text-muted mb-1">
@@ -781,29 +855,51 @@ function Cart() {
                 {/* Время доставки */}
                 <Form.Group className="mb-3">
                   <Form.Label className="small text-muted mb-1">{t('deliveryTime')}</Form.Label>
-                  <div className="d-flex gap-2 mb-2">
-                    <Button
-                      variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
-                      size="sm"
-                      className="flex-fill"
-                      onClick={() => setDeliveryTimeMode('asap')}
-                    >
-                      🚀 {t('asap')}
-                    </Button>
-                    <Button
-                      variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
-                      size="sm"
-                      className="flex-fill"
-                      onClick={() => setDeliveryTimeMode('scheduled')}
-                    >
-                      🕐 {t('scheduled')}
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="light"
+                    className="w-100 d-flex align-items-center justify-content-between border-0 bg-light"
+                    onClick={() => setShowDeliveryTimeOptions(prev => !prev)}
+                    style={{ minHeight: 42 }}
+                  >
+                    <span className="fw-medium">
+                      {deliveryTimeMode === 'scheduled' ? `🕐 ${t('scheduled')}` : `🚀 ${t('asap')}`}
+                    </span>
+                    <span className="text-muted small">{showDeliveryTimeOptions ? '▲' : '▼'}</span>
+                  </Button>
+                  {showDeliveryTimeOptions && (
+                    <div className="d-flex flex-column gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant={deliveryTimeMode === 'asap' ? 'primary' : 'outline-secondary'}
+                        size="sm"
+                        className="text-start"
+                        onClick={() => {
+                          setDeliveryTimeMode('asap');
+                          setShowDeliveryTimeOptions(false);
+                        }}
+                      >
+                        🚀 {t('asap')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={deliveryTimeMode === 'scheduled' ? 'primary' : 'outline-secondary'}
+                        size="sm"
+                        className="text-start"
+                        onClick={() => {
+                          setDeliveryTimeMode('scheduled');
+                          setShowDeliveryTimeOptions(false);
+                        }}
+                      >
+                        🕐 {t('scheduled')}
+                      </Button>
+                    </div>
+                  )}
                   {deliveryTimeMode === 'scheduled' && (
                     <Form.Select
+                      className="border-0 bg-light mt-2"
                       value={formData.delivery_time}
                       onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
-                      className="border-0 bg-light"
                     >
                       {availableTimes.length === 0 ? (
                         <option value="">Нет доступного времени</option>
@@ -994,11 +1090,22 @@ function Cart() {
         </Modal>
 
         {/* Модалка выбора из сохранённых адресов */}
-        <Modal show={showAddressModal} onHide={() => setShowAddressModal(false)} centered size="md">
-          <Modal.Header closeButton className="border-0 pb-0">
-            <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Manzillar' : 'Адреса'}</Modal.Title>
+        <Modal
+          show={showAddressModal}
+          onHide={() => setShowAddressModal(false)}
+          dialogClassName="cart-addresses-sheet-modal"
+          contentClassName="border-0 shadow-lg"
+        >
+          <Modal.Header closeButton className="border-0 pb-1">
+            <div className="w-100">
+              <div
+                className="mx-auto mb-2"
+                style={{ width: 44, height: 4, borderRadius: 999, background: '#d9d9d9' }}
+              />
+              <Modal.Title className="fs-5">📍 {language === 'uz' ? 'Mening manzillarim' : 'Мои адреса'}</Modal.Title>
+            </div>
           </Modal.Header>
-          <Modal.Body className="p-0">
+          <Modal.Body className="p-0" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
             <ListGroup variant="flush">
               {savedAddresses.map(addr => (
                 <ListGroup.Item
@@ -1028,19 +1135,19 @@ function Cart() {
                 </ListGroup.Item>
               ))}
             </ListGroup>
-            <div className="p-3 border-top">
-              <Button
-                variant="primary"
-                className="w-100"
-                onClick={() => {
-                  setShowAddressModal(false);
-                  setShowLocationModal(true);
-                }}
-              >
-                ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Новый адрес'}
-              </Button>
-            </div>
           </Modal.Body>
+          <Modal.Footer className="border-0 pt-2">
+            <Button
+              variant="primary"
+              className="w-100"
+              onClick={() => {
+                setShowAddressModal(false);
+                setShowLocationModal(true);
+              }}
+            >
+              ➕ {language === 'uz' ? "Manzil qo'shish" : 'Добавить адрес'}
+            </Button>
+          </Modal.Footer>
         </Modal>
 
         {/* Модалка сохранения нового адреса */}
@@ -1114,6 +1221,12 @@ function Cart() {
                       {savedAddresses.find(a => a.id === selectedAddressId)?.address}
                     </>
                   ) : formData.delivery_address || (language === 'uz' ? 'Joriy joylashuv' : 'По геолокации')}
+                  {addressDetailsParts.length > 0 && (
+                    <>
+                      <br />
+                      <span className="small text-muted">{addressDetailsParts.join(', ')}</span>
+                    </>
+                  )}
                 </div>
               </Alert>
             )}
