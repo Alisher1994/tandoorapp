@@ -4115,12 +4115,9 @@ function AdminDashboard() {
                                         <span>Click URL</span>
                                       </Form.Label>
                                       <InputGroup>
-                                        <InputGroup.Text className="bg-white border-end-0 px-2">
-                                          <img src="/click.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
-                                        </InputGroup.Text>
                                         <Form.Control
                                           type="text"
-                                          className="form-control-custom border-start-0"
+                                          className="form-control-custom"
                                           value={restaurantSettings.click_url || ''}
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
                                           placeholder="https://..."
@@ -4135,12 +4132,9 @@ function AdminDashboard() {
                                         <span>Payme URL</span>
                                       </Form.Label>
                                       <InputGroup>
-                                        <InputGroup.Text className="bg-white border-end-0 px-2">
-                                          <img src="/payme.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
-                                        </InputGroup.Text>
                                         <Form.Control
                                           type="text"
-                                          className="form-control-custom border-start-0"
+                                          className="form-control-custom"
                                           value={restaurantSettings.payme_url || ''}
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_url: e.target.value })}
                                           placeholder="https://..."
@@ -4155,12 +4149,9 @@ function AdminDashboard() {
                                         <span>Uzum URL</span>
                                       </Form.Label>
                                       <InputGroup>
-                                        <InputGroup.Text className="bg-white border-end-0 px-2">
-                                          <img src="/uzum.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
-                                        </InputGroup.Text>
                                         <Form.Control
                                           type="text"
-                                          className="form-control-custom border-start-0"
+                                          className="form-control-custom"
                                           value={restaurantSettings.uzum_url || ''}
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, uzum_url: e.target.value })}
                                           placeholder="https://..."
@@ -4175,12 +4166,9 @@ function AdminDashboard() {
                                         <span>Xazna URL</span>
                                       </Form.Label>
                                       <InputGroup>
-                                        <InputGroup.Text className="bg-white border-end-0 px-2">
-                                          <img src="/xazna.png" alt="" aria-hidden="true" style={{ height: 18, objectFit: 'contain' }} />
-                                        </InputGroup.Text>
                                         <Form.Control
                                           type="text"
-                                          className="form-control-custom border-start-0"
+                                          className="form-control-custom"
                                           value={restaurantSettings.xazna_url || ''}
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, xazna_url: e.target.value })}
                                           placeholder="https://..."
