@@ -1224,6 +1224,18 @@ function SuperAdminDashboard() {
     });
   };
 
+  const toggleAdBannerActivityType = (activityTypeId) => {
+    const id = Number(activityTypeId);
+    if (!Number.isInteger(id) || id <= 0) return;
+
+    setAdBannerForm((prev) => {
+      const current = new Set((prev.target_activity_type_ids || []).map(Number));
+      if (current.has(id)) current.delete(id);
+      else current.add(id);
+      return { ...prev, target_activity_type_ids: [...current].sort((a, b) => a - b) };
+    });
+  };
+
   const customerRestaurantOptions = useMemo(() => {
     const term = customerRestaurantSearch.trim().toLowerCase();
     const filtered = allRestaurants.filter((restaurant) => (
@@ -4525,24 +4537,60 @@ function SuperAdminDashboard() {
             <Col md={12}>
               <Form.Group>
                 <Form.Label className="small fw-bold text-muted text-uppercase">Таргетинг по виду деятельности</Form.Label>
-                <Form.Select
-                  multiple
-                  className="form-control-custom"
-                  value={(adBannerForm.target_activity_type_ids || []).map(String)}
-                  onChange={(e) => {
-                    const values = Array.from(e.target.selectedOptions || [])
-                      .map((opt) => Number(opt.value))
-                      .filter((v) => Number.isInteger(v) && v > 0);
-                    setAdBannerForm((prev) => ({ ...prev, target_activity_type_ids: values }));
-                  }}
-                  style={{ minHeight: '140px' }}
+                <div
+                  className="border rounded p-2"
+                  style={{ maxHeight: '180px', overflowY: 'auto', background: '#fff' }}
                 >
-                  {adBannerActivityTypeOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}{item.is_visible === false ? ' (скрыт)' : ''}
-                    </option>
-                  ))}
-                </Form.Select>
+                  {adBannerActivityTypeOptions.length > 0 ? (
+                    <div className="d-flex flex-column gap-1">
+                      {adBannerActivityTypeOptions.map((item) => {
+                        const checked = (adBannerForm.target_activity_type_ids || []).map(Number).includes(Number(item.id));
+                        return (
+                          <div
+                            key={item.id}
+                            className="d-flex align-items-center justify-content-between gap-2 px-2 py-1 rounded"
+                            style={{ background: checked ? 'rgba(13,110,253,0.06)' : 'transparent' }}
+                          >
+                            <Form.Check
+                              type="checkbox"
+                              id={`ad-activity-type-${item.id}`}
+                              className="mb-0"
+                              label={`${item.name}${item.is_visible === false ? ' (скрыт)' : ''}`}
+                              checked={checked}
+                              onChange={() => toggleAdBannerActivityType(item.id)}
+                            />
+                            <small className="text-muted">#{item.id}</small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-muted small px-2 py-1">Нет доступных видов деятельности</div>
+                  )}
+                </div>
+                {adBannerActivityTypeOptions.length > 0 && (
+                  <div className="d-flex gap-2 flex-wrap mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline-primary"
+                      onClick={() => setAdBannerForm((prev) => ({
+                        ...prev,
+                        target_activity_type_ids: adBannerActivityTypeOptions.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0)
+                      }))}
+                    >
+                      Выбрать все
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline-secondary"
+                      onClick={() => setAdBannerForm((prev) => ({ ...prev, target_activity_type_ids: [] }))}
+                    >
+                      Снять все
+                    </Button>
+                  </div>
+                )}
                 <Form.Text className="text-muted d-block mt-1">
                   Если ничего не выбрано, реклама показывается всем магазинам. Можно выбрать несколько видов.
                 </Form.Text>
