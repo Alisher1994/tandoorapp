@@ -83,9 +83,15 @@ const BOT_TEXTS = {
 
 // Generate login token for auto-login
 function generateLoginToken(userId, username, options = {}) {
-  const { expiresIn = '30d', role = '' } = options;
+  const { expiresIn = '30d', role = '', restaurantId = null } = options;
   return jwt.sign(
-    { userId, username, autoLogin: true, ...(role ? { role } : {}) },
+    {
+      userId,
+      username,
+      autoLogin: true,
+      ...(role ? { role } : {}),
+      ...(restaurantId ? { restaurantId: Number(restaurantId) } : {})
+    },
     process.env.JWT_SECRET,
     { expiresIn }
   );
@@ -720,7 +726,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       return;
     }
 
-    const token = generateLoginToken(user.id, user.username);
+    const token = generateLoginToken(user.id, user.username, { restaurantId });
     const loginUrl = buildCatalogUrl(appUrl, token);
     if (!loginUrl) {
       await bot.sendMessage(chatId, t(userLang, 'loginWarn'));
@@ -847,7 +853,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         );
       } else {
-        const token = generateLoginToken(user.id, user.username);
+        const token = generateLoginToken(user.id, user.username, { restaurantId });
         const loginUrl = buildCatalogUrl(appUrl, token);
 
         await bot.sendMessage(
@@ -954,7 +960,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
         );
       } else {
-        const token = generateLoginToken(user.id, user.username);
+        const token = generateLoginToken(user.id, user.username, { restaurantId });
         const loginUrl = buildCatalogUrl(appUrl, token);
 
         bot.sendMessage(chatId,
@@ -1072,7 +1078,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
 
         const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
-        const loginUrl = buildCatalogUrl(appUrl, generateLoginToken(user.id, newPhone || user.username || `user_${userId}`));
+        const loginUrl = buildCatalogUrl(
+          appUrl,
+          generateLoginToken(user.id, newPhone || user.username || `user_${userId}`, { restaurantId })
+        );
 
         await cleanupFlowMessages(chatId, stateKey);
         bot.sendMessage(chatId,
@@ -1341,7 +1350,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
 
         const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
-        const loginUrl = buildCatalogUrl(appUrl, generateLoginToken(user.id, user.username || `user_${userId}`));
+        const loginUrl = buildCatalogUrl(
+          appUrl,
+          generateLoginToken(user.id, user.username || `user_${userId}`, { restaurantId })
+        );
 
         await cleanupFlowMessages(chatId, stateKey);
         bot.sendMessage(chatId,
@@ -1443,7 +1455,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           [location.latitude, location.longitude, restaurantId, user.id]
         );
 
-        const token = generateLoginToken(user.id, user.username);
+        const token = generateLoginToken(user.id, user.username, { restaurantId });
         const loginUrl = buildCatalogUrl(appUrl, token);
 
         await cleanupFlowMessages(chatId, stateKey);
@@ -1497,7 +1509,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         ON CONFLICT (user_id, restaurant_id) DO NOTHING
       `, [newUserId, restaurantId]);
 
-      const token = generateLoginToken(newUserId, username);
+      const token = generateLoginToken(newUserId, username, { restaurantId });
       const loginUrl = buildCatalogUrl(appUrl, token);
 
       bot.sendMessage(chatId,
@@ -1575,7 +1587,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               reply_markup: buildAdminReplyKeyboard(loginUrl, selectedLang)
             });
           } else {
-            const token = generateLoginToken(user.id, user.username || `user_${user.id}`);
+            const token = generateLoginToken(user.id, user.username || `user_${user.id}`, { restaurantId });
             const loginUrl = buildCatalogUrl(appUrl, token);
             await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'), {
               reply_markup: buildCustomerReplyKeyboard(loginUrl, selectedLang)
@@ -1814,7 +1826,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           return;
         }
         const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(query.from?.language_code));
-        const loginUrl = buildCatalogUrl(appUrl, generateLoginToken(user.id, user.username || `user_${userId}`));
+        const loginUrl = buildCatalogUrl(
+          appUrl,
+          generateLoginToken(user.id, user.username || `user_${userId}`, { restaurantId })
+        );
         bot.sendMessage(chatId, '❌ Отменено', {
           reply_markup: buildCustomerReplyKeyboard(loginUrl, userLang)
         });

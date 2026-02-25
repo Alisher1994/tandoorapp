@@ -15,7 +15,12 @@ const authenticate = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from database with active restaurant info and location
+    const decodedRestaurantId = Number.parseInt(decoded?.restaurantId, 10);
+    const tokenRestaurantId = Number.isInteger(decodedRestaurantId) && decodedRestaurantId > 0
+      ? decodedRestaurantId
+      : null;
+
+    // Get user from database with location info
     const userResult = await pool.query(`
       SELECT 
         u.id, 
@@ -29,16 +34,8 @@ const authenticate = async (req, res, next) => {
         u.balance,
         u.last_latitude,
         u.last_longitude,
-        u.last_address,
-        r.name as active_restaurant_name,
-        r.logo_url as active_restaurant_logo,
-        r.logo_display_mode as active_restaurant_logo_display_mode,
-        r.service_fee as active_restaurant_service_fee,
-        r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
-        r.balance as restaurant_balance,
-        r.is_free_tier as restaurant_is_free_tier
+        u.last_address
       FROM users u
-      LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
       WHERE u.id = $1
     `, [decoded.userId]);
 
@@ -47,6 +44,59 @@ const authenticate = async (req, res, next) => {
     }
 
     const user = userResult.rows[0];
+
+    // Customer tokens can carry restaurant context; apply it per session to avoid cross-store leakage.
+    if (user.role === 'customer' && tokenRestaurantId) {
+      const customerRestaurantAccessResult = await pool.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM user_restaurants ur
+          WHERE ur.user_id = $1 AND ur.restaurant_id = $2
+        ) OR EXISTS (
+          SELECT 1 FROM orders o
+          WHERE o.user_id = $1 AND o.restaurant_id = $2
+        ) OR $2 = COALESCE($3, -1) AS has_access
+      `, [user.id, tokenRestaurantId, user.active_restaurant_id]);
+
+      if (!customerRestaurantAccessResult.rows[0]?.has_access) {
+        return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+      }
+
+      user.active_restaurant_id = tokenRestaurantId;
+    }
+
+    user.active_restaurant_name = null;
+    user.active_restaurant_logo = null;
+    user.active_restaurant_logo_display_mode = null;
+    user.active_restaurant_service_fee = null;
+    user.active_restaurant_is_delivery_enabled = null;
+    user.restaurant_balance = null;
+    user.restaurant_is_free_tier = null;
+
+    if (user.active_restaurant_id) {
+      const restaurantResult = await pool.query(`
+        SELECT
+          name,
+          logo_url,
+          logo_display_mode,
+          service_fee,
+          is_delivery_enabled,
+          balance,
+          is_free_tier
+        FROM restaurants
+        WHERE id = $1
+      `, [user.active_restaurant_id]);
+
+      if (restaurantResult.rows.length > 0) {
+        const restaurant = restaurantResult.rows[0];
+        user.active_restaurant_name = restaurant.name;
+        user.active_restaurant_logo = restaurant.logo_url;
+        user.active_restaurant_logo_display_mode = restaurant.logo_display_mode;
+        user.active_restaurant_service_fee = restaurant.service_fee;
+        user.active_restaurant_is_delivery_enabled = restaurant.is_delivery_enabled;
+        user.restaurant_balance = restaurant.balance;
+        user.restaurant_is_free_tier = restaurant.is_free_tier;
+      }
+    }
 
     // For operators/superadmins, use restaurant balance as "the" balance
     if (user.role === 'operator' || user.role === 'superadmin') {

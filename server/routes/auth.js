@@ -250,11 +250,18 @@ router.post('/login', async (req, res) => {
       user = validCandidates[0];
     }
 
-    const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const tokenPayload = {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      ...(user.role === 'customer' && user.active_restaurant_id
+        ? { restaurantId: Number(user.active_restaurant_id) }
+        : {})
+    };
+
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    });
 
     // Get restaurants for operators and superadmins
     let restaurants = [];

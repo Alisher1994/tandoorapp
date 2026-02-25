@@ -13,9 +13,15 @@ let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 
 // Generate login token for auto-login
 function generateLoginToken(userId, username, options = {}) {
-  const { expiresIn = '30d', role = '' } = options;
+  const { expiresIn = '30d', role = '', restaurantId = null } = options;
   return jwt.sign(
-    { userId, username, autoLogin: true, ...(role ? { role } : {}) },
+    {
+      userId,
+      username,
+      autoLogin: true,
+      ...(role ? { role } : {}),
+      ...(restaurantId ? { restaurantId: Number(restaurantId) } : {})
+    },
     process.env.JWT_SECRET,
     { expiresIn } // Token valid for configured period
   );
@@ -1749,7 +1755,7 @@ async function initBot() {
           
           let loginUrl = null;
           try {
-            const token = generateLoginToken(user.id, user.username);
+            const token = generateLoginToken(user.id, user.username, { restaurantId: restaurant.id });
             loginUrl = buildCatalogUrl(appUrl, token);
           } catch (tokenError) {
             console.error('Login token error:', tokenError);
@@ -1813,7 +1819,7 @@ async function initBot() {
         registrationStates.delete(userId);
         
         // Generate auto-login token
-        const token = generateLoginToken(newUserId, username);
+        const token = generateLoginToken(newUserId, username, { restaurantId: restaurant.id });
         const loginUrl = buildCatalogUrl(appUrl, token);
         
         bot.sendMessage(chatId,

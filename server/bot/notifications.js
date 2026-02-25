@@ -103,7 +103,8 @@ function buildCustomerCatalogUrl(order) {
     {
       userId: Number(order.user_id),
       username: order.customer_phone || order.customer_name || `user_${order.user_id}`,
-      autoLogin: true
+      autoLogin: true,
+      ...(order?.restaurant_id ? { restaurantId: Number(order.restaurant_id) } : {})
     },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
