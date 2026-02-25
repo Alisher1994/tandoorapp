@@ -55,6 +55,18 @@ body {
   scroll-behavior: smooth;
 }
 
+@supports (-webkit-touch-callout: none) {
+  @media (hover: none) and (pointer: coarse) {
+    .alert {
+      border-radius: 14px;
+    }
+
+    .card {
+      border-radius: 18px;
+    }
+  }
+}
+
 /* Sticky header fix for iOS */
 .sticky-top,
 [style*="position: sticky"] {

@@ -11,6 +11,7 @@ function BottomNav() {
   const { favoriteCount } = useFavorites();
   const { t } = useLanguage();
   const [isCompact, setIsCompact] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
   const lastScrollTopRef = useRef(0);
   
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -24,6 +25,11 @@ function BottomNav() {
     { path: '/orders', icon: '📋', label: t('orders') },
     { path: '/feedback', icon: '💬', label: t('feedback') || 'Жалобы' },
   ];
+
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    setIsIOSDevice(/iPhone|iPad|iPod/i.test(ua));
+  }, []);
 
   useEffect(() => {
     setIsCompact(false);
@@ -71,18 +77,22 @@ function BottomNav() {
   return (
     <nav style={{
       position: 'fixed',
-      bottom: 10,
-      left: 10,
-      right: 10,
+      bottom: isIOSDevice ? 'max(10px, env(safe-area-inset-bottom))' : 10,
+      left: isIOSDevice ? 12 : 10,
+      right: isIOSDevice ? 12 : 10,
       background: 'rgba(255, 250, 243, 0.88)',
       border: '1px solid rgba(143, 109, 70, 0.18)',
       display: 'flex',
       justifyContent: 'space-around',
       alignItems: 'center',
-      padding: isCompact ? '6px 6px' : '8px 6px 10px',
+      padding: isCompact
+        ? (isIOSDevice ? '7px 8px' : '6px 6px')
+        : (isIOSDevice ? '10px 8px 12px' : '8px 6px 10px'),
       zIndex: 1000,
       boxShadow: '0 14px 34px rgba(52, 36, 18, 0.14)',
-      borderRadius: isCompact ? 16 : 20,
+      borderRadius: isCompact
+        ? (isIOSDevice ? 20 : 16)
+        : (isIOSDevice ? 28 : 20),
       backdropFilter: 'blur(10px)',
       WebkitBackdropFilter: 'blur(10px)',
       transition: 'padding 0.24s ease, border-radius 0.24s ease, box-shadow 0.24s ease',
@@ -106,7 +116,7 @@ function BottomNav() {
             justifyContent: 'center',
             background: isActive(item.path) ? 'rgba(143, 109, 70, 0.08)' : 'transparent',
             border: isActive(item.path) ? '1px solid rgba(143, 109, 70, 0.16)' : '1px solid transparent',
-            borderRadius: 14,
+            borderRadius: isIOSDevice ? 18 : 14,
             padding: isCompact ? '5px 10px' : '6px 14px',
             cursor: 'pointer',
             position: 'relative',
