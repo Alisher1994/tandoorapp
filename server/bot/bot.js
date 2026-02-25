@@ -1782,7 +1782,7 @@ async function initBot() {
               reply_markup: {
                 remove_keyboard: true,
                 inline_keyboard: [
-                  [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
+                  [{ text: '🏪 Открыть магазин', web_app: { url: loginUrl } }],
                   [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
                 ]
               }
@@ -1832,7 +1832,7 @@ async function initBot() {
             reply_markup: {
               remove_keyboard: true,
               inline_keyboard: [
-                [{ text: '🍽️ Открыть меню', web_app: { url: loginUrl } }],
+                [{ text: '🏪 Открыть магазин', web_app: { url: loginUrl } }],
                 [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
               ]
             }

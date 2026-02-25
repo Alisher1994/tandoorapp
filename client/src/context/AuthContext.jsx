@@ -49,6 +49,7 @@ export function AuthProvider({ children }) {
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
       setUser(response.data.user);
+      localStorage.setItem('active_restaurant_id', String(response.data.user?.active_restaurant_id || ''));
       setIsBlocked(false);
       setSupportUsername(null);
       return { success: true, user: response.data.user };
@@ -65,6 +66,7 @@ export function AuthProvider({ children }) {
       // Logout only when token is invalid/expired/unauthorized
       if (status === 401) {
         localStorage.removeItem('token');
+        localStorage.removeItem('active_restaurant_id');
         delete axios.defaults.headers.common['Authorization'];
         setUser(null);
         return { success: false, unauthorized: true };
@@ -94,6 +96,7 @@ export function AuthProvider({ children }) {
       
       const { token, user } = response.data;
       localStorage.setItem('token', token);
+      localStorage.setItem('active_restaurant_id', String(user?.active_restaurant_id || ''));
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       return { success: true };
@@ -120,6 +123,7 @@ export function AuthProvider({ children }) {
       // Ignore logout errors
     }
     localStorage.removeItem('token');
+    localStorage.removeItem('active_restaurant_id');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
@@ -138,6 +142,7 @@ export function AuthProvider({ children }) {
         active_restaurant_logo: response.data.active_restaurant_logo,
         active_restaurant_logo_display_mode: response.data.active_restaurant_logo_display_mode
       }));
+      localStorage.setItem('active_restaurant_id', String(response.data.active_restaurant_id || ''));
       
       return { success: true };
     } catch (error) {

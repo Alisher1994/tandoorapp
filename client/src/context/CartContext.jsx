@@ -1,6 +1,38 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 const CartContext = createContext();
+const CART_STORAGE_KEY = 'cart';
+
+function parseRestaurantId(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getActiveRestaurantId() {
+  try {
+    return parseRestaurantId(localStorage.getItem('active_restaurant_id'));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCartItem(item) {
+  return {
+    ...item,
+    id: Number(item?.id),
+    quantity: Math.max(1, Number(item?.quantity) || 1),
+    restaurant_id: parseRestaurantId(item?.restaurant_id)
+  };
+}
+
+function isSameProductInRestaurant(item, productId, restaurantId) {
+  return Number(item?.id) === Number(productId) && parseRestaurantId(item?.restaurant_id) === restaurantId;
+}
+
+function filterCartByRestaurant(allItems, restaurantId) {
+  if (!restaurantId) return allItems;
+  return allItems.filter((item) => parseRestaurantId(item?.restaurant_id) === restaurantId);
+}
 
 // Helper to format price with spaces (10 000 instead of 10000)
 export function formatPrice(price) {
@@ -9,10 +41,11 @@ export function formatPrice(price) {
 
 export function CartProvider({ children }) {
   // Initialize cart from localStorage
-  const [cart, setCart] = useState(() => {
+  const [allCartItems, setAllCartItems] = useState(() => {
     try {
-      const saved = localStorage.getItem('cart');
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed.map(normalizeCartItem) : [];
     } catch {
       return [];
     }
@@ -20,23 +53,27 @@ export function CartProvider({ children }) {
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(allCartItems));
+  }, [allCartItems]);
+
+  const activeRestaurantId = getActiveRestaurantId();
+  const cart = filterCartByRestaurant(allCartItems, activeRestaurantId);
 
   const addToCart = (product, quantityToAdd = 1) => {
     const safeQty = Math.max(1, Number(quantityToAdd) || 1);
-    setCart(prevCart => {
-      const existingItem = prevCart.find(item => item.id === product.id);
+    const productRestaurantId = parseRestaurantId(product?.restaurant_id) || activeRestaurantId;
+    setAllCartItems((prevCart) => {
+      const existingItem = prevCart.find((item) => isSameProductInRestaurant(item, product.id, productRestaurantId));
       
       if (existingItem) {
-        return prevCart.map(item =>
-          item.id === product.id
+        return prevCart.map((item) =>
+          isSameProductInRestaurant(item, product.id, productRestaurantId)
             ? { ...item, quantity: item.quantity + safeQty }
             : item
         );
       }
       
-      return [...prevCart, { ...product, quantity: safeQty }];
+      return [...prevCart, normalizeCartItem({ ...product, restaurant_id: productRestaurantId, quantity: safeQty })];
     });
   };
 
@@ -46,19 +83,30 @@ export function CartProvider({ children }) {
       return;
     }
     
-    setCart(prevCart =>
-      prevCart.map(item =>
-        item.id === productId ? { ...item, quantity } : item
+    setAllCartItems((prevCart) =>
+      prevCart.map((item) =>
+        isSameProductInRestaurant(item, productId, activeRestaurantId)
+          || (!activeRestaurantId && Number(item.id) === Number(productId))
+          ? { ...item, quantity }
+          : item
       )
     );
   };
 
   const removeFromCart = (productId) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== productId));
+    setAllCartItems((prevCart) => prevCart.filter((item) => {
+      const inActiveRestaurant = isSameProductInRestaurant(item, productId, activeRestaurantId);
+      if (activeRestaurantId) return !inActiveRestaurant;
+      return Number(item.id) !== Number(productId);
+    }));
   };
 
   const clearCart = () => {
-    setCart([]);
+    if (!activeRestaurantId) {
+      setAllCartItems([]);
+      return;
+    }
+    setAllCartItems((prevCart) => prevCart.filter((item) => parseRestaurantId(item?.restaurant_id) !== activeRestaurantId));
   };
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);

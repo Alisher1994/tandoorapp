@@ -26,7 +26,7 @@ const BOT_TEXTS = {
   ru: {
     chooseLanguage: '🌐 Выберите язык системы:',
     languageSaved: '✅ Язык сохранен.',
-    openMenu: 'Открыть меню',
+    openMenu: '🏪 Открыть магазин',
     promoButton: '😍 Акция',
     myOrders: '📋 Мои заказы',
     contactButton: '☎️ Связь',
@@ -54,7 +54,7 @@ const BOT_TEXTS = {
   uz: {
     chooseLanguage: '🌐 Tizim tilini tanlang:',
     languageSaved: '✅ Til saqlandi.',
-    openMenu: 'Menyuni ochish',
+    openMenu: "🏪 Do'konni ochish",
     promoButton: '😍 Aksiya',
     myOrders: '📋 Buyurtmalarim',
     contactButton: "☎️ Bog'lanish",
@@ -964,7 +964,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const loginUrl = buildCatalogUrl(appUrl, token);
 
         bot.sendMessage(chatId,
-          `🍽️ <b>${restaurantName}</b>\n\n` +
+          `🏪 <b>${restaurantName}</b>\n\n` +
           (loginUrl
             ? (userLang === 'uz' ? 'Menyuni ochish uchun quyidagi tugmani bosing:' : 'Нажмите кнопку ниже, чтобы открыть меню:')
             : t(userLang, 'loginWarn')),
