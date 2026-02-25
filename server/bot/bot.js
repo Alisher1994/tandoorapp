@@ -32,7 +32,7 @@ const onboardingStates = new Map();
 const languagePreferences = new Map();
 const pendingLanguageActions = new Map();
 const lastSuperadminStartMenuMessageIds = new Map();
-const lastSuperadminKeyboardMessageIds = new Map();
+const onboardingUiMessageIds = new Map();
 
 const BOT_LANGUAGES = ['ru', 'uz'];
 const BOT_TEXTS = {
@@ -48,7 +48,6 @@ const BOT_TEXTS = {
     loginButton: '🔐 Войти в систему',
     resetButton: '🔐 Восстановить логин и пароль',
     languageMenuButton: '🌐 Язык',
-    menuMessage: '⬇️ Меню',
     newOrderButton: '🛒 Новый заказ',
     myOrdersButton: '📋 Мои заказы',
     welcomeStart: '👋 Добро пожаловать!\n\nДоступен только сценарий регистрации магазина.',
@@ -71,7 +70,6 @@ const BOT_TEXTS = {
     loginButton: '🔐 Tizimga kirish',
     resetButton: '🔐 Login va parolni tiklash',
     languageMenuButton: '🌐 Til',
-    menuMessage: '⬇️ Menyu',
     newOrderButton: '🛒 Yangi buyurtma',
     myOrdersButton: '📋 Buyurtmalarim',
     welcomeStart: '👋 Xush kelibsiz!\n\nFaqat do‘kon ro‘yxatdan o‘tish ssenariysi mavjud.',
@@ -522,7 +520,31 @@ async function initBot() {
     } catch (_) { }
   }
 
-  async function sendSuperadminActionKeyboard(chatId, userId, lang) {
+  function rememberOnboardingUiMessage(userId, messageId) {
+    if (!userId || !messageId) return;
+    const current = onboardingUiMessageIds.get(userId) || [];
+    const next = current.includes(messageId) ? current : [...current, messageId].slice(-30);
+    onboardingUiMessageIds.set(userId, next);
+  }
+
+  async function sendOnboardingUiMessage(chatId, userId, text, options = {}) {
+    const sent = await bot.sendMessage(chatId, text, options);
+    if (sent?.message_id) {
+      rememberOnboardingUiMessage(userId, sent.message_id);
+    }
+    return sent;
+  }
+
+  async function clearOnboardingUiMessages(chatId, userId, extraMessageIds = []) {
+    const tracked = onboardingUiMessageIds.get(userId) || [];
+    onboardingUiMessageIds.delete(userId);
+    const ids = [...new Set([...tracked, ...extraMessageIds].filter(Boolean))];
+    for (const id of ids) {
+      await tryDeleteBotMessage(chatId, id);
+    }
+  }
+
+  async function getSuperadminActionReplyMarkup(userId, lang) {
     const language = normalizeBotLanguage(lang);
     const user = await resolvePreferredAdminTelegramUser(userId);
     const isAdminUser = !!user && (user.role === 'operator' || user.role === 'superadmin');
@@ -536,21 +558,10 @@ async function initBot() {
         [{ text: t(language, 'registerStoreButton') }, { text: t(language, 'languageMenuButton') }]
       ];
 
-    const previousKeyboardMsgId = lastSuperadminKeyboardMessageIds.get(userId);
-    if (previousKeyboardMsgId) {
-      await tryDeleteBotMessage(chatId, previousKeyboardMsgId);
-    }
-
-    const sent = await bot.sendMessage(chatId, '\u2063', {
-      reply_markup: {
-        keyboard,
-        resize_keyboard: true
-      },
-      disable_notification: true
-    });
-    if (sent?.message_id) {
-      lastSuperadminKeyboardMessageIds.set(userId, sent.message_id);
-    }
+    return {
+      keyboard,
+      resize_keyboard: true
+    };
   }
 
   async function sendStartMenu(chatId, userId, lang) {
@@ -564,26 +575,23 @@ async function initBot() {
     if (user) {
 
       if (!user.is_active) {
+        const actionKeyboard = await getSuperadminActionReplyMarkup(userId, language);
         const sent = await bot.sendMessage(
           chatId,
-          t(language, 'blockedText'),
+          `${t(language, 'blockedText')}\n\nhttps://t.me/budavron`,
           {
             parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: t(language, 'supportButton'), url: 'https://t.me/budavron' }]
-              ]
-            }
+            reply_markup: actionKeyboard
           }
         );
         if (sent?.message_id) {
           lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
         }
-        await sendSuperadminActionKeyboard(chatId, userId, language);
         return;
       }
 
       if (user.role === 'operator' || user.role === 'superadmin') {
+        const actionKeyboard = await getSuperadminActionReplyMarkup(userId, language);
         const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
           expiresIn: '1h',
           role: user.role
@@ -603,15 +611,12 @@ async function initBot() {
           loginUrlLine,
           {
             parse_mode: 'HTML',
-            reply_markup: {
-              remove_keyboard: true
-            }
+            reply_markup: actionKeyboard
           }
         );
         if (sent?.message_id) {
           lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
         }
-        await sendSuperadminActionKeyboard(chatId, userId, language);
       } else {
         await bot.sendMessage(
           chatId,
@@ -631,20 +636,18 @@ async function initBot() {
       return;
     }
 
+    const actionKeyboard = await getSuperadminActionReplyMarkup(userId, language);
     const sent = await bot.sendMessage(
       chatId,
       t(language, 'welcomeStart'),
       {
         parse_mode: 'HTML',
-        reply_markup: {
-          remove_keyboard: true
-        }
+        reply_markup: actionKeyboard
       }
     );
     if (sent?.message_id) {
       lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
     }
-    await sendSuperadminActionKeyboard(chatId, userId, language);
   }
 
   async function askOnboardingField(chatId, userId, field) {
@@ -660,7 +663,7 @@ async function initBot() {
     };
 
     if (field === 'phone') {
-      await bot.sendMessage(chatId, prompts[field], {
+      await sendOnboardingUiMessage(chatId, userId, prompts[field], {
         parse_mode: 'HTML',
         reply_markup: {
           keyboard: [[{ text: t(userLang, 'shareContact'), request_contact: true }]],
@@ -672,7 +675,7 @@ async function initBot() {
     }
 
     if (field === 'location') {
-      await bot.sendMessage(chatId, prompts[field], {
+      await sendOnboardingUiMessage(chatId, userId, prompts[field], {
         parse_mode: 'HTML',
         reply_markup: {
           keyboard: [[{ text: t(userLang, 'shareLocation'), request_location: true }]],
@@ -684,7 +687,7 @@ async function initBot() {
     }
 
     if (field === 'group_id') {
-      await bot.sendMessage(chatId, prompts[field], {
+      await sendOnboardingUiMessage(chatId, userId, prompts[field], {
         parse_mode: 'HTML',
         reply_markup: {
           keyboard: [
@@ -706,7 +709,7 @@ async function initBot() {
       return;
     }
 
-    await bot.sendMessage(chatId, prompts[field], {
+    await sendOnboardingUiMessage(chatId, userId, prompts[field], {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [[{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]]
@@ -723,7 +726,7 @@ async function initBot() {
     if (stepName === 'logo_url') {
       state.step = 'await_logo_choice';
       onboardingStates.set(stateKey, state);
-      await bot.sendMessage(chatId,
+      await sendOnboardingUiMessage(chatId, userId,
         onboardingT(userLang, 'optionalLogo'),
         {
           reply_markup: {
@@ -740,7 +743,7 @@ async function initBot() {
     if (stepName === 'bot_token') {
       state.step = 'await_token_choice';
       onboardingStates.set(stateKey, state);
-      await bot.sendMessage(chatId,
+      await sendOnboardingUiMessage(chatId, userId,
         onboardingT(userLang, 'optionalToken'),
         {
           reply_markup: {
@@ -757,7 +760,7 @@ async function initBot() {
     if (stepName === 'group_id') {
       state.step = 'await_group_choice';
       onboardingStates.set(stateKey, state);
-      await bot.sendMessage(chatId,
+      await sendOnboardingUiMessage(chatId, userId,
         onboardingT(userLang, 'optionalGroup'),
         {
           reply_markup: {
@@ -890,6 +893,7 @@ async function initBot() {
         ? (userLang === 'uz' ? `Kirish: ${loginUrl}` : loginLine)
         : loginLine;
 
+      const actionKeyboard = await getSuperadminActionReplyMarkup(userId, userLang);
       await bot.sendMessage(
         chatId,
         onboardingT(userLang, 'finalSuccess', {
@@ -902,15 +906,9 @@ async function initBot() {
         }),
         {
           parse_mode: 'HTML',
-          reply_markup: loginUrl
-            ? {
-              remove_keyboard: true,
-              inline_keyboard: [[{ text: onboardingT(userLang, 'loginButton'), url: loginUrl }]]
-            }
-            : { remove_keyboard: true }
+          reply_markup: actionKeyboard
         }
       );
-      await sendSuperadminActionKeyboard(chatId, userId, userLang);
 
       try {
         const superadminsResult = await pool.query(
@@ -960,12 +958,14 @@ async function initBot() {
 
   async function startOnboarding(chatId, userId) {
     const userLang = normalizeBotLanguage(languagePreferences.get(userId) || 'ru');
+    await clearOnboardingUiMessages(chatId, userId);
     onboardingStates.set(getOnboardingStateKey(userId), {
       step: 'await_store_name',
       lang: userLang
     });
-    await bot.sendMessage(
+    await sendOnboardingUiMessage(
       chatId,
+      userId,
       onboardingT(userLang, 'intro'),
       {
         parse_mode: 'HTML',
@@ -1021,6 +1021,7 @@ async function initBot() {
       source: 'superadmin_bot',
       token: adminAutoLoginToken
     });
+    const actionKeyboard = await getSuperadminActionReplyMarkup(telegramUserId, normalizeBotLanguage(languagePreferences.get(telegramUserId) || 'ru'));
     await bot.sendMessage(
       chatId,
       `✅ <b>Доступ восстановлен</b>\n\n` +
@@ -1030,9 +1031,7 @@ async function initBot() {
       `Рекомендуется войти и сменить пароль.`,
       {
         parse_mode: 'HTML',
-        reply_markup: loginUrl
-          ? { inline_keyboard: [[{ text: '🔐 Войти в систему', url: loginUrl }]] }
-          : undefined
+        reply_markup: actionKeyboard
       }
     );
   }
@@ -1192,6 +1191,7 @@ async function initBot() {
 
     if (isLanguageMenuText) {
       onboardingStates.delete(getOnboardingStateKey(userId));
+      await clearOnboardingUiMessages(chatId, userId);
       await sendLanguagePicker(chatId, userId, 'start', currentLang);
       return;
     }
@@ -1290,6 +1290,7 @@ async function initBot() {
 
         if (normalizedText === onboardingT(userLang, 'cancel') || normalizedText === '❌ Отмена') {
           onboardingStates.delete(onboardingKey);
+          await clearOnboardingUiMessages(chatId, userId);
           await bot.sendMessage(chatId, onboardingT(userLang, 'cancelled'), {
             reply_markup: { remove_keyboard: true }
           });
@@ -1776,6 +1777,7 @@ async function initBot() {
     if (data === 'onboard_cancel') {
       const userLang = getOnboardingLanguage(userId);
       onboardingStates.delete(getOnboardingStateKey(userId));
+      await clearOnboardingUiMessages(chatId, userId, [messageId]);
       await bot.sendMessage(chatId, onboardingT(userLang, 'cancelled'), { reply_markup: { remove_keyboard: true } });
       return;
     }
