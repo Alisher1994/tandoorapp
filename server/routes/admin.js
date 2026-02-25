@@ -2777,4 +2777,3 @@ pl.id,
 });
 
 module.exports = router;
-    const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
