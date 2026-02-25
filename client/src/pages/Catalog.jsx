@@ -669,7 +669,7 @@ function Catalog() {
               style={{ height: '140px', background: '#f8f9fa' }}
               className="d-flex align-items-center justify-content-center"
             >
-              <span style={{ fontSize: '3rem', opacity: 0.3 }}>🍽️</span>
+              <span style={{ fontSize: '3rem', opacity: 0.3 }}>🏪</span>
             </div>
           )}
           {!product.in_stock && (
@@ -1301,7 +1301,7 @@ function Catalog() {
                 );
               })()
             ) : (
-              <span style={{ fontSize: '1.7rem' }}>🍽️</span>
+              <span style={{ fontSize: '1.7rem' }}>🏪</span>
             )}
           </Navbar.Brand>
 
@@ -1515,7 +1515,7 @@ function Catalog() {
 
             {!loading && !normalizedCatalogSearch && selectedCategory === null && level1Categories.length === 0 && (
               <div className="text-center py-5">
-                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
+                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🏪</div>
                 <p className="text-muted mt-3">Товары пока не добавлены</p>
                 {isOperator() && (
                   <Button variant="primary" onClick={() => navigate('/admin')}>
@@ -1527,7 +1527,7 @@ function Catalog() {
 
             {!loading && !normalizedCatalogSearch && selectedCategory !== null && productSections.length === 0 && (
               <div className="text-center py-5">
-                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🍽️</div>
+                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🏪</div>
                 <p className="text-muted mt-3">
                   {language === 'uz' ? 'Tanlangan bo‘limda mahsulotlar topilmadi' : 'В выбранном разделе товары не найдены'}
                 </p>
