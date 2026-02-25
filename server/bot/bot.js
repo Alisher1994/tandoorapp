@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
+const { reloadMultiBots } = require('./multiBotManager');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -973,6 +974,14 @@ async function initBot() {
 
       await client.query('COMMIT');
       onboardingStates.delete(stateKey);
+
+      try {
+        if (restaurant.telegram_bot_token && String(restaurant.telegram_bot_token).trim()) {
+          await reloadMultiBots();
+        }
+      } catch (reloadErr) {
+        console.error('Reload multi bots after onboarding error:', reloadErr.message);
+      }
 
       const adminAutoLoginToken = generateLoginToken(userIdDb, username, {
         expiresIn: '1h',
