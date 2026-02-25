@@ -45,6 +45,8 @@ const BOT_TEXTS = {
     supportButton: '📞 Связаться с поддержкой',
     loginButton: '🔐 Войти в систему',
     resetButton: '🔐 Восстановить логин и пароль',
+    languageMenuButton: '🌐 Язык',
+    menuMessage: '⬇️ Меню',
     newOrderButton: '🛒 Новый заказ',
     myOrdersButton: '📋 Мои заказы',
     welcomeStart: '👋 Добро пожаловать!\n\nДоступен только сценарий регистрации магазина.',
@@ -66,6 +68,8 @@ const BOT_TEXTS = {
     supportButton: '📞 Yordam bilan bog‘lanish',
     loginButton: '🔐 Tizimga kirish',
     resetButton: '🔐 Login va parolni tiklash',
+    languageMenuButton: '🌐 Til',
+    menuMessage: '⬇️ Menyu',
     newOrderButton: '🛒 Yangi buyurtma',
     myOrdersButton: '📋 Buyurtmalarim',
     welcomeStart: '👋 Xush kelibsiz!\n\nFaqat do‘kon ro‘yxatdan o‘tish ssenariysi mavjud.',
@@ -499,6 +503,28 @@ async function initBot() {
     });
   }
 
+  async function sendSuperadminActionKeyboard(chatId, userId, lang) {
+    const language = normalizeBotLanguage(lang);
+    const user = await resolvePreferredAdminTelegramUser(userId);
+    const isAdminUser = !!user && (user.role === 'operator' || user.role === 'superadmin');
+
+    const keyboard = isAdminUser
+      ? [
+        [{ text: t(language, 'loginButton') }, { text: t(language, 'resetButton') }],
+        [{ text: t(language, 'languageMenuButton') }]
+      ]
+      : [
+        [{ text: t(language, 'registerStoreButton') }, { text: t(language, 'languageMenuButton') }]
+      ];
+
+    await bot.sendMessage(chatId, t(language, 'menuMessage'), {
+      reply_markup: {
+        keyboard,
+        resize_keyboard: true
+      }
+    });
+  }
+
   async function sendStartMenu(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
     const user = await resolvePreferredAdminTelegramUser(userId);
@@ -518,6 +544,7 @@ async function initBot() {
             }
           }
         );
+        await sendSuperadminActionKeyboard(chatId, userId, language);
         return;
       }
 
@@ -546,6 +573,7 @@ async function initBot() {
             }
           }
         );
+        await sendSuperadminActionKeyboard(chatId, userId, language);
       } else {
         await bot.sendMessage(
           chatId,
@@ -577,6 +605,7 @@ async function initBot() {
         }
       }
     );
+    await sendSuperadminActionKeyboard(chatId, userId, language);
   }
 
   async function askOnboardingField(chatId, userId, field) {
@@ -840,6 +869,7 @@ async function initBot() {
             : { remove_keyboard: true }
         }
       );
+      await sendSuperadminActionKeyboard(chatId, userId, userLang);
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Finalize onboarding error:', error);
@@ -1074,6 +1104,38 @@ async function initBot() {
     
     // Skip commands
     if (text.startsWith('/')) return;
+
+    const currentLang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
+    const isRegisterMenuText = [t('ru', 'registerStoreButton'), t('uz', 'registerStoreButton')].includes(text);
+    const isLanguageMenuText = [t('ru', 'languageMenuButton'), t('uz', 'languageMenuButton')].includes(text);
+    const isLoginMenuText = [t('ru', 'loginButton'), t('uz', 'loginButton')].includes(text);
+    const isResetMenuText = [t('ru', 'resetButton'), t('uz', 'resetButton')].includes(text);
+
+    if (isLanguageMenuText) {
+      onboardingStates.delete(getOnboardingStateKey(userId));
+      await sendLanguagePicker(chatId, userId, 'start', currentLang);
+      return;
+    }
+
+    if (isRegisterMenuText) {
+      await startOnboarding(chatId, userId);
+      return;
+    }
+
+    if (isLoginMenuText) {
+      await sendStartMenu(chatId, userId, currentLang);
+      return;
+    }
+
+    if (isResetMenuText) {
+      try {
+        await resetAccessByTelegram(chatId, userId);
+      } catch (error) {
+        console.error('Reset access error from menu button:', error);
+        await bot.sendMessage(chatId, t(currentLang, 'genericError'));
+      }
+      return;
+    }
 
     const onboardingKey = getOnboardingStateKey(userId);
     const onboardingState = onboardingStates.get(onboardingKey);
