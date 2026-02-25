@@ -165,6 +165,13 @@ async function resolvePreferredAdminTelegramUser(telegramId) {
   return result.rows[0] || null;
 }
 
+async function resolvePreferredSuperadminAccessUser(telegramId) {
+  const user = await resolvePreferredAdminTelegramUser(telegramId);
+  if (!user) return null;
+  if (user.role === 'customer') return null;
+  return user;
+}
+
 function normalizeBotLanguage(value) {
   const candidate = String(value || '').trim().toLowerCase();
   return BOT_LANGUAGES.includes(candidate) ? candidate : 'ru';
@@ -548,7 +555,7 @@ async function initBot() {
 
   async function getSuperadminActionReplyMarkup(userId, lang) {
     const language = normalizeBotLanguage(lang);
-    const user = await resolvePreferredAdminTelegramUser(userId);
+    const user = await resolvePreferredSuperadminAccessUser(userId);
     const isAdminUser = !!user && (user.role === 'operator' || user.role === 'superadmin');
 
     const keyboard = isAdminUser
@@ -569,7 +576,7 @@ async function initBot() {
 
   async function sendStartMenu(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
-    const user = await resolvePreferredAdminTelegramUser(userId);
+    const user = await resolvePreferredSuperadminAccessUser(userId);
     const previousStartMenuMsgId = lastSuperadminStartMenuMessageIds.get(userId);
     if (previousStartMenuMsgId) {
       await tryDeleteBotMessage(chatId, previousStartMenuMsgId);
@@ -620,21 +627,6 @@ async function initBot() {
         if (sent?.message_id) {
           lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
         }
-      } else {
-        await bot.sendMessage(
-          chatId,
-          t(language, 'welcomeBack', { name: user.full_name || user.username }),
-          {
-            parse_mode: 'HTML',
-            reply_markup: {
-              remove_keyboard: true,
-              inline_keyboard: [
-                [{ text: t(language, 'newOrderButton'), callback_data: 'new_order' }],
-                [{ text: t(language, 'myOrdersButton'), callback_data: 'my_orders' }]
-              ]
-            }
-          }
-        );
       }
       return;
     }
