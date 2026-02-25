@@ -376,6 +376,33 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     return result.rows[0] || null;
   };
 
+  const isCustomerLinkedToRestaurant = async (dbUserId) => {
+    if (!dbUserId) return false;
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM user_restaurants ur
+         WHERE ur.user_id = $1
+           AND ur.restaurant_id = $2
+       ) OR EXISTS (
+         SELECT 1
+         FROM orders o
+         WHERE o.user_id = $1
+           AND o.restaurant_id = $2
+       ) AS is_linked`,
+      [dbUserId, restaurantId]
+    );
+    return !!result.rows[0]?.is_linked;
+  };
+
+  const resolveStartMenuUser = async (telegramId) => {
+    const user = await resolvePreferredTelegramUser(telegramId);
+    if (!user) return null;
+    if (user.role !== 'customer') return user;
+    const isLinked = await isCustomerLinkedToRestaurant(user.id);
+    return isLinked ? user : null;
+  };
+
   const buildMainMenuButtons = (loginUrl, lang) => {
     const menuButtons = [];
     if (loginUrl) {
@@ -457,7 +484,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
-    const user = await resolvePreferredTelegramUser(userId);
+    const user = await resolveStartMenuUser(userId);
     if (!user) {
       await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
       return;
@@ -840,7 +867,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Check if user is blocked
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
-      const user = await resolvePreferredTelegramUser(userId);
+      const user = await resolveStartMenuUser(userId);
 
       if (!user) {
         bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');

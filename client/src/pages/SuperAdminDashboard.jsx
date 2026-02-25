@@ -1271,6 +1271,31 @@ function SuperAdminDashboard() {
     return digits.match(/.{1,4}/g)?.join(' ') || digits;
   };
 
+  const copyToClipboard = async (value, successMessage = 'Скопировано') => {
+    const text = String(value || '').trim();
+    if (!text || text === '—') return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setSuccess(successMessage);
+      setError('');
+    } catch (e) {
+      setError('Не удалось скопировать');
+    }
+  };
+
   const normalizeMoneyFieldValue = (value) => {
     if (value === null || value === undefined || value === '') return '';
     const numeric = Number(String(value).replace(/\s/g, '').replace(',', '.'));
@@ -2680,8 +2705,31 @@ function SuperAdminDashboard() {
                               </td>
                               <td>
                                 <strong className="text-dark">{r.name}</strong>
-                                <div className="small text-muted">
-                                  {r.telegram_bot_username || '—'}
+                                <div className="small text-muted d-flex align-items-center gap-1">
+                                  <span>{r.telegram_bot_username || '—'}</span>
+                                  {!!r.telegram_bot_username && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(r.telegram_bot_username, 'Ник бота скопирован')}
+                                      title="Копировать ник бота"
+                                      aria-label="Копировать ник бота"
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        padding: 0,
+                                        lineHeight: 0,
+                                        color: '#8b5e34',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M9 9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2V9Z" stroke="currentColor" strokeWidth="1.8" />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="1.8" />
+                                      </svg>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                               <td>

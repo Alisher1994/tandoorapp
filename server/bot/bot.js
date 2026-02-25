@@ -47,6 +47,7 @@ const BOT_TEXTS = {
     supportButton: '📞 Связаться с поддержкой',
     loginButton: '🔐 Войти в систему',
     resetButton: '🔐 Восстановить логин и пароль',
+    helpMenuButton: '🆘 Помощь',
     languageMenuButton: '🌐 Язык',
     newOrderButton: '🛒 Новый заказ',
     myOrdersButton: '📋 Мои заказы',
@@ -69,6 +70,7 @@ const BOT_TEXTS = {
     supportButton: '📞 Yordam bilan bog‘lanish',
     loginButton: '🔐 Tizimga kirish',
     resetButton: '🔐 Login va parolni tiklash',
+    helpMenuButton: '🆘 Yordam',
     languageMenuButton: '🌐 Til',
     newOrderButton: '🛒 Yangi buyurtma',
     myOrdersButton: '📋 Buyurtmalarim',
@@ -552,10 +554,11 @@ async function initBot() {
     const keyboard = isAdminUser
       ? [
         [{ text: t(language, 'loginButton') }, { text: t(language, 'resetButton') }],
-        [{ text: t(language, 'languageMenuButton') }]
+        [{ text: t(language, 'languageMenuButton') }, { text: t(language, 'helpMenuButton') }]
       ]
       : [
-        [{ text: t(language, 'registerStoreButton') }, { text: t(language, 'languageMenuButton') }]
+        [{ text: t(language, 'registerStoreButton') }, { text: t(language, 'languageMenuButton') }],
+        [{ text: t(language, 'helpMenuButton') }]
       ];
 
     return {
@@ -647,6 +650,30 @@ async function initBot() {
     );
     if (sent?.message_id) {
       lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
+    }
+  }
+
+  async function sendSuperadminHelpInfo(chatId, lang) {
+    const language = normalizeBotLanguage(lang);
+    try {
+      const result = await pool.query(
+        'SELECT phone_number, telegram_username FROM billing_settings WHERE id = 1 LIMIT 1'
+      );
+      const settings = result.rows[0] || {};
+      const phone = String(settings.phone_number || '').trim() || '—';
+      let username = String(settings.telegram_username || '').trim() || '—';
+      if (username !== '—' && !username.startsWith('@')) {
+        username = `@${username}`;
+      }
+
+      const message = language === 'uz'
+        ? `🆘 <b>Yordam uchun superadmin ma'lumotlari</b>\n\n📞 Telefon: ${phone}\n👤 Superadmin niki: ${username}`
+        : `🆘 <b>Данные суперадмина для помощи</b>\n\n📞 Телефон: ${phone}\n👤 Ник суперадмина: ${username}`;
+
+      await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    } catch (error) {
+      console.error('Send superadmin help info error:', error);
+      await bot.sendMessage(chatId, t(language, 'genericError'));
     }
   }
 
@@ -1188,6 +1215,7 @@ async function initBot() {
     const isLanguageMenuText = [t('ru', 'languageMenuButton'), t('uz', 'languageMenuButton')].includes(text);
     const isLoginMenuText = [t('ru', 'loginButton'), t('uz', 'loginButton')].includes(text);
     const isResetMenuText = [t('ru', 'resetButton'), t('uz', 'resetButton')].includes(text);
+    const isHelpMenuText = [t('ru', 'helpMenuButton'), t('uz', 'helpMenuButton')].includes(text);
 
     if (isLanguageMenuText) {
       onboardingStates.delete(getOnboardingStateKey(userId));
@@ -1213,6 +1241,11 @@ async function initBot() {
         console.error('Reset access error from menu button:', error);
         await bot.sendMessage(chatId, t(currentLang, 'genericError'));
       }
+      return;
+    }
+
+    if (isHelpMenuText) {
+      await sendSuperadminHelpInfo(chatId, currentLang);
       return;
     }
 
