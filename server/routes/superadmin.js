@@ -74,6 +74,9 @@ const ensureActivityTypesSchema = async () => {
     await pool.query('ALTER TABLE business_activity_types ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT true');
     await pool.query('ALTER TABLE business_activity_types ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
     await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS activity_type_id INTEGER');
+    await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS target_activity_type_ids JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE ad_banners ALTER COLUMN target_activity_type_ids SET DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`UPDATE ad_banners SET target_activity_type_ids = '[]'::jsonb WHERE target_activity_type_ids IS NULL`).catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_restaurants_activity_type_id ON restaurants(activity_type_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_business_activity_types_sort_order ON business_activity_types(sort_order, id)');
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_business_activity_types_name_lower ON business_activity_types (LOWER(name))');
@@ -430,6 +433,26 @@ const normalizeAdRepeatDays = (value) => {
   return normalized;
 };
 
+const normalizeAdTargetActivityTypeIds = (value) => {
+  let raw = [];
+  if (Array.isArray(value)) {
+    raw = value;
+  } else if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      raw = Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      raw = value.split(',').map((v) => v.trim());
+    }
+  }
+
+  return [...new Set(
+    raw
+      .map((id) => Number.parseInt(id, 10))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  )].sort((a, b) => a - b);
+};
+
 const parseOptionalDate = (value) => {
   if (!value) return null;
   const date = new Date(value);
@@ -480,6 +503,7 @@ const normalizeAdBannerPayload = (body) => {
   const startAt = parseOptionalDate(body.start_at);
   const endAt = parseOptionalDate(body.end_at);
   const repeatDays = normalizeAdRepeatDays(body.repeat_days);
+  const targetActivityTypeIds = normalizeAdTargetActivityTypeIds(body.target_activity_type_ids);
   const isEnabled = body.is_enabled === undefined ? true : !!body.is_enabled;
 
   if (!title) return { error: 'Укажите название рекламы' };
@@ -521,6 +545,7 @@ const normalizeAdBannerPayload = (body) => {
     start_at: startAt ? startAt.toISOString() : null,
     end_at: endAt ? endAt.toISOString() : null,
     repeat_days: repeatDays,
+    target_activity_type_ids: targetActivityTypeIds,
     is_enabled: isEnabled
   };
 };
@@ -2325,7 +2350,10 @@ router.get('/stats', async (req, res) => {
 
 const mapAdBannerRow = (row) => {
   const repeatDays = Array.isArray(row.repeat_days) ? row.repeat_days : normalizeAdRepeatDays(row.repeat_days);
-  const banner = { ...row, repeat_days: repeatDays };
+  const targetActivityTypeIds = Array.isArray(row.target_activity_type_ids)
+    ? normalizeAdTargetActivityTypeIds(row.target_activity_type_ids)
+    : normalizeAdTargetActivityTypeIds(row.target_activity_type_ids);
+  const banner = { ...row, repeat_days: repeatDays, target_activity_type_ids: targetActivityTypeIds };
   return {
     ...banner,
     is_visible_now: isAdBannerVisibleNow(banner),
@@ -2354,6 +2382,7 @@ const mapPgInt = (value) => Number.parseInt(value, 10) || 0;
 
 router.get('/ads/banners', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const { status = 'all', include_deleted = 'false' } = req.query;
     const includeDeleted = include_deleted === 'true';
 
@@ -2608,9 +2637,22 @@ router.get('/ads/banners/:id/analytics', async (req, res) => {
 
 router.post('/ads/banners', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const payload = normalizeAdBannerPayload(req.body);
     if (payload.error) {
       return res.status(400).json({ error: payload.error });
+    }
+
+    if (payload.target_activity_type_ids.length > 0) {
+      const validIdsResult = await pool.query(
+        'SELECT id FROM business_activity_types WHERE id = ANY($1::int[])',
+        [payload.target_activity_type_ids]
+      );
+      const validIds = new Set(validIdsResult.rows.map((row) => Number(row.id)));
+      const missingIds = payload.target_activity_type_ids.filter((id) => !validIds.has(Number(id)));
+      if (missingIds.length > 0) {
+        return res.status(400).json({ error: `Не найдены виды деятельности: ${missingIds.join(', ')}` });
+      }
     }
 
     const activeCountResult = await pool.query(
@@ -2626,10 +2668,10 @@ router.post('/ads/banners', async (req, res) => {
       INSERT INTO ad_banners (
         title, image_url, button_text, target_url,
         slot_order, display_seconds, transition_effect,
-        start_at, end_at, repeat_days, is_enabled,
+        start_at, end_at, repeat_days, target_activity_type_ids, is_enabled,
         created_by, updated_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13,$14)
       RETURNING *
     `, [
       payload.title,
@@ -2642,6 +2684,7 @@ router.post('/ads/banners', async (req, res) => {
       payload.start_at,
       payload.end_at,
       JSON.stringify(payload.repeat_days),
+      JSON.stringify(payload.target_activity_type_ids),
       payload.is_enabled,
       req.user.id,
       req.user.id
@@ -2668,6 +2711,7 @@ router.post('/ads/banners', async (req, res) => {
 
 router.put('/ads/banners/:id', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const bannerId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(bannerId)) {
       return res.status(400).json({ error: 'Некорректный ID баннера' });
@@ -2683,6 +2727,18 @@ router.put('/ads/banners/:id', async (req, res) => {
       return res.status(400).json({ error: payload.error });
     }
 
+    if (payload.target_activity_type_ids.length > 0) {
+      const validIdsResult = await pool.query(
+        'SELECT id FROM business_activity_types WHERE id = ANY($1::int[])',
+        [payload.target_activity_type_ids]
+      );
+      const validIds = new Set(validIdsResult.rows.map((row) => Number(row.id)));
+      const missingIds = payload.target_activity_type_ids.filter((id) => !validIds.has(Number(id)));
+      if (missingIds.length > 0) {
+        return res.status(400).json({ error: `Не найдены виды деятельности: ${missingIds.join(', ')}` });
+      }
+    }
+
     const result = await pool.query(`
       UPDATE ad_banners
       SET title = $1,
@@ -2695,10 +2751,11 @@ router.put('/ads/banners/:id', async (req, res) => {
           start_at = $8,
           end_at = $9,
           repeat_days = $10::jsonb,
-          is_enabled = $11,
-          updated_by = $12,
+          target_activity_type_ids = $11::jsonb,
+          is_enabled = $12,
+          updated_by = $13,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $14
       RETURNING *
     `, [
       payload.title,
@@ -2711,6 +2768,7 @@ router.put('/ads/banners/:id', async (req, res) => {
       payload.start_at,
       payload.end_at,
       JSON.stringify(payload.repeat_days),
+      JSON.stringify(payload.target_activity_type_ids),
       payload.is_enabled,
       req.user.id,
       bannerId

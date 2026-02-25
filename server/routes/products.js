@@ -53,6 +53,46 @@ const isBannerVisibleNow = (banner, now = new Date()) => {
   return true;
 };
 
+const normalizeTargetActivityTypeIds = (value) => {
+  if (Array.isArray(value)) {
+    return [...new Set(
+      value
+        .map((v) => Number.parseInt(v, 10))
+        .filter((v) => Number.isInteger(v) && v > 0)
+    )].sort((a, b) => a - b);
+  }
+  if (!value) return [];
+  try {
+    return normalizeTargetActivityTypeIds(JSON.parse(value));
+  } catch (e) {
+    return [];
+  }
+};
+
+let adBannerTargetingSchemaReady = false;
+let adBannerTargetingSchemaPromise = null;
+const ensureAdBannerTargetingSchema = async () => {
+  if (adBannerTargetingSchemaReady) return;
+  if (adBannerTargetingSchemaPromise) {
+    await adBannerTargetingSchemaPromise;
+    return;
+  }
+
+  adBannerTargetingSchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS target_activity_type_ids JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE ad_banners ALTER COLUMN target_activity_type_ids SET DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`UPDATE ad_banners SET target_activity_type_ids = '[]'::jsonb WHERE target_activity_type_ids IS NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS activity_type_id INTEGER`).catch(() => {});
+    adBannerTargetingSchemaReady = true;
+  })();
+
+  try {
+    await adBannerTargetingSchemaPromise;
+  } finally {
+    adBannerTargetingSchemaPromise = null;
+  }
+};
+
 const getOptionalAuthUserId = (req) => {
   try {
     const auth = req.headers.authorization || '';
@@ -319,9 +359,30 @@ router.get('/restaurant/:id', async (req, res) => {
 // Get active ad banners (public - for customer catalog)
 router.get('/ads-banners', async (req, res) => {
   try {
+    await ensureAdBannerTargetingSchema();
+    const requestedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
+    const hasValidRestaurantId = Number.isInteger(requestedRestaurantId) && requestedRestaurantId > 0;
+    let restaurantActivityTypeId = null;
+    let restaurantExists = false;
+
+    if (hasValidRestaurantId) {
+      const restaurantResult = await pool.query(
+        'SELECT id, activity_type_id FROM restaurants WHERE id = $1 LIMIT 1',
+        [requestedRestaurantId]
+      );
+      const row = restaurantResult.rows[0];
+      if (row) {
+        restaurantExists = true;
+        const parsedActivityId = Number.parseInt(row.activity_type_id, 10);
+        if (Number.isInteger(parsedActivityId) && parsedActivityId > 0) {
+          restaurantActivityTypeId = parsedActivityId;
+        }
+      }
+    }
+
     const result = await pool.query(`
       SELECT id, title, image_url, button_text, target_url, slot_order, display_seconds, transition_effect,
-             start_at, end_at, repeat_days, is_enabled, is_deleted, created_at
+             start_at, end_at, repeat_days, target_activity_type_ids, is_enabled, is_deleted, created_at
       FROM ad_banners
       WHERE is_deleted = false AND is_enabled = true
       ORDER BY slot_order ASC, created_at DESC
@@ -330,6 +391,13 @@ router.get('/ads-banners', async (req, res) => {
 
     const banners = result.rows
       .filter((banner) => isBannerVisibleNow(banner))
+      .filter((banner) => {
+        const targetIds = normalizeTargetActivityTypeIds(banner.target_activity_type_ids);
+        if (!targetIds.length) return true; // no targeting => all stores
+        if (!hasValidRestaurantId || !restaurantExists) return true; // unknown store => avoid conflict, show all
+        if (!restaurantActivityTypeId) return true; // store without activity type => show all by default
+        return targetIds.includes(restaurantActivityTypeId);
+      })
       .slice(0, 10)
       .map((banner) => ({
         id: banner.id,

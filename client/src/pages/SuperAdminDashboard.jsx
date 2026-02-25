@@ -488,6 +488,7 @@ function SuperAdminDashboard() {
     image_url: '',
     button_text: 'Открыть',
     target_url: '',
+    target_activity_type_ids: [],
     slot_order: 1,
     display_seconds: 5,
     transition_effect: 'fade',
@@ -1022,6 +1023,7 @@ function SuperAdminDashboard() {
       image_url: '',
       button_text: 'Открыть',
       target_url: '',
+      target_activity_type_ids: [],
       slot_order: 1,
       display_seconds: 5,
       transition_effect: 'fade',
@@ -1033,6 +1035,9 @@ function SuperAdminDashboard() {
   };
 
   const openAdBannerModal = (banner = null) => {
+    if (!activityTypes.length) {
+      loadActivityTypes();
+    }
     if (!banner) {
       resetAdBannerForm();
       setShowAdBannerModal(true);
@@ -1046,6 +1051,7 @@ function SuperAdminDashboard() {
       image_url: banner.image_url || '',
       button_text: banner.button_text || 'Открыть',
       target_url: banner.target_url || '',
+      target_activity_type_ids: Array.isArray(banner.target_activity_type_ids) ? banner.target_activity_type_ids.map(Number) : [],
       slot_order: banner.slot_order || 1,
       display_seconds: banner.display_seconds || 5,
       transition_effect: banner.transition_effect || 'fade',
@@ -1151,6 +1157,10 @@ function SuperAdminDashboard() {
     try {
       const payload = {
         ...adBannerForm,
+        target_activity_type_ids: (adBannerForm.target_activity_type_ids || [])
+          .map(Number)
+          .filter((v) => Number.isInteger(v) && v > 0)
+          .sort((a, b) => a - b),
         slot_order: Number(adBannerForm.slot_order),
         display_seconds: Number(adBannerForm.display_seconds),
         repeat_days: (adBannerForm.repeat_days || []).map(Number).sort((a, b) => a - b),
@@ -1277,6 +1287,19 @@ function SuperAdminDashboard() {
 
     return [selected, ...visibleItems];
   }, [activityTypes, restaurantForm.activity_type_id]);
+
+  const adBannerActivityTypeOptions = useMemo(() => {
+    const visibleItems = activityTypes.filter((item) => item.is_visible !== false);
+    const selectedIds = new Set((adBannerForm.target_activity_type_ids || []).map((id) => Number(id)));
+    const hiddenSelected = activityTypes.filter((item) => selectedIds.has(Number(item.id)) && item.is_visible === false);
+    return [...hiddenSelected, ...visibleItems.filter((item) => !selectedIds.has(Number(item.id)) || item.is_visible !== false)];
+  }, [activityTypes, adBannerForm.target_activity_type_ids]);
+
+  const getActivityTypeNamesByIds = (ids = []) => {
+    const mapById = new Map(activityTypes.map((item) => [Number(item.id), item]));
+    const normalizedIds = (Array.isArray(ids) ? ids : []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+    return normalizedIds.map((id) => mapById.get(id)?.name || `#${id}`);
+  };
 
   const filteredRestaurants = useMemo(() => {
     const source = restaurants?.restaurants || [];
@@ -3550,6 +3573,11 @@ function SuperAdminDashboard() {
                                       {truncateAdTitleText(banner.title, 10)}
                                     </div>
                                     <div className="small text-muted">ID: {banner.id}</div>
+                                    <div className="small text-muted text-truncate" title={(getActivityTypeNamesByIds(banner.target_activity_type_ids || []).join(', ') || 'Все виды деятельности')}>
+                                      🧩 {(banner.target_activity_type_ids || []).length
+                                        ? getActivityTypeNamesByIds(banner.target_activity_type_ids).join(', ')
+                                        : 'Все виды деятельности'}
+                                    </div>
                                   </div>
                                 </div>
                               </td>
@@ -4491,6 +4519,33 @@ function SuperAdminDashboard() {
                   onChange={(e) => setAdBannerForm((prev) => ({ ...prev, target_url: e.target.value }))}
                   placeholder={adI18n.targetUrlPlaceholder}
                 />
+              </Form.Group>
+            </Col>
+
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">Таргетинг по виду деятельности</Form.Label>
+                <Form.Select
+                  multiple
+                  className="form-control-custom"
+                  value={(adBannerForm.target_activity_type_ids || []).map(String)}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions || [])
+                      .map((opt) => Number(opt.value))
+                      .filter((v) => Number.isInteger(v) && v > 0);
+                    setAdBannerForm((prev) => ({ ...prev, target_activity_type_ids: values }));
+                  }}
+                  style={{ minHeight: '140px' }}
+                >
+                  {adBannerActivityTypeOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}{item.is_visible === false ? ' (скрыт)' : ''}
+                    </option>
+                  ))}
+                </Form.Select>
+                <Form.Text className="text-muted d-block mt-1">
+                  Если ничего не выбрано, реклама показывается всем магазинам. Можно выбрать несколько видов.
+                </Form.Text>
               </Form.Group>
             </Col>
 

@@ -583,6 +583,7 @@ async function migrate() {
         start_at TIMESTAMP NULL,
         end_at TIMESTAMP NULL,
         repeat_days JSONB NOT NULL DEFAULT '[]'::jsonb,
+        target_activity_type_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
         is_enabled BOOLEAN NOT NULL DEFAULT true,
         is_deleted BOOLEAN NOT NULL DEFAULT false,
         created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -630,6 +631,7 @@ async function migrate() {
       'start_at TIMESTAMP NULL',
       'end_at TIMESTAMP NULL',
       `repeat_days JSONB DEFAULT '[]'::jsonb`,
+      `target_activity_type_ids JSONB DEFAULT '[]'::jsonb`,
       'is_enabled BOOLEAN DEFAULT true',
       'is_deleted BOOLEAN DEFAULT false',
       'created_by INTEGER REFERENCES users(id) ON DELETE SET NULL',
@@ -673,6 +675,8 @@ async function migrate() {
 
     await client.query(`ALTER TABLE ad_banners ALTER COLUMN repeat_days SET DEFAULT '[]'::jsonb`);
     await client.query(`UPDATE ad_banners SET repeat_days = '[]'::jsonb WHERE repeat_days IS NULL`);
+    await client.query(`ALTER TABLE ad_banners ALTER COLUMN target_activity_type_ids SET DEFAULT '[]'::jsonb`).catch(() => {});
+    await client.query(`UPDATE ad_banners SET target_activity_type_ids = '[]'::jsonb WHERE target_activity_type_ids IS NULL`).catch(() => {});
     await client.query(`ALTER TABLE ad_banners ALTER COLUMN target_url DROP NOT NULL`).catch(() => {});
 
     await client.query(`
