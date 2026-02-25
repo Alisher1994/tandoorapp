@@ -4513,12 +4513,14 @@ function SuperAdminDashboard() {
         </Modal.Footer>
       </Modal>
 
-      <Modal show={showAdBannerModal} onHide={() => setShowAdBannerModal(false)} size="lg" centered>
+      <Modal show={showAdBannerModal} onHide={() => setShowAdBannerModal(false)} size="xl" centered>
         <Modal.Header closeButton>
           <Modal.Title>{editingAdBanner ? adI18n.editTitle : adI18n.addTitle}</Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <Row className="g-3">
+        <Modal.Body className="p-0">
+          <Row className="g-0">
+            <Col lg={7} className="p-4 border-end">
+              <Row className="g-3">
             <Col md={7}>
               <Form.Group>
                 <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.internalName}</Form.Label>
@@ -4745,6 +4747,126 @@ function SuperAdminDashboard() {
                   })}
                 </div>
               </Form.Group>
+            </Col>
+              </Row>
+            </Col>
+
+            <Col lg={5} className="bg-light">
+              <div className="p-4 h-100" style={{ minHeight: '100%' }}>
+                <div className="position-lg-sticky" style={{ top: 16 }}>
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <h6 className="mb-0 fw-bold">
+                      {language === 'uz' ? "Banner ko'rinishi (preview)" : 'Предпросмотр баннера'}
+                    </h6>
+                    <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                      #{Number(adBannerForm.slot_order) || 1}
+                    </Badge>
+                  </div>
+
+                  <Card className="border-0 shadow-sm mb-3">
+                    <Card.Body className="p-3">
+                      <div className="small text-muted mb-2">
+                        {language === 'uz' ? 'Katalogdagi ko‘rinishi' : 'Как будет выглядеть в каталоге'}
+                      </div>
+
+                      <div
+                        className="rounded-3 overflow-hidden border"
+                        style={{
+                          background: '#ffffff',
+                          borderColor: 'var(--border-color)',
+                        }}
+                      >
+                        <div style={{ position: 'relative', background: '#f8fafc' }}>
+                          {adBannerForm.image_url ? (
+                            <img
+                              src={adBannerForm.image_url}
+                              alt="ad-banner-preview"
+                              style={{ width: '100%', aspectRatio: '2.4 / 1', objectFit: 'cover', display: 'block' }}
+                            />
+                          ) : (
+                            <div
+                              className="d-flex align-items-center justify-content-center text-muted"
+                              style={{
+                                width: '100%',
+                                aspectRatio: '2.4 / 1',
+                                background: 'linear-gradient(135deg, rgba(143,109,70,0.08) 0%, rgba(143,109,70,0.16) 100%)'
+                              }}
+                            >
+                              <div className="text-center px-3">
+                                <div style={{ fontSize: '1.4rem' }}>🖼️</div>
+                                <div className="small">
+                                  {language === 'uz' ? 'Banner rasmi shu yerda ko‘rinadi' : 'Здесь будет изображение баннера'}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-3">
+                          <div className="fw-semibold mb-1 text-truncate" title={adBannerForm.title || ''}>
+                            {adBannerForm.title || (language === 'uz' ? 'Banner nomi' : 'Название баннера')}
+                          </div>
+                          <div className="small text-muted mb-2">
+                            {adBannerForm.target_url
+                              ? (language === 'uz' ? 'Havola ulangan' : 'Ссылка подключена')
+                              : (language === 'uz' ? 'Bosilganda o‘tish havolasi yo‘q' : 'Без ссылки перехода')}
+                          </div>
+                          <div className="d-flex gap-2 flex-wrap">
+                            <Badge className={`badge-custom ${adBannerForm.is_enabled ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-muted'}`}>
+                              {adBannerForm.is_enabled ? adI18n.enabled : (language === 'uz' ? "Reklama o'chirilgan" : 'Реклама выключена')}
+                            </Badge>
+                            <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
+                              {Number(adBannerForm.display_seconds) || 5} {adI18n.sec}
+                            </Badge>
+                            <Badge className="badge-custom bg-info bg-opacity-10 text-info text-capitalize">
+                              {adBannerForm.transition_effect || 'fade'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      {adBannerForm.target_url && (
+                        <div className="mt-3">
+                          <Button size="sm" className="btn-primary-custom w-100" disabled>
+                            {adBannerForm.button_text || (language === 'uz' ? 'Ochish' : 'Открыть')}
+                          </Button>
+                        </div>
+                      )}
+                    </Card.Body>
+                  </Card>
+
+                  <Card className="border-0 shadow-sm">
+                    <Card.Body className="p-3">
+                      <div className="small fw-bold text-muted text-uppercase mb-2">
+                        {language === 'uz' ? 'Meta ma’lumotlar' : 'Мета-информация'}
+                      </div>
+                      <div className="d-flex flex-column gap-2 small">
+                        <div>
+                          <strong>{adI18n.start}:</strong> {formatAdDate(adBannerForm.start_at ? new Date(adBannerForm.start_at).toISOString() : null)}
+                        </div>
+                        <div>
+                          <strong>{adI18n.end}:</strong> {formatAdDate(adBannerForm.end_at ? new Date(adBannerForm.end_at).toISOString() : null)}
+                        </div>
+                        <div>
+                          <strong>{adI18n.days}:</strong>{' '}
+                          {(adBannerForm.repeat_days || []).length
+                            ? adWeekdayOptions.filter((d) => (adBannerForm.repeat_days || []).includes(d.value)).map((d) => d.label).join(', ')
+                            : adI18n.everyDay}
+                        </div>
+                        <div>
+                          <strong>{adI18n.activityTypeFilter}:</strong>{' '}
+                          {(adBannerForm.target_activity_type_ids || []).length
+                            ? getActivityTypeNamesByIds(adBannerForm.target_activity_type_ids).join(', ')
+                            : adI18n.activityTypeNoTarget}
+                        </div>
+                        <div className="text-muted" style={{ wordBreak: 'break-all' }}>
+                          <strong>{adI18n.targetUrl}:</strong> {adBannerForm.target_url || '—'}
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </div>
+              </div>
             </Col>
           </Row>
         </Modal.Body>
