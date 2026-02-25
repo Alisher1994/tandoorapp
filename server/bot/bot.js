@@ -34,6 +34,18 @@ const languagePreferences = new Map();
 const pendingLanguageActions = new Map();
 const lastSuperadminStartMenuMessageIds = new Map();
 const onboardingUiMessageIds = new Map();
+let activityTypesSchemaReady = false;
+let activityTypesSchemaPromise = null;
+
+const DEFAULT_ACTIVITY_TYPES = [
+  'Одежда',
+  'Хозяйственные товары',
+  'Канцтовары',
+  'Бытовая техника',
+  'Детская одежда',
+  'Цветочные',
+  'Продуктовый магазин'
+];
 
 const BOT_LANGUAGES = ['ru', 'uz'];
 const BOT_TEXTS = {
@@ -92,6 +104,60 @@ function normalizePhone(rawPhone) {
     return `+${trimmed.slice(1).replace(/\D/g, '')}`;
   }
   return trimmed.replace(/\D/g, '');
+}
+
+async function ensureActivityTypesSchema() {
+  if (activityTypesSchemaReady) return;
+  if (activityTypesSchemaPromise) {
+    await activityTypesSchemaPromise;
+    return;
+  }
+
+  activityTypesSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS business_activity_types (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        is_visible BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query('ALTER TABLE business_activity_types ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT true');
+    await pool.query('ALTER TABLE business_activity_types ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS activity_type_id INTEGER');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_business_activity_types_sort_order ON business_activity_types(sort_order, id)');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_business_activity_types_name_lower ON business_activity_types (LOWER(name))');
+
+    for (let i = 0; i < DEFAULT_ACTIVITY_TYPES.length; i += 1) {
+      await pool.query(
+        `INSERT INTO business_activity_types (name, sort_order, is_visible)
+         VALUES ($1, $2, true)
+         ON CONFLICT ((LOWER(name))) DO NOTHING`,
+        [DEFAULT_ACTIVITY_TYPES[i], i + 1]
+      );
+    }
+
+    activityTypesSchemaReady = true;
+  })();
+
+  try {
+    await activityTypesSchemaPromise;
+  } finally {
+    activityTypesSchemaPromise = null;
+  }
+}
+
+async function getVisibleActivityTypes() {
+  await ensureActivityTypesSchema();
+  const result = await pool.query(`
+    SELECT id, name, sort_order
+    FROM business_activity_types
+    WHERE is_visible = true
+    ORDER BY sort_order ASC, name ASC, id ASC
+  `);
+  return result.rows;
 }
 
 async function resolveUniqueCustomerUsername(preferredUsername, telegramUserId) {
@@ -313,7 +379,7 @@ function getOnboardingStateKey(userId) {
 
 const ONBOARDING_TEXTS = {
   ru: {
-    intro: '🧭 <b>Онбординг магазина</b>\n\nОбязательные поля:\n• Название магазина\n• ФИО\n• Номер телефона\n• Локация\n\nНеобязательные поля можно пропустить.',
+    intro: '🧭 <b>Онбординг магазина</b>\n\nОбязательные поля:\n• Название магазина\n• Вид деятельности\n• ФИО\n• Номер телефона\n• Локация\n\nНеобязательные поля можно пропустить.',
     start: '▶️ Начать',
     cancel: '❌ Отмена',
     cancelled: '❌ Онбординг отменен.',
@@ -328,6 +394,7 @@ const ONBOARDING_TEXTS = {
     optionalToken: '🤖 Bot Token магазина (необязательно на этом шаге):',
     optionalGroup: '👥 Группа для заказов (необязательно на этом шаге):',
     promptStoreName: '🏪 Введите <b>название магазина</b>:',
+    promptActivityType: '🧩 Выберите <b>вид деятельности магазина</b> из списка и отправьте <b>номер</b>:\n\n{list}',
     promptFullName: '👤 Введите <b>ФИО оператора</b>:',
     promptPhone: '📱 Отправьте <b>номер телефона</b>:',
     promptLocation: '📍 Отправьте <b>локацию магазина</b>:',
@@ -339,6 +406,8 @@ const ONBOARDING_TEXTS = {
     photoReadError: '❌ Не удалось прочитать фото. Отправьте изображение еще раз.',
     photoSaveError: '❌ Не удалось сохранить фото. Попробуйте снова или отправьте URL.',
     requiredStoreName: '❌ Название магазина обязательно. Введите название.',
+    requiredActivityType: '❌ Справочник видов деятельности пока пуст. Обратитесь к суперадмину.',
+    invalidActivityTypeChoice: '❌ Неверный номер. Отправьте номер вида деятельности из списка.',
     requiredFullName: '❌ ФИО обязательно. Введите ФИО.',
     invalidPhone: '❌ Некорректный номер телефона. Введите номер еще раз.',
     finalizeError: '❌ Ошибка создания доступа. Попробуйте позже.',
@@ -348,7 +417,7 @@ const ONBOARDING_TEXTS = {
     finalSuccess: '✅ <b>Регистрация завершена</b>\n\n🏪 Магазин: <b>{restaurant}</b>\n👤 ФИО: {fullName}\n📱 Логин: <code>{username}</code>\n🔐 Пароль: <code>{password}</code>\n📍 Локация: {location}\n🚚 Радиус доставки: 3 км (по умолчанию)\n\n{loginLine}'
   },
   uz: {
-    intro: '🧭 <b>Do‘kon onbordingi</b>\n\nMajburiy maydonlar:\n• Do‘kon nomi\n• F.I.Sh.\n• Telefon raqami\n• Lokatsiya\n\nIxtiyoriy maydonlarni o‘tkazib yuborish mumkin.',
+    intro: '🧭 <b>Do‘kon onbordingi</b>\n\nMajburiy maydonlar:\n• Do‘kon nomi\n• Faoliyat turi\n• F.I.Sh.\n• Telefon raqami\n• Lokatsiya\n\nIxtiyoriy maydonlarni o‘tkazib yuborish mumkin.',
     start: '▶️ Boshlash',
     cancel: '❌ Bekor qilish',
     cancelled: '❌ Onbording bekor qilindi.',
@@ -363,6 +432,7 @@ const ONBOARDING_TEXTS = {
     optionalToken: '🤖 Do‘kon Bot Tokeni (bu bosqichda ixtiyoriy):',
     optionalGroup: '👥 Buyurtmalar uchun guruh (bu bosqichda ixtiyoriy):',
     promptStoreName: '🏪 <b>Do‘kon nomini</b> kiriting:',
+    promptActivityType: '🧩 Do‘konning <b>faoliyat turini</b> ro‘yxatdan tanlang va <b>raqamini</b> yuboring:\n\n{list}',
     promptFullName: '👤 <b>Operator F.I.Sh.</b> ni kiriting:',
     promptPhone: '📱 <b>Telefon raqamini</b> yuboring:',
     promptLocation: '📍 <b>Do‘kon lokatsiyasini</b> yuboring:',
@@ -374,6 +444,8 @@ const ONBOARDING_TEXTS = {
     photoReadError: '❌ Rasmni o‘qib bo‘lmadi. Iltimos, qayta yuboring.',
     photoSaveError: '❌ Rasmni saqlab bo‘lmadi. Qayta urinib ko‘ring yoki URL yuboring.',
     requiredStoreName: '❌ Do‘kon nomi majburiy. Nomni kiriting.',
+    requiredActivityType: '❌ Faoliyat turlari ro‘yxati hozircha bo‘sh. Superadmiga murojaat qiling.',
+    invalidActivityTypeChoice: '❌ Noto‘g‘ri raqam. Ro‘yxatdagi faoliyat turi raqamini yuboring.',
     requiredFullName: '❌ F.I.Sh. majburiy. F.I.Sh.ni kiriting.',
     invalidPhone: '❌ Telefon raqami noto‘g‘ri. Qayta kiriting.',
     finalizeError: '❌ Kirish ma’lumotlarini yaratishda xatolik. Keyinroq urinib ko‘ring.',
@@ -734,6 +806,7 @@ async function initBot() {
     const userLang = getOnboardingLanguage(userId);
     const prompts = {
       store_name: onboardingT(userLang, 'promptStoreName'),
+      activity_type: null,
       full_name: onboardingT(userLang, 'promptFullName'),
       phone: onboardingT(userLang, 'promptPhone'),
       location: onboardingT(userLang, 'promptLocation'),
@@ -741,6 +814,27 @@ async function initBot() {
       bot_token: onboardingT(userLang, 'promptToken'),
       group_id: onboardingT(userLang, 'promptGroup')
     };
+
+    if (field === 'activity_type') {
+      const activityTypes = await getVisibleActivityTypes();
+      if (!activityTypes.length) {
+        await sendOnboardingUiMessage(chatId, userId, onboardingT(userLang, 'requiredActivityType'), {
+          reply_markup: {
+            inline_keyboard: [[{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]]
+          }
+        });
+        return;
+      }
+
+      const numberedList = activityTypes.map((item, index) => `${index + 1}. ${item.name}`).join('\n');
+      await sendOnboardingUiMessage(chatId, userId, onboardingT(userLang, 'promptActivityType', { list: numberedList }), {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]]
+        }
+      });
+      return;
+    }
 
     if (field === 'phone') {
       await sendOnboardingUiMessage(chatId, userId, prompts[field], {
@@ -862,6 +956,7 @@ async function initBot() {
 
     const client = await pool.connect();
     try {
+      await ensureActivityTypesSchema();
       await client.query('BEGIN');
 
       const normalizedPhone = formatPhoneWithPlus(state.phone);
@@ -876,12 +971,12 @@ async function initBot() {
         INSERT INTO restaurants (
           name, phone, logo_url, telegram_bot_token, telegram_group_id,
           latitude, longitude, start_time, end_time, delivery_base_radius, is_delivery_enabled,
-          balance, order_cost, is_active
+          balance, order_cost, is_active, activity_type_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, '07:00', '23:59', 3, true, $8, $9, true)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, '07:00', '23:59', 3, true, $8, $9, true, $10)
         RETURNING id, name, phone, logo_url, telegram_bot_token, telegram_group_id,
                   latitude, longitude, start_time, end_time, delivery_base_radius,
-                  is_delivery_enabled, balance, order_cost, is_active, created_at
+                  is_delivery_enabled, balance, order_cost, is_active, created_at, activity_type_id
       `, [
         state.store_name,
         normalizedPhone || null,
@@ -891,7 +986,8 @@ async function initBot() {
         state.location?.latitude || null,
         state.location?.longitude || null,
         settings.default_starting_balance,
-        settings.default_order_cost
+        settings.default_order_cost,
+        state.activity_type_id || null
       ]);
 
       const restaurant = restaurantResult.rows[0];
@@ -1036,6 +1132,7 @@ async function initBot() {
           `🆕 <b>Новый магазин зарегистрирован</b>\n\n` +
           `🏪 ID: <b>${restaurant.id}</b>\n` +
           `🏪 Название: <b>${restaurant.name}</b>\n` +
+          `🧩 Вид деятельности: ${state.activity_type_name || '—'}\n` +
           `👤 Оператор: ${state.full_name || '—'}\n` +
           `📱 Телефон: ${normalizedPhone || '—'}\n` +
           `🔐 Логин: <code>${username || '—'}</code>\n` +
@@ -1344,6 +1441,31 @@ async function initBot() {
           return;
         }
         onboardingState.store_name = storeName;
+        onboardingState.step = 'await_activity_type';
+        onboardingStates.set(onboardingKey, onboardingState);
+        await askOnboardingField(chatId, userId, 'activity_type');
+        return;
+      }
+
+      if (onboardingState.step === 'await_activity_type') {
+        const userLang = getOnboardingLanguage(userId);
+        const rawChoice = String(text || '').trim();
+        const choiceNumber = parseInt(rawChoice, 10);
+        const activityTypes = await getVisibleActivityTypes();
+
+        if (!activityTypes.length) {
+          await bot.sendMessage(chatId, onboardingT(userLang, 'requiredActivityType'));
+          return;
+        }
+
+        if (!Number.isFinite(choiceNumber) || choiceNumber < 1 || choiceNumber > activityTypes.length) {
+          await bot.sendMessage(chatId, onboardingT(userLang, 'invalidActivityTypeChoice'));
+          return;
+        }
+
+        const selectedActivityType = activityTypes[choiceNumber - 1];
+        onboardingState.activity_type_id = selectedActivityType.id;
+        onboardingState.activity_type_name = selectedActivityType.name;
         onboardingState.step = 'await_full_name';
         onboardingStates.set(onboardingKey, onboardingState);
         await askOnboardingField(chatId, userId, 'full_name');

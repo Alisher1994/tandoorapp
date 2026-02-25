@@ -347,6 +347,11 @@ function SuperAdminDashboard() {
   const [allOperators, setAllOperators] = useState([]); // For filters
   const [customers, setCustomers] = useState({ customers: [], total: 0 });
   const [logs, setLogs] = useState({ logs: [], total: 0 });
+  const [activityTypes, setActivityTypes] = useState([]);
+  const [activityTypesLoading, setActivityTypesLoading] = useState(false);
+  const [activityTypeForm, setActivityTypeForm] = useState({ name: '', sort_order: '', is_visible: true });
+  const [editingActivityType, setEditingActivityType] = useState(null);
+  const [savingActivityType, setSavingActivityType] = useState(false);
 
   // Categories
   const [categories, setCategories] = useState([]);
@@ -369,6 +374,7 @@ function SuperAdminDashboard() {
     name: '',
     address: '',
     phone: '',
+    activity_type_id: '',
     logo_url: '',
     logo_display_mode: 'square',
     delivery_zone: null,
@@ -506,6 +512,7 @@ function SuperAdminDashboard() {
   useEffect(() => {
     loadStats();
     loadInternalRestaurants();
+    loadActivityTypes();
   }, []);
 
   useEffect(() => {
@@ -514,6 +521,7 @@ function SuperAdminDashboard() {
     if (activeTab === 'customers') loadCustomers();
     if (activeTab === 'logs') loadLogs();
     if (activeTab === 'categories') loadCategories();
+    if (activeTab === 'activity_types') loadActivityTypes();
     if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') loadBillingSettings();
   }, [activeTab]);
@@ -594,6 +602,23 @@ function SuperAdminDashboard() {
       setAllOperators(operatorData);
     } catch (err) {
       console.error('Load filter data error:', err);
+    }
+  };
+
+  const loadActivityTypes = async () => {
+    setActivityTypesLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/activity-types`, {
+        params: { include_hidden: true }
+      });
+      setActivityTypes(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Load activity types error:', err);
+      if (activeTab === 'activity_types') {
+        setError('Ошибка загрузки видов деятельности');
+      }
+    } finally {
+      setActivityTypesLoading(false);
     }
   };
 
@@ -1242,6 +1267,17 @@ function SuperAdminDashboard() {
     return [selected, ...filtered];
   }, [restaurants, restaurantsSelectSearch, restaurantsSelectFilter]);
 
+  const restaurantActivityTypeOptions = useMemo(() => {
+    const visibleItems = activityTypes.filter((item) => item.is_visible !== false);
+    if (!restaurantForm.activity_type_id) return visibleItems;
+
+    const selected = activityTypes.find((item) => String(item.id) === String(restaurantForm.activity_type_id));
+    if (!selected) return visibleItems;
+    if (visibleItems.some((item) => item.id === selected.id)) return visibleItems;
+
+    return [selected, ...visibleItems];
+  }, [activityTypes, restaurantForm.activity_type_id]);
+
   const filteredRestaurants = useMemo(() => {
     const source = restaurants?.restaurants || [];
     return source.filter((restaurant) => {
@@ -1787,12 +1823,16 @@ function SuperAdminDashboard() {
 
   // Restaurant handlers
   const openRestaurantModal = (restaurant = null) => {
+    if (!activityTypes.length) {
+      loadActivityTypes();
+    }
     if (restaurant) {
       setEditingRestaurant(restaurant);
       setRestaurantForm({
         name: restaurant.name || '',
         address: restaurant.address || '',
         phone: restaurant.phone || '',
+        activity_type_id: restaurant.activity_type_id ? String(restaurant.activity_type_id) : '',
         logo_url: restaurant.logo_url || '',
         logo_display_mode: restaurant.logo_display_mode === 'horizontal' ? 'horizontal' : 'square',
         delivery_zone: restaurant.delivery_zone || null,
@@ -1818,6 +1858,7 @@ function SuperAdminDashboard() {
         name: '',
         address: '',
         phone: '',
+        activity_type_id: '',
         logo_url: '',
         logo_display_mode: 'square',
         delivery_zone: null,
@@ -1852,8 +1893,68 @@ function SuperAdminDashboard() {
       }
       setShowRestaurantModal(false);
       loadRestaurants();
+      loadInternalRestaurants();
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка сохранения магазина');
+    }
+  };
+
+  const resetActivityTypeForm = () => {
+    setEditingActivityType(null);
+    setActivityTypeForm({ name: '', sort_order: '', is_visible: true });
+  };
+
+  const handleEditActivityType = (item) => {
+    setEditingActivityType(item);
+    setActivityTypeForm({
+      name: item.name || '',
+      sort_order: item.sort_order ?? '',
+      is_visible: item.is_visible !== false
+    });
+    setActiveTab('activity_types');
+  };
+
+  const handleSaveActivityType = async () => {
+    const payload = {
+      name: String(activityTypeForm.name || '').trim(),
+      sort_order: activityTypeForm.sort_order === '' ? 0 : parseInt(activityTypeForm.sort_order, 10) || 0,
+      is_visible: !!activityTypeForm.is_visible
+    };
+
+    if (!payload.name) {
+      setError('Введите название вида деятельности');
+      return;
+    }
+
+    setSavingActivityType(true);
+    try {
+      if (editingActivityType?.id) {
+        await axios.put(`${API_URL}/superadmin/activity-types/${editingActivityType.id}`, payload);
+        setSuccess('Вид деятельности обновлен');
+      } else {
+        await axios.post(`${API_URL}/superadmin/activity-types`, payload);
+        setSuccess('Вид деятельности добавлен');
+      }
+      resetActivityTypeForm();
+      await loadActivityTypes();
+      await loadRestaurants();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка сохранения вида деятельности');
+    } finally {
+      setSavingActivityType(false);
+    }
+  };
+
+  const handleToggleActivityTypeVisibility = async (item) => {
+    try {
+      await axios.patch(`${API_URL}/superadmin/activity-types/${item.id}/visibility`, {
+        is_visible: !item.is_visible
+      });
+      setSuccess(item.is_visible ? 'Вид деятельности скрыт' : 'Вид деятельности отображается');
+      await loadActivityTypes();
+      await loadRestaurants();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка изменения отображения вида деятельности');
     }
   };
 
@@ -2708,6 +2809,10 @@ function SuperAdminDashboard() {
                               </td>
                               <td>
                                 <strong className="text-dark">{r.name}</strong>
+                                <div className="small text-muted">
+                                  🧩 {r.activity_type_name || 'Вид деятельности не выбран'}
+                                  {r.activity_type_name && r.activity_type_is_visible === false ? ' (скрыт)' : ''}
+                                </div>
                                 <div className="small text-muted d-flex align-items-center gap-1">
                                   <span>{r.telegram_bot_username || '—'}</span>
                                   {!!r.telegram_bot_username && (
@@ -2801,6 +2906,123 @@ function SuperAdminDashboard() {
                       onLimitChange={(val) => { setRestaurantsLimit(val); setRestaurantsPage(1); }}
                     />
                   </>
+                )}
+              </Tab>
+
+              {/* Activity Types Tab */}
+              <Tab eventKey="activity_types" title="🧩 Виды деятельности">
+                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                  <h5 className="fw-bold mb-0">Справочник видов деятельности</h5>
+                  <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                    Всего: {activityTypes.length}
+                  </Badge>
+                </div>
+
+                <Card className="border-0 shadow-sm mb-3">
+                  <Card.Body>
+                    <Row className="g-3 align-items-end">
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label className="fw-medium text-secondary">Название</Form.Label>
+                          <Form.Control
+                            value={activityTypeForm.name}
+                            onChange={(e) => setActivityTypeForm({ ...activityTypeForm, name: e.target.value })}
+                            placeholder="Например: Одежда"
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={2}>
+                        <Form.Group>
+                          <Form.Label className="fw-medium text-secondary">Порядок</Form.Label>
+                          <Form.Control
+                            type="number"
+                            min="0"
+                            value={activityTypeForm.sort_order}
+                            onChange={(e) => setActivityTypeForm({ ...activityTypeForm, sort_order: e.target.value })}
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={2}>
+                        <Form.Check
+                          type="switch"
+                          id="activity-type-visible-switch"
+                          label="Показывать"
+                          checked={activityTypeForm.is_visible !== false}
+                          onChange={(e) => setActivityTypeForm({ ...activityTypeForm, is_visible: e.target.checked })}
+                        />
+                      </Col>
+                      <Col md={2} className="d-flex gap-2">
+                        <Button
+                          className="btn-primary-custom w-100"
+                          onClick={handleSaveActivityType}
+                          disabled={savingActivityType}
+                        >
+                          {savingActivityType ? '...' : (editingActivityType ? 'Сохранить' : 'Добавить')}
+                        </Button>
+                        {editingActivityType && (
+                          <Button variant="outline-secondary" onClick={resetActivityTypeForm}>
+                            Отмена
+                          </Button>
+                        )}
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+
+                {activityTypesLoading ? (
+                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                ) : (
+                  <div className="admin-table-container">
+                    <Table responsive hover className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Название</th>
+                          <th>Порядок</th>
+                          <th>Статус</th>
+                          <th>Магазинов</th>
+                          <th className="text-end">Действия</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activityTypes.map((item) => (
+                          <tr key={item.id}>
+                            <td><span className="text-muted small">#{item.id}</span></td>
+                            <td className="fw-semibold">{item.name}</td>
+                            <td>{item.sort_order ?? 0}</td>
+                            <td>
+                              <Badge className={`badge-custom ${item.is_visible ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-muted'}`}>
+                                {item.is_visible ? 'Показывается' : 'Скрыт'}
+                              </Badge>
+                            </td>
+                            <td>
+                              <Badge className="badge-custom bg-info bg-opacity-10 text-info">
+                                {item.restaurants_count || 0}
+                              </Badge>
+                            </td>
+                            <td className="text-end">
+                              <div className="d-flex gap-2 justify-content-end">
+                                <Button variant="light" className="action-btn text-primary" onClick={() => handleEditActivityType(item)}>
+                                  ✏️
+                                </Button>
+                                <Button
+                                  variant="light"
+                                  className={`action-btn ${item.is_visible ? 'text-warning' : 'text-success'}`}
+                                  onClick={() => handleToggleActivityTypeVisibility(item)}
+                                  title={item.is_visible ? 'Скрыть' : 'Показать'}
+                                >
+                                  {item.is_visible ? '👁️‍🗨️' : '👁️'}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {activityTypes.length === 0 && (
+                          <tr><td colSpan="6" className="text-center py-5 text-muted">Нет видов деятельности</td></tr>
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
                 )}
               </Tab>
 
@@ -4456,6 +4678,24 @@ function SuperAdminDashboard() {
                       </Form.Group>
                     </Col>
                   </Row>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-secondary">Вид деятельности магазина</Form.Label>
+                    <Form.Select
+                      value={restaurantForm.activity_type_id || ''}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, activity_type_id: e.target.value })}
+                    >
+                      <option value="">Не выбран</option>
+                      {restaurantActivityTypeOptions.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}{item.is_visible === false ? ' (скрыт)' : ''}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted d-block mt-1">
+                      Используется в дальнейшем для классификации магазина и выбора в боте.
+                    </Form.Text>
+                  </Form.Group>
 
                   <Form.Group className="mb-4">
                     <Form.Label className="fw-medium text-secondary">Адрес</Form.Label>

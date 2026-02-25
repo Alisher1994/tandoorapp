@@ -24,6 +24,18 @@ const { sendBalanceNotification, getRestaurantBot } = require('../bot/notificati
 
 const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
+let activityTypesSchemaReady = false;
+let activityTypesSchemaPromise = null;
+
+const DEFAULT_ACTIVITY_TYPES = [
+  'Одежда',
+  'Хозяйственные товары',
+  'Канцтовары',
+  'Бытовая техника',
+  'Детская одежда',
+  'Цветочные',
+  'Продуктовый магазин'
+];
 
 const normalizeTokenValue = (value) => {
   const normalized = value ? String(value).trim() : '';
@@ -33,6 +45,57 @@ const normalizeTokenValue = (value) => {
 const normalizeTelegramIdValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   return normalized || null;
+};
+
+const normalizeActivityTypeId = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const ensureActivityTypesSchema = async () => {
+  if (activityTypesSchemaReady) return;
+  if (activityTypesSchemaPromise) {
+    await activityTypesSchemaPromise;
+    return;
+  }
+
+  activityTypesSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS business_activity_types (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        is_visible BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query('ALTER TABLE business_activity_types ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT true');
+    await pool.query('ALTER TABLE business_activity_types ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS activity_type_id INTEGER');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_restaurants_activity_type_id ON restaurants(activity_type_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_business_activity_types_sort_order ON business_activity_types(sort_order, id)');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_business_activity_types_name_lower ON business_activity_types (LOWER(name))');
+
+    for (let i = 0; i < DEFAULT_ACTIVITY_TYPES.length; i += 1) {
+      const name = DEFAULT_ACTIVITY_TYPES[i];
+      await pool.query(
+        `INSERT INTO business_activity_types (name, sort_order, is_visible)
+         VALUES ($1, $2, true)
+         ON CONFLICT ((LOWER(name))) DO NOTHING`,
+        [name, i + 1]
+      );
+    }
+
+    activityTypesSchemaReady = true;
+  })();
+
+  try {
+    await activityTypesSchemaPromise;
+  } finally {
+    activityTypesSchemaPromise = null;
+  }
 };
 const normalizeLogoDisplayMode = (value, fallback = 'square') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -562,12 +625,16 @@ const getCategorySubtreeDepth = async (client, categoryId) => {
 // Получить все рестораны
 router.get('/restaurants', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const result = await pool.query(`
       SELECT r.*, 
+        bat.name AS activity_type_name,
+        bat.is_visible AS activity_type_is_visible,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
         (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id) as orders_count,
         (SELECT COUNT(*) FROM products WHERE restaurant_id = r.id) as products_count
       FROM restaurants r
+      LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
       ORDER BY r.created_at DESC
     `);
     const restaurants = await Promise.all(result.rows.map((row) => enrichRestaurantWithBotMeta(row)));
@@ -575,6 +642,145 @@ router.get('/restaurants', async (req, res) => {
   } catch (error) {
     console.error('Get restaurants error:', error);
     res.status(500).json({ error: 'Ошибка получения ресторанов' });
+  }
+});
+
+// =====================================================
+// СПРАВОЧНИК ВИДОВ ДЕЯТЕЛЬНОСТИ
+// =====================================================
+
+router.get('/activity-types', async (req, res) => {
+  try {
+    await ensureActivityTypesSchema();
+    const includeHidden = String(req.query.include_hidden || '').trim() === 'true';
+
+    const result = await pool.query(`
+      SELECT
+        bat.*,
+        (SELECT COUNT(*) FROM restaurants r WHERE r.activity_type_id = bat.id) AS restaurants_count
+      FROM business_activity_types bat
+      ${includeHidden ? '' : 'WHERE bat.is_visible = true'}
+      ORDER BY bat.sort_order ASC, bat.name ASC, bat.id ASC
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get activity types error:', error);
+    res.status(500).json({ error: 'Ошибка получения видов деятельности' });
+  }
+});
+
+router.post('/activity-types', async (req, res) => {
+  try {
+    await ensureActivityTypesSchema();
+    const name = String(req.body?.name || '').trim();
+    const sortOrder = Number.isFinite(Number(req.body?.sort_order)) ? parseInt(req.body.sort_order, 10) : 0;
+    const isVisible = req.body?.is_visible !== undefined ? !!req.body.is_visible : true;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Название вида деятельности обязательно' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO business_activity_types (name, sort_order, is_visible)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [name, sortOrder, isVisible]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'Такой вид деятельности уже существует' });
+    }
+    console.error('Create activity type error:', error);
+    res.status(500).json({ error: 'Ошибка создания вида деятельности' });
+  }
+});
+
+router.put('/activity-types/:id', async (req, res) => {
+  try {
+    await ensureActivityTypesSchema();
+    const activityTypeId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(activityTypeId) || activityTypeId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID вида деятельности' });
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'name')) {
+      const name = String(req.body.name || '').trim();
+      if (!name) {
+        return res.status(400).json({ error: 'Название вида деятельности обязательно' });
+      }
+      params.push(name);
+      updates.push(`name = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'sort_order')) {
+      params.push(Number.isFinite(Number(req.body.sort_order)) ? parseInt(req.body.sort_order, 10) : 0);
+      updates.push(`sort_order = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'is_visible')) {
+      params.push(!!req.body.is_visible);
+      updates.push(`is_visible = $${params.length}`);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Нет данных для обновления' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(activityTypeId);
+
+    const result = await pool.query(
+      `UPDATE business_activity_types
+       SET ${updates.join(', ')}
+       WHERE id = $${params.length}
+       RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Вид деятельности не найден' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'Такой вид деятельности уже существует' });
+    }
+    console.error('Update activity type error:', error);
+    res.status(500).json({ error: 'Ошибка обновления вида деятельности' });
+  }
+});
+
+router.patch('/activity-types/:id/visibility', async (req, res) => {
+  try {
+    await ensureActivityTypesSchema();
+    const activityTypeId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(activityTypeId) || activityTypeId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID вида деятельности' });
+    }
+
+    const result = await pool.query(
+      `UPDATE business_activity_types
+       SET is_visible = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [!!req.body?.is_visible, activityTypeId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Вид деятельности не найден' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Toggle activity type visibility error:', error);
+    res.status(500).json({ error: 'Ошибка изменения отображения вида деятельности' });
   }
 });
 
@@ -760,10 +966,14 @@ router.post('/restaurants/:id/toggle-free', async (req, res) => {
 // Получить один ресторан
 router.get('/restaurants/:id', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const result = await pool.query(`
       SELECT r.*,
+        bat.name AS activity_type_name,
+        bat.is_visible AS activity_type_is_visible,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count
       FROM restaurants r
+      LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
       WHERE r.id = $1
     `, [req.params.id]);
 
@@ -792,6 +1002,7 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const { name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -800,9 +1011,20 @@ router.post('/restaurants', async (req, res) => {
       ? null
       : String(telegram_group_id).trim();
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
+    const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
+    }
+
+    if (activityTypeId) {
+      const activityTypeResult = await pool.query(
+        'SELECT id FROM business_activity_types WHERE id = $1 LIMIT 1',
+        [activityTypeId]
+      );
+      if (activityTypeResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Выбранный вид деятельности не найден' });
+      }
     }
 
     console.log('📍 Creating restaurant with delivery_zone:', delivery_zone);
@@ -817,9 +1039,9 @@ router.post('/restaurants', async (req, res) => {
         logo_display_mode,
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
-        balance, order_cost
+        balance, order_cost, activity_type_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `, [
       name,
@@ -838,7 +1060,8 @@ router.post('/restaurants', async (req, res) => {
       is_delivery_enabled !== undefined ? is_delivery_enabled : true,
       parseFloat(req.body.service_fee) || 0,
       settings.default_starting_balance,
-      req.body.service_fee !== undefined ? parseFloat(req.body.service_fee) : settings.default_order_cost
+      req.body.service_fee !== undefined ? parseFloat(req.body.service_fee) : settings.default_order_cost,
+      activityTypeId
     ]);
 
 
@@ -873,6 +1096,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     const { name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -880,6 +1104,8 @@ router.put('/restaurants/:id', async (req, res) => {
     const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
       ? null
       : String(telegram_group_id).trim();
+    const hasActivityTypeField = Object.prototype.hasOwnProperty.call(req.body || {}, 'activity_type_id');
+    const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
 
     // Get old values for logging
     const oldResult = await pool.query('SELECT * FROM restaurants WHERE id = $1', [req.params.id]);
@@ -961,6 +1187,16 @@ router.put('/restaurants/:id', async (req, res) => {
       }
     }
 
+    if (hasActivityTypeField && activityTypeId) {
+      const activityTypeResult = await pool.query(
+        'SELECT id FROM business_activity_types WHERE id = $1 LIMIT 1',
+        [activityTypeId]
+      );
+      if (activityTypeResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Выбранный вид деятельности не найден' });
+      }
+    }
+
     // Now update with all fields including coordinates and delivery settings
     const result = await pool.query(`
       UPDATE restaurants 
@@ -987,8 +1223,9 @@ router.put('/restaurants/:id', async (req, res) => {
           delivery_price_per_km = $21,
           is_delivery_enabled = $22,
           order_cost = $23,
+          activity_type_id = $24,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $24
+      WHERE id = $25
       RETURNING *
     `, [
       name,
@@ -1014,6 +1251,7 @@ router.put('/restaurants/:id', async (req, res) => {
       parseFloat(delivery_price_per_km) || 0,
       is_delivery_enabled !== undefined ? is_delivery_enabled : true,
       parseFloat(service_fee) || 0,
+      hasActivityTypeField ? activityTypeId : oldValues.activity_type_id || null,
       req.params.id
     ]);
 
