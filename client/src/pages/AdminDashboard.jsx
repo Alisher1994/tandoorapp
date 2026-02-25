@@ -1239,6 +1239,12 @@ function AdminDashboard() {
     }
   };
 
+  const formatCardNumberMasked = (value) => {
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 19);
+    if (!digits) return '';
+    return digits.match(/.{1,4}/g)?.join(' ') || digits;
+  };
+
   const handleRestaurantTokenPreview = () => {
     if (!restaurantSettings?.telegram_bot_token) return;
     if (isRestaurantBotTokenVisible) {
@@ -4996,7 +5002,7 @@ function AdminDashboard() {
                         <div className="mb-4">
                           <label className="text-muted extra-small fw-bold text-uppercase mb-2 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>{t('cardNumber')}</label>
                           <div className="d-flex align-items-center justify-content-between p-2 bg-light rounded-3 border">
-                            <span className="fw-bold fs-5 font-monospace">{billingInfo.requisites?.card_number || '—'}</span>
+                            <span className="fw-bold fs-5 font-monospace">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
                             {billingInfo.requisites?.card_number && (
                               <Button
                                 variant="link"

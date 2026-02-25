@@ -786,7 +786,9 @@ function SuperAdminDashboard() {
       if (response.data) {
         setBillingSettings((prev) => ({
           ...prev,
-          ...response.data
+          ...response.data,
+          card_number: String(response.data.card_number || '').replace(/\D/g, ''),
+          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
     } catch (err) {
@@ -796,11 +798,18 @@ function SuperAdminDashboard() {
 
   const saveBillingSettings = async () => {
     try {
-      const response = await axios.put(`${API_URL}/superadmin/billing/settings`, billingSettings);
+      const payload = {
+        ...billingSettings,
+        card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
+        default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
+      };
+      const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
       if (response.data) {
         setBillingSettings((prev) => ({
           ...prev,
-          ...response.data
+          ...response.data,
+          card_number: String(response.data.card_number || '').replace(/\D/g, ''),
+          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
       setSuccess('Настройки биллинга сохранены');
@@ -1254,6 +1263,21 @@ function SuperAdminDashboard() {
     const digits = String(value).replace(/\D/g, '');
     if (!digits) return '';
     return Number(digits).toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
+  };
+
+  const formatCardNumberMasked = (value) => {
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 19);
+    if (!digits) return '';
+    return digits.match(/.{1,4}/g)?.join(' ') || digits;
+  };
+
+  const normalizeMoneyFieldValue = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    const numeric = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+    if (Number.isFinite(numeric)) {
+      return String(Math.round(numeric));
+    }
+    return String(value).replace(/\D/g, '');
   };
 
   const handleTopupAmountChange = (event) => {
@@ -3524,8 +3548,12 @@ function SuperAdminDashboard() {
                                 <Form.Control
                                   className="form-control-custom"
                                   placeholder="8600 ...."
-                                  value={billingSettings.card_number}
-                                  onChange={e => setBillingSettings({ ...billingSettings, card_number: e.target.value })}
+                                  inputMode="numeric"
+                                  value={formatCardNumberMasked(billingSettings.card_number)}
+                                  onChange={e => setBillingSettings({
+                                    ...billingSettings,
+                                    card_number: String(e.target.value || '').replace(/\D/g, '').slice(0, 19)
+                                  })}
                                 />
                               </Form.Group>
                             </Col>
@@ -3707,10 +3735,14 @@ function SuperAdminDashboard() {
                           <Form.Group className="mb-0">
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>
                             <Form.Control
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
                               className="form-control-custom"
-                              value={billingSettings.default_starting_balance}
-                              onChange={e => setBillingSettings({ ...billingSettings, default_starting_balance: e.target.value })}
+                              value={formatThousands(billingSettings.default_starting_balance)}
+                              onChange={e => setBillingSettings({
+                                ...billingSettings,
+                                default_starting_balance: String(e.target.value || '').replace(/\D/g, '')
+                              })}
                             />
                             <Form.Text className="text-muted small">
                               Бонус при создании нового заведения
