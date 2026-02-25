@@ -475,6 +475,7 @@ function SuperAdminDashboard() {
   const [adBannersLimit, setAdBannersLimit] = useState(15);
   const [adBannerImageMeta, setAdBannerImageMeta] = useState(null);
   const [adBannerStatusFilter, setAdBannerStatusFilter] = useState('all');
+  const [adBannerActivityTypeFilter, setAdBannerActivityTypeFilter] = useState('all');
   const [showAdBannerModal, setShowAdBannerModal] = useState(false);
   const [showAdAnalyticsModal, setShowAdAnalyticsModal] = useState(false);
   const [editingAdBanner, setEditingAdBanner] = useState(null);
@@ -1250,15 +1251,38 @@ function SuperAdminDashboard() {
     return [selected, ...filtered];
   }, [allRestaurants, customerRestaurantSearch, customerRestaurantFilter]);
 
+  const adBannerActivityTypeFilterOptions = useMemo(() => {
+    return [...(activityTypes || [])].sort((a, b) => {
+      const orderDiff = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+      if (orderDiff !== 0) return orderDiff;
+      return String(a?.name || '').localeCompare(String(b?.name || ''), 'ru');
+    });
+  }, [activityTypes]);
+
+  const filteredAdBanners = useMemo(() => {
+    if (adBannerActivityTypeFilter === 'all') return adBanners;
+    if (adBannerActivityTypeFilter === 'untargeted') {
+      return (adBanners || []).filter((banner) => !Array.isArray(banner?.target_activity_type_ids) || banner.target_activity_type_ids.length === 0);
+    }
+
+    const targetId = Number(adBannerActivityTypeFilter);
+    if (!Number.isInteger(targetId) || targetId <= 0) return adBanners;
+
+    return (adBanners || []).filter((banner) => (
+      Array.isArray(banner?.target_activity_type_ids) &&
+      banner.target_activity_type_ids.map(Number).includes(targetId)
+    ));
+  }, [adBanners, adBannerActivityTypeFilter]);
+
   const pagedAdBanners = useMemo(() => {
     const start = (adBannersPage - 1) * adBannersLimit;
-    return adBanners.slice(start, start + adBannersLimit);
-  }, [adBanners, adBannersPage, adBannersLimit]);
+    return filteredAdBanners.slice(start, start + adBannersLimit);
+  }, [filteredAdBanners, adBannersPage, adBannersLimit]);
 
   useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil((adBanners.length || 0) / adBannersLimit));
+    const totalPages = Math.max(1, Math.ceil((filteredAdBanners.length || 0) / adBannersLimit));
     if (adBannersPage > totalPages) setAdBannersPage(totalPages);
-  }, [adBanners.length, adBannersLimit, adBannersPage]);
+  }, [filteredAdBanners.length, adBannersLimit, adBannersPage]);
 
   const operatorRestaurantOptions = useMemo(() => {
     const term = operatorRestaurantSearch.trim().toLowerCase();
@@ -2165,6 +2189,8 @@ function SuperAdminDashboard() {
     }
     if (activeTab === 'ads') {
       setAdBannerStatusFilter('all');
+      setAdBannerActivityTypeFilter('all');
+      setAdBannersPage(1);
       return;
     }
     if (activeTab === 'logs') {
@@ -2182,6 +2208,9 @@ function SuperAdminDashboard() {
         filters: 'Filtrlar',
         addAd: "Reklama qo'shish",
         allStatuses: 'Hammasi (faol + tarix)',
+        activityTypeFilter: 'Faoliyat turi',
+        activityTypeAll: 'Barcha faoliyat turlari',
+        activityTypeNoTarget: 'Targhetsiz (hammaga)',
         active: 'Hozir faol',
         scheduled: 'Rejalashtirilgan',
         pausedByDays: 'Hafta kunlari bo‘yicha yashirin',
@@ -2252,6 +2281,9 @@ function SuperAdminDashboard() {
         filters: 'Фильтры',
         addAd: 'Добавить рекламу',
         allStatuses: 'Все (активные + история)',
+        activityTypeFilter: 'Вид деятельности',
+        activityTypeAll: 'Все виды деятельности',
+        activityTypeNoTarget: 'Без таргетинга (всем)',
         active: 'Активные сейчас',
         scheduled: 'Запланированные',
         pausedByDays: 'Скрытые по дням недели',
@@ -2313,6 +2345,10 @@ function SuperAdminDashboard() {
         analyticsCountries: 'Страны',
         analyticsNoData: 'Данных аналитики пока нет'
       };
+
+  const mobileSheetI18n = language === 'uz'
+    ? { title: 'Filtrlar', reset: 'Tozalash', apply: "Qo'llash" }
+    : { title: 'Фильтры', reset: 'Сбросить', apply: 'Применить' };
 
   const renderMobileFiltersSheetContent = () => {
     if (activeTab === 'restaurants') {
@@ -2434,18 +2470,34 @@ function SuperAdminDashboard() {
 
     if (activeTab === 'ads') {
       return (
-        <Form.Select
-          className="form-control-custom"
-          value={adBannerStatusFilter}
-          onChange={(e) => setAdBannerStatusFilter(e.target.value)}
-        >
-          <option value="all">{adI18n.allStatuses}</option>
-          <option value="active">{adI18n.active}</option>
-          <option value="scheduled">{adI18n.scheduled}</option>
-          <option value="paused_by_days">{adI18n.pausedByDays}</option>
-          <option value="disabled">{adI18n.disabled}</option>
-          <option value="finished">{adI18n.finished}</option>
-        </Form.Select>
+        <div className="d-flex flex-column gap-3">
+          <Form.Select
+            className="form-control-custom"
+            value={adBannerStatusFilter}
+            onChange={(e) => { setAdBannerStatusFilter(e.target.value); setAdBannersPage(1); }}
+          >
+            <option value="all">{adI18n.allStatuses}</option>
+            <option value="active">{adI18n.active}</option>
+            <option value="scheduled">{adI18n.scheduled}</option>
+            <option value="paused_by_days">{adI18n.pausedByDays}</option>
+            <option value="disabled">{adI18n.disabled}</option>
+            <option value="finished">{adI18n.finished}</option>
+          </Form.Select>
+
+          <Form.Select
+            className="form-control-custom"
+            value={adBannerActivityTypeFilter}
+            onChange={(e) => { setAdBannerActivityTypeFilter(e.target.value); setAdBannersPage(1); }}
+          >
+            <option value="all">{adI18n.activityTypeAll}</option>
+            <option value="untargeted">{adI18n.activityTypeNoTarget}</option>
+            {adBannerActivityTypeFilterOptions.map((item) => (
+              <option key={item.id} value={String(item.id)}>
+                {item.name}{item.is_visible === false ? (language === 'uz' ? ' (yashirin)' : ' (скрыт)') : ''}
+              </option>
+            ))}
+          </Form.Select>
+        </div>
       );
     }
 
@@ -2665,7 +2717,7 @@ function SuperAdminDashboard() {
         <Modal.Header closeButton className="border-0 pb-2">
           <Modal.Title className="fs-6 fw-bold d-flex align-items-center gap-2">
             <i className="bi bi-funnel"></i>
-            Фильтры
+            {mobileSheetI18n.title}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body className="pt-0">
@@ -2673,10 +2725,10 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer className="border-0 pt-0 d-flex gap-2">
           <Button variant="light" className="flex-fill" onClick={resetActiveTabFilters}>
-            Сбросить
+            {mobileSheetI18n.reset}
           </Button>
           <Button className="btn-primary-custom flex-fill" onClick={() => setShowMobileFiltersSheet(false)}>
-            Применить
+            {mobileSheetI18n.apply}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -3494,7 +3546,7 @@ function SuperAdminDashboard() {
                         {adI18n.maxSlots}: {adBannersMeta.max_slots}
                       </Badge>
                       <Badge className="badge-custom bg-info bg-opacity-10 text-info">
-                        {adI18n.totalRecords}: {adBanners.length}
+                        {adI18n.totalRecords}: {filteredAdBanners.length}
                       </Badge>
                     </div>
                   </div>
@@ -3512,7 +3564,7 @@ function SuperAdminDashboard() {
                       className="form-control-custom"
                       style={{ width: '220px' }}
                       value={adBannerStatusFilter}
-                      onChange={(e) => setAdBannerStatusFilter(e.target.value)}
+                      onChange={(e) => { setAdBannerStatusFilter(e.target.value); setAdBannersPage(1); }}
                     >
                       <option value="all">{adI18n.allStatuses}</option>
                       <option value="active">{adI18n.active}</option>
@@ -3520,6 +3572,20 @@ function SuperAdminDashboard() {
                       <option value="paused_by_days">{adI18n.pausedByDays}</option>
                       <option value="disabled">{adI18n.disabled}</option>
                       <option value="finished">{adI18n.finished}</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '260px' }}
+                      value={adBannerActivityTypeFilter}
+                      onChange={(e) => { setAdBannerActivityTypeFilter(e.target.value); setAdBannersPage(1); }}
+                    >
+                      <option value="all">{adI18n.activityTypeAll}</option>
+                      <option value="untargeted">{adI18n.activityTypeNoTarget}</option>
+                      {adBannerActivityTypeFilterOptions.map((item) => (
+                        <option key={item.id} value={String(item.id)}>
+                          {item.name}{item.is_visible === false ? (language === 'uz' ? ' (yashirin)' : ' (скрыт)') : ''}
+                        </option>
+                      ))}
                     </Form.Select>
                     <Button className="btn-primary-custom" onClick={() => openAdBannerModal()}>
                       + {adI18n.addAd}
@@ -3682,7 +3748,7 @@ function SuperAdminDashboard() {
                     </div>
                     <DataPagination
                       current={adBannersPage}
-                      total={adBanners.length}
+                      total={filteredAdBanners.length}
                       limit={adBannersLimit}
                       onPageChange={setAdBannersPage}
                       onLimitChange={(val) => {
