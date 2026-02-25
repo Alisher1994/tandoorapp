@@ -22,6 +22,10 @@ const normalizeProductSeasonScope = (value, fallback = 'all') => {
 const normalizeRestaurantTokenForCompare = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
+const normalizeLogoDisplayMode = (value, fallback = 'square') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'horizontal' ? 'horizontal' : fallback;
+};
 
 const normalizePhoneValue = (value) => {
   const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
@@ -336,7 +340,7 @@ router.post('/switch-restaurant', async (req, res) => {
 
     // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name, logo_url FROM restaurants WHERE id = $1',
+      'SELECT name, logo_url, logo_display_mode FROM restaurants WHERE id = $1',
       [restaurant_id]
     );
 
@@ -344,7 +348,8 @@ router.post('/switch-restaurant', async (req, res) => {
       message: 'Ресторан переключен',
       active_restaurant_id: restaurant_id,
       active_restaurant_name: restaurantResult.rows[0]?.name,
-      active_restaurant_logo: restaurantResult.rows[0]?.logo_url
+      active_restaurant_logo: restaurantResult.rows[0]?.logo_url,
+      active_restaurant_logo_display_mode: restaurantResult.rows[0]?.logo_display_mode || 'square'
     });
   } catch (error) {
     console.error('Switch restaurant error:', error);
@@ -655,7 +660,8 @@ router.put('/restaurant', async (req, res) => {
       operator_registration_code, start_time, end_time, click_url, payme_url, uzum_url, xazna_url, support_username,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
-      msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled
+      msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
+      logo_display_mode
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -663,6 +669,10 @@ router.put('/restaurant', async (req, res) => {
     const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
       ? null
       : String(telegram_group_id).trim();
+    const normalizedLogoDisplayMode = normalizeLogoDisplayMode(
+      logo_display_mode,
+      previousRestaurant.logo_display_mode || 'square'
+    );
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -696,33 +706,34 @@ router.put('/restaurant', async (req, res) => {
           address = COALESCE($2, address),
           phone = COALESCE($3, phone),
           logo_url = $4,
-          telegram_bot_token = COALESCE($5, telegram_bot_token),
-          telegram_group_id = COALESCE($6, telegram_group_id),
-          start_time = $7,
-          end_time = $8,
-          click_url = $9,
-          payme_url = $10,
-          uzum_url = $11,
-          xazna_url = $12,
-          support_username = $13,
-          operator_registration_code = $14,
-          latitude = $15,
-          longitude = $16,
-          delivery_base_radius = $17,
-          delivery_base_price = $18,
-          delivery_price_per_km = $19,
-          is_delivery_enabled = $20,
-          delivery_zone = $21,
-          msg_new = $22,
-          msg_preparing = $23,
-          msg_delivering = $24,
-          msg_delivered = $25,
-          msg_cancelled = $26,
+          logo_display_mode = $5,
+          telegram_bot_token = COALESCE($6, telegram_bot_token),
+          telegram_group_id = COALESCE($7, telegram_group_id),
+          start_time = $8,
+          end_time = $9,
+          click_url = $10,
+          payme_url = $11,
+          uzum_url = $12,
+          xazna_url = $13,
+          support_username = $14,
+          operator_registration_code = $15,
+          latitude = $16,
+          longitude = $17,
+          delivery_base_radius = $18,
+          delivery_base_price = $19,
+          delivery_price_per_km = $20,
+          is_delivery_enabled = $21,
+          delivery_zone = $22,
+          msg_new = $23,
+          msg_preparing = $24,
+          msg_delivering = $25,
+          msg_delivered = $26,
+          msg_cancelled = $27,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $27
+      WHERE id = $28
       RETURNING *
     `, [
-      name, address, phone, logo_url, normalizedBotToken, normalizedGroupId,
+      name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
       start_time, end_time, click_url, payme_url, uzum_url, xazna_url, support_username,
       operator_registration_code || null,
       latitude, longitude, delivery_base_radius, delivery_base_price,
@@ -2766,3 +2777,4 @@ pl.id,
 });
 
 module.exports = router;
+    const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');

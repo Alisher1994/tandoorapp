@@ -370,6 +370,7 @@ function SuperAdminDashboard() {
     address: '',
     phone: '',
     logo_url: '',
+    logo_display_mode: 'square',
     delivery_zone: null,
     telegram_bot_token: '',
     telegram_group_id: '',
@@ -1793,6 +1794,7 @@ function SuperAdminDashboard() {
         address: restaurant.address || '',
         phone: restaurant.phone || '',
         logo_url: restaurant.logo_url || '',
+        logo_display_mode: restaurant.logo_display_mode === 'horizontal' ? 'horizontal' : 'square',
         delivery_zone: restaurant.delivery_zone || null,
         telegram_bot_token: restaurant.telegram_bot_token || '',
         telegram_group_id: restaurant.telegram_group_id || '',
@@ -1817,6 +1819,7 @@ function SuperAdminDashboard() {
         address: '',
         phone: '',
         logo_url: '',
+        logo_display_mode: 'square',
         delivery_zone: null,
         telegram_bot_token: '',
         telegram_group_id: '',
@@ -4407,8 +4410,28 @@ function SuperAdminDashboard() {
                             <i className="bi bi-trash"></i> Удалить логотип
                           </Button>
                         )}
+                        <Form.Text className="text-muted d-block mt-2">
+                          Система автоматически уменьшит логотип и впишет его в шапку магазина без увеличения header.
+                        </Form.Text>
+                        <Form.Text className="text-muted d-block">
+                          Квадратный: 512x512 px (PNG). Горизонтальный: 1200x400 px (PNG, прозрачный фон).
+                        </Form.Text>
                       </div>
                     </div>
+                  </Form.Group>
+
+                  <Form.Group className="mb-4">
+                    <Form.Label className="fw-medium text-secondary">Режим отображения логотипа</Form.Label>
+                    <Form.Select
+                      value={restaurantForm.logo_display_mode || 'square'}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, logo_display_mode: e.target.value })}
+                    >
+                      <option value="square">Квадратный</option>
+                      <option value="horizontal">Горизонтальный</option>
+                    </Form.Select>
+                    <Form.Text className="text-muted mt-2 d-block">
+                      Управляет отображением логотипа у клиентов в шапке магазина.
+                    </Form.Text>
                   </Form.Group>
 
                   <Row>

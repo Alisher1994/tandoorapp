@@ -135,7 +135,8 @@ export function AuthProvider({ children }) {
         ...prev,
         active_restaurant_id: response.data.active_restaurant_id,
         active_restaurant_name: response.data.active_restaurant_name,
-        active_restaurant_logo: response.data.active_restaurant_logo
+        active_restaurant_logo: response.data.active_restaurant_logo,
+        active_restaurant_logo_display_mode: response.data.active_restaurant_logo_display_mode
       }));
       
       return { success: true };

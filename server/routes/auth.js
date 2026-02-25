@@ -143,6 +143,7 @@ router.post('/login', async (req, res) => {
 
     const result = await pool.query(`
       SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo,
+             r.logo_display_mode as active_restaurant_logo_display_mode,
              r.service_fee as active_restaurant_service_fee,
              r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
              CASE
@@ -291,6 +292,7 @@ router.post('/login', async (req, res) => {
         active_restaurant_id: user.active_restaurant_id,
         active_restaurant_name: user.active_restaurant_name,
         active_restaurant_logo: user.active_restaurant_logo,
+        active_restaurant_logo_display_mode: user.active_restaurant_logo_display_mode,
         active_restaurant_service_fee: user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: user.active_restaurant_is_delivery_enabled,
         restaurants
@@ -349,6 +351,7 @@ router.get('/me', authenticate, async (req, res) => {
         active_restaurant_id: req.user.active_restaurant_id,
         active_restaurant_name: req.user.active_restaurant_name,
         active_restaurant_logo: req.user.active_restaurant_logo,
+        active_restaurant_logo_display_mode: req.user.active_restaurant_logo_display_mode,
         active_restaurant_service_fee: req.user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: req.user.active_restaurant_is_delivery_enabled,
         restaurants: req.user.restaurants || [],

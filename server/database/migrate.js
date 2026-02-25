@@ -45,6 +45,7 @@ async function migrate() {
     // Add missing columns
     const restaurantColumns = [
       'logo_url TEXT',
+      `logo_display_mode VARCHAR(20) DEFAULT 'square'`,
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',
@@ -76,6 +77,20 @@ async function migrate() {
         await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
       } catch (e) { }
     }
+    await client.query(`
+      UPDATE restaurants
+      SET logo_display_mode = 'square'
+      WHERE logo_display_mode IS NULL OR TRIM(COALESCE(logo_display_mode, '')) = ''
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_logo_display_mode_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_logo_display_mode_check
+      CHECK (logo_display_mode IN ('square', 'horizontal'))
+    `).catch(() => {});
 
     console.log('✅ Restaurants table ready');
 

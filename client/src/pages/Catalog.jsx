@@ -127,6 +127,43 @@ function Catalog() {
     return url.startsWith('http') ? url : `${API_URL.replace('/api', '')}${url}`;
   };
 
+  const getRestaurantLogoFrame = (logoDisplayMode) => {
+    const mode = String(logoDisplayMode || '').toLowerCase() === 'horizontal' ? 'horizontal' : 'square';
+    return mode === 'horizontal'
+      ? {
+        box: {
+          width: '112px',
+          height: '42px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        },
+        img: {
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          borderRadius: '10px'
+        }
+      }
+      : {
+        box: {
+          width: '42px',
+          height: '42px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        },
+        img: {
+          width: '42px',
+          height: '42px',
+          objectFit: 'contain',
+          borderRadius: '10px'
+        }
+      };
+  };
+
   const getCategoryName = (category) => (
     language === 'uz' && category?.name_uz ? category.name_uz : category?.name_ru
   );
@@ -1251,11 +1288,18 @@ function Catalog() {
           {/* Center logo */}
           <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto">
             {currentRestaurant?.logo_url ? (
-              <img
-                src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
-                alt={currentRestaurant.name}
-                style={{ height: '42px', width: '42px', objectFit: 'cover', borderRadius: '10px' }}
-              />
+              (() => {
+                const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
+                return (
+                  <div style={logoFrame.box}>
+                    <img
+                      src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
+                      alt={currentRestaurant.name}
+                      style={logoFrame.img}
+                    />
+                  </div>
+                );
+              })()
             ) : (
               <span style={{ fontSize: '1.7rem' }}>🍽️</span>
             )}

@@ -11,6 +11,25 @@ import BottomNav from '../components/BottomNav';
 import HeartIcon from '../components/HeartIcon';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
+  const isHorizontal = String(mode || '').toLowerCase() === 'horizontal';
+  return {
+    box: {
+      width: isHorizontal ? `${horizontalWidth}px` : `${squareSize}px`,
+      height: `${squareSize}px`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden'
+    },
+    img: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'contain',
+      borderRadius: '8px'
+    }
+  };
+};
 
 function Favorites() {
   const navigate = useNavigate();
@@ -45,14 +64,20 @@ function Favorites() {
           <div className="d-flex align-items-center justify-content-between">
             <div style={{ width: '40px' }} />
             {user?.active_restaurant_logo ? (
-              <img
-                src={String(user.active_restaurant_logo).startsWith('http')
-                  ? user.active_restaurant_logo
-                  : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
-                alt="Logo"
-                height="36"
-                style={{ objectFit: 'contain' }}
-              />
+              (() => {
+                const logoFrame = getHeaderLogoFrame(user?.active_restaurant_logo_display_mode);
+                return (
+                  <div style={logoFrame.box}>
+                    <img
+                      src={String(user.active_restaurant_logo).startsWith('http')
+                        ? user.active_restaurant_logo
+                        : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
+                      alt="Logo"
+                      style={logoFrame.img}
+                    />
+                  </div>
+                );
+              })()
             ) : (
               <HeartIcon size={20} filled color="var(--primary-color)" />
             )}

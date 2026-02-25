@@ -302,6 +302,7 @@ router.get('/restaurant/:id', async (req, res) => {
       address: r.address,
       phone: r.phone,
       logo_url: r.logo_url,
+      logo_display_mode: r.logo_display_mode || 'square',
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       click_url: r.click_url,
@@ -463,6 +464,7 @@ router.get('/restaurants/list', async (req, res) => {
       address: r.address,
       phone: r.phone,
       logo_url: r.logo_url,
+      logo_display_mode: r.logo_display_mode || 'square',
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled)
       });

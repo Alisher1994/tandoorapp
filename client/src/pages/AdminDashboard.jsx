@@ -1110,7 +1110,10 @@ function AdminDashboard() {
   const fetchRestaurantSettings = async () => {
     try {
       const response = await axios.get(`${API_URL}/admin/restaurant`);
-      const settings = response.data || {};
+      const settings = {
+        ...(response.data || {}),
+        logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square'
+      };
       setRestaurantSettings(settings);
       setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
       setTokenSaveCountdown(0);
@@ -3891,6 +3894,27 @@ function AdminDashboard() {
                                               </Button>
                                             </div>
                                           </div>
+                                          <Form.Text className="text-muted d-block mt-2">
+                                            Система автоматически уменьшит логотип и впишет его в шапку без изменения высоты header.
+                                          </Form.Text>
+                                          <Form.Text className="text-muted d-block">
+                                            Квадратный: рекомендуется `512x512 px` (PNG). Горизонтальный: `1200x400 px` (PNG, прозрачный фон).
+                                          </Form.Text>
+                                        </Form.Group>
+
+                                        <Form.Group className="mb-4">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения логотипа</Form.Label>
+                                          <Form.Select
+                                            className="form-control-custom"
+                                            value={restaurantSettings.logo_display_mode || 'square'}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_display_mode: e.target.value })}
+                                          >
+                                            <option value="square">Квадратный</option>
+                                            <option value="horizontal">Горизонтальный</option>
+                                          </Form.Select>
+                                          <Form.Text className="text-muted d-block mt-2">
+                                            Выберите, как логотип будет отображаться у клиентов в шапке магазина.
+                                          </Form.Text>
                                         </Form.Group>
 
                                         <Alert

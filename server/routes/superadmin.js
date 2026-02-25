@@ -34,6 +34,10 @@ const normalizeTelegramIdValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   return normalized || null;
 };
+const normalizeLogoDisplayMode = (value, fallback = 'square') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'horizontal' ? 'horizontal' : fallback;
+};
 
 const normalizePhoneValue = (value) => {
   const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
@@ -788,13 +792,14 @@ router.get('/restaurants/:id', async (req, res) => {
 // Создать ресторан
 router.post('/restaurants', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
+    const { name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
     const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
       ? null
       : String(telegram_group_id).trim();
+    const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
@@ -809,11 +814,12 @@ router.post('/restaurants', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO restaurants (
         name, address, phone, logo_url, delivery_zone, 
+        logo_display_mode,
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
         balance, order_cost
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
       name,
@@ -821,6 +827,7 @@ router.post('/restaurants', async (req, res) => {
       phone,
       logo_url,
       delivery_zone ? JSON.stringify(delivery_zone) : null,
+      normalizedLogoDisplayMode,
       normalizedBotToken,
       normalizedGroupId,
       operator_registration_code || null,
@@ -866,7 +873,7 @@ router.post('/restaurants', async (req, res) => {
 // Обновить ресторан
 router.put('/restaurants/:id', async (req, res) => {
   try {
-    const { name, address, phone, logo_url, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
+    const { name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
@@ -880,6 +887,7 @@ router.put('/restaurants/:id', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     const oldValues = oldResult.rows[0];
+    const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, oldValues.logo_display_mode || 'square');
     const previousBotToken = normalizeRestaurantTokenForCompare(oldValues.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -960,32 +968,34 @@ router.put('/restaurants/:id', async (req, res) => {
           address = COALESCE($2, address),
           phone = COALESCE($3, phone),
           logo_url = $4,
-          delivery_zone = $5,
-          telegram_bot_token = COALESCE($6, telegram_bot_token),
-          telegram_group_id = COALESCE($7, telegram_group_id),
-          is_active = COALESCE($8, is_active),
-          start_time = $9,
-          end_time = $10,
-          click_url = $11,
-          payme_url = $12,
-          support_username = $13,
-          operator_registration_code = $14,
-          service_fee = $15,
-          latitude = $16,
-          longitude = $17,
-          delivery_base_radius = $18,
-          delivery_base_price = $19,
-          delivery_price_per_km = $20,
-          is_delivery_enabled = $21,
-          order_cost = $22,
+          logo_display_mode = $5,
+          delivery_zone = $6,
+          telegram_bot_token = COALESCE($7, telegram_bot_token),
+          telegram_group_id = COALESCE($8, telegram_group_id),
+          is_active = COALESCE($9, is_active),
+          start_time = $10,
+          end_time = $11,
+          click_url = $12,
+          payme_url = $13,
+          support_username = $14,
+          operator_registration_code = $15,
+          service_fee = $16,
+          latitude = $17,
+          longitude = $18,
+          delivery_base_radius = $19,
+          delivery_base_price = $20,
+          delivery_price_per_km = $21,
+          is_delivery_enabled = $22,
+          order_cost = $23,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $23
+      WHERE id = $24
       RETURNING *
     `, [
       name,
       address,
       phone,
       logo_url,
+      normalizedLogoDisplayMode,
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       normalizedBotToken,
       normalizedGroupId,

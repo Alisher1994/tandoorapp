@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   phone VARCHAR(20),
   telegram_bot_token VARCHAR(255),
   telegram_group_id VARCHAR(100),
+  logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
   operator_registration_code VARCHAR(64),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

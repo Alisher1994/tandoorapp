@@ -11,6 +11,25 @@ import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
+  const isHorizontal = String(mode || '').toLowerCase() === 'horizontal';
+  return {
+    box: {
+      width: isHorizontal ? `${horizontalWidth}px` : `${squareSize}px`,
+      height: `${squareSize}px`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden'
+    },
+    img: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'contain',
+      borderRadius: '8px'
+    }
+  };
+};
 
 function Feedback() {
   const { user } = useAuth();
@@ -109,12 +128,18 @@ function Feedback() {
         <Container style={{ maxWidth: '600px' }}>
           <div className="d-flex justify-content-between align-items-center">
             {user?.active_restaurant_logo ? (
-              <img 
-                src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
-                alt="Logo" 
-                height="36" 
-                style={{ objectFit: 'contain' }}
-              />
+              (() => {
+                const logoFrame = getHeaderLogoFrame(user?.active_restaurant_logo_display_mode);
+                return (
+                  <div style={logoFrame.box}>
+                    <img
+                      src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
+                      alt="Logo"
+                      style={logoFrame.img}
+                    />
+                  </div>
+                );
+              })()
             ) : (
               <span style={{ fontSize: '1.5rem' }}>💬</span>
             )}
