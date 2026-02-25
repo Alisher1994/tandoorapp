@@ -2680,6 +2680,9 @@ function SuperAdminDashboard() {
                               </td>
                               <td>
                                 <strong className="text-dark">{r.name}</strong>
+                                <div className="small text-muted">
+                                  {r.telegram_bot_username || '—'}
+                                </div>
                               </td>
                               <td>
                                 <div className="fw-bold text-primary">{parseFloat(r.balance || 0).toLocaleString()} сум</div>

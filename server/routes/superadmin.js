@@ -99,6 +99,42 @@ const resolveCentralBotMeta = async (token) => {
   };
 };
 
+const resolveTelegramBotMeta = async (token) => {
+  const normalizedToken = normalizeTokenValue(token);
+  if (!normalizedToken) {
+    return {
+      telegram_bot_name: null,
+      telegram_bot_username: null
+    };
+  }
+
+  const bot = new TelegramBot(normalizedToken);
+  const me = await bot.getMe();
+
+  return {
+    telegram_bot_name: me?.first_name || null,
+    telegram_bot_username: me?.username ? `@${me.username}` : null
+  };
+};
+
+const enrichRestaurantWithBotMeta = async (restaurant) => {
+  if (!restaurant) return restaurant;
+
+  try {
+    return {
+      ...restaurant,
+      ...(await resolveTelegramBotMeta(restaurant.telegram_bot_token))
+    };
+  } catch (error) {
+    return {
+      ...restaurant,
+      telegram_bot_name: null,
+      telegram_bot_username: null,
+      telegram_bot_meta_error: error.message
+    };
+  }
+};
+
 const enrichBillingSettingsWithCentralBotMeta = async (settings) => {
   const baseSettings = settings || {};
 
@@ -530,7 +566,8 @@ router.get('/restaurants', async (req, res) => {
       FROM restaurants r
       ORDER BY r.created_at DESC
     `);
-    res.json(result.rows);
+    const restaurants = await Promise.all(result.rows.map((row) => enrichRestaurantWithBotMeta(row)));
+    res.json(restaurants);
   } catch (error) {
     console.error('Get restaurants error:', error);
     res.status(500).json({ error: 'Ошибка получения ресторанов' });
