@@ -83,7 +83,7 @@ router.post('/calculate', async (req, res) => {
     
     if (result.rows.length === 0) {
       console.log('❌ Restaurant not found:', restaurant_id);
-      return res.status(404).json({ error: 'Ресторан не найден' });
+      return res.status(404).json({ error: 'Магазин не найден' });
     }
     
     const restaurant = result.rows[0];
@@ -91,7 +91,7 @@ router.post('/calculate', async (req, res) => {
       return res.json({
         delivery_cost: 0,
         distance_km: 0,
-        message: 'Доставка отключена для этого ресторана',
+        message: 'Доставка отключена для этого магазина',
         disabled: true
       });
     }
@@ -116,7 +116,7 @@ router.post('/calculate', async (req, res) => {
       return res.json({
         delivery_cost: 0,
         distance_km: 0,
-        message: 'Координаты ресторана не указаны - бесплатная доставка',
+        message: 'Координаты магазина не указаны - бесплатная доставка',
         free_delivery: true
       });
     }

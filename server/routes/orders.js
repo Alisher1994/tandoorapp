@@ -310,7 +310,7 @@ router.post('/', authenticate, async (req, res) => {
           console.log('❌ Restaurant closed');
           await client.query('ROLLBACK');
           return res.status(400).json({
-            error: `Ресторан работает с ${startTime} по ${endTime}`
+            error: `Магазин работает с ${startTime} по ${endTime}`
           });
         }
       }

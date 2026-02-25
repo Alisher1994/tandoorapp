@@ -132,6 +132,7 @@ function Cart() {
 
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
+  const errorAlertRef = useRef(null);
 
   // Keyboard avoidance - scroll to comment field when focused (works on iOS)
   const handleCommentFocus = () => {
@@ -473,6 +474,13 @@ function Cart() {
     );
   };
 
+  useEffect(() => {
+    if (!error) return;
+    setTimeout(() => {
+      errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }, [error]);
+
   // Показать модалку подтверждения перед заказом
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -488,8 +496,13 @@ function Cart() {
       return;
     }
 
-    if (isDeliveryEnabled && !hasLocation && !formData.delivery_address) {
-      setError('Укажите адрес доставки');
+    if (isDeliveryEnabled && !selectedAddressId) {
+      setError(language === 'uz' ? 'Yetkazib berish manzilini tanlang' : 'Выберите адрес доставки');
+      return;
+    }
+
+    if (isDeliveryEnabled && !hasLocation) {
+      setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
       return;
     }
 
@@ -503,6 +516,16 @@ function Cart() {
     setLoading(true);
 
     try {
+      if (isDeliveryEnabled && !selectedAddressId) {
+        setError(language === 'uz' ? 'Yetkazib berish manzilini tanlang' : 'Выберите адрес доставки');
+        return;
+      }
+
+      if (isDeliveryEnabled && !hasLocation) {
+        setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
+        return;
+      }
+
       const restaurant_id = cart[0]?.restaurant_id || user?.active_restaurant_id;
 
       // Если нет адреса но есть локация - указываем что доставка по локации.
@@ -745,7 +768,7 @@ function Cart() {
       </div>
 
       <Container className="py-3" style={{ maxWidth: '500px' }}>
-        {error && <Alert variant="danger" className="py-2 mb-3">{error}</Alert>}
+        {error && <Alert ref={errorAlertRef} variant="danger" className="py-2 mb-3">{error}</Alert>}
 
         {/* ШАГ 1: Список товаров */}
         {step === 1 && (
@@ -894,8 +917,9 @@ function Cart() {
                         variant="primary"
                         className="w-100"
                         onClick={() => setShowLocationModal(true)}
+                        style={{ color: '#fff', fontWeight: 600 }}
                       >
-                        ➕ {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
+                        + {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
                       </Button>
                     )}
                   </div>
