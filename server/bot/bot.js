@@ -221,6 +221,13 @@ function formatPhoneWithPlus(rawPhone) {
   return `+${digits}`;
 }
 
+function parseTelegramGroupId(rawGroupId) {
+  if (rawGroupId === undefined || rawGroupId === null) return null;
+  const normalized = String(rawGroupId).trim();
+  if (!/^-?\d{5,20}$/.test(normalized)) return null;
+  return normalized;
+}
+
 function buildWebLoginUrl(params = {}) {
   const base = process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
   if (!base) return null;
@@ -385,7 +392,7 @@ const ONBOARDING_TEXTS = {
     cancelled: '❌ Онбординг отменен.',
     skip: '⏭️ Пропустить',
     skipGroupDone: '⏭️ Шаг с группой пропущен.',
-    useGroupOrSkipHint: 'ℹ️ Используйте кнопку "👥 Поделиться группой" или нажмите "⏭️ Пропустить".',
+    useGroupOrSkipHint: 'ℹ️ Используйте кнопку "👥 Поделиться группой", отправьте ID группы вручную (пример: -1001234567890) или нажмите "⏭️ Пропустить".',
     shareGroup: '👥 Поделиться группой',
     addLogo: '➕ Добавить логотип',
     addToken: '➕ Добавить токен',
@@ -400,7 +407,7 @@ const ONBOARDING_TEXTS = {
     promptLocation: '📍 Отправьте <b>локацию магазина</b>:',
     promptLogo: '🖼️ Отправьте <b>фото логотипа</b> или ссылку (URL):',
     promptToken: '🤖 Отправьте <b>Bot Token</b> вашего магазина:',
-    promptGroup: '👥 Нажмите кнопку ниже и <b>поделитесь группой</b> для заказов:',
+    promptGroup: '👥 Нажмите кнопку ниже и <b>поделитесь группой</b> для заказов.\n\nМожно также отправить ID группы вручную (пример: <code>-1001234567890</code>):',
     groupConnected: '✅ Группа подключена.\n\nID группы: <code>{groupId}</code>',
     logoSaved: '✅ Логотип получен и сохранен.',
     photoReadError: '❌ Не удалось прочитать фото. Отправьте изображение еще раз.',
@@ -423,7 +430,7 @@ const ONBOARDING_TEXTS = {
     cancelled: '❌ Onbording bekor qilindi.',
     skip: '⏭️ O‘tkazib yuborish',
     skipGroupDone: '⏭️ Guruh bosqichi o‘tkazib yuborildi.',
-    useGroupOrSkipHint: 'ℹ️ "👥 Guruhni ulashish" tugmasidan foydalaning yoki "⏭️ O‘tkazib yuborish"ni bosing.',
+    useGroupOrSkipHint: 'ℹ️ "👥 Guruhni ulashish" tugmasidan foydalaning, guruh ID ni qo‘lda yuboring (masalan: -1001234567890) yoki "⏭️ O‘tkazib yuborish"ni bosing.',
     shareGroup: '👥 Guruhni ulashish',
     addLogo: '➕ Logotip qo‘shish',
     addToken: '➕ Token qo‘shish',
@@ -438,7 +445,7 @@ const ONBOARDING_TEXTS = {
     promptLocation: '📍 <b>Do‘kon lokatsiyasini</b> yuboring:',
     promptLogo: '🖼️ <b>Logotip rasmini</b> yoki havolani (URL) yuboring:',
     promptToken: '🤖 Do‘koningizning <b>Bot Token</b>ini yuboring:',
-    promptGroup: '👥 Quyidagi tugmani bosing va buyurtmalar uchun <b>guruhni ulashing</b>:',
+    promptGroup: '👥 Quyidagi tugmani bosing va buyurtmalar uchun <b>guruhni ulashing</b>.\n\nYoki guruh ID ni qo‘lda yuboring (masalan: <code>-1001234567890</code>):',
     groupConnected: '✅ Guruh ulandi.\n\nGuruh ID: <code>{groupId}</code>',
     logoSaved: '✅ Logotip qabul qilindi va saqlandi.',
     photoReadError: '❌ Rasmni o‘qib bo‘lmadi. Iltimos, qayta yuboring.',
@@ -861,6 +868,8 @@ async function initBot() {
     }
 
     if (field === 'group_id') {
+      const requestId = Number(Date.now() % 1000000000);
+      console.log(`[onboarding] requesting group share: user=${userId}, request_id=${requestId}`);
       await sendOnboardingUiMessage(chatId, userId, prompts[field], {
         parse_mode: 'HTML',
         reply_markup: {
@@ -868,9 +877,8 @@ async function initBot() {
             [{
               text: onboardingT(userLang, 'shareGroup'),
               request_chat: {
-                request_id: Number(Date.now() % 1000000000),
-                chat_is_channel: false,
-                bot_is_member: true
+                request_id: requestId,
+                chat_is_channel: false
               }
             }],
             [{ text: onboardingT(userLang, 'skip') }],
@@ -947,6 +955,36 @@ async function initBot() {
       );
       return;
     }
+  }
+
+  async function captureOnboardingGroupId(chatId, userId, rawGroupId, source = 'unknown') {
+    const onboardingKey = getOnboardingStateKey(userId);
+    const onboardingState = onboardingStates.get(onboardingKey);
+    if (!onboardingState || onboardingState.step !== 'await_group_share') {
+      return false;
+    }
+
+    const parsedGroupId = parseTelegramGroupId(rawGroupId);
+    if (!parsedGroupId) {
+      console.warn(`[onboarding] invalid group id from ${source}: user=${userId}, value=${String(rawGroupId)}`);
+      return false;
+    }
+
+    onboardingState.group_id = parsedGroupId;
+    onboardingState.step = 'group_selected';
+    onboardingStates.set(onboardingKey, onboardingState);
+    console.log(`[onboarding] group connected: user=${userId}, source=${source}, group_id=${parsedGroupId}`);
+
+    await bot.sendMessage(
+      chatId,
+      onboardingT(getOnboardingLanguage(userId), 'groupConnected', { groupId: onboardingState.group_id }),
+      {
+        parse_mode: 'HTML',
+        reply_markup: { remove_keyboard: true }
+      }
+    );
+    await finalizeOnboarding(chatId, userId);
+    return true;
   }
 
   async function finalizeOnboarding(chatId, userId) {
@@ -1356,28 +1394,16 @@ async function initBot() {
     const chatId = msg.chat?.id;
     const userId = msg.from?.id;
     const sharedChatId = msg.chat_shared?.chat_id;
-    if (!chatId || !userId || !sharedChatId) {
+    const forwardedChatId = msg.forward_from_chat?.id;
+    if (!chatId || !userId) {
       return;
     }
-
-    const onboardingKey = getOnboardingStateKey(userId);
-    const onboardingState = onboardingStates.get(onboardingKey);
-    if (!onboardingState || onboardingState.step !== 'await_group_share') {
+    const candidateGroupId = sharedChatId ?? forwardedChatId;
+    if (!candidateGroupId) {
       return;
     }
-
-    onboardingState.group_id = String(sharedChatId);
-    onboardingStates.set(onboardingKey, onboardingState);
-
-    await bot.sendMessage(
-      chatId,
-      onboardingT(getOnboardingLanguage(userId), 'groupConnected', { groupId: onboardingState.group_id }),
-      {
-        parse_mode: 'HTML',
-        reply_markup: { remove_keyboard: true }
-      }
-    );
-    await finalizeOnboarding(chatId, userId);
+    const source = sharedChatId ? 'chat_shared' : 'forward_from_chat';
+    await captureOnboardingGroupId(chatId, userId, candidateGroupId, source);
   });
   
   // =====================================================
@@ -1517,6 +1543,13 @@ async function initBot() {
       if (onboardingState.step === 'await_group_share') {
         const userLang = getOnboardingLanguage(userId);
         const normalizedText = text.trim();
+        const manualGroupId = parseTelegramGroupId(normalizedText);
+
+        if (manualGroupId) {
+          await captureOnboardingGroupId(chatId, userId, manualGroupId, 'manual_text');
+          return;
+        }
+
         if (normalizedText === onboardingT(userLang, 'skip') || normalizedText === '⏭️ Пропустить') {
           onboardingState.group_id = null;
           onboardingStates.set(onboardingKey, onboardingState);
