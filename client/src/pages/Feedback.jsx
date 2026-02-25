@@ -143,7 +143,7 @@ function Feedback() {
             ) : (
               <span style={{ fontSize: '1.5rem' }}>💬</span>
             )}
-            <h5 className="mb-0">{language === 'uz' ? 'Shikoyat va takliflar' : 'Жалобы и предложения'}</h5>
+            <div style={{ flex: 1 }} />
             <button
               onClick={toggleLanguage}
               style={{
