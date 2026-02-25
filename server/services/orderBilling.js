@@ -1,4 +1,5 @@
 const pool = require('../database/connection');
+const LOW_BALANCE_ALERT_THRESHOLD = Number(process.env.LOW_BALANCE_ALERT_THRESHOLD || 3000);
 
 async function ensureOrderPaidForProcessing({
   orderId,
@@ -33,7 +34,17 @@ async function ensureOrderPaidForProcessing({
 
     if (order.is_paid) {
       await client.query('COMMIT');
-      return { ok: true, alreadyPaid: true, cost: Number(order.order_cost || 0), order };
+      return {
+        ok: true,
+        alreadyPaid: true,
+        cost: Number(order.order_cost || 0),
+        order,
+        restaurantId: Number(order.restaurant_id || 0) || null,
+        balanceBefore: Number(order.balance || 0),
+        remainingBalance: Number(order.balance || 0),
+        lowBalanceThreshold: LOW_BALANCE_ALERT_THRESHOLD,
+        lowBalanceCrossed: false
+      };
     }
 
     const cost = order.is_free_tier ? 0 : Number(order.order_cost || 1000);
@@ -56,6 +67,12 @@ async function ensureOrderPaidForProcessing({
         [order.restaurant_id, actorUserId, -cost, `Списание за заказ #${order.id}`]
       );
     }
+    const remainingBalance = Math.max(0, balance - cost);
+    const lowBalanceCrossed =
+      !order.is_free_tier &&
+      cost > 0 &&
+      balance > LOW_BALANCE_ALERT_THRESHOLD &&
+      remainingBalance <= LOW_BALANCE_ALERT_THRESHOLD;
 
     if (markProcessedByUserId) {
       await client.query(
@@ -80,7 +97,17 @@ async function ensureOrderPaidForProcessing({
     }
 
     await client.query('COMMIT');
-    return { ok: true, alreadyPaid: false, cost, order };
+    return {
+      ok: true,
+      alreadyPaid: false,
+      cost,
+      order,
+      restaurantId: Number(order.restaurant_id || 0) || null,
+      balanceBefore: balance,
+      remainingBalance,
+      lowBalanceThreshold: LOW_BALANCE_ALERT_THRESHOLD,
+      lowBalanceCrossed
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -92,4 +119,3 @@ async function ensureOrderPaidForProcessing({
 module.exports = {
   ensureOrderPaidForProcessing
 };
-

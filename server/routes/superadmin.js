@@ -35,6 +35,52 @@ const normalizeTelegramIdValue = (value) => {
   return normalized || null;
 };
 
+const normalizePhoneValue = (value) => {
+  const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  return `+${digits}`;
+};
+
+const phoneDigitsOnly = (value) => String(normalizePhoneValue(value) || '').replace(/\D/g, '');
+
+const looksLikePhoneOrTelegramLogin = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  if (raw.startsWith('@')) return true;
+  return /^[+\d\s()\-]+$/.test(raw);
+};
+
+const normalizeOperatorAuthFields = ({ username, phone }) => {
+  const normalizedPhone = normalizePhoneValue(phone) || null;
+  const usernameRaw = String(username || '').trim();
+  const normalizedUsername = (normalizedPhone && (!usernameRaw || looksLikePhoneOrTelegramLogin(usernameRaw)))
+    ? phoneDigitsOnly(normalizedPhone)
+    : usernameRaw;
+  return {
+    username: normalizedUsername,
+    phone: normalizedPhone
+  };
+};
+
+const normalizeUserIdentityForDisplay = (user) => {
+  if (!user) return user;
+  const normalizedPhone = normalizePhoneValue(user.phone) || normalizePhoneValue(user.username);
+  const digitsFromPhone = phoneDigitsOnly(user.phone) || phoneDigitsOnly(user.username);
+  const usernameRaw = String(user.username || '');
+  const shouldShowPhoneLogin =
+    !!digitsFromPhone &&
+    (user.role === 'operator' || user.role === 'superadmin') &&
+    (looksLikePhoneOrTelegramLogin(usernameRaw) || !usernameRaw);
+
+  return {
+    ...user,
+    phone: normalizedPhone || null,
+    username: shouldShowPhoneLogin ? digitsFromPhone : user.username
+  };
+};
+
 const resolveCentralBotMeta = async (token) => {
   const normalizedToken = normalizeTokenValue(token);
   if (!normalizedToken) {
@@ -1184,7 +1230,7 @@ router.get('/operators', async (req, res) => {
     `, params);
 
     res.json({
-      operators: result.rows,
+      operators: result.rows.map(normalizeUserIdentityForDisplay),
       total: parseInt(countResult.rows[0].total, 10),
       page,
       limit
@@ -1433,15 +1479,16 @@ router.post('/operators', async (req, res) => {
   const client = await pool.connect();
   try {
     const { username, password, full_name, phone, telegram_id, restaurant_ids } = req.body;
+    const normalizedAuth = normalizeOperatorAuthFields({ username, phone });
 
-    if (!username || !password) {
+    if (!normalizedAuth.username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
     }
 
     await client.query('BEGIN');
 
     // Check username uniqueness
-    const existingUser = await client.query('SELECT id FROM users WHERE username = $1', [username]);
+    const existingUser = await client.query('SELECT id FROM users WHERE username = $1', [normalizedAuth.username]);
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Пользователь с таким логином уже существует' });
@@ -1453,7 +1500,7 @@ router.post('/operators', async (req, res) => {
       INSERT INTO users (username, password, full_name, phone, role, is_active, telegram_id)
       VALUES ($1, $2, $3, $4, 'operator', true, $5)
       RETURNING id, username, full_name, phone, role, is_active, created_at, telegram_id
-    `, [username, hashedPassword, full_name, phone, telegram_id || null]);
+    `, [normalizedAuth.username, hashedPassword, full_name, normalizedAuth.phone, telegram_id || null]);
 
     const user = userResult.rows[0];
 
@@ -1486,7 +1533,7 @@ router.post('/operators', async (req, res) => {
       userAgent: getUserAgentFromRequest(req)
     });
 
-    res.status(201).json(user);
+    res.status(201).json(normalizeUserIdentityForDisplay(user));
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Create operator error:', error);
@@ -1512,6 +1559,10 @@ router.put('/operators/:id', async (req, res) => {
     }
     const oldValues = oldResult.rows[0];
 
+    const normalizedPhone = phone === undefined ? undefined : normalizePhoneValue(phone);
+    const syncUsernameToPhone = normalizedPhone && looksLikePhoneOrTelegramLogin(oldValues.username);
+    const normalizedUsernameFromPhone = syncUsernameToPhone ? phoneDigitsOnly(normalizedPhone) : null;
+
     // Update user
     let updateQuery = `
       UPDATE users SET 
@@ -1521,7 +1572,12 @@ router.put('/operators/:id', async (req, res) => {
         telegram_id = $4,
         updated_at = CURRENT_TIMESTAMP
     `;
-    let params = [full_name, phone, is_active, telegram_id || null];
+    let params = [full_name, normalizedPhone, is_active, telegram_id || null];
+
+    if (normalizedUsernameFromPhone) {
+      updateQuery += `, username = $${params.length + 1}`;
+      params.push(normalizedUsernameFromPhone);
+    }
 
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -1575,7 +1631,7 @@ router.put('/operators/:id', async (req, res) => {
       userAgent: getUserAgentFromRequest(req)
     });
 
-    res.json(user);
+    res.json(normalizeUserIdentityForDisplay(user));
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Update operator error:', error);
@@ -1694,7 +1750,7 @@ router.get('/customers', async (req, res) => {
     const countResult = await pool.query(countQuery, countParams);
 
     res.json({
-      customers: result.rows,
+      customers: result.rows.map(normalizeUserIdentityForDisplay),
       total: parseInt(countResult.rows[0].count),
       page: parseInt(page),
       limit: parseInt(limit)
@@ -1723,7 +1779,7 @@ router.get('/customers/:id', async (req, res) => {
       return res.status(404).json({ error: 'Клиент не найден' });
     }
 
-    res.json(result.rows[0]);
+    res.json(normalizeUserIdentityForDisplay(result.rows[0]));
   } catch (error) {
     console.error('Get customer error:', error);
     res.status(500).json({ error: 'Ошибка получения клиента' });

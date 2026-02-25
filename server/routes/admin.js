@@ -23,6 +23,48 @@ const normalizeRestaurantTokenForCompare = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
 
+const normalizePhoneValue = (value) => {
+  const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  return `+${digits}`;
+};
+
+const phoneDigitsOnly = (value) => String(normalizePhoneValue(value) || '').replace(/\D/g, '');
+
+const looksLikePhoneOrTelegramLogin = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  if (raw.startsWith('@')) return true;
+  return /^[+\d\s()\-]+$/.test(raw);
+};
+
+const normalizeOperatorAuthFields = ({ username, phone }) => {
+  const normalizedPhone = normalizePhoneValue(phone) || null;
+  const usernameRaw = String(username || '').trim();
+  const normalizedUsername = (normalizedPhone && (!usernameRaw || looksLikePhoneOrTelegramLogin(usernameRaw)))
+    ? phoneDigitsOnly(normalizedPhone)
+    : usernameRaw;
+  return { username: normalizedUsername, phone: normalizedPhone };
+};
+
+const normalizeUserIdentityForDisplay = (user) => {
+  if (!user) return user;
+  const normalizedPhone = normalizePhoneValue(user.phone) || normalizePhoneValue(user.username);
+  const digitsFromPhone = phoneDigitsOnly(user.phone) || phoneDigitsOnly(user.username);
+  const usernameRaw = String(user.username || '');
+  const shouldShowPhoneLogin =
+    !!digitsFromPhone &&
+    (user.role === 'operator' || user.role === 'superadmin') &&
+    (looksLikePhoneOrTelegramLogin(usernameRaw) || !usernameRaw);
+  return {
+    ...user,
+    phone: normalizedPhone || null,
+    username: shouldShowPhoneLogin ? digitsFromPhone : user.username
+  };
+};
+
 const notifyCustomersAboutRestaurantBotMigration = async ({
   restaurantId,
   restaurantName,
@@ -499,6 +541,8 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 
     // 2. Billing logic
     const cost = order.is_free_tier ? 0 : (order.order_cost || 1000);
+    const lowBalanceThreshold = Number(process.env.LOW_BALANCE_ALERT_THRESHOLD || 3000);
+    const balanceBefore = Number(order.balance || 0);
 
     if (!order.is_free_tier && order.balance < cost) {
       await client.query('ROLLBACK');
@@ -517,6 +561,12 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
         VALUES ($1, $2, $3, $4, $5)
       `, [order.restaurant_id, req.user.id, -cost, 'withdrawal', `Списание за заказ #${orderId}`]);
     }
+    const remainingBalance = Math.max(0, balanceBefore - Number(cost || 0));
+    const lowBalanceCrossed =
+      !order.is_free_tier &&
+      Number(cost || 0) > 0 &&
+      balanceBefore > lowBalanceThreshold &&
+      remainingBalance <= lowBalanceThreshold;
 
     const updatedOrder = await client.query(`
       UPDATE orders 
@@ -545,6 +595,15 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
       }
     } catch (err) {
       console.error('Notify customer on accept error:', err);
+    }
+
+    if (lowBalanceCrossed) {
+      try {
+        const { notifyRestaurantAdminsLowBalance } = require('../bot/notifications');
+        await notifyRestaurantAdminsLowBalance(order.restaurant_id, remainingBalance, { threshold: lowBalanceThreshold });
+      } catch (err) {
+        console.error('Notify low balance on accept-and-pay error:', err);
+      }
     }
 
     res.json(updatedOrder.rows[0]);
@@ -791,7 +850,7 @@ router.get('/operators', async (req, res) => {
       ORDER BY u.id
     `, [restaurantId]);
 
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeUserIdentityForDisplay));
   } catch (error) {
     console.error('Get operators error:', error);
     res.status(500).json({ error: 'Ошибка получения списка операторов' });
@@ -806,13 +865,14 @@ router.post('/operators', async (req, res) => {
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
     const { username, password, full_name, phone, telegram_id } = req.body;
+    const normalizedAuth = normalizeOperatorAuthFields({ username, phone });
 
-    if (!username) return res.status(400).json({ error: 'Username обязателен' });
+    if (!normalizedAuth.username) return res.status(400).json({ error: 'Username обязателен' });
 
     await client.query('BEGIN');
 
     // Check if user already exists
-    let userResult = await client.query('SELECT * FROM users WHERE username = $1', [username]);
+    let userResult = await client.query('SELECT * FROM users WHERE username = $1', [normalizedAuth.username]);
     let user;
 
     if (userResult.rows.length > 0) {
@@ -838,7 +898,7 @@ router.post('/operators', async (req, res) => {
         INSERT INTO users (username, password, full_name, phone, role, active_restaurant_id, telegram_id)
         VALUES ($1, $2, $3, $4, 'operator', $5, $6)
         RETURNING id, username, full_name, role, telegram_id
-      `, [username, hashedPassword, full_name, phone, restaurantId, telegram_id || null]);
+      `, [normalizedAuth.username, hashedPassword, full_name, normalizedAuth.phone, restaurantId, telegram_id || null]);
       user = newUserResult.rows[0];
     }
 
@@ -849,7 +909,7 @@ router.post('/operators', async (req, res) => {
     `, [user.id, restaurantId]);
 
     await client.query('COMMIT');
-    res.status(201).json(user);
+    res.status(201).json(normalizeUserIdentityForDisplay(user));
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Add operator error:', error);
@@ -892,6 +952,7 @@ router.put('/operators/:id', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     const operatorId = req.params.id;
     const { username, password, full_name, phone, telegram_id } = req.body;
+    const normalizedAuth = normalizeOperatorAuthFields({ username, phone });
 
     await client.query('BEGIN');
 
@@ -908,7 +969,7 @@ router.put('/operators/:id', async (req, res) => {
 
     // Обновляем данные пользователя
     let query = 'UPDATE users SET username = $1, full_name = $2, phone = $3, telegram_id = $4';
-    let params = [username, full_name, phone, telegram_id || null];
+    let params = [normalizedAuth.username, full_name, normalizedAuth.phone, telegram_id || null];
     let paramCount = 5;
 
     if (password) {
@@ -925,7 +986,7 @@ router.put('/operators/:id', async (req, res) => {
     const result = await client.query(query, params);
 
     await client.query('COMMIT');
-    res.json(result.rows[0]);
+    res.json(normalizeUserIdentityForDisplay(result.rows[0]));
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Update operator error:', error);

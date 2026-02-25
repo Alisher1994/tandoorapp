@@ -31,6 +31,8 @@ const registrationStates = new Map();
 const onboardingStates = new Map();
 const languagePreferences = new Map();
 const pendingLanguageActions = new Map();
+const lastSuperadminStartMenuMessageIds = new Map();
+const lastSuperadminKeyboardMessageIds = new Map();
 
 const BOT_LANGUAGES = ['ru', 'uz'];
 const BOT_TEXTS = {
@@ -119,6 +121,16 @@ function passwordFromPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
   if (!digits) return '0000';
   return digits.slice(-4).padStart(4, '0');
+}
+
+function normalizePhoneDigits(rawPhone) {
+  return String(normalizePhone(rawPhone) || '').replace(/\D/g, '');
+}
+
+function formatPhoneWithPlus(rawPhone) {
+  const digits = normalizePhoneDigits(rawPhone);
+  if (!digits) return '';
+  return `+${digits}`;
 }
 
 function buildWebLoginUrl(params = {}) {
@@ -503,6 +515,13 @@ async function initBot() {
     });
   }
 
+  async function tryDeleteBotMessage(chatId, messageId) {
+    if (!chatId || !messageId) return;
+    try {
+      await bot.deleteMessage(chatId, messageId);
+    } catch (_) { }
+  }
+
   async function sendSuperadminActionKeyboard(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
     const user = await resolvePreferredAdminTelegramUser(userId);
@@ -517,22 +536,35 @@ async function initBot() {
         [{ text: t(language, 'registerStoreButton') }, { text: t(language, 'languageMenuButton') }]
       ];
 
-    await bot.sendMessage(chatId, t(language, 'menuMessage'), {
+    const previousKeyboardMsgId = lastSuperadminKeyboardMessageIds.get(userId);
+    if (previousKeyboardMsgId) {
+      await tryDeleteBotMessage(chatId, previousKeyboardMsgId);
+    }
+
+    const sent = await bot.sendMessage(chatId, '\u2063', {
       reply_markup: {
         keyboard,
         resize_keyboard: true
-      }
+      },
+      disable_notification: true
     });
+    if (sent?.message_id) {
+      lastSuperadminKeyboardMessageIds.set(userId, sent.message_id);
+    }
   }
 
   async function sendStartMenu(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
     const user = await resolvePreferredAdminTelegramUser(userId);
+    const previousStartMenuMsgId = lastSuperadminStartMenuMessageIds.get(userId);
+    if (previousStartMenuMsgId) {
+      await tryDeleteBotMessage(chatId, previousStartMenuMsgId);
+    }
 
     if (user) {
 
       if (!user.is_active) {
-        await bot.sendMessage(
+        const sent = await bot.sendMessage(
           chatId,
           t(language, 'blockedText'),
           {
@@ -544,6 +576,9 @@ async function initBot() {
             }
           }
         );
+        if (sent?.message_id) {
+          lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
+        }
         await sendSuperadminActionKeyboard(chatId, userId, language);
         return;
       }
@@ -558,21 +593,24 @@ async function initBot() {
           source: 'superadmin_bot',
           token: adminAutoLoginToken
         });
-        await bot.sendMessage(
+        const loginUrlLine = loginUrl
+          ? (language === 'uz' ? `\n\n🔗 Kirish: ${loginUrl}` : `\n\n🔗 Вход: ${loginUrl}`)
+          : '';
+        const sent = await bot.sendMessage(
           chatId,
           `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
-          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}`,
+          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}` +
+          loginUrlLine,
           {
             parse_mode: 'HTML',
             reply_markup: {
-              remove_keyboard: true,
-              inline_keyboard: [
-                ...(loginUrl ? [[{ text: t(language, 'loginButton'), url: loginUrl }]] : []),
-                [{ text: t(language, 'resetButton'), callback_data: 'reset_password' }]
-              ]
+              remove_keyboard: true
             }
           }
         );
+        if (sent?.message_id) {
+          lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
+        }
         await sendSuperadminActionKeyboard(chatId, userId, language);
       } else {
         await bot.sendMessage(
@@ -593,18 +631,19 @@ async function initBot() {
       return;
     }
 
-    await bot.sendMessage(
+    const sent = await bot.sendMessage(
       chatId,
       t(language, 'welcomeStart'),
       {
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [
-            [{ text: t(language, 'registerStoreButton'), callback_data: 'onboard_start' }]
-          ]
+          remove_keyboard: true
         }
       }
     );
+    if (sent?.message_id) {
+      lastSuperadminStartMenuMessageIds.set(userId, sent.message_id);
+    }
     await sendSuperadminActionKeyboard(chatId, userId, language);
   }
 
@@ -742,8 +781,8 @@ async function initBot() {
     try {
       await client.query('BEGIN');
 
-      const normalizedPhone = normalizePhone(state.phone);
-      const username = normalizedPhone;
+      const normalizedPhone = formatPhoneWithPlus(state.phone);
+      const username = normalizePhoneDigits(state.phone);
       const plainPassword = passwordFromPhone(normalizedPhone);
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
@@ -770,7 +809,9 @@ async function initBot() {
           balance, order_cost, is_active
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, '07:00', '23:59', 3, true, $8, $9, true)
-        RETURNING id, name
+        RETURNING id, name, phone, logo_url, telegram_bot_token, telegram_group_id,
+                  latitude, longitude, start_time, end_time, delivery_base_radius,
+                  is_delivery_enabled, balance, order_cost, is_active, created_at
       `, [
         state.store_name,
         normalizedPhone || null,
@@ -870,6 +911,44 @@ async function initBot() {
         }
       );
       await sendSuperadminActionKeyboard(chatId, userId, userLang);
+
+      try {
+        const superadminsResult = await pool.query(
+          `SELECT DISTINCT telegram_id
+           FROM users
+           WHERE role = 'superadmin'
+             AND telegram_id IS NOT NULL
+             AND is_active = true`
+        );
+        const recipients = superadminsResult.rows.map((r) => r.telegram_id).filter(Boolean);
+        const locationLine = state.location
+          ? `${state.location.latitude.toFixed(6)}, ${state.location.longitude.toFixed(6)}`
+          : onboardingT(userLang, 'locationNotSpecified');
+        const notificationText =
+          `🆕 <b>Новый магазин зарегистрирован</b>\n\n` +
+          `🏪 ID: <b>${restaurant.id}</b>\n` +
+          `🏪 Название: <b>${restaurant.name}</b>\n` +
+          `👤 Оператор: ${state.full_name || '—'}\n` +
+          `📱 Телефон: ${normalizedPhone || '—'}\n` +
+          `🔐 Логин: <code>${username || '—'}</code>\n` +
+          `🆔 Telegram ID: <code>${userId}</code>\n` +
+          `📍 Локация: ${locationLine}\n` +
+          `🕒 Часы работы: ${restaurant.start_time || '—'} - ${restaurant.end_time || '—'}\n` +
+          `🤖 Bot Token: <code>${restaurant.telegram_bot_token || '—'}</code>\n` +
+          `👥 Group ID: <code>${restaurant.telegram_group_id || '—'}</code>\n` +
+          `🖼️ Логотип: ${restaurant.logo_url || '—'}\n` +
+          `💰 Стартовый баланс: ${Number(restaurant.balance || 0).toLocaleString('ru-RU')} сум\n` +
+          `💸 Стоимость заказа: ${Number(restaurant.order_cost || 0).toLocaleString('ru-RU')} сум\n` +
+          `🚚 Доставка включена: ${restaurant.is_delivery_enabled ? 'Да' : 'Нет'}`;
+
+        for (const superadminTelegramId of recipients) {
+          try {
+            await bot.sendMessage(superadminTelegramId, notificationText, { parse_mode: 'HTML', disable_web_page_preview: true });
+          } catch (e) { }
+        }
+      } catch (notifyError) {
+        console.error('New restaurant registration notify superadmin error:', notifyError.message);
+      }
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Finalize onboarding error:', error);
@@ -915,7 +994,7 @@ async function initBot() {
       return;
     }
 
-    const phoneLogin = normalizePhone(user.phone);
+    const phoneLogin = normalizePhoneDigits(user.phone);
     if (!phoneLogin) {
       await bot.sendMessage(chatId, '❌ Для восстановления нужен номер телефона в профиле.');
       return;
@@ -933,7 +1012,7 @@ async function initBot() {
       [hashedPassword, phoneLogin, user.id]
     );
 
-    const adminAutoLoginToken = generateLoginToken(user.id, user.username || phoneLogin, {
+    const adminAutoLoginToken = generateLoginToken(user.id, phoneLogin, {
       expiresIn: '1h',
       role: user.role
     });
@@ -1665,6 +1744,7 @@ async function initBot() {
       await saveUserLanguage(userId, selectedLang);
       const pendingAction = pendingLanguageActions.get(userId);
       pendingLanguageActions.delete(userId);
+      await tryDeleteBotMessage(chatId, messageId);
 
       if (pendingAction === 'start') {
         await sendStartMenu(chatId, userId, selectedLang);
@@ -1870,6 +1950,17 @@ async function initBot() {
             : (billingResult.error || '❌ Не удалось принять заказ');
           bot.answerCallbackQuery(callbackQuery.id, { text, show_alert: true });
           return;
+        }
+
+        if (billingResult.lowBalanceCrossed && billingResult.restaurantId) {
+          try {
+            const { notifyRestaurantAdminsLowBalance } = require('./notifications');
+            await notifyRestaurantAdminsLowBalance(billingResult.restaurantId, billingResult.remainingBalance, {
+              threshold: billingResult.lowBalanceThreshold
+            });
+          } catch (e) {
+            console.error('Low balance notify error (superadmin bot confirm):', e.message);
+          }
         }
         
         // Update order status in database

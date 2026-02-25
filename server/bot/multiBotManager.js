@@ -7,7 +7,8 @@ const {
   sendOrderUpdateToUser,
   buildGroupOrderNotificationPayload,
   buildGroupOrderActionKeyboard,
-  buildOrderPreviewUrl
+  buildOrderPreviewUrl,
+  notifyRestaurantAdminsLowBalance
 } = require('./notifications');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 
@@ -1833,6 +1834,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           return;
         }
 
+        if (billingResult.lowBalanceCrossed && billingResult.restaurantId) {
+          try {
+            await notifyRestaurantAdminsLowBalance(billingResult.restaurantId, billingResult.remainingBalance, {
+              threshold: billingResult.lowBalanceThreshold
+            });
+          } catch (e) {
+            console.error('Low balance notify error (multi-bot confirm):', e.message);
+          }
+        }
+
         const refreshed = await getOrderWithItems(orderId);
 
         if (refreshed?.order?.telegram_id) {
@@ -1902,6 +1913,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               : (billingResult.error || '❌ Не удалось перевести заказ в обработку');
             await safeAnswerCallback({ text, show_alert: true });
             return;
+          }
+
+          if (billingResult.lowBalanceCrossed && billingResult.restaurantId) {
+            try {
+              await notifyRestaurantAdminsLowBalance(billingResult.restaurantId, billingResult.remainingBalance, {
+                threshold: billingResult.lowBalanceThreshold
+              });
+            } catch (e) {
+              console.error('Low balance notify error (multi-bot step):', e.message);
+            }
           }
         }
 

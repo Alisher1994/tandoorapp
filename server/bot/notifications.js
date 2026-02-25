@@ -526,11 +526,54 @@ async function sendBalanceNotification(telegramId, amount, currentBalance, botTo
   }
 }
 
+async function notifyRestaurantAdminsLowBalance(restaurantId, currentBalance, options = {}) {
+  const normalizedRestaurantId = Number(restaurantId);
+  if (!Number.isFinite(normalizedRestaurantId) || normalizedRestaurantId <= 0) return;
+
+  const threshold = Number(options.threshold || process.env.LOW_BALANCE_ALERT_THRESHOLD || 3000);
+  const botToken = options.botToken || null;
+  const bot = getRestaurantBot(botToken);
+  if (!bot) return;
+
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT u.telegram_id
+       FROM users u
+       JOIN operator_restaurants opr ON opr.user_id = u.id
+       WHERE opr.restaurant_id = $1
+         AND u.telegram_id IS NOT NULL
+         AND u.is_active = true
+         AND u.role IN ('operator', 'superadmin')`,
+      [normalizedRestaurantId]
+    );
+
+    const recipients = result.rows.map((row) => row.telegram_id).filter(Boolean);
+    if (!recipients.length) return;
+
+    const balanceFormatted = formatPrice(currentBalance || 0);
+    const thresholdFormatted = formatPrice(threshold || 0);
+    const message =
+      `⚠️ <b>Низкий баланс магазина</b>\n\n` +
+      `На вашем балансе осталось меньше ${thresholdFormatted} сум.\n` +
+      `Текущий баланс: <b>${balanceFormatted} сум</b>\n\n` +
+      `Пополните баланс, чтобы не остановить прием заказов.`;
+
+    for (const telegramId of recipients) {
+      try {
+        await bot.sendMessage(telegramId, message, { parse_mode: 'HTML' });
+      } catch (_) { }
+    }
+  } catch (error) {
+    console.error('Notify low balance error:', error);
+  }
+}
+
 module.exports = {
   sendOrderNotification,
   sendOrderUpdateToUser,
   updateOrderNotificationForCustomerCancel,
   sendBalanceNotification,
+  notifyRestaurantAdminsLowBalance,
   getRestaurantBot,
   buildGroupOrderNotificationPayload,
   buildGroupOrderActionKeyboard,
