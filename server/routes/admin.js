@@ -1320,6 +1320,7 @@ router.post('/products', async (req, res) => {
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
+    const normalizedCategoryId = category_id || null;
 
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
@@ -1330,7 +1331,7 @@ router.post('/products', async (req, res) => {
     }
 
     const categoryValidation = await validateProductCategorySelection({
-      categoryId: category_id,
+      categoryId: normalizedCategoryId,
       restaurantId
     });
     if (!categoryValidation.ok) {
@@ -1346,7 +1347,7 @@ router.post('/products', async (req, res) => {
   ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *
   `, [
-      restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
+      restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null,
       normalizedSeasonScope, !!is_hidden_catalog
     ]);
@@ -1383,6 +1384,7 @@ router.post('/products/upsert', async (req, res) => {
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
+    const normalizedCategoryId = category_id || null;
 
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
@@ -1393,22 +1395,24 @@ router.post('/products/upsert', async (req, res) => {
     }
 
     const categoryValidation = await validateProductCategorySelection({
-      categoryId: category_id,
+      categoryId: normalizedCategoryId,
       restaurantId
     });
     if (!categoryValidation.ok) {
       return res.status(400).json({ error: categoryValidation.error });
     }
 
+    const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
+
     // Проверяем, существует ли товар с таким названием в этой категории (или любой категории если category_id не указан)
     let existingProduct;
-    if (category_id) {
+    if (normalizedCategoryId) {
       existingProduct = await pool.query(`
         SELECT id FROM products 
         WHERE restaurant_id = $1 
           AND category_id = $2 
           AND LOWER(name_ru) = LOWER($3)
-  `, [restaurantId, category_id, name_ru]);
+  `, [restaurantId, normalizedCategoryId, name_ru]);
     } else {
       // Если категория не указана, ищем по названию в любой категории
       existingProduct = await pool.query(`
@@ -1433,9 +1437,9 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(name_uz);
         paramIndex++;
       }
-      if (category_id) {
+      if (normalizedCategoryId) {
         updateFields.push(`category_id = $${paramIndex} `);
-        updateValues.push(category_id);
+        updateValues.push(normalizedCategoryId);
         paramIndex++;
       }
       if (description_ru) {
@@ -1496,7 +1500,7 @@ RETURNING *
   ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING *
   `, [
-        restaurantId, category_id, name_ru, name_uz, description_ru, description_uz,
+        restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
         image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0,
         normalizedSeasonScope, !!is_hidden_catalog
       ]);

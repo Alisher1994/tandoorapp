@@ -408,6 +408,13 @@ function AdminDashboard() {
     XLSX.writeFile(wb, `${filename}.xlsx`);
   };
 
+  const exportRowsToExcel = (rows, filename, sheetName = 'Data') => {
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  };
+
   const exportOrders = () => {
     exportToExcel(orders, 'orders', [
       { header: '№', accessor: (o) => o.order_number },
@@ -429,10 +436,28 @@ function AdminDashboard() {
       autumn: 'Осень',
       winter: 'Зима'
     };
+    if (!products.length) {
+      exportRowsToExcel([{
+        'Название (RU)': '',
+        'Название (UZ)': '',
+        'Категория ID': '',
+        'Категория путь': '',
+        'Категория': '',
+        'Цена': '',
+        'Единица': 'шт',
+        'В наличии': 'Да',
+        'Сезонность': 'Всесезонный',
+        'Скрыть из каталога': 'Нет'
+      }], 'products_template');
+      return;
+    }
+
     exportToExcel(products, 'products', [
       { header: 'Название (RU)', accessor: (p) => p.name_ru },
       { header: 'Название (UZ)', accessor: (p) => p.name_uz },
-      { header: 'Категория', accessor: (p) => p.category_name },
+      { header: 'Категория ID', accessor: (p) => p.category_id || '' },
+      { header: 'Категория путь', accessor: (p) => categoryPathById.get(String(p.category_id || '')) || '' },
+      { header: 'Категория', accessor: (p) => categories.find((c) => c.id === p.category_id)?.name_ru || p.category_name || '' },
       { header: 'Цена', accessor: (p) => p.price },
       { header: 'Единица', accessor: (p) => p.unit },
       { header: 'В наличии', accessor: (p) => p.in_stock ? 'Да' : 'Нет' },
@@ -440,6 +465,31 @@ function AdminDashboard() {
       { header: 'Скрыть из каталога', accessor: (p) => p.is_hidden_catalog ? 'Да' : 'Нет' },
       { header: 'Статус', accessor: (p) => p.in_stock ? 'Активен' : 'Нет в наличии' },
     ]);
+  };
+
+  const exportSystemCategories = () => {
+    const rows = categories.map((cat) => ({
+      'Категория ID': cat.id,
+      'Родитель ID': cat.parent_id || '',
+      'Название (RU)': cat.name_ru || '',
+      'Название (UZ)': cat.name_uz || '',
+      'Путь категории': categoryPathById.get(String(cat.id)) || cat.name_ru || '',
+      'Можно назначать товар': cat.parent_id ? 'Да' : 'Нет'
+    }));
+
+    if (!rows.length) {
+      exportRowsToExcel([{
+        'Категория ID': '',
+        'Родитель ID': '',
+        'Название (RU)': '',
+        'Название (UZ)': '',
+        'Путь категории': '',
+        'Можно назначать товар': ''
+      }], 'categories_reference');
+      return;
+    }
+
+    exportRowsToExcel(rows, 'categories_reference');
   };
 
   // Calculate analytics based on orders (only delivered orders for accurate statistics)
@@ -554,6 +604,78 @@ function AdminDashboard() {
       fetchOperators();
     }
   }, [user?.active_restaurant_id]);
+
+  const categoryPathById = useMemo(() => {
+    const byId = new Map(categories.map((cat) => [String(cat.id), cat]));
+    const cache = new Map();
+
+    const buildPath = (category) => {
+      if (!category) return '';
+      const cacheKey = String(category.id);
+      if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+      const chain = [];
+      let current = category;
+      while (current) {
+        chain.unshift(current.name_ru || '');
+        if (!current.parent_id) break;
+        current = byId.get(String(current.parent_id));
+      }
+      const path = chain.join(' > ').trim();
+      cache.set(cacheKey, path);
+      return path;
+    };
+
+    const result = new Map();
+    categories.forEach((cat) => {
+      result.set(String(cat.id), buildPath(cat));
+    });
+    return result;
+  }, [categories]);
+
+  const importAssignableCategories = useMemo(() => (
+    categories
+      .filter((cat) => cat.parent_id !== null)
+      .map((cat) => ({
+        id: cat.id,
+        name_ru: cat.name_ru || '',
+        path: categoryPathById.get(String(cat.id)) || (cat.name_ru || '')
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path, 'ru'))
+  ), [categories, categoryPathById]);
+
+  const importCategoryById = useMemo(() => {
+    const map = new Map();
+    importAssignableCategories.forEach((cat) => {
+      map.set(String(cat.id), cat);
+    });
+    return map;
+  }, [importAssignableCategories]);
+
+  const importCategoryByPath = useMemo(() => {
+    const map = new Map();
+    importAssignableCategories.forEach((cat) => {
+      map.set(cat.path.trim().toLowerCase(), cat);
+    });
+    return map;
+  }, [importAssignableCategories]);
+
+  const importCategoryByUniqueName = useMemo(() => {
+    const counts = new Map();
+    importAssignableCategories.forEach((cat) => {
+      const key = cat.name_ru.trim().toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    const uniqueMap = new Map();
+    importAssignableCategories.forEach((cat) => {
+      const key = cat.name_ru.trim().toLowerCase();
+      if ((counts.get(key) || 0) === 1) {
+        uniqueMap.set(key, cat);
+      }
+    });
+    return uniqueMap;
+  }, [importAssignableCategories]);
 
   const filteredProductsForTable = useMemo(() => (
     products.filter((product) => {
@@ -1906,6 +2028,77 @@ function AdminDashboard() {
   const [excelFile, setExcelFile] = useState(null);
   const [excelPreview, setExcelPreview] = useState([]);
   const [importingExcel, setImportingExcel] = useState(false);
+  const [showImportReviewModal, setShowImportReviewModal] = useState(false);
+  const [preparedImportRows, setPreparedImportRows] = useState([]);
+  const [savingImportRows, setSavingImportRows] = useState(false);
+
+  const closeExcelImportModal = () => {
+    setShowExcelModal(false);
+    setExcelFile(null);
+    setExcelPreview([]);
+  };
+
+  const closeImportReviewModal = () => {
+    setShowImportReviewModal(false);
+    setPreparedImportRows([]);
+  };
+
+  const parseYesNoForImport = (value, fallback) => {
+    if (value === undefined || value === null || value === '') return fallback;
+    const v = String(value).trim().toLowerCase();
+    if (['да', 'yes', 'y', 'true', '1', 'ha'].includes(v)) return true;
+    if (['нет', 'no', 'n', 'false', '0', "yo'q", 'yoq'].includes(v)) return false;
+    return fallback;
+  };
+
+  const parseSeasonScopeForImport = (value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const v = String(value).trim().toLowerCase();
+    if (['all', 'всесезонный', 'все', 'hammasi', 'barcha'].includes(v)) return 'all';
+    if (['spring', 'весна', 'bahor'].includes(v)) return 'spring';
+    if (['summer', 'лето', 'yoz'].includes(v)) return 'summer';
+    if (['autumn', 'fall', 'осень', 'kuz'].includes(v)) return 'autumn';
+    if (['winter', 'зима', 'qish'].includes(v)) return 'winter';
+    return undefined;
+  };
+
+  const resolveCategoryForImport = ({ categoryIdRaw, categoryPathRaw, categoryNameRaw }) => {
+    const categoryIdStr = String(categoryIdRaw ?? '').trim();
+    if (categoryIdStr) {
+      const byId = importCategoryById.get(categoryIdStr);
+      if (byId) return { category: byId, error: '' };
+      return { category: null, error: 'Категория ID не найдена среди доступных конечных категорий' };
+    }
+
+    const categoryPathStr = String(categoryPathRaw ?? '').trim();
+    if (categoryPathStr) {
+      const byPath = importCategoryByPath.get(categoryPathStr.toLowerCase());
+      if (byPath) return { category: byPath, error: '' };
+      return { category: null, error: 'Путь категории не совпадает с системным (строгое совпадение)' };
+    }
+
+    const categoryNameStr = String(categoryNameRaw ?? '').trim();
+    if (!categoryNameStr) {
+      return { category: null, error: 'Категория не заполнена' };
+    }
+
+    const byUniqueName = importCategoryByUniqueName.get(categoryNameStr.toLowerCase());
+    if (byUniqueName) return { category: byUniqueName, error: '' };
+    return { category: null, error: 'Категория не найдена или неоднозначна, выберите вручную из списка' };
+  };
+
+  const validatePreparedImportRow = (row) => {
+    if (!row.name_ru) {
+      return { ...row, isValid: false, error: 'Не заполнено название товара' };
+    }
+    if (!(row.price > 0)) {
+      return { ...row, isValid: false, error: 'Цена должна быть больше 0' };
+    }
+    if (!row.category_id) {
+      return { ...row, isValid: false, error: row.error || 'Категория не выбрана' };
+    }
+    return { ...row, isValid: true, error: '' };
+  };
 
   const handleExcelFile = async (e) => {
     const file = e.target.files[0];
@@ -1943,88 +2136,54 @@ function AdminDashboard() {
       const reader = new FileReader();
 
       reader.onload = async (evt) => {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-        let created = 0;
-        let updated = 0;
-        let errors = 0;
+          const preparedRows = jsonData.map((row, index) => {
+            const rowNo = index + 2;
+            const categoryIdRaw = row['Категория ID'] ?? row.category_id;
+            const categoryPathRaw = row['Категория путь'] ?? row['Путь категории'] ?? row.category_path;
+            const categoryNameRaw = row['Категория'] ?? row.category_name;
+            const categoryResolved = resolveCategoryForImport({
+              categoryIdRaw,
+              categoryPathRaw,
+              categoryNameRaw
+            });
 
-        for (const row of jsonData) {
-          try {
-            const parseYesNo = (value, fallback) => {
-              if (value === undefined || value === null || value === '') return fallback;
-              const v = String(value).trim().toLowerCase();
-              if (['да', 'yes', 'y', 'true', '1', 'ha'].includes(v)) return true;
-              if (['нет', 'no', 'n', 'false', '0', "yo'q", 'yoq'].includes(v)) return false;
-              return fallback;
-            };
-            const parseSeasonScope = (value) => {
-              if (value === undefined || value === null || value === '') return undefined;
-              const v = String(value).trim().toLowerCase();
-              if (['all', 'всесезонный', 'все', 'hammasi', 'barcha'].includes(v)) return 'all';
-              if (['spring', 'весна', 'bahor'].includes(v)) return 'spring';
-              if (['summer', 'лето', 'yoz'].includes(v)) return 'summer';
-              if (['autumn', 'fall', 'осень', 'kuz'].includes(v)) return 'autumn';
-              if (['winter', 'зима', 'qish'].includes(v)) return 'winter';
-              return undefined;
-            };
-
-            // Map Excel columns to product fields
-            const productData = {
-              category_id: row['Категория ID'] || row['category_id'] || '',
-              name_ru: row['Название (RU)'] || row['Название'] || row['name_ru'] || '',
-              name_uz: row['Название (UZ)'] || row['name_uz'] || '',
-              price: parseFloat(row['Цена'] || row['price'] || 0),
-              unit: row['Единица'] || row['unit'] || 'шт',
-              in_stock: parseYesNo(row['В наличии'] ?? row['in_stock'], true),
-              season_scope: parseSeasonScope(row['Сезонность'] ?? row['season_scope']),
-              is_hidden_catalog: parseYesNo(row['Скрыть из каталога'] ?? row['is_hidden_catalog'], undefined)
+            const mappedRow = {
+              rowNo,
+              sourceCategoryId: String(categoryIdRaw ?? '').trim(),
+              sourceCategoryPath: String(categoryPathRaw ?? '').trim(),
+              sourceCategoryName: String(categoryNameRaw ?? '').trim(),
+              category_id: categoryResolved.category?.id || '',
+              category_label: categoryResolved.category?.path || '',
+              name_ru: String(row['Название (RU)'] || row['Название'] || row.name_ru || '').trim(),
+              name_uz: String(row['Название (UZ)'] || row.name_uz || '').trim(),
+              price: parseFloat(row['Цена'] || row.price || 0),
+              unit: String(row['Единица'] || row.unit || 'шт').trim() || 'шт',
+              in_stock: parseYesNoForImport(row['В наличии'] ?? row.in_stock, true),
+              season_scope: parseSeasonScopeForImport(row['Сезонность'] ?? row.season_scope),
+              is_hidden_catalog: parseYesNoForImport(row['Скрыть из каталога'] ?? row.is_hidden_catalog, undefined),
+              error: categoryResolved.error,
+              isValid: false
             };
 
-            // Find category by name if category_id not provided
-            if (!productData.category_id && row['Категория']) {
-              const cat = categories.find(c =>
-                c.name_ru?.toLowerCase() === row['Категория'].toLowerCase() ||
-                c.name_uz?.toLowerCase() === row['Категория'].toLowerCase()
-              );
-              if (cat) productData.category_id = cat.id;
-            }
+            return validatePreparedImportRow(mappedRow);
+          });
 
-            if (productData.name_ru && productData.price > 0) {
-              // Use upsert endpoint - will update if category+name exists
-              const response = await axios.post(`${API_URL}/admin/products/upsert`, productData);
-              if (response.data.isUpdate) {
-                updated++;
-              } else {
-                created++;
-              }
-            } else {
-              errors++;
-            }
-          } catch (err) {
-            console.error('Error importing row:', err);
-            errors++;
-          }
+          setPreparedImportRows(preparedRows);
+          setShowExcelModal(false);
+          setShowImportReviewModal(true);
+        } catch (err) {
+          console.error('Error preparing import rows:', err);
+          alert('Ошибка подготовки импорта: ' + err.message);
+        } finally {
+          setImportingExcel(false);
         }
-
-        let message = 'Импорт завершен.';
-        if (created > 0) message += ` Добавлено: ${created}.`;
-        if (updated > 0) message += ` Обновлено: ${updated}.`;
-        if (errors > 0) message += ` Ошибок: ${errors}.`;
-
-        setAlertMessage({
-          type: (created > 0 || updated > 0) ? 'success' : 'warning',
-          text: message
-        });
-        setShowExcelModal(false);
-        setExcelFile(null);
-        setExcelPreview([]);
-        fetchData();
-        setImportingExcel(false);
       };
 
       reader.readAsArrayBuffer(excelFile);
@@ -2032,6 +2191,82 @@ function AdminDashboard() {
       console.error('Import error:', error);
       alert('Ошибка импорта: ' + error.message);
       setImportingExcel(false);
+    }
+  };
+
+  const updatePreparedImportCategory = (rowNo, categoryId) => {
+    setPreparedImportRows((prevRows) => prevRows.map((row) => {
+      if (row.rowNo !== rowNo) return row;
+      const selectedCategory = importCategoryById.get(String(categoryId));
+      const updated = {
+        ...row,
+        category_id: selectedCategory?.id || '',
+        category_label: selectedCategory?.path || '',
+        error: selectedCategory ? '' : 'Категория не выбрана'
+      };
+      return validatePreparedImportRow(updated);
+    }));
+  };
+
+  const removeInvalidPreparedRows = () => {
+    setPreparedImportRows((prevRows) => prevRows.filter((row) => row.isValid));
+  };
+
+  const importPreparedRows = async () => {
+    if (!preparedImportRows.length) return;
+
+    const rowsToImport = preparedImportRows.filter((row) => row.isValid);
+    if (!rowsToImport.length) {
+      setAlertMessage({ type: 'warning', text: 'Нет валидных товаров для записи. Исправьте категории или удалите невалидные строки.' });
+      return;
+    }
+
+    setSavingImportRows(true);
+    let created = 0;
+    let updated = 0;
+    let errors = 0;
+
+    try {
+      for (const row of rowsToImport) {
+        try {
+          const productData = {
+            category_id: row.category_id,
+            name_ru: row.name_ru,
+            name_uz: row.name_uz,
+            price: row.price,
+            unit: row.unit || 'шт',
+            in_stock: row.in_stock,
+            season_scope: row.season_scope,
+            is_hidden_catalog: row.is_hidden_catalog
+          };
+
+          const response = await axios.post(`${API_URL}/admin/products/upsert`, productData);
+          if (response.data.isUpdate) updated += 1;
+          else created += 1;
+        } catch (err) {
+          console.error('Error importing row:', row.rowNo, err);
+          errors += 1;
+        }
+      }
+
+      const skipped = preparedImportRows.length - rowsToImport.length;
+      let message = 'Импорт завершен.';
+      if (created > 0) message += ` Добавлено: ${created}.`;
+      if (updated > 0) message += ` Обновлено: ${updated}.`;
+      if (errors > 0) message += ` Ошибок записи: ${errors}.`;
+      if (skipped > 0) message += ` Пропущено невалидных: ${skipped}.`;
+
+      setAlertMessage({
+        type: (created > 0 || updated > 0) ? 'success' : 'warning',
+        text: message
+      });
+
+      closeImportReviewModal();
+      setExcelFile(null);
+      setExcelPreview([]);
+      fetchData();
+    } finally {
+      setSavingImportRows(false);
     }
   };
 
@@ -3220,6 +3455,10 @@ function AdminDashboard() {
                   <div className="d-flex gap-2 admin-product-toolbar-actions">
                     <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none" onClick={() => setShowMobileFiltersSheet(true)}>
                       <i className="bi bi-funnel"></i> Фильтр
+                    </Button>
+                    <Button variant="outline-dark" className="btn-primary-custom" onClick={exportSystemCategories}>
+                      <span className="d-none d-md-inline">Категории системы</span>
+                      <span className="d-md-none">Категории</span>
                     </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={exportProducts}>
                       <span className="d-none d-md-inline">{t('downloadExcel')}</span>
@@ -5910,7 +6149,7 @@ function AdminDashboard() {
         </Modal>
 
         {/* Excel Import Modal */}
-        <Modal show={showExcelModal} onHide={() => setShowExcelModal(false)} size="lg">
+        <Modal show={showExcelModal} onHide={closeExcelImportModal} size="lg">
           <Modal.Header closeButton>
             <Modal.Title>Импорт товаров из Excel</Modal.Title>
           </Modal.Header>
@@ -5921,7 +6160,9 @@ function AdminDashboard() {
               • <code>Название (RU)</code> или <code>Название</code> — название товара<br />
               • <code>Цена</code> — цена товара<br />
               Дополнительные столбцы:<br />
-              • <code>Категория</code> — название категории<br />
+              • <code>Категория ID</code> — ID конечной категории (приоритетный способ)<br />
+              • <code>Категория путь</code> — полный путь категории (строгое совпадение)<br />
+              • <code>Категория</code> — название конечной категории (работает только при уникальном имени)<br />
               • <code>Название (UZ)</code> — название на узбекском<br />
               • <code>Единица</code> — единица измерения (шт, кг, порция и т.д.)<br />
               • <code>В наличии</code> — Да/Нет<br />
@@ -5965,11 +6206,7 @@ function AdminDashboard() {
             )}
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => {
-              setShowExcelModal(false);
-              setExcelFile(null);
-              setExcelPreview([]);
-            }}>
+            <Button variant="secondary" onClick={closeExcelImportModal}>
               Отмена
             </Button>
             <Button
@@ -5978,6 +6215,102 @@ function AdminDashboard() {
               disabled={importingExcel || !excelFile}
             >
               {importingExcel ? 'Импорт...' : 'Импортировать'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Import Review Modal */}
+        <Modal show={showImportReviewModal} onHide={closeImportReviewModal} size="xl">
+          <Modal.Header closeButton>
+            <Modal.Title>Проверка импорта товаров</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="secondary">
+              <div className="d-flex flex-wrap gap-3">
+                <span>Всего строк: <strong>{preparedImportRows.length}</strong></span>
+                <span>Валидных: <strong>{preparedImportRows.filter((row) => row.isValid).length}</strong></span>
+                <span>Невалидных: <strong>{preparedImportRows.filter((row) => !row.isValid).length}</strong></span>
+              </div>
+            </Alert>
+
+            <div className="d-flex justify-content-start mb-3">
+              <Button
+                variant="outline-danger"
+                onClick={removeInvalidPreparedRows}
+                disabled={!preparedImportRows.some((row) => !row.isValid)}
+              >
+                Удалить непроходимые товары
+              </Button>
+            </div>
+
+            <div className="table-responsive" style={{ maxHeight: '65vh', overflow: 'auto' }}>
+              <Table bordered hover size="sm" className="mb-0">
+                <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                  <tr>
+                    <th style={{ minWidth: '70px' }}>Строка</th>
+                    <th style={{ minWidth: '180px' }}>Название</th>
+                    <th style={{ minWidth: '110px' }}>Цена</th>
+                    <th style={{ minWidth: '360px' }}>Категория (выбор из системы)</th>
+                    <th style={{ minWidth: '260px' }}>Данные из файла</th>
+                    <th style={{ minWidth: '190px' }}>Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preparedImportRows.map((row) => (
+                    <tr key={`prepared-row-${row.rowNo}`} className={row.isValid ? '' : 'table-danger'}>
+                      <td>{row.rowNo}</td>
+                      <td>{row.name_ru || '-'}</td>
+                      <td>{Number.isFinite(row.price) ? row.price : '-'}</td>
+                      <td>
+                        <Dropdown>
+                          <Dropdown.Toggle as={CustomToggle} id={`import-category-${row.rowNo}`} className="form-select-sm">
+                            {row.category_id
+                              ? (importCategoryById.get(String(row.category_id))?.path || row.category_label || `ID ${row.category_id}`)
+                              : 'Выберите категорию'}
+                          </Dropdown.Toggle>
+                          <Dropdown.Menu as={CustomMenu}>
+                            {importAssignableCategories.map((cat) => (
+                              <Dropdown.Item
+                                key={`import-assignable-cat-${cat.id}-${row.rowNo}`}
+                                onClick={() => updatePreparedImportCategory(row.rowNo, cat.id)}
+                              >
+                                {cat.path}
+                              </Dropdown.Item>
+                            ))}
+                          </Dropdown.Menu>
+                        </Dropdown>
+                      </td>
+                      <td>
+                        <div className="small text-muted">ID: {row.sourceCategoryId || '-'}</div>
+                        <div className="small text-muted">Путь: {row.sourceCategoryPath || '-'}</div>
+                        <div className="small text-muted">Название: {row.sourceCategoryName || '-'}</div>
+                      </td>
+                      <td>
+                        {row.isValid ? (
+                          <Badge bg="success">Готово к записи</Badge>
+                        ) : (
+                          <>
+                            <Badge bg="danger">Проверить</Badge>
+                            <div className="small mt-1 text-danger">{row.error}</div>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closeImportReviewModal}>
+              Отмена
+            </Button>
+            <Button
+              variant="success"
+              onClick={importPreparedRows}
+              disabled={savingImportRows || !preparedImportRows.some((row) => row.isValid)}
+            >
+              {savingImportRows ? 'Запись...' : 'Записать'}
             </Button>
           </Modal.Footer>
         </Modal>
