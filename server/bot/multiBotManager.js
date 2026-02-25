@@ -459,12 +459,17 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   const buildCustomerReplyKeyboard = (loginUrl, lang) => {
     return {
       keyboard: [
-        [loginUrl ? { text: t(lang, 'openMenu'), web_app: { url: loginUrl } } : { text: t(lang, 'openMenu') }],
-        [{ text: t(lang, 'myOrders') }],
-        [{ text: t(lang, 'contactButton') }],
-        [{ text: t(lang, 'editProfile') }]
+        [
+          loginUrl ? { text: t(lang, 'openMenu'), web_app: { url: loginUrl } } : { text: t(lang, 'openMenu') },
+          { text: t(lang, 'myOrders') }
+        ],
+        [
+          { text: t(lang, 'contactButton') },
+          { text: t(lang, 'editProfile') }
+        ]
       ],
-      resize_keyboard: true
+      resize_keyboard: true,
+      is_persistent: true
     };
   };
 
@@ -473,7 +478,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       [loginUrl ? { text: t(lang, 'adminPanelButton'), web_app: { url: loginUrl } } : { text: t(lang, 'adminPanelButton') }],
       [{ text: t(lang, 'resetButton') }]
     ],
-    resize_keyboard: true
+    resize_keyboard: true,
+    is_persistent: true
   });
 
   const ensureFlowStateMeta = (state = {}) => {
