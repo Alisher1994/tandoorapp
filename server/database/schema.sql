@@ -31,6 +31,15 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Связь Telegram-аккаунта с админским профилем (owner/operator), чтобы один Telegram мог быть customer + admin
+CREATE TABLE IF NOT EXISTS telegram_admin_links (
+  id SERIAL PRIMARY KEY,
+  telegram_id BIGINT NOT NULL UNIQUE,
+  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Связь операторов с ресторанами (многие-ко-многим)
 CREATE TABLE IF NOT EXISTS operator_restaurants (
   id SERIAL PRIMARY KEY,
@@ -157,6 +166,8 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 -- =====================================================
 
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_admin_links_telegram_id ON telegram_admin_links(telegram_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_admin_links_user_id ON telegram_admin_links(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_active_restaurant ON users(active_restaurant_id);

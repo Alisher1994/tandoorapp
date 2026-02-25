@@ -537,11 +537,12 @@ async function notifyRestaurantAdminsLowBalance(restaurantId, currentBalance, op
 
   try {
     const result = await pool.query(
-      `SELECT DISTINCT u.telegram_id
+      `SELECT DISTINCT COALESCE(u.telegram_id, tal.telegram_id) AS telegram_id
        FROM users u
        JOIN operator_restaurants opr ON opr.user_id = u.id
+       LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
        WHERE opr.restaurant_id = $1
-         AND u.telegram_id IS NOT NULL
+         AND COALESCE(u.telegram_id, tal.telegram_id) IS NOT NULL
          AND u.is_active = true
          AND u.role IN ('operator', 'superadmin')`,
       [normalizedRestaurantId]

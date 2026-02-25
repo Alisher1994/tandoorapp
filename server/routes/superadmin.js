@@ -687,10 +687,11 @@ router.post('/restaurants/:id/topup', async (req, res) => {
     // Notify all operators of this restaurant in Telegram
     try {
       const operators = await pool.query(`
-        SELECT u.telegram_id, u.full_name 
+        SELECT COALESCE(u.telegram_id, tal.telegram_id) AS telegram_id, u.full_name 
         FROM users u
         INNER JOIN operator_restaurants opr ON u.id = opr.user_id
-        WHERE opr.restaurant_id = $1 AND u.telegram_id IS NOT NULL
+        LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
+        WHERE opr.restaurant_id = $1 AND COALESCE(u.telegram_id, tal.telegram_id) IS NOT NULL
       `, [restaurantId]);
 
       for (const op of operators.rows) {

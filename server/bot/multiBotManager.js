@@ -267,7 +267,34 @@ async function checkBlockedUser(bot, chatId, userId, restaurantId) {
     let userResult;
     try {
       userResult = await pool.query(
-        'SELECT u.is_active, ur.is_blocked FROM users u LEFT JOIN user_restaurants ur ON u.id = ur.user_id AND ur.restaurant_id = $2 WHERE u.telegram_id = $1',
+        `WITH candidates AS (
+           SELECT u.*
+           FROM users u
+           WHERE u.telegram_id = $1
+           UNION
+           SELECT u.*
+           FROM telegram_admin_links tal
+           JOIN users u ON u.id = tal.user_id
+           WHERE tal.telegram_id = $1
+         )
+         SELECT
+           c.is_active,
+           CASE WHEN c.role = 'customer' THEN COALESCE(ur.is_blocked, false) ELSE false END AS is_blocked
+         FROM candidates c
+         LEFT JOIN user_restaurants ur
+           ON ur.user_id = c.id AND ur.restaurant_id = $2
+         ORDER BY
+           CASE
+             WHEN c.role = 'superadmin' THEN 0
+             WHEN c.role = 'operator' AND EXISTS (
+               SELECT 1 FROM operator_restaurants opr WHERE opr.user_id = c.id AND opr.restaurant_id = $2
+             ) THEN 1
+             WHEN c.role = 'customer' THEN 2
+             WHEN c.role = 'operator' THEN 3
+             ELSE 4
+           END,
+           c.id DESC
+         LIMIT 1`,
         [userId, restaurantId]
       );
     } catch (queryError) {
@@ -328,6 +355,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         'UPDATE users SET bot_language = $1 WHERE telegram_id = $2',
         [normalized, userId]
       );
+      await pool.query(
+        `UPDATE users u
+         SET bot_language = $1
+         FROM telegram_admin_links tal
+         WHERE tal.telegram_id = $2
+           AND tal.user_id = u.id`,
+        [normalized, userId]
+      ).catch(() => {});
     } catch (error) {
       if (error.code !== '42703') {
         console.error('Save user language warning:', error.message);
@@ -346,30 +381,39 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   const resolvePreferredTelegramUser = async (telegramId) => {
     const result = await pool.query(`
+      WITH candidates AS (
+        SELECT u.*
+        FROM users u
+        WHERE u.telegram_id = $1
+        UNION
+        SELECT u.*
+        FROM telegram_admin_links tal
+        JOIN users u ON u.id = tal.user_id
+        WHERE tal.telegram_id = $1
+      )
       SELECT
-        u.*,
+        c.*,
         EXISTS (
           SELECT 1
           FROM operator_restaurants opr
-          WHERE opr.user_id = u.id
+          WHERE opr.user_id = c.id
             AND opr.restaurant_id = $2
         ) AS is_operator_for_restaurant
-      FROM users u
-      WHERE u.telegram_id = $1
+      FROM candidates c
       ORDER BY
         CASE
-          WHEN u.role = 'superadmin' THEN 0
-          WHEN u.role = 'operator' AND EXISTS (
+          WHEN c.role = 'superadmin' THEN 0
+          WHEN c.role = 'operator' AND EXISTS (
             SELECT 1
             FROM operator_restaurants opr
-            WHERE opr.user_id = u.id
+            WHERE opr.user_id = c.id
               AND opr.restaurant_id = $2
           ) THEN 1
-          WHEN u.role = 'customer' THEN 2
-          WHEN u.role = 'operator' THEN 3
+          WHEN c.role = 'customer' THEN 2
+          WHEN c.role = 'operator' THEN 3
           ELSE 4
         END,
-        u.id DESC
+        c.id DESC
       LIMIT 1
     `, [telegramId, restaurantId]);
 
@@ -1148,12 +1192,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         let processedByUserId = null;
         if (operatorTelegramId) {
           try {
-            const operatorResult = await pool.query(
-              'SELECT id FROM users WHERE telegram_id = $1',
-              [operatorTelegramId]
-            );
-            if (operatorResult.rows.length > 0) {
-              processedByUserId = operatorResult.rows[0].id;
+            const operatorUser = await resolvePreferredTelegramUser(operatorTelegramId);
+            if (operatorUser && (operatorUser.role === 'operator' || operatorUser.role === 'superadmin')) {
+              processedByUserId = operatorUser.id;
             }
           } catch (e) { }
         }
@@ -1775,11 +1816,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       const getOperatorDbUserId = async () => {
         try {
-          const operatorResult = await pool.query(
-            'SELECT id FROM users WHERE telegram_id = $1 LIMIT 1',
-            [userId]
-          );
-          return operatorResult.rows[0]?.id || null;
+          const operatorUser = await resolvePreferredTelegramUser(userId);
+          if (!operatorUser) return null;
+          if (operatorUser.role !== 'operator' && operatorUser.role !== 'superadmin') return null;
+          return operatorUser.id || null;
         } catch {
           return null;
         }

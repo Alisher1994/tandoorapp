@@ -342,6 +342,37 @@ async function migrate() {
     console.log('✅ User_profile_logs table ready');
 
     // =====================================================
+    // Step 4.7: Create telegram_admin_links (allows same Telegram to be customer + admin)
+    // =====================================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS telegram_admin_links (
+        id SERIAL PRIMARY KEY,
+        telegram_id BIGINT NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_telegram_admin_links_telegram_id ON telegram_admin_links(telegram_id)').catch(() => {});
+    await client.query('CREATE INDEX IF NOT EXISTS idx_telegram_admin_links_user_id ON telegram_admin_links(user_id)').catch(() => {});
+
+    // Backfill links for existing operators/superadmins with telegram_id in users table
+    await client.query(`
+      INSERT INTO telegram_admin_links (telegram_id, user_id)
+      SELECT DISTINCT ON (u.telegram_id) u.telegram_id, u.id
+      FROM users u
+      WHERE u.telegram_id IS NOT NULL
+        AND u.role IN ('operator', 'superadmin', 'admin')
+      ORDER BY
+        u.telegram_id,
+        CASE WHEN u.role = 'superadmin' THEN 0 ELSE 1 END,
+        u.id DESC
+      ON CONFLICT DO NOTHING
+    `).catch((e) => console.log(`ℹ️ telegram_admin_links backfill: ${e.message}`));
+    console.log('✅ Telegram admin links ready');
+
+    // =====================================================
     // Step 5: Update user roles - change 'admin' to 'superadmin'
     // =====================================================
 

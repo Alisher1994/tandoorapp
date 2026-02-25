@@ -117,6 +117,27 @@ async function resolveUniqueCustomerUsername(preferredUsername, telegramUserId) 
   }
 }
 
+async function resolveUniqueAuthUsername(clientOrPool, preferredUsername, ownerUserId = null) {
+  const db = clientOrPool || pool;
+  const raw = String(preferredUsername || '').trim();
+  const fallbackBase = raw || `user_${ownerUserId || Date.now()}`;
+  let candidate = fallbackBase;
+  let suffix = 1;
+
+  while (true) {
+    const existing = await db.query(
+      'SELECT id FROM users WHERE username = $1 LIMIT 1',
+      [candidate]
+    );
+    if (existing.rows.length === 0) return candidate;
+    if (ownerUserId && Number(existing.rows[0].id) === Number(ownerUserId)) return candidate;
+
+    const base = fallbackBase.endsWith('_op') ? fallbackBase : `${fallbackBase}_op`;
+    candidate = suffix === 1 ? base : `${base}_${suffix}`;
+    suffix += 1;
+  }
+}
+
 function passwordFromPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
   if (!digits) return '0000';
@@ -147,6 +168,26 @@ function buildWebLoginUrl(params = {}) {
 }
 
 async function resolvePreferredAdminTelegramUser(telegramId) {
+  const linkedAdmin = await pool.query(`
+    SELECT u.*
+    FROM telegram_admin_links tal
+    JOIN users u ON u.id = tal.user_id
+    WHERE tal.telegram_id = $1
+    ORDER BY
+      CASE
+        WHEN u.role = 'superadmin' THEN 0
+        WHEN u.role = 'operator' THEN 1
+        WHEN u.role = 'customer' THEN 2
+        ELSE 3
+      END,
+      u.id DESC
+    LIMIT 1
+  `, [telegramId]).catch(() => ({ rows: [] }));
+
+  if (linkedAdmin.rows.length > 0) {
+    return linkedAdmin.rows[0];
+  }
+
   const result = await pool.query(`
     SELECT *
     FROM users
@@ -163,6 +204,17 @@ async function resolvePreferredAdminTelegramUser(telegramId) {
   `, [telegramId]);
 
   return result.rows[0] || null;
+}
+
+async function upsertTelegramAdminLink(clientOrPool, telegramId, userId) {
+  if (!telegramId || !userId) return;
+  const db = clientOrPool || pool;
+  await db.query(`
+    INSERT INTO telegram_admin_links (telegram_id, user_id)
+    VALUES ($1, $2)
+    ON CONFLICT (telegram_id)
+    DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = CURRENT_TIMESTAMP
+  `, [telegramId, userId]).catch(() => {});
 }
 
 async function resolvePreferredSuperadminAccessUser(telegramId) {
@@ -198,6 +250,14 @@ async function saveUserLanguage(userId, lang) {
       'UPDATE users SET bot_language = $1 WHERE telegram_id = $2',
       [normalized, userId]
     );
+    await pool.query(
+      `UPDATE users u
+       SET bot_language = $1
+       FROM telegram_admin_links tal
+       WHERE tal.telegram_id = $2
+         AND tal.user_id = u.id`,
+      [normalized, userId]
+    ).catch(() => {});
   } catch (error) {
     if (error.code !== '42703') {
       console.error('Save user language warning:', error.message);
@@ -804,22 +864,9 @@ async function initBot() {
       await client.query('BEGIN');
 
       const normalizedPhone = formatPhoneWithPlus(state.phone);
-      const username = normalizePhoneDigits(state.phone);
+      const preferredUsername = normalizePhoneDigits(state.phone) || `operator_${userId}`;
       const plainPassword = passwordFromPhone(normalizedPhone);
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
-
-      // Prevent conflict with existing username owned by another user
-      const usernameOwner = await client.query(
-        'SELECT id, role, telegram_id FROM users WHERE username = $1',
-        [username]
-      );
-      if (usernameOwner.rows.length > 0 && usernameOwner.rows[0].telegram_id !== userId) {
-        await client.query('ROLLBACK');
-        await bot.sendMessage(chatId,
-          '❌ Такой логин (номер телефона) уже используется. Укажите другой номер телефона.'
-        );
-        return;
-      }
 
       const settingsResult = await client.query('SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1');
       const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
@@ -850,17 +897,21 @@ async function initBot() {
       const preferredLang = normalizeBotLanguage(languagePreferences.get(userId) || 'ru');
 
       let userIdDb;
-      const userByTg = await client.query('SELECT id, role FROM users WHERE telegram_id = $1', [userId]);
-      if (userByTg.rows.length > 0) {
-        userIdDb = userByTg.rows[0].id;
-        if (userByTg.rows[0].role === 'customer') {
-          await client.query('ROLLBACK');
-          await bot.sendMessage(chatId,
-            '❌ Этот Telegram-аккаунт уже зарегистрирован как клиент. Используйте отдельный Telegram для оператора.'
-          );
-          return;
-        }
+      let username;
+      const linkedAdminByTg = await client.query(`
+        SELECT u.id, u.role
+        FROM telegram_admin_links tal
+        JOIN users u ON u.id = tal.user_id
+        WHERE tal.telegram_id = $1
+        ORDER BY
+          CASE WHEN u.role = 'superadmin' THEN 0 WHEN u.role = 'operator' THEN 1 ELSE 2 END,
+          u.id DESC
+        LIMIT 1
+      `, [userId]).catch(() => ({ rows: [] }));
 
+      if (linkedAdminByTg.rows.length > 0) {
+        userIdDb = linkedAdminByTg.rows[0].id;
+        username = await resolveUniqueAuthUsername(client, preferredUsername, userIdDb);
         await client.query(`
           UPDATE users
           SET username = $1,
@@ -875,12 +926,43 @@ async function initBot() {
           WHERE id = $7
         `, [username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang, userIdDb]);
       } else {
-        const insertedUser = await client.query(`
-          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id, bot_language)
-          VALUES ($1, $2, $3, $4, $5, 'operator', true, $6, $7)
-          RETURNING id
-        `, [userId, username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang]);
-        userIdDb = insertedUser.rows[0].id;
+        const userByTg = await client.query('SELECT id, role FROM users WHERE telegram_id = $1', [userId]);
+        if (userByTg.rows.length > 0 && userByTg.rows[0].role !== 'customer') {
+          userIdDb = userByTg.rows[0].id;
+          username = await resolveUniqueAuthUsername(client, preferredUsername, userIdDb);
+          await client.query(`
+            UPDATE users
+            SET username = $1,
+                password = $2,
+                full_name = $3,
+                phone = $4,
+                role = 'operator',
+                is_active = true,
+                active_restaurant_id = $5,
+                bot_language = $6,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $7
+          `, [username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang, userIdDb]);
+          await upsertTelegramAdminLink(client, userId, userIdDb);
+        } else if (userByTg.rows.length > 0 && userByTg.rows[0].role === 'customer') {
+          username = await resolveUniqueAuthUsername(client, preferredUsername);
+          const insertedUser = await client.query(`
+            INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id, bot_language)
+            VALUES (NULL, $1, $2, $3, $4, 'operator', true, $5, $6)
+            RETURNING id
+          `, [username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang]);
+          userIdDb = insertedUser.rows[0].id;
+          await upsertTelegramAdminLink(client, userId, userIdDb);
+        } else {
+          username = await resolveUniqueAuthUsername(client, preferredUsername);
+          const insertedUser = await client.query(`
+            INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id, bot_language)
+            VALUES ($1, $2, $3, $4, $5, 'operator', true, $6, $7)
+            RETURNING id
+          `, [userId, username, hashedPassword, state.full_name, normalizedPhone, restaurant.id, preferredLang]);
+          userIdDb = insertedUser.rows[0].id;
+          await upsertTelegramAdminLink(client, userId, userIdDb);
+        }
       }
 
       await client.query(`
@@ -1018,6 +1100,7 @@ async function initBot() {
       await bot.sendMessage(chatId, '❌ Для восстановления нужен номер телефона в профиле.');
       return;
     }
+    const resolvedLogin = await resolveUniqueAuthUsername(pool, phoneLogin, user.id);
 
     const temporaryPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
@@ -1028,10 +1111,10 @@ async function initBot() {
            username = $2,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $3`,
-      [hashedPassword, phoneLogin, user.id]
+      [hashedPassword, resolvedLogin, user.id]
     );
 
-    const adminAutoLoginToken = generateLoginToken(user.id, phoneLogin, {
+    const adminAutoLoginToken = generateLoginToken(user.id, resolvedLogin, {
       expiresIn: '1h',
       role: user.role
     });
@@ -1044,7 +1127,7 @@ async function initBot() {
     await bot.sendMessage(
       chatId,
       `✅ <b>Доступ восстановлен</b>\n\n` +
-      `Логин: <code>${phoneLogin}</code>\n` +
+      `Логин: <code>${resolvedLogin}</code>\n` +
       `Временный пароль: <code>${temporaryPassword}</code>\n\n` +
       `${loginUrl ? `Ссылка для входа: ${loginUrl}\n\n` : ''}` +
       `Рекомендуется войти и сменить пароль.`,
