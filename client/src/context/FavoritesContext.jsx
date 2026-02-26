@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './AuthContext';
 
 const FavoritesContext = createContext();
 const FAVORITES_STORAGE_KEY = 'favorites_v1';
@@ -17,7 +18,7 @@ const getActiveRestaurantId = () => {
 };
 
 const filterByActiveRestaurant = (items, restaurantId) => {
-  if (!restaurantId) return items;
+  if (!restaurantId) return [];
   return items.filter((item) => parseRestaurantId(item?.restaurant_id) === restaurantId);
 };
 
@@ -40,6 +41,7 @@ const normalizeFavoriteProduct = (product) => ({
 });
 
 export function FavoritesProvider({ children }) {
+  const { user } = useAuth();
   const [allFavorites, setAllFavorites] = useState(() => {
     try {
       const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
@@ -54,7 +56,7 @@ export function FavoritesProvider({ children }) {
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(allFavorites));
   }, [allFavorites]);
 
-  const activeRestaurantId = getActiveRestaurantId();
+  const activeRestaurantId = parseRestaurantId(user?.active_restaurant_id) || getActiveRestaurantId();
   const favorites = filterByActiveRestaurant(allFavorites, activeRestaurantId);
 
   const isFavorite = (productId) => favorites.some((item) => Number(item.id) === Number(productId));
@@ -75,9 +77,9 @@ export function FavoritesProvider({ children }) {
   };
 
   const removeFavorite = (productId) => {
+    if (!activeRestaurantId) return;
     setAllFavorites((prev) => prev.filter((item) => {
-      if (activeRestaurantId) return !isSameFavoriteInRestaurant(item, productId, activeRestaurantId);
-      return Number(item.id) !== Number(productId);
+      return !isSameFavoriteInRestaurant(item, productId, activeRestaurantId);
     }));
   };
 
@@ -93,9 +95,9 @@ export function FavoritesProvider({ children }) {
   };
 
   const updateFavoriteQuantity = (productId, nextQuantity) => {
+    if (!activeRestaurantId) return;
     setAllFavorites((prev) => prev.map((item) => (
       isSameFavoriteInRestaurant(item, productId, activeRestaurantId)
-        || (!activeRestaurantId && Number(item.id) === Number(productId))
         ? { ...item, favorite_quantity: Math.max(1, Number(nextQuantity) || 1) }
         : item
     )));

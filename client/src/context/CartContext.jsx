@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 const CART_STORAGE_KEY = 'cart';
@@ -30,7 +31,7 @@ function isSameProductInRestaurant(item, productId, restaurantId) {
 }
 
 function filterCartByRestaurant(allItems, restaurantId) {
-  if (!restaurantId) return allItems;
+  if (!restaurantId) return [];
   return allItems.filter((item) => parseRestaurantId(item?.restaurant_id) === restaurantId);
 }
 
@@ -40,6 +41,7 @@ export function formatPrice(price) {
 }
 
 export function CartProvider({ children }) {
+  const { user } = useAuth();
   // Initialize cart from localStorage
   const [allCartItems, setAllCartItems] = useState(() => {
     try {
@@ -56,7 +58,7 @@ export function CartProvider({ children }) {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(allCartItems));
   }, [allCartItems]);
 
-  const activeRestaurantId = getActiveRestaurantId();
+  const activeRestaurantId = parseRestaurantId(user?.active_restaurant_id) || getActiveRestaurantId();
   const cart = filterCartByRestaurant(allCartItems, activeRestaurantId);
 
   const addToCart = (product, quantityToAdd = 1) => {
@@ -82,11 +84,11 @@ export function CartProvider({ children }) {
       removeFromCart(productId);
       return;
     }
+    if (!activeRestaurantId) return;
     
     setAllCartItems((prevCart) =>
       prevCart.map((item) =>
         isSameProductInRestaurant(item, productId, activeRestaurantId)
-          || (!activeRestaurantId && Number(item.id) === Number(productId))
           ? { ...item, quantity }
           : item
       )
@@ -94,18 +96,15 @@ export function CartProvider({ children }) {
   };
 
   const removeFromCart = (productId) => {
+    if (!activeRestaurantId) return;
     setAllCartItems((prevCart) => prevCart.filter((item) => {
       const inActiveRestaurant = isSameProductInRestaurant(item, productId, activeRestaurantId);
-      if (activeRestaurantId) return !inActiveRestaurant;
-      return Number(item.id) !== Number(productId);
+      return !inActiveRestaurant;
     }));
   };
 
   const clearCart = () => {
-    if (!activeRestaurantId) {
-      setAllCartItems([]);
-      return;
-    }
+    if (!activeRestaurantId) return;
     setAllCartItems((prevCart) => prevCart.filter((item) => parseRestaurantId(item?.restaurant_id) !== activeRestaurantId));
   };
 
