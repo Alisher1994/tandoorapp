@@ -7,6 +7,7 @@ const geoip = require('geoip-lite');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const TASHKENT_TZ = 'Asia/Tashkent';
+const AD_ALLOWED_COUNTRY_CODE = 'UZ';
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
   if ([12, 1, 2].includes(month)) return 'winter';
@@ -122,6 +123,38 @@ const normalizeIpForGeoLookup = (value) => {
   return ip;
 };
 
+const normalizeCountryCode = (value) => {
+  const raw = sanitizeTextValue(value, 8);
+  if (!raw) return null;
+  const normalized = raw.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(normalized) ? normalized : null;
+};
+
+const resolveRequestCountryCode = (req, fallbackIpAddress = null) => {
+  const headerCountry = normalizeCountryCode(
+    req.headers['cf-ipcountry']
+    || req.headers['x-vercel-ip-country']
+    || req.headers['x-country-code']
+    || req.headers['x-geo-country']
+  );
+  if (headerCountry && headerCountry !== 'XX' && headerCountry !== 'T1') {
+    return headerCountry;
+  }
+
+  const ipAddress = fallbackIpAddress || getClientIp(req);
+  const normalizedIp = normalizeIpForGeoLookup(ipAddress);
+  if (!normalizedIp || isPrivateIp(normalizedIp)) return null;
+
+  try {
+    const geo = geoip.lookup(normalizedIp);
+    return normalizeCountryCode(geo?.country);
+  } catch (e) {
+    return null;
+  }
+};
+
+const isAdCountryAllowed = (countryCode) => normalizeCountryCode(countryCode) === AD_ALLOWED_COUNTRY_CODE;
+
 const isPrivateIp = (ip) => {
   if (!ip) return true;
   if (ip === '127.0.0.1' || ip === '0.0.0.0') return true;
@@ -180,11 +213,16 @@ const collectAdEventClientMeta = (req) => {
   let region = null;
   let city = null;
 
-  if (normalizedIp && !isPrivateIp(normalizedIp)) {
+  const countryFromHeaders = resolveRequestCountryCode(req, ipAddress);
+  if (countryFromHeaders) {
+    country = countryFromHeaders;
+  }
+
+  if (!country && normalizedIp && !isPrivateIp(normalizedIp)) {
     try {
       const geo = geoip.lookup(normalizedIp);
       if (geo) {
-        country = sanitizeTextValue(geo.country, 80);
+        country = normalizeCountryCode(geo.country);
         region = sanitizeTextValue(geo.region, 120);
         city = sanitizeTextValue(geo.city, 120);
       }
@@ -217,9 +255,10 @@ const insertAdBannerEvent = async ({
   userId,
   restaurantId,
   viewerKey,
-  req
+  req,
+  meta = null
 }) => {
-  const meta = collectAdEventClientMeta(req);
+  const resolvedMeta = meta || collectAdEventClientMeta(req);
 
   await pool.query(
     `INSERT INTO ad_banner_events (
@@ -242,20 +281,20 @@ const insertAdBannerEvent = async ({
       userId,
       restaurantId,
       viewerKey,
-      meta.ipAddress,
-      meta.userAgent,
-      meta.deviceType,
-      meta.deviceBrand,
-      meta.deviceModel,
-      meta.browserName,
-      meta.browserVersion,
-      meta.osName,
-      meta.osVersion,
-      meta.appContainer,
-      meta.isInAppBrowser,
-      meta.country,
-      meta.region,
-      meta.city
+      resolvedMeta.ipAddress,
+      resolvedMeta.userAgent,
+      resolvedMeta.deviceType,
+      resolvedMeta.deviceBrand,
+      resolvedMeta.deviceModel,
+      resolvedMeta.browserName,
+      resolvedMeta.browserVersion,
+      resolvedMeta.osName,
+      resolvedMeta.osVersion,
+      resolvedMeta.appContainer,
+      resolvedMeta.isInAppBrowser,
+      resolvedMeta.country,
+      resolvedMeta.region,
+      resolvedMeta.city
     ]
   );
 };
@@ -359,6 +398,11 @@ router.get('/restaurant/:id', async (req, res) => {
 // Get active ad banners (public - for customer catalog)
 router.get('/ads-banners', async (req, res) => {
   try {
+    const countryCode = resolveRequestCountryCode(req);
+    if (!isAdCountryAllowed(countryCode)) {
+      return res.json([]);
+    }
+
     await ensureAdBannerTargetingSchema();
     const requestedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
     const hasValidRestaurantId = Number.isInteger(requestedRestaurantId) && requestedRestaurantId > 0;
@@ -441,13 +485,19 @@ router.post('/ads-banners/:id/view', async (req, res) => {
     const restaurantIdRaw = req.body?.restaurant_id;
     const restaurantId = Number.isInteger(Number(restaurantIdRaw)) ? Number(restaurantIdRaw) : null;
 
+    const meta = collectAdEventClientMeta(req);
+    if (!isAdCountryAllowed(meta.country)) {
+      return res.json({ tracked: false, reason: 'geo_blocked' });
+    }
+
     await insertAdBannerEvent({
       bannerId,
       eventType: 'view',
       userId: getOptionalAuthUserId(req),
       restaurantId,
       viewerKey,
-      req
+      req,
+      meta
     });
 
     res.json({ tracked: true });
@@ -478,13 +528,19 @@ router.get('/ads-banners/:id/click', async (req, res) => {
     const viewerKey = String(req.query.viewer_key || '').trim().slice(0, 128) || null;
     const restaurantId = Number.isInteger(Number(req.query.restaurant_id)) ? Number(req.query.restaurant_id) : null;
 
+    const meta = collectAdEventClientMeta(req);
+    if (!isAdCountryAllowed(meta.country)) {
+      return res.status(403).send('Реклама доступна только в Узбекистане');
+    }
+
     await insertAdBannerEvent({
       bannerId,
       eventType: 'click',
       userId: getOptionalAuthUserId(req),
       restaurantId,
       viewerKey,
-      req
+      req,
+      meta
     });
 
     res.redirect(banner.target_url);

@@ -2370,7 +2370,7 @@ const parseAdAnalyticsDays = (value) => {
 
 const buildAdAnalyticsWhere = ({ bannerId, days }) => {
   const params = [bannerId];
-  let sql = 'e.banner_id = $1';
+  let sql = `e.banner_id = $1 AND UPPER(COALESCE(e.country, '')) = 'UZ'`;
   if (days) {
     params.push(days);
     sql += ` AND e.created_at >= (NOW() - ($2::int * INTERVAL '1 day'))`;
@@ -2411,6 +2411,7 @@ router.get('/ads/banners', async (req, res) => {
           MAX(e.created_at) FILTER (WHERE e.event_type = 'view') AS last_view_at,
           MAX(e.created_at) FILTER (WHERE e.event_type = 'click') AS last_click_at
         FROM ad_banner_events e
+        WHERE UPPER(COALESCE(e.country, '')) = 'UZ'
         GROUP BY e.banner_id
       ) stats ON stats.banner_id = b.id
       WHERE ($1::boolean = true OR b.is_deleted = false)
