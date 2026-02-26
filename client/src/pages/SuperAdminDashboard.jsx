@@ -321,77 +321,6 @@ const MiniLineChart = ({
   );
 };
 
-const UZ_AD_GEO_REGIONS = [
-  { key: 'karakalpakstan', ru: 'Каракалпакстан', uz: "Qoraqalpog'iston", x: 12, y: 24, w: 130, h: 72 },
-  { key: 'khorezm', ru: 'Хорезм', uz: 'Xorazm', x: 152, y: 72, w: 66, h: 40 },
-  { key: 'navoi', ru: 'Навоий', uz: 'Navoiy', x: 228, y: 70, w: 118, h: 58 },
-  { key: 'bukhara', ru: 'Бухара', uz: 'Buxoro', x: 224, y: 136, w: 94, h: 46 },
-  { key: 'samarkand', ru: 'Самарканд', uz: 'Samarqand', x: 326, y: 138, w: 88, h: 42 },
-  { key: 'jizzakh', ru: 'Джизак', uz: 'Jizzax', x: 424, y: 124, w: 64, h: 34 },
-  { key: 'sirdarya', ru: 'Сырдарья', uz: 'Sirdaryo', x: 496, y: 126, w: 54, h: 32 },
-  { key: 'tashkent_region', ru: 'Ташкентская обл.', uz: 'Toshkent vil.', x: 556, y: 94, w: 74, h: 42 },
-  { key: 'tashkent_city', ru: 'Ташкент', uz: 'Toshkent sh.', x: 582, y: 72, w: 30, h: 20 },
-  { key: 'namangan', ru: 'Наманган', uz: 'Namangan', x: 628, y: 78, w: 52, h: 34 },
-  { key: 'andijan', ru: 'Андижан', uz: 'Andijon', x: 684, y: 84, w: 42, h: 32 },
-  { key: 'fergana', ru: 'Фергана', uz: "Farg'ona", x: 628, y: 120, w: 64, h: 34 },
-  { key: 'kashkadarya', ru: 'Кашкадарья', uz: 'Qashqadaryo', x: 372, y: 186, w: 94, h: 48 },
-  { key: 'surkhandarya', ru: 'Сурхандарья', uz: 'Surxondaryo', x: 478, y: 214, w: 104, h: 50 }
-];
-
-const normalizeGeoRegionKey = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return '';
-  return raw
-    .replace(/[`’']/g, '')
-    .replace(/ё/g, 'е')
-    .replace(/\s+/g, ' ');
-};
-
-const resolveUzRegionKey = (value) => {
-  const key = normalizeGeoRegionKey(value);
-  if (!key) return null;
-
-  if (key.includes('ташкент') || key.includes('toshkent')) {
-    if (key.includes('обл') || key.includes('vil') || key.includes('region')) return 'tashkent_region';
-    if (key.includes('shah') || key.includes('city') || key.includes('город')) return 'tashkent_city';
-  }
-
-  const aliasMap = {
-    'каракалпакстан': 'karakalpakstan',
-    'karakalpakstan': 'karakalpakstan',
-    'qoraqalpogiston': 'karakalpakstan',
-    'qoraqalpogiston respublikasi': 'karakalpakstan',
-    'хорезм': 'khorezm',
-    'xorazm': 'khorezm',
-    'навоий': 'navoi',
-    'navoiy': 'navoi',
-    'бухара': 'bukhara',
-    'buxoro': 'bukhara',
-    'самарканд': 'samarkand',
-    'samarqand': 'samarkand',
-    'джизак': 'jizzakh',
-    'jizzax': 'jizzakh',
-    'сырдарья': 'sirdarya',
-    'sirdaryo': 'sirdarya',
-    'ташкент': 'tashkent_city',
-    'toshkent': 'tashkent_city',
-    'toshkent shahri': 'tashkent_city',
-    'наманган': 'namangan',
-    'namangan': 'namangan',
-    'андижан': 'andijan',
-    'andijon': 'andijan',
-    'фергана': 'fergana',
-    'fargona': 'fergana',
-    'fargona viloyati': 'fergana',
-    'кашкадарья': 'kashkadarya',
-    'qashqadaryo': 'kashkadarya',
-    'сурхандарья': 'surkhandarya',
-    'surxondaryo': 'surkhandarya'
-  };
-
-  return aliasMap[key] || null;
-};
-
 function SuperAdminDashboard() {
   const { user, logout } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
@@ -554,7 +483,6 @@ function SuperAdminDashboard() {
   const [adBannerAnalytics, setAdBannerAnalytics] = useState(null);
   const [adBannerAnalyticsLoading, setAdBannerAnalyticsLoading] = useState(false);
   const [adBannerAnalyticsDays, setAdBannerAnalyticsDays] = useState(30);
-  const [selectedAdGeoRegion, setSelectedAdGeoRegion] = useState(null);
   const [uploadingAdBannerImage, setUploadingAdBannerImage] = useState(false);
   const [adBannerForm, setAdBannerForm] = useState({
     title: '',
@@ -1088,63 +1016,6 @@ function SuperAdminDashboard() {
     return [...map.values()].sort((a, b) => (b.views - a.views) || (b.clicks - a.clicks) || a.key.localeCompare(b.key));
   };
 
-  const adGeoRegionStats = useMemo(() => {
-    const statsMap = new Map(UZ_AD_GEO_REGIONS.map((region) => [region.key, {
-      ...region,
-      views: 0,
-      clicks: 0,
-      unique_views: 0,
-      cities: []
-    }]));
-
-    for (const row of (adBannerAnalytics?.cities || [])) {
-      const regionKey = resolveUzRegionKey(row?.region);
-      if (!regionKey || !statsMap.has(regionKey)) continue;
-
-      const current = statsMap.get(regionKey);
-      const views = Number(row?.views || 0);
-      const clicks = Number(row?.clicks || 0);
-      const uniqueViews = Number(row?.unique_views || 0);
-      current.views += views;
-      current.clicks += clicks;
-      current.unique_views += uniqueViews;
-      current.cities.push({
-        city: row?.city || 'Unknown',
-        region: row?.region || '',
-        country: row?.country || '',
-        views,
-        clicks,
-        unique_views: uniqueViews
-      });
-    }
-
-    for (const value of statsMap.values()) {
-      value.cities.sort((a, b) => (b.views - a.views) || (b.clicks - a.clicks));
-    }
-
-    return [...statsMap.values()];
-  }, [adBannerAnalytics?.cities]);
-
-  const adGeoRegionMaxViews = useMemo(
-    () => Math.max(1, ...adGeoRegionStats.map((row) => Number(row?.views || 0))),
-    [adGeoRegionStats]
-  );
-
-  const selectedAdGeoRegionStats = useMemo(
-    () => adGeoRegionStats.find((row) => row.key === selectedAdGeoRegion) || null,
-    [adGeoRegionStats, selectedAdGeoRegion]
-  );
-
-  useEffect(() => {
-    if (!adGeoRegionStats.length) {
-      setSelectedAdGeoRegion(null);
-      return;
-    }
-    if (selectedAdGeoRegion && adGeoRegionStats.some((row) => row.key === selectedAdGeoRegion)) return;
-    const topRegion = [...adGeoRegionStats].sort((a, b) => Number(b.views || 0) - Number(a.views || 0))[0];
-    setSelectedAdGeoRegion(topRegion?.key || null);
-  }, [adGeoRegionStats, selectedAdGeoRegion]);
-
   const resetAdBannerForm = () => {
     setEditingAdBanner(null);
     setAdBannerImageMeta(null);
@@ -1233,7 +1104,6 @@ function SuperAdminDashboard() {
     if (!banner?.id) return;
     setAnalyticsAdBanner(banner);
     setAdBannerAnalytics(null);
-    setSelectedAdGeoRegion(null);
     setShowAdAnalyticsModal(true);
   };
 
@@ -4440,110 +4310,6 @@ function SuperAdminDashboard() {
                     color="linear-gradient(90deg, #16a34a 0%, #84cc16 100%)"
                     emptyText={adI18n.analyticsNoData}
                   />
-                </Col>
-              </Row>
-
-              <Row className="g-3 mb-3">
-                <Col lg={7}>
-                  <Card className="border-0 shadow-sm h-100">
-                    <Card.Body>
-                      <div className="d-flex justify-content-between align-items-center mb-2">
-                        <h6 className="mb-0">{language === 'uz' ? "Hududlar bo'yicha SVG xarita" : 'SVG-карта по регионам'}</h6>
-                        <small className="text-muted">{adI18n.analyticsViews}</small>
-                      </div>
-                      <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-                        <svg viewBox="0 0 740 280" width="100%" height="250" role="img" aria-label={adI18n.analyticsGeo}>
-                          <rect x="0" y="0" width="740" height="280" fill="#f8fafc" />
-                          {UZ_AD_GEO_REGIONS.map((region) => {
-                            const stats = adGeoRegionStats.find((row) => row.key === region.key);
-                            const views = Number(stats?.views || 0);
-                            const intensity = Math.max(0.08, Math.min(1, views / adGeoRegionMaxViews));
-                            const fill = `rgba(37, 99, 235, ${intensity.toFixed(3)})`;
-                            const isSelected = selectedAdGeoRegion === region.key;
-                            const label = language === 'uz' ? region.uz : region.ru;
-
-                            return (
-                              <g key={region.key} style={{ cursor: 'pointer' }} onClick={() => setSelectedAdGeoRegion(region.key)}>
-                                <rect
-                                  x={region.x}
-                                  y={region.y}
-                                  width={region.w}
-                                  height={region.h}
-                                  rx="8"
-                                  fill={fill}
-                                  stroke={isSelected ? '#1d4ed8' : 'rgba(30,41,59,0.28)'}
-                                  strokeWidth={isSelected ? 2.2 : 1}
-                                />
-                                <text
-                                  x={region.x + (region.w / 2)}
-                                  y={region.y + (region.h / 2) - 2}
-                                  textAnchor="middle"
-                                  style={{ fontSize: 11, fill: '#0f172a', fontWeight: 600, pointerEvents: 'none' }}
-                                >
-                                  {label}
-                                </text>
-                                <text
-                                  x={region.x + (region.w / 2)}
-                                  y={region.y + (region.h / 2) + 13}
-                                  textAnchor="middle"
-                                  style={{ fontSize: 11, fill: '#0f172a', fontWeight: 700, pointerEvents: 'none' }}
-                                >
-                                  {views}
-                                </text>
-                              </g>
-                            );
-                          })}
-                        </svg>
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
-                <Col lg={5}>
-                  <Card className="border-0 shadow-sm h-100">
-                    <Card.Body>
-                      <h6 className="mb-2">{language === 'uz' ? 'Tanlangan hudud' : 'Выбранный регион'}</h6>
-                      {!selectedAdGeoRegionStats ? (
-                        <div className="text-muted small py-4 text-center">{adI18n.analyticsNoData}</div>
-                      ) : (
-                        <>
-                          <div className="d-flex justify-content-between align-items-center mb-2">
-                            <div className="fw-semibold">
-                              {language === 'uz' ? selectedAdGeoRegionStats.uz : selectedAdGeoRegionStats.ru}
-                            </div>
-                            <Badge bg="primary" pill>{selectedAdGeoRegionStats.views || 0}</Badge>
-                          </div>
-                          <div className="small text-muted mb-3">
-                            {adI18n.analyticsClicks}: <strong>{selectedAdGeoRegionStats.clicks || 0}</strong> · {adI18n.analyticsUnique}: <strong>{selectedAdGeoRegionStats.unique_views || 0}</strong>
-                          </div>
-                          <div className="table-responsive">
-                            <Table size="sm" className="align-middle mb-0">
-                              <thead>
-                                <tr>
-                                  <th>{language === 'uz' ? 'Shahar' : 'Город'}</th>
-                                  <th className="text-end">{adI18n.analyticsViews}</th>
-                                  <th className="text-end">{adI18n.analyticsClicks}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(selectedAdGeoRegionStats.cities || []).slice(0, 8).map((row, idx) => (
-                                  <tr key={`${selectedAdGeoRegionStats.key}-${row.city}-${idx}`}>
-                                    <td>{row.city || 'Unknown'}</td>
-                                    <td className="text-end">{row.views || 0}</td>
-                                    <td className="text-end">{row.clicks || 0}</td>
-                                  </tr>
-                                ))}
-                                {(selectedAdGeoRegionStats.cities || []).length === 0 && (
-                                  <tr>
-                                    <td colSpan="3" className="text-center text-muted py-3">{adI18n.analyticsNoData}</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </Table>
-                          </div>
-                        </>
-                      )}
-                    </Card.Body>
-                  </Card>
                 </Col>
               </Row>
 
