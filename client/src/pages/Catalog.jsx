@@ -1627,25 +1627,19 @@ function Catalog() {
         )}
       </Container>
 
-      <Modal show={showGalleryModal} onHide={closeProductGallery} centered size="lg">
+      <Modal show={showGalleryModal} onHide={closeProductGallery} centered size="lg" className="product-gallery-modal">
         <Modal.Header closeButton>
           <Modal.Title className="fs-6 text-truncate">
             {galleryProductName || (language === 'uz' ? 'Mahsulot galereyasi' : 'Галерея товара')}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body className="p-2">
+        <Modal.Body className="product-gallery-modal-body">
           {galleryImages.length > 0 && (
-            <div style={{ position: 'relative', background: '#f6f4ef', borderRadius: 12, overflow: 'hidden' }}>
+            <div className="product-gallery-frame">
               <img
                 src={galleryImages[galleryIndex]}
                 alt={galleryProductName || 'Product'}
-                style={{
-                  width: '100%',
-                  maxHeight: '70vh',
-                  objectFit: 'contain',
-                  display: 'block',
-                  background: '#fff'
-                }}
+                className="product-gallery-image"
               />
               {galleryImages.length > 1 && (
                 <>
@@ -1653,20 +1647,7 @@ function Catalog() {
                     type="button"
                     onClick={showPrevGalleryImage}
                     aria-label={language === 'uz' ? 'Oldingi rasm' : 'Предыдущее фото'}
-                    style={{
-                      position: 'absolute',
-                      left: 8,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 34,
-                      height: 34,
-                      borderRadius: '999px',
-                      border: 'none',
-                      background: 'rgba(0,0,0,0.45)',
-                      color: '#fff',
-                      fontSize: 22,
-                      lineHeight: 1
-                    }}
+                    className="product-gallery-nav-btn product-gallery-nav-btn-prev"
                   >
                     ‹
                   </button>
@@ -1674,35 +1655,11 @@ function Catalog() {
                     type="button"
                     onClick={showNextGalleryImage}
                     aria-label={language === 'uz' ? 'Keyingi rasm' : 'Следующее фото'}
-                    style={{
-                      position: 'absolute',
-                      right: 8,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 34,
-                      height: 34,
-                      borderRadius: '999px',
-                      border: 'none',
-                      background: 'rgba(0,0,0,0.45)',
-                      color: '#fff',
-                      fontSize: 22,
-                      lineHeight: 1
-                    }}
+                    className="product-gallery-nav-btn product-gallery-nav-btn-next"
                   >
                     ›
                   </button>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 10,
-                      bottom: 10,
-                      background: 'rgba(0,0,0,0.56)',
-                      color: '#fff',
-                      borderRadius: 999,
-                      padding: '3px 10px',
-                      fontSize: '0.82rem'
-                    }}
-                  >
+                  <div className="product-gallery-counter">
                     {galleryIndex + 1} / {galleryImages.length}
                   </div>
                 </>

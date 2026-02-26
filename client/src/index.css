@@ -262,6 +262,82 @@ h6 {
   border-top: 1px solid var(--border-color);
 }
 
+/* Client product gallery modal */
+.product-gallery-modal .modal-dialog {
+  max-width: min(96vw, 760px);
+}
+
+.product-gallery-modal .modal-content {
+  overflow: hidden;
+}
+
+.product-gallery-modal-body {
+  padding: 10px;
+}
+
+.product-gallery-frame {
+  position: relative;
+  height: clamp(300px, 58vh, 560px);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(138, 90, 47, 0.14);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f4ef 100%);
+}
+
+.product-gallery-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #fff;
+}
+
+.product-gallery-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.46);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-gallery-nav-btn-prev {
+  left: 10px;
+}
+
+.product-gallery-nav-btn-next {
+  right: 10px;
+}
+
+.product-gallery-counter {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.56);
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 576px) {
+  .product-gallery-modal .modal-dialog {
+    margin: 0.5rem;
+  }
+
+  .product-gallery-frame {
+    height: clamp(260px, 52vh, 480px);
+  }
+}
+
 /* Admin panel button styles - black background, white text */
 .admin-panel .btn-outline-primary,
 .admin-panel .btn-outline-secondary,
