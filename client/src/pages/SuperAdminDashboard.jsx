@@ -1135,14 +1135,6 @@ function SuperAdminDashboard() {
     [adGeoRegionStats, selectedAdGeoRegion]
   );
 
-  const useLiteAdGeoView = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    const ua = window.navigator?.userAgent || '';
-    const isWindows = /Windows NT/i.test(ua);
-    const isChromium = /(Chrome|Edg)\//i.test(ua);
-    return isWindows && isChromium;
-  }, []);
-
   useEffect(() => {
     if (!adGeoRegionStats.length) {
       setSelectedAdGeoRegion(null);
@@ -4460,73 +4452,48 @@ function SuperAdminDashboard() {
                         <small className="text-muted">{adI18n.analyticsViews}</small>
                       </div>
                       <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-                        {useLiteAdGeoView ? (
-                          <div className="p-3">
-                            <div className="small text-muted mb-2">
-                              {language === 'uz'
-                                ? "Brauzer barqarorligi uchun yengil ko'rinish yoqildi"
-                                : 'Включен облегченный режим для стабильности браузера'}
-                            </div>
-                            <div className="d-flex flex-wrap gap-2">
-                              {adGeoRegionStats.map((region) => {
-                                const isSelected = selectedAdGeoRegion === region.key;
-                                return (
-                                  <Button
-                                    key={region.key}
-                                    size="sm"
-                                    variant={isSelected ? 'primary' : 'outline-secondary'}
-                                    onClick={() => setSelectedAdGeoRegion(region.key)}
-                                  >
-                                    {(language === 'uz' ? region.uz : region.ru)}: {region.views || 0}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : (
-                          <svg viewBox="0 0 740 280" width="100%" height="250" role="img" aria-label={adI18n.analyticsGeo}>
-                            <rect x="0" y="0" width="740" height="280" fill="#f8fafc" />
-                            {UZ_AD_GEO_REGIONS.map((region) => {
-                              const stats = adGeoRegionStats.find((row) => row.key === region.key);
-                              const views = Number(stats?.views || 0);
-                              const intensity = Math.max(0.08, Math.min(1, views / adGeoRegionMaxViews));
-                              const fill = `rgba(37, 99, 235, ${intensity.toFixed(3)})`;
-                              const isSelected = selectedAdGeoRegion === region.key;
-                              const label = language === 'uz' ? region.uz : region.ru;
+                        <svg viewBox="0 0 740 280" width="100%" height="250" role="img" aria-label={adI18n.analyticsGeo}>
+                          <rect x="0" y="0" width="740" height="280" fill="#f8fafc" />
+                          {UZ_AD_GEO_REGIONS.map((region) => {
+                            const stats = adGeoRegionStats.find((row) => row.key === region.key);
+                            const views = Number(stats?.views || 0);
+                            const intensity = Math.max(0.08, Math.min(1, views / adGeoRegionMaxViews));
+                            const fill = `rgba(37, 99, 235, ${intensity.toFixed(3)})`;
+                            const isSelected = selectedAdGeoRegion === region.key;
+                            const label = language === 'uz' ? region.uz : region.ru;
 
-                              return (
-                                <g key={region.key} style={{ cursor: 'pointer' }} onClick={() => setSelectedAdGeoRegion(region.key)}>
-                                  <rect
-                                    x={region.x}
-                                    y={region.y}
-                                    width={region.w}
-                                    height={region.h}
-                                    rx="8"
-                                    fill={fill}
-                                    stroke={isSelected ? '#1d4ed8' : 'rgba(30,41,59,0.28)'}
-                                    strokeWidth={isSelected ? 2.2 : 1}
-                                  />
-                                  <text
-                                    x={region.x + (region.w / 2)}
-                                    y={region.y + (region.h / 2) - 2}
-                                    textAnchor="middle"
-                                    style={{ fontSize: 11, fill: '#0f172a', fontWeight: 600, pointerEvents: 'none' }}
-                                  >
-                                    {label}
-                                  </text>
-                                  <text
-                                    x={region.x + (region.w / 2)}
-                                    y={region.y + (region.h / 2) + 13}
-                                    textAnchor="middle"
-                                    style={{ fontSize: 11, fill: '#0f172a', fontWeight: 700, pointerEvents: 'none' }}
-                                  >
-                                    {views}
-                                  </text>
-                                </g>
-                              );
-                            })}
-                          </svg>
-                        )}
+                            return (
+                              <g key={region.key} style={{ cursor: 'pointer' }} onClick={() => setSelectedAdGeoRegion(region.key)}>
+                                <rect
+                                  x={region.x}
+                                  y={region.y}
+                                  width={region.w}
+                                  height={region.h}
+                                  rx="8"
+                                  fill={fill}
+                                  stroke={isSelected ? '#1d4ed8' : 'rgba(30,41,59,0.28)'}
+                                  strokeWidth={isSelected ? 2.2 : 1}
+                                />
+                                <text
+                                  x={region.x + (region.w / 2)}
+                                  y={region.y + (region.h / 2) - 2}
+                                  textAnchor="middle"
+                                  style={{ fontSize: 11, fill: '#0f172a', fontWeight: 600, pointerEvents: 'none' }}
+                                >
+                                  {label}
+                                </text>
+                                <text
+                                  x={region.x + (region.w / 2)}
+                                  y={region.y + (region.h / 2) + 13}
+                                  textAnchor="middle"
+                                  style={{ fontSize: 11, fill: '#0f172a', fontWeight: 700, pointerEvents: 'none' }}
+                                >
+                                  {views}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
                       </div>
                     </Card.Body>
                   </Card>
