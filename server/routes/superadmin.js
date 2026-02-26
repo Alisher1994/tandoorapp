@@ -2370,7 +2370,12 @@ const parseAdAnalyticsDays = (value) => {
 
 const buildAdAnalyticsWhere = ({ bannerId, days }) => {
   const params = [bannerId];
-  let sql = `e.banner_id = $1 AND UPPER(COALESCE(e.country, '')) = 'UZ'`;
+  let sql = `
+    e.banner_id = $1
+    AND UPPER(COALESCE(e.country, '')) = 'UZ'
+    AND NULLIF(BTRIM(COALESCE(e.region, '')), '') IS NOT NULL
+    AND NULLIF(BTRIM(COALESCE(e.city, '')), '') IS NOT NULL
+  `;
   if (days) {
     params.push(days);
     sql += ` AND e.created_at >= (NOW() - ($2::int * INTERVAL '1 day'))`;
@@ -2412,6 +2417,8 @@ router.get('/ads/banners', async (req, res) => {
           MAX(e.created_at) FILTER (WHERE e.event_type = 'click') AS last_click_at
         FROM ad_banner_events e
         WHERE UPPER(COALESCE(e.country, '')) = 'UZ'
+          AND NULLIF(BTRIM(COALESCE(e.region, '')), '') IS NOT NULL
+          AND NULLIF(BTRIM(COALESCE(e.city, '')), '') IS NOT NULL
         GROUP BY e.banner_id
       ) stats ON stats.banner_id = b.id
       WHERE ($1::boolean = true OR b.is_deleted = false)
@@ -2616,15 +2623,15 @@ router.get('/ads/banners/:id/analytics', async (req, res) => {
         unique_views: mapPgInt(row.unique_views)
       })),
       countries: countryStatsResult.rows.map((row) => ({
-        country: row.country || 'Unknown',
+        country: row.country || 'UZ',
         views: mapPgInt(row.views),
         clicks: mapPgInt(row.clicks),
         unique_views: mapPgInt(row.unique_views)
       })),
       cities: cityStatsResult.rows.map((row) => ({
-        country: row.country || 'Unknown',
-        region: row.region || 'Unknown',
-        city: row.city || 'Unknown',
+        country: row.country || 'UZ',
+        region: row.region || '',
+        city: row.city || '',
         views: mapPgInt(row.views),
         clicks: mapPgInt(row.clicks),
         unique_views: mapPgInt(row.unique_views)
