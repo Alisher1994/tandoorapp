@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      'react-leaflet-draw': 'react-leaflet-draw/dist/react-leaflet-draw.js'
+    }
+  },
   server: {
     port: 3001,
     proxy: {
@@ -17,7 +22,10 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'build'
+    outDir: 'build',
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
   }
 });
 

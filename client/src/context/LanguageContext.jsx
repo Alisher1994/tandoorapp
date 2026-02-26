@@ -108,7 +108,6 @@ const translations = {
     supportTitle: 'Связь с администратором',
     topupInstruction: 'Для пополнения баланса переведите сумму по указанным реквизитам и отправьте квитанцию администратору в Telegram. После подтверждения баланс будет пополнен автоматически.',
     freeTier: 'Бесплатный тариф',
-    broadcastTitle: 'Рассылка уведомлений',
     activeSchedule: 'Активное расписание',
     dateAndTime: 'Дата и время',
     recurrence: 'Повтор',
@@ -198,7 +197,6 @@ const translations = {
     orderNumber: 'Номер',
     client: 'Клиент',
     amount: 'Сумма',
-    date: 'Дата',
     details: 'Детали',
 
     // Order Modal
@@ -533,7 +531,6 @@ const translations = {
     supportTitle: "Admin bilan bog'lanish",
     topupInstruction: "Balansni to'ldirish uchun ko'rsatilgan rekvizitlarga pul o'tkazing va chekni Telegram orqali adminga yuboring. Tasdiqlangandan so'ng balans avtomatik ravishably to'ldiriladi.",
     freeTier: 'Bepul tarif',
-    broadcastTitle: 'Bildirishnomalar yuborish',
     activeSchedule: 'Faol reja',
     dateAndTime: 'Sana va vaqt',
     recurrence: 'Takrorlash',
@@ -623,7 +620,6 @@ const translations = {
     orderNumber: 'Raqam',
     client: 'Mijoz',
     amount: 'Summa',
-    date: 'Sana',
     details: 'Tafsilotlar',
 
     // Order Modal

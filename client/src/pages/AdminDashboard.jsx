@@ -29,6 +29,7 @@ import DeliveryZonePicker from '../components/DeliveryZonePicker';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
+const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const toAbsoluteFileUrl = (value) => {
   if (!value) return '';
   if (/^https?:\/\//i.test(value)) return value;
@@ -36,6 +37,57 @@ const toAbsoluteFileUrl = (value) => {
   const normalized = String(value).startsWith('/') ? String(value) : `/${value}`;
   return `${base}${normalized}`;
 };
+const normalizeProductImageItems = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = [];
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  const normalized = [];
+  for (const entry of source) {
+    let imageUrl = '';
+    let thumbUrl = '';
+
+    if (typeof entry === 'string') {
+      imageUrl = entry.trim();
+    } else if (entry && typeof entry === 'object') {
+      imageUrl = String(entry.url || entry.image_url || '').trim();
+      thumbUrl = String(entry.thumb_url || entry.thumbUrl || '').trim();
+    }
+
+    if (!imageUrl) continue;
+    normalized.push({
+      url: imageUrl,
+      thumb_url: thumbUrl
+    });
+    if (normalized.length >= PRODUCT_IMAGE_SLOTS_COUNT) break;
+  }
+
+  return normalized;
+};
+const createProductImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl = '') => {
+  const slots = Array.from({ length: PRODUCT_IMAGE_SLOTS_COUNT }, () => ({ url: '', thumb_url: '' }));
+  const normalized = normalizeProductImageItems(value);
+  if (!normalized.length && String(fallbackImageUrl || '').trim()) {
+    normalized.push({
+      url: String(fallbackImageUrl).trim(),
+      thumb_url: String(fallbackThumbUrl || '').trim()
+    });
+  }
+  normalized.slice(0, PRODUCT_IMAGE_SLOTS_COUNT).forEach((item, index) => {
+    slots[index] = {
+      url: item.url,
+      thumb_url: item.thumb_url || ''
+    };
+  });
+  return slots;
+};
+const serializeProductImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, PRODUCT_IMAGE_SLOTS_COUNT);
 
 // SVG Icons
 const EditIcon = () => (
@@ -246,6 +298,7 @@ function AdminDashboard() {
     description_uz: '',
     image_url: '',
     thumb_url: '',
+    product_images: createProductImageSlots([]),
     price: '',
     unit: 'шт',
     in_stock: true,
@@ -1773,6 +1826,8 @@ function AdminDashboard() {
     }
 
     if (product) {
+      const imageSlots = createProductImageSlots(product.product_images, product.image_url, product.thumb_url);
+      const mainImage = imageSlots[0] || { url: '', thumb_url: '' };
       setSelectedProduct(product);
       setProductForm({
         category_id: product.category_id || '',
@@ -1780,8 +1835,9 @@ function AdminDashboard() {
         name_uz: product.name_uz || '',
         description_ru: product.description_ru || '',
         description_uz: product.description_uz || '',
-        image_url: product.image_url || '',
-        thumb_url: product.thumb_url || '',
+        image_url: mainImage.url || '',
+        thumb_url: mainImage.thumb_url || '',
+        product_images: imageSlots,
         price: product.price || '',
         unit: product.unit || 'шт',
         in_stock: product.in_stock !== false,
@@ -1799,6 +1855,7 @@ function AdminDashboard() {
         description_uz: '',
         image_url: '',
         thumb_url: '',
+        product_images: createProductImageSlots([]),
         price: '',
         unit: 'шт',
         in_stock: true,
@@ -1815,6 +1872,64 @@ function AdminDashboard() {
     const selected = getCategoryById(categoryId);
     return Boolean(selected && !selected.parent_id);
   };
+  const updateProductImageSlot = (slotIndex, nextUrl, nextThumbUrl = '') => {
+    setProductForm((prev) => {
+      const slots = createProductImageSlots(prev.product_images, prev.image_url, prev.thumb_url);
+      if (slotIndex < 0 || slotIndex >= PRODUCT_IMAGE_SLOTS_COUNT) return prev;
+
+      const normalizedUrl = String(nextUrl || '').trim();
+      slots[slotIndex] = normalizedUrl
+        ? { url: normalizedUrl, thumb_url: String(nextThumbUrl || '').trim() }
+        : { url: '', thumb_url: '' };
+
+      if (!slots[0].url) {
+        const firstFilledSlotIndex = slots.findIndex((slot) => slot.url);
+        if (firstFilledSlotIndex > 0) {
+          [slots[0], slots[firstFilledSlotIndex]] = [slots[firstFilledSlotIndex], slots[0]];
+        }
+      }
+
+      const mainSlot = slots.find((slot) => slot.url) || { url: '', thumb_url: '' };
+      return {
+        ...prev,
+        image_url: mainSlot.url || '',
+        thumb_url: mainSlot.thumb_url || '',
+        product_images: slots
+      };
+    });
+  };
+  const clearProductImageSlot = (slotIndex) => {
+    setProductForm((prev) => {
+      const slots = createProductImageSlots(prev.product_images, prev.image_url, prev.thumb_url);
+      if (slotIndex < 0 || slotIndex >= PRODUCT_IMAGE_SLOTS_COUNT) return prev;
+      slots[slotIndex] = { url: '', thumb_url: '' };
+
+      const normalizedImages = serializeProductImageSlots(slots);
+      const normalizedSlots = createProductImageSlots(normalizedImages);
+      const mainSlot = normalizedSlots.find((slot) => slot.url) || { url: '', thumb_url: '' };
+      return {
+        ...prev,
+        image_url: mainSlot.url || '',
+        thumb_url: mainSlot.thumb_url || '',
+        product_images: normalizedSlots
+      };
+    });
+  };
+  const setMainProductImageSlot = (slotIndex) => {
+    setProductForm((prev) => {
+      const slots = createProductImageSlots(prev.product_images, prev.image_url, prev.thumb_url);
+      if (slotIndex < 0 || slotIndex >= PRODUCT_IMAGE_SLOTS_COUNT) return prev;
+      if (!slots[slotIndex]?.url || slotIndex === 0) return prev;
+
+      [slots[0], slots[slotIndex]] = [slots[slotIndex], slots[0]];
+      return {
+        ...prev,
+        image_url: slots[0].url || '',
+        thumb_url: slots[0].thumb_url || '',
+        product_images: slots
+      };
+    });
+  };
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
@@ -1825,8 +1940,13 @@ function AdminDashboard() {
     }
 
     try {
+      const normalizedImages = serializeProductImageSlots(productForm.product_images);
+      const mainImage = normalizedImages[0] || { url: '', thumb_url: '' };
       const productData = {
         ...productForm,
+        image_url: mainImage.url || '',
+        thumb_url: mainImage.thumb_url || '',
+        product_images: normalizedImages,
         price: parseFloat(productForm.price)
       };
 
@@ -2006,6 +2126,7 @@ function AdminDashboard() {
   // Duplicate product
   const duplicateProduct = (product) => {
     setSelectedProduct(null);
+    const duplicateImageSlots = createProductImageSlots([]);
     setProductForm({
       category_id: product.category_id || '',
       name_ru: product.name_ru || '',
@@ -2014,11 +2135,13 @@ function AdminDashboard() {
       description_uz: '',
       image_url: '', // Empty - admin fills manually
       thumb_url: '',
+      product_images: duplicateImageSlots,
       price: '', // Empty - admin fills manually
       unit: product.unit || 'шт',
       in_stock: true,
       season_scope: product.season_scope || 'all',
-      is_hidden_catalog: !!product.is_hidden_catalog
+      is_hidden_catalog: !!product.is_hidden_catalog,
+      container_id: product.container_id || ''
     });
     setShowProductModal(true);
   };
@@ -2100,7 +2223,7 @@ function AdminDashboard() {
     return { ...row, isValid: true, error: '' };
   };
 
-  const handleExcelFile = async (e) => {
+  const handleExcelFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -2108,10 +2231,8 @@ function AdminDashboard() {
 
     // Read and preview Excel file
     const reader = new FileReader();
-    reader.onload = async (evt) => {
+    reader.onload = (evt) => {
       try {
-        // Dynamic import for xlsx
-        const XLSX = await import('xlsx');
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
@@ -5700,88 +5821,123 @@ function AdminDashboard() {
               </Row>
 
               <Row>
-                <Col md={6}>
+                <Col xs={12}>
                   <Form.Group className="mb-3">
-                    <Form.Label>{t('image')}</Form.Label>
-                    <div
-                      className="border rounded p-3 mb-2 text-center"
-                      style={{
-                        background: '#f8f9fa',
-                        cursor: 'pointer',
-                        minHeight: '100px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'column'
-                      }}
-                      tabIndex={0}
-                      onPaste={(e) => handlePaste(e, (url, meta) => setProductForm({ ...productForm, image_url: url, thumb_url: meta?.thumbUrl || '' }), { preset: 'product' })}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const file = e.dataTransfer.files[0];
-                        if (file) {
-                          handleImageUpload(file, (url, meta) => setProductForm({ ...productForm, image_url: url, thumb_url: meta?.thumbUrl || '' }), { preset: 'product' });
-                        }
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                    >
-                      {productForm.image_url ? (
-                        <div className="position-relative">
-                          <img
-                            src={productForm.image_url}
-                            alt="Preview"
-                            style={{ maxWidth: '200px', maxHeight: '150px', objectFit: 'cover' }}
-                            className="img-thumbnail"
-                          />
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="d-block mx-auto mt-1"
-                            onClick={() => setProductForm({ ...productForm, image_url: '', thumb_url: '' })}
-                          >
-                            ❌ {t('removeImage')}
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-muted">
-                          <div style={{ fontSize: '2rem' }}>📷</div>
-                          <small>
-                            {t('pasteImage')}<br />
-                            {t('orDragFile')}
-                          </small>
-                        </div>
-                      )}
-                    </div>
-                    <Form.Control
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          handleImageUpload(file, (url, meta) => {
-                            setProductForm({ ...productForm, image_url: url, thumb_url: meta?.thumbUrl || '' });
-                          }, { preset: 'product' });
-                        }
-                      }}
-                      disabled={uploadingImage}
-                    />
+                    <Form.Label>{t('image')} (до 5) · ⭐ главное фото</Form.Label>
+                    <Row className="g-3">
+                      {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
+                        <Col md={6} key={`product-image-slot-${slotIndex}`}>
+                          <div className="border rounded p-2 h-100" style={{ background: '#f8f9fa' }}>
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                              <small className="text-muted">Фото {slotIndex + 1}</small>
+                              <div className="d-flex align-items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant={slotIndex === 0 ? 'warning' : 'outline-secondary'}
+                                  size="sm"
+                                  className="py-0 px-2"
+                                  title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
+                                  onClick={() => setMainProductImageSlot(slotIndex)}
+                                  disabled={!slot.url}
+                                >
+                                  {slotIndex === 0 ? '⭐' : '☆'}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline-danger"
+                                  size="sm"
+                                  className="py-0 px-2"
+                                  onClick={() => clearProductImageSlot(slotIndex)}
+                                  disabled={!slot.url}
+                                >
+                                  ✕
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div
+                              className="border rounded p-3 mb-2 text-center"
+                              style={{
+                                background: '#ffffff',
+                                minHeight: '120px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexDirection: 'column'
+                              }}
+                              tabIndex={0}
+                              onPaste={(e) => handlePaste(
+                                e,
+                                (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                { preset: 'product' }
+                              )}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer.files[0];
+                                if (file) {
+                                  handleImageUpload(
+                                    file,
+                                    (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                    { preset: 'product' }
+                                  );
+                                }
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                            >
+                              {slot.url ? (
+                                <img
+                                  src={slot.url}
+                                  alt={`Preview ${slotIndex + 1}`}
+                                  style={{ maxWidth: '100%', maxHeight: '160px', objectFit: 'cover' }}
+                                  className="img-thumbnail"
+                                />
+                              ) : (
+                                <div className="text-muted">
+                                  <div style={{ fontSize: '1.8rem' }}>📷</div>
+                                  <small>
+                                    {t('pasteImage')}<br />
+                                    {t('orDragFile')}
+                                  </small>
+                                </div>
+                              )}
+                            </div>
+
+                            <Form.Control
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  handleImageUpload(
+                                    file,
+                                    (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                    { preset: 'product' }
+                                  );
+                                  e.target.value = '';
+                                }
+                              }}
+                              disabled={uploadingImage}
+                            />
+                            <Form.Control
+                              className="mt-2"
+                              type="text"
+                              value={slot.url}
+                              onChange={(e) => updateProductImageSlot(slotIndex, e.target.value, slot.thumb_url)}
+                              placeholder="https://example.com/image.jpg"
+                              inputMode="url"
+                            />
+                          </div>
+                        </Col>
+                      ))}
+                    </Row>
                     {uploadingImage && (
                       <div className="text-muted mt-2">
                         <small>⏳ {t('uploadingImage')}</small>
                       </div>
                     )}
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('orEnterUrl')}</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={productForm.image_url}
-                      onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value, thumb_url: '' })}
-                      placeholder="https://example.com/image.jpg"
-                      inputMode="url"
-                    />
+                    <Form.Text className="text-muted">
+                      Используйте ⭐ для выбора главного фото карточки. Остальные фото сохраняются для галереи товара.
+                    </Form.Text>
                   </Form.Group>
                 </Col>
               </Row>

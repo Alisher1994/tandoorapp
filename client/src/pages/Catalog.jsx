@@ -6,6 +6,7 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
+import Modal from 'react-bootstrap/Modal';
 import Navbar from 'react-bootstrap/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { useCart, formatPrice } from '../context/CartContext';
@@ -70,6 +71,10 @@ function Catalog() {
   const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
   const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
   const [catalogSearchPlaceholderDeleting, setCatalogSearchPlaceholderDeleting] = useState(false);
+  const [showGalleryModal, setShowGalleryModal] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [galleryProductName, setGalleryProductName] = useState('');
   const [loading, setLoading] = useState(true);
   const { user, isOperator } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
@@ -125,6 +130,58 @@ function Catalog() {
   const resolveImageUrl = (url) => {
     if (!url) return '';
     return url.startsWith('http') ? url : `${API_URL.replace('/api', '')}${url}`;
+  };
+  const getProductGalleryImages = (product) => {
+    const result = [];
+    const seen = new Set();
+    const addImage = (value) => {
+      const resolved = resolveImageUrl(value);
+      if (!resolved || seen.has(resolved)) return;
+      seen.add(resolved);
+      result.push(resolved);
+    };
+
+    addImage(product?.image_url);
+
+    let rawImages = product?.product_images;
+    if (typeof rawImages === 'string') {
+      try {
+        rawImages = JSON.parse(rawImages);
+      } catch (error) {
+        rawImages = [];
+      }
+    }
+
+    if (Array.isArray(rawImages)) {
+      rawImages.forEach((item) => {
+        if (typeof item === 'string') {
+          addImage(item);
+          return;
+        }
+        if (item && typeof item === 'object') {
+          addImage(item.url || item.image_url);
+        }
+      });
+    }
+
+    if (!result.length) addImage(product?.thumb_url);
+    return result;
+  };
+  const openProductGallery = (product, startIndex = 0) => {
+    const images = getProductGalleryImages(product);
+    if (!images.length) return;
+    const safeIndex = Math.max(0, Math.min(startIndex, images.length - 1));
+    setGalleryImages(images);
+    setGalleryIndex(safeIndex);
+    setGalleryProductName(getProductName(product) || '');
+    setShowGalleryModal(true);
+  };
+  const closeProductGallery = () => setShowGalleryModal(false);
+  const showPrevGalleryImage = () => {
+    setGalleryIndex((prev) => (prev <= 0 ? galleryImages.length - 1 : prev - 1));
+  };
+  const showNextGalleryImage = () => {
+    setGalleryIndex((prev) => (prev >= galleryImages.length - 1 ? 0 : prev + 1));
   };
 
   const getRestaurantLogoFrame = (logoDisplayMode) => {
@@ -651,15 +708,24 @@ function Catalog() {
     const overlayKey = `qty_open_${product.id}`;
     const isOpen = catalogQtyOpen?.[overlayKey];
     const favoriteActive = isFavorite(product.id);
+    const productName = getProductName(product);
+    const productGallery = getProductGalleryImages(product);
+    const primaryImageUrl = productGallery[0] || '';
 
     return (
       <Card className="h-100 shadow-sm border-0">
         <div style={{ position: 'relative' }}>
-          {product.image_url ? (
+          {primaryImageUrl ? (
             <Card.Img
               variant="top"
-              src={product.image_url.startsWith('http') ? product.image_url : `${API_URL.replace('/api', '')}${product.image_url}`}
-              style={{ height: '140px', objectFit: 'cover' }}
+              src={primaryImageUrl}
+              alt={productName}
+              style={{ height: '140px', objectFit: 'cover', cursor: 'zoom-in' }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openProductGallery(product, 0);
+              }}
               onError={(e) => {
                 e.target.src = 'https://via.placeholder.com/150?text=No+Image';
               }}
@@ -838,7 +904,7 @@ function Catalog() {
         </div>
         <Card.Body className="d-flex flex-column p-2">
           <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>
-            {language === 'uz' && product.name_uz ? product.name_uz : product.name_ru}
+            {productName}
           </Card.Title>
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
             {language === 'uz' && product.unit_uz ? product.unit_uz : product.unit}
@@ -1102,7 +1168,8 @@ function Catalog() {
           >
             {catalogSearchResults.map((product, index) => {
               const productName = getProductName(product);
-              const imageUrl = resolveImageUrl(product.thumb_url || product.image_url);
+              const productGallery = getProductGalleryImages(product);
+              const imageUrl = productGallery[0] || resolveImageUrl(product.thumb_url || product.image_url);
               const category = categoriesById.get(Number(product.category_id));
               const cartItem = getCartItem(product.id);
               const qty = cartItem?.quantity || 0;
@@ -1118,25 +1185,48 @@ function Catalog() {
                     borderBottom: index === catalogSearchResults.length - 1 ? 'none' : '1px solid rgba(165,133,92,0.12)'
                   }}
                 >
-                  <div
-                    style={{
-                      width: 46,
-                      height: 46,
-                      borderRadius: 10,
-                      overflow: 'hidden',
-                      background: '#f3eee4',
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {imageUrl ? (
+                  {imageUrl ? (
+                    <button
+                      type="button"
+                      className="border-0 p-0"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openProductGallery(product, 0);
+                      }}
+                      style={{
+                        width: 46,
+                        height: 46,
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        background: '#f3eee4',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'zoom-in'
+                      }}
+                      aria-label={language === 'uz' ? 'Rasmni ochish' : 'Открыть фото'}
+                    >
                       <img src={imageUrl} alt={productName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
+                    </button>
+                  ) : (
+                    <div
+                      style={{
+                        width: 46,
+                        height: 46,
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        background: '#f3eee4',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
                       <span style={{ opacity: 0.5 }}>📦</span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => openProductFromSearch(product)}
@@ -1536,6 +1626,91 @@ function Catalog() {
           </>
         )}
       </Container>
+
+      <Modal show={showGalleryModal} onHide={closeProductGallery} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title className="fs-6 text-truncate">
+            {galleryProductName || (language === 'uz' ? 'Mahsulot galereyasi' : 'Галерея товара')}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-2">
+          {galleryImages.length > 0 && (
+            <div style={{ position: 'relative', background: '#f6f4ef', borderRadius: 12, overflow: 'hidden' }}>
+              <img
+                src={galleryImages[galleryIndex]}
+                alt={galleryProductName || 'Product'}
+                style={{
+                  width: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                  background: '#fff'
+                }}
+              />
+              {galleryImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={showPrevGalleryImage}
+                    aria-label={language === 'uz' ? 'Oldingi rasm' : 'Предыдущее фото'}
+                    style={{
+                      position: 'absolute',
+                      left: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 34,
+                      height: 34,
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: 'rgba(0,0,0,0.45)',
+                      color: '#fff',
+                      fontSize: 22,
+                      lineHeight: 1
+                    }}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={showNextGalleryImage}
+                    aria-label={language === 'uz' ? 'Keyingi rasm' : 'Следующее фото'}
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 34,
+                      height: 34,
+                      borderRadius: '999px',
+                      border: 'none',
+                      background: 'rgba(0,0,0,0.45)',
+                      color: '#fff',
+                      fontSize: 22,
+                      lineHeight: 1
+                    }}
+                  >
+                    ›
+                  </button>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      bottom: 10,
+                      background: 'rgba(0,0,0,0.56)',
+                      color: '#fff',
+                      borderRadius: 999,
+                      padding: '3px 10px',
+                      fontSize: '0.82rem'
+                    }}
+                  >
+                    {galleryIndex + 1} / {galleryImages.length}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </Modal.Body>
+      </Modal>
 
       {/* Bottom navigation */}
       {!isOperator() && <BottomNav />}

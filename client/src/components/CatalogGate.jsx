@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Catalog from '../pages/Catalog';
+
+const Catalog = lazy(() => import('../pages/Catalog'));
 
 function CatalogGate() {
   const { user, loading, isBlocked, supportUsername } = useAuth();
@@ -47,7 +48,18 @@ function CatalogGate() {
     return <Navigate to="/login" replace />;
   }
 
-  return <Catalog />;
+  return (
+    <Suspense fallback={(
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Загрузка...</span>
+        </div>
+      </div>
+    )}
+    >
+      <Catalog />
+    </Suspense>
+  );
 }
 
 export default CatalogGate;

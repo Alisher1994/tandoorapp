@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS products (
   description_uz TEXT,
   image_url TEXT,
   thumb_url TEXT,
+  product_images JSONB DEFAULT '[]'::jsonb,
   price DECIMAL(10, 2) NOT NULL,
   unit VARCHAR(20) DEFAULT 'шт',
   barcode VARCHAR(100),

@@ -139,6 +139,7 @@ async function migrate() {
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
       { name: 'container_id', type: 'INTEGER' },
       { name: 'thumb_url', type: 'TEXT' },
+      { name: 'product_images', type: `JSONB DEFAULT '[]'::jsonb` },
       { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
       { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' }
     ];
@@ -152,6 +153,8 @@ async function migrate() {
     }
     console.log('✅ Products table updated');
     await client.query(`UPDATE products SET season_scope = 'all' WHERE season_scope IS NULL OR season_scope = ''`).catch(() => {});
+    await client.query(`ALTER TABLE products ALTER COLUMN product_images SET DEFAULT '[]'::jsonb`).catch(() => {});
+    await client.query(`UPDATE products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
     await client.query(`
       ALTER TABLE products
       ADD CONSTRAINT IF NOT EXISTS products_season_scope_check

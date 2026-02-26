@@ -15,9 +15,68 @@ const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
+const MAX_PRODUCT_IMAGES = 5;
 const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
   return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
+};
+const toOptionalTrimmedText = (value) => (
+  value === undefined || value === null ? '' : String(value).trim()
+);
+const normalizeProductImages = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = [];
+    }
+  }
+
+  if (!Array.isArray(source)) return [];
+
+  const normalized = [];
+  for (const item of source) {
+    let imageUrl = '';
+    let thumbUrl = '';
+
+    if (typeof item === 'string') {
+      imageUrl = item.trim();
+    } else if (item && typeof item === 'object') {
+      imageUrl = toOptionalTrimmedText(item.url || item.image_url);
+      thumbUrl = toOptionalTrimmedText(item.thumb_url || item.thumbUrl);
+    }
+
+    if (!imageUrl) continue;
+
+    normalized.push({
+      url: imageUrl,
+      ...(thumbUrl ? { thumb_url: thumbUrl } : {})
+    });
+
+    if (normalized.length >= MAX_PRODUCT_IMAGES) break;
+  }
+
+  return normalized;
+};
+const resolveProductMediaPayload = ({ productImages, imageUrl, thumbUrl }) => {
+  const normalizedImages = normalizeProductImages(productImages);
+  const fallbackImageUrl = toOptionalTrimmedText(imageUrl);
+  const fallbackThumbUrl = toOptionalTrimmedText(thumbUrl);
+
+  if (normalizedImages.length === 0 && fallbackImageUrl) {
+    normalizedImages.push({
+      url: fallbackImageUrl,
+      ...(fallbackThumbUrl ? { thumb_url: fallbackThumbUrl } : {})
+    });
+  }
+
+  const mainImage = normalizedImages[0] || null;
+  return {
+    productImages: normalizedImages,
+    imageUrl: mainImage?.url || fallbackImageUrl || null,
+    thumbUrl: mainImage?.thumb_url || fallbackThumbUrl || null
+  };
 };
 const normalizeRestaurantTokenForCompare = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
@@ -1315,7 +1374,7 @@ router.post('/products', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id,
+      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id,
       season_scope, is_hidden_catalog
     } = req.body;
 
@@ -1339,16 +1398,22 @@ router.post('/products', async (req, res) => {
     }
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
+    const mediaPayload = resolveProductMediaPayload({
+      productImages: product_images,
+      imageUrl: image_url,
+      thumbUrl: thumb_url
+    });
 
     const result = await pool.query(`
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id, season_scope, is_hidden_catalog
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, season_scope, is_hidden_catalog
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null,
+      mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
+      price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null,
       normalizedSeasonScope, !!is_hidden_catalog
     ]);
 
@@ -1379,7 +1444,7 @@ router.post('/products/upsert', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, price, unit, barcode, in_stock, sort_order,
+      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order,
       season_scope, is_hidden_catalog
     } = req.body;
 
@@ -1403,6 +1468,12 @@ router.post('/products/upsert', async (req, res) => {
     }
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
+    const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
+    const mediaPayload = resolveProductMediaPayload({
+      productImages: product_images,
+      imageUrl: image_url,
+      thumbUrl: thumb_url
+    });
 
     // Проверяем, существует ли товар с таким названием в этой категории (или любой категории если category_id не указан)
     let existingProduct;
@@ -1452,14 +1523,15 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(description_uz);
         paramIndex++;
       }
-      if (image_url) {
+      if (hasIncomingMediaFields) {
         updateFields.push(`image_url = $${paramIndex} `);
-        updateValues.push(image_url);
+        updateValues.push(mediaPayload.imageUrl);
         paramIndex++;
-      }
-      if (thumb_url) {
         updateFields.push(`thumb_url = $${paramIndex} `);
-        updateValues.push(thumb_url);
+        updateValues.push(mediaPayload.thumbUrl);
+        paramIndex++;
+        updateFields.push(`product_images = $${paramIndex}::jsonb`);
+        updateValues.push(JSON.stringify(mediaPayload.productImages));
         paramIndex++;
       }
       if (barcode) {
@@ -1496,12 +1568,13 @@ RETURNING *
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, price, unit, barcode, in_stock, sort_order, season_scope, is_hidden_catalog
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, season_scope, is_hidden_catalog
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
-        image_url, thumb_url || null, price, unit || 'шт', barcode, in_stock !== false, sort_order || 0,
+        mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
+        price, unit || 'шт', barcode, in_stock !== false, sort_order || 0,
         normalizedSeasonScope, !!is_hidden_catalog
       ]);
     }
@@ -1533,7 +1606,7 @@ router.put('/products/:id', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, price, unit, barcode, in_stock, sort_order, container_id,
+      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id,
       season_scope, is_hidden_catalog
     } = req.body;
 
@@ -1558,17 +1631,30 @@ router.put('/products/:id', async (req, res) => {
     }
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, oldProduct.season_scope || 'all');
+    const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
+    const mediaPayload = hasIncomingMediaFields
+      ? resolveProductMediaPayload({
+        productImages: product_images,
+        imageUrl: image_url,
+        thumbUrl: thumb_url
+      })
+      : resolveProductMediaPayload({
+        productImages: oldProduct.product_images,
+        imageUrl: oldProduct.image_url,
+        thumbUrl: oldProduct.thumb_url
+      });
 
     const result = await pool.query(`
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
-  image_url = $6, thumb_url = $7, price = $8, unit = $9, barcode = $10, in_stock = $11, sort_order = $12,
-  container_id = $13, season_scope = $14, is_hidden_catalog = $15, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $16
+  image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, barcode = $11, in_stock = $12, sort_order = $13,
+  container_id = $14, season_scope = $15, is_hidden_catalog = $16, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $17
 RETURNING *
   `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url || null, price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null,
+      mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
+      price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null,
       normalizedSeasonScope, !!is_hidden_catalog, req.params.id
     ]);
 
