@@ -5823,119 +5823,113 @@ function AdminDashboard() {
               <Row>
                 <Col xs={12}>
                   <Form.Group className="mb-3">
-                    <Form.Label>{t('image')} (до 5) · ⭐ главное фото</Form.Label>
-                    <Row className="g-3">
-                      {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
-                        <Col md={6} key={`product-image-slot-${slotIndex}`}>
-                          <div className="border rounded p-2 h-100" style={{ background: '#f8f9fa' }}>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                              <small className="text-muted">Фото {slotIndex + 1}</small>
-                              <div className="d-flex align-items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant={slotIndex === 0 ? 'warning' : 'outline-secondary'}
-                                  size="sm"
-                                  className="py-0 px-2"
-                                  title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
-                                  onClick={() => setMainProductImageSlot(slotIndex)}
-                                  disabled={!slot.url}
-                                >
-                                  {slotIndex === 0 ? '⭐' : '☆'}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline-danger"
-                                  size="sm"
-                                  className="py-0 px-2"
-                                  onClick={() => clearProductImageSlot(slotIndex)}
-                                  disabled={!slot.url}
-                                >
-                                  ✕
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div
-                              className="border rounded p-3 mb-2 text-center"
-                              style={{
-                                background: '#ffffff',
-                                minHeight: '120px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexDirection: 'column'
-                              }}
-                              tabIndex={0}
-                              onPaste={(e) => handlePaste(
-                                e,
-                                (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
-                                { preset: 'product' }
-                              )}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                const file = e.dataTransfer.files[0];
-                                if (file) {
-                                  handleImageUpload(
-                                    file,
-                                    (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
-                                    { preset: 'product' }
-                                  );
-                                }
-                              }}
-                              onDragOver={(e) => e.preventDefault()}
-                            >
-                              {slot.url ? (
-                                <img
-                                  src={slot.url}
-                                  alt={`Preview ${slotIndex + 1}`}
-                                  style={{ maxWidth: '100%', maxHeight: '160px', objectFit: 'cover' }}
-                                  className="img-thumbnail"
-                                />
-                              ) : (
-                                <div className="text-muted">
-                                  <div style={{ fontSize: '1.8rem' }}>📷</div>
-                                  <small>
-                                    {t('pasteImage')}<br />
-                                    {t('orDragFile')}
-                                  </small>
+                    <Form.Label className="mb-2">{t('image')} (до 5) · ⭐ главное фото</Form.Label>
+                    <div className="admin-product-images-shell">
+                      <Row className="g-3 admin-product-images-grid">
+                        {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
+                          <Col xs={12} md={6} xl={4} key={`product-image-slot-${slotIndex}`} className="d-flex">
+                            <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
+                              <div className="admin-product-image-slot-header">
+                                <small className="admin-product-image-slot-title">Фото {slotIndex + 1}</small>
+                                <div className="admin-product-image-slot-actions">
+                                  <Button
+                                    type="button"
+                                    variant="light"
+                                    size="sm"
+                                    className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''}`}
+                                    title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
+                                    onClick={() => setMainProductImageSlot(slotIndex)}
+                                    disabled={!slot.url}
+                                  >
+                                    {slotIndex === 0 ? '⭐' : '☆'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="light"
+                                    size="sm"
+                                    className="admin-product-image-slot-btn admin-product-image-slot-btn-clear"
+                                    onClick={() => clearProductImageSlot(slotIndex)}
+                                    disabled={!slot.url}
+                                  >
+                                    ✕
+                                  </Button>
                                 </div>
-                              )}
-                            </div>
+                              </div>
 
-                            <Form.Control
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files[0];
-                                if (file) {
-                                  handleImageUpload(
-                                    file,
-                                    (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
-                                    { preset: 'product' }
-                                  );
-                                  e.target.value = '';
-                                }
-                              }}
-                              disabled={uploadingImage}
-                            />
-                            <Form.Control
-                              className="mt-2"
-                              type="text"
-                              value={slot.url}
-                              onChange={(e) => updateProductImageSlot(slotIndex, e.target.value, slot.thumb_url)}
-                              placeholder="https://example.com/image.jpg"
-                              inputMode="url"
-                            />
-                          </div>
-                        </Col>
-                      ))}
-                    </Row>
+                              <div
+                                className={`admin-product-image-dropzone ${slot.url ? 'has-image' : ''}`}
+                                tabIndex={0}
+                                onPaste={(e) => handlePaste(
+                                  e,
+                                  (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                  { preset: 'product' }
+                                )}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const file = e.dataTransfer.files[0];
+                                  if (file) {
+                                    handleImageUpload(
+                                      file,
+                                      (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                      { preset: 'product' }
+                                    );
+                                  }
+                                }}
+                                onDragOver={(e) => e.preventDefault()}
+                              >
+                                {slot.url ? (
+                                  <img
+                                    src={slot.url}
+                                    alt={`Preview ${slotIndex + 1}`}
+                                    className="admin-product-image-preview"
+                                  />
+                                ) : (
+                                  <div className="admin-product-image-placeholder">
+                                    <div className="admin-product-image-placeholder-icon">📷</div>
+                                    <small>
+                                      {t('pasteImage')}<br />
+                                      {t('orDragFile')}
+                                    </small>
+                                  </div>
+                                )}
+                              </div>
+
+                              <Form.Control
+                                className="admin-product-image-file-input"
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    handleImageUpload(
+                                      file,
+                                      (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                      { preset: 'product' }
+                                    );
+                                    e.target.value = '';
+                                  }
+                                }}
+                                disabled={uploadingImage}
+                              />
+                              <Form.Control
+                                className="admin-product-image-url-input"
+                                type="text"
+                                value={slot.url}
+                                onChange={(e) => updateProductImageSlot(slotIndex, e.target.value, slot.thumb_url)}
+                                placeholder="https://example.com/image.jpg"
+                                inputMode="url"
+                              />
+                            </div>
+                          </Col>
+                        ))}
+                      </Row>
+                    </div>
                     {uploadingImage && (
-                      <div className="text-muted mt-2">
+                      <div className="text-muted mt-2 admin-product-image-uploading">
                         <small>⏳ {t('uploadingImage')}</small>
                       </div>
                     )}
-                    <Form.Text className="text-muted">
+                    <Form.Text className="text-muted admin-product-image-help">
                       Используйте ⭐ для выбора главного фото карточки. Остальные фото сохраняются для галереи товара.
                     </Form.Text>
                   </Form.Group>

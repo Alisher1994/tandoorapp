@@ -1692,6 +1692,169 @@ body::-webkit-scrollbar,
     min-width: 0;
 }
 
+.admin-product-images-shell {
+    border: 1px solid rgba(143, 109, 70, 0.14);
+    background: linear-gradient(180deg, rgba(255, 250, 243, 0.88), rgba(247, 239, 228, 0.88));
+    border-radius: 16px;
+    padding: 0.8rem;
+}
+
+.admin-product-images-grid {
+    --bs-gutter-x: 0.85rem;
+    --bs-gutter-y: 0.85rem;
+}
+
+.admin-product-image-slot {
+    width: 100%;
+    border: 1px solid rgba(143, 109, 70, 0.14);
+    background: rgba(255, 255, 255, 0.58);
+    border-radius: 14px;
+    padding: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.admin-product-image-slot.is-main {
+    border-color: rgba(143, 109, 70, 0.32);
+    box-shadow: 0 6px 16px rgba(95, 67, 36, 0.1);
+}
+
+.admin-product-image-slot-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+}
+
+.admin-product-image-slot-title {
+    color: #7d6854;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.admin-product-image-slot-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.admin-product-image-slot-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    box-shadow: none !important;
+    border: 1px solid #dcc7a9 !important;
+    background: rgba(255, 250, 243, 0.94) !important;
+    color: #6f5436 !important;
+}
+
+.admin-product-image-slot-btn:hover:not(:disabled) {
+    border-color: #be9b72 !important;
+    background: #f4e5d0 !important;
+    color: #513a22 !important;
+}
+
+.admin-product-image-slot-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.admin-product-image-slot-btn-star {
+    font-size: 0.95rem;
+}
+
+.admin-product-image-slot-btn-star.is-main {
+    border-color: #d3ad53 !important;
+    background: #f0d27f !important;
+    color: #5d4524 !important;
+}
+
+.admin-product-image-slot-btn-clear {
+    border-color: #dbb3ad !important;
+    color: #a25047 !important;
+}
+
+.admin-product-image-slot-btn-clear:hover:not(:disabled) {
+    border-color: #c8867d !important;
+    background: #f2dfdc !important;
+    color: #7e3f37 !important;
+}
+
+.admin-product-image-dropzone {
+    min-height: 134px;
+    border: 1px dashed rgba(143, 109, 70, 0.34);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.74);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 0.75rem;
+    outline: none;
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.admin-product-image-dropzone:hover,
+.admin-product-image-dropzone:focus-visible {
+    border-color: rgba(143, 109, 70, 0.58);
+    background: rgba(255, 255, 255, 0.94);
+}
+
+.admin-product-image-dropzone.has-image {
+    border-style: solid;
+    border-color: rgba(143, 109, 70, 0.24);
+    background: rgba(255, 255, 255, 0.88);
+}
+
+.admin-product-image-preview {
+    width: 100%;
+    max-height: 168px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid rgba(143, 109, 70, 0.14);
+    box-shadow: 0 4px 12px rgba(73, 48, 24, 0.09);
+}
+
+.admin-product-image-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    color: #7d6854;
+}
+
+.admin-product-image-placeholder-icon {
+    font-size: 1.7rem;
+    line-height: 1;
+}
+
+.admin-product-image-file-input {
+    margin-top: 0.1rem;
+    font-size: 0.9rem;
+}
+
+.admin-product-image-url-input {
+    margin-top: 0.45rem;
+}
+
+.admin-product-image-help {
+    display: block;
+    margin-top: 0.5rem;
+    color: #7d6854 !important;
+}
+
+.admin-product-image-uploading {
+    color: #6f5436 !important;
+}
+
 .admin-store-safety-alert .form-check {
     margin-bottom: 0;
 }
@@ -1708,5 +1871,17 @@ body::-webkit-scrollbar,
 
     .admin-store-logo-preview {
         min-height: 128px;
+    }
+
+    .admin-product-images-shell {
+        padding: 0.65rem;
+    }
+
+    .admin-product-image-slot {
+        padding: 0.6rem;
+    }
+
+    .admin-product-image-dropzone {
+        min-height: 122px;
     }
 }
