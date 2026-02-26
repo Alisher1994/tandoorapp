@@ -214,6 +214,7 @@ function AdminDashboard() {
 
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [analyticsOrders, setAnalyticsOrders] = useState([]);
   const [orderStatusCounts, setOrderStatusCounts] = useState({
     all: 0,
     new: 0,
@@ -494,7 +495,7 @@ function AdminDashboard() {
 
   // Calculate analytics based on orders (only delivered orders for accurate statistics)
   useEffect(() => {
-    const filteredOrders = orders.filter(order => {
+    const filteredOrders = analyticsOrders.filter(order => {
       const orderDate = new Date(order.created_at);
       return orderDate.getFullYear() === dashboardYear &&
         orderDate.getMonth() + 1 === dashboardMonth &&
@@ -533,7 +534,7 @@ function AdminDashboard() {
       .filter(loc => !isNaN(loc.lat) && !isNaN(loc.lng));
 
     setAnalytics({ revenue, ordersCount, averageCheck, topProducts, orderLocations });
-  }, [orders, dashboardYear, dashboardMonth]);
+  }, [analyticsOrders, dashboardYear, dashboardMonth]);
 
   // Fetch yearly analytics
   const fetchYearlyAnalytics = async (year) => {
@@ -859,6 +860,7 @@ function AdminDashboard() {
           ? normalizedFilteredOrders
           : ((allOrdersRes?.data || []).map(normalizeAdminOrderForUI));
         setOrderStatusCounts(buildOrderStatusCounts(countsSource));
+        setAnalyticsOrders(countsSource);
       } else {
         console.error('Orders fetch error:', ordersRes.reason);
       }
