@@ -178,10 +178,29 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     ? order.delivery_time
     : 'Как можно быстрее';
 
-  const productsTotal = parseFloat(order.total_amount);
+  const itemsBaseTotal = (items || []).reduce((sum, item) => {
+    const qty = parseFloat(item.quantity) || 0;
+    const price = parseFloat(item.price) || 0;
+    return sum + (qty * price);
+  }, 0);
+  const containerTotal = (items || []).reduce((sum, item) => {
+    const qty = parseFloat(item.quantity) || 0;
+    const containerPrice = parseFloat(item.container_price) || 0;
+    return sum + (qty * containerPrice);
+  }, 0);
+  const serviceFee = parseFloat(order.service_fee) || 0;
   const deliveryCost = parseFloat(order.delivery_cost) || 0;
   const deliveryDistanceKm = parseFloat(order.delivery_distance_km) || 0;
+  const calculatedTotal = itemsBaseTotal + containerTotal + serviceFee + deliveryCost;
+  const totalAmountRaw = parseFloat(order.total_amount);
+  const orderTotal = Number.isFinite(totalAmountRaw) ? totalAmountRaw : calculatedTotal;
 
+  const containerLine = containerTotal > 0
+    ? `🍽 Пакет / Посуда: ${formatPrice(containerTotal)} сум\n`
+    : '';
+  const serviceLine = serviceFee > 0
+    ? `🛎 Сервис: ${formatPrice(serviceFee)} сум\n`
+    : '';
   let deliveryLine = '';
   if (deliveryCost > 0) {
     deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} сум`;
@@ -210,8 +229,10 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     customerBlock +
     `🕐 К времени: ${deliveryTime}\n\n` +
     `<b>Товары</b>\n\n${itemsList}\n\n` +
+    containerLine +
+    serviceLine +
     deliveryLine +
-    `<b>Итого: ${formatPrice(productsTotal)} сум</b>` +
+    `<b>Итого: ${formatPrice(orderTotal)} сум</b>` +
     `\n\n` +
     (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
 
@@ -220,7 +241,8 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
 
 function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '', options = {}) {
   const previewUrl = options?.previewUrl || null;
-  const previewButton = previewUrl
+  const showPreview = stage && stage !== 'new';
+  const previewButton = showPreview && previewUrl
     ? { text: '🔎 Детали', url: previewUrl }
     : null;
 

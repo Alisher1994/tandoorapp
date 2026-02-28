@@ -86,6 +86,7 @@ function Catalog() {
   const viewedAdsRef = useRef(new Set());
   const catalogHeaderRef = useRef(null);
   const catalogSearchInputRef = useRef(null);
+  const categoryListScrollOffsetRef = useRef(0);
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
@@ -115,6 +116,13 @@ function Catalog() {
   }, [selectedRestaurant]);
 
   const getScrollContainer = () => document.getElementById('root') || window;
+  const getCurrentScrollOffset = () => {
+    const scrollContainer = getScrollContainer();
+    if (scrollContainer === window) {
+      return window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || 0;
+    }
+    return scrollContainer.scrollTop || 0;
+  };
 
   const scrollToOffset = (offsetTop) => {
     const scrollContainer = getScrollContainer();
@@ -126,6 +134,15 @@ function Catalog() {
   };
 
   const scrollToTop = () => scrollToOffset(0);
+  const restoreScrollOffset = (offsetTop) => {
+    const target = Math.max(0, Number(offsetTop) || 0);
+    const scrollContainer = getScrollContainer();
+    if (scrollContainer === window) {
+      window.scrollTo({ top: target, behavior: 'auto' });
+      return;
+    }
+    scrollContainer.scrollTo({ top: target, behavior: 'auto' });
+  };
 
   const resolveImageUrl = (url) => {
     if (!url) return '';
@@ -626,15 +643,21 @@ function Catalog() {
   }, [selectedCategory, level3Tabs]);
 
   const openLevel2Category = (categoryId) => {
+    categoryListScrollOffsetRef.current = getCurrentScrollOffset();
     setSelectedCategory(categoryId);
     setActiveSubcategoryTab(null);
     scrollToTop();
   };
 
   const closeLevel2Category = () => {
+    const restoreOffset = categoryListScrollOffsetRef.current;
     setSelectedCategory(null);
     setActiveSubcategoryTab(null);
-    scrollToTop();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        restoreScrollOffset(restoreOffset);
+      });
+    });
   };
 
   const scrollToProductGroup = (sectionId) => {
@@ -1073,6 +1096,7 @@ function Catalog() {
   const openProductFromSearch = (product) => {
     const level2CategoryId = getLevel2CategoryIdForProduct(product);
     if (level2CategoryId) {
+      categoryListScrollOffsetRef.current = getCurrentScrollOffset();
       setSelectedCategory(level2CategoryId);
       setActiveSubcategoryTab(null);
       scrollToTop();
