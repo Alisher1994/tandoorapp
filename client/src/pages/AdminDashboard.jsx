@@ -26,6 +26,7 @@ import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsV
 import * as XLSX from 'xlsx';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
+import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
@@ -2505,13 +2506,7 @@ function AdminDashboard() {
   const paymePaymentLink = normalizePaymentLink(billingInfo.requisites?.payme_link);
 
   if (loading) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Загрузка...</span>
-        </div>
-      </div>
-    );
+    return <PageSkeleton fullscreen label="Загрузка панели оператора" cards={9} />;
   }
 
   const handleSwitchRestaurant = async (restaurantId) => {
@@ -3020,10 +3015,8 @@ function AdminDashboard() {
                 <h5 className="mb-4">📈 {t('yearlyAnalytics')} {dashboardYear} {t('yearSuffix')}</h5>
 
                 {loadingYearlyAnalytics ? (
-                  <div className="text-center py-4">
-                    <div className="spinner-border text-primary" role="status">
-                      <span className="visually-hidden">Loading...</span>
-                    </div>
+                  <div className="py-3">
+                    <ListSkeleton count={3} label="Загрузка годовой аналитики" />
                   </div>
                 ) : (
                   <>
@@ -4078,7 +4071,7 @@ function AdminDashboard() {
                 </div>
 
                 {customersLoading ? (
-                  <div className="text-center py-5 text-muted">Загрузка клиентов...</div>
+                  <TableSkeleton rows={8} columns={7} label="Загрузка клиентов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -4795,7 +4788,7 @@ function AdminDashboard() {
                       )}
                     </>
                   ) : (
-                    <div className="text-center py-5">Загрузка настроек...</div>
+                    <ListSkeleton count={3} label="Загрузка настроек" />
                   )}
                 </div>
               </Tab>
@@ -4833,7 +4826,7 @@ function AdminDashboard() {
             </Card>
 
             {customerOrdersLoading ? (
-              <div className="text-center py-4 text-muted">Загрузка истории...</div>
+              <TableSkeleton rows={5} columns={6} label="Загрузка истории заказов клиента" />
             ) : (customerOrdersHistory.orders || []).length === 0 ? (
               <div className="text-center py-4 text-muted">У этого клиента пока нет заказов в текущем магазине</div>
             ) : (
@@ -5561,7 +5554,11 @@ function AdminDashboard() {
                     </thead>
                     <tbody>
                       {loadingBilling ? (
-                        <tr><td colSpan="3" className="text-center py-5"><div className="spinner-border text-primary"></div></td></tr>
+                        <tr>
+                          <td colSpan="3" className="py-3">
+                            <ListSkeleton count={3} label="Загрузка биллинга" />
+                          </td>
+                        </tr>
                       ) : billingHistory.length > 0 ? (
                         billingHistory.map(item => (
                           <tr key={item.id}>
@@ -6176,7 +6173,7 @@ function AdminDashboard() {
             ) : broadcastModalTab === 'scheduled' ? (
               <div className="p-4 bg-light" style={{ minHeight: '400px' }}>
                 {loadingScheduled ? (
-                  <div className="text-center py-5">Загрузка...</div>
+                  <TableSkeleton rows={5} columns={5} label="Загрузка запланированных рассылок" />
                 ) : scheduledBroadcasts.length === 0 ? (
                   <div className="text-center py-5 text-muted">Нет запланированных рассылок</div>
                 ) : (
@@ -6230,7 +6227,7 @@ function AdminDashboard() {
             ) : (
               <div className="p-4 bg-light" style={{ minHeight: '400px' }}>
                 {loadingHistory ? (
-                  <div className="text-center py-5">Загрузка...</div>
+                  <TableSkeleton rows={5} columns={5} label="Загрузка истории рассылок" />
                 ) : broadcastHistory.length === 0 ? (
                   <div className="text-center py-5 text-muted">История пуста</div>
                 ) : (

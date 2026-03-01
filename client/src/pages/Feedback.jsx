@@ -9,6 +9,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
+import { ListSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
@@ -175,11 +176,7 @@ function Feedback() {
         </div>
         
         {loadingFeedback ? (
-          <div className="text-center py-4">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
+          <ListSkeleton count={4} label={language === 'uz' ? 'Murojaatlar yuklanmoqda' : 'Загрузка обращений'} />
         ) : myFeedback.length === 0 ? (
           <Card className="border-0 shadow-sm text-center py-4">
             <Card.Body>

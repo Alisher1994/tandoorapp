@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PageSkeleton } from './SkeletonUI';
 
 const Catalog = lazy(() => import('../pages/Catalog'));
 
@@ -8,13 +9,7 @@ function CatalogGate() {
   const { user, loading, isBlocked, supportUsername } = useAuth();
 
   if (loading) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Загрузка...</span>
-        </div>
-      </div>
-    );
+    return <PageSkeleton fullscreen label="Загрузка каталога" cards={8} />;
   }
 
   // Show blocked page
@@ -50,11 +45,7 @@ function CatalogGate() {
 
   return (
     <Suspense fallback={(
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Загрузка...</span>
-        </div>
-      </div>
+      <PageSkeleton fullscreen label="Подготовка каталога" cards={8} />
     )}
     >
       <Catalog />

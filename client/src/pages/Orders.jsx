@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
+import { PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
@@ -103,13 +104,7 @@ function Orders() {
   };
 
   if (loading) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">{t('loading')}</span>
-        </div>
-      </div>
-    );
+    return <PageSkeleton fullscreen label={t('loading')} cards={5} />;
   }
 
   return (

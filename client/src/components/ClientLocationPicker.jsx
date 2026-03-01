@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './ClientLocationPicker.css';
+import { ListSkeleton } from './SkeletonUI';
 
 const YANDEX_API_KEY = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
 
@@ -139,10 +140,7 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange }) {
   if (!isLoaded) {
     return (
       <div className="client-location-picker-loading">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-        <p className="mt-2 text-muted">Загрузка карты...</p>
+        <ListSkeleton count={2} label="Загрузка карты" />
       </div>
     );
   }

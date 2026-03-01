@@ -14,6 +14,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import HeartIcon from '../components/HeartIcon';
+import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -1345,13 +1346,7 @@ function Catalog() {
   };
 
   if (loading && restaurants.length === 0) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-                 <div className="spinner-border" role="status" style={{ color: 'var(--primary-color)' }}>
-          <span className="visually-hidden">Загрузка...</span>
-        </div>
-      </div>
-    );
+    return <PageSkeleton fullscreen label="Загрузка магазинов" cards={8} />;
   }
 
   return (
@@ -1523,10 +1518,8 @@ function Catalog() {
 
             {/* Loading */}
             {loading && (
-              <div className="text-center py-5">
-                <div className="spinner-border" role="status" style={{ color: 'var(--primary-color)' }}>
-                  <span className="visually-hidden">Загрузка...</span>
-                </div>
+              <div className="py-3">
+                <ListSkeleton count={6} label="Загрузка товаров" />
               </div>
             )}
 

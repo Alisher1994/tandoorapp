@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
+import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
@@ -2860,7 +2861,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <TableSkeleton rows={8} columns={8} label="Загрузка списка магазинов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -3057,7 +3058,7 @@ function SuperAdminDashboard() {
                 </Card>
 
                 {activityTypesLoading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <TableSkeleton rows={6} columns={6} label="Загрузка видов деятельности" />
                 ) : (
                   <div className="admin-table-container">
                     <Table responsive hover className="admin-table">
@@ -3177,7 +3178,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <TableSkeleton rows={7} columns={8} label="Загрузка операторов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -3294,7 +3295,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <TableSkeleton rows={7} columns={8} label="Загрузка клиентов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -3414,7 +3415,7 @@ function SuperAdminDashboard() {
                   </div>
                 </div>
                 {loading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <ListSkeleton count={5} label="Загрузка категорий" />
                 ) : (
                   <div
                     className="pb-3 superadmin-categories-grid"
@@ -3600,7 +3601,7 @@ function SuperAdminDashboard() {
                 </Alert>
 
                 {adBannersLoading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <TableSkeleton rows={7} columns={8} label="Загрузка рекламных баннеров" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -3832,7 +3833,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <div className="text-center p-5"><Spinner animation="border" /></div>
+                  <TableSkeleton rows={8} columns={6} label="Загрузка журнала действий" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -4199,9 +4200,7 @@ function SuperAdminDashboard() {
           </div>
 
           {adBannerAnalyticsLoading ? (
-            <div className="text-center py-5">
-              <Spinner animation="border" />
-            </div>
+            <ListSkeleton count={4} label="Загрузка аналитики баннера" />
           ) : !adBannerAnalytics ? (
             <Alert variant="light" className="mb-0" style={{ border: '1px solid var(--border-color)' }}>
               {adI18n.analyticsNoData}
@@ -5294,7 +5293,7 @@ function SuperAdminDashboard() {
           <Modal.Title>🗺️ Зона доставки</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Suspense fallback={<div className="text-center p-5"><Spinner animation="border" /></div>}>
+          <Suspense fallback={<ListSkeleton count={4} label="Загрузка карты зоны доставки" />}>
             <DeliveryZoneMap
               zone={restaurantForm.delivery_zone}
               onZoneChange={(zone) => setRestaurantForm({ ...restaurantForm, delivery_zone: zone })}
@@ -5409,7 +5408,7 @@ function SuperAdminDashboard() {
         </Modal.Header>
         <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {loadingOrders ? (
-            <div className="text-center p-5"><Spinner animation="border" /></div>
+            <TableSkeleton rows={6} columns={8} label="Загрузка истории заказов клиента" />
           ) : (
             <>
               {/* Customer Info */}

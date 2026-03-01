@@ -9,6 +9,7 @@ import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
 import CatalogGate from './components/CatalogGate';
 import AppVersionWatcher from './components/AppVersionWatcher';
+import { PageSkeleton } from './components/SkeletonUI';
 
 const Login = lazy(() => import('./pages/Login'));
 const Catalog = lazy(() => import('./pages/Catalog'));
@@ -27,11 +28,7 @@ function App() {
           <FavoritesProvider>
             <AppVersionWatcher />
             <Suspense fallback={(
-              <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
-                <div className="spinner-border" role="status" style={{ color: 'var(--primary-color)' }}>
-                  <span className="visually-hidden">Загрузка...</span>
-                </div>
-              </div>
+              <PageSkeleton fullscreen label="Загрузка приложения" cards={8} />
             )}
             >
               <Routes>
