@@ -5,6 +5,10 @@
   --accent-color: #93c5fd;
   --accent-soft: #f3f4f6;
   --background-color: #f3f4f6;
+  --app-shell-background:
+    radial-gradient(circle at 12% 8%, rgba(59, 130, 246, 0.12), transparent 42%),
+    radial-gradient(circle at 88% 14%, rgba(71, 85, 105, 0.10), transparent 38%),
+    linear-gradient(180deg, #f8fafc 0%, var(--background-color) 52%, #e5e7eb 100%);
   --surface-color: #ffffff;
   --text-color: #111827;
   --text-secondary: #6b7280;
@@ -41,6 +45,7 @@ body {
   height: 100%;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+  background-color: var(--background-color);
 }
 
 #root {
@@ -53,6 +58,8 @@ body {
   overscroll-behavior-y: none;
   /* For scroll tracking */
   scroll-behavior: smooth;
+  background: var(--app-shell-background);
+  background-color: var(--background-color);
 }
 
 @supports (-webkit-touch-callout: none) {
@@ -85,10 +92,7 @@ body {
 
 body {
   font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(59, 130, 246, 0.12), transparent 42%),
-    radial-gradient(circle at 88% 14%, rgba(71, 85, 105, 0.10), transparent 38%),
-    linear-gradient(180deg, #f8fafc 0%, var(--background-color) 52%, #e5e7eb 100%);
+  background: var(--app-shell-background);
   color: var(--text-color);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
