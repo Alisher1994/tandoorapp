@@ -168,7 +168,7 @@ const MiniBarChart = ({
   getLabel,
   getValue,
   secondaryValue,
-  color = 'linear-gradient(90deg, #8b6a3f 0%, #c89b5c 100%)',
+  color = 'linear-gradient(90deg, #475569 0%, #93c5fd 100%)',
   maxItems = 8,
   emptyText = 'Нет данных'
 }) => {
@@ -2586,7 +2586,7 @@ function SuperAdminDashboard() {
                 type="button"
                 onClick={() => setShowMobileAccountSheet(true)}
                 className="d-lg-none d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none border-0 custom-user-dropdown admin-user-toggle"
-                style={{ color: '#fffaf3' }}
+                style={{ color: '#ffffff' }}
               >
                 <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
                   {user?.username?.charAt(0).toUpperCase() || 'A'}
@@ -2673,7 +2673,7 @@ function SuperAdminDashboard() {
               <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
             </Button>
 
-            <div className="p-2 rounded-3" style={{ background: '#f7efe3' }}>
+            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
               <div className="small text-muted mb-2 fw-semibold">Язык</div>
               <div className="admin-lang-switch">
                 <div
@@ -2913,7 +2913,7 @@ function SuperAdminDashboard() {
                                         background: 'transparent',
                                         padding: 0,
                                         lineHeight: 0,
-                                        color: '#8b5e34',
+                                        color: '#475569',
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         cursor: 'pointer'
@@ -4269,7 +4269,7 @@ function SuperAdminDashboard() {
                     rows={adBannerAnalytics?.daily || []}
                     xKey="day"
                     lines={[
-                      { key: 'views', label: adI18n.analyticsViews, color: '#8b6a3f' },
+                      { key: 'views', label: adI18n.analyticsViews, color: '#475569' },
                       { key: 'clicks', label: adI18n.analyticsClicks, color: '#2f80ed' },
                       { key: 'unique_views', label: adI18n.analyticsUnique, color: '#27ae60' }
                     ]}
@@ -4789,7 +4789,7 @@ function SuperAdminDashboard() {
                               style={{
                                 width: '100%',
                                 aspectRatio: '2.4 / 1',
-                                background: 'linear-gradient(135deg, rgba(143,109,70,0.08) 0%, rgba(143,109,70,0.16) 100%)'
+                                background: 'linear-gradient(135deg, rgba(71,85,105,0.08) 0%, rgba(71,85,105,0.16) 100%)'
                               }}
                             >
                               <div className="text-center px-3">

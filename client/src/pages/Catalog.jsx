@@ -801,7 +801,7 @@ function Catalog() {
               borderRadius: '999px',
               border: '1px solid rgba(255,255,255,0.55)',
               background: favoriteActive ? 'rgba(255, 95, 125, 0.94)' : 'rgba(255,255,255,0.92)',
-              color: favoriteActive ? '#fff' : '#8f6d46',
+              color: favoriteActive ? '#fff' : '#475569',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -811,7 +811,7 @@ function Catalog() {
               lineHeight: 1
             }}
           >
-            <HeartIcon size={16} filled={favoriteActive} color={favoriteActive ? '#ffffff' : '#8f6d46'} />
+            <HeartIcon size={16} filled={favoriteActive} color={favoriteActive ? '#ffffff' : '#475569'} />
           </button>
 
           {/* Quantity controls on image */}
@@ -961,7 +961,7 @@ function Catalog() {
             borderRadius: '16px',
             overflow: 'hidden',
             background: '#fff',
-            border: '1px solid rgba(165,133,92,0.18)',
+            border: '1px solid rgba(71, 85, 105,0.18)',
             boxShadow: '0 8px 20px rgba(60, 42, 24, 0.05)'
           }}
         >
@@ -1012,7 +1012,7 @@ function Catalog() {
                     height: 6,
                     borderRadius: 999,
                     border: 'none',
-                    background: idx === activeAdIndex ? 'var(--primary-color)' : 'rgba(165,133,92,0.25)',
+                    background: idx === activeAdIndex ? 'var(--primary-color)' : 'rgba(71, 85, 105,0.25)',
                     transition: 'all 180ms ease'
                   }}
                 />
@@ -1036,9 +1036,9 @@ function Catalog() {
         onClick={() => navigate('/cart')}
         style={{
           width: '100%',
-          border: '1px solid rgba(165,133,92,0.22)',
-          background: (cartTotal || 0) > 0 ? 'rgba(165,133,92,0.10)' : 'rgba(255,255,255,0.85)',
-          color: '#3a2b1b',
+          border: '1px solid rgba(71, 85, 105,0.22)',
+          background: (cartTotal || 0) > 0 ? 'rgba(71, 85, 105,0.10)' : 'rgba(255,255,255,0.85)',
+          color: '#111827',
           borderRadius: '12px',
           padding: '11px 12px',
           display: 'flex',
@@ -1059,7 +1059,7 @@ function Catalog() {
               width: 30,
               height: 30,
               borderRadius: 999,
-              background: 'rgba(165,133,92,0.13)',
+              background: 'rgba(71, 85, 105,0.13)',
               color: 'var(--primary-color)',
               flexShrink: 0
             }}
@@ -1068,7 +1068,7 @@ function Catalog() {
           </span>
           <span
             style={{
-              color: '#6f5538',
+              color: '#4b5563',
               fontWeight: 500,
               fontSize: '0.88rem',
               lineHeight: 1.1
@@ -1107,7 +1107,7 @@ function Catalog() {
     <div className={compact ? 'mt-0 mb-0' : 'mt-2 mb-0'}>
       <div
         style={{
-          border: '1px solid rgba(165,133,92,0.22)',
+          border: '1px solid rgba(71, 85, 105,0.22)',
           background: compact ? 'rgba(255,255,255,0.95)' : '#fff',
           borderRadius: 12,
           padding: '10px 12px',
@@ -1119,14 +1119,14 @@ function Catalog() {
             style={{
               width: 18,
               height: 18,
-              color: '#8f6d46',
+              color: '#475569',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0
             }}
           >
-            <SearchLucideIcon size={16} color="#8f6d46" />
+            <SearchLucideIcon size={16} color="#475569" />
           </span>
             <input
               ref={catalogSearchInputRef}
@@ -1139,7 +1139,7 @@ function Catalog() {
                 border: 'none',
               outline: 'none',
               background: 'transparent',
-              color: '#3a2b1b',
+              color: '#111827',
               fontSize: '0.92rem'
             }}
           />
@@ -1150,7 +1150,7 @@ function Catalog() {
               style={{
                 border: 'none',
                 background: 'transparent',
-                color: '#8f6d46',
+                color: '#475569',
                 fontSize: '1rem',
                 lineHeight: 1,
                 padding: 0
@@ -1171,7 +1171,7 @@ function Catalog() {
     return (
       <div className="pt-2 pb-3">
         <div className="d-flex align-items-center justify-content-between mb-2">
-          <h6 className="mb-0 fw-bold" style={{ color: '#4b3a27' }}>
+          <h6 className="mb-0 fw-bold" style={{ color: '#1f2937' }}>
             {language === 'uz' ? 'Topilgan tovarlar' : 'Найденные товары'}
           </h6>
           <small className="text-muted">{catalogSearchResults.length}</small>
@@ -1185,7 +1185,7 @@ function Catalog() {
           <div
             style={{
               background: '#fff',
-              border: '1px solid rgba(165,133,92,0.18)',
+              border: '1px solid rgba(71, 85, 105,0.18)',
               borderRadius: 14,
               overflow: 'hidden'
             }}
@@ -1206,7 +1206,7 @@ function Catalog() {
                     alignItems: 'center',
                     gap: 10,
                     padding: '10px 12px',
-                    borderBottom: index === catalogSearchResults.length - 1 ? 'none' : '1px solid rgba(165,133,92,0.12)'
+                    borderBottom: index === catalogSearchResults.length - 1 ? 'none' : '1px solid rgba(71, 85, 105,0.12)'
                   }}
                 >
                   {imageUrl ? (
@@ -1223,7 +1223,7 @@ function Catalog() {
                         height: 46,
                         borderRadius: 10,
                         overflow: 'hidden',
-                        background: '#f3eee4',
+                        background: '#f1f5f9',
                         flexShrink: 0,
                         display: 'flex',
                         alignItems: 'center',
@@ -1241,7 +1241,7 @@ function Catalog() {
                         height: 46,
                         borderRadius: 10,
                         overflow: 'hidden',
-                        background: '#f3eee4',
+                        background: '#f1f5f9',
                         flexShrink: 0,
                         display: 'flex',
                         alignItems: 'center',
@@ -1257,7 +1257,7 @@ function Catalog() {
                     className="border-0 bg-transparent p-0 text-start min-w-0 flex-grow-1"
                     style={{ minWidth: 0 }}
                   >
-                    <div className="fw-semibold text-truncate" style={{ color: '#3a2b1b', fontSize: '0.92rem' }}>
+                    <div className="fw-semibold text-truncate" style={{ color: '#111827', fontSize: '0.92rem' }}>
                       {productName}
                     </div>
                     <div className="small text-muted text-truncate">
@@ -1270,8 +1270,8 @@ function Catalog() {
                         <div
                           className="d-flex align-items-center justify-content-between rounded-pill px-1"
                           style={{
-                            background: 'rgba(165,133,92,0.10)',
-                            border: '1px solid rgba(165,133,92,0.2)',
+                            background: 'rgba(71, 85, 105,0.10)',
+                            border: '1px solid rgba(71, 85, 105,0.2)',
                             minWidth: 90,
                             height: 32
                           }}
@@ -1279,7 +1279,7 @@ function Catalog() {
                           <button
                             type="button"
                             className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                            style={{ width: 26, height: 26, color: '#6f5538', fontSize: '16px' }}
+                            style={{ width: 26, height: 26, color: '#4b5563', fontSize: '16px' }}
                             onClick={(e) => {
                               e.stopPropagation();
                               updateQuantity(product.id, qty - 1);
@@ -1288,7 +1288,7 @@ function Catalog() {
                           >
                             -
                           </button>
-                          <span style={{ fontWeight: 700, color: '#3a2b1b', fontSize: '0.86rem', minWidth: 18, textAlign: 'center' }}>
+                          <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.86rem', minWidth: 18, textAlign: 'center' }}>
                             {qty}
                           </span>
                           <button
@@ -1368,7 +1368,7 @@ function Catalog() {
           willChange: 'transform',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
-          backgroundColor: '#f6f4ef',
+          backgroundColor: '#f8fafc',
           borderBottom: '1px solid var(--border-color)'
         }}
       >
@@ -1383,12 +1383,12 @@ function Catalog() {
               height: '40px',
               borderRadius: 12,
               border: isHeaderSearchOpen || normalizedCatalogSearch
-                ? '1px solid rgba(143, 109, 70, 0.22)'
+                ? '1px solid rgba(71, 85, 105, 0.22)'
                 : '1px solid transparent',
               background: isHeaderSearchOpen || normalizedCatalogSearch
                 ? 'rgba(255,255,255,0.7)'
                 : 'transparent',
-              color: '#6f5538',
+              color: '#4b5563',
               fontSize: '1rem',
               display: 'inline-flex',
               alignItems: 'center',
@@ -1396,7 +1396,7 @@ function Catalog() {
               transition: 'all 0.22s ease'
             }}
           >
-            <SearchLucideIcon size={17} color="#6f5538" />
+            <SearchLucideIcon size={17} color="#4b5563" />
           </button>
 
           {/* Center logo */}
@@ -1437,7 +1437,7 @@ function Catalog() {
               style={{
                 fontSize: '0.8rem',
                 fontWeight: 500,
-                color: '#6f5538',
+                color: '#4b5563',
                 letterSpacing: '0.04em',
                 lineHeight: 1,
                 display: 'inline-flex',
@@ -1487,7 +1487,7 @@ function Catalog() {
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
-            backgroundColor: '#f6f4ef',
+            backgroundColor: '#f8fafc',
             borderBottom: '1px solid var(--border-color)'
           }}
         >
@@ -1564,7 +1564,7 @@ function Catalog() {
                                   style={{
                                     position: 'absolute',
                                     inset: 0,
-                                    backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #ece7da 0%, #ddd3be 100%)',
+                                    backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
                                      backgroundSize: categoryImage ? 'contain' : 'cover',
                                      backgroundPosition: 'center',
                                      backgroundRepeat: 'no-repeat',
@@ -1579,7 +1579,7 @@ function Catalog() {
                                       right: 0,
                                       zIndex: 1,
                                       padding: '6px 10px 0',
-                                      color: '#1f1a14',
+                                      color: '#111827',
                                       fontWeight: 700,
                                       fontSize: '0.78rem',
                                      lineHeight: 1.2

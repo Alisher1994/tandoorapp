@@ -439,7 +439,7 @@ function AdminDashboard() {
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const orderStatusPillItems = [
-    { value: 'all', label: t('allStatuses'), color: '#8d7557' },
+    { value: 'all', label: t('allStatuses'), color: '#6b7280' },
     { value: 'new', label: t('statusNew'), color: '#3b82f6' },
     { value: 'preparing', label: t('statusPreparing'), color: '#f59e0b' },
     { value: 'delivering', label: t('statusDelivering'), color: '#06b6d4' },
@@ -1065,9 +1065,9 @@ function AdminDashboard() {
                 onClick={() => setStatusFilter(s.value)}
                 style={{
                   borderRadius: 12,
-                  border: `1px solid ${isActive ? s.color : '#dfcfb9'}`,
+                  border: `1px solid ${isActive ? s.color : '#d1d5db'}`,
                   background: isActive ? `${s.color}12` : '#fff',
-                  color: '#5b4a37'
+                  color: '#374151'
                 }}
               >
                 <span className="d-flex align-items-center gap-2">
@@ -2787,7 +2787,7 @@ function AdminDashboard() {
               </Button>
             )}
 
-            <div className="p-2 rounded-3" style={{ background: '#f7efe3' }}>
+            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
               <div className="small text-muted mb-2 fw-semibold">Язык</div>
               <div className="admin-lang-switch">
                 <div
@@ -3381,9 +3381,9 @@ function AdminDashboard() {
                             gap: 6,
                             padding: '6px 14px',
                             borderRadius: 20,
-                            border: isActive ? `1.5px solid ${s.color}` : '1.5px solid #dfcfb9',
-                            background: isActive ? s.color : '#fffaf3',
-                            color: isActive ? '#fffaf3' : '#7d6a55',
+                            border: isActive ? `1.5px solid ${s.color}` : '1.5px solid #d1d5db',
+                            background: isActive ? s.color : '#ffffff',
+                            color: isActive ? '#ffffff' : '#6b7280',
                             fontSize: '13px',
                             fontWeight: isActive ? 600 : 500,
                             cursor: 'pointer',
@@ -5315,7 +5315,7 @@ function AdminDashboard() {
           centered
           className="admin-modal"
         >
-          <Modal.Header closeButton className="border-0" style={{ background: 'linear-gradient(135deg, #b3926b 0%, #8f6d46 100%)', color: '#fffaf3' }}>
+          <Modal.Header closeButton className="border-0" style={{ background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', color: '#ffffff' }}>
             <Modal.Title className="d-flex align-items-center gap-3">
               <span className="fs-3">💰</span>
               <div>
@@ -5983,7 +5983,7 @@ function AdminDashboard() {
                       className="border rounded p-3 mb-2 text-center"
                       style={{
                         borderStyle: 'dashed',
-                        background: '#f8efe2',
+                        background: '#f8fafc',
                         cursor: 'pointer',
                         minHeight: '100px',
                         display: 'flex',
@@ -5992,8 +5992,8 @@ function AdminDashboard() {
                         justifyContent: 'center',
                         transition: 'all 0.2s ease'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.borderColor = '#8f6d46'}
-                      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#dfcfb9'}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = '#475569'}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#d1d5db'}
                       tabIndex={0}
                       onPaste={(e) => handlePaste(e, (url) => setBroadcastForm({ ...broadcastForm, image_url: url }))}
                       onDrop={(e) => {
@@ -6152,7 +6152,7 @@ function AdminDashboard() {
                         ) : (
                           <div className="bg-primary rounded-circle" style={{ width: 24, height: 24 }}></div>
                         )}
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#8f6d46' }}>{user?.active_restaurant_name || 'Магазин'}</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>{user?.active_restaurant_name || 'Магазин'}</span>
                       </div>
                       {broadcastForm.image_url && <div className="px-2 pb-2"><img src={broadcastForm.image_url} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} /></div>}
                       <div className="px-3 pb-2 pt-1">
@@ -6286,9 +6286,9 @@ function AdminDashboard() {
                 onClick={sendBroadcast}
                 className="px-5 py-2 rounded-pill fw-bold"
                 style={{
-                  background: isScheduled ? '#8f6d46' : '#a88355',
-                  border: '1px solid #8f6d46',
-                  color: '#fffaf3'
+                  background: isScheduled ? '#475569' : '#64748b',
+                  border: '1px solid #475569',
+                  color: '#ffffff'
                 }}
                 disabled={broadcastLoading || !broadcastForm.message.trim()}
               >
@@ -6733,7 +6733,7 @@ function AdminDashboard() {
               />
             </div>
 
-            <Alert variant="info" className="border-0 shadow-sm rounded-4 mb-0" style={{ background: '#f3e6d2', color: '#654a2e' }}>
+            <Alert variant="info" className="border-0 shadow-sm rounded-4 mb-0" style={{ background: '#eef2f7', color: '#374151' }}>
               <div className="fw-bold mb-1">Инструкция:</div>
               <ol className="small mb-0 ps-3">
                 <li>Нажмите на иконку многоугольника (⬠) справа на карте</li>

@@ -91,9 +91,9 @@ function Cart() {
 
   const themePrimaryTextStyle = { color: 'var(--primary-color)' };
   const paymentButtonStyle = (isActive) => ({
-    backgroundColor: isActive ? 'var(--primary-color)' : 'var(--surface-color, #fffaf3)',
-    borderColor: isActive ? 'var(--primary-color)' : 'var(--border-color, #dfcfb9)',
-    color: isActive ? '#fff' : 'var(--text-color, #3d2f21)'
+    backgroundColor: isActive ? 'var(--primary-color)' : 'var(--surface-color, #ffffff)',
+    borderColor: isActive ? 'var(--primary-color)' : 'var(--border-color, #d1d5db)',
+    color: isActive ? '#fff' : 'var(--text-color, #111827)'
   });
   const onlinePaymentOptions = useMemo(() => ([
     { key: 'click', url: restaurant?.click_url, logo: '/click.png', alt: 'Click' },
@@ -668,20 +668,20 @@ function Cart() {
           }
         }
         .cart-surface-field {
-          background: #f8f6f1 !important;
-          border: 1px solid rgba(135, 98, 57, 0.22) !important;
+          background: #f8fafc !important;
+          border: 1px solid rgba(71, 85, 105, 0.22) !important;
           border-radius: 12px !important;
-          color: #3d2f21;
+          color: #111827;
           min-height: 44px;
         }
         .cart-surface-field:focus {
-          border-color: rgba(160, 110, 55, 0.45) !important;
-          box-shadow: 0 0 0 2px rgba(160, 110, 55, 0.08) !important;
+          border-color: rgba(71, 85, 105, 0.45) !important;
+          box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.08) !important;
           background: #fff !important;
         }
         .cart-surface-panel {
-          background: #f8f6f1 !important;
-          border: 1px solid rgba(135, 98, 57, 0.22) !important;
+          background: #f8fafc !important;
+          border: 1px solid rgba(71, 85, 105, 0.22) !important;
           border-radius: 12px !important;
         }
         .cart-segmented-switch {
@@ -689,41 +689,41 @@ function Cart() {
           grid-template-columns: 1fr 1fr;
           gap: 6px;
           padding: 6px;
-          background: #f8f6f1;
-          border: 1px solid rgba(135, 98, 57, 0.22);
+          background: #f8fafc;
+          border: 1px solid rgba(71, 85, 105, 0.22);
           border-radius: 12px;
         }
         .cart-segmented-option {
           width: 100%;
           border-radius: 10px !important;
-          border: 1px solid rgba(135, 98, 57, 0.18) !important;
+          border: 1px solid rgba(71, 85, 105, 0.18) !important;
           background: #fff !important;
-          color: #3d2f21 !important;
+          color: #111827 !important;
           min-height: 40px;
         }
         .cart-segmented-option:hover,
         .cart-segmented-option:focus {
-          background: #f7f1e7 !important;
-          border-color: rgba(160, 110, 55, 0.26) !important;
+          background: #f9fafb !important;
+          border-color: rgba(71, 85, 105, 0.26) !important;
           box-shadow: none !important;
         }
         .cart-segmented-option.is-active {
-          background: rgba(168, 112, 53, 0.10) !important;
-          border-color: rgba(160, 110, 55, 0.42) !important;
-          color: #7a4b1a !important;
+          background: rgba(71, 85, 105, 0.10) !important;
+          border-color: rgba(71, 85, 105, 0.42) !important;
+          color: #1f2937 !important;
           font-weight: 600;
         }
         .cart-select-custom {
-          background: #f8f6f1 !important;
-          border: 1px solid rgba(135, 98, 57, 0.22) !important;
+          background: #f8fafc !important;
+          border: 1px solid rgba(71, 85, 105, 0.22) !important;
           border-radius: 12px !important;
-          color: #3d2f21 !important;
+          color: #111827 !important;
           min-height: 46px;
           box-shadow: none !important;
         }
         .cart-select-custom:focus {
-          border-color: rgba(160, 110, 55, 0.45) !important;
-          box-shadow: 0 0 0 2px rgba(160, 110, 55, 0.08) !important;
+          border-color: rgba(71, 85, 105, 0.45) !important;
+          box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.08) !important;
           background: #fff !important;
         }
       `}</style>

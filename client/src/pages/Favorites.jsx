@@ -102,7 +102,7 @@ function Favorites() {
 
       <Container className="py-2" style={{ maxWidth: '600px' }}>
         <div className="d-flex align-items-center justify-content-between mb-3">
-          <h5 className="mb-0" style={{ color: '#4b3a27', fontWeight: 700 }}>
+          <h5 className="mb-0" style={{ color: '#1f2937', fontWeight: 700 }}>
             <span className="me-2" style={{ verticalAlign: 'middle', display: 'inline-flex' }}>
               <HeartIcon size={18} filled color="var(--primary-color)" />
             </span>
@@ -144,7 +144,7 @@ function Favorites() {
                           height: 72,
                           borderRadius: 12,
                           overflow: 'hidden',
-                          background: '#f3eee4',
+                          background: '#f1f5f9',
                           flexShrink: 0,
                           display: 'flex',
                           alignItems: 'center',
@@ -164,7 +164,7 @@ function Favorites() {
                             <div
                               className="fw-semibold"
                               style={{
-                                color: '#3a2b1b',
+                                color: '#111827',
                                 lineHeight: 1.2,
                                 minHeight: '2.4em',
                                 display: '-webkit-box',
@@ -185,8 +185,8 @@ function Favorites() {
                               <div
                                 className="d-flex align-items-center rounded-pill"
                                 style={{
-                                  background: '#f8f2e8',
-                                  border: '1px solid rgba(143, 109, 70, 0.18)',
+                                  background: '#f1f5f9',
+                                  border: '1px solid rgba(71, 85, 105, 0.18)',
                                   padding: '2px',
                                   minWidth: 90
                                 }}
@@ -194,12 +194,12 @@ function Favorites() {
                                 <button
                                   type="button"
                                   className="btn btn-sm border-0 bg-transparent"
-                                  style={{ width: 30, height: 30, lineHeight: 1, color: '#6f5538' }}
+                                  style={{ width: 30, height: 30, lineHeight: 1, color: '#4b5563' }}
                                   onClick={() => updateFavoriteQuantity(item.id, (item.favorite_quantity || 1) - 1)}
                                 >
                                   −
                                 </button>
-                                <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#3a2b1b' }}>
+                                <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, color: '#111827' }}>
                                   {Math.max(1, Number(item.favorite_quantity) || 1)}
                                 </span>
                                 <button

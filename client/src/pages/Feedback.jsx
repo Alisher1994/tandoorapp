@@ -121,7 +121,7 @@ function Feedback() {
         position: 'sticky', 
         top: 0, 
         zIndex: 1000, 
-        backgroundColor: '#f6f4ef',
+        backgroundColor: '#f8fafc',
         borderBottom: '1px solid var(--border-color)',
         padding: '12px 16px'
       }}>

@@ -66,6 +66,30 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
+function parseDeliveryCoordinates(rawCoordinates) {
+  if (!rawCoordinates) return null;
+  const coords = String(rawCoordinates).split(',').map((part) => part.trim());
+  if (coords.length !== 2) return null;
+
+  const lat = Number(coords[0]);
+  const lng = Number(coords[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return { lat, lng };
+}
+
+function buildDeliveryLinksLine(rawCoordinates) {
+  const parsed = parseDeliveryCoordinates(rawCoordinates);
+  if (!parsed) return '';
+
+  const { lat, lng } = parsed;
+  const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+  const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
+  const yandexGoUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
+
+  return `📍 Адрес доставки: <a href="${googleMapsUrl}">Google</a> | <a href="${yandexMapUrl}">Яндекс Карты</a> | <a href="${yandexGoUrl}">Яндекс Go</a>`;
+}
+
 function getPublicBaseUrl() {
   const candidates = [
     process.env.BACKEND_URL,
@@ -163,12 +187,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
   let locationLine = '';
   if (revealSensitive) {
     if (order.delivery_coordinates) {
-      const coords = String(order.delivery_coordinates).split(',').map(c => c.trim());
-      if (coords.length === 2) {
-        const [lat, lng] = coords;
-        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        locationLine = `<a href="${mapUrl}">📍 Адрес доставки</a>`;
-      }
+      locationLine = buildDeliveryLinksLine(order.delivery_coordinates);
     } else if (order.delivery_address && order.delivery_address !== 'По геолокации') {
       locationLine = `📍 Адрес: ${escapeHtml(order.delivery_address)}`;
     }
