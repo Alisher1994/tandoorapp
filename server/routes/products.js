@@ -166,7 +166,11 @@ const resolveRequestCountryCode = (req, fallbackIpAddress = null) => {
   }
 };
 
-const isAdCountryAllowed = (countryCode) => normalizeCountryCode(countryCode) === AD_ALLOWED_COUNTRY_CODE;
+const isAdCountryExplicitlyBlocked = (countryCode) => {
+  const normalized = normalizeCountryCode(countryCode);
+  if (!normalized) return false;
+  return normalized !== AD_ALLOWED_COUNTRY_CODE;
+};
 
 const isPrivateIp = (ip) => {
   if (!ip) return true;
@@ -412,7 +416,7 @@ router.get('/restaurant/:id', async (req, res) => {
 router.get('/ads-banners', async (req, res) => {
   try {
     const countryCode = resolveRequestCountryCode(req);
-    if (!isAdCountryAllowed(countryCode)) {
+    if (isAdCountryExplicitlyBlocked(countryCode)) {
       return res.json([]);
     }
 
@@ -500,7 +504,7 @@ router.post('/ads-banners/:id/view', async (req, res) => {
     const restaurantId = Number.isInteger(Number(restaurantIdRaw)) ? Number(restaurantIdRaw) : null;
 
     const meta = collectAdEventClientMeta(req);
-    if (!isAdCountryAllowed(meta.country)) {
+    if (isAdCountryExplicitlyBlocked(meta.country)) {
       return res.json({ tracked: false, reason: 'geo_blocked' });
     }
 
@@ -543,7 +547,7 @@ router.get('/ads-banners/:id/click', async (req, res) => {
     const restaurantId = Number.isInteger(Number(req.query.restaurant_id)) ? Number(req.query.restaurant_id) : null;
 
     const meta = collectAdEventClientMeta(req);
-    if (!isAdCountryAllowed(meta.country)) {
+    if (isAdCountryExplicitlyBlocked(meta.country)) {
       return res.status(403).send('Реклама доступна только в Узбекистане');
     }
 

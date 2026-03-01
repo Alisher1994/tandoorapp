@@ -518,6 +518,16 @@ const normalizeAdBannerPayload = (body) => {
 
   if (!title) return { error: 'Укажите название рекламы' };
   if (!imageUrl) return { error: 'Загрузите изображение рекламы' };
+  if (!imageUrl.startsWith('/uploads/')) {
+    try {
+      const parsedImageUrl = new URL(imageUrl);
+      if (!['http:', 'https:'].includes(parsedImageUrl.protocol)) {
+        return { error: 'Ссылка на изображение должна начинаться с /uploads/, http:// или https://' };
+      }
+    } catch (e) {
+      return { error: 'Некорректная ссылка изображения рекламы' };
+    }
+  }
   if (targetUrl) {
     try {
       const parsedUrl = new URL(targetUrl);
@@ -2389,9 +2399,6 @@ const buildAdAnalyticsWhere = ({ bannerId, days }) => {
   const params = [bannerId];
   let sql = `
     e.banner_id = $1
-    AND UPPER(COALESCE(e.country, '')) = 'UZ'
-    AND NULLIF(BTRIM(COALESCE(e.region, '')), '') IS NOT NULL
-    AND NULLIF(BTRIM(COALESCE(e.city, '')), '') IS NOT NULL
   `;
   if (days) {
     params.push(days);
@@ -2433,9 +2440,6 @@ router.get('/ads/banners', async (req, res) => {
           MAX(e.created_at) FILTER (WHERE e.event_type = 'view') AS last_view_at,
           MAX(e.created_at) FILTER (WHERE e.event_type = 'click') AS last_click_at
         FROM ad_banner_events e
-        WHERE UPPER(COALESCE(e.country, '')) = 'UZ'
-          AND NULLIF(BTRIM(COALESCE(e.region, '')), '') IS NOT NULL
-          AND NULLIF(BTRIM(COALESCE(e.city, '')), '') IS NOT NULL
         GROUP BY e.banner_id
       ) stats ON stats.banner_id = b.id
       WHERE ($1::boolean = true OR b.is_deleted = false)
