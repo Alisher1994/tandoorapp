@@ -5050,7 +5050,7 @@ function SuperAdminDashboard() {
                     </Col>
                   </Row>
                   <div className="rounded overflow-hidden border">
-                    <Suspense fallback={<div className="text-center p-3 text-muted"><Spinner size="sm" className="me-2" /> Загрузка карты...</div>}>
+                    <Suspense fallback={<ListSkeleton count={2} label="Загрузка карты..." />}>
                       <YandexLocationPicker
                         latitude={restaurantForm.latitude}
                         longitude={restaurantForm.longitude}

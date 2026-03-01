@@ -654,6 +654,14 @@ h6 {
   padding-top: 28px;
 }
 
+.skeleton-shell-section {
+  width: 100%;
+  margin: 0;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+}
+
 .skeleton-header {
   display: flex;
   flex-direction: column;
