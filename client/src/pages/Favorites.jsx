@@ -1,14 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
-import Button from 'react-bootstrap/Button';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import HeartIcon from '../components/HeartIcon';
+import ClientEmptyState from '../components/ClientEmptyState';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
@@ -32,7 +31,6 @@ const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
 };
 
 function Favorites() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { t, language, toggleLanguage } = useLanguage();
   const { favorites, removeFavorite, updateFavoriteQuantity } = useFavorites();
@@ -112,22 +110,13 @@ function Favorites() {
         </div>
 
         {favoritesSorted.length === 0 ? (
-          <Card className="border-0 shadow-sm">
-            <Card.Body className="text-center py-4">
-              <div style={{ fontSize: '2rem' }} className="mb-2">🤍</div>
-              <div className="fw-semibold mb-1">
-                {language === 'uz' ? 'Saralanganlar bo‘sh' : 'Избранное пусто'}
-              </div>
-              <div className="text-muted small mb-3">
-                {language === 'uz'
-                  ? 'Katalogda yurakcha bosib tovarlarni saqlang'
-                  : 'Нажмите на сердечко в карточке товара, чтобы сохранить'}
-              </div>
-              <Button variant="primary" onClick={() => navigate('/')}>
-                {language === 'uz' ? 'Menyuga o‘tish' : 'Перейти в меню'}
-              </Button>
-            </Card.Body>
-          </Card>
+          <ClientEmptyState
+            emoji="🤍"
+            message={language === 'uz' ? 'Saralanganlar bo‘sh' : 'Избранное пусто'}
+            subMessage={language === 'uz'
+              ? 'Katalogda yurakcha bosib tovarlarni saqlang'
+              : 'Нажмите на сердечко в карточке товара, чтобы сохранить'}
+          />
         ) : (
           <div className="d-flex flex-column gap-3">
             {favoritesSorted.map((item) => {

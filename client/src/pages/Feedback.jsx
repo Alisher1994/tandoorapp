@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import { ListSkeleton } from '../components/SkeletonUI';
+import ClientEmptyState from '../components/ClientEmptyState';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
@@ -178,14 +179,10 @@ function Feedback() {
         {loadingFeedback ? (
           <ListSkeleton count={4} label={language === 'uz' ? 'Murojaatlar yuklanmoqda' : 'Загрузка обращений'} />
         ) : myFeedback.length === 0 ? (
-          <Card className="border-0 shadow-sm text-center py-4">
-            <Card.Body>
-              <div style={{ fontSize: '2rem' }}>📭</div>
-              <p className="text-muted mb-0">
-                {language === 'uz' ? 'Murojaatlar yo\'q' : 'Обращений пока нет'}
-              </p>
-            </Card.Body>
-          </Card>
+          <ClientEmptyState
+            emoji="📭"
+            message={language === 'uz' ? 'Murojaatlar yo\'q' : 'Обращений пока нет'}
+          />
         ) : (
           myFeedback.map((fb) => {
             const status = getStatusBadge(fb.status);

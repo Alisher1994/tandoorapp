@@ -16,6 +16,7 @@ import { useLanguage } from '../context/LanguageContext';
 import OrderReceipt from '../components/OrderReceipt';
 import BottomNav from '../components/BottomNav';
 import ClientLocationPicker from '../components/ClientLocationPicker';
+import ClientEmptyState from '../components/ClientEmptyState';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const toNumber = (value, fallback = 0) => {
@@ -627,16 +628,11 @@ function Cart() {
     return (
       <>
         <Container className="py-4" style={{ paddingBottom: '80px' }}>
-          <Card className="text-center py-5 border-0 shadow-sm">
-            <Card.Body>
-              <div style={{ fontSize: '4rem' }}>🛒</div>
-              <h4 className="mt-3">{t('cartEmpty')}</h4>
-              <p className="text-muted">{t('cartEmptyDesc')}</p>
-              <Button variant="primary" onClick={() => navigate('/')}>
-                {t('goToCatalog')}
-              </Button>
-            </Card.Body>
-          </Card>
+          <ClientEmptyState
+            emoji="🛒"
+            message={t('cartEmpty')}
+            subMessage={t('cartEmptyDesc')}
+          />
         </Container>
         <BottomNav />
       </>

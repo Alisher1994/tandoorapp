@@ -4,12 +4,12 @@ import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Badge from 'react-bootstrap/Badge';
 import Collapse from 'react-bootstrap/Collapse';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import { PageSkeleton } from '../components/SkeletonUI';
+import ClientEmptyState from '../components/ClientEmptyState';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
@@ -40,7 +40,6 @@ function Orders() {
   const [expandedOrder, setExpandedOrder] = useState(null);
   const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
-  const navigate = useNavigate();
   
   const toggleOrderDetails = (orderId) => {
     setExpandedOrder(expandedOrder === orderId ? null : orderId);
@@ -152,16 +151,11 @@ function Orders() {
       <Container style={{ maxWidth: '600px' }}>
 
         {orders.length === 0 ? (
-          <Card className="border-0 shadow-sm text-center py-5">
-            <Card.Body>
-              <div style={{ fontSize: '3rem' }}>📦</div>
-              <h5 className="mt-3">{t('noOrders')}</h5>
-              <p className="text-muted">{t('makeFirstOrder')}</p>
-              <button className="btn btn-primary" onClick={() => navigate('/')}>
-                {t('goToCatalog')}
-              </button>
-            </Card.Body>
-          </Card>
+          <ClientEmptyState
+            emoji="📦"
+            message={t('noOrders')}
+            subMessage={t('makeFirstOrder')}
+          />
         ) : (
           orders.map(order => (
             <Card 
@@ -190,7 +184,7 @@ function Orders() {
                        order.status === 'delivered' ? '✅' : '❌'}
                     </div>
                     <div>
-                      <div className="fw-bold">#{order.order_number}</div>
+                      <div className="fw-bold">№{order.order_number}</div>
                       <small className="text-muted">
                         {new Date(order.created_at).toLocaleDateString('ru-RU')} {new Date(order.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       </small>
