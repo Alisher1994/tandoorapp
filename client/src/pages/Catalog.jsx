@@ -1824,11 +1824,6 @@ function Catalog() {
               <div className="fw-bold" style={{ fontSize: '1.55rem', lineHeight: 1.15, color: '#111827' }}>
                 {entryPopupBanner?.title || (language === 'uz' ? 'Maxsus taklif' : 'Специальное предложение')}
               </div>
-              <div className="text-muted mt-2" style={{ fontSize: '0.98rem', lineHeight: 1.4 }}>
-                {language === 'uz'
-                  ? "Aksiyani o'tkazib yubormang. Batafsil ma'lumot uchun tugmani bosing."
-                  : 'Не пропустите акцию. Нажмите кнопку, чтобы открыть предложение.'}
-              </div>
             </div>
 
             <Button
@@ -1837,9 +1832,9 @@ function Catalog() {
                 minHeight: 52,
                 fontWeight: 700,
                 fontSize: '1.05rem',
-                background: '#facc15',
-                borderColor: '#facc15',
-                color: '#111827'
+                background: 'var(--primary-color)',
+                borderColor: 'var(--primary-color)',
+                color: '#ffffff'
               }}
               onClick={handleEntryPopupAction}
             >
