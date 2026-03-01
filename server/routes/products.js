@@ -7,7 +7,6 @@ const geoip = require('geoip-lite');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const TASHKENT_TZ = 'Asia/Tashkent';
-const AD_ALLOWED_COUNTRY_CODE = 'UZ';
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
   if ([12, 1, 2].includes(month)) return 'winter';
@@ -166,11 +165,6 @@ const resolveRequestCountryCode = (req, fallbackIpAddress = null) => {
   }
 };
 
-const isAdCountryExplicitlyBlocked = (countryCode) => {
-  const normalized = normalizeCountryCode(countryCode);
-  if (!normalized) return false;
-  return normalized !== AD_ALLOWED_COUNTRY_CODE;
-};
 
 const isPrivateIp = (ip) => {
   if (!ip) return true;
@@ -415,11 +409,6 @@ router.get('/restaurant/:id', async (req, res) => {
 // Get active ad banners (public - for customer catalog)
 router.get('/ads-banners', async (req, res) => {
   try {
-    const countryCode = resolveRequestCountryCode(req);
-    if (isAdCountryExplicitlyBlocked(countryCode)) {
-      return res.json([]);
-    }
-
     await ensureAdBannerTargetingSchema();
     const requestedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
     const hasValidRestaurantId = Number.isInteger(requestedRestaurantId) && requestedRestaurantId > 0;
@@ -504,9 +493,6 @@ router.post('/ads-banners/:id/view', async (req, res) => {
     const restaurantId = Number.isInteger(Number(restaurantIdRaw)) ? Number(restaurantIdRaw) : null;
 
     const meta = collectAdEventClientMeta(req);
-    if (isAdCountryExplicitlyBlocked(meta.country)) {
-      return res.json({ tracked: false, reason: 'geo_blocked' });
-    }
 
     await insertAdBannerEvent({
       bannerId,
@@ -547,9 +533,6 @@ router.get('/ads-banners/:id/click', async (req, res) => {
     const restaurantId = Number.isInteger(Number(req.query.restaurant_id)) ? Number(req.query.restaurant_id) : null;
 
     const meta = collectAdEventClientMeta(req);
-    if (isAdCountryExplicitlyBlocked(meta.country)) {
-      return res.status(403).send('Реклама доступна только в Узбекистане');
-    }
 
     await insertAdBannerEvent({
       bannerId,
