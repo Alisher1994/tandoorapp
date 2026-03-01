@@ -1,0 +1,17 @@
+node_modules
+client/node_modules
+client/build
+client/dist
+.git
+.github
+.vscode
+.idea
+docs
+archive
+temp_comparison
+tmp
+.railway
+*.log
+desktop.ini
+.DS_Store
+Thumbs.db
