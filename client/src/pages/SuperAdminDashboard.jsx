@@ -567,9 +567,11 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (!showAdBannerModal) return;
     if (adPreviewRestaurantId) return;
-    if (!adPreviewRestaurantOptions.length) return;
-    setAdPreviewRestaurantId(String(adPreviewRestaurantOptions[0].id));
-  }, [showAdBannerModal, adPreviewRestaurantId, adPreviewRestaurantOptions]);
+    const sortedRestaurants = [...(Array.isArray(allRestaurants) ? allRestaurants : [])]
+      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ru'));
+    if (!sortedRestaurants.length) return;
+    setAdPreviewRestaurantId(String(sortedRestaurants[0].id));
+  }, [showAdBannerModal, adPreviewRestaurantId, allRestaurants]);
 
   // API calls
   const loadStats = async () => {
