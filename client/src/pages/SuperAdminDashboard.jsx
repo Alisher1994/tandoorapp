@@ -500,6 +500,7 @@ function SuperAdminDashboard() {
     repeat_days: [],
     is_enabled: true
   });
+  const [adPreviewRestaurantId, setAdPreviewRestaurantId] = useState('');
 
   // Load data on tab change
   // Auto-hide notifications
@@ -562,6 +563,13 @@ function SuperAdminDashboard() {
     if (!showAdAnalyticsModal || !analyticsAdBanner?.id) return;
     loadAdBannerAnalytics(analyticsAdBanner.id, adBannerAnalyticsDays);
   }, [showAdAnalyticsModal, analyticsAdBanner?.id, adBannerAnalyticsDays]);
+
+  useEffect(() => {
+    if (!showAdBannerModal) return;
+    if (adPreviewRestaurantId) return;
+    if (!adPreviewRestaurantOptions.length) return;
+    setAdPreviewRestaurantId(String(adPreviewRestaurantOptions[0].id));
+  }, [showAdBannerModal, adPreviewRestaurantId, adPreviewRestaurantOptions]);
 
   // API calls
   const loadStats = async () => {
@@ -947,6 +955,28 @@ function SuperAdminDashboard() {
     return normalized === 'entry_popup' ? 'Popup при входе' : 'Баннер';
   };
 
+  const resolveAdPreviewImageUrl = (url) => {
+    if (!url) return '';
+    return String(url).startsWith('http') ? String(url) : `${API_URL.replace('/api', '')}${url}`;
+  };
+
+  const adPreviewRestaurantOptions = useMemo(() => (
+    [...(Array.isArray(allRestaurants) ? allRestaurants : [])]
+      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ru'))
+  ), [allRestaurants]);
+
+  const selectedAdPreviewRestaurant = useMemo(() => {
+    if (!adPreviewRestaurantOptions.length) return null;
+    const selectedId = Number.parseInt(adPreviewRestaurantId, 10);
+    if (Number.isInteger(selectedId) && selectedId > 0) {
+      const exact = adPreviewRestaurantOptions.find((restaurant) => Number(restaurant.id) === selectedId);
+      if (exact) return exact;
+    }
+    return adPreviewRestaurantOptions[0] || null;
+  }, [adPreviewRestaurantOptions, adPreviewRestaurantId]);
+
+  const adPreviewRestaurantLogoUrl = resolveAdPreviewImageUrl(selectedAdPreviewRestaurant?.logo_url || '');
+
   const getAdStatusLabel = (status) => {
     const map = {
       active: 'Активна',
@@ -1049,6 +1079,9 @@ function SuperAdminDashboard() {
   const openAdBannerModal = (banner = null) => {
     if (!activityTypes.length) {
       loadActivityTypes();
+    }
+    if (!allRestaurants.length) {
+      loadInternalRestaurants();
     }
     if (!banner) {
       resetAdBannerForm();
@@ -2287,7 +2320,9 @@ function SuperAdminDashboard() {
         analyticsDevices: 'Qurilmalar',
         analyticsGeo: 'Shaharlar / hududlar',
         analyticsCountries: 'Mamlakatlar',
-        analyticsNoData: "Analitika ma'lumoti hali yo'q"
+        analyticsNoData: "Analitika ma'lumoti hali yo'q",
+        previewStore: 'Preview uchun do‘kon',
+        previewStorePlaceholder: 'Do‘kon tanlang'
       }
     : {
         tab: 'Реклама',
@@ -2364,7 +2399,9 @@ function SuperAdminDashboard() {
         analyticsDevices: 'Устройства',
         analyticsGeo: 'Города / регионы',
         analyticsCountries: 'Страны',
-        analyticsNoData: 'Данных аналитики пока нет'
+        analyticsNoData: 'Данных аналитики пока нет',
+        previewStore: 'Магазин для превью',
+        previewStorePlaceholder: 'Выберите магазин'
       };
 
   const mobileSheetI18n = language === 'uz'
@@ -4802,80 +4839,227 @@ function SuperAdminDashboard() {
 
                   <Card className="border-0 shadow-sm mb-3">
                     <Card.Body className="p-3">
+                      <Form.Group className="mb-3">
+                        <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.previewStore}</Form.Label>
+                        <Form.Select
+                          className="form-control-custom"
+                          value={selectedAdPreviewRestaurant?.id ? String(selectedAdPreviewRestaurant.id) : ''}
+                          onChange={(e) => setAdPreviewRestaurantId(e.target.value)}
+                        >
+                          {adPreviewRestaurantOptions.length === 0 && (
+                            <option value="">{adI18n.previewStorePlaceholder}</option>
+                          )}
+                          {adPreviewRestaurantOptions.map((restaurant) => (
+                            <option key={restaurant.id} value={restaurant.id}>
+                              {restaurant.name || `#${restaurant.id}`}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+
                       <div className="small text-muted mb-2">
                         {adBannerForm.ad_type === 'entry_popup'
-                          ? (language === 'uz' ? 'Ilovaga kirgandagi popup ko‘rinishi' : 'Как будет выглядеть popup при входе')
-                          : (language === 'uz' ? 'Katalogdagi ko‘rinishi' : 'Как будет выглядеть в каталоге')}
+                          ? (language === 'uz' ? 'Tanlangan do‘kon fonida kirish popup ko‘rinishi' : 'Popup при входе на фоне выбранного магазина')
+                          : (language === 'uz' ? 'Tanlangan do‘kon fonida katalog bannerni ko‘rinishi' : 'Баннер в каталоге на фоне выбранного магазина')}
                       </div>
 
                       <div
-                        className="rounded-3 overflow-hidden border"
+                        className="rounded-4 overflow-hidden border"
                         style={{
                           background: '#ffffff',
                           borderColor: 'var(--border-color)',
                         }}
                       >
-                        <div style={{ position: 'relative', background: '#f8fafc' }}>
-                          {adBannerForm.image_url ? (
-                            <img
-                              src={adBannerForm.image_url}
-                              alt="ad-banner-preview"
-                              style={{
-                                width: '100%',
-                                aspectRatio: adBannerForm.ad_type === 'entry_popup' ? '4 / 5' : '2.4 / 1',
-                                objectFit: 'cover',
-                                display: 'block'
-                              }}
-                            />
-                          ) : (
+                        <div
+                          style={{
+                            position: 'relative',
+                            minHeight: 520,
+                            background: 'linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%)'
+                          }}
+                        >
+                          <div
+                            className="d-flex align-items-center justify-content-between px-3"
+                            style={{
+                              height: 56,
+                              borderBottom: '1px solid rgba(148, 163, 184, 0.25)',
+                              background: 'rgba(255,255,255,0.92)',
+                              backdropFilter: 'blur(6px)'
+                            }}
+                          >
+                            <span style={{ fontSize: '1.05rem', color: '#4b5563' }}>⌕</span>
+                            <div className="d-flex align-items-center justify-content-center">
+                              {adPreviewRestaurantLogoUrl ? (
+                                <img
+                                  src={adPreviewRestaurantLogoUrl}
+                                  alt="preview-store-logo"
+                                  style={{ maxHeight: 34, maxWidth: 110, objectFit: 'contain' }}
+                                />
+                              ) : (
+                                <span className="fw-semibold" style={{ color: '#111827', fontSize: '0.9rem' }}>
+                                  {selectedAdPreviewRestaurant?.name || (language === 'uz' ? 'Do‘kon' : 'Магазин')}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#4b5563' }}>RU</span>
+                          </div>
+
+                          <div className="p-3 pb-5">
+                            {adBannerForm.ad_type === 'banner' && (
+                              <div
+                                className="rounded-3 overflow-hidden border mb-3"
+                                style={{
+                                  borderColor: 'rgba(71, 85, 105, 0.18)',
+                                  background: '#fff'
+                                }}
+                              >
+                                {adBannerForm.image_url ? (
+                                  <img
+                                    src={adBannerForm.image_url}
+                                    alt="ad-banner-preview"
+                                    style={{ width: '100%', aspectRatio: '2.4 / 1', objectFit: 'cover', display: 'block' }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="d-flex align-items-center justify-content-center text-muted"
+                                    style={{
+                                      width: '100%',
+                                      aspectRatio: '2.4 / 1',
+                                      background: 'linear-gradient(135deg, rgba(71,85,105,0.08) 0%, rgba(71,85,105,0.16) 100%)'
+                                    }}
+                                  >
+                                    <div className="text-center px-3">
+                                      <div style={{ fontSize: '1.2rem' }}>🖼️</div>
+                                      <div className="small">
+                                        {language === 'uz' ? 'Banner rasmi' : 'Изображение баннера'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="mb-2 fw-bold" style={{ color: '#0f172a' }}>
+                              {language === 'uz' ? "Asosiy bo'limlar" : 'Основные разделы'}
+                            </div>
+                            <div className="row g-2">
+                              {[1, 2, 3, 4].map((idx) => (
+                                <div key={idx} className="col-6">
+                                  <div
+                                    className="rounded-3 p-2"
+                                    style={{
+                                      background: 'rgba(255,255,255,0.92)',
+                                      border: '1px solid rgba(148, 163, 184, 0.28)',
+                                      minHeight: 86
+                                    }}
+                                  >
+                                    <div className="small fw-semibold text-truncate">
+                                      {language === 'uz' ? `Bo‘lim ${idx}` : `Раздел ${idx}`}
+                                    </div>
+                                    <div
+                                      className="mt-2 rounded-2"
+                                      style={{
+                                        height: 48,
+                                        background: 'linear-gradient(135deg, #dbeafe, #e2e8f0)'
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div
+                            className="d-flex justify-content-around align-items-center px-2"
+                            style={{
+                              position: 'absolute',
+                              left: 10,
+                              right: 10,
+                              bottom: 10,
+                              height: 52,
+                              background: 'rgba(255,255,255,0.94)',
+                              border: '1px solid rgba(148, 163, 184, 0.28)',
+                              borderRadius: 16
+                            }}
+                          >
+                            {['🏠', '❤️', '🛒', '📦', '💬'].map((icon, idx) => (
+                              <span key={icon} style={{ opacity: idx === 0 ? 1 : 0.65 }}>{icon}</span>
+                            ))}
+                          </div>
+
+                          {adBannerForm.ad_type === 'entry_popup' && (
                             <div
-                              className="d-flex align-items-center justify-content-center text-muted"
+                              className="d-flex align-items-end justify-content-center p-3"
                               style={{
-                                width: '100%',
-                                aspectRatio: adBannerForm.ad_type === 'entry_popup' ? '4 / 5' : '2.4 / 1',
-                                background: 'linear-gradient(135deg, rgba(71,85,105,0.08) 0%, rgba(71,85,105,0.16) 100%)'
+                                position: 'absolute',
+                                inset: 0,
+                                background: 'rgba(15, 23, 42, 0.45)'
                               }}
                             >
-                              <div className="text-center px-3">
-                                <div style={{ fontSize: '1.4rem' }}>🖼️</div>
-                                <div className="small">
-                                  {language === 'uz' ? 'Banner rasmi shu yerda ko‘rinadi' : 'Здесь будет изображение баннера'}
+                              <div
+                                className="w-100"
+                                style={{
+                                  maxWidth: 320,
+                                  background: '#ffffff',
+                                  borderRadius: 20,
+                                  border: '1px solid rgba(148, 163, 184, 0.3)',
+                                  overflow: 'hidden',
+                                  boxShadow: '0 20px 40px rgba(15, 23, 42, 0.28)'
+                                }}
+                              >
+                                <div style={{ position: 'relative' }}>
+                                  {adBannerForm.image_url ? (
+                                    <img
+                                      src={adBannerForm.image_url}
+                                      alt="ad-popup-preview"
+                                      style={{ width: '100%', aspectRatio: '4 / 5', objectFit: 'cover', display: 'block' }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="d-flex align-items-center justify-content-center text-muted"
+                                      style={{
+                                        width: '100%',
+                                        aspectRatio: '4 / 5',
+                                        background: 'linear-gradient(135deg, rgba(71,85,105,0.10), rgba(71,85,105,0.18))'
+                                      }}
+                                    >
+                                      <div className="text-center px-3">
+                                        <div style={{ fontSize: '1.35rem' }}>🖼️</div>
+                                        <div className="small">
+                                          {language === 'uz' ? 'Popup rasmi' : 'Изображение popup'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div
+                                    className="d-flex align-items-center justify-content-center"
+                                    style={{
+                                      position: 'absolute',
+                                      top: 10,
+                                      right: 10,
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: 999,
+                                      background: 'rgba(255,255,255,0.92)',
+                                      color: '#111827',
+                                      fontWeight: 700
+                                    }}
+                                  >
+                                    ×
+                                  </div>
+                                </div>
+                                <div className="p-3">
+                                  <div className="fw-bold mb-2" style={{ fontSize: '1.12rem', lineHeight: 1.2 }}>
+                                    {adBannerForm.title || (language === 'uz' ? 'Aksiya nomi' : 'Название акции')}
+                                  </div>
+                                  <Button size="sm" className="w-100 btn-primary-custom" disabled>
+                                    {adBannerForm.button_text || (language === 'uz' ? 'Ochish' : 'Открыть')}
+                                  </Button>
                                 </div>
                               </div>
                             </div>
                           )}
                         </div>
-
-                        <div className="p-3">
-                          <div className="fw-semibold mb-1 text-truncate" title={adBannerForm.title || ''}>
-                            {adBannerForm.title || (language === 'uz' ? 'Banner nomi' : 'Название баннера')}
-                          </div>
-                          <div className="small text-muted mb-2">
-                            {adBannerForm.target_url
-                              ? (language === 'uz' ? 'Havola ulangan' : 'Ссылка подключена')
-                              : (language === 'uz' ? 'Bosilganda o‘tish havolasi yo‘q' : 'Без ссылки перехода')}
-                          </div>
-                          <div className="d-flex gap-2 flex-wrap">
-                            <Badge className={`badge-custom ${adBannerForm.is_enabled ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-muted'}`}>
-                              {adBannerForm.is_enabled ? adI18n.enabled : (language === 'uz' ? "Reklama o'chirilgan" : 'Реклама выключена')}
-                            </Badge>
-                            <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
-                              {Number(adBannerForm.display_seconds) || 5} {adI18n.sec}
-                            </Badge>
-                            <Badge className="badge-custom bg-info bg-opacity-10 text-info text-capitalize">
-                              {adBannerForm.transition_effect || 'fade'}
-                            </Badge>
-                          </div>
-                        </div>
                       </div>
-
-                      {adBannerForm.target_url && (
-                        <div className="mt-3">
-                          <Button size="sm" className="btn-primary-custom w-100" disabled>
-                            {adBannerForm.button_text || (language === 'uz' ? 'Ochish' : 'Открыть')}
-                          </Button>
-                        </div>
-                      )}
                     </Card.Body>
                   </Card>
 
