@@ -113,9 +113,6 @@ function Favorites() {
           <ClientEmptyState
             emoji="🤍"
             message={language === 'uz' ? 'Saralanganlar bo‘sh' : 'Избранное пусто'}
-            subMessage={language === 'uz'
-              ? 'Katalogda yurakcha bosib tovarlarni saqlang'
-              : 'Нажмите на сердечко в карточке товара, чтобы сохранить'}
           />
         ) : (
           <div className="d-flex flex-column gap-3">
