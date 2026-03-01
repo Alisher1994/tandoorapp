@@ -70,6 +70,11 @@ const normalizeTargetActivityTypeIds = (value) => {
   }
 };
 
+const normalizeAdType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'entry_popup' ? 'entry_popup' : 'banner';
+};
+
 let adBannerTargetingSchemaReady = false;
 let adBannerTargetingSchemaPromise = null;
 const ensureAdBannerTargetingSchema = async () => {
@@ -83,6 +88,14 @@ const ensureAdBannerTargetingSchema = async () => {
     await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS target_activity_type_ids JSONB DEFAULT '[]'::jsonb`).catch(() => {});
     await pool.query(`ALTER TABLE ad_banners ALTER COLUMN target_activity_type_ids SET DEFAULT '[]'::jsonb`).catch(() => {});
     await pool.query(`UPDATE ad_banners SET target_activity_type_ids = '[]'::jsonb WHERE target_activity_type_ids IS NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS ad_type VARCHAR(24) DEFAULT 'banner'`).catch(() => {});
+    await pool.query(`ALTER TABLE ad_banners ALTER COLUMN ad_type SET DEFAULT 'banner'`).catch(() => {});
+    await pool.query(`UPDATE ad_banners SET ad_type = 'banner' WHERE ad_type IS NULL OR BTRIM(ad_type) = ''`).catch(() => {});
+    await pool.query(`
+      ALTER TABLE ad_banners
+      ADD CONSTRAINT IF NOT EXISTS ad_banners_type_check
+      CHECK (ad_type IN ('banner', 'entry_popup'))
+    `).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS activity_type_id INTEGER`).catch(() => {});
     adBannerTargetingSchemaReady = true;
   })();
@@ -425,7 +438,7 @@ router.get('/ads-banners', async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT id, title, image_url, button_text, target_url, slot_order, display_seconds, transition_effect,
+      SELECT id, title, image_url, button_text, target_url, ad_type, slot_order, display_seconds, transition_effect,
              start_at, end_at, repeat_days, target_activity_type_ids, is_enabled, is_deleted, created_at
       FROM ad_banners
       WHERE is_deleted = false AND is_enabled = true
@@ -448,6 +461,7 @@ router.get('/ads-banners', async (req, res) => {
         title: banner.title,
         image_url: banner.image_url,
         button_text: banner.button_text || 'Открыть',
+        ad_type: normalizeAdType(banner.ad_type),
         slot_order: Number(banner.slot_order) || 1,
         display_seconds: Math.max(2, Number(banner.display_seconds) || 5),
         transition_effect: banner.transition_effect || 'fade',

@@ -63,6 +63,8 @@ function Catalog() {
   const [products, setProducts] = useState([]);
   const [adBanners, setAdBanners] = useState([]);
   const [activeAdIndex, setActiveAdIndex] = useState(0);
+  const [entryPopupBanner, setEntryPopupBanner] = useState(null);
+  const [showEntryPopupModal, setShowEntryPopupModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
@@ -109,6 +111,8 @@ function Catalog() {
       setSelectedCategory(null);
       setActiveSubcategoryTab(null);
       setCatalogSearchQuery('');
+      setEntryPopupBanner(null);
+      setShowEntryPopupModal(false);
       fetchData();
       // Only clear cart if restaurant actually changed (not on first load)
       if (prevRestaurant && prevRestaurant !== selectedRestaurant) {
@@ -477,6 +481,16 @@ function Catalog() {
       });
   }, [products, normalizedCatalogSearch, language, categoriesById]);
 
+  const inlineAdBanners = useMemo(
+    () => (adBanners || []).filter((banner) => String(banner?.ad_type || 'banner').toLowerCase() !== 'entry_popup'),
+    [adBanners]
+  );
+
+  const entryPopupBanners = useMemo(
+    () => (adBanners || []).filter((banner) => String(banner?.ad_type || 'banner').toLowerCase() === 'entry_popup'),
+    [adBanners]
+  );
+
   useEffect(() => {
     setCatalogSearchPlaceholderPhraseIndex(0);
     setCatalogSearchPlaceholderCharIndex(0);
@@ -741,20 +755,40 @@ function Catalog() {
     }
   };
 
+  const getEntryPopupSeenKey = (restaurantId, bannerId) => (
+    `catalog_entry_popup_seen:${Number(restaurantId) || 0}:${Number(bannerId) || 0}`
+  );
+
+  const hasSeenEntryPopupInSession = (restaurantId, bannerId) => {
+    try {
+      return sessionStorage.getItem(getEntryPopupSeenKey(restaurantId, bannerId)) === '1';
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const markEntryPopupSeenInSession = (restaurantId, bannerId) => {
+    try {
+      sessionStorage.setItem(getEntryPopupSeenKey(restaurantId, bannerId), '1');
+    } catch (e) {
+      // ignore storage errors
+    }
+  };
+
   useEffect(() => {
-    if (!adBanners.length) return undefined;
-    const activeBanner = adBanners[activeAdIndex] || adBanners[0];
+    if (!inlineAdBanners.length) return undefined;
+    const activeBanner = inlineAdBanners[activeAdIndex] || inlineAdBanners[0];
     if (!activeBanner) return undefined;
 
     const timeout = setTimeout(() => {
-      setActiveAdIndex((prev) => ((prev + 1) % adBanners.length));
+      setActiveAdIndex((prev) => ((prev + 1) % inlineAdBanners.length));
     }, Math.max(2, Number(activeBanner.display_seconds) || 5) * 1000);
 
     return () => clearTimeout(timeout);
-  }, [adBanners, activeAdIndex]);
+  }, [inlineAdBanners, activeAdIndex]);
 
   useEffect(() => {
-    const activeBanner = adBanners[activeAdIndex];
+    const activeBanner = inlineAdBanners[activeAdIndex];
     if (!activeBanner || !selectedRestaurant) return;
     const trackKey = `${selectedRestaurant}:${activeBanner.id}`;
     if (viewedAdsRef.current.has(trackKey)) return;
@@ -766,14 +800,52 @@ function Catalog() {
     }).catch((error) => {
       console.error('Ad view track error:', error);
     });
-  }, [adBanners, activeAdIndex, selectedRestaurant]);
+  }, [inlineAdBanners, activeAdIndex, selectedRestaurant]);
+
+  useEffect(() => {
+    if (!selectedRestaurant || loading || !entryPopupBanners.length) return;
+
+    const nextPopupBanner = entryPopupBanners.find((banner) => !hasSeenEntryPopupInSession(selectedRestaurant, banner.id));
+    if (!nextPopupBanner) return;
+
+    const trackKey = `${selectedRestaurant}:${nextPopupBanner.id}`;
+    if (!viewedAdsRef.current.has(trackKey)) {
+      viewedAdsRef.current.add(trackKey);
+      axios.post(`${API_URL}/products/ads-banners/${nextPopupBanner.id}/view`, {
+        viewer_key: getAdViewerKey(),
+        restaurant_id: selectedRestaurant
+      }).catch((error) => {
+        console.error('Entry popup ad view track error:', error);
+      });
+    }
+
+    markEntryPopupSeenInSession(selectedRestaurant, nextPopupBanner.id);
+    setEntryPopupBanner(nextPopupBanner);
+    setShowEntryPopupModal(true);
+  }, [entryPopupBanners, selectedRestaurant, loading]);
 
   const openAdBannerLink = (banner) => {
     if (!banner?.click_url) return;
     const viewerKey = encodeURIComponent(getAdViewerKey());
     const restaurantId = selectedRestaurant ? `&restaurant_id=${selectedRestaurant}` : '';
     const separator = banner.click_url.includes('?') ? '&' : '?';
-    window.open(`${banner.click_url}${separator}viewer_key=${viewerKey}${restaurantId}`, '_blank', 'noopener,noreferrer');
+    const targetUrl = `${banner.click_url}${separator}viewer_key=${viewerKey}${restaurantId}`;
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(targetUrl);
+      return;
+    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const closeEntryPopup = () => setShowEntryPopupModal(false);
+
+  const handleEntryPopupAction = () => {
+    if (!entryPopupBanner?.click_url) {
+      closeEntryPopup();
+      return;
+    }
+    openAdBannerLink(entryPopupBanner);
+    closeEntryPopup();
   };
 
   // Product card component
@@ -994,8 +1066,8 @@ function Catalog() {
   };
 
   const renderAdBannerCarousel = () => {
-    if (!adBanners.length) return null;
-    const banner = adBanners[activeAdIndex] || adBanners[0];
+    if (!inlineAdBanners.length) return null;
+    const banner = inlineAdBanners[activeAdIndex] || inlineAdBanners[0];
     if (!banner) return null;
 
     const transitionEffect = banner.transition_effect || 'fade';
@@ -1052,9 +1124,9 @@ function Catalog() {
               }}
             />
           </div>
-          {adBanners.length > 1 && (
+          {inlineAdBanners.length > 1 && (
             <div className="d-flex justify-content-center align-items-center gap-1 py-2" style={{ background: '#fff' }}>
-              {adBanners.map((item, idx) => (
+              {inlineAdBanners.map((item, idx) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1695,6 +1767,87 @@ function Catalog() {
           </>
         )}
       </Container>
+
+      <Modal
+        show={showEntryPopupModal && !!entryPopupBanner}
+        onHide={closeEntryPopup}
+        centered
+        backdrop
+        keyboard
+      >
+        <Modal.Body className="p-0 position-relative" style={{ borderRadius: 20, overflow: 'hidden', background: '#ffffff' }}>
+          <button
+            type="button"
+            onClick={closeEntryPopup}
+            aria-label={language === 'uz' ? 'Yopish' : 'Закрыть'}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              width: 34,
+              height: 34,
+              border: 'none',
+              borderRadius: '999px',
+              background: 'rgba(255,255,255,0.92)',
+              color: '#111827',
+              fontSize: '22px',
+              lineHeight: 1,
+              zIndex: 3,
+              boxShadow: '0 4px 12px rgba(15,23,42,0.22)'
+            }}
+          >
+            ×
+          </button>
+
+          <div className="p-3 p-sm-4">
+            <div
+              className="rounded-4 overflow-hidden"
+              style={{ border: '1px solid rgba(71, 85, 105, 0.15)', background: '#f8fafc' }}
+            >
+              <img
+                src={resolveImageUrl(entryPopupBanner?.image_url)}
+                alt={entryPopupBanner?.title || 'Ad'}
+                style={{
+                  width: '100%',
+                  aspectRatio: '4 / 5',
+                  objectFit: 'cover',
+                  display: 'block',
+                  background: '#ffffff'
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+
+            <div className="pt-3">
+              <div className="fw-bold" style={{ fontSize: '1.55rem', lineHeight: 1.15, color: '#111827' }}>
+                {entryPopupBanner?.title || (language === 'uz' ? 'Maxsus taklif' : 'Специальное предложение')}
+              </div>
+              <div className="text-muted mt-2" style={{ fontSize: '0.98rem', lineHeight: 1.4 }}>
+                {language === 'uz'
+                  ? "Aksiyani o'tkazib yubormang. Batafsil ma'lumot uchun tugmani bosing."
+                  : 'Не пропустите акцию. Нажмите кнопку, чтобы открыть предложение.'}
+              </div>
+            </div>
+
+            <Button
+              className="w-100 mt-3 rounded-pill"
+              style={{
+                minHeight: 52,
+                fontWeight: 700,
+                fontSize: '1.05rem',
+                background: '#facc15',
+                borderColor: '#facc15',
+                color: '#111827'
+              }}
+              onClick={handleEntryPopupAction}
+            >
+              {entryPopupBanner?.button_text || (language === 'uz' ? "Ochish" : 'Открыть')}
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
 
       <Modal show={showGalleryModal} onHide={closeProductGallery} centered size="lg" className="product-gallery-modal">
         <Modal.Header closeButton>

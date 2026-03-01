@@ -490,6 +490,7 @@ function SuperAdminDashboard() {
     image_url: '',
     button_text: 'Открыть',
     target_url: '',
+    ad_type: 'banner',
     target_activity_type_ids: [],
     slot_order: 1,
     display_seconds: 5,
@@ -938,6 +939,14 @@ function SuperAdminDashboard() {
     return `${text.slice(0, limit)}...`;
   };
 
+  const getAdTypeLabel = (type) => {
+    const normalized = String(type || '').trim().toLowerCase();
+    if (language === 'uz') {
+      return normalized === 'entry_popup' ? 'Kirish popup' : 'Banner';
+    }
+    return normalized === 'entry_popup' ? 'Popup при входе' : 'Баннер';
+  };
+
   const getAdStatusLabel = (status) => {
     const map = {
       active: 'Активна',
@@ -1025,6 +1034,7 @@ function SuperAdminDashboard() {
       image_url: '',
       button_text: 'Открыть',
       target_url: '',
+      ad_type: 'banner',
       target_activity_type_ids: [],
       slot_order: 1,
       display_seconds: 5,
@@ -1053,6 +1063,7 @@ function SuperAdminDashboard() {
       image_url: banner.image_url || '',
       button_text: banner.button_text || 'Открыть',
       target_url: banner.target_url || '',
+      ad_type: banner.ad_type || 'banner',
       target_activity_type_ids: Array.isArray(banner.target_activity_type_ids) ? banner.target_activity_type_ids.map(Number) : [],
       slot_order: banner.slot_order || 1,
       display_seconds: banner.display_seconds || 5,
@@ -1184,9 +1195,10 @@ function SuperAdminDashboard() {
       console.error('Save ad banner error:', err);
       const serverError = err.response?.data?.error;
       const serverDetails = err.response?.data?.details;
+      const isPopupType = String(adBannerForm.ad_type || 'banner') === 'entry_popup';
       const fallbackHint = adBannerImageMeta
-        ? ` Размер вашего баннера: ${adBannerImageMeta.width}x${adBannerImageMeta.height}px. Рекомендуемый размер: 1200x300px (или похожая широкая пропорция 4:1).`
-        : ' Рекомендуемый размер баннера: 1200x300px (широкий формат).';
+        ? ` Размер вашего баннера: ${adBannerImageMeta.width}x${adBannerImageMeta.height}px. Рекомендуемый размер: ${isPopupType ? '1080x1350px (вертикальный popup)' : '1200x500px (широкий баннер)'}.`
+        : ` Рекомендуемый размер: ${isPopupType ? '1080x1350px (вертикальный popup)' : '1200x500px (широкий баннер)'}.`;
       const baseMessage = serverError || 'Ошибка сохранения рекламного слота';
       const detailsText = serverDetails ? ` Причина: ${serverDetails}.` : '';
       setError(`${baseMessage}.${detailsText}${fallbackHint}`.replace(/\.\./g, '.'));
@@ -2217,7 +2229,7 @@ function SuperAdminDashboard() {
         pausedByDays: 'Hafta kunlari bo‘yicha yashirin',
         disabled: "O'chirilgan",
         finished: 'Yakunlangan',
-        alertText: 'Bannerlar mijozlarga katalogning yuqori qismida kategoriya guruhlaridan oldin ko‘rsatiladi. Faol bannerlar bo‘lmasa, katalog odatdagidek ko‘rinadi. Havolalar va boshqaruv tugmalari faqat superadmin tomonidan boshqariladi.',
+        alertText: 'Reklama ikkita formatda ishlaydi: banner (katalog tepasi) va kirish popup (ilovaga kirganda modal). Havolalar va boshqaruv tugmalari faqat superadmin tomonidan boshqariladi.',
         colSlot: 'Slot',
         colBanner: 'Banner',
         colLink: 'Havola',
@@ -2240,9 +2252,13 @@ function SuperAdminDashboard() {
         addTitle: "Reklama qo'shish",
         internalName: 'Nom (ichki)',
         internalNamePlaceholder: 'Masalan: Yetkazib berish aksiyasi',
+        displayType: "Ko'rsatish turi",
+        typeBanner: 'Banner (katalog tepasi)',
+        typePopup: 'Popup (kirishda)',
         slotPosition: 'Slot pozitsiyasi (1-10)',
         imageLabel: 'Reklama rasmi (JPG / PNG / WEBP / GIF)',
-        imageRecommended: 'Tavsiya etilgan o‘lcham: 1200x500 px (keng banner, nisbat ~2.4:1)',
+        imageRecommendedBanner: 'Tavsiya etilgan o‘lcham: 1200x500 px (keng banner, nisbat ~2.4:1)',
+        imageRecommendedPopup: 'Tavsiya etilgan o‘lcham: 1080x1350 px (vertikal popup, nisbat ~4:5)',
         imagePlaceholder: 'https://example.com/banner.jpg yoki /uploads/...',
         uploading: 'Yuklanmoqda...',
         targetUrl: "O'tish havolasi (ixtiyoriy)",
@@ -2290,7 +2306,7 @@ function SuperAdminDashboard() {
         pausedByDays: 'Скрытые по дням недели',
         disabled: 'Выключенные',
         finished: 'Завершенные',
-        alertText: 'Баннеры показываются клиентам в самом верху каталога перед группами категорий. Если активных баннеров нет, каталог отображается как обычно. Ссылки и кнопки управляются только из суперадминки.',
+        alertText: 'Реклама работает в двух форматах: баннер (вверху каталога) и popup при входе (модальное окно при открытии приложения). Ссылки и управление доступны только из суперадминки.',
         colSlot: 'Слот',
         colBanner: 'Баннер',
         colLink: 'Кнопка / Ссылка',
@@ -2313,9 +2329,13 @@ function SuperAdminDashboard() {
         addTitle: 'Добавить рекламу',
         internalName: 'Название (внутреннее)',
         internalNamePlaceholder: 'Например: Акция на доставку',
+        displayType: 'Тип показа',
+        typeBanner: 'Баннер (вверху каталога)',
+        typePopup: 'Popup при входе',
         slotPosition: 'Позиция слота (1-10)',
         imageLabel: 'Изображение рекламы (JPG / PNG / WEBP / GIF)',
-        imageRecommended: 'Рекомендуемый размер: 1200x500 px (широкий баннер, соотношение ~2.4:1)',
+        imageRecommendedBanner: 'Рекомендуемый размер: 1200x500 px (широкий баннер, соотношение ~2.4:1)',
+        imageRecommendedPopup: 'Рекомендуемый размер: 1080x1350 px (вертикальный popup, соотношение ~4:5)',
         imagePlaceholder: 'https://example.com/banner.jpg или /uploads/...',
         uploading: 'Загрузка...',
         targetUrl: 'Ссылка перехода (необязательно)',
@@ -3652,6 +3672,11 @@ function SuperAdminDashboard() {
                                       {truncateAdTitleText(banner.title, 10)}
                                     </div>
                                     <div className="small text-muted">ID: {banner.id}</div>
+                                    <div className="small">
+                                      <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
+                                        {getAdTypeLabel(banner.ad_type)}
+                                      </Badge>
+                                    </div>
                                     <div className="small text-muted text-truncate" title={(getActivityTypeNamesByIds(banner.target_activity_type_ids || []).join(', ') || 'Все виды деятельности')}>
                                       🧩 {(banner.target_activity_type_ids || []).length
                                         ? getActivityTypeNamesByIds(banner.target_activity_type_ids).join(', ')
@@ -4520,7 +4545,7 @@ function SuperAdminDashboard() {
           <Row className="g-0">
             <Col lg={7} className="p-4 border-end">
               <Row className="g-3">
-            <Col md={7}>
+            <Col md={5}>
               <Form.Group>
                 <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.internalName}</Form.Label>
                 <Form.Control
@@ -4531,7 +4556,20 @@ function SuperAdminDashboard() {
                 />
               </Form.Group>
             </Col>
-            <Col md={5}>
+            <Col md={3}>
+              <Form.Group>
+                <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.displayType}</Form.Label>
+                <Form.Select
+                  className="form-control-custom"
+                  value={adBannerForm.ad_type}
+                  onChange={(e) => setAdBannerForm((prev) => ({ ...prev, ad_type: e.target.value }))}
+                >
+                  <option value="banner">{adI18n.typeBanner}</option>
+                  <option value="entry_popup">{adI18n.typePopup}</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
               <Form.Group>
                 <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.slotPosition}</Form.Label>
                 <Form.Control
@@ -4550,7 +4588,7 @@ function SuperAdminDashboard() {
                 <Form.Label className="small fw-bold text-muted text-uppercase">{adI18n.imageLabel}</Form.Label>
                 <div className="d-flex flex-column gap-2">
                   <small className="text-muted">
-                    {adI18n.imageRecommended}
+                    {adBannerForm.ad_type === 'entry_popup' ? adI18n.imageRecommendedPopup : adI18n.imageRecommendedBanner}
                   </small>
                   {adBannerForm.image_url && (
                     <div
@@ -4755,7 +4793,7 @@ function SuperAdminDashboard() {
                 <div className="position-lg-sticky" style={{ top: 16 }}>
                   <div className="d-flex align-items-center justify-content-between mb-3">
                     <h6 className="mb-0 fw-bold">
-                      {language === 'uz' ? "Banner ko'rinishi (preview)" : 'Предпросмотр баннера'}
+                      {language === 'uz' ? "Reklama ko'rinishi (preview)" : 'Предпросмотр рекламы'}
                     </h6>
                     <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
                       #{Number(adBannerForm.slot_order) || 1}
@@ -4765,7 +4803,9 @@ function SuperAdminDashboard() {
                   <Card className="border-0 shadow-sm mb-3">
                     <Card.Body className="p-3">
                       <div className="small text-muted mb-2">
-                        {language === 'uz' ? 'Katalogdagi ko‘rinishi' : 'Как будет выглядеть в каталоге'}
+                        {adBannerForm.ad_type === 'entry_popup'
+                          ? (language === 'uz' ? 'Ilovaga kirgandagi popup ko‘rinishi' : 'Как будет выглядеть popup при входе')
+                          : (language === 'uz' ? 'Katalogdagi ko‘rinishi' : 'Как будет выглядеть в каталоге')}
                       </div>
 
                       <div
@@ -4780,14 +4820,19 @@ function SuperAdminDashboard() {
                             <img
                               src={adBannerForm.image_url}
                               alt="ad-banner-preview"
-                              style={{ width: '100%', aspectRatio: '2.4 / 1', objectFit: 'cover', display: 'block' }}
+                              style={{
+                                width: '100%',
+                                aspectRatio: adBannerForm.ad_type === 'entry_popup' ? '4 / 5' : '2.4 / 1',
+                                objectFit: 'cover',
+                                display: 'block'
+                              }}
                             />
                           ) : (
                             <div
                               className="d-flex align-items-center justify-content-center text-muted"
                               style={{
                                 width: '100%',
-                                aspectRatio: '2.4 / 1',
+                                aspectRatio: adBannerForm.ad_type === 'entry_popup' ? '4 / 5' : '2.4 / 1',
                                 background: 'linear-gradient(135deg, rgba(71,85,105,0.08) 0%, rgba(71,85,105,0.16) 100%)'
                               }}
                             >
@@ -4857,6 +4902,9 @@ function SuperAdminDashboard() {
                           {(adBannerForm.target_activity_type_ids || []).length
                             ? getActivityTypeNamesByIds(adBannerForm.target_activity_type_ids).join(', ')
                             : adI18n.activityTypeNoTarget}
+                        </div>
+                        <div>
+                          <strong>{adI18n.displayType}:</strong> {getAdTypeLabel(adBannerForm.ad_type)}
                         </div>
                         <div className="text-muted" style={{ wordBreak: 'break-all' }}>
                           <strong>{adI18n.targetUrl}:</strong> {adBannerForm.target_url || '—'}

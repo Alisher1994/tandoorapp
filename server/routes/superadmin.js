@@ -77,6 +77,14 @@ const ensureActivityTypesSchema = async () => {
     await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS target_activity_type_ids JSONB DEFAULT '[]'::jsonb`).catch(() => {});
     await pool.query(`ALTER TABLE ad_banners ALTER COLUMN target_activity_type_ids SET DEFAULT '[]'::jsonb`).catch(() => {});
     await pool.query(`UPDATE ad_banners SET target_activity_type_ids = '[]'::jsonb WHERE target_activity_type_ids IS NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS ad_type VARCHAR(24) DEFAULT 'banner'`).catch(() => {});
+    await pool.query(`ALTER TABLE ad_banners ALTER COLUMN ad_type SET DEFAULT 'banner'`).catch(() => {});
+    await pool.query(`UPDATE ad_banners SET ad_type = 'banner' WHERE ad_type IS NULL OR BTRIM(ad_type) = ''`).catch(() => {});
+    await pool.query(`
+      ALTER TABLE ad_banners
+      ADD CONSTRAINT IF NOT EXISTS ad_banners_type_check
+      CHECK (ad_type IN ('banner', 'entry_popup'))
+    `).catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_restaurants_activity_type_id ON restaurants(activity_type_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_business_activity_types_sort_order ON business_activity_types(sort_order, id)');
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_business_activity_types_name_lower ON business_activity_types (LOWER(name))');
@@ -409,6 +417,7 @@ const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' '
 
 const AD_BANNER_MAX_SLOTS = 10;
 const AD_TRANSITIONS = new Set(['none', 'fade', 'slide']);
+const AD_BANNER_TYPES = new Set(['banner', 'entry_popup']);
 const TASHKENT_TZ = 'Asia/Tashkent';
 
 const normalizeAdRepeatDays = (value) => {
@@ -497,6 +506,7 @@ const normalizeAdBannerPayload = (body) => {
   const imageUrl = String(body.image_url || '').trim();
   const buttonText = String(body.button_text || 'Открыть').trim() || 'Открыть';
   const targetUrl = String(body.target_url || '').trim();
+  const adType = String(body.ad_type || 'banner').trim().toLowerCase() || 'banner';
   const slotOrder = Number.parseInt(body.slot_order, 10);
   const displaySeconds = Number.parseInt(body.display_seconds, 10);
   const transitionEffect = String(body.transition_effect || 'fade').trim().toLowerCase();
@@ -527,6 +537,9 @@ const normalizeAdBannerPayload = (body) => {
   if (!AD_TRANSITIONS.has(transitionEffect)) {
     return { error: 'Некорректный тип анимации перехода' };
   }
+  if (!AD_BANNER_TYPES.has(adType)) {
+    return { error: 'Некорректный тип показа рекламы' };
+  }
   if ((body.start_at && !startAt) || (body.end_at && !endAt)) {
     return { error: 'Некорректная дата начала или окончания' };
   }
@@ -539,6 +552,7 @@ const normalizeAdBannerPayload = (body) => {
     image_url: imageUrl,
     button_text: buttonText,
     target_url: targetUrl || null,
+    ad_type: adType,
     slot_order: slotOrder,
     display_seconds: displaySeconds,
     transition_effect: transitionEffect,
@@ -2353,7 +2367,10 @@ const mapAdBannerRow = (row) => {
   const targetActivityTypeIds = Array.isArray(row.target_activity_type_ids)
     ? normalizeAdTargetActivityTypeIds(row.target_activity_type_ids)
     : normalizeAdTargetActivityTypeIds(row.target_activity_type_ids);
-  const banner = { ...row, repeat_days: repeatDays, target_activity_type_ids: targetActivityTypeIds };
+  const adType = AD_BANNER_TYPES.has(String(row.ad_type || '').trim().toLowerCase())
+    ? String(row.ad_type).trim().toLowerCase()
+    : 'banner';
+  const banner = { ...row, ad_type: adType, repeat_days: repeatDays, target_activity_type_ids: targetActivityTypeIds };
   return {
     ...banner,
     is_visible_now: isAdBannerVisibleNow(banner),
@@ -2674,18 +2691,19 @@ router.post('/ads/banners', async (req, res) => {
 
     const result = await pool.query(`
       INSERT INTO ad_banners (
-        title, image_url, button_text, target_url,
+        title, image_url, button_text, target_url, ad_type,
         slot_order, display_seconds, transition_effect,
         start_at, end_at, repeat_days, target_activity_type_ids, is_enabled,
         created_by, updated_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15)
       RETURNING *
     `, [
       payload.title,
       payload.image_url,
       payload.button_text,
       payload.target_url,
+      payload.ad_type,
       payload.slot_order,
       payload.display_seconds,
       payload.transition_effect,
@@ -2753,23 +2771,25 @@ router.put('/ads/banners/:id', async (req, res) => {
           image_url = $2,
           button_text = $3,
           target_url = $4,
-          slot_order = $5,
-          display_seconds = $6,
-          transition_effect = $7,
-          start_at = $8,
-          end_at = $9,
-          repeat_days = $10::jsonb,
-          target_activity_type_ids = $11::jsonb,
-          is_enabled = $12,
-          updated_by = $13,
+          ad_type = $5,
+          slot_order = $6,
+          display_seconds = $7,
+          transition_effect = $8,
+          start_at = $9,
+          end_at = $10,
+          repeat_days = $11::jsonb,
+          target_activity_type_ids = $12::jsonb,
+          is_enabled = $13,
+          updated_by = $14,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+      WHERE id = $15
       RETURNING *
     `, [
       payload.title,
       payload.image_url,
       payload.button_text,
       payload.target_url,
+      payload.ad_type,
       payload.slot_order,
       payload.display_seconds,
       payload.transition_effect,

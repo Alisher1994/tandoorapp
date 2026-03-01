@@ -580,6 +580,7 @@ async function migrate() {
         image_url TEXT NOT NULL,
         button_text VARCHAR(120) NOT NULL DEFAULT 'Открыть',
         target_url TEXT NOT NULL,
+        ad_type VARCHAR(24) NOT NULL DEFAULT 'banner',
         slot_order INTEGER NOT NULL DEFAULT 1,
         display_seconds INTEGER NOT NULL DEFAULT 5,
         transition_effect VARCHAR(20) NOT NULL DEFAULT 'fade',
@@ -628,6 +629,7 @@ async function migrate() {
       'image_url TEXT',
       `button_text VARCHAR(120) DEFAULT 'Открыть'`,
       'target_url TEXT',
+      `ad_type VARCHAR(24) DEFAULT 'banner'`,
       'slot_order INTEGER DEFAULT 1',
       'display_seconds INTEGER DEFAULT 5',
       `transition_effect VARCHAR(20) DEFAULT 'fade'`,
@@ -681,11 +683,19 @@ async function migrate() {
     await client.query(`ALTER TABLE ad_banners ALTER COLUMN target_activity_type_ids SET DEFAULT '[]'::jsonb`).catch(() => {});
     await client.query(`UPDATE ad_banners SET target_activity_type_ids = '[]'::jsonb WHERE target_activity_type_ids IS NULL`).catch(() => {});
     await client.query(`ALTER TABLE ad_banners ALTER COLUMN target_url DROP NOT NULL`).catch(() => {});
+    await client.query(`ALTER TABLE ad_banners ALTER COLUMN ad_type SET DEFAULT 'banner'`).catch(() => {});
+    await client.query(`UPDATE ad_banners SET ad_type = 'banner' WHERE ad_type IS NULL OR BTRIM(ad_type) = ''`).catch(() => {});
 
     await client.query(`
       ALTER TABLE ad_banners
       ADD CONSTRAINT IF NOT EXISTS ad_banners_transition_effect_check
       CHECK (transition_effect IN ('none', 'fade', 'slide'))
+    `).catch(() => {});
+
+    await client.query(`
+      ALTER TABLE ad_banners
+      ADD CONSTRAINT IF NOT EXISTS ad_banners_type_check
+      CHECK (ad_type IN ('banner', 'entry_popup'))
     `).catch(() => {});
 
     await client.query(`
