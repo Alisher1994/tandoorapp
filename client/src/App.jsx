@@ -9,6 +9,7 @@ import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
 import CatalogGate from './components/CatalogGate';
 import AppVersionWatcher from './components/AppVersionWatcher';
+import ClientRoutePersistence from './components/ClientRoutePersistence';
 import { PageSkeleton } from './components/SkeletonUI';
 
 const Login = lazy(() => import('./pages/Login'));
@@ -27,6 +28,7 @@ function App() {
         <CartProvider>
           <FavoritesProvider>
             <AppVersionWatcher />
+            <ClientRoutePersistence />
             <Suspense fallback={(
               <PageSkeleton fullscreen label="Загрузка приложения" cards={8} />
             )}

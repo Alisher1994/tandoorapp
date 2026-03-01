@@ -124,6 +124,7 @@ export function AuthProvider({ children }) {
     }
     localStorage.removeItem('token');
     localStorage.removeItem('active_restaurant_id');
+    localStorage.removeItem('client_last_route');
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
