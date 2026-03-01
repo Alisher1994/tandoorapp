@@ -88,6 +88,8 @@ function Catalog() {
   const catalogHeaderRef = useRef(null);
   const catalogSearchInputRef = useRef(null);
   const categoryListScrollOffsetRef = useRef(0);
+  const isDataFetchInProgressRef = useRef(false);
+  const catalogFetchIdRef = useRef(0);
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
@@ -185,6 +187,39 @@ function Catalog() {
     if (!result.length) addImage(product?.thumb_url);
     return result;
   };
+
+  const preloadImage = (url) => new Promise((resolve) => {
+    if (!url || typeof window === 'undefined') {
+      resolve();
+      return;
+    }
+    const img = new window.Image();
+    const done = () => {
+      img.onload = null;
+      img.onerror = null;
+      resolve();
+    };
+    img.onload = done;
+    img.onerror = done;
+    img.src = url;
+    if (img.complete) done();
+  });
+
+  const preloadProductCardImages = async (productsList = []) => {
+    const uniqueImageUrls = [];
+    const seen = new Set();
+
+    productsList.forEach((product) => {
+      const galleryImages = getProductGalleryImages(product);
+      const productCardImage = galleryImages[0] || resolveImageUrl(product?.thumb_url || product?.image_url);
+      if (!productCardImage || seen.has(productCardImage)) return;
+      seen.add(productCardImage);
+      uniqueImageUrls.push(productCardImage);
+    });
+
+    await Promise.all(uniqueImageUrls.map((url) => preloadImage(url)));
+  };
+
   const openProductGallery = (product, startIndex = 0) => {
     const images = getProductGalleryImages(product);
     if (!images.length) return;
@@ -264,13 +299,17 @@ function Catalog() {
       console.error('Error fetching restaurants:', error);
       setRestaurants([]);
     } finally {
-      setLoading(false);
+      if (!isDataFetchInProgressRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const fetchData = async () => {
     if (!selectedRestaurant) return;
 
+    const fetchId = ++catalogFetchIdRef.current;
+    isDataFetchInProgressRef.current = true;
     setLoading(true);
     try {
       const [categoriesRes, productsRes, adsRes] = await Promise.all([
@@ -279,27 +318,40 @@ function Catalog() {
         axios.get(`${API_URL}/products/ads-banners?restaurant_id=${selectedRestaurant}`)
       ]);
 
-      setCategories((categoriesRes.data || []).sort((a, b) => {
+      const nextCategories = (categoriesRes.data || []).sort((a, b) => {
         const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
         const orderDiff = getSortVal(a) - getSortVal(b);
         if (orderDiff !== 0) return orderDiff;
         return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
-      }));
-      setProducts(productsRes.data || []);
-      setAdBanners((adsRes.data || []).sort((a, b) => {
+      });
+      const nextProducts = productsRes.data || [];
+      const nextAdBanners = (adsRes.data || []).sort((a, b) => {
         const slotDiff = (a.slot_order || 999) - (b.slot_order || 999);
         if (slotDiff !== 0) return slotDiff;
         return (a.id || 0) - (b.id || 0);
-      }));
+      });
+
+      // Keep skeleton visible until all product card images are fully loaded (or failed).
+      await preloadProductCardImages(nextProducts);
+
+      if (fetchId !== catalogFetchIdRef.current) return;
+
+      setCategories(nextCategories);
+      setProducts(nextProducts);
+      setAdBanners(nextAdBanners);
       setActiveAdIndex(0);
       viewedAdsRef.current = new Set();
     } catch (error) {
+      if (fetchId !== catalogFetchIdRef.current) return;
       console.error('Error fetching data:', error);
       setCategories([]);
       setProducts([]);
       setAdBanners([]);
     } finally {
-      setLoading(false);
+      if (fetchId === catalogFetchIdRef.current) {
+        isDataFetchInProgressRef.current = false;
+        setLoading(false);
+      }
     }
   };
 
