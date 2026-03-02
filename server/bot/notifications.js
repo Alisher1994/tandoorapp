@@ -88,7 +88,7 @@ function buildTaxiUrlFromTemplate(template, lat, lng) {
 function buildMyTaxiUrl(lat, lng) {
   const template = String(process.env.MY_TAXI_URL_TEMPLATE || '').trim();
   if (!template) {
-    return buildTaxiUrlFromTemplate('mytaxi://route?end_lat={lat}&end_lon={lng}', lat, lng);
+    return buildTaxiUrlFromTemplate('https://mytaxi.uz/?end_lat={lat}&end_lon={lng}', lat, lng);
   }
 
   return buildTaxiUrlFromTemplate(template, lat, lng);

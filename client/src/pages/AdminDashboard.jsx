@@ -31,7 +31,7 @@ import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/Skeleto
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
 const MILLENIUM_TAXI_URL_TEMPLATE = import.meta.env.VITE_MILLENIUM_TAXI_URL_TEMPLATE || '';
-const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxi://route?end_lat={lat}&end_lon={lng}';
+const DEFAULT_MY_TAXI_URL_TEMPLATE = 'https://mytaxi.uz/?end_lat={lat}&end_lon={lng}';
 const DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE = 'milleniumtaxi://route?end_lat={lat}&end_lon={lng}';
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
