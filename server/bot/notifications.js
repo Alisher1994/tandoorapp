@@ -78,28 +78,29 @@ function parseDeliveryCoordinates(rawCoordinates) {
   return { lat, lng };
 }
 
-function buildMyTaxiUrl(lat, lng) {
-  const template = String(process.env.MY_TAXI_URL_TEMPLATE || '').trim();
-  if (!template) {
-    return `https://mytaxi.uz/?lat=${lat}&lng=${lng}`;
-  }
-
-  return template
+function buildTaxiUrlFromTemplate(template, lat, lng) {
+  return String(template)
     .replace(/\{lat\}/gi, encodeURIComponent(String(lat)))
     .replace(/\{lng\}/gi, encodeURIComponent(String(lng)))
     .replace(/\{lon\}/gi, encodeURIComponent(String(lng)));
 }
 
+function buildMyTaxiUrl(lat, lng) {
+  const template = String(process.env.MY_TAXI_URL_TEMPLATE || '').trim();
+  if (!template) {
+    return buildTaxiUrlFromTemplate('mytaxi://route?end_lat={lat}&end_lon={lng}', lat, lng);
+  }
+
+  return buildTaxiUrlFromTemplate(template, lat, lng);
+}
+
 function buildMilleniumTaxiUrl(lat, lng) {
   const template = String(process.env.MILLENIUM_TAXI_URL_TEMPLATE || '').trim();
   if (!template) {
-    return 'https://taximillennium.uz/';
+    return buildTaxiUrlFromTemplate('milleniumtaxi://route?end_lat={lat}&end_lon={lng}', lat, lng);
   }
 
-  return template
-    .replace(/\{lat\}/gi, encodeURIComponent(String(lat)))
-    .replace(/\{lng\}/gi, encodeURIComponent(String(lng)))
-    .replace(/\{lon\}/gi, encodeURIComponent(String(lng)));
+  return buildTaxiUrlFromTemplate(template, lat, lng);
 }
 
 function buildDeliveryLinksLine(rawCoordinates) {

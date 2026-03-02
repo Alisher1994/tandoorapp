@@ -29,8 +29,20 @@ import DeliveryZonePicker from '../components/DeliveryZonePicker';
 import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
+const MILLENIUM_TAXI_URL_TEMPLATE = import.meta.env.VITE_MILLENIUM_TAXI_URL_TEMPLATE || '';
+const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxi://route?end_lat={lat}&end_lon={lng}';
+const DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE = 'milleniumtaxi://route?end_lat={lat}&end_lon={lng}';
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
+const buildTaxiUrlFromTemplate = (template, lat, lng) => String(template)
+  .replace(/\{lat\}/gi, encodeURIComponent(String(lat)))
+  .replace(/\{lng\}/gi, encodeURIComponent(String(lng)))
+  .replace(/\{lon\}/gi, encodeURIComponent(String(lng)));
+const buildTaxiUrl = (template, fallbackTemplate, lat, lng) => {
+  const normalizedTemplate = String(template || '').trim() || fallbackTemplate;
+  return buildTaxiUrlFromTemplate(normalizedTemplate, lat, lng);
+};
 const toAbsoluteFileUrl = (value) => {
   if (!value) return '';
   if (/^https?:\/\//i.test(value)) return value;
@@ -5006,8 +5018,18 @@ function AdminDashboard() {
                           const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
                           const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
                           const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
-                          const myTaxiUrl = `https://mytaxi.uz/?lat=${lat}&lng=${lng}`;
-                          const milleniumTaxiUrl = 'https://taximillennium.uz/';
+                          const myTaxiUrl = buildTaxiUrl(
+                            MY_TAXI_URL_TEMPLATE,
+                            DEFAULT_MY_TAXI_URL_TEMPLATE,
+                            lat,
+                            lng,
+                          );
+                          const milleniumTaxiUrl = buildTaxiUrl(
+                            MILLENIUM_TAXI_URL_TEMPLATE,
+                            DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE,
+                            lat,
+                            lng,
+                          );
                           const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
                           return (
