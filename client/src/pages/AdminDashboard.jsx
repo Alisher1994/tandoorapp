@@ -5006,6 +5006,7 @@ function AdminDashboard() {
                           const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
                           const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
                           const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
+                          const myTaxiUrl = `https://mytaxi.uz/?lat=${lat}&lng=${lng}`;
                           const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
                           return (
@@ -5045,7 +5046,15 @@ function AdminDashboard() {
                                   rel="noopener noreferrer"
                                   className="btn btn-sm order-map-btn"
                                 >
-                                  🚕 Яндекс.Такси
+                                  🚕 Яндекс Go
+                                </a>
+                                <a
+                                  href={myTaxiUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-sm order-map-btn"
+                                >
+                                  🚖 My Taxi
                                 </a>
                                 <a
                                   href={yandexNaviUrl}

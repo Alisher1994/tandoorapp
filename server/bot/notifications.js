@@ -78,6 +78,18 @@ function parseDeliveryCoordinates(rawCoordinates) {
   return { lat, lng };
 }
 
+function buildMyTaxiUrl(lat, lng) {
+  const template = String(process.env.MY_TAXI_URL_TEMPLATE || '').trim();
+  if (!template) {
+    return `https://mytaxi.uz/?lat=${lat}&lng=${lng}`;
+  }
+
+  return template
+    .replace(/\{lat\}/gi, encodeURIComponent(String(lat)))
+    .replace(/\{lng\}/gi, encodeURIComponent(String(lng)))
+    .replace(/\{lon\}/gi, encodeURIComponent(String(lng)));
+}
+
 function buildDeliveryLinksLine(rawCoordinates) {
   const parsed = parseDeliveryCoordinates(rawCoordinates);
   if (!parsed) return '';
@@ -86,8 +98,9 @@ function buildDeliveryLinksLine(rawCoordinates) {
   const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
   const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
   const yandexGoUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
+  const myTaxiUrl = buildMyTaxiUrl(lat, lng);
 
-  return `📍 Адрес доставки: <a href="${googleMapsUrl}">Google</a> | <a href="${yandexMapUrl}">Яндекс Карты</a> | <a href="${yandexGoUrl}">Яндекс Go</a>`;
+  return `📍 Адрес доставки: <a href="${googleMapsUrl}">Google</a> | <a href="${yandexMapUrl}">Яндекс Карты</a> | <a href="${yandexGoUrl}">Яндекс Go</a> | <a href="${myTaxiUrl}">My Taxi</a>`;
 }
 
 function getPublicBaseUrl() {
