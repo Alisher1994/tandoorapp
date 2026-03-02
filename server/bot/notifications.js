@@ -88,7 +88,7 @@ function buildTaxiUrlFromTemplate(template, lat, lng) {
 function buildMyTaxiUrl(lat, lng) {
   const template = String(process.env.MY_TAXI_URL_TEMPLATE || '').trim();
   if (!template) {
-    return buildTaxiUrlFromTemplate('https://mytaxi.uz/?end_lat={lat}&end_lon={lng}', lat, lng);
+    return buildTaxiUrlFromTemplate('mytaxiapp://start?q={lat},{lng}', lat, lng);
   }
 
   return buildTaxiUrlFromTemplate(template, lat, lng);
@@ -97,7 +97,7 @@ function buildMyTaxiUrl(lat, lng) {
 function buildMilleniumTaxiUrl(lat, lng) {
   const template = String(process.env.MILLENIUM_TAXI_URL_TEMPLATE || '').trim();
   if (!template) {
-    return buildTaxiUrlFromTemplate('milleniumtaxi://route?end_lat={lat}&end_lon={lng}', lat, lng);
+    return 'app_name://order';
   }
 
   return buildTaxiUrlFromTemplate(template, lat, lng);
