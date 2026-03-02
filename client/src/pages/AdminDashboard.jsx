@@ -5007,6 +5007,7 @@ function AdminDashboard() {
                           const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
                           const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
                           const myTaxiUrl = `https://mytaxi.uz/?lat=${lat}&lng=${lng}`;
+                          const milleniumTaxiUrl = 'https://taximillennium.uz/';
                           const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
                           return (
@@ -5055,6 +5056,14 @@ function AdminDashboard() {
                                   className="btn btn-sm order-map-btn"
                                 >
                                   🚖 My Taxi
+                                </a>
+                                <a
+                                  href={milleniumTaxiUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-sm order-map-btn"
+                                >
+                                  🚕 Millenium Taxi
                                 </a>
                                 <a
                                   href={yandexNaviUrl}
