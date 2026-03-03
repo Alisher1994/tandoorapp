@@ -376,6 +376,7 @@ function AdminDashboard() {
 
   // Product selection for bulk operations
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [productStockUpdatingIds, setProductStockUpdatingIds] = useState([]);
 
   // Cancel order modal
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -2183,6 +2184,49 @@ function AdminDashboard() {
     setShowProductModal(true);
   };
 
+  const handleProductStockToggle = async (product, showAsOutOfStock) => {
+    const nextInStock = !showAsOutOfStock;
+    const productId = product?.id;
+    if (!productId) return;
+
+    setProductStockUpdatingIds((prev) => (
+      prev.includes(productId) ? prev : [...prev, productId]
+    ));
+
+    try {
+      const productData = {
+        category_id: product.category_id,
+        name_ru: product.name_ru || '',
+        name_uz: product.name_uz || '',
+        description_ru: product.description_ru || '',
+        description_uz: product.description_uz || '',
+        image_url: product.image_url || '',
+        thumb_url: product.thumb_url || '',
+        product_images: normalizeProductImageItems(product.product_images),
+        price: Number(product.price || 0),
+        unit: product.unit || 'шт',
+        barcode: product.barcode || '',
+        in_stock: nextInStock,
+        sort_order: Number(product.sort_order || 0),
+        container_id: product.container_id || null,
+        season_scope: product.season_scope || 'all',
+        is_hidden_catalog: !!product.is_hidden_catalog
+      };
+
+      const response = await axios.put(`${API_URL}/admin/products/${productId}`, productData);
+      const updatedProduct = response.data || {};
+
+      setProducts((prev) => prev.map((item) => (
+        item.id === productId ? { ...item, ...updatedProduct } : item
+      )));
+    } catch (error) {
+      console.error('Toggle product stock error:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка обновления статуса товара' });
+    } finally {
+      setProductStockUpdatingIds((prev) => prev.filter((id) => id !== productId));
+    }
+  };
+
   // Excel Import
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [excelFile, setExcelFile] = useState(null);
@@ -3842,6 +3886,17 @@ function AdminDashboard() {
                                     }[product.season_scope] || product.season_scope}
                                   </Badge>
                                 )}
+                                <Form.Check
+                                  type="switch"
+                                  id={`product-stock-${product.id}`}
+                                  label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
+                                  checked={!product.in_stock}
+                                  disabled={productStockUpdatingIds.includes(product.id)}
+                                  className="small mb-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onTouchEnd={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleProductStockToggle(product, e.target.checked)}
+                                />
                               </div>
                             </td>
                             <td>
