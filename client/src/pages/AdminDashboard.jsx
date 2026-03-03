@@ -2897,7 +2897,7 @@ function AdminDashboard() {
           </Alert>
         )}
 
-        <Card className="admin-card">
+        <Card className="admin-card admin-main-card">
           <Card.Body>
             <Tabs activeKey={mainTab} onSelect={(k) => setMainTab(k || 'dashboard')} className="admin-tabs">
               {/* Dashboard Tab */}

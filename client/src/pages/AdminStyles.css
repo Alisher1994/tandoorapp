@@ -638,6 +638,16 @@ body::-webkit-scrollbar,
     overflow: visible;
 }
 
+.admin-main-card {
+    overflow: visible !important;
+}
+
+.admin-main-card>.card-body,
+.admin-main-card .tab-content,
+.admin-main-card .tab-pane {
+    overflow: visible !important;
+}
+
 .admin-card-header {
     background: white;
     border-bottom: 1px solid var(--border-color);
