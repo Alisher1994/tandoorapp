@@ -356,6 +356,20 @@ function AdminDashboard() {
   const [productSubcategoryFilter, setProductSubcategoryFilter] = useState('all');
   const [productStatusFilter, setProductStatusFilter] = useState('all');
 
+  const resetProductFilters = () => {
+    setProductSearch('');
+    setProductCategoryFilter('all');
+    setProductSubcategoryFilter('all');
+    setProductStatusFilter('all');
+  };
+
+  const hasActiveProductFilters = (
+    productSearch.trim() !== '' ||
+    productCategoryFilter !== 'all' ||
+    productSubcategoryFilter !== 'all' ||
+    productStatusFilter !== 'all'
+  );
+
   // Image preview modal
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
@@ -440,6 +454,7 @@ function AdminDashboard() {
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
+  const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
   const {
     actionButtonsVisible,
     actionButtonsRemainingLabel,
@@ -743,6 +758,20 @@ function AdminDashboard() {
     return uniqueMap;
   }, [importAssignableCategories]);
 
+  const productSubcategoryOptions = useMemo(() => {
+    const rootId = parseInt(productCategoryFilter, 10);
+    const source = productCategoryFilter === 'all' || Number.isNaN(rootId)
+      ? categories.filter((cat) => cat.parent_id !== null)
+      : categories.filter((cat) => cat.parent_id === rootId);
+
+    return [...source].sort((a, b) => {
+      const orderA = Number.isFinite(a.sort_order) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+      const orderB = Number.isFinite(b.sort_order) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
+      return String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru');
+    });
+  }, [categories, productCategoryFilter]);
+
   const filteredProductsForTable = useMemo(() => (
     products.filter((product) => {
       if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
@@ -1045,10 +1074,7 @@ function AdminDashboard() {
       return;
     }
     if (mainTab === 'products') {
-      setProductSearch('');
-      setProductCategoryFilter('all');
-      setProductSubcategoryFilter('all');
-      setProductStatusFilter('all');
+      resetProductFilters();
       return;
     }
     if (mainTab === 'feedback') {
@@ -1136,14 +1162,12 @@ function AdminDashboard() {
               value={productSubcategoryFilter}
               onChange={(e) => setProductSubcategoryFilter(e.target.value)}
             >
-              <option value="all">{t('allCategories')}</option>
-              {categories
-                .filter(c => productCategoryFilter !== 'all' && c.parent_id === parseInt(productCategoryFilter))
-                .map(sub => (
-                  <option key={`mobile-sub-cat-${sub.id}`} value={String(sub.id)}>
-                    {sub.name_ru}
-                  </option>
-                ))}
+              <option value="all">{allSubcategoriesLabel}</option>
+              {productSubcategoryOptions.map(sub => (
+                <option key={`mobile-sub-cat-${sub.id}`} value={String(sub.id)}>
+                  {sub.name_ru}
+                </option>
+              ))}
             </Form.Select>
           </Form.Group>
           <Form.Group>
@@ -3603,7 +3627,7 @@ function AdminDashboard() {
 
                 {/* Filters and Search */}
                 <Row className="mb-3 g-2 d-none d-lg-flex">
-                  <Col md={3}>
+                  <Col lg={3}>
                     <InputGroup size="sm">
                       <InputGroup.Text>🔍</InputGroup.Text>
                       <Form.Control
@@ -3618,8 +3642,8 @@ function AdminDashboard() {
                       )}
                     </InputGroup>
                   </Col>
-                  <Col md={3}>
-                    <Dropdown>
+                  <Col lg={3}>
+                    <Dropdown popperConfig={{ strategy: 'fixed' }}>
                       <Dropdown.Toggle as={CustomToggle} id="dropdown-custom-components" className="form-select-sm">
                         {productCategoryFilter === 'all'
                           ? t('allCategories')
@@ -3629,7 +3653,7 @@ function AdminDashboard() {
                           })()}
                       </Dropdown.Toggle>
 
-                      <Dropdown.Menu as={CustomMenu}>
+                      <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
                         <Dropdown.Item onClick={() => { setProductCategoryFilter('all'); setProductSubcategoryFilter('all'); }}>
                           {t('allCategories')}
                         </Dropdown.Item>
@@ -3646,31 +3670,29 @@ function AdminDashboard() {
                       </Dropdown.Menu>
                     </Dropdown>
                   </Col>
-                  <Col md={3}>
+                  <Col lg={3}>
                     {/* Subcategory dropdown — shown when a root category is selected and has children */}
                     {(() => {
-                      const subcats = productCategoryFilter !== 'all'
-                        ? categories.filter(c => c.parent_id === parseInt(productCategoryFilter))
-                        : [];
+                      const subcats = productSubcategoryOptions;
                       if (subcats.length === 0) return (
                         <Form.Select size="sm" disabled>
                           <option>{t('selectSubcategory')}</option>
                         </Form.Select>
                       );
                       return (
-                        <Dropdown>
+                        <Dropdown popperConfig={{ strategy: 'fixed' }}>
                           <Dropdown.Toggle as={CustomToggle} id="dropdown-subcat" className="form-select-sm">
                             {productSubcategoryFilter === 'all'
-                              ? t('allCategories')
+                              ? allSubcategoriesLabel
                               : (() => {
                                 const selectedObj = categories.find(c => c.id === parseInt(productSubcategoryFilter));
-                                return selectedObj ? selectedObj.name_ru : t('allCategories');
+                                return selectedObj ? selectedObj.name_ru : allSubcategoriesLabel;
                               })()}
                           </Dropdown.Toggle>
 
-                          <Dropdown.Menu as={CustomMenu}>
+                          <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
                             <Dropdown.Item onClick={() => setProductSubcategoryFilter('all')}>
-                              {t('allCategories')}
+                              {allSubcategoriesLabel}
                             </Dropdown.Item>
                             {subcats.map(sub => (
                               <Dropdown.Item
@@ -3687,7 +3709,7 @@ function AdminDashboard() {
                       );
                     })()}
                   </Col>
-                  <Col md={3}>
+                  <Col lg={2}>
                     <Form.Select
                       size="sm"
                       value={productStatusFilter}
@@ -3697,6 +3719,17 @@ function AdminDashboard() {
                       <option value="active">{t('activeProducts')}</option>
                       <option value="hidden">{t('hiddenProducts')}</option>
                     </Form.Select>
+                  </Col>
+                  <Col lg={1}>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      className="w-100"
+                      onClick={resetProductFilters}
+                      disabled={!hasActiveProductFilters}
+                    >
+                      Очистить
+                    </Button>
                   </Col>
                 </Row>
 

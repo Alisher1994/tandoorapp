@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../database/connection');
 const { authenticate, requireOperator, requireRestaurantAccess } = require('../middleware/auth');
-const { sendOrderUpdateToUser, getRestaurantBot } = require('../bot/notifications');
+const { sendOrderUpdateToUser, getRestaurantBot, updateOrderGroupNotification } = require('../bot/notifications');
 const {
   logActivity,
   getIpFromRequest,
@@ -646,16 +646,45 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Notify customer
+    // Notify customer and sync group inline buttons/message
     try {
-      if (updatedOrder.rows[0].user_id) {
-        // Need to fetch full order for notification
-        const fullOrder = await pool.query('SELECT o.*, r.telegram_bot_token FROM orders o JOIN restaurants r ON o.restaurant_id = r.id WHERE o.id = $1', [orderId]);
-        const { sendOrderUpdateToUser } = require('../bot/notifications');
-        const userTelegram = await pool.query('SELECT telegram_id FROM users WHERE id = $1', [fullOrder.rows[0].user_id]);
-        if (userTelegram.rows[0]?.telegram_id) {
-          await sendOrderUpdateToUser(userTelegram.rows[0].telegram_id, fullOrder.rows[0], 'preparing', fullOrder.rows[0].telegram_bot_token);
+      const fullOrderResult = await pool.query(
+        `SELECT o.*, r.telegram_bot_token, pb.full_name AS processed_by_name
+         FROM orders o
+         JOIN restaurants r ON o.restaurant_id = r.id
+         LEFT JOIN users pb ON pb.id = o.processed_by
+         WHERE o.id = $1
+         LIMIT 1`,
+        [orderId]
+      );
+
+      if (fullOrderResult.rows.length > 0) {
+        const fullOrder = fullOrderResult.rows[0];
+
+        if (fullOrder.user_id) {
+          const userTelegram = await pool.query('SELECT telegram_id FROM users WHERE id = $1', [fullOrder.user_id]);
+          if (userTelegram.rows[0]?.telegram_id) {
+            await sendOrderUpdateToUser(
+              userTelegram.rows[0].telegram_id,
+              fullOrder,
+              'preparing',
+              fullOrder.telegram_bot_token
+            );
+          }
         }
+
+        const itemsResult = await pool.query(
+          `SELECT oi.*
+           FROM order_items oi
+           WHERE oi.order_id = $1
+           ORDER BY oi.id`,
+          [orderId]
+        );
+
+        await updateOrderGroupNotification(fullOrder, itemsResult.rows, {
+          status: 'preparing',
+          operatorName: fullOrder.processed_by_name || req.user.full_name || req.user.username || ''
+        });
       }
     } catch (err) {
       console.error('Notify customer on accept error:', err);
@@ -1212,32 +1241,62 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     // Get user telegram_id and restaurant bot token and custom messages, then send notification
     const userResult = await pool.query(
-      `SELECT u.telegram_id, r.telegram_bot_token,
-  r.msg_new, r.msg_preparing, r.msg_delivering, r.msg_delivered, r.msg_cancelled
-       FROM users u
-       LEFT JOIN restaurants r ON r.id = $2
-       WHERE u.id = $1`,
-      [order.user_id, order.restaurant_id]
+      `SELECT
+         u.telegram_id,
+         r.telegram_bot_token,
+         r.msg_new, r.msg_preparing, r.msg_delivering, r.msg_delivered, r.msg_cancelled,
+         pb.full_name AS processed_by_name
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       LEFT JOIN users pb ON pb.id = o.processed_by
+       LEFT JOIN restaurants r ON r.id = o.restaurant_id
+       WHERE o.id = $1
+       LIMIT 1`,
+      [order.id]
     );
 
-    if (userResult.rows[0]?.telegram_id) {
-      const row = userResult.rows[0];
+    const orderNotifyRow = userResult.rows[0];
+    if (orderNotifyRow?.telegram_id) {
       const customMessages = {
-        msg_new: row.msg_new,
-        msg_preparing: row.msg_preparing,
-        msg_delivering: row.msg_delivering,
-        msg_delivered: row.msg_delivered,
-        msg_cancelled: row.msg_cancelled
+        msg_new: orderNotifyRow.msg_new,
+        msg_preparing: orderNotifyRow.msg_preparing,
+        msg_delivering: orderNotifyRow.msg_delivering,
+        msg_delivered: orderNotifyRow.msg_delivered,
+        msg_cancelled: orderNotifyRow.msg_cancelled
       };
 
       await sendOrderUpdateToUser(
-        row.telegram_id,
+        orderNotifyRow.telegram_id,
         order,
         normalizedStatus,
-        row.telegram_bot_token,
+        orderNotifyRow.telegram_bot_token,
         null, // restaurantPaymentUrls
         customMessages
       );
+    }
+
+    try {
+      const itemsResult = await pool.query(
+        `SELECT oi.*
+         FROM order_items oi
+         WHERE oi.order_id = $1
+         ORDER BY oi.id`,
+        [order.id]
+      );
+
+      await updateOrderGroupNotification(
+        {
+          ...order,
+          telegram_bot_token: orderNotifyRow?.telegram_bot_token || null
+        },
+        itemsResult.rows,
+        {
+          status: normalizedStatus,
+          operatorName: orderNotifyRow?.processed_by_name || req.user.full_name || req.user.username || ''
+        }
+      );
+    } catch (groupNotifyError) {
+      console.error('Group order notification sync error:', groupNotifyError);
     }
 
     res.json({

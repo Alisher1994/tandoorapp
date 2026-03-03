@@ -187,6 +187,11 @@ body::-webkit-scrollbar,
     padding: 8px;
 }
 
+.admin-filter-dropdown-menu {
+    z-index: 2050 !important;
+    min-width: 300px;
+}
+
 .admin-lang-switch {
     display: flex;
     background: #eef2f7;

@@ -325,6 +325,95 @@ function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '', option
   return { inline_keyboard: previewButton ? [[previewButton]] : [] };
 }
 
+function resolveGroupOrderStatusMeta(rawStatus) {
+  const normalizedStatus = String(rawStatus || '').trim().toLowerCase();
+
+  switch (normalizedStatus) {
+    case 'accepted':
+      return { statusKey: 'accepted', keyboardStage: 'accepted', revealSensitive: true, clearKeyboard: false };
+    case 'in_progress':
+    case 'preparing':
+      return { statusKey: 'preparing', keyboardStage: 'preparing', revealSensitive: true, clearKeyboard: false };
+    case 'delivering':
+      return { statusKey: 'delivering', keyboardStage: 'delivering', revealSensitive: true, clearKeyboard: false };
+    case 'delivered':
+      return { statusKey: 'delivered', keyboardStage: 'done', revealSensitive: true, clearKeyboard: false };
+    case 'cancelled':
+      return { statusKey: 'cancelled', keyboardStage: null, revealSensitive: true, clearKeyboard: true };
+    case 'new':
+    default:
+      return { statusKey: 'new', keyboardStage: 'new', revealSensitive: false, clearKeyboard: false };
+  }
+}
+
+async function updateOrderGroupNotification(order, items = [], options = {}) {
+  if (!order?.id) return;
+
+  const targetChatId = options.chatId || order.admin_chat_id;
+  if (!targetChatId) return;
+
+  const botToken = options.botToken || order.telegram_bot_token || null;
+  const bot = getRestaurantBot(botToken, order.restaurant_id);
+  if (!bot) {
+    console.warn('⚠️  Bot not initialized, cannot update group order message');
+    return;
+  }
+
+  const operatorName = options.operatorName || '';
+  const statusMeta = resolveGroupOrderStatusMeta(options.status || order.status);
+  const previewUrl = buildOrderPreviewUrl(order.id);
+  const replyMarkup = statusMeta.clearKeyboard
+    ? { inline_keyboard: [] }
+    : buildGroupOrderActionKeyboard(order.id, statusMeta.keyboardStage, operatorName, { previewUrl });
+  const message = buildGroupOrderNotificationPayload(order, items, {
+    revealSensitive: statusMeta.revealSensitive,
+    statusKey: statusMeta.statusKey,
+    operatorName,
+    includePreviewLink: false,
+    previewUrl
+  });
+
+  const messageId = options.messageId || order.admin_message_id;
+  const chatIdText = String(targetChatId);
+
+  try {
+    if (messageId) {
+      try {
+        await bot.editMessageText(message, {
+          chat_id: chatIdText,
+          message_id: Number(messageId),
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          reply_markup: replyMarkup
+        });
+        return;
+      } catch (editError) {
+        const editErrorMessage = String(editError?.message || '').toLowerCase();
+        if (editErrorMessage.includes('message is not modified')) {
+          return;
+        }
+      }
+    }
+
+    const sent = await bot.sendMessage(chatIdText, message, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: replyMarkup
+    });
+
+    if (sent?.message_id) {
+      await pool.query(
+        `UPDATE orders 
+         SET admin_message_id = $1, admin_chat_id = $2 
+         WHERE id = $3`,
+        [sent.message_id, chatIdText, order.id]
+      );
+    }
+  } catch (error) {
+    console.error('Update order group notification error:', error);
+  }
+}
+
 /**
  * Send order notification to admin group with action buttons
  */
@@ -647,5 +736,6 @@ module.exports = {
   getRestaurantBot,
   buildGroupOrderNotificationPayload,
   buildGroupOrderActionKeyboard,
-  buildOrderPreviewUrl
+  buildOrderPreviewUrl,
+  updateOrderGroupNotification
 };
