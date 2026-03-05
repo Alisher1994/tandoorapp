@@ -75,9 +75,10 @@ router.get('/operator-preview', async (req, res) => {
       const lineTotal = (Number(item.quantity) || 0) * (Number(item.price) || 0);
       return `
         <div class="item">
+          <div class="item-index">${index + 1}.</div>
           <div class="thumb-wrap">${img ? `<img class="thumb" src="${escapeHtml(img)}" alt="">` : '<div class="thumb ph">🍽️</div>'}</div>
           <div class="meta">
-            <div class="name">${index + 1}. ${escapeHtml(item.product_name)}</div>
+            <div class="name">${escapeHtml(item.product_name)}</div>
             <div class="sub">${escapeHtml(item.quantity)} x ${fmt(item.price)} сум</div>
           </div>
           <div class="sum">${fmt(lineTotal)} сум</div>
@@ -104,8 +105,9 @@ router.get('/operator-preview', async (req, res) => {
           .val{font-weight:600}
           .items{padding:6px 18px 16px}
           .items h3{font-size:15px;margin:8px 0 10px}
-          .item{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #efe5d8}
+          .item{display:grid;grid-template-columns:34px 48px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #efe5d8}
           .item:first-of-type{border-top:none}
+          .item-index{font-size:13px;font-weight:700;color:#7d6a55;text-align:right}
           .thumb{width:48px;height:48px;object-fit:cover;border-radius:10px;border:1px solid #eadfce;background:#fff}
           .thumb.ph{display:flex;align-items:center;justify-content:center;font-size:20px;background:#f1eadf}
           .name{font-size:14px;font-weight:700}
@@ -114,8 +116,8 @@ router.get('/operator-preview', async (req, res) => {
           .total{margin-top:10px;padding-top:10px;border-top:1px solid #dfcfb9;display:flex;justify-content:space-between;font-weight:700;font-size:16px;color:#8f6d46}
           @media (max-width:640px){
             .grid{grid-template-columns:1fr}
-            .item{grid-template-columns:44px 1fr}
-            .sum{grid-column:2}
+            .item{grid-template-columns:30px 44px 1fr}
+            .sum{grid-column:3}
           }
         </style>
       </head>
