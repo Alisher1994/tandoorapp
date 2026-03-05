@@ -12,6 +12,9 @@ function BottomNav() {
   const { t } = useLanguage();
   const [isCompact, setIsCompact] = useState(false);
   const [isIOSDevice, setIsIOSDevice] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth >= 992 : false
+  ));
   const lastScrollTopRef = useRef(0);
   
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -29,6 +32,12 @@ function BottomNav() {
   useEffect(() => {
     const ua = navigator.userAgent || '';
     setIsIOSDevice(/iPhone|iPad|iPod/i.test(ua));
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktopViewport(window.innerWidth >= 992);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -78,8 +87,10 @@ function BottomNav() {
     <nav style={{
       position: 'fixed',
       bottom: isIOSDevice ? 'max(10px, env(safe-area-inset-bottom))' : 10,
-      left: isIOSDevice ? 12 : 10,
-      right: isIOSDevice ? 12 : 10,
+      left: isDesktopViewport ? '50%' : (isIOSDevice ? 12 : 10),
+      right: isDesktopViewport ? 'auto' : (isIOSDevice ? 12 : 10),
+      width: isDesktopViewport ? 'min(920px, calc(100vw - 24px))' : 'auto',
+      transform: isDesktopViewport ? 'translateX(-50%)' : 'none',
       background: 'rgba(255, 255, 255, 0.88)',
       border: '1px solid rgba(71, 85, 105, 0.18)',
       display: 'flex',

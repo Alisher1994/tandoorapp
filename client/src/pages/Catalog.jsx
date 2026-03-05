@@ -80,11 +80,14 @@ function Catalog() {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [galleryProductName, setGalleryProductName] = useState('');
   const [loading, setLoading] = useState(true);
-  const { user, isOperator } = useAuth();
+  const { user, isOperator, logout } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
-  const { language, toggleLanguage } = useLanguage();
+  const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth >= 992 : false
+  ));
 
   const productGroupRefs = useRef({});
   const viewedAdsRef = useRef(new Set());
@@ -100,10 +103,22 @@ function Catalog() {
   const tabScrollLockTimeoutRef = useRef(null);
   const isTabAutoScrollRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
+  const isTelegramWebView = useMemo(() => (
+    typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
+  ), []);
+  const shouldShowDesktopLogout = isDesktopViewport && !isTelegramWebView && !isOperator();
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
     fetchRestaurants();
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsDesktopViewport(window.innerWidth >= 992);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // For customers: lock to active_restaurant_id from bot
@@ -591,6 +606,10 @@ function Catalog() {
   const toggleHeaderSearch = () => {
     setIsHeaderSearchOpen((prev) => !prev);
   };
+  const handleDesktopLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const nonEmptyCategoryIds = useMemo(() => {
     const memo = new Map();
@@ -1019,7 +1038,13 @@ function Catalog() {
               variant="top"
               src={primaryImageUrl}
               alt={productName}
-              style={{ height: '140px', objectFit: 'cover', cursor: 'zoom-in' }}
+              style={{
+                width: '100%',
+                aspectRatio: '4 / 3',
+                objectFit: 'cover',
+                cursor: 'zoom-in',
+                display: 'block'
+              }}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1031,7 +1056,7 @@ function Catalog() {
             />
           ) : (
             <div
-              style={{ height: '140px', background: '#f8f9fa' }}
+              style={{ width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }}
               className="d-flex align-items-center justify-content-center"
             >
               <span style={{ fontSize: '3rem', opacity: 0.3 }}>🏪</span>
@@ -1659,7 +1684,10 @@ function Catalog() {
             : '1px solid var(--border-color)'
         }}
       >
-        <div className="d-flex justify-content-between align-items-center w-100 px-3">
+        <div
+          className="d-flex justify-content-between align-items-center w-100 px-3 mx-auto"
+          style={{ maxWidth: '1280px' }}
+        >
           <button
             type="button"
             onClick={toggleHeaderSearch}
@@ -1706,47 +1734,60 @@ function Catalog() {
             )}
           </Navbar.Brand>
 
-          {/* Language switcher with flag + label */}
-          <button
-            onClick={toggleLanguage}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-            title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
-          >
-            <span
+          <div className="d-flex align-items-center gap-2">
+            {/* Language switcher with flag + label */}
+            <button
+              onClick={toggleLanguage}
               style={{
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                color: '#4b5563',
-                letterSpacing: '0.04em',
-                lineHeight: 1,
-                display: 'inline-flex',
+                background: 'none',
+                border: 'none',
+                padding: '4px',
+                cursor: 'pointer',
+                display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '20px',
-                textShadow: 'none'
+                gap: '4px'
               }}
+              title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
             >
-              {language === 'ru' ? 'RU' : 'UZ'}
-            </span>
-            <img
-              src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-              alt={language === 'ru' ? 'RU' : 'UZ'}
-              style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-            />
-          </button>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  color: '#4b5563',
+                  letterSpacing: '0.04em',
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '20px',
+                  textShadow: 'none'
+                }}
+              >
+                {language === 'ru' ? 'RU' : 'UZ'}
+              </span>
+              <img
+                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+                alt={language === 'ru' ? 'RU' : 'UZ'}
+                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+              />
+            </button>
+            {shouldShowDesktopLogout && (
+              <button
+                type="button"
+                onClick={handleDesktopLogout}
+                className="btn btn-sm btn-outline-secondary"
+                style={{ borderRadius: 10, fontWeight: 600, minHeight: 34 }}
+              >
+                {t('logout')}
+              </button>
+            )}
+          </div>
         </div>
 
         <div
-          className="px-3"
+          className="px-3 mx-auto"
           style={{
+            maxWidth: '1280px',
             width: '100%',
             overflow: 'hidden',
             maxHeight: isHeaderSearchOpen ? 88 : 0,
@@ -1769,8 +1810,10 @@ function Catalog() {
           }}
         >
           <div
+            className="mx-auto"
             ref={level3TabsScrollerRef}
             style={{
+              maxWidth: '1280px',
               overflowX: 'auto',
               whiteSpace: 'nowrap',
               padding: '6px 12px 7px',
@@ -1872,7 +1915,7 @@ function Catalog() {
                         {level2Categories.map((level2Category) => {
                           const categoryImage = resolveImageUrl(level2Category.image_url);
                           return (
-                            <Col key={level2Category.id} xs={6}>
+                            <Col key={level2Category.id} xs={6} lg={3}>
                               <button
                                 type="button"
                                 onClick={() => openLevel2Category(level2Category.id)}
@@ -1890,28 +1933,28 @@ function Catalog() {
                                     position: 'absolute',
                                     inset: 0,
                                     backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                                     backgroundSize: categoryImage ? 'contain' : 'cover',
-                                     backgroundPosition: 'center',
-                                     backgroundRepeat: 'no-repeat',
-                                     backgroundColor: '#ffffff'
-                                   }}
-                                 />
-                                 <div
-                                   style={{
-                                     position: 'absolute',
-                                      top: 4,
-                                      left: 0,
-                                      right: 0,
-                                      zIndex: 1,
-                                      padding: '6px 10px 0',
-                                      color: '#111827',
-                                      fontWeight: 700,
-                                      fontSize: '0.78rem',
-                                     lineHeight: 1.2
-                                   }}
-                                  >
-                                    {getCategoryName(level2Category)}
-                                  </div>
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundColor: '#ffffff'
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: 4,
+                                    left: 0,
+                                    right: 0,
+                                    zIndex: 1,
+                                    padding: '6px 10px 0',
+                                    color: '#111827',
+                                    fontWeight: 700,
+                                    fontSize: '0.78rem',
+                                    lineHeight: 1.2
+                                  }}
+                                >
+                                  {getCategoryName(level2Category)}
+                                </div>
                               </button>
                             </Col>
                           );
@@ -1942,7 +1985,7 @@ function Catalog() {
                     <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
                     <Row className="g-3">
                       {section.products.map((product) => (
-                        <Col key={product.id} xs={6}>
+                        <Col key={product.id} xs={6} lg={3}>
                           {renderProductCard(product)}
                         </Col>
                       ))}

@@ -674,7 +674,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
     const inlineKeyboard = [];
 
     if (catalogUrl) {
-      inlineKeyboard.push([{ text: '🏪 Открыть магазин', url: catalogUrl }]);
+      inlineKeyboard.push([{ text: '🏪 Открыть магазин', web_app: { url: catalogUrl } }]);
     }
     inlineKeyboard.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
 
