@@ -95,6 +95,7 @@ function Catalog() {
   const isDataFetchInProgressRef = useRef(false);
   const catalogFetchIdRef = useRef(0);
   const level3TabsContainerRef = useRef(null);
+  const level3TabsScrollerRef = useRef(null);
   const level3TabButtonRefs = useRef({});
   const tabScrollSpyRafRef = useRef(null);
   const scrollProgressRafRef = useRef(null);
@@ -748,12 +749,13 @@ function Catalog() {
 
   useEffect(() => {
     if (!activeSubcategoryTab) return;
+    const tabsScroller = level3TabsScrollerRef.current;
     const activeTabButton = level3TabButtonRefs.current[activeSubcategoryTab];
-    if (!activeTabButton) return;
-    activeTabButton.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center'
+    if (!tabsScroller || !activeTabButton) return;
+    const targetLeft = activeTabButton.offsetLeft - ((tabsScroller.clientWidth - activeTabButton.offsetWidth) / 2);
+    tabsScroller.scrollTo({
+      left: Math.max(0, targetLeft),
+      behavior: 'smooth'
     });
   }, [activeSubcategoryTab, level3Tabs]);
 
@@ -1770,48 +1772,70 @@ function Catalog() {
           ref={level3TabsContainerRef}
           style={{
             position: 'sticky',
-            top: Math.max(56, catalogHeaderHeight),
-            zIndex: 1009,
-            overflowX: 'auto',
-            whiteSpace: 'nowrap',
-            padding: '8px 12px 8px',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
+            top: Math.max(56, catalogHeaderHeight) + 1,
+            zIndex: 1008,
             backgroundColor: catalogHeaderBackground,
-            borderBottom: '1px solid rgba(148, 163, 184, 0.26)',
-            borderTop: '1px solid rgba(148, 163, 184, 0.2)',
-            boxShadow: '0 1px 0 rgba(148, 163, 184, 0.16)'
+            borderBottom: '1px solid rgba(148, 163, 184, 0.24)',
+            boxShadow: '0 1px 0 rgba(148, 163, 184, 0.14)'
           }}
         >
-          {level3Tabs.map((section) => (
-            <Button
-              ref={(el) => {
-                if (el) level3TabButtonRefs.current[section.id] = el;
-              }}
-              key={section.id}
-              variant="light"
-              className="me-2 mb-2"
-              size="sm"
+          <div
+            ref={level3TabsScrollerRef}
+            style={{
+              overflowX: 'auto',
+              whiteSpace: 'nowrap',
+              padding: '6px 12px 7px',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
+            {level3Tabs.map((section) => (
+              <Button
+                ref={(el) => {
+                  if (el) level3TabButtonRefs.current[section.id] = el;
+                }}
+                key={section.id}
+                variant="light"
+                className="me-2 mb-0"
+                size="sm"
+                style={{
+                  border: 'none',
+                  boxShadow: 'none',
+                  borderRadius: 8,
+                  minHeight: 32,
+                  padding: '6px 12px',
+                  fontSize: '0.9rem',
+                  fontWeight: 500,
+                  color: activeSubcategoryTab === section.id ? '#ffffff' : '#526277',
+                  background: activeSubcategoryTab === section.id
+                    ? 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)'
+                    : 'rgba(255, 255, 255, 0.88)',
+                  transition: 'background 0.2s ease, color 0.2s ease'
+                }}
+                onClick={() => scrollToProductGroup(section.id)}
+              >
+                {section.title}
+              </Button>
+            ))}
+          </div>
+          <div
+            aria-hidden="true"
+            style={{
+              height: 2,
+              background: 'rgba(148, 163, 184, 0.16)'
+            }}
+          >
+            <div
               style={{
-                border: 'none',
-                boxShadow: 'none',
-                borderRadius: 8,
-                minHeight: 32,
-                padding: '6px 12px',
-                fontSize: '0.9rem',
-                fontWeight: 500,
-                color: activeSubcategoryTab === section.id ? '#ffffff' : '#526277',
-                background: activeSubcategoryTab === section.id
-                  ? 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)'
-                  : 'rgba(255, 255, 255, 0.88)',
-                transition: 'background 0.2s ease, color 0.2s ease'
+                width: `${Math.round(catalogScrollProgress * 100)}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
+                boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
+                transition: 'width 0.12s linear'
               }}
-              onClick={() => scrollToProductGroup(section.id)}
-            >
-              {section.title}
-            </Button>
-          ))}
+            />
+          </div>
         </div>
       )}
 
@@ -2075,32 +2099,6 @@ function Catalog() {
           )}
         </Modal.Body>
       </Modal>
-
-      {!loading && selectedRestaurant && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'fixed',
-            left: 0,
-            right: 0,
-            bottom: isOperator() ? 0 : 70,
-            height: 3,
-            zIndex: 1005,
-            pointerEvents: 'none',
-            background: 'rgba(148, 163, 184, 0.18)'
-          }}
-        >
-          <div
-            style={{
-              width: `${Math.round(catalogScrollProgress * 100)}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
-              boxShadow: '0 0 10px rgba(37, 99, 235, 0.42)',
-              transition: 'width 0.12s linear'
-            }}
-          />
-        </div>
-      )}
 
       {/* Bottom navigation */}
       {!isOperator() && <BottomNav />}
