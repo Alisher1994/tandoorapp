@@ -74,6 +74,8 @@ function Catalog() {
   const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
   const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
   const [catalogSearchPlaceholderDeleting, setCatalogSearchPlaceholderDeleting] = useState(false);
+  const [level3TabsHeight, setLevel3TabsHeight] = useState(0);
+  const [catalogScrollProgress, setCatalogScrollProgress] = useState(0);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -92,6 +94,13 @@ function Catalog() {
   const categoryListScrollOffsetRef = useRef(0);
   const isDataFetchInProgressRef = useRef(false);
   const catalogFetchIdRef = useRef(0);
+  const level3TabsContainerRef = useRef(null);
+  const level3TabButtonRefs = useRef({});
+  const tabScrollSpyRafRef = useRef(null);
+  const scrollProgressRafRef = useRef(null);
+  const tabScrollLockTimeoutRef = useRef(null);
+  const isTabAutoScrollRef = useRef(false);
+  const catalogHeaderBackground = '#f8fafc';
 
   // Load restaurants (for header/logo and operator selection)
   useEffect(() => {
@@ -661,6 +670,10 @@ function Catalog() {
     hasLevel3Sections ? level3Sections : []
   ), [hasLevel3Sections, level3Sections]);
 
+  useEffect(() => {
+    level3TabButtonRefs.current = {};
+  }, [selectedCategory, level3Tabs]);
+
   const productSections = useMemo(() => {
     if (!selectedLevel2Category) return [];
 
@@ -709,14 +722,153 @@ function Catalog() {
     setActiveSubcategoryTab(level3Tabs[0].id);
   }, [selectedCategory, level3Tabs]);
 
+  useEffect(() => {
+    const tabsEl = level3TabsContainerRef.current;
+    if (!tabsEl || selectedCategory === null || level3Tabs.length === 0) {
+      setLevel3TabsHeight(0);
+      return undefined;
+    }
+
+    const updateTabsHeight = () => {
+      const nextHeight = Math.round(tabsEl.getBoundingClientRect().height || 0);
+      setLevel3TabsHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    };
+
+    updateTabsHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(updateTabsHeight);
+      ro.observe(tabsEl);
+      return () => ro.disconnect();
+    }
+
+    window.addEventListener('resize', updateTabsHeight);
+    return () => window.removeEventListener('resize', updateTabsHeight);
+  }, [selectedCategory, level3Tabs.length, isHeaderSearchOpen]);
+
+  useEffect(() => {
+    if (!activeSubcategoryTab) return;
+    const activeTabButton = level3TabButtonRefs.current[activeSubcategoryTab];
+    if (!activeTabButton) return;
+    activeTabButton.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center'
+    });
+  }, [activeSubcategoryTab, level3Tabs]);
+
+  useEffect(() => {
+    if (selectedCategory === null || level3Tabs.length === 0 || normalizedCatalogSearch || loading) {
+      return undefined;
+    }
+
+    const scrollContainer = getScrollContainer();
+    const scrollTarget = scrollContainer === window ? window : scrollContainer;
+    const stickyOffset = Math.max(56, catalogHeaderHeight) + level3TabsHeight;
+
+    const detectVisibleSection = () => {
+      if (isTabAutoScrollRef.current) return;
+      const sectionProbeLine = stickyOffset + 16;
+      let currentId = null;
+      let firstId = null;
+
+      level3Tabs.forEach((section) => {
+        const sectionElement = productGroupRefs.current[section.id];
+        if (!sectionElement) return;
+        const sectionTop = sectionElement.getBoundingClientRect().top;
+        if (firstId === null) firstId = section.id;
+        if (sectionTop <= sectionProbeLine) currentId = section.id;
+      });
+
+      const nextActiveId = currentId ?? firstId;
+      if (nextActiveId && nextActiveId !== activeSubcategoryTab) {
+        setActiveSubcategoryTab(nextActiveId);
+      }
+    };
+
+    const onScroll = () => {
+      if (tabScrollSpyRafRef.current) return;
+      tabScrollSpyRafRef.current = requestAnimationFrame(() => {
+        tabScrollSpyRafRef.current = null;
+        detectVisibleSection();
+      });
+    };
+
+    detectVisibleSection();
+    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    return () => {
+      scrollTarget.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (tabScrollSpyRafRef.current) {
+        cancelAnimationFrame(tabScrollSpyRafRef.current);
+        tabScrollSpyRafRef.current = null;
+      }
+    };
+  }, [selectedCategory, level3Tabs, activeSubcategoryTab, normalizedCatalogSearch, loading, catalogHeaderHeight, level3TabsHeight]);
+
+  useEffect(() => {
+    if (!selectedRestaurant || loading) {
+      setCatalogScrollProgress(0);
+      return undefined;
+    }
+
+    const scrollContainer = getScrollContainer();
+    const scrollTarget = scrollContainer === window ? window : scrollContainer;
+
+    const updateProgress = () => {
+      const scrollTop = scrollContainer === window
+        ? (window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || 0)
+        : scrollContainer.scrollTop;
+      const maxScroll = scrollContainer === window
+        ? Math.max(1, (document.documentElement?.scrollHeight || 1) - window.innerHeight)
+        : Math.max(1, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+      const nextProgress = Math.min(1, Math.max(0, scrollTop / maxScroll));
+      setCatalogScrollProgress((prev) => (
+        Math.abs(prev - nextProgress) < 0.004 ? prev : nextProgress
+      ));
+    };
+
+    const onScroll = () => {
+      if (scrollProgressRafRef.current) return;
+      scrollProgressRafRef.current = requestAnimationFrame(() => {
+        scrollProgressRafRef.current = null;
+        updateProgress();
+      });
+    };
+
+    updateProgress();
+    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    return () => {
+      scrollTarget.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (scrollProgressRafRef.current) {
+        cancelAnimationFrame(scrollProgressRafRef.current);
+        scrollProgressRafRef.current = null;
+      }
+    };
+  }, [selectedRestaurant, loading, selectedCategory, normalizedCatalogSearch, productSections.length]);
+
+  useEffect(() => () => {
+    if (tabScrollLockTimeoutRef.current) {
+      clearTimeout(tabScrollLockTimeoutRef.current);
+      tabScrollLockTimeoutRef.current = null;
+    }
+  }, []);
+
   const openLevel2Category = (categoryId) => {
     categoryListScrollOffsetRef.current = getCurrentScrollOffset();
+    isTabAutoScrollRef.current = false;
     setSelectedCategory(categoryId);
     setActiveSubcategoryTab(null);
     scrollToTop();
   };
 
   const closeLevel2Category = () => {
+    isTabAutoScrollRef.current = false;
     const restoreOffset = categoryListScrollOffsetRef.current;
     setSelectedCategory(null);
     setActiveSubcategoryTab(null);
@@ -731,12 +883,21 @@ function Catalog() {
     const sectionElement = productGroupRefs.current[sectionId];
     if (!sectionElement) return;
 
+    isTabAutoScrollRef.current = true;
+    if (tabScrollLockTimeoutRef.current) {
+      clearTimeout(tabScrollLockTimeoutRef.current);
+    }
+
     const scrollContainer = getScrollContainer();
     const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
     const rect = sectionElement.getBoundingClientRect();
-    const topOffset = rect.top + currentScroll - 132;
+    const stickyOffset = Math.max(56, catalogHeaderHeight) + level3TabsHeight + 12;
+    const topOffset = rect.top + currentScroll - stickyOffset;
     setActiveSubcategoryTab(sectionId);
     scrollToOffset(topOffset);
+    tabScrollLockTimeoutRef.current = setTimeout(() => {
+      isTabAutoScrollRef.current = false;
+    }, 450);
   };
 
   const currentRestaurant = restaurants.find(r => r.id === selectedRestaurant);
@@ -823,6 +984,16 @@ function Catalog() {
     setEntryPopupBanner(nextPopupBanner);
     setShowEntryPopupModal(true);
   }, [entryPopupBanners, selectedRestaurant, loading]);
+
+  useEffect(() => {
+    if (!showEntryPopupModal || !entryPopupBanner) return undefined;
+
+    const timeout = setTimeout(() => {
+      setShowEntryPopupModal(false);
+    }, Math.max(2, Number(entryPopupBanner.display_seconds) || 5) * 1000);
+
+    return () => clearTimeout(timeout);
+  }, [showEntryPopupModal, entryPopupBanner]);
 
   const openAdBannerLink = (banner) => {
     if (!banner?.click_url) return;
@@ -1487,7 +1658,7 @@ function Catalog() {
           willChange: 'transform',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
-          backgroundColor: '#f8fafc',
+          backgroundColor: catalogHeaderBackground,
           borderBottom: '1px solid var(--border-color)'
         }}
       >
@@ -1596,27 +1767,46 @@ function Catalog() {
 
       {selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 && (
         <div
+          ref={level3TabsContainerRef}
           style={{
             position: 'sticky',
-            top: catalogHeaderHeight,
-            zIndex: 1000,
+            top: Math.max(56, catalogHeaderHeight),
+            zIndex: 1009,
             overflowX: 'auto',
             whiteSpace: 'nowrap',
-            padding: '10px 12px 8px',
+            padding: '8px 12px 8px',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
-            backgroundColor: '#f8fafc',
-            borderBottom: '1px solid var(--border-color)'
+            backgroundColor: catalogHeaderBackground,
+            borderBottom: '1px solid rgba(148, 163, 184, 0.26)',
+            borderTop: '1px solid rgba(148, 163, 184, 0.2)',
+            boxShadow: '0 1px 0 rgba(148, 163, 184, 0.16)'
           }}
         >
           {level3Tabs.map((section) => (
             <Button
+              ref={(el) => {
+                if (el) level3TabButtonRefs.current[section.id] = el;
+              }}
               key={section.id}
-              variant={activeSubcategoryTab === section.id ? 'primary' : 'outline-secondary'}
+              variant="light"
               className="me-2 mb-2"
               size="sm"
-              style={activeSubcategoryTab === section.id ? undefined : { borderColor: 'var(--border-color)', color: 'var(--primary-color)' }}
+              style={{
+                border: 'none',
+                boxShadow: 'none',
+                borderRadius: 8,
+                minHeight: 32,
+                padding: '6px 12px',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                color: activeSubcategoryTab === section.id ? '#ffffff' : '#526277',
+                background: activeSubcategoryTab === section.id
+                  ? 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)'
+                  : 'rgba(255, 255, 255, 0.88)',
+                transition: 'background 0.2s ease, color 0.2s ease'
+              }}
               onClick={() => scrollToProductGroup(section.id)}
             >
               {section.title}
@@ -1885,6 +2075,32 @@ function Catalog() {
           )}
         </Modal.Body>
       </Modal>
+
+      {!loading && selectedRestaurant && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: isOperator() ? 0 : 70,
+            height: 3,
+            zIndex: 1005,
+            pointerEvents: 'none',
+            background: 'rgba(148, 163, 184, 0.18)'
+          }}
+        >
+          <div
+            style={{
+              width: `${Math.round(catalogScrollProgress * 100)}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
+              boxShadow: '0 0 10px rgba(37, 99, 235, 0.42)',
+              transition: 'width 0.12s linear'
+            }}
+          />
+        </div>
+      )}
 
       {/* Bottom navigation */}
       {!isOperator() && <BottomNav />}
