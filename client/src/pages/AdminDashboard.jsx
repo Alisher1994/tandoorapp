@@ -6430,44 +6430,32 @@ function AdminDashboard() {
                     </Form.Text>
                   </Form.Group>
                 </Col>
+                <Col md={3}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('containerNormLabel')}</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={productForm.container_norm}
+                      onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
+                    />
+                    <Form.Text className="text-muted">
+                      {t('containerNormNote')}
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
               </Row>
 
               <Row>
                 <Col xs={12}>
                   <Form.Group className="mb-3">
-                    <Form.Label className="mb-2">{t('image')} (до 5) · ⭐ главное фото</Form.Label>
+                    <Form.Label className="mb-2">{t('image')} (до 5)</Form.Label>
                     <div className="admin-product-images-shell">
-                      <Row className="g-3 admin-product-images-grid">
+                      <div className="admin-product-images-row">
                         {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
-                          <Col xs={12} md={6} xl={4} key={`product-image-slot-${slotIndex}`} className="d-flex">
+                          <div key={`product-image-slot-${slotIndex}`} className="admin-product-image-item">
                             <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
-                              <div className="admin-product-image-slot-header">
-                                <small className="admin-product-image-slot-title">Фото {slotIndex + 1}</small>
-                                <div className="admin-product-image-slot-actions">
-                                  <Button
-                                    type="button"
-                                    variant="light"
-                                    size="sm"
-                                    className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''}`}
-                                    title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
-                                    onClick={() => setMainProductImageSlot(slotIndex)}
-                                    disabled={!slot.url}
-                                  >
-                                    {slotIndex === 0 ? '⭐' : '☆'}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="light"
-                                    size="sm"
-                                    className="admin-product-image-slot-btn admin-product-image-slot-btn-clear"
-                                    onClick={() => clearProductImageSlot(slotIndex)}
-                                    disabled={!slot.url}
-                                  >
-                                    ✕
-                                  </Button>
-                                </div>
-                              </div>
-
                               <div
                                 className={`admin-product-image-dropzone ${slot.url ? 'has-image' : ''}`}
                                 tabIndex={0}
@@ -6498,16 +6486,43 @@ function AdminDashboard() {
                                 ) : (
                                   <div className="admin-product-image-placeholder">
                                     <div className="admin-product-image-placeholder-icon">📷</div>
-                                    <small>
-                                      {t('pasteImage')}<br />
-                                      {t('orDragFile')}
-                                    </small>
                                   </div>
                                 )}
+                                <div className="admin-product-image-slot-overlay">
+                                  <Button
+                                    type="button"
+                                    variant="light"
+                                    size="sm"
+                                    className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''} admin-product-image-slot-btn-top-left`}
+                                    title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
+                                    onClick={() => setMainProductImageSlot(slotIndex)}
+                                    disabled={!slot.url}
+                                  >
+                                    ★
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="light"
+                                    size="sm"
+                                    className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
+                                    title="Удалить фото"
+                                    onClick={() => clearProductImageSlot(slotIndex)}
+                                    disabled={!slot.url}
+                                  >
+                                    ✕
+                                  </Button>
+                                  <label
+                                    htmlFor={`product-image-file-input-${slotIndex}`}
+                                    className={`admin-product-image-select-btn ${uploadingImage ? 'is-disabled' : ''}`}
+                                  >
+                                    {language === 'uz' ? 'Tanlash' : 'Выбрать'}
+                                  </label>
+                                </div>
                               </div>
 
                               <Form.Control
                                 className="admin-product-image-file-input"
+                                id={`product-image-file-input-${slotIndex}`}
                                 type="file"
                                 accept="image/*"
                                 onChange={(e) => {
@@ -6532,9 +6547,9 @@ function AdminDashboard() {
                                 inputMode="url"
                               />
                             </div>
-                          </Col>
+                          </div>
                         ))}
-                      </Row>
+                      </div>
                     </div>
                     {uploadingImage && (
                       <div className="text-muted mt-2 admin-product-image-uploading">
@@ -6542,22 +6557,7 @@ function AdminDashboard() {
                       </div>
                     )}
                     <Form.Text className="text-muted admin-product-image-help">
-                      Используйте ⭐ для выбора главного фото карточки. Остальные фото сохраняются для галереи товара.
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('containerNormLabel')}</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={productForm.container_norm}
-                      onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
-                    />
-                    <Form.Text className="text-muted">
-                      {t('containerNormNote')}
+                      ⭐ - главное фото, ✕ - удалить, кнопка "Выбрать" - загрузка файла.
                     </Form.Text>
                   </Form.Group>
                 </Col>
