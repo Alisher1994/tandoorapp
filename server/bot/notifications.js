@@ -1,6 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
+const TELEGRAM_ITEMS_SECTION_LIMIT = 2300;
+const TELEGRAM_COMMENT_LIMIT = 360;
 
 // Cache for restaurant-specific bots
 const restaurantBots = new Map();
@@ -54,7 +56,15 @@ function getRestaurantBot(botToken, restaurantId = null) {
 
 // Format price with thousands separator
 function formatPrice(price) {
-  return parseFloat(price).toLocaleString('ru-RU');
+  const numeric = parseNumericValue(price);
+  const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+  const hasFraction = Math.abs(rounded % 1) > 0.0000001;
+  return rounded
+    .toLocaleString('ru-RU', {
+      minimumFractionDigits: hasFraction ? 2 : 0,
+      maximumFractionDigits: 2
+    })
+    .replace(/\u00A0/g, ' ');
 }
 
 // Escape HTML special characters to prevent formatting issues
@@ -64,6 +74,70 @@ function escapeHtml(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function parseNumericValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const trimmed = value.replace(/\u00A0/g, ' ').trim();
+  if (!trimmed) return 0;
+
+  // Handle malformed legacy formatted values like "120 999 98".
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (!trimmed.includes(',') && parts.length >= 2 && /^\d+$/.test(parts[parts.length - 1]) && parts[parts.length - 1].length === 2) {
+    const legacyNormalized = `${parts.slice(0, -1).join('')}.${parts[parts.length - 1]}`;
+    const parsedLegacy = Number.parseFloat(legacyNormalized);
+    if (Number.isFinite(parsedLegacy)) return parsedLegacy;
+  }
+
+  const normalized = trimmed.replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value ?? '').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function buildItemsList(items = [], maxLength = TELEGRAM_ITEMS_SECTION_LIMIT) {
+  if (!Array.isArray(items) || items.length === 0) return '—';
+
+  const lines = [];
+  let usedLength = 0;
+  let omittedCount = 0;
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {};
+    const qty = parseNumericValue(item.quantity);
+    const price = parseNumericValue(item.price);
+    const total = qty * price;
+    const itemName = escapeHtml(item.product_name || 'Товар');
+    const line = `${index + 1}. ${itemName}\n${formatPrice(qty)} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
+    const lineLength = line.length + (lines.length > 0 ? 2 : 0);
+
+    if (usedLength + lineLength > maxLength) {
+      omittedCount = items.length - index;
+      break;
+    }
+
+    lines.push(line);
+    usedLength += lineLength;
+  }
+
+  if (omittedCount > 0) {
+    lines.push(`… и ещё ${omittedCount} позиций`);
+  }
+
+  return lines.join('\n\n');
 }
 
 function parseDeliveryCoordinates(rawCoordinates) {
@@ -204,12 +278,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     previewUrl = null
   } = options;
 
-  const itemsList = (items || []).map((item, index) => {
-    const qty = parseFloat(item.quantity);
-    const price = parseFloat(item.price);
-    const total = qty * price;
-    return `${index + 1}. ${escapeHtml(item.product_name)}\n${qty} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
-  }).join('\n\n');
+  const itemsList = buildItemsList(items, TELEGRAM_ITEMS_SECTION_LIMIT);
 
   let locationLine = '';
   if (revealSensitive) {
@@ -225,20 +294,20 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     : 'Как можно быстрее';
 
   const itemsBaseTotal = (items || []).reduce((sum, item) => {
-    const qty = parseFloat(item.quantity) || 0;
-    const price = parseFloat(item.price) || 0;
+    const qty = parseNumericValue(item.quantity) || 0;
+    const price = parseNumericValue(item.price) || 0;
     return sum + (qty * price);
   }, 0);
   const containerTotal = (items || []).reduce((sum, item) => {
-    const qty = parseFloat(item.quantity) || 0;
-    const containerPrice = parseFloat(item.container_price) || 0;
+    const qty = parseNumericValue(item.quantity) || 0;
+    const containerPrice = parseNumericValue(item.container_price) || 0;
     return sum + (qty * containerPrice);
   }, 0);
-  const serviceFee = parseFloat(order.service_fee) || 0;
-  const deliveryCost = parseFloat(order.delivery_cost) || 0;
-  const deliveryDistanceKm = parseFloat(order.delivery_distance_km) || 0;
+  const serviceFee = parseNumericValue(order.service_fee) || 0;
+  const deliveryCost = parseNumericValue(order.delivery_cost) || 0;
+  const deliveryDistanceKm = parseNumericValue(order.delivery_distance_km) || 0;
   const calculatedTotal = itemsBaseTotal + containerTotal + serviceFee + deliveryCost;
-  const totalAmountRaw = parseFloat(order.total_amount);
+  const totalAmountRaw = parseNumericValue(order.total_amount);
   const orderTotal = Number.isFinite(totalAmountRaw) ? totalAmountRaw : calculatedTotal;
 
   const containerLine = containerTotal > 0
@@ -268,6 +337,8 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     )
     : '';
 
+  const safeComment = truncateText(order.comment || '', TELEGRAM_COMMENT_LIMIT);
+
   const message =
     `<b>ID: ${order.order_number}</b>\n` +
     `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
@@ -280,7 +351,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     deliveryLine +
     `<b>Итого: ${formatPrice(orderTotal)} сум</b>` +
     `\n\n` +
-    (order.comment ? `💬 Комментарий: ${escapeHtml(order.comment)}` : '💬 Комментарий: —');
+    (safeComment ? `💬 Комментарий: ${escapeHtml(safeComment)}` : '💬 Комментарий: —');
 
   return message;
 }
@@ -418,17 +489,20 @@ async function updateOrderGroupNotification(order, items = [], options = {}) {
  * Send order notification to admin group with action buttons
  */
 async function sendOrderNotification(order, items, chatId = null, botToken = null) {
-  if (!chatId) {
+  const normalizedChatId = chatId === null || chatId === undefined ? '' : String(chatId).trim();
+  const normalizedBotToken = botToken === null || botToken === undefined ? '' : String(botToken).trim();
+
+  if (!normalizedChatId) {
     console.warn('⚠️  No chat ID for notifications, skipping');
     return;
   }
 
-  if (!botToken) {
+  if (!normalizedBotToken) {
     console.warn('⚠️  No bot token for notifications, skipping');
     return;
   }
 
-  const bot = getRestaurantBot(botToken);
+  const bot = getRestaurantBot(normalizedBotToken, order?.restaurant_id || null);
   if (!bot) {
     console.warn('⚠️  Bot not available for notification');
     return;
@@ -443,9 +517,9 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       previewUrl: buildOrderPreviewUrl(order.id)
     });
 
-    console.log(`📤 Sending order ${order.id} notification to ${chatId} with buttons`);
+    console.log(`📤 Sending order ${order.id} notification to ${normalizedChatId} with buttons`);
 
-    const result = await bot.sendMessage(chatId, message, {
+    const result = await bot.sendMessage(normalizedChatId, message, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
       reply_markup: keyboard
@@ -457,7 +531,7 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
           `UPDATE orders 
            SET admin_message_id = $1, admin_chat_id = $2 
            WHERE id = $3`,
-          [result.message_id, String(chatId), order.id]
+          [result.message_id, normalizedChatId, order.id]
         );
       } catch (e) {
         console.error('Failed to store admin message id:', e.message);
@@ -466,7 +540,42 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
 
     console.log(`✅ Order notification sent, message_id: ${result.message_id}`);
   } catch (error) {
-    console.error('Send order notification error:', error);
+    const errorMessage = String(error?.message || '');
+    console.error('Send order notification error:', errorMessage);
+
+    const shouldFallback = /message is too long|can't parse entities|bad request/i.test(errorMessage);
+    if (!shouldFallback) return;
+
+    try {
+      const fallbackItems = (items || [])
+        .slice(0, 10)
+        .map((item, index) => {
+          const qty = parseNumericValue(item.quantity);
+          const price = parseNumericValue(item.price);
+          return `${index + 1}. ${item.product_name || 'Товар'} — ${formatPrice(qty)} x ${formatPrice(price)}`;
+        })
+        .join('\n');
+      const omittedCount = Math.max(0, (items || []).length - 10);
+      const fallbackMessage =
+        `Заказ #${order?.order_number || order?.id || '—'}\n` +
+        `Сумма: ${formatPrice(order?.total_amount)} сум\n` +
+        `${fallbackItems || 'Товары: —'}${omittedCount > 0 ? `\n… и ещё ${omittedCount} позиций` : ''}`;
+
+      const fallbackResult = await bot.sendMessage(normalizedChatId, fallbackMessage, {
+        disable_web_page_preview: true
+      });
+      if (order?.id && fallbackResult?.message_id) {
+        await pool.query(
+          `UPDATE orders 
+           SET admin_message_id = $1, admin_chat_id = $2 
+           WHERE id = $3`,
+          [fallbackResult.message_id, normalizedChatId, order.id]
+        );
+      }
+      console.log(`✅ Fallback notification sent for order ${order?.id}`);
+    } catch (fallbackError) {
+      console.error('Fallback order notification error:', fallbackError.message);
+    }
   }
 }
 

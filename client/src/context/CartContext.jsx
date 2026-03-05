@@ -35,9 +35,44 @@ function filterCartByRestaurant(allItems, restaurantId) {
   return allItems.filter((item) => parseRestaurantId(item?.restaurant_id) === restaurantId);
 }
 
-// Helper to format price with spaces (10 000 instead of 10000)
+function parsePriceValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value !== 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const trimmed = value.replace(/\u00A0/g, ' ').trim();
+  if (!trimmed) return 0;
+
+  // Handle values like "120 999 98" from old broken formatter -> "120999.98"
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (!trimmed.includes(',') && parts.length >= 2 && /^\d+$/.test(parts[parts.length - 1]) && parts[parts.length - 1].length === 2) {
+    const normalized = `${parts.slice(0, -1).join('')}.${parts[parts.length - 1]}`;
+    const parsedLegacy = Number.parseFloat(normalized);
+    if (Number.isFinite(parsedLegacy)) return parsedLegacy;
+  }
+
+  const normalized = trimmed.replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// Helper to format price with grouping and correct decimal separator
 export function formatPrice(price) {
-  return parseFloat(price).toLocaleString('ru-RU').replace(/,/g, ' ');
+  const numeric = parsePriceValue(price);
+  const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+  const hasFraction = Math.abs(rounded % 1) > 0.0000001;
+
+  return rounded
+    .toLocaleString('ru-RU', {
+      minimumFractionDigits: hasFraction ? 2 : 0,
+      maximumFractionDigits: 2
+    })
+    .replace(/\u00A0/g, ' ');
 }
 
 export function CartProvider({ children }) {
