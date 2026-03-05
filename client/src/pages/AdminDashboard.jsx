@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
@@ -19,7 +19,7 @@ import Col from 'react-bootstrap/Col';
 import Alert from 'react-bootstrap/Alert';
 import InputGroup from 'react-bootstrap/InputGroup';
 import Pagination from 'react-bootstrap/Pagination';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
@@ -39,6 +39,7 @@ const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
+const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
 const extractYouTubeVideoId = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -97,15 +98,70 @@ const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
 
 const AnalyticsMapAutoBounds = ({ points }) => {
   const map = useMap();
+  const wasFittedRef = useRef(false);
+  const idleResetTimeoutRef = useRef(null);
+  const isUserActiveRef = useRef(false);
+  const pointsSignatureRef = useRef('');
+
+  const clearIdleTimeout = useCallback(() => {
+    if (idleResetTimeoutRef.current) {
+      clearTimeout(idleResetTimeoutRef.current);
+      idleResetTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleIdleReset = useCallback(() => {
+    clearIdleTimeout();
+    idleResetTimeoutRef.current = setTimeout(() => {
+      isUserActiveRef.current = false;
+      map.flyTo(ANALYTICS_DEFAULT_MAP_CENTER, ANALYTICS_DEFAULT_MAP_ZOOM, { duration: 0.5 });
+    }, ANALYTICS_MAP_IDLE_RESET_MS);
+  }, [clearIdleTimeout, map]);
+
+  const markMapInteraction = useCallback(() => {
+    isUserActiveRef.current = true;
+    scheduleIdleReset();
+  }, [scheduleIdleReset]);
+
+  useMapEvents({
+    movestart: markMapInteraction,
+    zoomstart: markMapInteraction,
+    dragstart: markMapInteraction,
+    click: markMapInteraction,
+    touchstart: markMapInteraction
+  });
+
+  useEffect(() => {
+    scheduleIdleReset();
+    return () => {
+      clearIdleTimeout();
+    };
+  }, [scheduleIdleReset, clearIdleTimeout]);
 
   useEffect(() => {
     if (!map) return;
+
+    if (isUserActiveRef.current) return;
+
+    const signature = Array.isArray(points)
+      ? points.map((point) => `${point.lat}:${point.lng}`).join('|')
+      : '';
+
+    if (signature !== pointsSignatureRef.current) {
+      pointsSignatureRef.current = signature;
+      wasFittedRef.current = false;
+    }
+
     if (!Array.isArray(points) || points.length === 0) {
       map.setView(ANALYTICS_DEFAULT_MAP_CENTER, ANALYTICS_DEFAULT_MAP_ZOOM);
       return;
     }
+
+    if (wasFittedRef.current) return;
+
     const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lng]));
     map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
+    wasFittedRef.current = true;
   }, [map, points]);
 
   return null;
@@ -5385,8 +5441,8 @@ function AdminDashboard() {
                       </div>
                     ) : (
                       <Row className="g-4">
-                        <Col xl={4}>
-                          <div className="d-grid gap-2" style={{ maxHeight: 560, overflowY: 'auto', paddingRight: 2 }}>
+                        <Col xl={4} style={{ minWidth: 0 }}>
+                          <div className="d-grid gap-2" style={{ maxHeight: 560, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
                             {helpInstructions.map((item) => {
                               const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
                               const title = language === 'uz'
@@ -5401,7 +5457,11 @@ function AdminDashboard() {
                                     border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
                                     background: isActive ? '#eff6ff' : '#ffffff',
                                     borderRadius: 12,
-                                    padding: '10px 12px'
+                                    padding: '10px 12px',
+                                    width: '100%',
+                                    maxWidth: '100%',
+                                    overflow: 'hidden',
+                                    whiteSpace: 'normal'
                                   }}
                                   onClick={() => setSelectedHelpInstruction(item)}
                                 >
@@ -5411,8 +5471,10 @@ function AdminDashboard() {
                                       display: 'block',
                                       maxWidth: '100%',
                                       overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
+                                      whiteSpace: 'normal',
+                                      overflowWrap: 'anywhere',
+                                      wordBreak: 'break-word',
+                                      lineHeight: 1.25
                                     }}
                                   >
                                     {title}

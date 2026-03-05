@@ -270,10 +270,7 @@ body::-webkit-scrollbar,
 .admin-panel {
     padding-top: 2rem;
     padding-bottom: 4rem;
-    background:
-        radial-gradient(circle at 4% 2%, rgba(59, 130, 246, 0.14), transparent 36%),
-        radial-gradient(circle at 96% 4%, rgba(71, 85, 105, 0.10), transparent 32%),
-        linear-gradient(180deg, #f8fafc 0%, #f3f4f6 52%, #e5e7eb 100%);
+    background: #f3f4f6;
 }
 
 .admin-panel .card,
