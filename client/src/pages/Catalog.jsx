@@ -1744,9 +1744,11 @@ function Catalog() {
         <div
           style={{
             display: selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 ? 'block' : 'none',
+            position: 'relative',
+            overflow: 'visible',
             backgroundColor: catalogHeaderBackground,
-            borderBottom: '1px solid rgba(148, 163, 184, 0.24)',
-            boxShadow: '0 1px 0 rgba(148, 163, 184, 0.14)'
+            borderBottom: 'none',
+            boxShadow: 'none'
           }}
         >
           <div
@@ -1776,7 +1778,7 @@ function Catalog() {
                   minHeight: 32,
                   padding: '6px 12px',
                   fontSize: '0.9rem',
-                  fontWeight: 500,
+                  fontWeight: activeSubcategoryTab === section.id ? 500 : 400,
                   color: activeSubcategoryTab === section.id ? '#ffffff' : '#526277',
                   background: activeSubcategoryTab === section.id
                     ? 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)'
@@ -1792,8 +1794,13 @@ function Catalog() {
           <div
             aria-hidden="true"
             style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: -1,
               height: 2,
-              background: 'rgba(148, 163, 184, 0.16)'
+              background: 'transparent',
+              pointerEvents: 'none'
             }}
           >
             <div
