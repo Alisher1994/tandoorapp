@@ -1274,27 +1274,42 @@ function Catalog() {
                 e.currentTarget.style.display = 'none';
               }}
             />
+            {inlineAdBanners.length > 1 && (
+              <div
+                className="d-flex justify-content-center align-items-center gap-1"
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  bottom: 8,
+                  transform: 'translateX(-50%)',
+                  padding: '4px 8px',
+                  borderRadius: 999,
+                  background: 'rgba(255, 255, 255, 0.82)',
+                  backdropFilter: 'blur(2px)'
+                }}
+              >
+                {inlineAdBanners.map((item, idx) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveAdIndex(idx);
+                    }}
+                    aria-label={`banner-${idx + 1}`}
+                    style={{
+                      width: idx === activeAdIndex ? 18 : 6,
+                      height: 6,
+                      borderRadius: 999,
+                      border: 'none',
+                      background: idx === activeAdIndex ? 'var(--primary-color)' : 'rgba(71, 85, 105,0.25)',
+                      transition: 'all 180ms ease'
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          {inlineAdBanners.length > 1 && (
-            <div className="d-flex justify-content-center align-items-center gap-1 py-2" style={{ background: '#fff' }}>
-              {inlineAdBanners.map((item, idx) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveAdIndex(idx)}
-                  aria-label={`banner-${idx + 1}`}
-                  style={{
-                    width: idx === activeAdIndex ? 18 : 6,
-                    height: 6,
-                    borderRadius: 999,
-                    border: 'none',
-                    background: idx === activeAdIndex ? 'var(--primary-color)' : 'rgba(71, 85, 105,0.25)',
-                    transition: 'all 180ms ease'
-                  }}
-                />
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );
