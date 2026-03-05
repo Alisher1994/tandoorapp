@@ -39,9 +39,13 @@ const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
-const normalizeYouTubeEmbedUrl = (value) => {
+const extractYouTubeVideoId = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
+
+  const idLikeRaw = raw.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (idLikeRaw) return raw;
+
   try {
     const parsed = new URL(raw);
     const host = parsed.hostname.toLowerCase();
@@ -56,15 +60,32 @@ const normalizeYouTubeEmbedUrl = (value) => {
         videoId = parsed.pathname.split('/embed/')[1] || '';
       } else if (parsed.pathname.startsWith('/shorts/')) {
         videoId = parsed.pathname.split('/shorts/')[1] || '';
+      } else if (parsed.pathname.startsWith('/live/')) {
+        videoId = parsed.pathname.split('/live/')[1] || '';
       }
     }
 
-    videoId = String(videoId).split(/[?&/]/)[0];
-    if (!videoId) return raw;
-    return `https://www.youtube.com/embed/${videoId}`;
+    return String(videoId).split(/[?&/]/)[0];
   } catch (error) {
-    return raw;
+    return '';
   }
+};
+
+const normalizeYouTubeEmbedUrl = (value) => {
+  const videoId = extractYouTubeVideoId(value);
+  if (!videoId) return '';
+
+  const params = new URLSearchParams({
+    rel: '0',
+    modestbranding: '1',
+    playsinline: '1'
+  });
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    params.set('origin', window.location.origin);
+  }
+
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
 };
 const getAnalyticsLocationKey = (location) => String(location?.orderId ?? location?.orderNumber ?? '');
 const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
@@ -5359,7 +5380,7 @@ function AdminDashboard() {
                             ) : (
                               <Row className="g-4">
                                 <Col xl={4}>
-                                  <div className="d-grid gap-2">
+                                  <div className="d-grid gap-2" style={{ maxHeight: 560, overflowY: 'auto', paddingRight: 2 }}>
                                     {helpInstructions.map((item) => {
                                       const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
                                       const title = language === 'uz'
@@ -5378,8 +5399,30 @@ function AdminDashboard() {
                                           }}
                                           onClick={() => setSelectedHelpInstruction(item)}
                                         >
-                                          <div className="fw-semibold">{title}</div>
-                                          <div className="small text-muted text-truncate">{item.youtube_url || '—'}</div>
+                                          <div
+                                            className="fw-semibold"
+                                            style={{
+                                              display: 'block',
+                                              maxWidth: '100%',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              whiteSpace: 'nowrap'
+                                            }}
+                                          >
+                                            {title}
+                                          </div>
+                                          <div
+                                            className="small text-muted"
+                                            style={{
+                                              display: 'block',
+                                              maxWidth: '100%',
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              whiteSpace: 'nowrap'
+                                            }}
+                                          >
+                                            {item.youtube_url || '—'}
+                                          </div>
                                         </button>
                                       );
                                     })}
@@ -5404,14 +5447,23 @@ function AdminDashboard() {
                                             {language === 'uz' ? 'Yangi oynada ochish' : 'Открыть в новой вкладке'}
                                           </a>
                                         </div>
-                                        <div className="ratio ratio-16x9 rounded-3 overflow-hidden border">
-                                          <iframe
-                                            title={`help-video-${selectedHelpInstruction.id}`}
-                                            src={normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url)}
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowFullScreen
-                                          />
-                                        </div>
+                                        {normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url) ? (
+                                          <div className="ratio ratio-16x9 rounded-3 overflow-hidden border">
+                                            <iframe
+                                              title={`help-video-${selectedHelpInstruction.id}`}
+                                              src={normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url)}
+                                              referrerPolicy="strict-origin-when-cross-origin"
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                              allowFullScreen
+                                            />
+                                          </div>
+                                        ) : (
+                                          <Alert variant="warning" className="mb-0">
+                                            {language === 'uz'
+                                              ? "Video havolasi YouTube formatida emas. Yangi oynada oching."
+                                              : 'Ссылка не распознана как YouTube. Откройте видео в новой вкладке.'}
+                                          </Alert>
+                                        )}
                                       </Card.Body>
                                     </Card>
                                   ) : (
