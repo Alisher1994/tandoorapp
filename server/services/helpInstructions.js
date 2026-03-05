@@ -125,17 +125,33 @@ const ensureHelpInstructionsSchema = async () => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_instructions_sort ON help_instructions (sort_order, id)`);
 
     for (const item of DEFAULT_HELP_INSTRUCTIONS) {
-      await pool.query(
-        `INSERT INTO help_instructions (code, title_ru, title_uz, youtube_url, sort_order, is_default)
-         VALUES ($1, $2, $3, '', $4, true)
-         ON CONFLICT (code) DO UPDATE SET
-           title_ru = EXCLUDED.title_ru,
-           title_uz = EXCLUDED.title_uz,
-           sort_order = EXCLUDED.sort_order,
-           is_default = true,
-           updated_at = CURRENT_TIMESTAMP`,
-        [item.code, item.title_ru, item.title_uz, item.sort_order]
+      const existing = await pool.query(
+        `SELECT id
+         FROM help_instructions
+         WHERE code = $1
+         ORDER BY id ASC
+         LIMIT 1`,
+        [item.code]
       );
+
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE help_instructions
+           SET title_ru = $1,
+               title_uz = $2,
+               sort_order = $3,
+               is_default = true,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $4`,
+          [item.title_ru, item.title_uz, item.sort_order, existing.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO help_instructions (code, title_ru, title_uz, youtube_url, sort_order, is_default)
+           VALUES ($1, $2, $3, '', $4, true)`,
+          [item.code, item.title_ru, item.title_uz, item.sort_order]
+        );
+      }
     }
 
     helpInstructionsSchemaReady = true;

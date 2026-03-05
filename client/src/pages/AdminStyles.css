@@ -283,9 +283,25 @@ body::-webkit-scrollbar,
 
 /* Tabs Styling */
 .admin-tabs {
+    display: flex;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
     border-bottom: 1px solid var(--border-color) !important;
     margin-bottom: 2rem;
     gap: 1.5rem;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.admin-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.admin-tabs .nav-item {
+    flex: 0 0 auto;
+    margin-bottom: 0;
 }
 
 .admin-tabs .nav-link {
