@@ -744,7 +744,11 @@ function Catalog() {
 
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
-      const sectionProbeLine = stickyOffset + 16;
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 700;
+      const sectionProbeLine = Math.max(
+        stickyOffset + 16,
+        Math.min(stickyOffset + 120, viewportHeight * 0.45)
+      );
       let currentId = null;
       let firstId = null;
 
@@ -1744,8 +1748,6 @@ function Catalog() {
         <div
           style={{
             display: selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 ? 'block' : 'none',
-            position: 'relative',
-            overflow: 'visible',
             backgroundColor: catalogHeaderBackground,
             borderBottom: 'none',
             boxShadow: 'none'
@@ -1791,28 +1793,28 @@ function Catalog() {
               </Button>
             ))}
           </div>
+        </div>
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 2,
+            background: 'transparent',
+            pointerEvents: 'none'
+          }}
+        >
           <div
-            aria-hidden="true"
             style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: -1,
-              height: 2,
-              background: 'transparent',
-              pointerEvents: 'none'
+              width: `${Math.round(catalogScrollProgress * 100)}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
+              boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
+              transition: 'width 0.12s linear'
             }}
-          >
-            <div
-              style={{
-                width: `${Math.round(catalogScrollProgress * 100)}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
-                boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
-                transition: 'width 0.12s linear'
-              }}
-            />
-          </div>
+          />
         </div>
       </Navbar>
 
