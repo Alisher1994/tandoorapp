@@ -869,9 +869,9 @@ function AdminDashboard() {
   }, [user?.active_restaurant_id]);
 
   useEffect(() => {
-    if (mainTab !== 'settings' || settingsTab !== 'help' || !user?.active_restaurant_id) return;
+    if (mainTab !== 'help' || !user?.active_restaurant_id) return;
     fetchHelpInstructions();
-  }, [mainTab, settingsTab, user?.active_restaurant_id]);
+  }, [mainTab, user?.active_restaurant_id]);
 
   const categoryById = useMemo(() => {
     const map = new Map();
@@ -4728,8 +4728,7 @@ function AdminDashboard() {
                     {[
                       { key: 'general', label: language === 'uz' ? 'Umumiy' : 'Общие' },
                       { key: 'delivery', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
-                      { key: 'operators', label: language === 'uz' ? 'Operatorlar' : 'Операторы' },
-                      { key: 'help', label: language === 'uz' ? "Yordam / Yo'riqnomalar" : 'Инструкции / Помощь' }
+                      { key: 'operators', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
                     ].map((tab) => {
                       const isActive = settingsTab === tab.key;
                       return (
@@ -5353,137 +5352,138 @@ function AdminDashboard() {
                         </>
                       )}
 
-                      {settingsTab === 'help' && (
-                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
-                          <Card.Body className="p-4">
-                            <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                              <h5 className="fw-bold mb-0">
-                                {language === 'uz' ? "Video yo'riqnomalar" : 'Видео-инструкции'}
-                              </h5>
-                              <Button
-                                variant="outline-secondary"
-                                onClick={fetchHelpInstructions}
-                                disabled={loadingHelpInstructions}
-                              >
-                                {loadingHelpInstructions
-                                  ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
-                                  : (language === 'uz' ? 'Yangilash' : 'Обновить')}
-                              </Button>
-                            </div>
-
-                            {loadingHelpInstructions ? (
-                              <ListSkeleton count={5} label={language === 'uz' ? "Yo'riqnomalar yuklanmoqda" : 'Загрузка инструкций'} />
-                            ) : helpInstructions.length === 0 ? (
-                              <div className="text-center text-muted py-4">
-                                {language === 'uz' ? "Yo'riqnomalar hali qo'shilmagan" : 'Инструкции пока не добавлены'}
-                              </div>
-                            ) : (
-                              <Row className="g-4">
-                                <Col xl={4}>
-                                  <div className="d-grid gap-2" style={{ maxHeight: 560, overflowY: 'auto', paddingRight: 2 }}>
-                                    {helpInstructions.map((item) => {
-                                      const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
-                                      const title = language === 'uz'
-                                        ? (item.title_uz || item.title_ru || '—')
-                                        : (item.title_ru || item.title_uz || '—');
-                                      return (
-                                        <button
-                                          key={`admin-help-${item.id}`}
-                                          type="button"
-                                          className="btn text-start"
-                                          style={{
-                                            border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
-                                            background: isActive ? '#eff6ff' : '#ffffff',
-                                            borderRadius: 12,
-                                            padding: '10px 12px'
-                                          }}
-                                          onClick={() => setSelectedHelpInstruction(item)}
-                                        >
-                                          <div
-                                            className="fw-semibold"
-                                            style={{
-                                              display: 'block',
-                                              maxWidth: '100%',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                              whiteSpace: 'nowrap'
-                                            }}
-                                          >
-                                            {title}
-                                          </div>
-                                          <div
-                                            className="small text-muted"
-                                            style={{
-                                              display: 'block',
-                                              maxWidth: '100%',
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                              whiteSpace: 'nowrap'
-                                            }}
-                                          >
-                                            {item.youtube_url || '—'}
-                                          </div>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </Col>
-                                <Col xl={8}>
-                                  {selectedHelpInstruction && selectedHelpInstruction.youtube_url ? (
-                                    <Card className="border-0 shadow-sm h-100">
-                                      <Card.Body className="p-3">
-                                        <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                                          <div className="fw-semibold">
-                                            {language === 'uz'
-                                              ? (selectedHelpInstruction.title_uz || selectedHelpInstruction.title_ru || '—')
-                                              : (selectedHelpInstruction.title_ru || selectedHelpInstruction.title_uz || '—')}
-                                          </div>
-                                          <a
-                                            href={selectedHelpInstruction.youtube_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="btn btn-outline-primary btn-sm"
-                                          >
-                                            {language === 'uz' ? 'Yangi oynada ochish' : 'Открыть в новой вкладке'}
-                                          </a>
-                                        </div>
-                                        {normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url) ? (
-                                          <div className="ratio ratio-16x9 rounded-3 overflow-hidden border">
-                                            <iframe
-                                              title={`help-video-${selectedHelpInstruction.id}`}
-                                              src={normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url)}
-                                              referrerPolicy="strict-origin-when-cross-origin"
-                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                              allowFullScreen
-                                            />
-                                          </div>
-                                        ) : (
-                                          <Alert variant="warning" className="mb-0">
-                                            {language === 'uz'
-                                              ? "Video havolasi YouTube formatida emas. Yangi oynada oching."
-                                              : 'Ссылка не распознана как YouTube. Откройте видео в новой вкладке.'}
-                                          </Alert>
-                                        )}
-                                      </Card.Body>
-                                    </Card>
-                                  ) : (
-                                    <div className="text-muted small py-4">
-                                      {language === 'uz'
-                                        ? "Ko'rish uchun video yo'riqnomani tanlang"
-                                        : 'Выберите инструкцию для просмотра'}
-                                    </div>
-                                  )}
-                                </Col>
-                              </Row>
-                            )}
-                          </Card.Body>
-                        </Card>
-                      )}
                     </>
                   ) : (
                     <ListSkeleton count={3} label="Загрузка настроек" />
                   )}
                 </div>
+              </Tab>
+
+              <Tab eventKey="help" title={language === 'uz' ? "Yo'riqnomalar" : 'Инструкции'}>
+                <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                  <Card.Body className="p-4">
+                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                      <h5 className="fw-bold mb-0">
+                        {language === 'uz' ? "Video yo'riqnomalar" : 'Видео-инструкции'}
+                      </h5>
+                      <Button
+                        variant="outline-secondary"
+                        onClick={fetchHelpInstructions}
+                        disabled={loadingHelpInstructions}
+                      >
+                        {loadingHelpInstructions
+                          ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                          : (language === 'uz' ? 'Yangilash' : 'Обновить')}
+                      </Button>
+                    </div>
+
+                    {loadingHelpInstructions ? (
+                      <ListSkeleton count={5} label={language === 'uz' ? "Yo'riqnomalar yuklanmoqda" : 'Загрузка инструкций'} />
+                    ) : helpInstructions.length === 0 ? (
+                      <div className="text-center text-muted py-4">
+                        {language === 'uz' ? "Yo'riqnomalar hali qo'shilmagan" : 'Инструкции пока не добавлены'}
+                      </div>
+                    ) : (
+                      <Row className="g-4">
+                        <Col xl={4}>
+                          <div className="d-grid gap-2" style={{ maxHeight: 560, overflowY: 'auto', paddingRight: 2 }}>
+                            {helpInstructions.map((item) => {
+                              const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
+                              const title = language === 'uz'
+                                ? (item.title_uz || item.title_ru || '—')
+                                : (item.title_ru || item.title_uz || '—');
+                              return (
+                                <button
+                                  key={`admin-help-${item.id}`}
+                                  type="button"
+                                  className="btn text-start"
+                                  style={{
+                                    border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
+                                    background: isActive ? '#eff6ff' : '#ffffff',
+                                    borderRadius: 12,
+                                    padding: '10px 12px'
+                                  }}
+                                  onClick={() => setSelectedHelpInstruction(item)}
+                                >
+                                  <div
+                                    className="fw-semibold"
+                                    style={{
+                                      display: 'block',
+                                      maxWidth: '100%',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {title}
+                                  </div>
+                                  <div
+                                    className="small text-muted"
+                                    style={{
+                                      display: 'block',
+                                      maxWidth: '100%',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    {item.youtube_url || '—'}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </Col>
+                        <Col xl={8}>
+                          {selectedHelpInstruction && selectedHelpInstruction.youtube_url ? (
+                            <Card className="border-0 shadow-sm h-100">
+                              <Card.Body className="p-3">
+                                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                  <div className="fw-semibold">
+                                    {language === 'uz'
+                                      ? (selectedHelpInstruction.title_uz || selectedHelpInstruction.title_ru || '—')
+                                      : (selectedHelpInstruction.title_ru || selectedHelpInstruction.title_uz || '—')}
+                                  </div>
+                                  <a
+                                    href={selectedHelpInstruction.youtube_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-outline-primary btn-sm"
+                                  >
+                                    {language === 'uz' ? 'Yangi oynada ochish' : 'Открыть в новой вкладке'}
+                                  </a>
+                                </div>
+                                {normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url) ? (
+                                  <div className="ratio ratio-16x9 rounded-3 overflow-hidden border">
+                                    <iframe
+                                      title={`help-video-${selectedHelpInstruction.id}`}
+                                      src={normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url)}
+                                      referrerPolicy="strict-origin-when-cross-origin"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                      allowFullScreen
+                                    />
+                                  </div>
+                                ) : (
+                                  <Alert variant="warning" className="mb-0">
+                                    {language === 'uz'
+                                      ? "Video havolasi YouTube formatida emas. Yangi oynada oching."
+                                      : 'Ссылка не распознана как YouTube. Откройте видео в новой вкладке.'}
+                                  </Alert>
+                                )}
+                              </Card.Body>
+                            </Card>
+                          ) : (
+                            <div className="text-muted small py-4">
+                              {language === 'uz'
+                                ? "Ko'rish uchun video yo'riqnomani tanlang"
+                                : 'Выберите инструкцию для просмотра'}
+                            </div>
+                          )}
+                        </Col>
+                      </Row>
+                    )}
+                  </Card.Body>
+                </Card>
               </Tab>
             </Tabs>
           </Card.Body>

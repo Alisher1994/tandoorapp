@@ -289,7 +289,7 @@ body::-webkit-scrollbar,
     overflow-y: hidden;
     white-space: nowrap;
     border-bottom: 1px solid var(--border-color) !important;
-    margin-bottom: 2rem;
+    margin: 0;
     gap: 1.5rem;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -342,7 +342,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-tabs+.tab-content {
-    padding-top: 1.5rem;
+    padding-top: 12px;
 }
 
 .admin-settings-pill-tabs {
@@ -512,7 +512,7 @@ body::-webkit-scrollbar,
     }
 
     .admin-tabs+.tab-content {
-        padding-top: 1rem;
+        padding-top: 12px;
     }
 
     .admin-order-toolbar {

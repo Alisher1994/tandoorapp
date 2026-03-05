@@ -3330,7 +3330,7 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="help_instructions" title={`🎬 ${language === 'uz' ? "Yo'riqnomalar" : 'Инструкции / Помощь'}`}>
+              <Tab eventKey="help_instructions" title={`🎬 ${language === 'uz' ? "Yo'riqnomalar" : 'Инструкции'}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="fw-bold mb-0">
                     {language === 'uz' ? "Telegram va admin yo'riqnomalari" : 'Инструкции для Telegram и web-панели'}
@@ -4064,126 +4064,6 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
-              {/* Logs Tab */}
-              <Tab eventKey="logs" title={`📋 ${t('logs')}`}>
-                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('activityLog')}</h5>
-                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
-                    <i className="bi bi-funnel"></i> Фильтры
-                  </Button>
-                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap">
-                    <Form.Control
-                      type="date"
-                      className="form-control-custom"
-                      style={{ width: '150px' }}
-                      value={logsFilter.start_date}
-                      onChange={(e) => setLogsFilter(prev => ({ ...prev, start_date: e.target.value, page: 1 }))}
-                    />
-                    <Form.Control
-                      type="date"
-                      className="form-control-custom"
-                      style={{ width: '150px' }}
-                      value={logsFilter.end_date}
-                      onChange={(e) => setLogsFilter(prev => ({ ...prev, end_date: e.target.value, page: 1 }))}
-                    />
-                    <Form.Select
-                      className="form-control-custom"
-                      style={{ width: '180px' }}
-                      value={logsFilter.user_id}
-                      onChange={(e) => setLogsFilter(prev => ({ ...prev, user_id: e.target.value, page: 1 }))}
-                    >
-                      <option value="">{t('saAllUsers')}</option>
-                      {allOperators?.map(op => (
-                        <option key={op.id} value={op.id}>{op.full_name || op.username}</option>
-                      ))}
-                    </Form.Select>
-                    <Form.Select
-                      className="form-control-custom"
-                      style={{ width: '160px' }}
-                      value={logsFilter.restaurant_id}
-                      onChange={(e) => setLogsFilter(prev => ({ ...prev, restaurant_id: e.target.value, page: 1 }))}
-                    >
-                      <option value="">{t('saAllShops')}</option>
-                      {allRestaurants?.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                    </Form.Select>
-                    <Form.Select
-                      className="form-control-custom"
-                      style={{ width: '170px' }}
-                      value={logsFilter.action_type}
-                      onChange={(e) => setLogsFilter(prev => ({ ...prev, action_type: e.target.value, page: 1 }))}
-                    >
-                      <option value="">{t('saAllActions')}</option>
-                      <option value="create_product">Создание товара</option>
-                      <option value="update_product">Изменение товара</option>
-                      <option value="delete_product">Удаление товара</option>
-                      <option value="update_order_status">Изменение заказа</option>
-                      <option value="login">Вход</option>
-                    </Form.Select>
-                    <Button
-                      variant="light"
-                      className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
-                      style={{ height: '38px', padding: '0 15px' }}
-                      title="Сбросить фильтры"
-                      onClick={() => setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15 })}
-                      disabled={!logsFilter.action_type && !logsFilter.restaurant_id && !logsFilter.user_id && !logsFilter.start_date && !logsFilter.end_date}
-                    >
-                      Сброс
-                    </Button>
-                  </div>
-                </div>
-
-                {loading ? (
-                  <TableSkeleton rows={8} columns={6} label="Загрузка журнала действий" />
-                ) : (
-                  <>
-                    <div className="admin-table-container">
-                      <Table responsive hover className="admin-table">
-                        <thead>
-                          <tr>
-                            <th>{t('saTableDate')}</th>
-                            <th>{t('saTableUser')}</th>
-                            <th>{t('saTableAction')}</th>
-                            <th>{t('saTableObject')}</th>
-                            <th>{t('saTableRestaurant')}</th>
-                            <th className="text-end">IP</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {logs.logs?.map(log => (
-                            <tr key={log.id}>
-                              <td><small className="text-muted">{formatDate(log.created_at)}</small></td>
-                              <td><span className="fw-semibold">{log.user_full_name || log.username}</span></td>
-                              <td>
-                                <Badge className="badge-custom bg-info bg-opacity-10 text-info">{getActionTypeLabel(log.action_type)}</Badge>
-                              </td>
-                              <td><small>{log.entity_name || `${log.entity_type} #${log.entity_id}`}</small></td>
-                              <td>
-                                <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">{log.restaurant_name || '-'}</Badge>
-                              </td>
-                              <td className="text-end"><small className="text-muted">{log.ip_address}</small></td>
-                            </tr>
-                          ))}
-                          {logs.logs?.length === 0 && (
-                            <tr><td colSpan="6" className="text-center py-5 text-muted">{t('saEmptyLogs')}</td></tr>
-                          )}
-                        </tbody>
-                      </Table>
-                    </div>
-
-                    <DataPagination
-                      current={logsFilter.page}
-                      total={logs.total}
-                      limit={logsFilter.limit}
-                      onPageChange={(val) => setLogsFilter(prev => ({ ...prev, page: val }))}
-                      limitOptions={[15, 20, 30, 50]}
-                      onLimitChange={(val) => setLogsFilter(prev => ({ ...prev, limit: val, page: 1 }))}
-                    />
-                  </>
-                )}
-              </Tab>
-
               {/* Billing Settings Tab */}
               <Tab eventKey="billing" title={`💰 ${t('billingSettings')}`}>
                 <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
@@ -4438,6 +4318,126 @@ function SuperAdminDashboard() {
                     </Col>
                   </Row>
                 </Form>
+              </Tab>
+
+              {/* Logs Tab */}
+              <Tab eventKey="logs" title={`📋 ${t('logs')}`}>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('activityLog')}</h5>
+                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> Фильтры
+                  </Button>
+                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap">
+                    <Form.Control
+                      type="date"
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={logsFilter.start_date}
+                      onChange={(e) => setLogsFilter(prev => ({ ...prev, start_date: e.target.value, page: 1 }))}
+                    />
+                    <Form.Control
+                      type="date"
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={logsFilter.end_date}
+                      onChange={(e) => setLogsFilter(prev => ({ ...prev, end_date: e.target.value, page: 1 }))}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '180px' }}
+                      value={logsFilter.user_id}
+                      onChange={(e) => setLogsFilter(prev => ({ ...prev, user_id: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{t('saAllUsers')}</option>
+                      {allOperators?.map(op => (
+                        <option key={op.id} value={op.id}>{op.full_name || op.username}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '160px' }}
+                      value={logsFilter.restaurant_id}
+                      onChange={(e) => setLogsFilter(prev => ({ ...prev, restaurant_id: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{t('saAllShops')}</option>
+                      {allRestaurants?.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={logsFilter.action_type}
+                      onChange={(e) => setLogsFilter(prev => ({ ...prev, action_type: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{t('saAllActions')}</option>
+                      <option value="create_product">Создание товара</option>
+                      <option value="update_product">Изменение товара</option>
+                      <option value="delete_product">Удаление товара</option>
+                      <option value="update_order_status">Изменение заказа</option>
+                      <option value="login">Вход</option>
+                    </Form.Select>
+                    <Button
+                      variant="light"
+                      className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
+                      style={{ height: '38px', padding: '0 15px' }}
+                      title="Сбросить фильтры"
+                      onClick={() => setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15 })}
+                      disabled={!logsFilter.action_type && !logsFilter.restaurant_id && !logsFilter.user_id && !logsFilter.start_date && !logsFilter.end_date}
+                    >
+                      Сброс
+                    </Button>
+                  </div>
+                </div>
+
+                {loading ? (
+                  <TableSkeleton rows={8} columns={6} label="Загрузка журнала действий" />
+                ) : (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>{t('saTableDate')}</th>
+                            <th>{t('saTableUser')}</th>
+                            <th>{t('saTableAction')}</th>
+                            <th>{t('saTableObject')}</th>
+                            <th>{t('saTableRestaurant')}</th>
+                            <th className="text-end">IP</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {logs.logs?.map(log => (
+                            <tr key={log.id}>
+                              <td><small className="text-muted">{formatDate(log.created_at)}</small></td>
+                              <td><span className="fw-semibold">{log.user_full_name || log.username}</span></td>
+                              <td>
+                                <Badge className="badge-custom bg-info bg-opacity-10 text-info">{getActionTypeLabel(log.action_type)}</Badge>
+                              </td>
+                              <td><small>{log.entity_name || `${log.entity_type} #${log.entity_id}`}</small></td>
+                              <td>
+                                <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">{log.restaurant_name || '-'}</Badge>
+                              </td>
+                              <td className="text-end"><small className="text-muted">{log.ip_address}</small></td>
+                            </tr>
+                          ))}
+                          {logs.logs?.length === 0 && (
+                            <tr><td colSpan="6" className="text-center py-5 text-muted">{t('saEmptyLogs')}</td></tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+
+                    <DataPagination
+                      current={logsFilter.page}
+                      total={logs.total}
+                      limit={logsFilter.limit}
+                      onPageChange={(val) => setLogsFilter(prev => ({ ...prev, page: val }))}
+                      limitOptions={[15, 20, 30, 50]}
+                      onLimitChange={(val) => setLogsFilter(prev => ({ ...prev, limit: val, page: 1 }))}
+                    />
+                  </>
+                )}
               </Tab>
             </Tabs>
           </Card.Body>
