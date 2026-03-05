@@ -39,11 +39,11 @@ const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
-const analyticsPointIcon = L.divIcon({
-  className: 'analytics-map-point',
-  html: '<span style="display:block;width:14px;height:14px;border-radius:999px;background:#ef4444;border:2px solid #fff;box-shadow:0 2px 8px rgba(15,23,42,0.35);"></span>',
-  iconSize: [14, 14],
-  iconAnchor: [7, 7]
+const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
+  className: `analytics-map-point${isActive ? ' is-active' : ''}`,
+  html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;background:${isActive ? '#1d4ed8' : '#2563eb'};color:#fff;font-size:14px;border:2px solid #fff;box-shadow:0 3px 10px rgba(15,23,42,0.35);">👤</span>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12]
 });
 
 const AnalyticsMapAutoBounds = ({ points }) => {
@@ -58,6 +58,17 @@ const AnalyticsMapAutoBounds = ({ points }) => {
     const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lng]));
     map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
   }, [map, points]);
+
+  return null;
+};
+
+const AnalyticsMapFocus = ({ selectedPoint }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !selectedPoint) return;
+    map.flyTo([selectedPoint.lat, selectedPoint.lng], Math.max(map.getZoom(), 14), { duration: 0.45 });
+  }, [map, selectedPoint]);
 
   return null;
 };
@@ -305,6 +316,7 @@ function AdminDashboard() {
 
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [allOrdersForAnalytics, setAllOrdersForAnalytics] = useState([]);
   const [orderStatusCounts, setOrderStatusCounts] = useState({
     all: 0,
     new: 0,
@@ -424,7 +436,6 @@ function AdminDashboard() {
     orderLocations: []
   });
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
-  const [showAnalyticsCustomerModal, setShowAnalyticsCustomerModal] = useState(false);
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
 
   // Yearly analytics
@@ -614,7 +625,7 @@ function AdminDashboard() {
 
   // Calculate analytics based on orders (only delivered orders for accurate statistics)
   useEffect(() => {
-    const filteredOrders = orders.filter(order => {
+    const filteredOrders = allOrdersForAnalytics.filter(order => {
       const orderDate = new Date(order.created_at);
       return orderDate.getFullYear() === dashboardYear &&
         orderDate.getMonth() + 1 === dashboardMonth &&
@@ -689,13 +700,33 @@ function AdminDashboard() {
       .filter(loc => !isNaN(loc.lat) && !isNaN(loc.lng));
 
     setAnalytics({ revenue, ordersCount, averageCheck, topProducts, topCustomers, orderLocations });
-  }, [orders, dashboardYear, dashboardMonth]);
+  }, [allOrdersForAnalytics, dashboardYear, dashboardMonth]);
 
   const openAnalyticsLocationDetails = (location) => {
     if (!location) return;
     setSelectedAnalyticsLocation(location);
-    setShowAnalyticsCustomerModal(true);
   };
+
+  const analyticsLocationsList = useMemo(() => (
+    [...(analytics.orderLocations || [])].sort((a, b) => (
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    ))
+  ), [analytics.orderLocations]);
+
+  useEffect(() => {
+    if (!analyticsLocationsList.length) {
+      if (selectedAnalyticsLocation) setSelectedAnalyticsLocation(null);
+      return;
+    }
+    if (!selectedAnalyticsLocation) {
+      setSelectedAnalyticsLocation(analyticsLocationsList[0]);
+      return;
+    }
+    const exists = analyticsLocationsList.some((location) => location.orderId === selectedAnalyticsLocation.orderId);
+    if (!exists) {
+      setSelectedAnalyticsLocation(analyticsLocationsList[0]);
+    }
+  }, [analyticsLocationsList, selectedAnalyticsLocation]);
 
   // Fetch yearly analytics
   const fetchYearlyAnalytics = async (year) => {
@@ -1079,20 +1110,20 @@ function AdminDashboard() {
           ? axios.get(`${API_URL}/admin/containers`)
           : Promise.resolve({ data: [] })
       ]);
-      const allOrdersRes = statusFilter === 'all'
-        ? null
-        : await axios.get(`${API_URL}/admin/orders`).catch((error) => {
-          console.error('Orders counts fetch error:', error);
-          return null;
-        });
+      const allOrdersRes = await axios.get(`${API_URL}/admin/orders`).catch((error) => {
+        console.error('Orders counts fetch error:', error);
+        return null;
+      });
 
       if (ordersRes.status === 'fulfilled') {
         const normalizedFilteredOrders = (ordersRes.value.data || []).map(normalizeAdminOrderForUI);
         setOrders(normalizedFilteredOrders);
 
+        const normalizedAllOrders = (allOrdersRes?.data || []).map(normalizeAdminOrderForUI);
         const countsSource = statusFilter === 'all'
           ? normalizedFilteredOrders
-          : ((allOrdersRes?.data || []).map(normalizeAdminOrderForUI));
+          : normalizedAllOrders;
+        setAllOrdersForAnalytics(normalizedAllOrders.length ? normalizedAllOrders : normalizedFilteredOrders);
         setOrderStatusCounts(buildOrderStatusCounts(countsSource));
       } else {
         console.error('Orders fetch error:', ordersRes.reason);
@@ -3180,51 +3211,111 @@ function AdminDashboard() {
                   </Col>
                 </Row>
 
-                <Row className="g-4">
-                  {/* Order Geography Map */}
-                  <Col lg={6}>
-                    <Card className="border-0 shadow-sm h-100">
+                <Row className="g-4 mb-4">
+                  <Col xs={12}>
+                    <Card className="border-0 shadow-sm">
                       <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between">
                         <h6 className="mb-0">🗺️ {t('orderGeography')}</h6>
                         <Button
                           size="sm"
                           variant="outline-secondary"
                           onClick={() => setShowAnalyticsMapModal(true)}
+                          title={t('fullscreen') || 'Во весь экран'}
+                          aria-label={t('fullscreen') || 'Во весь экран'}
                         >
-                          {t('fullscreen') || 'Во весь экран'}
+                          <i className="bi bi-arrows-fullscreen" />
                         </Button>
                       </Card.Header>
                       <Card.Body className="p-0">
-                        <div style={{ height: '350px', width: '100%' }}>
-                          <MapContainer
-                            center={ANALYTICS_DEFAULT_MAP_CENTER}
-                            zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-                            style={{ height: '100%', width: '100%' }}
-                          >
-                            <TileLayer
-                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                              attribution='&copy; OpenStreetMap contributors'
-                            />
-                            <AnalyticsMapAutoBounds points={analytics.orderLocations} />
-                            {analytics.orderLocations.map((location) => (
-                              <Marker
-                                key={`analytics-map-${location.orderId || location.orderNumber}`}
-                                position={[location.lat, location.lng]}
-                                icon={analyticsPointIcon}
-                                eventHandlers={{
-                                  click: () => openAnalyticsLocationDetails(location)
-                                }}
-                              />
-                            ))}
-                          </MapContainer>
-                        </div>
+                        <Row className="g-0">
+                          <Col lg={8} xl={9}>
+                            <div
+                              style={{
+                                height: '390px',
+                                width: '100%',
+                                background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
+                              }}
+                            >
+                              <MapContainer
+                                center={ANALYTICS_DEFAULT_MAP_CENTER}
+                                zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                                style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+                              >
+                                <TileLayer
+                                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                  attribution='&copy; OpenStreetMap contributors'
+                                />
+                                <AnalyticsMapAutoBounds points={analytics.orderLocations} />
+                                <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                                {analytics.orderLocations.map((location) => {
+                                  const isSelected = selectedAnalyticsLocation &&
+                                    (selectedAnalyticsLocation.orderId === location.orderId);
+                                  return (
+                                    <Marker
+                                      key={`analytics-map-${location.orderId || location.orderNumber}`}
+                                      position={[location.lat, location.lng]}
+                                      icon={getAnalyticsPointIcon(isSelected)}
+                                      eventHandlers={{
+                                        click: () => openAnalyticsLocationDetails(location)
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </MapContainer>
+                            </div>
+                          </Col>
+                          <Col lg={4} xl={3} className="border-start bg-white">
+                            <div className="p-3" style={{ maxHeight: '390px', overflowY: 'auto' }}>
+                              <div className="small text-uppercase text-muted fw-semibold mb-2">
+                                {t('clients') || 'Клиенты'}
+                              </div>
+                              <div className="d-grid gap-2">
+                                {analyticsLocationsList.length > 0 ? analyticsLocationsList.map((location) => {
+                                  const isSelected = selectedAnalyticsLocation &&
+                                    (selectedAnalyticsLocation.orderId === location.orderId);
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={`analytics-list-${location.orderId || location.orderNumber}`}
+                                      onClick={() => openAnalyticsLocationDetails(location)}
+                                      className="btn text-start"
+                                      style={{
+                                        border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`,
+                                        background: isSelected ? '#eff6ff' : '#ffffff',
+                                        borderRadius: 10,
+                                        padding: '10px 11px'
+                                      }}
+                                    >
+                                      <div className="fw-semibold">{location.customerName || 'Клиент'}</div>
+                                      <div className="small text-muted">{location.customerPhone || '—'}</div>
+                                      <div className="small mt-1">№{location.orderNumber} · {formatPrice(location.totalAmount)} {t('sum')}</div>
+                                    </button>
+                                  );
+                                }) : (
+                                  <div className="text-muted small py-2">{t('noDataForPeriod')}</div>
+                                )}
+                              </div>
+
+                              {selectedAnalyticsLocation && (
+                                <div className="mt-3 p-3 rounded-3 border" style={{ background: '#f8fafc' }}>
+                                  <div className="small fw-semibold mb-2">{t('client') || 'Клиент'}</div>
+                                  <div className="small"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedAnalyticsLocation.orderNumber || '—'}</div>
+                                  <div className="small"><strong>{t('amount')}:</strong> {formatPrice(selectedAnalyticsLocation.totalAmount || 0)} {t('sum')}</div>
+                                  <div className="small"><strong>{t('date')}:</strong> {selectedAnalyticsLocation.createdAt ? new Date(selectedAnalyticsLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
+                                  <div className="small"><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedAnalyticsLocation.deliveryAddress || '—'}</div>
+                                </div>
+                              )}
+                            </div>
+                          </Col>
+                        </Row>
                       </Card.Body>
                     </Card>
                   </Col>
+                </Row>
 
+                <Row className="g-4">
                   <Col lg={6}>
-                    {/* Top Products */}
-                    <Card className="border-0 shadow-sm mb-4">
+                    <Card className="border-0 shadow-sm h-100">
                       <Card.Header className="bg-white border-0">
                         <h6 className="mb-0">{t('topProducts')}</h6>
                       </Card.Header>
@@ -3253,15 +3344,13 @@ function AdminDashboard() {
                             </tbody>
                           </Table>
                         ) : (
-                          <div className="text-center text-muted py-4">
-                            {t('noDataForPeriod')}
-                          </div>
+                          <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
                         )}
                       </Card.Body>
                     </Card>
-
-                    {/* Top Customers */}
-                    <Card className="border-0 shadow-sm">
+                  </Col>
+                  <Col lg={6}>
+                    <Card className="border-0 shadow-sm h-100">
                       <Card.Header className="bg-white border-0">
                         <h6 className="mb-0">{t('topCustomers') || 'Топ клиентов'}</h6>
                       </Card.Header>
@@ -3293,9 +3382,7 @@ function AdminDashboard() {
                             </tbody>
                           </Table>
                         ) : (
-                          <div className="text-center text-muted py-4">
-                            {t('noDataForPeriod')}
-                          </div>
+                          <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
                         )}
                       </Card.Body>
                     </Card>
@@ -6006,68 +6093,28 @@ function AdminDashboard() {
                 attribution='&copy; OpenStreetMap contributors'
               />
               <AnalyticsMapAutoBounds points={analytics.orderLocations} />
+              <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
               {analytics.orderLocations.map((location) => (
-                <Marker
-                  key={`analytics-map-full-${location.orderId || location.orderNumber}`}
-                  position={[location.lat, location.lng]}
-                  icon={analyticsPointIcon}
-                  eventHandlers={{
-                    click: () => {
-                      setShowAnalyticsMapModal(false);
-                      openAnalyticsLocationDetails(location);
-                    }
-                  }}
-                />
+                (() => {
+                  const isSelected = selectedAnalyticsLocation &&
+                    (selectedAnalyticsLocation.orderId === location.orderId);
+                  return (
+                    <Marker
+                      key={`analytics-map-full-${location.orderId || location.orderNumber}`}
+                      position={[location.lat, location.lng]}
+                      icon={getAnalyticsPointIcon(isSelected)}
+                      eventHandlers={{
+                        click: () => {
+                          setShowAnalyticsMapModal(false);
+                          openAnalyticsLocationDetails(location);
+                        }
+                      }}
+                    />
+                  );
+                })()
               ))}
             </MapContainer>
           </div>
-        </Modal.Body>
-      </Modal>
-
-      <Modal
-        show={showAnalyticsCustomerModal}
-        onHide={() => setShowAnalyticsCustomerModal(false)}
-        fullscreen
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>{t('client') || 'Клиент'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body style={{ background: '#f8fafc' }}>
-          {selectedAnalyticsLocation ? (
-            <Container fluid className="py-3">
-              <Row className="justify-content-center">
-                <Col lg={8} xl={6}>
-                  <Card className="border-0 shadow-sm">
-                    <Card.Header className="bg-white border-0">
-                      <h5 className="mb-0">{selectedAnalyticsLocation.customerName || 'Клиент'}</h5>
-                      <small className="text-muted">{selectedAnalyticsLocation.customerPhone || '—'}</small>
-                    </Card.Header>
-                    <Card.Body>
-                      <div className="d-flex flex-column gap-2">
-                        <div><strong>Заказ №:</strong> {selectedAnalyticsLocation.orderNumber || '—'}</div>
-                        <div><strong>{t('amount')}:</strong> {formatPrice(selectedAnalyticsLocation.totalAmount || 0)} {t('sum')}</div>
-                        <div>
-                          <strong>{t('status')}:</strong> {
-                            selectedAnalyticsLocation.status === 'delivered'
-                              ? (language === 'uz' ? 'Yetkazildi' : 'Доставлен')
-                              : selectedAnalyticsLocation.status === 'cancelled'
-                                ? (language === 'uz' ? 'Bekor qilingan' : 'Отменен')
-                                : selectedAnalyticsLocation.status
-                          }
-                        </div>
-                        <div><strong>{t('date')}:</strong> {selectedAnalyticsLocation.createdAt ? new Date(selectedAnalyticsLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
-                        <div><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedAnalyticsLocation.deliveryAddress || '—'}</div>
-                        <div><strong>GPS:</strong> {selectedAnalyticsLocation.lat}, {selectedAnalyticsLocation.lng}</div>
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              </Row>
-            </Container>
-          ) : (
-            <div className="text-center py-5 text-muted">{t('noData')}</div>
-          )}
         </Modal.Body>
       </Modal>
 
