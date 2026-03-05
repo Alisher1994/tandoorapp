@@ -1942,3 +1942,69 @@ body::-webkit-scrollbar,
         min-height: 152px;
     }
 }
+
+.analytics-map-point {
+    background: transparent !important;
+    border: 0 !important;
+    overflow: visible !important;
+}
+
+.analytics-map-point .analytics-map-point-badge {
+    position: relative;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #3d64ff;
+    border: 2px solid #ffffff;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.analytics-map-point .analytics-map-point-emoji {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.analytics-map-point.is-active .analytics-map-point-badge {
+    background: #2f54f4;
+    transform: scale(1.12);
+    box-shadow: 0 0 0 4px rgba(61, 100, 255, 0.24), 0 8px 22px rgba(15, 23, 42, 0.42);
+}
+
+.analytics-map-point.is-active .analytics-map-point-badge::before,
+.analytics-map-point.is-active .analytics-map-point-badge::after {
+    content: '';
+    position: absolute;
+    left: -10px;
+    right: -10px;
+    top: -10px;
+    bottom: -10px;
+    border-radius: 999px;
+    border: 2px solid rgba(61, 100, 255, 0.9);
+    animation: analytics-marker-radar 2.5s linear infinite;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.analytics-map-point.is-active .analytics-map-point-badge::after {
+    animation-delay: 1.25s;
+}
+
+@keyframes analytics-marker-radar {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1.2);
+        opacity: 0;
+    }
+}

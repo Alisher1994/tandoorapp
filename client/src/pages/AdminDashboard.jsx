@@ -39,11 +39,12 @@ const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
+const getAnalyticsLocationKey = (location) => String(location?.orderId ?? location?.orderNumber ?? '');
 const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
   className: `analytics-map-point${isActive ? ' is-active' : ''}`,
-  html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;background:${isActive ? '#1d4ed8' : '#2563eb'};color:#fff;font-size:14px;border:2px solid #fff;box-shadow:0 3px 10px rgba(15,23,42,0.35);">🙋🏻</span>`,
-  iconSize: [24, 24],
-  iconAnchor: [12, 12]
+  html: `<span class="analytics-map-point-badge"><span class="analytics-map-point-emoji">🙋🏻</span></span>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13]
 });
 
 const AnalyticsMapAutoBounds = ({ points }) => {
@@ -437,6 +438,8 @@ function AdminDashboard() {
   });
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
+  const analyticsListItemRefs = useRef(new Map());
+  const analyticsFullscreenListItemRefs = useRef(new Map());
 
   // Yearly analytics
   const [yearlyAnalytics, setYearlyAnalytics] = useState({
@@ -727,6 +730,21 @@ function AdminDashboard() {
       setSelectedAnalyticsLocation(analyticsLocationsList[0]);
     }
   }, [analyticsLocationsList, selectedAnalyticsLocation]);
+
+  useEffect(() => {
+    if (!selectedAnalyticsLocation) return;
+    const selectedKey = getAnalyticsLocationKey(selectedAnalyticsLocation);
+    if (!selectedKey) return;
+    const scrollOptions = { behavior: 'smooth', block: 'nearest', inline: 'nearest' };
+    const regularListTarget = analyticsListItemRefs.current.get(selectedKey);
+    if (regularListTarget) {
+      regularListTarget.scrollIntoView(scrollOptions);
+    }
+    const fullscreenListTarget = analyticsFullscreenListItemRefs.current.get(selectedKey);
+    if (fullscreenListTarget) {
+      fullscreenListTarget.scrollIntoView(scrollOptions);
+    }
+  }, [selectedAnalyticsLocation, showAnalyticsMapModal]);
 
   // Fetch yearly analytics
   const fetchYearlyAnalytics = async (year) => {
@@ -3255,6 +3273,7 @@ function AdminDashboard() {
                                       key={`analytics-map-${location.orderId || location.orderNumber}`}
                                       position={[location.lat, location.lng]}
                                       icon={getAnalyticsPointIcon(isSelected)}
+                                      zIndexOffset={isSelected ? 1000 : 0}
                                       eventHandlers={{
                                         click: () => openAnalyticsLocationDetails(location)
                                       }}
@@ -3271,12 +3290,18 @@ function AdminDashboard() {
                               </div>
                               <div className="d-grid gap-2">
                                 {analyticsLocationsList.length > 0 ? analyticsLocationsList.map((location) => {
+                                  const locationKey = getAnalyticsLocationKey(location);
                                   const isSelected = selectedAnalyticsLocation &&
                                     (selectedAnalyticsLocation.orderId === location.orderId);
                                   return (
                                     <button
                                       type="button"
                                       key={`analytics-list-${location.orderId || location.orderNumber}`}
+                                      ref={(el) => {
+                                        if (!locationKey) return;
+                                        if (el) analyticsListItemRefs.current.set(locationKey, el);
+                                        else analyticsListItemRefs.current.delete(locationKey);
+                                      }}
                                       onClick={() => openAnalyticsLocationDetails(location)}
                                       className="btn text-start"
                                       style={{
@@ -6105,6 +6130,7 @@ function AdminDashboard() {
                           key={`analytics-map-full-${location.orderId || location.orderNumber}`}
                           position={[location.lat, location.lng]}
                           icon={getAnalyticsPointIcon(isSelected)}
+                          zIndexOffset={isSelected ? 1000 : 0}
                           eventHandlers={{
                             click: () => openAnalyticsLocationDetails(location)
                           }}
@@ -6121,12 +6147,18 @@ function AdminDashboard() {
                   </div>
                   <div className="d-grid gap-2">
                     {analyticsLocationsList.length > 0 ? analyticsLocationsList.map((location) => {
+                      const locationKey = getAnalyticsLocationKey(location);
                       const isSelected = selectedAnalyticsLocation &&
                         (selectedAnalyticsLocation.orderId === location.orderId);
                       return (
                         <button
                           type="button"
                           key={`analytics-full-list-${location.orderId || location.orderNumber}`}
+                          ref={(el) => {
+                            if (!locationKey) return;
+                            if (el) analyticsFullscreenListItemRefs.current.set(locationKey, el);
+                            else analyticsFullscreenListItemRefs.current.delete(locationKey);
+                          }}
                           onClick={() => openAnalyticsLocationDetails(location)}
                           className="btn text-start"
                           style={{
