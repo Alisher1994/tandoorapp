@@ -3422,7 +3422,7 @@ function AdminDashboard() {
                             </div>
                           </Col>
                           <Col lg={4} xl={3} className="border-start bg-white">
-                            <div className="p-3" style={{ maxHeight: '390px', overflowY: 'auto' }}>
+                            <div className="p-3 admin-custom-scrollbar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
                               <div className="small text-uppercase text-muted fw-semibold mb-2">
                                 {t('clients') || 'Клиенты'}
                               </div>
@@ -5442,7 +5442,7 @@ function AdminDashboard() {
                     ) : (
                       <Row className="g-4">
                         <Col xl={4} style={{ minWidth: 0 }}>
-                          <div className="d-grid gap-2" style={{ maxHeight: 560, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+                          <div className="d-grid gap-2 admin-custom-scrollbar" style={{ maxHeight: 560, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
                             {helpInstructions.map((item) => {
                               const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
                               const title = language === 'uz'
@@ -6413,7 +6413,7 @@ function AdminDashboard() {
                 </MapContainer>
               </Col>
               <Col xs={5} sm={4} lg={3} className="h-100 border-start bg-white">
-                <div className="p-2 p-sm-3 h-100" style={{ overflowY: 'auto' }}>
+                <div className="p-2 p-sm-3 h-100 admin-custom-scrollbar" style={{ overflowY: 'auto' }}>
                   <div className="small text-uppercase text-muted fw-semibold mb-2">
                     {t('clients') || 'Клиенты'}
                   </div>

@@ -270,7 +270,33 @@ body::-webkit-scrollbar,
 .admin-panel {
     padding-top: 2rem;
     padding-bottom: 4rem;
-    background: #f3f4f6;
+    background: transparent;
+}
+
+.admin-custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.72) rgba(148, 163, 184, 0.14);
+    scrollbar-gutter: stable;
+}
+
+.admin-custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.admin-custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.14);
+    border-radius: 999px;
+}
+
+.admin-custom-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(100, 116, 139, 0.86), rgba(71, 85, 105, 0.92));
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.admin-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(71, 85, 105, 0.94), rgba(51, 65, 85, 0.98));
 }
 
 .admin-panel .card,
