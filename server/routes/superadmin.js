@@ -19,6 +19,7 @@ const {
   ensureHelpInstructionsSchema,
   isValidYouTubeUrl,
   listHelpInstructions,
+  resolveNextSortOrder,
   createHelpInstruction,
   updateHelpInstruction,
   deleteHelpInstruction
@@ -3026,6 +3027,7 @@ router.post('/help-instructions', async (req, res) => {
     const titleUz = normalizeInstructionText(req.body?.title_uz);
     const youtubeUrl = String(req.body?.youtube_url || '').trim();
     const sortOrderRaw = req.body?.sort_order;
+    const parsedSortOrder = Number.parseInt(sortOrderRaw, 10);
 
     if (!titleRu) {
       return res.status(400).json({ error: 'Название кнопки RU обязательно' });
@@ -3039,16 +3041,25 @@ router.post('/help-instructions', async (req, res) => {
     if (!isValidYouTubeUrl(youtubeUrl)) {
       return res.status(400).json({ error: 'Укажите корректную ссылку YouTube' });
     }
+    if (sortOrderRaw !== undefined && sortOrderRaw !== null && String(sortOrderRaw).trim() !== '' &&
+      (!Number.isFinite(parsedSortOrder) || parsedSortOrder <= 0)) {
+      return res.status(400).json({ error: 'Некорректный порядковый номер' });
+    }
 
     const created = await createHelpInstruction({
       title_ru: titleRu,
       title_uz: titleUz,
       youtube_url: youtubeUrl,
-      sort_order: sortOrderRaw
+      sort_order: (sortOrderRaw === undefined || sortOrderRaw === null || String(sortOrderRaw).trim() === '')
+        ? await resolveNextSortOrder()
+        : parsedSortOrder
     });
     res.status(201).json(created);
   } catch (error) {
     console.error('Create help instruction error:', error);
+    if (error?.code === 'DUPLICATE_SORT_ORDER') {
+      return res.status(409).json({ error: 'Этот порядковый номер уже используется. Выберите свободный номер.' });
+    }
     res.status(500).json({ error: 'Ошибка добавления инструкции' });
   }
 });
@@ -3078,8 +3089,8 @@ router.put('/help-instructions/:id', async (req, res) => {
     if (!isValidYouTubeUrl(youtubeUrl)) {
       return res.status(400).json({ error: 'Укажите корректную ссылку YouTube' });
     }
-    if (!Number.isFinite(sortOrder) || sortOrder < 0) {
-      return res.status(400).json({ error: 'Некорректный порядок сортировки' });
+    if (!Number.isFinite(sortOrder) || sortOrder <= 0) {
+      return res.status(400).json({ error: 'Некорректный порядковый номер' });
     }
 
     const updated = await updateHelpInstruction(instructionId, {
@@ -3096,6 +3107,9 @@ router.put('/help-instructions/:id', async (req, res) => {
     res.json(updated);
   } catch (error) {
     console.error('Update help instruction error:', error);
+    if (error?.code === 'DUPLICATE_SORT_ORDER') {
+      return res.status(409).json({ error: 'Этот порядковый номер уже используется. Выберите свободный номер.' });
+    }
     res.status(500).json({ error: 'Ошибка обновления инструкции' });
   }
 });
@@ -3116,6 +3130,9 @@ router.delete('/help-instructions/:id', async (req, res) => {
     res.json({ success: true, deleted });
   } catch (error) {
     console.error('Delete help instruction error:', error);
+    if (error?.code === 'DEFAULT_DELETE_FORBIDDEN') {
+      return res.status(400).json({ error: 'Системные инструкции удалять нельзя' });
+    }
     res.status(500).json({ error: 'Ошибка удаления инструкции' });
   }
 });

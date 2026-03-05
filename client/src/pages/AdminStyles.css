@@ -295,6 +295,10 @@ body::-webkit-scrollbar,
     -ms-overflow-style: none;
 }
 
+.admin-tabs.nav {
+    flex-wrap: nowrap !important;
+}
+
 .admin-tabs::-webkit-scrollbar {
     display: none;
 }

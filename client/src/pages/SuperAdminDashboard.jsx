@@ -26,6 +26,17 @@ const createEmptyHelpInstructionForm = () => ({
   youtube_url: '',
   sort_order: ''
 });
+const getNextFreeSortOrderClient = (items = [], excludeId = null) => {
+  const taken = new Set(
+    (Array.isArray(items) ? items : [])
+      .filter((item) => excludeId === null || Number(item?.id) !== Number(excludeId))
+      .map((item) => Number.parseInt(item?.sort_order, 10))
+      .filter((value) => Number.isFinite(value) && value > 0)
+  );
+  let candidate = 1;
+  while (taken.has(candidate)) candidate += 1;
+  return candidate;
+};
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -363,8 +374,8 @@ function SuperAdminDashboard() {
   const [helpInstructions, setHelpInstructions] = useState([]);
   const [helpInstructionsLoading, setHelpInstructionsLoading] = useState(false);
   const [helpInstructionForm, setHelpInstructionForm] = useState(createEmptyHelpInstructionForm);
-  const [helpInstructionExtraForms, setHelpInstructionExtraForms] = useState([]);
-  const [savingHelpInstructionKey, setSavingHelpInstructionKey] = useState('');
+  const [showHelpInstructionModal, setShowHelpInstructionModal] = useState(false);
+  const [savingHelpInstruction, setSavingHelpInstruction] = useState(false);
   const [deletingHelpInstructionId, setDeletingHelpInstructionId] = useState(null);
 
   // Categories
@@ -687,7 +698,7 @@ function SuperAdminDashboard() {
     return '';
   };
 
-  const saveHelpInstruction = async (rawPayload, saveKey) => {
+  const saveHelpInstruction = async (rawPayload) => {
     const payload = normalizeHelpInstructionPayload(rawPayload);
     const validationError = validateHelpInstructionPayload(payload);
     if (validationError) {
@@ -695,7 +706,7 @@ function SuperAdminDashboard() {
       return;
     }
 
-    setSavingHelpInstructionKey(saveKey);
+    setSavingHelpInstruction(true);
     try {
       if (rawPayload?.id) {
         await axios.put(`${API_URL}/superadmin/help-instructions/${rawPayload.id}`, payload);
@@ -703,45 +714,44 @@ function SuperAdminDashboard() {
         await axios.post(`${API_URL}/superadmin/help-instructions`, payload);
       }
       setSuccess(language === 'uz' ? "Yo'riqnoma saqlandi" : 'Инструкция сохранена');
+      setShowHelpInstructionModal(false);
       setHelpInstructionForm(createEmptyHelpInstructionForm());
-      setHelpInstructionExtraForms((prev) => prev.filter((item) => item.__localId !== saveKey));
       await loadHelpInstructions();
     } catch (err) {
       setError(err.response?.data?.error || (language === 'uz' ? 'Yo‘riqnomani saqlab bo‘lmadi' : 'Ошибка сохранения инструкции'));
     } finally {
-      setSavingHelpInstructionKey('');
+      setSavingHelpInstruction(false);
     }
   };
 
+  const openCreateHelpInstructionModal = () => {
+    setHelpInstructionForm({
+      ...createEmptyHelpInstructionForm(),
+      sort_order: String(getNextFreeSortOrderClient(helpInstructions))
+    });
+    setShowHelpInstructionModal(true);
+  };
+
   const handleEditHelpInstruction = (item) => {
+    const parsedSort = Number.parseInt(item?.sort_order, 10);
+    const normalizedSort = Number.isFinite(parsedSort) && parsedSort > 0
+      ? parsedSort
+      : getNextFreeSortOrderClient(helpInstructions, item?.id);
     setHelpInstructionForm({
       id: item.id,
       title_ru: item.title_ru || '',
       title_uz: item.title_uz || '',
       youtube_url: item.youtube_url || '',
-      sort_order: item.sort_order ?? ''
+      sort_order: String(normalizedSort)
     });
-  };
-
-  const appendHelpInstructionDraft = () => {
-    const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setHelpInstructionExtraForms((prev) => [
-      ...prev,
-      { __localId: localId, ...createEmptyHelpInstructionForm() }
-    ]);
-  };
-
-  const updateHelpInstructionDraft = (localId, patch) => {
-    setHelpInstructionExtraForms((prev) => prev.map((item) => (
-      item.__localId === localId ? { ...item, ...patch } : item
-    )));
-  };
-
-  const removeHelpInstructionDraft = (localId) => {
-    setHelpInstructionExtraForms((prev) => prev.filter((item) => item.__localId !== localId));
+    setShowHelpInstructionModal(true);
   };
 
   const handleDeleteHelpInstruction = async (item) => {
+    if (item?.is_default) {
+      setError(language === 'uz' ? 'Sistem yo‘riqnomalarni o‘chirib bo‘lmaydi' : 'Системные инструкции удалять нельзя');
+      return;
+    }
     const confirmMessage = language === 'uz'
       ? `Yo‘riqnomani o‘chirishni xohlaysizmi?\n\n${item.title_uz || item.title_ru || ''}`
       : `Удалить инструкцию?\n\n${item.title_ru || item.title_uz || ''}`;
@@ -753,6 +763,7 @@ function SuperAdminDashboard() {
       setSuccess(language === 'uz' ? "Yo'riqnoma o'chirildi" : 'Инструкция удалена');
       if (Number(helpInstructionForm.id) === Number(item.id)) {
         setHelpInstructionForm(createEmptyHelpInstructionForm());
+        setShowHelpInstructionModal(false);
       }
       await loadHelpInstructions();
     } catch (err) {
@@ -1527,6 +1538,26 @@ function SuperAdminDashboard() {
     const start = (restaurantsPage - 1) * restaurantsLimit;
     return filteredRestaurants.slice(start, start + restaurantsLimit);
   }, [filteredRestaurants, restaurantsPage, restaurantsLimit]);
+
+  const helpInstructionSortOptions = useMemo(() => {
+    const currentId = helpInstructionForm?.id ? Number(helpInstructionForm.id) : null;
+    const currentSort = Number.parseInt(helpInstructionForm?.sort_order, 10);
+    const taken = new Set(
+      helpInstructions
+        .filter((item) => currentId === null || Number(item.id) !== currentId)
+        .map((item) => Number.parseInt(item.sort_order, 10))
+        .filter((value) => Number.isFinite(value) && value > 0)
+    );
+
+    const maxBound = Math.max((helpInstructions?.length || 0) + 20, currentSort || 0, 20);
+    const options = [];
+    for (let value = 1; value <= maxBound; value += 1) {
+      if (!taken.has(value) || value === currentSort) {
+        options.push(value);
+      }
+    }
+    return options;
+  }, [helpInstructions, helpInstructionForm?.id, helpInstructionForm?.sort_order]);
 
   const formatThousands = (value) => {
     if (value === null || value === undefined || value === '') return '';
@@ -3305,153 +3336,11 @@ function SuperAdminDashboard() {
                     {language === 'uz' ? "Telegram va admin yo'riqnomalari" : 'Инструкции для Telegram и web-панели'}
                   </h5>
                   <div className="d-flex gap-2">
-                    <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
-                      {language === 'uz' ? 'Jami' : 'Всего'}: {helpInstructions.length}
-                    </Badge>
-                    <Button className="btn-primary-custom" onClick={appendHelpInstructionDraft}>
+                    <Button className="btn-primary-custom" onClick={openCreateHelpInstructionModal}>
                       + {language === 'uz' ? "Maydon qo'shish" : 'Добавить поле'}
                     </Button>
                   </div>
                 </div>
-
-                <Card className="border-0 shadow-sm mb-3">
-                  <Card.Body>
-                    <Row className="g-3 align-items-end">
-                      <Col md={4}>
-                        <Form.Group>
-                          <Form.Label className="fw-medium text-secondary">RU</Form.Label>
-                          <Form.Control
-                            value={helpInstructionForm.title_ru}
-                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, title_ru: e.target.value }))}
-                            placeholder={language === 'uz' ? 'Tugma nomi (RU)' : 'Название кнопки (RU)'}
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={4}>
-                        <Form.Group>
-                          <Form.Label className="fw-medium text-secondary">UZ</Form.Label>
-                          <Form.Control
-                            value={helpInstructionForm.title_uz}
-                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, title_uz: e.target.value }))}
-                            placeholder={language === 'uz' ? 'Tugma nomi (UZ)' : 'Название кнопки (UZ)'}
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={3}>
-                        <Form.Group>
-                          <Form.Label className="fw-medium text-secondary">{language === 'uz' ? 'Tartib' : 'Порядок'}</Form.Label>
-                          <Form.Control
-                            type="number"
-                            min="0"
-                            value={helpInstructionForm.sort_order}
-                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, sort_order: e.target.value }))}
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={1} className="d-grid">
-                        <Button
-                          variant="outline-secondary"
-                          onClick={() => setHelpInstructionForm(createEmptyHelpInstructionForm())}
-                          title={language === 'uz' ? 'Tozalash' : 'Сбросить'}
-                        >
-                          ✖
-                        </Button>
-                      </Col>
-                      <Col md={9}>
-                        <Form.Group>
-                          <Form.Label className="fw-medium text-secondary">YouTube URL</Form.Label>
-                          <Form.Control
-                            value={helpInstructionForm.youtube_url}
-                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, youtube_url: e.target.value }))}
-                            placeholder="https://www.youtube.com/watch?v=..."
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={3} className="d-grid">
-                        <Button
-                          className="btn-primary-custom"
-                          disabled={savingHelpInstructionKey === 'main-form'}
-                          onClick={() => saveHelpInstruction(helpInstructionForm, 'main-form')}
-                        >
-                          {savingHelpInstructionKey === 'main-form'
-                            ? '...'
-                            : (helpInstructionForm.id
-                              ? (language === 'uz' ? 'Saqlash' : 'Сохранить')
-                              : (language === 'uz' ? "Qo'shish" : 'Добавить'))}
-                        </Button>
-                      </Col>
-                    </Row>
-                  </Card.Body>
-                </Card>
-
-                {helpInstructionExtraForms.map((draft) => (
-                  <Card key={draft.__localId} className="border-0 shadow-sm mb-3">
-                    <Card.Body>
-                      <Row className="g-3 align-items-end">
-                        <Col md={4}>
-                          <Form.Group>
-                            <Form.Label className="fw-medium text-secondary">RU</Form.Label>
-                            <Form.Control
-                              value={draft.title_ru}
-                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { title_ru: e.target.value })}
-                              placeholder={language === 'uz' ? 'Tugma nomi (RU)' : 'Название кнопки (RU)'}
-                            />
-                          </Form.Group>
-                        </Col>
-                        <Col md={4}>
-                          <Form.Group>
-                            <Form.Label className="fw-medium text-secondary">UZ</Form.Label>
-                            <Form.Control
-                              value={draft.title_uz}
-                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { title_uz: e.target.value })}
-                              placeholder={language === 'uz' ? 'Tugma nomi (UZ)' : 'Название кнопки (UZ)'}
-                            />
-                          </Form.Group>
-                        </Col>
-                        <Col md={2}>
-                          <Form.Group>
-                            <Form.Label className="fw-medium text-secondary">{language === 'uz' ? 'Tartib' : 'Порядок'}</Form.Label>
-                            <Form.Control
-                              type="number"
-                              min="0"
-                              value={draft.sort_order}
-                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { sort_order: e.target.value })}
-                            />
-                          </Form.Group>
-                        </Col>
-                        <Col md={2} className="d-grid">
-                          <Button
-                            variant="outline-danger"
-                            onClick={() => removeHelpInstructionDraft(draft.__localId)}
-                          >
-                            {language === 'uz' ? "O'chirish" : 'Удалить'}
-                          </Button>
-                        </Col>
-                        <Col md={9}>
-                          <Form.Group>
-                            <Form.Label className="fw-medium text-secondary">YouTube URL</Form.Label>
-                            <Form.Control
-                              value={draft.youtube_url}
-                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { youtube_url: e.target.value })}
-                              placeholder="https://www.youtube.com/watch?v=..."
-                            />
-                          </Form.Group>
-                        </Col>
-                        <Col md={3} className="d-grid">
-                          <Button
-                            className="btn-primary-custom"
-                            disabled={savingHelpInstructionKey === draft.__localId}
-                            onClick={() => saveHelpInstruction(draft, draft.__localId)}
-                          >
-                            {savingHelpInstructionKey === draft.__localId
-                              ? '...'
-                              : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
-                          </Button>
-                        </Col>
-                      </Row>
-                    </Card.Body>
-                  </Card>
-                ))}
 
                 {helpInstructionsLoading ? (
                   <TableSkeleton rows={8} columns={6} label={language === 'uz' ? "Yo'riqnomalar yuklanmoqda" : 'Загрузка инструкций'} />
@@ -3497,9 +3386,11 @@ function SuperAdminDashboard() {
                                 <Button
                                   variant="light"
                                   className="action-btn text-danger"
-                                  disabled={deletingHelpInstructionId === item.id}
+                                  disabled={deletingHelpInstructionId === item.id || item.is_default}
                                   onClick={() => handleDeleteHelpInstruction(item)}
-                                  title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                  title={item.is_default
+                                    ? (language === 'uz' ? "Sistem yo'riqnoma o'chirilmaydi" : 'Системную инструкцию удалить нельзя')
+                                    : (language === 'uz' ? "O'chirish" : 'Удалить')}
                                 >
                                   🗑️
                                 </Button>
@@ -5454,6 +5345,97 @@ function SuperAdminDashboard() {
           <Button variant="secondary" onClick={() => setShowAdBannerModal(false)}>{adI18n.cancel}</Button>
           <Button className="btn-primary-custom" onClick={saveAdBanner}>
             {editingAdBanner ? adI18n.saveChanges : adI18n.createSlot}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showHelpInstructionModal}
+        onHide={() => {
+          if (savingHelpInstruction) return;
+          setShowHelpInstructionModal(false);
+          setHelpInstructionForm(createEmptyHelpInstructionForm());
+        }}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {helpInstructionForm.id
+              ? (language === 'uz' ? "Yo'riqnomani tahrirlash" : 'Редактировать инструкцию')
+              : (language === 'uz' ? "Yo'riqnoma qo'shish" : 'Добавить инструкцию')}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>RU</Form.Label>
+                <Form.Control
+                  value={helpInstructionForm.title_ru}
+                  onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, title_ru: e.target.value }))}
+                  placeholder={language === 'uz' ? 'Tugma nomi (RU)' : 'Название кнопки (RU)'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>UZ</Form.Label>
+                <Form.Control
+                  value={helpInstructionForm.title_uz}
+                  onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, title_uz: e.target.value }))}
+                  placeholder={language === 'uz' ? 'Tugma nomi (UZ)' : 'Название кнопки (UZ)'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label>YouTube URL</Form.Label>
+                <Form.Control
+                  value={helpInstructionForm.youtube_url}
+                  onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, youtube_url: e.target.value }))}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                />
+              </Form.Group>
+            </Col>
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Tartib raqami' : 'Порядковый номер'}</Form.Label>
+                <Form.Select
+                  value={helpInstructionForm.sort_order}
+                  onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, sort_order: e.target.value }))}
+                >
+                  {helpInstructionSortOptions.map((value) => (
+                    <option key={`help-sort-${value}`} value={value}>{value}</option>
+                  ))}
+                </Form.Select>
+                <Form.Text className="text-muted">
+                  {language === 'uz'
+                    ? "Faqat bo'sh tartib raqamlari ko'rsatiladi."
+                    : 'Показываются только свободные порядковые номера.'}
+                </Form.Text>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            disabled={savingHelpInstruction}
+            onClick={() => {
+              setShowHelpInstructionModal(false);
+              setHelpInstructionForm(createEmptyHelpInstructionForm());
+            }}
+          >
+            {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+          <Button
+            className="btn-primary-custom"
+            disabled={savingHelpInstruction}
+            onClick={() => saveHelpInstruction(helpInstructionForm)}
+          >
+            {savingHelpInstruction
+              ? '...'
+              : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
           </Button>
         </Modal.Footer>
       </Modal>

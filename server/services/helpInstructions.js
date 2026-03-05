@@ -76,6 +76,12 @@ const normalizeSortOrder = (value, fallback = 0) => {
   return parsed;
 };
 
+const toSortOrder = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
 const isValidYouTubeUrl = (value) => {
   const raw = normalizeInstructionUrl(value);
   if (!raw) return false;
@@ -192,10 +198,21 @@ const getHelpInstructionByCode = async (code) => {
 const resolveNextSortOrder = async () => {
   await ensureHelpInstructionsSchema();
   const result = await pool.query(
-    `SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order
-     FROM help_instructions`
+    `SELECT sort_order
+     FROM help_instructions
+     WHERE sort_order IS NOT NULL AND sort_order > 0
+     ORDER BY sort_order ASC, id ASC`
   );
-  return Number(result.rows[0]?.max_sort_order || 0) + 1;
+  const taken = new Set(
+    result.rows
+      .map((row) => toSortOrder(row.sort_order))
+      .filter((value) => Number.isFinite(value))
+  );
+  let candidate = 1;
+  while (taken.has(candidate)) {
+    candidate += 1;
+  }
+  return candidate;
 };
 
 const createHelpInstruction = async (payload = {}) => {
@@ -207,6 +224,16 @@ const createHelpInstruction = async (payload = {}) => {
   const sortOrder = payload.sort_order === undefined || payload.sort_order === null || payload.sort_order === ''
     ? await resolveNextSortOrder()
     : normalizeSortOrder(payload.sort_order, await resolveNextSortOrder());
+
+  const sortConflict = await pool.query(
+    `SELECT id FROM help_instructions WHERE sort_order = $1 LIMIT 1`,
+    [sortOrder]
+  );
+  if (sortConflict.rows.length > 0) {
+    const error = new Error('DUPLICATE_SORT_ORDER');
+    error.code = 'DUPLICATE_SORT_ORDER';
+    throw error;
+  }
 
   const result = await pool.query(
     `INSERT INTO help_instructions (title_ru, title_uz, youtube_url, sort_order, is_default)
@@ -225,6 +252,20 @@ const updateHelpInstruction = async (id, payload = {}) => {
   const youtubeUrl = normalizeInstructionUrl(payload.youtube_url);
   const sortOrder = normalizeSortOrder(payload.sort_order, 0);
 
+  const sortConflict = await pool.query(
+    `SELECT id
+     FROM help_instructions
+     WHERE sort_order = $1
+       AND id <> $2
+     LIMIT 1`,
+    [sortOrder, id]
+  );
+  if (sortConflict.rows.length > 0) {
+    const error = new Error('DUPLICATE_SORT_ORDER');
+    error.code = 'DUPLICATE_SORT_ORDER';
+    throw error;
+  }
+
   const result = await pool.query(
     `UPDATE help_instructions
      SET title_ru = $1,
@@ -241,6 +282,22 @@ const updateHelpInstruction = async (id, payload = {}) => {
 
 const deleteHelpInstruction = async (id) => {
   await ensureHelpInstructionsSchema();
+  const instruction = await pool.query(
+    `SELECT id, is_default
+     FROM help_instructions
+     WHERE id = $1
+     LIMIT 1`,
+    [id]
+  );
+  if (instruction.rows.length === 0) {
+    return null;
+  }
+  if (instruction.rows[0].is_default === true) {
+    const error = new Error('DEFAULT_DELETE_FORBIDDEN');
+    error.code = 'DEFAULT_DELETE_FORBIDDEN';
+    throw error;
+  }
+
   const result = await pool.query(
     `DELETE FROM help_instructions
      WHERE id = $1
@@ -256,6 +313,7 @@ module.exports = {
   isValidYouTubeUrl,
   listHelpInstructions,
   getHelpInstructionByCode,
+  resolveNextSortOrder,
   createHelpInstruction,
   updateHelpInstruction,
   deleteHelpInstruction
