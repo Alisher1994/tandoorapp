@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
-const TELEGRAM_ITEMS_SECTION_LIMIT = 2300;
+const TELEGRAM_ITEMS_HARD_LIMIT = 20;
 const TELEGRAM_COMMENT_LIMIT = 360;
 
 // Cache for restaurant-specific bots
@@ -108,36 +108,20 @@ function truncateText(value, maxLength) {
   return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
-function buildItemsList(items = [], maxLength = TELEGRAM_ITEMS_SECTION_LIMIT) {
+function buildItemsList(items = []) {
   if (!Array.isArray(items) || items.length === 0) return '—';
 
-  const lines = [];
-  let usedLength = 0;
-  let omittedCount = 0;
+  if (items.length > TELEGRAM_ITEMS_HARD_LIMIT) {
+    return `📦 Список товаров скрыт.\nПозиции в заказе: ${items.length}\nНажмите «🔎 Детали», чтобы посмотреть состав заказа.`;
+  }
 
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index] || {};
+  return items.map((item, index) => {
     const qty = parseNumericValue(item.quantity);
     const price = parseNumericValue(item.price);
     const total = qty * price;
     const itemName = escapeHtml(item.product_name || 'Товар');
-    const line = `${index + 1}. ${itemName}\n${formatPrice(qty)} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
-    const lineLength = line.length + (lines.length > 0 ? 2 : 0);
-
-    if (usedLength + lineLength > maxLength) {
-      omittedCount = items.length - index;
-      break;
-    }
-
-    lines.push(line);
-    usedLength += lineLength;
-  }
-
-  if (omittedCount > 0) {
-    lines.push(`… и ещё ${omittedCount} позиций`);
-  }
-
-  return lines.join('\n\n');
+    return `№${index + 1}. ${itemName}\n${formatPrice(qty)} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
+  }).join('\n\n');
 }
 
 function parseDeliveryCoordinates(rawCoordinates) {
@@ -278,7 +262,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     previewUrl = null
   } = options;
 
-  const itemsList = buildItemsList(items, TELEGRAM_ITEMS_SECTION_LIMIT);
+  const itemsList = buildItemsList(items);
 
   let locationLine = '';
   if (revealSensitive) {
