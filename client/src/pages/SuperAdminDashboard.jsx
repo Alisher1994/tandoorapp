@@ -19,6 +19,13 @@ const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATEGORY_LEVEL_COUNT = 3;
+const createEmptyHelpInstructionForm = () => ({
+  id: null,
+  title_ru: '',
+  title_uz: '',
+  youtube_url: '',
+  sort_order: ''
+});
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -353,6 +360,12 @@ function SuperAdminDashboard() {
   const [activityTypeForm, setActivityTypeForm] = useState({ name: '', sort_order: '', is_visible: true });
   const [editingActivityType, setEditingActivityType] = useState(null);
   const [savingActivityType, setSavingActivityType] = useState(false);
+  const [helpInstructions, setHelpInstructions] = useState([]);
+  const [helpInstructionsLoading, setHelpInstructionsLoading] = useState(false);
+  const [helpInstructionForm, setHelpInstructionForm] = useState(createEmptyHelpInstructionForm);
+  const [helpInstructionExtraForms, setHelpInstructionExtraForms] = useState([]);
+  const [savingHelpInstructionKey, setSavingHelpInstructionKey] = useState('');
+  const [deletingHelpInstructionId, setDeletingHelpInstructionId] = useState(null);
 
   // Categories
   const [categories, setCategories] = useState([]);
@@ -527,6 +540,7 @@ function SuperAdminDashboard() {
     if (activeTab === 'logs') loadLogs();
     if (activeTab === 'categories') loadCategories();
     if (activeTab === 'activity_types') loadActivityTypes();
+    if (activeTab === 'help_instructions') loadHelpInstructions();
     if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') loadBillingSettings();
   }, [activeTab]);
@@ -633,6 +647,118 @@ function SuperAdminDashboard() {
       }
     } finally {
       setActivityTypesLoading(false);
+    }
+  };
+
+  const loadHelpInstructions = async () => {
+    setHelpInstructionsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/help-instructions`);
+      setHelpInstructions(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Load help instructions error:', err);
+      if (activeTab === 'help_instructions') {
+        setError(language === 'uz' ? "Yo'riqnomalarni yuklab bo'lmadi" : 'Ошибка загрузки инструкций');
+      }
+    } finally {
+      setHelpInstructionsLoading(false);
+    }
+  };
+
+  const normalizeHelpInstructionPayload = (payload) => ({
+    title_ru: String(payload?.title_ru || '').trim(),
+    title_uz: String(payload?.title_uz || '').trim(),
+    youtube_url: String(payload?.youtube_url || '').trim(),
+    sort_order: String(payload?.sort_order || '').trim() === ''
+      ? ''
+      : Number.parseInt(payload.sort_order, 10)
+  });
+
+  const validateHelpInstructionPayload = (payload) => {
+    if (!payload.title_ru) {
+      return language === 'uz' ? 'RU tugma nomini kiriting' : 'Введите название кнопки RU';
+    }
+    if (!payload.title_uz) {
+      return language === 'uz' ? 'UZ tugma nomini kiriting' : 'Введите название кнопки UZ';
+    }
+    if (!payload.youtube_url) {
+      return language === 'uz' ? 'YouTube havolasini kiriting' : 'Введите ссылку YouTube';
+    }
+    return '';
+  };
+
+  const saveHelpInstruction = async (rawPayload, saveKey) => {
+    const payload = normalizeHelpInstructionPayload(rawPayload);
+    const validationError = validateHelpInstructionPayload(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSavingHelpInstructionKey(saveKey);
+    try {
+      if (rawPayload?.id) {
+        await axios.put(`${API_URL}/superadmin/help-instructions/${rawPayload.id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/superadmin/help-instructions`, payload);
+      }
+      setSuccess(language === 'uz' ? "Yo'riqnoma saqlandi" : 'Инструкция сохранена');
+      setHelpInstructionForm(createEmptyHelpInstructionForm());
+      setHelpInstructionExtraForms((prev) => prev.filter((item) => item.__localId !== saveKey));
+      await loadHelpInstructions();
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz' ? 'Yo‘riqnomani saqlab bo‘lmadi' : 'Ошибка сохранения инструкции'));
+    } finally {
+      setSavingHelpInstructionKey('');
+    }
+  };
+
+  const handleEditHelpInstruction = (item) => {
+    setHelpInstructionForm({
+      id: item.id,
+      title_ru: item.title_ru || '',
+      title_uz: item.title_uz || '',
+      youtube_url: item.youtube_url || '',
+      sort_order: item.sort_order ?? ''
+    });
+  };
+
+  const appendHelpInstructionDraft = () => {
+    const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setHelpInstructionExtraForms((prev) => [
+      ...prev,
+      { __localId: localId, ...createEmptyHelpInstructionForm() }
+    ]);
+  };
+
+  const updateHelpInstructionDraft = (localId, patch) => {
+    setHelpInstructionExtraForms((prev) => prev.map((item) => (
+      item.__localId === localId ? { ...item, ...patch } : item
+    )));
+  };
+
+  const removeHelpInstructionDraft = (localId) => {
+    setHelpInstructionExtraForms((prev) => prev.filter((item) => item.__localId !== localId));
+  };
+
+  const handleDeleteHelpInstruction = async (item) => {
+    const confirmMessage = language === 'uz'
+      ? `Yo‘riqnomani o‘chirishni xohlaysizmi?\n\n${item.title_uz || item.title_ru || ''}`
+      : `Удалить инструкцию?\n\n${item.title_ru || item.title_uz || ''}`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setDeletingHelpInstructionId(item.id);
+    try {
+      await axios.delete(`${API_URL}/superadmin/help-instructions/${item.id}`);
+      setSuccess(language === 'uz' ? "Yo'riqnoma o'chirildi" : 'Инструкция удалена');
+      if (Number(helpInstructionForm.id) === Number(item.id)) {
+        setHelpInstructionForm(createEmptyHelpInstructionForm());
+      }
+      await loadHelpInstructions();
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz' ? "Yo'riqnomani o'chirib bo'lmadi" : 'Ошибка удаления инструкции'));
+    } finally {
+      setDeletingHelpInstructionId(null);
     }
   };
 
@@ -3166,6 +3292,227 @@ function SuperAdminDashboard() {
                         ))}
                         {activityTypes.length === 0 && (
                           <tr><td colSpan="6" className="text-center py-5 text-muted">Нет видов деятельности</td></tr>
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
+                )}
+              </Tab>
+
+              <Tab eventKey="help_instructions" title={`🎬 ${language === 'uz' ? "Yo'riqnomalar" : 'Инструкции / Помощь'}`}>
+                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                  <h5 className="fw-bold mb-0">
+                    {language === 'uz' ? "Telegram va admin yo'riqnomalari" : 'Инструкции для Telegram и web-панели'}
+                  </h5>
+                  <div className="d-flex gap-2">
+                    <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                      {language === 'uz' ? 'Jami' : 'Всего'}: {helpInstructions.length}
+                    </Badge>
+                    <Button className="btn-primary-custom" onClick={appendHelpInstructionDraft}>
+                      + {language === 'uz' ? "Maydon qo'shish" : 'Добавить поле'}
+                    </Button>
+                  </div>
+                </div>
+
+                <Card className="border-0 shadow-sm mb-3">
+                  <Card.Body>
+                    <Row className="g-3 align-items-end">
+                      <Col md={4}>
+                        <Form.Group>
+                          <Form.Label className="fw-medium text-secondary">RU</Form.Label>
+                          <Form.Control
+                            value={helpInstructionForm.title_ru}
+                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, title_ru: e.target.value }))}
+                            placeholder={language === 'uz' ? 'Tugma nomi (RU)' : 'Название кнопки (RU)'}
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={4}>
+                        <Form.Group>
+                          <Form.Label className="fw-medium text-secondary">UZ</Form.Label>
+                          <Form.Control
+                            value={helpInstructionForm.title_uz}
+                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, title_uz: e.target.value }))}
+                            placeholder={language === 'uz' ? 'Tugma nomi (UZ)' : 'Название кнопки (UZ)'}
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={3}>
+                        <Form.Group>
+                          <Form.Label className="fw-medium text-secondary">{language === 'uz' ? 'Tartib' : 'Порядок'}</Form.Label>
+                          <Form.Control
+                            type="number"
+                            min="0"
+                            value={helpInstructionForm.sort_order}
+                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, sort_order: e.target.value }))}
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={1} className="d-grid">
+                        <Button
+                          variant="outline-secondary"
+                          onClick={() => setHelpInstructionForm(createEmptyHelpInstructionForm())}
+                          title={language === 'uz' ? 'Tozalash' : 'Сбросить'}
+                        >
+                          ✖
+                        </Button>
+                      </Col>
+                      <Col md={9}>
+                        <Form.Group>
+                          <Form.Label className="fw-medium text-secondary">YouTube URL</Form.Label>
+                          <Form.Control
+                            value={helpInstructionForm.youtube_url}
+                            onChange={(e) => setHelpInstructionForm((prev) => ({ ...prev, youtube_url: e.target.value }))}
+                            placeholder="https://www.youtube.com/watch?v=..."
+                          />
+                        </Form.Group>
+                      </Col>
+                      <Col md={3} className="d-grid">
+                        <Button
+                          className="btn-primary-custom"
+                          disabled={savingHelpInstructionKey === 'main-form'}
+                          onClick={() => saveHelpInstruction(helpInstructionForm, 'main-form')}
+                        >
+                          {savingHelpInstructionKey === 'main-form'
+                            ? '...'
+                            : (helpInstructionForm.id
+                              ? (language === 'uz' ? 'Saqlash' : 'Сохранить')
+                              : (language === 'uz' ? "Qo'shish" : 'Добавить'))}
+                        </Button>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+
+                {helpInstructionExtraForms.map((draft) => (
+                  <Card key={draft.__localId} className="border-0 shadow-sm mb-3">
+                    <Card.Body>
+                      <Row className="g-3 align-items-end">
+                        <Col md={4}>
+                          <Form.Group>
+                            <Form.Label className="fw-medium text-secondary">RU</Form.Label>
+                            <Form.Control
+                              value={draft.title_ru}
+                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { title_ru: e.target.value })}
+                              placeholder={language === 'uz' ? 'Tugma nomi (RU)' : 'Название кнопки (RU)'}
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={4}>
+                          <Form.Group>
+                            <Form.Label className="fw-medium text-secondary">UZ</Form.Label>
+                            <Form.Control
+                              value={draft.title_uz}
+                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { title_uz: e.target.value })}
+                              placeholder={language === 'uz' ? 'Tugma nomi (UZ)' : 'Название кнопки (UZ)'}
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={2}>
+                          <Form.Group>
+                            <Form.Label className="fw-medium text-secondary">{language === 'uz' ? 'Tartib' : 'Порядок'}</Form.Label>
+                            <Form.Control
+                              type="number"
+                              min="0"
+                              value={draft.sort_order}
+                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { sort_order: e.target.value })}
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={2} className="d-grid">
+                          <Button
+                            variant="outline-danger"
+                            onClick={() => removeHelpInstructionDraft(draft.__localId)}
+                          >
+                            {language === 'uz' ? "O'chirish" : 'Удалить'}
+                          </Button>
+                        </Col>
+                        <Col md={9}>
+                          <Form.Group>
+                            <Form.Label className="fw-medium text-secondary">YouTube URL</Form.Label>
+                            <Form.Control
+                              value={draft.youtube_url}
+                              onChange={(e) => updateHelpInstructionDraft(draft.__localId, { youtube_url: e.target.value })}
+                              placeholder="https://www.youtube.com/watch?v=..."
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={3} className="d-grid">
+                          <Button
+                            className="btn-primary-custom"
+                            disabled={savingHelpInstructionKey === draft.__localId}
+                            onClick={() => saveHelpInstruction(draft, draft.__localId)}
+                          >
+                            {savingHelpInstructionKey === draft.__localId
+                              ? '...'
+                              : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+                          </Button>
+                        </Col>
+                      </Row>
+                    </Card.Body>
+                  </Card>
+                ))}
+
+                {helpInstructionsLoading ? (
+                  <TableSkeleton rows={8} columns={6} label={language === 'uz' ? "Yo'riqnomalar yuklanmoqda" : 'Загрузка инструкций'} />
+                ) : (
+                  <div className="admin-table-container">
+                    <Table responsive hover className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>RU</th>
+                          <th>UZ</th>
+                          <th>YouTube URL</th>
+                          <th>{language === 'uz' ? 'Tartib' : 'Порядок'}</th>
+                          <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {helpInstructions.map((item) => (
+                          <tr key={item.id}>
+                            <td><span className="text-muted small">#{item.id}</span></td>
+                            <td className="fw-semibold">{item.title_ru || '—'}</td>
+                            <td>{item.title_uz || '—'}</td>
+                            <td style={{ maxWidth: 320 }}>
+                              {item.youtube_url ? (
+                                <a href={item.youtube_url} target="_blank" rel="noreferrer" className="small text-decoration-none">
+                                  {item.youtube_url}
+                                </a>
+                              ) : (
+                                <span className="text-muted small">—</span>
+                              )}
+                            </td>
+                            <td>{item.sort_order ?? 0}</td>
+                            <td className="text-end">
+                              <div className="d-inline-flex gap-2">
+                                <Button
+                                  variant="light"
+                                  className="action-btn text-primary"
+                                  onClick={() => handleEditHelpInstruction(item)}
+                                  title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                >
+                                  ✏️
+                                </Button>
+                                <Button
+                                  variant="light"
+                                  className="action-btn text-danger"
+                                  disabled={deletingHelpInstructionId === item.id}
+                                  onClick={() => handleDeleteHelpInstruction(item)}
+                                  title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                >
+                                  🗑️
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {helpInstructions.length === 0 && (
+                          <tr>
+                            <td colSpan="6" className="text-center py-5 text-muted">
+                              {language === 'uz' ? "Yo'riqnomalar hali qo'shilmagan" : 'Инструкции пока не добавлены'}
+                            </td>
+                          </tr>
                         )}
                       </tbody>
                     </Table>

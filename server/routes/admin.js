@@ -10,6 +10,10 @@ const {
   ENTITY_TYPES
 } = require('../services/activityLogger');
 const { reloadMultiBots } = require('../bot/multiBotManager');
+const {
+  ensureHelpInstructionsSchema,
+  listHelpInstructions
+} = require('../services/helpInstructions');
 
 const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
@@ -356,6 +360,17 @@ const validateProductCategorySelection = async ({ categoryId }) => {
 // All routes require authentication and operator/superadmin role
 router.use(authenticate);
 router.use(requireOperator);
+
+router.get('/help-instructions', async (req, res) => {
+  try {
+    await ensureHelpInstructionsSchema();
+    const rows = await listHelpInstructions();
+    res.json(rows);
+  } catch (error) {
+    console.error('Admin get help instructions error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки инструкций' });
+  }
+});
 
 // =====================================================
 // ИНФОРМАЦИЯ О ТЕКУЩЕМ ПОЛЬЗОВАТЕЛЕ

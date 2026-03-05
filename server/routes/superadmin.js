@@ -15,6 +15,14 @@ const {
 } = require('../services/activityLogger');
 const { reloadBot, getBot } = require('../bot/bot');
 const { reloadMultiBots } = require('../bot/multiBotManager');
+const {
+  ensureHelpInstructionsSchema,
+  isValidYouTubeUrl,
+  listHelpInstructions,
+  createHelpInstruction,
+  updateHelpInstruction,
+  deleteHelpInstruction
+} = require('../services/helpInstructions');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -120,6 +128,8 @@ const normalizePhoneValue = (value) => {
   if (!digits) return null;
   return `+${digits}`;
 };
+
+const normalizeInstructionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
 const phoneDigitsOnly = (value) => String(normalizePhoneValue(value) || '').replace(/\D/g, '');
 
@@ -2991,6 +3001,122 @@ router.post('/billing/settings/test-bot', async (req, res) => {
       error: 'Не удалось проверить бота или отправить тестовое сообщение',
       details: error.message
     });
+  }
+});
+
+// =====================================================
+// HELP INSTRUCTIONS (SUPERADMIN)
+// =====================================================
+
+router.get('/help-instructions', async (req, res) => {
+  try {
+    await ensureHelpInstructionsSchema();
+    const rows = await listHelpInstructions();
+    res.json(rows);
+  } catch (error) {
+    console.error('Get help instructions error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки инструкций' });
+  }
+});
+
+router.post('/help-instructions', async (req, res) => {
+  try {
+    await ensureHelpInstructionsSchema();
+    const titleRu = normalizeInstructionText(req.body?.title_ru);
+    const titleUz = normalizeInstructionText(req.body?.title_uz);
+    const youtubeUrl = String(req.body?.youtube_url || '').trim();
+    const sortOrderRaw = req.body?.sort_order;
+
+    if (!titleRu) {
+      return res.status(400).json({ error: 'Название кнопки RU обязательно' });
+    }
+    if (!titleUz) {
+      return res.status(400).json({ error: 'Название кнопки UZ обязательно' });
+    }
+    if (!youtubeUrl) {
+      return res.status(400).json({ error: 'Ссылка на YouTube обязательна' });
+    }
+    if (!isValidYouTubeUrl(youtubeUrl)) {
+      return res.status(400).json({ error: 'Укажите корректную ссылку YouTube' });
+    }
+
+    const created = await createHelpInstruction({
+      title_ru: titleRu,
+      title_uz: titleUz,
+      youtube_url: youtubeUrl,
+      sort_order: sortOrderRaw
+    });
+    res.status(201).json(created);
+  } catch (error) {
+    console.error('Create help instruction error:', error);
+    res.status(500).json({ error: 'Ошибка добавления инструкции' });
+  }
+});
+
+router.put('/help-instructions/:id', async (req, res) => {
+  try {
+    await ensureHelpInstructionsSchema();
+    const instructionId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID инструкции' });
+    }
+
+    const titleRu = normalizeInstructionText(req.body?.title_ru);
+    const titleUz = normalizeInstructionText(req.body?.title_uz);
+    const youtubeUrl = String(req.body?.youtube_url || '').trim();
+    const sortOrder = Number.parseInt(req.body?.sort_order, 10);
+
+    if (!titleRu) {
+      return res.status(400).json({ error: 'Название кнопки RU обязательно' });
+    }
+    if (!titleUz) {
+      return res.status(400).json({ error: 'Название кнопки UZ обязательно' });
+    }
+    if (!youtubeUrl) {
+      return res.status(400).json({ error: 'Ссылка на YouTube обязательна' });
+    }
+    if (!isValidYouTubeUrl(youtubeUrl)) {
+      return res.status(400).json({ error: 'Укажите корректную ссылку YouTube' });
+    }
+    if (!Number.isFinite(sortOrder) || sortOrder < 0) {
+      return res.status(400).json({ error: 'Некорректный порядок сортировки' });
+    }
+
+    const updated = await updateHelpInstruction(instructionId, {
+      title_ru: titleRu,
+      title_uz: titleUz,
+      youtube_url: youtubeUrl,
+      sort_order: sortOrder
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Инструкция не найдена' });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update help instruction error:', error);
+    res.status(500).json({ error: 'Ошибка обновления инструкции' });
+  }
+});
+
+router.delete('/help-instructions/:id', async (req, res) => {
+  try {
+    await ensureHelpInstructionsSchema();
+    const instructionId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID инструкции' });
+    }
+
+    const deleted = await deleteHelpInstruction(instructionId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Инструкция не найдена' });
+    }
+
+    res.json({ success: true, deleted });
+  } catch (error) {
+    console.error('Delete help instruction error:', error);
+    res.status(500).json({ error: 'Ошибка удаления инструкции' });
   }
 });
 

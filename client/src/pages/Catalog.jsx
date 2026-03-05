@@ -1946,14 +1946,26 @@ function Catalog() {
                                     left: 0,
                                     right: 0,
                                     zIndex: 1,
-                                    padding: '6px 10px 0',
-                                    color: '#111827',
-                                    fontWeight: 700,
-                                    fontSize: '0.78rem',
-                                    lineHeight: 1.2
+                                    padding: '6px 10px 0'
                                   }}
                                 >
-                                  {getCategoryName(level2Category)}
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      maxWidth: '100%',
+                                      padding: '4px 8px',
+                                      borderRadius: 8,
+                                      background: 'rgba(255, 255, 255, 0.74)',
+                                      backdropFilter: 'blur(2px)',
+                                      WebkitBackdropFilter: 'blur(2px)',
+                                      color: '#111827',
+                                      fontWeight: 700,
+                                      fontSize: '0.78rem',
+                                      lineHeight: 1.2
+                                    }}
+                                  >
+                                    {getCategoryName(level2Category)}
+                                  </span>
                                 </div>
                               </button>
                             </Col>

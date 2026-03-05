@@ -7,6 +7,11 @@ const path = require('path');
 const https = require('https');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 const { reloadMultiBots } = require('./multiBotManager');
+const {
+  ensureHelpInstructionsSchema,
+  listHelpInstructions,
+  getHelpInstructionByCode
+} = require('../services/helpInstructions');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -794,21 +799,44 @@ async function initBot() {
   async function sendSuperadminHelpInfo(chatId, lang) {
     const language = normalizeBotLanguage(lang);
     try {
-      const result = await pool.query(
-        'SELECT phone_number, telegram_username FROM billing_settings WHERE id = 1 LIMIT 1'
-      );
-      const settings = result.rows[0] || {};
-      const phone = String(settings.phone_number || '').trim() || '—';
-      let username = String(settings.telegram_username || '').trim() || '—';
-      if (username !== '—' && !username.startsWith('@')) {
-        username = `@${username}`;
+      await ensureHelpInstructionsSchema();
+      const instructions = await listHelpInstructions();
+      const rowsWithVideo = instructions
+        .filter((item) => String(item?.youtube_url || '').trim())
+        .sort((a, b) => {
+          const sortDiff = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+          if (sortDiff !== 0) return sortDiff;
+          return Number(a?.id || 0) - Number(b?.id || 0);
+        });
+
+      if (!rowsWithVideo.length) {
+        await bot.sendMessage(
+          chatId,
+          language === 'uz'
+            ? 'Hozircha video yo‘riqnomalar qo‘shilmagan.'
+            : 'Пока видео-инструкции не добавлены.'
+        );
+        return;
       }
 
-      const message = language === 'uz'
-        ? `🆘 <b>Yordam uchun superadmin ma'lumotlari</b>\n\n📞 Telefon: ${phone}\n👤 Superadmin niki: ${username}`
-        : `🆘 <b>Данные суперадмина для помощи</b>\n\n📞 Телефон: ${phone}\n👤 Ник суперадмина: ${username}`;
+      const inlineKeyboard = rowsWithVideo.map((item) => ([
+        {
+          text: language === 'uz'
+            ? (item.title_uz || item.title_ru || 'Видео')
+            : (item.title_ru || item.title_uz || 'Видео'),
+          url: String(item.youtube_url).trim()
+        }
+      ]));
 
-      await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+      const message = language === 'uz'
+        ? '🆘 <b>Yordam bo‘limi</b>\nKerakli video yo‘riqnomani tanlang:'
+        : '🆘 <b>Раздел помощи</b>\nВыберите нужную видео-инструкцию:';
+
+      await bot.sendMessage(chatId, message, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: { inline_keyboard: inlineKeyboard }
+      });
     } catch (error) {
       console.error('Send superadmin help info error:', error);
       await bot.sendMessage(chatId, t(language, 'genericError'));
@@ -1214,6 +1242,33 @@ async function initBot() {
       step: 'await_store_name',
       lang: userLang
     });
+
+    try {
+      const introInstruction = await getHelpInstructionByCode('store_registration');
+      const introUrl = String(introInstruction?.youtube_url || '').trim();
+      if (introUrl) {
+        await bot.sendMessage(
+          chatId,
+          userLang === 'uz'
+            ? '🎬 Registratsiyani boshlashdan oldin kirish video yo‘riqnomani ko‘ring:'
+            : '🎬 Перед началом регистрации посмотрите вводную видео-инструкцию:',
+          {
+            disable_web_page_preview: true,
+            reply_markup: {
+              inline_keyboard: [[{
+                text: userLang === 'uz'
+                  ? (introInstruction?.title_uz || introInstruction?.title_ru || "Video yo'riqnoma")
+                  : (introInstruction?.title_ru || introInstruction?.title_uz || 'Видео-инструкция'),
+                url: introUrl
+              }]]
+            }
+          }
+        );
+      }
+    } catch (introError) {
+      console.error('Onboarding intro instruction send error:', introError.message);
+    }
+
     await sendOnboardingUiMessage(
       chatId,
       userId,
@@ -1859,17 +1914,11 @@ async function initBot() {
   // =====================================================
   // /help command
   // =====================================================
-  bot.onText(/\/help/, (msg) => {
+  bot.onText(/\/help/, async (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId,
-      '📖 Справка:\n\n' +
-      '/onboard - Регистрация магазина и оператора\n' +
-      '/start - Начать регистрацию\n' +
-      '/menu - Открыть меню\n' +
-      '/orders - Мои заказы\n' +
-      '/reset_password - Восстановить логин и пароль (оператор/владелец)\n' +
-      '/help - Показать справку'
-    );
+    const userId = msg.from.id;
+    const lang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
+    await sendSuperadminHelpInfo(chatId, lang);
   });
   
   // =====================================================

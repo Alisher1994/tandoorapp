@@ -39,6 +39,33 @@ const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
+const normalizeYouTubeEmbedUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    let videoId = '';
+
+    if (host === 'youtu.be') {
+      videoId = parsed.pathname.replace(/\//g, '');
+    } else if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+      if (parsed.pathname.startsWith('/watch')) {
+        videoId = parsed.searchParams.get('v') || '';
+      } else if (parsed.pathname.startsWith('/embed/')) {
+        videoId = parsed.pathname.split('/embed/')[1] || '';
+      } else if (parsed.pathname.startsWith('/shorts/')) {
+        videoId = parsed.pathname.split('/shorts/')[1] || '';
+      }
+    }
+
+    videoId = String(videoId).split(/[?&/]/)[0];
+    if (!videoId) return raw;
+    return `https://www.youtube.com/embed/${videoId}`;
+  } catch (error) {
+    return raw;
+  }
+};
 const getAnalyticsLocationKey = (location) => String(location?.orderId ?? location?.orderNumber ?? '');
 const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
   className: `analytics-map-point${isActive ? ' is-active' : ''}`,
@@ -474,6 +501,9 @@ function AdminDashboard() {
   const [operatorForm, setOperatorForm] = useState({ username: '', password: '', full_name: '', phone: '', telegram_id: '' });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
+  const [helpInstructions, setHelpInstructions] = useState([]);
+  const [loadingHelpInstructions, setLoadingHelpInstructions] = useState(false);
+  const [selectedHelpInstruction, setSelectedHelpInstruction] = useState(null);
   const [testingBot, setTestingBot] = useState(false);
   const [testedBotInfo, setTestedBotInfo] = useState(null);
   const [botProfileLookupLoading, setBotProfileLookupLoading] = useState(false);
@@ -816,6 +846,11 @@ function AdminDashboard() {
       fetchOperators();
     }
   }, [user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (mainTab !== 'settings' || settingsTab !== 'help' || !user?.active_restaurant_id) return;
+    fetchHelpInstructions();
+  }, [mainTab, settingsTab, user?.active_restaurant_id]);
 
   const categoryById = useMemo(() => {
     const map = new Map();
@@ -1687,6 +1722,26 @@ function AdminDashboard() {
       setOperators(response.data);
     } catch (error) {
       console.error('Fetch operators error:', error);
+    }
+  };
+
+  const fetchHelpInstructions = async () => {
+    setLoadingHelpInstructions(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/help-instructions`);
+      const items = Array.isArray(response.data) ? response.data : [];
+      setHelpInstructions(items);
+      setSelectedHelpInstruction((prev) => {
+        if (prev && items.some((item) => Number(item.id) === Number(prev.id))) {
+          return items.find((item) => Number(item.id) === Number(prev.id)) || prev;
+        }
+        return items.find((item) => String(item.youtube_url || '').trim()) || null;
+      });
+    } catch (error) {
+      console.error('Fetch help instructions error:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки инструкций' });
+    } finally {
+      setLoadingHelpInstructions(false);
     }
   };
 
@@ -4650,9 +4705,10 @@ function AdminDashboard() {
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
-                      { key: 'general', label: 'Общие' },
-                      { key: 'delivery', label: 'Доставка' },
-                      { key: 'operators', label: 'Операторы' }
+                      { key: 'general', label: language === 'uz' ? 'Umumiy' : 'Общие' },
+                      { key: 'delivery', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
+                      { key: 'operators', label: language === 'uz' ? 'Operatorlar' : 'Операторы' },
+                      { key: 'help', label: language === 'uz' ? "Yordam / Yo'riqnomalar" : 'Инструкции / Помощь' }
                     ].map((tab) => {
                       const isActive = settingsTab === tab.key;
                       return (
@@ -5274,6 +5330,102 @@ function AdminDashboard() {
                             </Table>
                           </div>
                         </>
+                      )}
+
+                      {settingsTab === 'help' && (
+                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                              <h5 className="fw-bold mb-0">
+                                {language === 'uz' ? "Video yo'riqnomalar" : 'Видео-инструкции'}
+                              </h5>
+                              <Button
+                                variant="outline-secondary"
+                                onClick={fetchHelpInstructions}
+                                disabled={loadingHelpInstructions}
+                              >
+                                {loadingHelpInstructions
+                                  ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                                  : (language === 'uz' ? 'Yangilash' : 'Обновить')}
+                              </Button>
+                            </div>
+
+                            {loadingHelpInstructions ? (
+                              <ListSkeleton count={5} label={language === 'uz' ? "Yo'riqnomalar yuklanmoqda" : 'Загрузка инструкций'} />
+                            ) : helpInstructions.length === 0 ? (
+                              <div className="text-center text-muted py-4">
+                                {language === 'uz' ? "Yo'riqnomalar hali qo'shilmagan" : 'Инструкции пока не добавлены'}
+                              </div>
+                            ) : (
+                              <Row className="g-4">
+                                <Col xl={4}>
+                                  <div className="d-grid gap-2">
+                                    {helpInstructions.map((item) => {
+                                      const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
+                                      const title = language === 'uz'
+                                        ? (item.title_uz || item.title_ru || '—')
+                                        : (item.title_ru || item.title_uz || '—');
+                                      return (
+                                        <button
+                                          key={`admin-help-${item.id}`}
+                                          type="button"
+                                          className="btn text-start"
+                                          style={{
+                                            border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
+                                            background: isActive ? '#eff6ff' : '#ffffff',
+                                            borderRadius: 12,
+                                            padding: '10px 12px'
+                                          }}
+                                          onClick={() => setSelectedHelpInstruction(item)}
+                                        >
+                                          <div className="fw-semibold">{title}</div>
+                                          <div className="small text-muted text-truncate">{item.youtube_url || '—'}</div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </Col>
+                                <Col xl={8}>
+                                  {selectedHelpInstruction && selectedHelpInstruction.youtube_url ? (
+                                    <Card className="border-0 shadow-sm h-100">
+                                      <Card.Body className="p-3">
+                                        <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                          <div className="fw-semibold">
+                                            {language === 'uz'
+                                              ? (selectedHelpInstruction.title_uz || selectedHelpInstruction.title_ru || '—')
+                                              : (selectedHelpInstruction.title_ru || selectedHelpInstruction.title_uz || '—')}
+                                          </div>
+                                          <a
+                                            href={selectedHelpInstruction.youtube_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="btn btn-outline-primary btn-sm"
+                                          >
+                                            {language === 'uz' ? 'Yangi oynada ochish' : 'Открыть в новой вкладке'}
+                                          </a>
+                                        </div>
+                                        <div className="ratio ratio-16x9 rounded-3 overflow-hidden border">
+                                          <iframe
+                                            title={`help-video-${selectedHelpInstruction.id}`}
+                                            src={normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url)}
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowFullScreen
+                                          />
+                                        </div>
+                                      </Card.Body>
+                                    </Card>
+                                  ) : (
+                                    <div className="text-muted small py-4">
+                                      {language === 'uz'
+                                        ? "Ko'rish uchun video yo'riqnomani tanlang"
+                                        : 'Выберите инструкцию для просмотра'}
+                                    </div>
+                                  )}
+                                </Col>
+                              </Row>
+                            )}
+                          </Card.Body>
+                        </Card>
                       )}
                     </>
                   ) : (
