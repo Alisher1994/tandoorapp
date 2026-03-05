@@ -20,6 +20,11 @@ const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
   return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
 };
+const normalizeContainerNorm = (value, fallback = 1) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
@@ -1433,7 +1438,7 @@ router.post('/products', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id,
+      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog
     } = req.body;
 
@@ -1457,6 +1462,7 @@ router.post('/products', async (req, res) => {
     }
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
+    const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
     const mediaPayload = resolveProductMediaPayload({
       productImages: product_images,
       imageUrl: image_url,
@@ -1466,13 +1472,13 @@ router.post('/products', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, season_scope, is_hidden_catalog
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17)
+    image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null,
+      price, unit || 'шт', barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog
     ]);
 
@@ -1503,7 +1509,7 @@ router.post('/products/upsert', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order,
+      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog
     } = req.body;
 
@@ -1527,6 +1533,8 @@ router.post('/products/upsert', async (req, res) => {
     }
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
+    const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
+    const hasContainerNorm = container_norm !== undefined && container_norm !== null && String(container_norm).trim() !== '';
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = resolveProductMediaPayload({
       productImages: product_images,
@@ -1598,6 +1606,16 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(barcode);
         paramIndex++;
       }
+      if (hasContainerNorm) {
+        updateFields.push(`container_norm = $${paramIndex} `);
+        updateValues.push(normalizedContainerNorm);
+        paramIndex++;
+      }
+      if (container_id !== undefined) {
+        updateFields.push(`container_id = $${paramIndex} `);
+        updateValues.push(container_id || null);
+        paramIndex++;
+      }
 
       updateFields.push(`in_stock = $${paramIndex} `);
       updateValues.push(in_stock !== false);
@@ -1627,14 +1645,14 @@ RETURNING *
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, season_scope, is_hidden_catalog
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16)
+    image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
         price, unit || 'шт', barcode, in_stock !== false, sort_order || 0,
-        normalizedSeasonScope, !!is_hidden_catalog
+        container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog
       ]);
     }
 
@@ -1665,7 +1683,7 @@ router.put('/products/:id', async (req, res) => {
   try {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id,
+      image_url, thumb_url, product_images, price, unit, barcode, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog
     } = req.body;
 
@@ -1690,6 +1708,7 @@ router.put('/products/:id', async (req, res) => {
     }
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, oldProduct.season_scope || 'all');
+    const normalizedContainerNorm = normalizeContainerNorm(container_norm, normalizeContainerNorm(oldProduct.container_norm, 1));
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = hasIncomingMediaFields
       ? resolveProductMediaPayload({
@@ -1707,13 +1726,13 @@ router.put('/products/:id', async (req, res) => {
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, barcode = $11, in_stock = $12, sort_order = $13,
-  container_id = $14, season_scope = $15, is_hidden_catalog = $16, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $17
+  container_id = $14, container_norm = $15, season_scope = $16, is_hidden_catalog = $17, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $18
 RETURNING *
   `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null,
+      price, unit, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, req.params.id
     ]);
 

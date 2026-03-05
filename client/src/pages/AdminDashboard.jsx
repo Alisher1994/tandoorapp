@@ -356,7 +356,8 @@ function AdminDashboard() {
     in_stock: true,
     season_scope: 'all',
     is_hidden_catalog: false,
-    container_id: ''
+    container_id: '',
+    container_norm: 1
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
@@ -2087,7 +2088,8 @@ function AdminDashboard() {
         in_stock: product.in_stock !== false,
         season_scope: product.season_scope || 'all',
         is_hidden_catalog: !!product.is_hidden_catalog,
-        container_id: product.container_id || ''
+        container_id: product.container_id || '',
+        container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
       });
     } else {
       setSelectedProduct(null);
@@ -2105,7 +2107,8 @@ function AdminDashboard() {
         in_stock: true,
         season_scope: 'all',
         is_hidden_catalog: false,
-        container_id: ''
+        container_id: '',
+        container_norm: 1
       });
     }
     setShowProductModal(true);
@@ -2191,7 +2194,8 @@ function AdminDashboard() {
         image_url: mainImage.url || '',
         thumb_url: mainImage.thumb_url || '',
         product_images: normalizedImages,
-        price: parseFloat(productForm.price)
+        price: parseFloat(productForm.price),
+        container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1)
       };
 
       if (selectedProduct) {
@@ -2385,7 +2389,8 @@ function AdminDashboard() {
       in_stock: true,
       season_scope: product.season_scope || 'all',
       is_hidden_catalog: !!product.is_hidden_catalog,
-      container_id: product.container_id || ''
+      container_id: product.container_id || '',
+      container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
     });
     setShowProductModal(true);
   };
@@ -2415,6 +2420,7 @@ function AdminDashboard() {
         in_stock: nextInStock,
         sort_order: Number(product.sort_order || 0),
         container_id: product.container_id || null,
+        container_norm: Math.max(1, Number(product.container_norm) || 1),
         season_scope: product.season_scope || 'all',
         is_hidden_catalog: !!product.is_hidden_catalog
       };
@@ -6375,7 +6381,7 @@ function AdminDashboard() {
               </Row>
 
               <Row>
-                <Col md={4}>
+                <Col md={3}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('priceSum')}</Form.Label>
                     <Form.Control
@@ -6388,7 +6394,7 @@ function AdminDashboard() {
                     />
                   </Form.Group>
                 </Col>
-                <Col md={4}>
+                <Col md={3}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('unit')}</Form.Label>
                     <Form.Select
@@ -6405,7 +6411,7 @@ function AdminDashboard() {
                     </Form.Select>
                   </Form.Group>
                 </Col>
-                <Col md={4}>
+                <Col md={3}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('containerLabel')}</Form.Label>
                     <Form.Select
@@ -6537,6 +6543,21 @@ function AdminDashboard() {
                     )}
                     <Form.Text className="text-muted admin-product-image-help">
                       Используйте ⭐ для выбора главного фото карточки. Остальные фото сохраняются для галереи товара.
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col md={3}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('containerNormLabel')}</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={productForm.container_norm}
+                      onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
+                    />
+                    <Form.Text className="text-muted">
+                      {t('containerNormNote')}
                     </Form.Text>
                   </Form.Group>
                 </Col>

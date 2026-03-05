@@ -11,6 +11,17 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
+const normalizeContainerNorm = (value, fallback = 1) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
+const resolveContainerUnits = (quantityValue, normValue) => {
+  const quantity = Number.parseFloat(quantityValue);
+  if (!Number.isFinite(quantity) || quantity <= 0) return 0;
+  const normalizedNorm = normalizeContainerNorm(normValue, 1);
+  return Math.ceil(quantity / normalizedNorm);
+};
 
 function getNowInRestaurantTimezone() {
   const timezone = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
@@ -186,6 +197,8 @@ router.get('/operator-preview', async (req, res) => {
 // Get user orders
 router.get('/my-orders', authenticate, async (req, res) => {
   try {
+    await pool.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1').catch(() => {});
+
     // Filter by active restaurant if user has one
     const activeRestaurantId = req.user.active_restaurant_id;
     
@@ -200,7 +213,8 @@ router.get('/my-orders', authenticate, async (req, res) => {
                     'price', oi.price,
                     'total', oi.total,
                     'container_name', oi.container_name,
-                    'container_price', oi.container_price
+                    'container_price', oi.container_price,
+                    'container_norm', oi.container_norm
                   )
                 ) FILTER (WHERE oi.id IS NOT NULL),
                 '[]'
@@ -379,8 +393,10 @@ router.post('/', authenticate, async (req, res) => {
 
     // Calculate total (items + containers + service fee + delivery)
     const itemsTotal = items.reduce((sum, item) => {
-      const itemPrice = parseFloat(item.price) * parseFloat(item.quantity);
-      const containerPrice = (parseFloat(item.container_price) || 0) * parseFloat(item.quantity);
+      const quantity = Number.parseFloat(item.quantity) || 0;
+      const itemPrice = (Number.parseFloat(item.price) || 0) * quantity;
+      const containerUnits = resolveContainerUnits(quantity, item.container_norm);
+      const containerPrice = (Number.parseFloat(item.container_price) || 0) * containerUnits;
       return sum + itemPrice + containerPrice;
     }, 0);
     
@@ -413,6 +429,7 @@ router.post('/', authenticate, async (req, res) => {
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_name VARCHAR(255)');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1');
     } catch (e) {
       console.log('ℹ️ Orders columns check:', e.message);
     }
@@ -440,8 +457,8 @@ router.post('/', authenticate, async (req, res) => {
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items (
-          order_id, product_id, product_name, quantity, unit, price, total, container_name, container_price
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          order_id, product_id, product_name, quantity, unit, price, total, container_name, container_price, container_norm
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           order.id,
           item.product_id || null,
@@ -451,7 +468,8 @@ router.post('/', authenticate, async (req, res) => {
           item.price,
           parseFloat(item.price) * parseFloat(item.quantity),
           item.container_name || null,
-          item.container_price || 0
+          item.container_price || 0,
+          normalizeContainerNorm(item.container_norm, 1)
         ]
       );
     }

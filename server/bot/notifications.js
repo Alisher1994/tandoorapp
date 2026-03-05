@@ -102,6 +102,19 @@ function parseNumericValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeContainerNorm(value, fallback = 1) {
+  const parsed = parseNumericValue(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function resolveContainerUnits(quantityValue, normValue) {
+  const quantity = parseNumericValue(quantityValue);
+  if (!Number.isFinite(quantity) || quantity <= 0) return 0;
+  const normalizedNorm = normalizeContainerNorm(normValue, 1);
+  return Math.ceil(quantity / normalizedNorm);
+}
+
 function truncateText(value, maxLength) {
   const text = String(value ?? '').trim();
   if (text.length <= maxLength) return text;
@@ -283,9 +296,9 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     return sum + (qty * price);
   }, 0);
   const containerTotal = (items || []).reduce((sum, item) => {
-    const qty = parseNumericValue(item.quantity) || 0;
+    const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
     const containerPrice = parseNumericValue(item.container_price) || 0;
-    return sum + (qty * containerPrice);
+    return sum + (containerUnits * containerPrice);
   }, 0);
   const serviceFee = parseNumericValue(order.service_fee) || 0;
   const deliveryCost = parseNumericValue(order.delivery_cost) || 0;

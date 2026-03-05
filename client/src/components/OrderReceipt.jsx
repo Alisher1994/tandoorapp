@@ -2,6 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import droneDeliveryVideo from '../assets/animations/drone-delivery.mp4';
 
+const normalizeContainerNorm = (value, fallback = 1) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
+
+const resolveContainerUnits = (quantityValue, normValue) => {
+  const quantity = Number.parseFloat(quantityValue);
+  if (!Number.isFinite(quantity) || quantity <= 0) return 0;
+  return Math.ceil(quantity / normalizeContainerNorm(normValue, 1));
+};
+
 function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName }) {
   const [visible, setVisible] = useState(false);
   const navigate = useNavigate();
@@ -125,7 +137,10 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
             }}>
               Товары
             </div>
-            {items?.map((item, idx) => (
+            {items?.map((item, idx) => {
+              const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
+              const containerPrice = Number.parseFloat(item.container_price) || 0;
+              return (
               <div key={idx} style={{ marginBottom: '8px' }}>
                 <div style={{
                   display: 'flex',
@@ -139,7 +154,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
                     {item.quantity}×{formatPrice(item.price)}
                   </span>
                 </div>
-                {item.container_price > 0 && (
+                {containerPrice > 0 && containerUnits > 0 && (
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -149,11 +164,12 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
                     paddingLeft: '16px'
                   }}>
                     <span>🍽 {item.container_name || 'Посуда'}</span>
-                    <span>{item.quantity}×{formatPrice(item.container_price)}</span>
+                    <span>{containerUnits}×{formatPrice(containerPrice)}</span>
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Total */}

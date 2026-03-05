@@ -568,7 +568,8 @@ function Cart() {
           unit: item.unit,
           price: item.price,
           container_name: item.container_name || null,
-          container_price: item.container_price || 0
+          container_price: item.container_price || 0,
+          container_norm: item.container_norm || 1
         })),
         container_total: containerTotal,
         service_fee: serviceFee,

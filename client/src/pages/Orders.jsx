@@ -31,6 +31,16 @@ const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
     }
   };
 };
+const normalizeContainerNorm = (value, fallback = 1) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
+const resolveContainerUnits = (quantityValue, normValue) => {
+  const quantity = Number.parseFloat(quantityValue);
+  if (!Number.isFinite(quantity) || quantity <= 0) return 0;
+  return Math.ceil(quantity / normalizeContainerNorm(normValue, 1));
+};
 
 function Orders() {
   const [orders, setOrders] = useState([]);
@@ -205,7 +215,10 @@ function Orders() {
                     {order.items && order.items.length > 0 && (
                       <div className="mb-3">
                         <div className="text-muted small mb-2">{t('orderComposition')}:</div>
-                        {order.items.map((item, idx) => (
+                        {order.items.map((item, idx) => {
+                          const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
+                          const containerPrice = Number.parseFloat(item.container_price) || 0;
+                          return (
                           <div key={idx} className="py-1 border-bottom" style={{ fontSize: '0.9rem' }}>
                             <div className="d-flex justify-content-between">
                               <span>{idx + 1}. {item.product_name}</span>
@@ -213,16 +226,17 @@ function Orders() {
                                 {item.quantity} × {formatPrice(item.price)} = <strong>{formatPrice(item.total || item.quantity * item.price)}</strong> {t('sum')}
                               </span>
                             </div>
-                            {parseFloat(item.container_price) > 0 && (
+                            {containerPrice > 0 && containerUnits > 0 && (
                               <div className="d-flex justify-content-between ps-3" style={{ fontSize: '0.8rem', color: '#888' }}>
                                 <span>🍽 {item.container_name || 'Посуда'}</span>
                                 <span>
-                                  {item.quantity} × {formatPrice(item.container_price)} = {formatPrice(item.quantity * parseFloat(item.container_price))} {t('sum')}
+                                  {containerUnits} × {formatPrice(containerPrice)} = {formatPrice(containerUnits * containerPrice)} {t('sum')}
                                 </span>
                               </div>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 

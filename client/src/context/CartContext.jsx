@@ -61,6 +61,19 @@ function parsePriceValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeContainerNorm(value, fallback = 1) {
+  const parsed = parsePriceValue(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function resolveContainerUnits(quantityValue, normValue) {
+  const quantity = Number(quantityValue);
+  if (!Number.isFinite(quantity) || quantity <= 0) return 0;
+  const norm = normalizeContainerNorm(normValue, 1);
+  return Math.ceil(quantity / norm);
+}
+
 // Helper to format price with grouping and correct decimal separator
 export function formatPrice(price) {
   const numeric = parsePriceValue(price);
@@ -148,13 +161,15 @@ export function CartProvider({ children }) {
   // Calculate cart total including container prices
   const cartTotal = cart.reduce((sum, item) => {
     const productTotal = item.price * item.quantity;
-    const containerTotal = item.container_price ? (parseFloat(item.container_price) * item.quantity) : 0;
+    const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
+    const containerTotal = item.container_price ? (parseFloat(item.container_price) * containerUnits) : 0;
     return sum + productTotal + containerTotal;
   }, 0);
   
   // Calculate container total separately for display
   const containerTotal = cart.reduce((sum, item) => {
-    return sum + (item.container_price ? (parseFloat(item.container_price) * item.quantity) : 0);
+    const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
+    return sum + (item.container_price ? (parseFloat(item.container_price) * containerUnits) : 0);
   }, 0);
   
   // Calculate product total without containers

@@ -138,6 +138,7 @@ async function migrate() {
     const productColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
       { name: 'container_id', type: 'INTEGER' },
+      { name: 'container_norm', type: 'DECIMAL(10, 2) DEFAULT 1' },
       { name: 'thumb_url', type: 'TEXT' },
       { name: 'product_images', type: `JSONB DEFAULT '[]'::jsonb` },
       { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
@@ -152,6 +153,7 @@ async function migrate() {
       }
     }
     console.log('✅ Products table updated');
+    await client.query(`UPDATE products SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
     await client.query(`UPDATE products SET season_scope = 'all' WHERE season_scope IS NULL OR season_scope = ''`).catch(() => {});
     await client.query(`ALTER TABLE products ALTER COLUMN product_images SET DEFAULT '[]'::jsonb`).catch(() => {});
     await client.query(`UPDATE products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
@@ -228,7 +230,8 @@ async function migrate() {
     // Add container columns to order_items
     const orderItemsColumns = [
       { name: 'container_name', type: 'VARCHAR(255)' },
-      { name: 'container_price', type: 'DECIMAL(10, 2) DEFAULT 0' }
+      { name: 'container_price', type: 'DECIMAL(10, 2) DEFAULT 0' },
+      { name: 'container_norm', type: 'DECIMAL(10, 2) DEFAULT 1' }
     ];
 
     for (const col of orderItemsColumns) {
@@ -238,6 +241,7 @@ async function migrate() {
         if (e.code !== '42701') console.log(`ℹ️  Column order_items.${col.name}: ${e.message}`);
       }
     }
+    await client.query(`UPDATE order_items SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
     console.log('✅ Order_items table updated with container columns');
 
     // =====================================================
