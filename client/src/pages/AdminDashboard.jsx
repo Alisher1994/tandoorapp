@@ -41,7 +41,7 @@ const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
   className: `analytics-map-point${isActive ? ' is-active' : ''}`,
-  html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;background:${isActive ? '#1d4ed8' : '#2563eb'};color:#fff;font-size:14px;border:2px solid #fff;box-shadow:0 3px 10px rgba(15,23,42,0.35);">👤</span>`,
+  html: `<span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;background:${isActive ? '#1d4ed8' : '#2563eb'};color:#fff;font-size:14px;border:2px solid #fff;box-shadow:0 3px 10px rgba(15,23,42,0.35);">🙋🏻</span>`,
   iconSize: [24, 24],
   iconAnchor: [12, 12]
 });
@@ -6082,38 +6082,82 @@ function AdminDashboard() {
           <Modal.Title>🗺️ {t('orderGeography')}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-0">
-          <div style={{ width: '100%', height: 'calc(100vh - 64px)' }}>
-            <MapContainer
-              center={ANALYTICS_DEFAULT_MAP_CENTER}
-              zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-              style={{ height: '100%', width: '100%' }}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; OpenStreetMap contributors'
-              />
-              <AnalyticsMapAutoBounds points={analytics.orderLocations} />
-              <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
-              {analytics.orderLocations.map((location) => (
-                (() => {
-                  const isSelected = selectedAnalyticsLocation &&
-                    (selectedAnalyticsLocation.orderId === location.orderId);
-                  return (
-                    <Marker
-                      key={`analytics-map-full-${location.orderId || location.orderNumber}`}
-                      position={[location.lat, location.lng]}
-                      icon={getAnalyticsPointIcon(isSelected)}
-                      eventHandlers={{
-                        click: () => {
-                          setShowAnalyticsMapModal(false);
-                          openAnalyticsLocationDetails(location);
-                        }
-                      }}
-                    />
-                  );
-                })()
-              ))}
-            </MapContainer>
+          <div style={{ width: '100%', height: 'calc(100vh - 64px)', background: '#f8fafc' }}>
+            <Row className="g-0 h-100">
+              <Col xs={7} sm={8} lg={9} className="h-100">
+                <MapContainer
+                  center={ANALYTICS_DEFAULT_MAP_CENTER}
+                  zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                  style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; OpenStreetMap contributors'
+                  />
+                  <AnalyticsMapAutoBounds points={analytics.orderLocations} />
+                  <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                  {analytics.orderLocations.map((location) => (
+                    (() => {
+                      const isSelected = selectedAnalyticsLocation &&
+                        (selectedAnalyticsLocation.orderId === location.orderId);
+                      return (
+                        <Marker
+                          key={`analytics-map-full-${location.orderId || location.orderNumber}`}
+                          position={[location.lat, location.lng]}
+                          icon={getAnalyticsPointIcon(isSelected)}
+                          eventHandlers={{
+                            click: () => openAnalyticsLocationDetails(location)
+                          }}
+                        />
+                      );
+                    })()
+                  ))}
+                </MapContainer>
+              </Col>
+              <Col xs={5} sm={4} lg={3} className="h-100 border-start bg-white">
+                <div className="p-2 p-sm-3 h-100" style={{ overflowY: 'auto' }}>
+                  <div className="small text-uppercase text-muted fw-semibold mb-2">
+                    {t('clients') || 'Клиенты'}
+                  </div>
+                  <div className="d-grid gap-2">
+                    {analyticsLocationsList.length > 0 ? analyticsLocationsList.map((location) => {
+                      const isSelected = selectedAnalyticsLocation &&
+                        (selectedAnalyticsLocation.orderId === location.orderId);
+                      return (
+                        <button
+                          type="button"
+                          key={`analytics-full-list-${location.orderId || location.orderNumber}`}
+                          onClick={() => openAnalyticsLocationDetails(location)}
+                          className="btn text-start"
+                          style={{
+                            border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`,
+                            background: isSelected ? '#eff6ff' : '#ffffff',
+                            borderRadius: 10,
+                            padding: '10px 11px'
+                          }}
+                        >
+                          <div className="fw-semibold text-truncate">{location.customerName || 'Клиент'}</div>
+                          <div className="small text-muted text-truncate">{location.customerPhone || '—'}</div>
+                          <div className="small mt-1 text-truncate">№{location.orderNumber} · {formatPrice(location.totalAmount)} {t('sum')}</div>
+                        </button>
+                      );
+                    }) : (
+                      <div className="text-muted small py-2">{t('noDataForPeriod')}</div>
+                    )}
+                  </div>
+
+                  {selectedAnalyticsLocation && (
+                    <div className="mt-3 p-2 p-sm-3 rounded-3 border" style={{ background: '#f8fafc' }}>
+                      <div className="small fw-semibold mb-2">{t('client') || 'Клиент'}</div>
+                      <div className="small text-truncate"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedAnalyticsLocation.orderNumber || '—'}</div>
+                      <div className="small text-truncate"><strong>{t('amount')}:</strong> {formatPrice(selectedAnalyticsLocation.totalAmount || 0)} {t('sum')}</div>
+                      <div className="small text-truncate"><strong>{t('date')}:</strong> {selectedAnalyticsLocation.createdAt ? new Date(selectedAnalyticsLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
+                      <div className="small"><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedAnalyticsLocation.deliveryAddress || '—'}</div>
+                    </div>
+                  )}
+                </div>
+              </Col>
+            </Row>
           </div>
         </Modal.Body>
       </Modal>
