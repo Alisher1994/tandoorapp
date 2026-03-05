@@ -354,12 +354,14 @@ function AdminDashboard() {
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
   const [productSubcategoryFilter, setProductSubcategoryFilter] = useState('all');
+  const [productThirdCategoryFilter, setProductThirdCategoryFilter] = useState('all');
   const [productStatusFilter, setProductStatusFilter] = useState('all');
 
   const resetProductFilters = () => {
     setProductSearch('');
     setProductCategoryFilter('all');
     setProductSubcategoryFilter('all');
+    setProductThirdCategoryFilter('all');
     setProductStatusFilter('all');
   };
 
@@ -367,6 +369,7 @@ function AdminDashboard() {
     productSearch.trim() !== '' ||
     productCategoryFilter !== 'all' ||
     productSubcategoryFilter !== 'all' ||
+    productThirdCategoryFilter !== 'all' ||
     productStatusFilter !== 'all'
   );
 
@@ -456,6 +459,11 @@ function AdminDashboard() {
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
+  const allThirdCategoriesLabel = language === 'uz' ? 'Barcha 3-daraja kategoriyalari' : 'Все категории 3 уровня';
+  const thirdCategoryLabel = language === 'uz' ? '3-daraja kategoriya' : 'Категория 3';
+  const categoryLineLabels = language === 'uz'
+    ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
+    : ['Категория 1', 'Категория 2', 'Категория 3'];
   const {
     actionButtonsVisible,
     actionButtonsRemainingLabel,
@@ -678,7 +686,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     setProductsPage(1);
-  }, [productSearch, productCategoryFilter, productSubcategoryFilter, productStatusFilter]);
+  }, [productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
   useEffect(() => {
     if (user?.active_restaurant_id) {
@@ -687,33 +695,54 @@ function AdminDashboard() {
     }
   }, [user?.active_restaurant_id]);
 
-  const categoryPathById = useMemo(() => {
-    const byId = new Map(categories.map((cat) => [String(cat.id), cat]));
+  const categoryById = useMemo(() => {
+    const map = new Map();
+    categories.forEach((cat) => map.set(Number(cat.id), cat));
+    return map;
+  }, [categories]);
+
+  const categoryHierarchyById = useMemo(() => {
     const cache = new Map();
+    const buildHierarchy = (categoryId) => {
+      const normalizedId = Number(categoryId);
+      if (!Number.isFinite(normalizedId)) return [];
+      if (cache.has(normalizedId)) return cache.get(normalizedId);
 
-    const buildPath = (category) => {
-      if (!category) return '';
-      const cacheKey = String(category.id);
-      if (cache.has(cacheKey)) return cache.get(cacheKey);
+      const hierarchy = [];
+      const visited = new Set();
+      let current = categoryById.get(normalizedId);
 
-      const chain = [];
-      let current = category;
-      while (current) {
-        chain.unshift(current.name_ru || '');
+      while (current && !visited.has(current.id)) {
+        hierarchy.unshift(current);
+        visited.add(current.id);
         if (!current.parent_id) break;
-        current = byId.get(String(current.parent_id));
+        current = categoryById.get(Number(current.parent_id));
       }
-      const path = chain.join(' > ').trim();
-      cache.set(cacheKey, path);
-      return path;
+
+      cache.set(normalizedId, hierarchy);
+      return hierarchy;
     };
 
+    categories.forEach((cat) => {
+      buildHierarchy(cat.id);
+    });
+
+    return cache;
+  }, [categories, categoryById]);
+
+  const categoryPathById = useMemo(() => {
     const result = new Map();
     categories.forEach((cat) => {
-      result.set(String(cat.id), buildPath(cat));
+      const hierarchy = categoryHierarchyById.get(Number(cat.id)) || [];
+      const path = hierarchy.map((entry) => entry.name_ru || '').join(' > ').trim();
+      result.set(String(cat.id), path);
     });
     return result;
-  }, [categories]);
+  }, [categories, categoryHierarchyById]);
+
+  const rootCategoryOptions = useMemo(() => (
+    categories.filter((cat) => cat.parent_id === null)
+  ), [categories]);
 
   const importAssignableCategories = useMemo(() => (
     categories
@@ -761,9 +790,12 @@ function AdminDashboard() {
 
   const productSubcategoryOptions = useMemo(() => {
     const rootId = parseInt(productCategoryFilter, 10);
-    const source = productCategoryFilter === 'all' || Number.isNaN(rootId)
-      ? categories.filter((cat) => cat.parent_id !== null)
-      : categories.filter((cat) => cat.parent_id === rootId);
+    const source = categories.filter((cat) => {
+      const hierarchy = categoryHierarchyById.get(Number(cat.id)) || [];
+      if (hierarchy.length !== 2) return false;
+      if (productCategoryFilter === 'all' || Number.isNaN(rootId)) return true;
+      return hierarchy[0]?.id === rootId;
+    });
 
     return [...source].sort((a, b) => {
       const orderA = Number.isFinite(a.sort_order) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
@@ -771,23 +803,58 @@ function AdminDashboard() {
       if (orderA !== orderB) return orderA - orderB;
       return String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru');
     });
-  }, [categories, productCategoryFilter]);
+  }, [categories, categoryHierarchyById, productCategoryFilter]);
+
+  const productThirdCategoryOptions = useMemo(() => {
+    const rootId = parseInt(productCategoryFilter, 10);
+    const level2Id = parseInt(productSubcategoryFilter, 10);
+    const source = categories.filter((cat) => {
+      const hierarchy = categoryHierarchyById.get(Number(cat.id)) || [];
+      if (hierarchy.length !== 3) return false;
+      if (productSubcategoryFilter !== 'all' && !Number.isNaN(level2Id)) {
+        return hierarchy[1]?.id === level2Id;
+      }
+      if (productCategoryFilter !== 'all' && !Number.isNaN(rootId)) {
+        return hierarchy[0]?.id === rootId;
+      }
+      return true;
+    });
+
+    return [...source].sort((a, b) => {
+      const orderA = Number.isFinite(a.sort_order) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+      const orderB = Number.isFinite(b.sort_order) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
+      return String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru');
+    });
+  }, [categories, categoryHierarchyById, productCategoryFilter, productSubcategoryFilter]);
+
+  const formatCategoryWithSort = (category) => {
+    if (!category) return '-';
+    const sortLabel = category.sort_order === null || category.sort_order === undefined ? '-' : category.sort_order;
+    return `[${sortLabel}] ${category.name_ru || ''}`.trim();
+  };
 
   const filteredProductsForTable = useMemo(() => (
     products.filter((product) => {
       if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
-      if (productSubcategoryFilter !== 'all') {
-        if (product.category_id !== parseInt(productSubcategoryFilter, 10)) return false;
-      } else if (productCategoryFilter !== 'all') {
+      const hierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
+      if (productCategoryFilter !== 'all') {
         const rootId = parseInt(productCategoryFilter, 10);
-        const childIds = categories.filter((c) => c.parent_id === rootId).map((c) => c.id);
-        if (product.category_id !== rootId && !childIds.includes(product.category_id)) return false;
+        if (Number.isNaN(rootId) || hierarchy[0]?.id !== rootId) return false;
+      }
+      if (productSubcategoryFilter !== 'all') {
+        const level2Id = parseInt(productSubcategoryFilter, 10);
+        if (Number.isNaN(level2Id) || hierarchy[1]?.id !== level2Id) return false;
+      }
+      if (productThirdCategoryFilter !== 'all') {
+        const level3Id = parseInt(productThirdCategoryFilter, 10);
+        if (Number.isNaN(level3Id) || hierarchy[2]?.id !== level3Id) return false;
       }
       if (productStatusFilter === 'active' && !product.in_stock) return false;
       if (productStatusFilter === 'hidden' && product.in_stock) return false;
       return true;
     })
-  ), [products, categories, productSearch, productCategoryFilter, productSubcategoryFilter, productStatusFilter]);
+  ), [products, categoryHierarchyById, productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
   const pagedOrders = useMemo(() => {
     const start = (ordersPage - 1) * ordersLimit;
@@ -1147,10 +1214,11 @@ function AdminDashboard() {
               onChange={(e) => {
                 setProductCategoryFilter(e.target.value);
                 setProductSubcategoryFilter('all');
+                setProductThirdCategoryFilter('all');
               }}
             >
               <option value="all">{t('allCategories')}</option>
-              {categories.filter(c => !c.parent_id).map(cat => (
+              {rootCategoryOptions.map(cat => (
                 <option key={`mobile-root-cat-${cat.id}`} value={String(cat.id)}>
                   {cat.name_ru}
                 </option>
@@ -1161,11 +1229,28 @@ function AdminDashboard() {
             <Form.Label className="small text-muted">{t('subcategory') || 'Подкатегория'}</Form.Label>
             <Form.Select
               value={productSubcategoryFilter}
-              onChange={(e) => setProductSubcategoryFilter(e.target.value)}
+              onChange={(e) => {
+                setProductSubcategoryFilter(e.target.value);
+                setProductThirdCategoryFilter('all');
+              }}
             >
               <option value="all">{allSubcategoriesLabel}</option>
               {productSubcategoryOptions.map(sub => (
                 <option key={`mobile-sub-cat-${sub.id}`} value={String(sub.id)}>
+                  {sub.name_ru}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+          <Form.Group>
+            <Form.Label className="small text-muted">{thirdCategoryLabel}</Form.Label>
+            <Form.Select
+              value={productThirdCategoryFilter}
+              onChange={(e) => setProductThirdCategoryFilter(e.target.value)}
+            >
+              <option value="all">{allThirdCategoriesLabel}</option>
+              {productThirdCategoryOptions.map(sub => (
+                <option key={`mobile-third-cat-${sub.id}`} value={String(sub.id)}>
                   {sub.name_ru}
                 </option>
               ))}
@@ -3686,7 +3771,7 @@ function AdminDashboard() {
                       )}
                     </InputGroup>
                   </Col>
-                  <Col lg={3}>
+                  <Col lg={2}>
                     <Dropdown popperConfig={{ strategy: 'fixed' }}>
                       <Dropdown.Toggle as={CustomToggle} id="dropdown-custom-components" className="form-select-sm">
                         {productCategoryFilter === 'all'
@@ -3698,13 +3783,13 @@ function AdminDashboard() {
                       </Dropdown.Toggle>
 
                       <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
-                        <Dropdown.Item onClick={() => { setProductCategoryFilter('all'); setProductSubcategoryFilter('all'); }}>
+                        <Dropdown.Item onClick={() => { setProductCategoryFilter('all'); setProductSubcategoryFilter('all'); setProductThirdCategoryFilter('all'); }}>
                           {t('allCategories')}
                         </Dropdown.Item>
-                        {categories.filter(c => !c.parent_id).map(cat => (
+                        {rootCategoryOptions.map(cat => (
                           <Dropdown.Item
                             key={cat.id}
-                            onClick={() => { setProductCategoryFilter(cat.id.toString()); setProductSubcategoryFilter('all'); }}
+                            onClick={() => { setProductCategoryFilter(cat.id.toString()); setProductSubcategoryFilter('all'); setProductThirdCategoryFilter('all'); }}
                             active={productCategoryFilter === cat.id.toString()}
                           >
                             <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
@@ -3714,7 +3799,7 @@ function AdminDashboard() {
                       </Dropdown.Menu>
                     </Dropdown>
                   </Col>
-                  <Col lg={3}>
+                  <Col lg={2}>
                     {/* Subcategory dropdown — shown when a root category is selected and has children */}
                     {(() => {
                       const subcats = productSubcategoryOptions;
@@ -3735,14 +3820,52 @@ function AdminDashboard() {
                           </Dropdown.Toggle>
 
                           <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
-                            <Dropdown.Item onClick={() => setProductSubcategoryFilter('all')}>
+                            <Dropdown.Item onClick={() => { setProductSubcategoryFilter('all'); setProductThirdCategoryFilter('all'); }}>
                               {allSubcategoriesLabel}
                             </Dropdown.Item>
                             {subcats.map(sub => (
                               <Dropdown.Item
                                 key={sub.id}
-                                onClick={() => setProductSubcategoryFilter(sub.id.toString())}
+                                onClick={() => { setProductSubcategoryFilter(sub.id.toString()); setProductThirdCategoryFilter('all'); }}
                                 active={productSubcategoryFilter === sub.id.toString()}
+                              >
+                                <span className="text-muted me-2 small">[{sub.sort_order !== null && sub.sort_order !== undefined ? sub.sort_order : '-'}]</span>
+                                {sub.name_ru}
+                              </Dropdown.Item>
+                            ))}
+                          </Dropdown.Menu>
+                        </Dropdown>
+                      );
+                    })()}
+                  </Col>
+                  <Col lg={2}>
+                    {(() => {
+                      const thirdCats = productThirdCategoryOptions;
+                      if (thirdCats.length === 0) return (
+                        <Form.Select size="sm" disabled>
+                          <option>{thirdCategoryLabel}</option>
+                        </Form.Select>
+                      );
+                      return (
+                        <Dropdown popperConfig={{ strategy: 'fixed' }}>
+                          <Dropdown.Toggle as={CustomToggle} id="dropdown-third-cat" className="form-select-sm">
+                            {productThirdCategoryFilter === 'all'
+                              ? allThirdCategoriesLabel
+                              : (() => {
+                                const selectedObj = categories.find(c => c.id === parseInt(productThirdCategoryFilter, 10));
+                                return selectedObj ? selectedObj.name_ru : allThirdCategoriesLabel;
+                              })()}
+                          </Dropdown.Toggle>
+
+                          <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
+                            <Dropdown.Item onClick={() => setProductThirdCategoryFilter('all')}>
+                              {allThirdCategoriesLabel}
+                            </Dropdown.Item>
+                            {thirdCats.map(sub => (
+                              <Dropdown.Item
+                                key={sub.id}
+                                onClick={() => setProductThirdCategoryFilter(sub.id.toString())}
+                                active={productThirdCategoryFilter === sub.id.toString()}
                               >
                                 <span className="text-muted me-2 small">[{sub.sort_order !== null && sub.sort_order !== undefined ? sub.sort_order : '-'}]</span>
                                 {sub.name_ru}
@@ -3819,15 +3942,18 @@ function AdminDashboard() {
                     </thead>
                     <tbody>
                       {pagedProducts
-                        .map((product, index) => (
-                          <tr
-                            key={product.id}
-                            className={selectedProducts.includes(product.id) ? 'table-active' : ''}
-                            onDoubleClick={() => openProductModal(product)}
-                            onTouchEnd={(e) => handleRowTouchOpen(e, `product-${product.id}`, () => openProductModal(product))}
-                            style={{ cursor: 'pointer' }}
-                            title="Двойной клик / двойной тап: открыть товар"
-                          >
+                        .map((product, index) => {
+                          const categoryHierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
+                          const categoryTooltip = categoryHierarchy.map((category) => formatCategoryWithSort(category)).join(' > ');
+                          return (
+                            <tr
+                              key={product.id}
+                              className={selectedProducts.includes(product.id) ? 'table-active' : ''}
+                              onDoubleClick={() => openProductModal(product)}
+                              onTouchEnd={(e) => handleRowTouchOpen(e, `product-${product.id}`, () => openProductModal(product))}
+                              style={{ cursor: 'pointer' }}
+                              title="Двойной клик / двойной тап: открыть товар"
+                            >
                             <td>
                               <Form.Check
                                 type="checkbox"
@@ -3864,7 +3990,22 @@ function AdminDashboard() {
                               )}
                             </td>
                             <td>{product.name_ru}</td>
-                            <td>{categories.find(c => c.id === product.category_id)?.full_path || product.category_name || '-'}</td>
+                            <td className="admin-product-category-cell">
+                              <div className="admin-product-category-lines" title={categoryTooltip || (product.category_name || '-')}>
+                                {[0, 1, 2].map((levelIndex) => {
+                                  const levelCategory = categoryHierarchy[levelIndex];
+                                  const levelValue = levelCategory
+                                    ? formatCategoryWithSort(levelCategory)
+                                    : (levelIndex === 0 ? (product.category_name || '-') : '-');
+                                  return (
+                                    <div className="admin-product-category-line" key={`product-${product.id}-category-level-${levelIndex}`}>
+                                      <span className="admin-product-category-label">{categoryLineLabels[levelIndex]}:</span>
+                                      <span className="admin-product-category-value">{levelValue}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </td>
                             <td>{formatPrice(product.price)} сум</td>
                             <td>
                               <div className="d-flex flex-column gap-1 align-items-start">
@@ -3927,8 +4068,9 @@ function AdminDashboard() {
                                 </Button>
                               </div>
                             </td>
-                          </tr>
-                        ))}
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </Table>
                 </div>

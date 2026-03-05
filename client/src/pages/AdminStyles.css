@@ -692,6 +692,40 @@ body::-webkit-scrollbar,
     background-color: #f8fafc !important;
 }
 
+.admin-product-category-cell {
+    min-width: 240px;
+}
+
+.admin-product-category-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 300px;
+}
+
+.admin-product-category-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    line-height: 1.2;
+}
+
+.admin-product-category-label {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.admin-product-category-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Flat section panels (same visual language as tables) */
 .admin-section-panel {
     border: 1px solid #d1d5db !important;
