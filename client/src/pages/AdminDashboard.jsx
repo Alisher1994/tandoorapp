@@ -6201,7 +6201,7 @@ function AdminDashboard() {
       </Modal>
 
         {/* Product Modal */}
-        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="lg">
+        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl">
           <Modal.Header closeButton>
             <Modal.Title>
               {selectedProduct ? t('editProduct') : t('addProduct')}
@@ -6416,7 +6416,14 @@ function AdminDashboard() {
                     <Form.Label>{t('containerLabel')}</Form.Label>
                     <Form.Select
                       value={productForm.container_id}
-                      onChange={(e) => setProductForm({ ...productForm, container_id: e.target.value })}
+                      onChange={(e) => {
+                        const nextContainerId = e.target.value;
+                        setProductForm({
+                          ...productForm,
+                          container_id: nextContainerId,
+                          container_norm: nextContainerId ? productForm.container_norm : 1
+                        });
+                      }}
                     >
                       <option value="">{t('noContainer')}</option>
                       {containers.map(c => (
@@ -6430,21 +6437,23 @@ function AdminDashboard() {
                     </Form.Text>
                   </Form.Group>
                 </Col>
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('containerNormLabel')}</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={productForm.container_norm}
-                      onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
-                    />
-                    <Form.Text className="text-muted">
-                      {t('containerNormNote')}
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
+                {productForm.container_id && (
+                  <Col md={3}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{t('containerNormLabel')}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={productForm.container_norm}
+                        onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
+                      />
+                      <Form.Text className="text-muted">
+                        {t('containerNormNote')}
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                )}
               </Row>
 
               <Row>
