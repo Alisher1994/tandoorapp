@@ -1599,11 +1599,7 @@ async function initBot() {
       `, [userResult.rows[0].id]);
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
-          reply_markup: {
-            inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
-          }
-        });
+        bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
         return;
       }
       
@@ -1615,10 +1611,7 @@ async function initBot() {
       });
       
       bot.sendMessage(chatId, message, {
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
-        }
+        parse_mode: 'HTML'
       });
       return;
     }
@@ -1780,11 +1773,12 @@ async function initBot() {
             {
               parse_mode: 'HTML',
               reply_markup: {
-                remove_keyboard: true,
-                inline_keyboard: [
-                  [{ text: '🏪 Открыть магазин', web_app: { url: loginUrl } }],
-                  [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
-                ]
+                keyboard: [[
+                  { text: '🏪 Открыть магазин', web_app: { url: loginUrl } },
+                  { text: '📋 Мои заказы' }
+                ]],
+                resize_keyboard: true,
+                is_persistent: true
               }
             }
           );
@@ -1830,11 +1824,12 @@ async function initBot() {
           {
             parse_mode: 'HTML',
             reply_markup: {
-              remove_keyboard: true,
-              inline_keyboard: [
-                [{ text: '🏪 Открыть магазин', web_app: { url: loginUrl } }],
-                [{ text: '📋 Мои заказы', callback_data: 'my_orders' }]
-              ]
+              keyboard: [[
+                { text: '🏪 Открыть магазин', web_app: { url: loginUrl } },
+                { text: '📋 Мои заказы' }
+              ]],
+              resize_keyboard: true,
+              is_persistent: true
             }
           }
         );
@@ -1960,16 +1955,7 @@ async function initBot() {
       );
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, 
-          '📦 У вас пока нет заказов.',
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
-              ]
-            }
-          }
-        );
+        bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
         return;
       }
       
@@ -1992,12 +1978,7 @@ async function initBot() {
       });
       
       bot.sendMessage(chatId, message, { 
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
-          ]
-        }
+        parse_mode: 'HTML'
       });
     } catch (error) {
       console.error('Orders command error:', error);
@@ -2166,11 +2147,7 @@ async function initBot() {
       `, [userResult.rows[0].id]);
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
-          reply_markup: {
-            inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
-          }
-        });
+        bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
         return;
       }
       
@@ -2182,10 +2159,7 @@ async function initBot() {
       });
       
       bot.sendMessage(chatId, message, {
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
-        }
+        parse_mode: 'HTML'
       });
       return;
     }
@@ -2390,12 +2364,7 @@ async function initBot() {
                   `Причина: ${text}\n\n` +
                   `Приносим извинения за неудобства.`,
                   {
-                    parse_mode: 'HTML',
-                    reply_markup: {
-                      inline_keyboard: [
-                        [{ text: '🛒 Новый заказ', callback_data: 'new_order' }]
-                      ]
-                    }
+                    parse_mode: 'HTML'
                   }
                 );
               }

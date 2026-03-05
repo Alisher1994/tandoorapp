@@ -455,9 +455,6 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   const buildMainMenuButtons = (loginUrl, lang) => {
     const menuButtons = [];
-    if (loginUrl) {
-      menuButtons.push([{ text: t(lang, 'openMenu'), web_app: { url: loginUrl } }]);
-    }
     menuButtons.push([{ text: t(lang, 'myOrders'), callback_data: 'my_orders' }]);
     return menuButtons;
   };
@@ -594,11 +591,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     `, [userResult.rows[0].id, restaurantId]);
 
     if (ordersResult.rows.length === 0) {
-      await bot.sendMessage(chatId, '📦 У вас пока нет заказов.', {
-        reply_markup: {
-          inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
-        }
-      });
+      await bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
       return;
     }
 
@@ -619,10 +612,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     });
 
     await bot.sendMessage(chatId, message, {
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: [[{ text: '🛒 Новый заказ', callback_data: 'new_order' }]]
-      }
+      parse_mode: 'HTML'
     });
   };
 
@@ -732,9 +722,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       await bot.sendMessage(chatId, t(userLang, 'loginWarn'));
       return;
     }
-    await bot.sendMessage(chatId, action === 'promo' ? t(userLang, 'promoHint') : (userLang === 'uz' ? 'Menyuni ochish uchun tugmani bosing.' : 'Нажмите кнопку, чтобы открыть меню.'), {
-      reply_markup: { inline_keyboard: [[{ text: action === 'promo' ? t(userLang, 'promoButton') : t(userLang, 'openMenu'), url: loginUrl }]] }
-    });
+    await bot.sendMessage(
+      chatId,
+      action === 'promo' ? t(userLang, 'promoHint') : (userLang === 'uz' ? 'Do\'konni ochish uchun keyboard tugmasidan foydalaning.' : 'Для открытия магазина используйте кнопку на keyboard.'),
+      {
+        reply_markup: buildCustomerReplyKeyboard(loginUrl, userLang)
+      }
+    );
   };
 
   const resolveTextMenuAction = (text) => {

@@ -670,18 +670,8 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       `Сумма заказа: ${formatPrice(order.total_amount)} сум` +
       paymentLine;
 
-    const catalogUrl = buildCustomerCatalogUrl(order);
     const inlineKeyboard = [];
-
-    if (catalogUrl) {
-      inlineKeyboard.push([{ text: '🏪 Открыть магазин', web_app: { url: catalogUrl } }]);
-    }
     inlineKeyboard.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
-
-    // Keep quick re-order button for completed/cancelled statuses
-    if (status === 'delivered' || status === 'cancelled') {
-      inlineKeyboard.push([{ text: '🛒 Новый заказ', callback_data: 'new_order' }]);
-    }
 
     const options = {
       parse_mode: 'HTML',
