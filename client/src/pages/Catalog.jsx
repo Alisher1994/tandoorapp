@@ -74,7 +74,6 @@ function Catalog() {
   const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
   const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
   const [catalogSearchPlaceholderDeleting, setCatalogSearchPlaceholderDeleting] = useState(false);
-  const [level3TabsHeight, setLevel3TabsHeight] = useState(0);
   const [catalogScrollProgress, setCatalogScrollProgress] = useState(0);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [galleryImages, setGalleryImages] = useState([]);
@@ -94,7 +93,6 @@ function Catalog() {
   const categoryListScrollOffsetRef = useRef(0);
   const isDataFetchInProgressRef = useRef(false);
   const catalogFetchIdRef = useRef(0);
-  const level3TabsContainerRef = useRef(null);
   const level3TabsScrollerRef = useRef(null);
   const level3TabButtonRefs = useRef({});
   const tabScrollSpyRafRef = useRef(null);
@@ -724,30 +722,6 @@ function Catalog() {
   }, [selectedCategory, level3Tabs]);
 
   useEffect(() => {
-    const tabsEl = level3TabsContainerRef.current;
-    if (!tabsEl || selectedCategory === null || level3Tabs.length === 0) {
-      setLevel3TabsHeight(0);
-      return undefined;
-    }
-
-    const updateTabsHeight = () => {
-      const nextHeight = Math.round(tabsEl.getBoundingClientRect().height || 0);
-      setLevel3TabsHeight((prev) => (prev === nextHeight ? prev : nextHeight));
-    };
-
-    updateTabsHeight();
-
-    if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(updateTabsHeight);
-      ro.observe(tabsEl);
-      return () => ro.disconnect();
-    }
-
-    window.addEventListener('resize', updateTabsHeight);
-    return () => window.removeEventListener('resize', updateTabsHeight);
-  }, [selectedCategory, level3Tabs.length, isHeaderSearchOpen]);
-
-  useEffect(() => {
     if (!activeSubcategoryTab) return;
     const tabsScroller = level3TabsScrollerRef.current;
     const activeTabButton = level3TabButtonRefs.current[activeSubcategoryTab];
@@ -766,7 +740,7 @@ function Catalog() {
 
     const scrollContainer = getScrollContainer();
     const scrollTarget = scrollContainer === window ? window : scrollContainer;
-    const stickyOffset = Math.max(56, catalogHeaderHeight) + level3TabsHeight;
+    const stickyOffset = Math.max(56, catalogHeaderHeight);
 
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
@@ -808,7 +782,7 @@ function Catalog() {
         tabScrollSpyRafRef.current = null;
       }
     };
-  }, [selectedCategory, level3Tabs, activeSubcategoryTab, normalizedCatalogSearch, loading, catalogHeaderHeight, level3TabsHeight]);
+  }, [selectedCategory, level3Tabs, activeSubcategoryTab, normalizedCatalogSearch, loading, catalogHeaderHeight]);
 
   useEffect(() => {
     if (!selectedRestaurant || loading) {
@@ -893,7 +867,7 @@ function Catalog() {
     const scrollContainer = getScrollContainer();
     const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
     const rect = sectionElement.getBoundingClientRect();
-    const stickyOffset = Math.max(56, catalogHeaderHeight) + level3TabsHeight + 12;
+    const stickyOffset = Math.max(56, catalogHeaderHeight) + 12;
     const topOffset = rect.top + currentScroll - stickyOffset;
     setActiveSubcategoryTab(sectionId);
     scrollToOffset(topOffset);
@@ -1661,7 +1635,9 @@ function Catalog() {
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           backgroundColor: catalogHeaderBackground,
-          borderBottom: '1px solid var(--border-color)'
+          borderBottom: selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0
+            ? 'none'
+            : '1px solid var(--border-color)'
         }}
       >
         <div className="d-flex justify-content-between align-items-center w-100 px-3">
@@ -1765,15 +1741,9 @@ function Catalog() {
             {renderCatalogSearch({ compact: true })}
           </div>
         </div>
-      </Navbar>
-
-      {selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 && (
         <div
-          ref={level3TabsContainerRef}
           style={{
-            position: 'sticky',
-            top: Math.max(56, catalogHeaderHeight) + 1,
-            zIndex: 1008,
+            display: selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 ? 'block' : 'none',
             backgroundColor: catalogHeaderBackground,
             borderBottom: '1px solid rgba(148, 163, 184, 0.24)',
             boxShadow: '0 1px 0 rgba(148, 163, 184, 0.14)'
@@ -1837,7 +1807,7 @@ function Catalog() {
             />
           </div>
         </div>
-      )}
+      </Navbar>
 
       <Container>
         {/* No restaurants */}
