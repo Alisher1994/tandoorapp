@@ -1170,26 +1170,87 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     if (state.step === 'waiting_name') {
       const userLang = normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru');
-      trackFlowIncomingMessage(stateKey, msg);
-      state.name = text;
-      state.step = 'waiting_location';
+      const userName = String(text || '').trim();
+      if (!userName) {
+        await sendTrackedFlowMessage(stateKey, chatId, userLang === 'uz' ? '❌ Ismni kiriting.' : '❌ Введите имя.');
+        return;
+      }
+
+      state.name = userName;
       state.lang = userLang;
       ensureFlowStateMeta(state);
       registrationStates.set(stateKey, state);
 
-      await cleanupFlowMessages(chatId, stateKey);
-      await sendTrackedFlowMessage(stateKey, chatId,
-        t(userLang, 'niceToMeet', { name: text }),
-        {
-          reply_markup: {
-            keyboard: [[
-              { text: t(userLang, 'shareLocation'), request_location: true }
-            ]],
-            resize_keyboard: true,
-            one_time_keyboard: true
+      try {
+        const restaurantResult = await pool.query(
+          'SELECT id, start_time, end_time FROM restaurants WHERE id = $1',
+          [restaurantId]
+        );
+        const restaurant = restaurantResult.rows[0] || null;
+        const startTime = restaurant?.start_time ? restaurant.start_time.substring(0, 5) : null;
+        const endTime = restaurant?.end_time ? restaurant.end_time.substring(0, 5) : null;
+        const isOpenNow = isRestaurantOpen(startTime, endTime);
+
+        const phoneLogin = normalizePhone(state.phone);
+        const username = await resolveUniqueCustomerUsername(phoneLogin || `user_${userId}`, userId);
+        const password = Math.random().toString(36).slice(-8);
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const userResult = await pool.query(`
+          INSERT INTO users (telegram_id, username, password, full_name, phone, role, is_active, active_restaurant_id, bot_language)
+          VALUES ($1, $2, $3, $4, $5, 'customer', true, $6, $7)
+          ON CONFLICT (telegram_id) DO UPDATE SET
+            full_name = EXCLUDED.full_name,
+            phone = EXCLUDED.phone,
+            active_restaurant_id = EXCLUDED.active_restaurant_id,
+            bot_language = EXCLUDED.bot_language,
+            username = CASE
+              WHEN EXCLUDED.username <> '' THEN EXCLUDED.username
+              ELSE users.username
+            END
+          RETURNING id
+        `, [
+          userId,
+          username,
+          hashedPassword,
+          userName,
+          state.phone,
+          restaurantId,
+          userLang
+        ]);
+
+        const newUserId = userResult.rows[0].id;
+
+        await pool.query(`
+          INSERT INTO user_restaurants (user_id, restaurant_id)
+          VALUES ($1, $2)
+          ON CONFLICT (user_id, restaurant_id) DO NOTHING
+        `, [newUserId, restaurantId]);
+
+        const token = generateLoginToken(newUserId, username, { restaurantId });
+        const loginUrl = buildCatalogUrl(appUrl, token);
+
+        await cleanupFlowMessages(chatId, stateKey);
+        registrationStates.delete(stateKey);
+
+        await bot.sendMessage(chatId,
+          `✅ Регистрация успешна!\n\n` +
+          `🏪 Магазин: <b>${restaurantName}</b>\n` +
+          `📍 Адрес и точку доставки вы укажете при оформлении заказа в меню.` +
+          (!isOpenNow ? `\n\nℹ️ Сейчас магазин закрыт и работает с ${startTime || '??:??'} до ${endTime || '??:??'}. Заказ можно оформить в рабочее время.` : '') +
+          `${loginUrl ? '' : '\n\n⚠️ Web App URL не настроен. Обратитесь к администратору.'}`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: buildCustomerReplyKeyboard(loginUrl, userLang)
           }
-        }
-      );
+        );
+      } catch (error) {
+        console.error('Registration completion error:', error);
+        await cleanupFlowMessages(chatId, stateKey);
+        registrationStates.delete(stateKey);
+        await bot.sendMessage(chatId, userLang === 'uz' ? '❌ Ro‘yxatdan o‘tishda xatolik. Keyinroq urinib ko‘ring.' : '❌ Ошибка регистрации. Попробуйте позже.');
+      }
+      return;
     }
 
     if (state.step === 'waiting_operator_invite_code') {
@@ -1601,11 +1662,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (await checkBlockedUser(bot, chatId, userId, restaurantId)) return;
 
       if (data === 'new_order' || data === 'check_delivery') {
-        const user = await resolvePreferredTelegramUser(userId);
-        const userLang = user
-          ? resolveUserLanguage(user, getTelegramPreferredLanguage(query.from?.language_code))
-          : getTelegramPreferredLanguage(query.from?.language_code);
-        await sendDeliveryLocationPrompt(chatId, userId, userLang);
+        await sendOpenMenuFallback(
+          { chat: query.message.chat, from: query.from },
+          'open_menu'
+        );
+        return;
       }
 
       if (data === 'my_orders') {

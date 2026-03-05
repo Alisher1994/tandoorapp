@@ -4,6 +4,38 @@ const pool = require('../database/connection');
 const axios = require('axios');
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
+function isPointInPolygon(point, polygon) {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0];
+    const yi = polygon[i][1];
+    const xj = polygon[j][0];
+    const yj = polygon[j][1];
+
+    const intersect = ((yi > y) !== (yj > y))
+      && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-7) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function isInDeliveryZone(deliveryZone, lat, lng) {
+  if (!deliveryZone) return true;
+
+  let zone = deliveryZone;
+  if (typeof zone === 'string') {
+    try {
+      zone = JSON.parse(zone);
+    } catch {
+      return true;
+    }
+  }
+
+  if (!Array.isArray(zone) || zone.length < 3) return true;
+  return isPointInPolygon([lat, lng], zone);
+}
+
 // Константы для расчета стоимости доставки
 const BASE_RADIUS_KM = 2;      // Базовый радиус бесплатной доставки
 const BASE_PRICE = 5000;       // Базовая стоимость доставки (сум)
@@ -75,6 +107,7 @@ router.post('/calculate', async (req, res) => {
     // Получаем координаты и настройки доставки ресторана
     const result = await pool.query(
       `SELECT latitude, longitude, name,
+              delivery_zone,
               delivery_base_radius, delivery_base_price, delivery_price_per_km,
               is_delivery_enabled
        FROM restaurants WHERE id = $1`,
@@ -125,6 +158,15 @@ router.post('/calculate', async (req, res) => {
     const restaurantLng = parseFloat(restaurant.longitude);
     const custLat = parseFloat(customer_lat);
     const custLng = parseFloat(customer_lng);
+
+    if (!isInDeliveryZone(restaurant.delivery_zone, custLat, custLng)) {
+      return res.json({
+        delivery_cost: 0,
+        distance_km: 0,
+        out_of_zone: true,
+        message: 'Адрес вне зоны доставки'
+      });
+    }
     
     // Пробуем получить реальное дорожное расстояние через OSRM
     let distanceKm = await getRoadDistance(restaurantLat, restaurantLng, custLat, custLng);

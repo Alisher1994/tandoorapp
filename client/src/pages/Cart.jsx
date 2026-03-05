@@ -81,6 +81,7 @@ function Cart() {
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [deliveryOutOfZone, setDeliveryOutOfZone] = useState(false);
 
   // Мои адреса
   const [savedAddresses, setSavedAddresses] = useState([]);
@@ -385,6 +386,7 @@ function Cart() {
       if (!mapCoordinates || !activeRestaurantId || !isDeliveryEnabled) {
         setDeliveryCost(0);
         setDeliveryDistance(0);
+        setDeliveryOutOfZone(false);
         setDeliveryLoading(false);
         return;
       }
@@ -399,22 +401,32 @@ function Cart() {
         if (res.data?.disabled) {
           setDeliveryCost(0);
           setDeliveryDistance(0);
+          setDeliveryOutOfZone(false);
           setRestaurant(prev => (prev ? { ...prev, is_delivery_enabled: false } : prev));
           return;
         }
+        if (res.data?.out_of_zone) {
+          setDeliveryCost(0);
+          setDeliveryDistance(0);
+          setDeliveryOutOfZone(true);
+          setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
+          return;
+        }
+        setDeliveryOutOfZone(false);
         setDeliveryCost(toNumber(res.data.delivery_cost, 0));
         setDeliveryDistance(toNumber(res.data.distance_km, 0));
       } catch (e) {
         console.error('Error fetching delivery cost:', e);
         setDeliveryCost(0);
         setDeliveryDistance(0);
+        setDeliveryOutOfZone(false);
       } finally {
         setDeliveryLoading(false);
       }
     };
 
     fetchDeliveryCost();
-  }, [mapCoordinates, activeRestaurantId, isDeliveryEnabled]);
+  }, [mapCoordinates, activeRestaurantId, isDeliveryEnabled, language]);
 
   const useCurrentLocation = () => {
     setLocationLoading(true);
@@ -507,6 +519,11 @@ function Cart() {
       return;
     }
 
+    if (isDeliveryEnabled && deliveryOutOfZone) {
+      setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
+      return;
+    }
+
     // Показываем модалку подтверждения адреса
     setShowConfirmOrderModal(true);
   };
@@ -524,6 +541,11 @@ function Cart() {
 
       if (isDeliveryEnabled && !hasLocation) {
         setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
+        return;
+      }
+
+      if (isDeliveryEnabled && deliveryOutOfZone) {
+        setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
         return;
       }
 

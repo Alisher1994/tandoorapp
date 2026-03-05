@@ -18,6 +18,38 @@ function getNowInRestaurantTimezone() {
   return new Date(nowString);
 }
 
+function isPointInPolygon(point, polygon) {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0];
+    const yi = polygon[i][1];
+    const xj = polygon[j][0];
+    const yj = polygon[j][1];
+
+    const intersect = ((yi > y) !== (yj > y))
+      && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-7) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function isInDeliveryZone(deliveryZone, lat, lng) {
+  if (!deliveryZone) return true;
+
+  let zone = deliveryZone;
+  if (typeof zone === 'string') {
+    try {
+      zone = JSON.parse(zone);
+    } catch {
+      return true;
+    }
+  }
+
+  if (!Array.isArray(zone) || zone.length < 3) return true;
+  return isPointInPolygon([lat, lng], zone);
+}
+
 // Public temporary order preview for Telegram operator links
 router.get('/operator-preview', async (req, res) => {
   try {
@@ -288,13 +320,15 @@ router.post('/', authenticate, async (req, res) => {
     
     // Check restaurant settings (hours + delivery flag)
     let isDeliveryEnabled = true;
+    let restaurantDeliveryZone = null;
     if (finalRestaurantId) {
       const hoursResult = await client.query(
-        'SELECT start_time, end_time, is_delivery_enabled FROM restaurants WHERE id = $1',
+        'SELECT start_time, end_time, is_delivery_enabled, delivery_zone FROM restaurants WHERE id = $1',
         [finalRestaurantId]
       );
       const hours = hoursResult.rows[0];
       isDeliveryEnabled = isEnabledFlag(hours?.is_delivery_enabled);
+      restaurantDeliveryZone = hours?.delivery_zone || null;
       console.log('📦 Restaurant hours:', hours);
       
       if (hours?.start_time && hours?.end_time) {
@@ -319,6 +353,27 @@ router.post('/', authenticate, async (req, res) => {
             error: `Магазин работает с ${startTime} по ${endTime}`
           });
         }
+      }
+    }
+
+    if (isDeliveryEnabled) {
+      if (!delivery_coordinates) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Укажите точку доставки на карте' });
+      }
+
+      const coordinates = String(delivery_coordinates || '').split(',').map((v) => Number.parseFloat(v.trim()));
+      const lat = coordinates[0];
+      const lng = coordinates[1];
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Некорректные координаты доставки' });
+      }
+
+      const inZone = isInDeliveryZone(restaurantDeliveryZone, lat, lng);
+      if (!inZone) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Адрес вне зоны доставки этого магазина' });
       }
     }
 
