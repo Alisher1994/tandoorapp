@@ -178,6 +178,32 @@ function Catalog() {
     if (!url) return '';
     return url.startsWith('http') ? url : `${API_URL.replace('/api', '')}${url}`;
   };
+  const getProductImageItems = (product) => {
+    let rawImages = product?.product_images;
+    if (typeof rawImages === 'string') {
+      try {
+        rawImages = JSON.parse(rawImages);
+      } catch (error) {
+        rawImages = [];
+      }
+    }
+
+    if (!Array.isArray(rawImages)) return [];
+
+    return rawImages
+      .map((item) => {
+        if (typeof item === 'string') {
+          const url = item.trim();
+          return url ? { url, thumb_url: '' } : null;
+        }
+        if (!item || typeof item !== 'object') return null;
+        const url = String(item.url || item.image_url || '').trim();
+        const thumbUrl = String(item.thumb_url || item.thumbUrl || '').trim();
+        if (!url && !thumbUrl) return null;
+        return { url, thumb_url: thumbUrl };
+      })
+      .filter(Boolean);
+  };
   const getProductGalleryImages = (product) => {
     const result = [];
     const seen = new Set();
@@ -189,62 +215,26 @@ function Catalog() {
     };
 
     addImage(product?.image_url);
-
-    let rawImages = product?.product_images;
-    if (typeof rawImages === 'string') {
-      try {
-        rawImages = JSON.parse(rawImages);
-      } catch (error) {
-        rawImages = [];
-      }
-    }
-
-    if (Array.isArray(rawImages)) {
-      rawImages.forEach((item) => {
-        if (typeof item === 'string') {
-          addImage(item);
-          return;
-        }
-        if (item && typeof item === 'object') {
-          addImage(item.url || item.image_url);
-        }
-      });
-    }
+    getProductImageItems(product).forEach((item) => addImage(item.url));
 
     if (!result.length) addImage(product?.thumb_url);
     return result;
   };
-
-  const preloadImage = (url) => new Promise((resolve) => {
-    if (!url || typeof window === 'undefined') {
-      resolve();
-      return;
+  const getProductCardImage = (product) => {
+    const imageItems = getProductImageItems(product);
+    const itemWithThumb = imageItems.find((item) => item.thumb_url);
+    if (itemWithThumb?.thumb_url) {
+      return resolveImageUrl(itemWithThumb.thumb_url);
     }
-    const img = new window.Image();
-    const done = () => {
-      img.onload = null;
-      img.onerror = null;
-      resolve();
-    };
-    img.onload = done;
-    img.onerror = done;
-    img.src = url;
-    if (img.complete) done();
-  });
 
-  const preloadProductCardImages = async (productsList = []) => {
-    const uniqueImageUrls = [];
-    const seen = new Set();
+    const directThumbUrl = resolveImageUrl(product?.thumb_url);
+    if (directThumbUrl) return directThumbUrl;
 
-    productsList.forEach((product) => {
-      const galleryImages = getProductGalleryImages(product);
-      const productCardImage = galleryImages[0] || resolveImageUrl(product?.thumb_url || product?.image_url);
-      if (!productCardImage || seen.has(productCardImage)) return;
-      seen.add(productCardImage);
-      uniqueImageUrls.push(productCardImage);
-    });
+    if (imageItems[0]?.url) {
+      return resolveImageUrl(imageItems[0].url);
+    }
 
-    await Promise.all(uniqueImageUrls.map((url) => preloadImage(url)));
+    return resolveImageUrl(product?.image_url);
   };
 
   const openProductGallery = (product, startIndex = 0) => {
@@ -357,9 +347,6 @@ function Catalog() {
         if (slotDiff !== 0) return slotDiff;
         return (a.id || 0) - (b.id || 0);
       });
-
-      // Keep skeleton visible until all product card images are fully loaded (or failed).
-      await preloadProductCardImages(nextProducts);
 
       if (fetchId !== catalogFetchIdRef.current) return;
 
@@ -1027,8 +1014,7 @@ function Catalog() {
     const isOpen = catalogQtyOpen?.[overlayKey];
     const favoriteActive = isFavorite(product.id);
     const productName = getProductName(product);
-    const productGallery = getProductGalleryImages(product);
-    const primaryImageUrl = productGallery[0] || '';
+    const primaryImageUrl = getProductCardImage(product);
 
     return (
       <Card className="h-100 shadow-sm border-0">
@@ -1038,6 +1024,8 @@ function Catalog() {
               variant="top"
               src={primaryImageUrl}
               alt={productName}
+              loading="lazy"
+              decoding="async"
               style={{
                 width: '100%',
                 aspectRatio: '4 / 3',
@@ -1508,8 +1496,7 @@ function Catalog() {
           >
             {catalogSearchResults.map((product, index) => {
               const productName = getProductName(product);
-              const productGallery = getProductGalleryImages(product);
-              const imageUrl = productGallery[0] || resolveImageUrl(product.thumb_url || product.image_url);
+              const imageUrl = getProductCardImage(product);
               const category = categoriesById.get(Number(product.category_id));
               const cartItem = getCartItem(product.id);
               const qty = cartItem?.quantity || 0;
@@ -1548,7 +1535,13 @@ function Catalog() {
                       }}
                       aria-label={language === 'uz' ? 'Rasmni ochish' : 'Открыть фото'}
                     >
-                      <img src={imageUrl} alt={productName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img
+                        src={imageUrl}
+                        alt={productName}
+                        loading="lazy"
+                        decoding="async"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
                     </button>
                   ) : (
                     <div
