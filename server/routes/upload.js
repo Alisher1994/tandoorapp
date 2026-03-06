@@ -34,13 +34,13 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-const PRODUCT_MAX_WIDTH = 1600;
-const PRODUCT_MAX_HEIGHT = 1600;
-const PRODUCT_THUMB_SIZE = 320;
-const AD_MAX_WIDTH = 1920;
-const AD_MAX_HEIGHT = 1080;
-const DEFAULT_MAX_WIDTH = 2400;
-const DEFAULT_MAX_HEIGHT = 2400;
+const PRODUCT_MAX_WIDTH = 1280;
+const PRODUCT_MAX_HEIGHT = 1280;
+const PRODUCT_THUMB_SIZE = 220;
+const AD_MAX_WIDTH = 1600;
+const AD_MAX_HEIGHT = 900;
+const DEFAULT_MAX_WIDTH = 1280;
+const DEFAULT_MAX_HEIGHT = 1280;
 
 const buildFilename = (ext) => {
   const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -58,6 +58,33 @@ const makeUploadResult = (filename, thumbFilename = null) => ({
   filename,
   ...(thumbFilename ? { thumbFilename } : {})
 });
+
+const resolveWebpOptions = (preset) => {
+  if (preset === 'product') {
+    return {
+      quality: 68,
+      alphaQuality: 72,
+      effort: 6,
+      smartSubsample: true
+    };
+  }
+
+  if (preset === 'ad' || preset === 'ad_banner') {
+    return {
+      quality: 70,
+      alphaQuality: 74,
+      effort: 6,
+      smartSubsample: true
+    };
+  }
+
+  return {
+    quality: 64,
+    alphaQuality: 70,
+    effort: 6,
+    smartSubsample: true
+  };
+};
 
 const optimizeAndSaveImage = async (file, preset) => {
   const source = sharp(file.buffer, { failOnError: true, animated: true });
@@ -81,32 +108,24 @@ const optimizeAndSaveImage = async (file, preset) => {
   const maxWidth = isProductPreset ? PRODUCT_MAX_WIDTH : (isAdPreset ? AD_MAX_WIDTH : DEFAULT_MAX_WIDTH);
   const maxHeight = isProductPreset ? PRODUCT_MAX_HEIGHT : (isAdPreset ? AD_MAX_HEIGHT : DEFAULT_MAX_HEIGHT);
 
-  let pipeline = sharp(file.buffer, { failOnError: true })
+  const pipeline = sharp(file.buffer, { failOnError: true })
     .rotate()
     .resize({
       width: maxWidth,
       height: maxHeight,
       fit: 'inside',
-      withoutEnlargement: true
+      withoutEnlargement: true,
+      fastShrinkOnLoad: true
     });
 
-  // Для карточек товара и рекламных баннеров используем WebP как основной формат.
-  if (isProductPreset || isAdPreset) {
-    const outputBuffer = await pipeline
-      .webp({
-        quality: isAdPreset ? 80 : 82,
-        alphaQuality: 85,
-        effort: 5,
-        smartSubsample: true
-      })
-      .toBuffer();
+  // Все статичные изображения перекодируем в WebP, чтобы агрессивно уменьшить вес.
+  const outputBuffer = await pipeline
+    .webp(resolveWebpOptions(preset))
+    .toBuffer();
 
-    const filename = await saveBufferToUploads(outputBuffer, '.webp');
+  const filename = await saveBufferToUploads(outputBuffer, '.webp');
 
-    if (!isProductPreset) {
-      return makeUploadResult(filename);
-    }
-
+  if (isProductPreset) {
     const thumbBuffer = await sharp(file.buffer, { failOnError: true })
       .rotate()
       .resize({
@@ -114,12 +133,13 @@ const optimizeAndSaveImage = async (file, preset) => {
         height: PRODUCT_THUMB_SIZE,
         fit: 'cover',
         position: sharp.strategy.attention,
-        withoutEnlargement: true
+        withoutEnlargement: true,
+        fastShrinkOnLoad: true
       })
       .webp({
-        quality: 76,
-        alphaQuality: 80,
-        effort: 5,
+        quality: 56,
+        alphaQuality: 64,
+        effort: 6,
         smartSubsample: true
       })
       .toBuffer();
@@ -128,51 +148,6 @@ const optimizeAndSaveImage = async (file, preset) => {
     return makeUploadResult(filename, thumbFilename);
   }
 
-  const format = metadata.format.toLowerCase();
-
-  if (format === 'jpeg' || format === 'jpg') {
-    const outputBuffer = await pipeline
-      .jpeg({
-        quality: 84,
-        mozjpeg: true,
-        progressive: true
-      })
-      .toBuffer();
-
-    const filename = await saveBufferToUploads(outputBuffer, '.jpg');
-    return makeUploadResult(filename);
-  }
-
-  if (format === 'png') {
-    const outputBuffer = await pipeline
-      .png({
-        compressionLevel: 9,
-        palette: true,
-        effort: 8
-      })
-      .toBuffer();
-
-    const filename = await saveBufferToUploads(outputBuffer, '.png');
-    return makeUploadResult(filename);
-  }
-
-  if (format === 'webp') {
-    const outputBuffer = await pipeline
-      .webp({
-        quality: 82,
-        alphaQuality: 85,
-        effort: 5,
-        smartSubsample: true
-      })
-      .toBuffer();
-
-    const filename = await saveBufferToUploads(outputBuffer, '.webp');
-    return makeUploadResult(filename);
-  }
-
-  // Фолбэк для редко встречающихся форматов: сохраняем оригинал как есть.
-  const fallbackExt = path.extname(file.originalname) || `.${format}`;
-  const filename = await saveBufferToUploads(file.buffer, fallbackExt.toLowerCase());
   return makeUploadResult(filename);
 };
 
