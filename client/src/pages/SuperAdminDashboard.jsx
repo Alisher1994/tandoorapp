@@ -19,6 +19,7 @@ const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATEGORY_LEVEL_COUNT = 3;
+const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const createEmptyHelpInstructionForm = () => ({
   id: null,
   title_ru: '',
@@ -2032,8 +2033,8 @@ function SuperAdminDashboard() {
 
   const handleImageUpload = async (file, setImageUrl) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Файл слишком большой. Максимальный размер: 5MB');
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      alert('Файл слишком большой. Максимальный размер: 12MB');
       return;
     }
     setUploadingImage(true);

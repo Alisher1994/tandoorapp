@@ -37,6 +37,7 @@ const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxiapp://start?q={lat},{lng}';
 const DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE = 'app_name://order';
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
+const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
@@ -2418,9 +2419,8 @@ function AdminDashboard() {
   const handleImageUpload = async (file, setImageUrl, options = {}) => {
     if (!file) return;
 
-    // Проверка размера файла (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Файл слишком большой. Максимальный размер: 5MB');
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      alert('Файл слишком большой. Максимальный размер: 12MB');
       return;
     }
 
@@ -2460,8 +2460,8 @@ function AdminDashboard() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setAlertMessage({ type: 'warning', text: 'Файл слишком большой. Максимум 5MB' });
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      setAlertMessage({ type: 'warning', text: 'Файл слишком большой. Максимум 12MB' });
       e.target.value = '';
       return;
     }

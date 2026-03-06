@@ -6,6 +6,7 @@ const sharp = require('sharp');
 const { authenticate, requireOperator } = require('../middleware/auth');
 
 const router = express.Router();
+const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 
 // Настройка multer для сохранения файлов
 const uploadsDir = process.env.UPLOADS_DIR
@@ -28,7 +29,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
+    fileSize: MAX_UPLOAD_FILE_SIZE_BYTES // 12MB
   },
   fileFilter: fileFilter
 });
