@@ -14,6 +14,7 @@ import Nav from 'react-bootstrap/Nav';
 import Dropdown from 'react-bootstrap/Dropdown';
 import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/Tab';
+import Accordion from 'react-bootstrap/Accordion';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Alert from 'react-bootstrap/Alert';
@@ -2928,6 +2929,40 @@ function AdminDashboard() {
 
   const clickPaymentLink = normalizePaymentLink(billingInfo.requisites?.click_link);
   const paymePaymentLink = normalizePaymentLink(billingInfo.requisites?.payme_link);
+  const paymentSystems = [
+    {
+      key: 'click',
+      title: 'Click',
+      logo: '/click.png',
+      description: 'Персональная ссылка для перевода клиента в оплату Click.',
+      configured: Boolean(String(restaurantSettings?.click_url || '').trim())
+    },
+    {
+      key: 'payme',
+      title: 'Payme',
+      logo: '/payme.png',
+      description: 'Ссылка оплаты и Merchant API для автоматического подтверждения заказов.',
+      configured: Boolean(
+        String(restaurantSettings?.payme_url || '').trim()
+        || Boolean(restaurantSettings?.payme_enabled)
+        || String(restaurantSettings?.payme_merchant_id || '').trim()
+      )
+    },
+    {
+      key: 'uzum',
+      title: 'Uzum',
+      logo: '/uzum.png',
+      description: 'Ссылка для перенаправления клиента на оплату через Uzum.',
+      configured: Boolean(String(restaurantSettings?.uzum_url || '').trim())
+    },
+    {
+      key: 'xazna',
+      title: 'Xazna',
+      logo: '/xazna.png',
+      description: 'Ссылка для перенаправления клиента на оплату через Xazna.',
+      configured: Boolean(String(restaurantSettings?.xazna_url || '').trim())
+    }
+  ];
 
   if (loading) {
     return <PageSkeleton fullscreen label="Загрузка панели оператора" cards={9} />;
@@ -4783,6 +4818,7 @@ function AdminDashboard() {
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
                       { key: 'general', label: language === 'uz' ? 'Umumiy' : 'Общие' },
+                      { key: 'payments', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
                       { key: 'delivery', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
                       { key: 'operators', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
                     ].map((tab) => {
@@ -5140,15 +5176,59 @@ function AdminDashboard() {
                                 </Row>
                               </Col>
 
-                              <Col md={12} className="border-top pt-4">
-                                <h6 className="fw-bold mb-3">Платежные ссылки</h6>
-                                <Row className="gy-3">
-                                  <Col md={6}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
-                                        <img src="/click.png" alt="Click" style={{ height: 16, objectFit: 'contain' }} />
-                                      </Form.Label>
-                                      <InputGroup>
+                            </Row>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                onClick={saveRestaurantSettings}
+                                disabled={savingSettings || isTokenSaveLocked}
+                              >
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : 'Сохранить изменения'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'payments' && (
+                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="d-flex flex-column gap-2 mb-4">
+                              <h5 className="fw-bold mb-0 admin-mobile-section-title">Платежные системы</h5>
+                              <div className="text-muted small">
+                                Откройте нужную систему и заполните только ее поля. Для Payme Merchant API настройки находятся внутри карточки Payme.
+                              </div>
+                            </div>
+
+                            <Accordion defaultActiveKey="payme" alwaysOpen className="admin-payment-accordion">
+                              {paymentSystems.map((system) => (
+                                <Accordion.Item eventKey={system.key} key={system.key} className="admin-payment-accordion-item">
+                                  <Accordion.Header>
+                                    <div className="admin-payment-accordion-header">
+                                      <div className="admin-payment-accordion-brand">
+                                        <span className="admin-payment-logo-wrap">
+                                          <img src={system.logo} alt={system.title} className="admin-payment-logo" />
+                                        </span>
+                                        <span className="admin-payment-title-wrap">
+                                          <span className="admin-payment-title">{system.title}</span>
+                                          <span className="admin-payment-subtitle">{system.description}</span>
+                                        </span>
+                                      </div>
+                                      <span className={`admin-payment-status-chip ${system.configured ? 'is-ready' : 'is-empty'}`}>
+                                        {system.configured ? 'Настроено' : 'Не заполнено'}
+                                      </span>
+                                    </div>
+                                  </Accordion.Header>
+                                  <Accordion.Body>
+                                    {system.key === 'click' && (
+                                      <Form.Group className="mb-0">
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Click</Form.Label>
                                         <Form.Control
                                           type="text"
                                           className="form-control-custom"
@@ -5156,101 +5236,98 @@ function AdminDashboard() {
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
                                           placeholder="https://..."
                                         />
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
-                                  <Col md={6}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
-                                        <img src="/payme.png" alt="Payme" style={{ height: 16, objectFit: 'contain' }} />
-                                      </Form.Label>
-                                      <InputGroup>
-                                        <Form.Control
-                                          type="text"
-                                          className="form-control-custom"
-                                          value={restaurantSettings.payme_url || ''}
-                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_url: e.target.value })}
-                                          placeholder="https://..."
-                                        />
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
-                                  <Col md={12}>
-                                    <div className="rounded-4 border p-3 bg-light-subtle">
-                                      <div className="d-flex align-items-center justify-content-between mb-3">
-                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-0">
-                                          Payme Merchant API
-                                        </Form.Label>
-                                        <Form.Check
-                                          type="switch"
-                                          checked={Boolean(restaurantSettings.payme_enabled)}
-                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_enabled: e.target.checked })}
-                                        />
+                                      </Form.Group>
+                                    )}
+
+                                    {system.key === 'payme' && (
+                                      <div className="d-flex flex-column gap-4">
+                                        <Form.Group className="mb-0">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Payme</Form.Label>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.payme_url || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_url: e.target.value })}
+                                            placeholder="https://..."
+                                          />
+                                        </Form.Group>
+
+                                        <div className="admin-payment-payme-box">
+                                          <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-3">
+                                            <div>
+                                              <div className="small fw-bold text-muted text-uppercase">Payme Merchant API</div>
+                                              <div className="small text-muted">Автоподтверждение оплаты и возврат статусов заказа.</div>
+                                            </div>
+                                            <Form.Check
+                                              type="switch"
+                                              checked={Boolean(restaurantSettings.payme_enabled)}
+                                              onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_enabled: e.target.checked })}
+                                              label={restaurantSettings.payme_enabled ? 'Включено' : 'Выключено'}
+                                            />
+                                          </div>
+                                          <Row className="gy-3">
+                                            <Col md={4}>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.payme_merchant_id || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_merchant_id: e.target.value })}
+                                                placeholder="Merchant ID"
+                                              />
+                                            </Col>
+                                            <Col md={4}>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.payme_api_login || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_api_login: e.target.value })}
+                                                placeholder="Merchant API login"
+                                              />
+                                            </Col>
+                                            <Col md={4}>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.payme_api_password || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_api_password: e.target.value })}
+                                                placeholder="Merchant API password"
+                                              />
+                                            </Col>
+                                            <Col md={6}>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.payme_account_key || 'order_id'}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_account_key: e.target.value })}
+                                                placeholder="account key"
+                                              />
+                                            </Col>
+                                            <Col md={6}>
+                                              <Form.Control
+                                                type="number"
+                                                min="0"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.payme_callback_timeout_ms || 2000}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_callback_timeout_ms: e.target.value })}
+                                                placeholder="Callback timeout ms"
+                                              />
+                                            </Col>
+                                            <Col md={12}>
+                                              <Form.Check
+                                                type="switch"
+                                                label="Тестовый режим Payme"
+                                                checked={Boolean(restaurantSettings.payme_test_mode)}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_test_mode: e.target.checked })}
+                                              />
+                                            </Col>
+                                          </Row>
+                                        </div>
                                       </div>
-                                      <Row className="gy-3">
-                                        <Col md={4}>
-                                          <Form.Control
-                                            type="text"
-                                            className="form-control-custom"
-                                            value={restaurantSettings.payme_merchant_id || ''}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_merchant_id: e.target.value })}
-                                            placeholder="Merchant ID"
-                                          />
-                                        </Col>
-                                        <Col md={4}>
-                                          <Form.Control
-                                            type="text"
-                                            className="form-control-custom"
-                                            value={restaurantSettings.payme_api_login || ''}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_api_login: e.target.value })}
-                                            placeholder="Merchant API login"
-                                          />
-                                        </Col>
-                                        <Col md={4}>
-                                          <Form.Control
-                                            type="text"
-                                            className="form-control-custom"
-                                            value={restaurantSettings.payme_api_password || ''}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_api_password: e.target.value })}
-                                            placeholder="Merchant API password"
-                                          />
-                                        </Col>
-                                        <Col md={6}>
-                                          <Form.Control
-                                            type="text"
-                                            className="form-control-custom"
-                                            value={restaurantSettings.payme_account_key || 'order_id'}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_account_key: e.target.value })}
-                                            placeholder="account key"
-                                          />
-                                        </Col>
-                                        <Col md={6}>
-                                          <Form.Control
-                                            type="number"
-                                            min="0"
-                                            className="form-control-custom"
-                                            value={restaurantSettings.payme_callback_timeout_ms || 2000}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_callback_timeout_ms: e.target.value })}
-                                            placeholder="Callback timeout ms"
-                                          />
-                                        </Col>
-                                        <Col md={12}>
-                                          <Form.Check
-                                            type="switch"
-                                            label="Тестовый режим Payme"
-                                            checked={Boolean(restaurantSettings.payme_test_mode)}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_test_mode: e.target.checked })}
-                                          />
-                                        </Col>
-                                      </Row>
-                                    </div>
-                                  </Col>
-                                  <Col md={6}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
-                                        <img src="/uzum.png" alt="Uzum" style={{ height: 16, objectFit: 'contain' }} />
-                                      </Form.Label>
-                                      <InputGroup>
+                                    )}
+
+                                    {system.key === 'uzum' && (
+                                      <Form.Group className="mb-0">
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Uzum</Form.Label>
                                         <Form.Control
                                           type="text"
                                           className="form-control-custom"
@@ -5258,15 +5335,12 @@ function AdminDashboard() {
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, uzum_url: e.target.value })}
                                           placeholder="https://..."
                                         />
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
-                                  <Col md={6}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">
-                                        <img src="/xazna.png" alt="Xazna" style={{ height: 16, objectFit: 'contain' }} />
-                                      </Form.Label>
-                                      <InputGroup>
+                                      </Form.Group>
+                                    )}
+
+                                    {system.key === 'xazna' && (
+                                      <Form.Group className="mb-0">
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Xazna</Form.Label>
                                         <Form.Control
                                           type="text"
                                           className="form-control-custom"
@@ -5274,12 +5348,12 @@ function AdminDashboard() {
                                           onChange={e => setRestaurantSettings({ ...restaurantSettings, xazna_url: e.target.value })}
                                           placeholder="https://..."
                                         />
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
-                                </Row>
-                              </Col>
-                            </Row>
+                                      </Form.Group>
+                                    )}
+                                  </Accordion.Body>
+                                </Accordion.Item>
+                              ))}
+                            </Accordion>
 
                             <div className="mt-4 pt-3 border-top text-end">
                               <Button
