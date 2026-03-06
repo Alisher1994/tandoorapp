@@ -411,6 +411,13 @@ function SuperAdminDashboard() {
     end_time: '',
     click_url: '',
     payme_url: '',
+    payme_enabled: false,
+    payme_merchant_id: '',
+    payme_api_login: '',
+    payme_api_password: '',
+    payme_account_key: 'order_id',
+    payme_test_mode: false,
+    payme_callback_timeout_ms: 2000,
     support_username: '',
     service_fee: 1000,
     latitude: '',
@@ -2108,6 +2115,13 @@ function SuperAdminDashboard() {
         end_time: restaurant.end_time || '',
         click_url: restaurant.click_url || '',
         payme_url: restaurant.payme_url || '',
+        payme_enabled: Boolean(restaurant.payme_enabled),
+        payme_merchant_id: restaurant.payme_merchant_id || '',
+        payme_api_login: restaurant.payme_api_login || '',
+        payme_api_password: restaurant.payme_api_password || '',
+        payme_account_key: restaurant.payme_account_key || 'order_id',
+        payme_test_mode: Boolean(restaurant.payme_test_mode),
+        payme_callback_timeout_ms: restaurant.payme_callback_timeout_ms || 2000,
         support_username: restaurant.support_username || '',
         service_fee: restaurant.hasOwnProperty('service_fee') ? parseFloat(restaurant.service_fee) : 1000,
         latitude: restaurant.latitude || '',
@@ -2134,6 +2148,13 @@ function SuperAdminDashboard() {
         end_time: '',
         click_url: '',
         payme_url: '',
+        payme_enabled: false,
+        payme_merchant_id: '',
+        payme_api_login: '',
+        payme_api_password: '',
+        payme_account_key: 'order_id',
+        payme_test_mode: false,
+        payme_callback_timeout_ms: 2000,
         support_username: '',
         service_fee: 1000,
         latitude: '',
@@ -5708,6 +5729,72 @@ function SuperAdminDashboard() {
                       </Form.Group>
                     </Col>
                   </Row>
+
+                  <div className="mb-4 p-3 rounded border bg-white">
+                    <div className="d-flex align-items-center justify-content-between mb-3">
+                      <Form.Label className="fw-medium text-secondary m-0 d-flex align-items-center">
+                        <img src="/payme.png" alt="Payme" style={{ height: 20, marginRight: 8, borderRadius: 4 }} />
+                        Payme Merchant API
+                      </Form.Label>
+                      <Form.Check
+                        type="switch"
+                        checked={restaurantForm.payme_enabled}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_enabled: e.target.checked })}
+                      />
+                    </div>
+                    <Row className="gy-3">
+                      <Col md={6}>
+                        <Form.Control
+                          value={restaurantForm.payme_merchant_id}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_merchant_id: e.target.value })}
+                          placeholder="Merchant ID"
+                          className="bg-light"
+                        />
+                      </Col>
+                      <Col md={6}>
+                        <Form.Control
+                          value={restaurantForm.payme_api_login}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_api_login: e.target.value })}
+                          placeholder="Merchant API login"
+                          className="bg-light"
+                        />
+                      </Col>
+                      <Col md={6}>
+                        <Form.Control
+                          value={restaurantForm.payme_api_password}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_api_password: e.target.value })}
+                          placeholder="Merchant API password"
+                          className="bg-light"
+                        />
+                      </Col>
+                      <Col md={3}>
+                        <Form.Control
+                          value={restaurantForm.payme_account_key}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_account_key: e.target.value })}
+                          placeholder="account key"
+                          className="bg-light"
+                        />
+                      </Col>
+                      <Col md={3}>
+                        <Form.Control
+                          type="number"
+                          min="0"
+                          value={restaurantForm.payme_callback_timeout_ms}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_callback_timeout_ms: e.target.value })}
+                          placeholder="ct"
+                          className="bg-light"
+                        />
+                      </Col>
+                      <Col md={12}>
+                        <Form.Check
+                          type="switch"
+                          label="Тестовый режим Payme"
+                          checked={restaurantForm.payme_test_mode}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_test_mode: e.target.checked })}
+                        />
+                      </Col>
+                    </Row>
+                  </div>
 
                   <div className="mb-4 bg-light p-3 rounded border border-light">
                     <div className="d-flex align-items-center justify-content-between">

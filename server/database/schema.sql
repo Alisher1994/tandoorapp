@@ -10,6 +10,13 @@ CREATE TABLE IF NOT EXISTS restaurants (
   phone VARCHAR(20),
   telegram_bot_token VARCHAR(255),
   telegram_group_id VARCHAR(100),
+  payme_enabled BOOLEAN DEFAULT false,
+  payme_merchant_id VARCHAR(128),
+  payme_api_login VARCHAR(255),
+  payme_api_password VARCHAR(255),
+  payme_account_key VARCHAR(64) DEFAULT 'order_id',
+  payme_test_mode BOOLEAN DEFAULT false,
+  payme_callback_timeout_ms INTEGER DEFAULT 2000,
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
   operator_registration_code VARCHAR(64),
   is_active BOOLEAN DEFAULT true,
@@ -111,6 +118,10 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_phone VARCHAR(50) NOT NULL,
   payment_method VARCHAR(20) DEFAULT 'cash',
   payment_status VARCHAR(20) DEFAULT 'unpaid',
+  payment_provider VARCHAR(32),
+  payment_reference VARCHAR(128),
+  payment_paid_at TIMESTAMP,
+  payment_cancelled_at TIMESTAMP,
   comment TEXT,
   cancel_reason TEXT,
   cancelled_at_status VARCHAR(20),
@@ -163,6 +174,25 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS payme_transactions (
+  id SERIAL PRIMARY KEY,
+  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  payme_transaction_id VARCHAR(64) NOT NULL UNIQUE,
+  payme_time BIGINT,
+  amount_tiyin BIGINT NOT NULL,
+  account_data JSONB DEFAULT '{}'::jsonb,
+  state INTEGER NOT NULL DEFAULT 1,
+  reason INTEGER,
+  create_time BIGINT NOT NULL,
+  perform_time BIGINT,
+  cancel_time BIGINT,
+  raw_request JSONB,
+  fiscal_data JSONB,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- =====================================================
 -- ИНДЕКСЫ
 -- =====================================================
@@ -189,6 +219,11 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
 CREATE INDEX IF NOT EXISTS idx_orders_processed_by ON orders(processed_by);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_payme_login_unique ON restaurants(payme_api_login) WHERE payme_api_login IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payme_transactions_restaurant ON payme_transactions(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_payme_transactions_order ON payme_transactions(order_id);
+CREATE INDEX IF NOT EXISTS idx_payme_transactions_state ON payme_transactions(state);
+CREATE INDEX IF NOT EXISTS idx_payme_transactions_create_time ON payme_transactions(create_time);
 
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 

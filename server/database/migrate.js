@@ -51,6 +51,13 @@ async function migrate() {
       'end_time VARCHAR(5)',
       'click_url TEXT',
       'payme_url TEXT',
+      'payme_enabled BOOLEAN DEFAULT false',
+      'payme_merchant_id VARCHAR(128)',
+      'payme_api_login VARCHAR(255)',
+      'payme_api_password VARCHAR(255)',
+      `payme_account_key VARCHAR(64) DEFAULT 'order_id'`,
+      'payme_test_mode BOOLEAN DEFAULT false',
+      `payme_callback_timeout_ms INTEGER DEFAULT 2000`,
       'uzum_url TEXT',
       'xazna_url TEXT',
       'msg_new TEXT',
@@ -205,7 +212,11 @@ async function migrate() {
       { name: 'delivery_cost', type: 'DECIMAL(10, 2) DEFAULT 0' },
       { name: 'delivery_distance_km', type: 'DECIMAL(10, 2)' },
       { name: 'is_paid', type: 'BOOLEAN DEFAULT false' },
-      { name: 'paid_amount', type: 'DECIMAL(12, 2) DEFAULT 0' }
+      { name: 'paid_amount', type: 'DECIMAL(12, 2) DEFAULT 0' },
+      { name: 'payment_provider', type: 'VARCHAR(32)' },
+      { name: 'payment_reference', type: 'VARCHAR(128)' },
+      { name: 'payment_paid_at', type: 'TIMESTAMP' },
+      { name: 'payment_cancelled_at', type: 'TIMESTAMP' }
     ];
 
     for (const col of orderColumns) {
@@ -243,6 +254,32 @@ async function migrate() {
     }
     await client.query(`UPDATE order_items SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
     console.log('✅ Order_items table updated with container columns');
+
+    // =====================================================
+    // Payme transactions
+    // =====================================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payme_transactions (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        payme_transaction_id VARCHAR(64) NOT NULL UNIQUE,
+        payme_time BIGINT,
+        amount_tiyin BIGINT NOT NULL,
+        account_data JSONB DEFAULT '{}'::jsonb,
+        state INTEGER NOT NULL DEFAULT 1,
+        reason INTEGER,
+        create_time BIGINT NOT NULL,
+        perform_time BIGINT,
+        cancel_time BIGINT,
+        raw_request JSONB,
+        fiscal_data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Payme transactions table ready');
 
     // =====================================================
     // Step 3: Create operator_restaurants junction table
@@ -505,6 +542,11 @@ async function migrate() {
       'CREATE INDEX IF NOT EXISTS idx_products_restaurant ON products(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON orders(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_orders_processed_by ON orders(processed_by)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_payme_login_unique ON restaurants(payme_api_login) WHERE payme_api_login IS NOT NULL',
+      'CREATE INDEX IF NOT EXISTS idx_payme_transactions_restaurant ON payme_transactions(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_payme_transactions_order ON payme_transactions(order_id)',
+      'CREATE INDEX IF NOT EXISTS idx_payme_transactions_state ON payme_transactions(state)',
+      'CREATE INDEX IF NOT EXISTS idx_payme_transactions_create_time ON payme_transactions(create_time)',
       'CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_activity_logs_restaurant ON activity_logs(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC)'

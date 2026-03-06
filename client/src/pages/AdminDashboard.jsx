@@ -5175,6 +5175,76 @@ function AdminDashboard() {
                                       </InputGroup>
                                     </Form.Group>
                                   </Col>
+                                  <Col md={12}>
+                                    <div className="rounded-4 border p-3 bg-light-subtle">
+                                      <div className="d-flex align-items-center justify-content-between mb-3">
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-0">
+                                          Payme Merchant API
+                                        </Form.Label>
+                                        <Form.Check
+                                          type="switch"
+                                          checked={Boolean(restaurantSettings.payme_enabled)}
+                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_enabled: e.target.checked })}
+                                        />
+                                      </div>
+                                      <Row className="gy-3">
+                                        <Col md={4}>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.payme_merchant_id || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_merchant_id: e.target.value })}
+                                            placeholder="Merchant ID"
+                                          />
+                                        </Col>
+                                        <Col md={4}>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.payme_api_login || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_api_login: e.target.value })}
+                                            placeholder="Merchant API login"
+                                          />
+                                        </Col>
+                                        <Col md={4}>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.payme_api_password || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_api_password: e.target.value })}
+                                            placeholder="Merchant API password"
+                                          />
+                                        </Col>
+                                        <Col md={6}>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.payme_account_key || 'order_id'}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_account_key: e.target.value })}
+                                            placeholder="account key"
+                                          />
+                                        </Col>
+                                        <Col md={6}>
+                                          <Form.Control
+                                            type="number"
+                                            min="0"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.payme_callback_timeout_ms || 2000}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_callback_timeout_ms: e.target.value })}
+                                            placeholder="Callback timeout ms"
+                                          />
+                                        </Col>
+                                        <Col md={12}>
+                                          <Form.Check
+                                            type="switch"
+                                            label="Тестовый режим Payme"
+                                            checked={Boolean(restaurantSettings.payme_test_mode)}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_test_mode: e.target.checked })}
+                                          />
+                                        </Col>
+                                      </Row>
+                                    </div>
+                                  </Col>
                                   <Col md={6}>
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2 d-flex align-items-center gap-2">

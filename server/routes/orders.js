@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
 const { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel } = require('../bot/notifications');
+const { isPaymeConfigured } = require('../services/payme');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -335,20 +336,24 @@ router.post('/', authenticate, async (req, res) => {
     // Check restaurant settings (hours + delivery flag)
     let isDeliveryEnabled = true;
     let restaurantDeliveryZone = null;
+    let restaurantSettings = null;
     if (finalRestaurantId) {
       const hoursResult = await client.query(
-        'SELECT start_time, end_time, is_delivery_enabled, delivery_zone FROM restaurants WHERE id = $1',
+        `SELECT start_time, end_time, is_delivery_enabled, delivery_zone,
+                payme_enabled, payme_merchant_id, payme_api_login, payme_api_password
+         FROM restaurants
+         WHERE id = $1`,
         [finalRestaurantId]
       );
-      const hours = hoursResult.rows[0];
-      isDeliveryEnabled = isEnabledFlag(hours?.is_delivery_enabled);
-      restaurantDeliveryZone = hours?.delivery_zone || null;
-      console.log('📦 Restaurant hours:', hours);
+      restaurantSettings = hoursResult.rows[0] || null;
+      isDeliveryEnabled = isEnabledFlag(restaurantSettings?.is_delivery_enabled);
+      restaurantDeliveryZone = restaurantSettings?.delivery_zone || null;
+      console.log('📦 Restaurant hours:', restaurantSettings);
       
-      if (hours?.start_time && hours?.end_time) {
+      if (restaurantSettings?.start_time && restaurantSettings?.end_time) {
         const now = getNowInRestaurantTimezone();
-        const startTime = hours.start_time.substring(0, 5);
-        const endTime = hours.end_time.substring(0, 5);
+        const startTime = restaurantSettings.start_time.substring(0, 5);
+        const endTime = restaurantSettings.end_time.substring(0, 5);
         const [openH, openM] = startTime.split(':').map(Number);
         const [closeH, closeM] = endTime.split(':').map(Number);
         const openMinutes = openH * 60 + openM;
@@ -404,6 +409,14 @@ router.post('/', authenticate, async (req, res) => {
     const deliveryCost = isDeliveryEnabled ? (parseFloat(delivery_cost) || 0) : 0;
     const deliveryDistanceKm = isDeliveryEnabled ? (parseFloat(delivery_distance_km) || 0) : 0;
     const totalAmount = itemsTotal + serviceFee + deliveryCost;
+    const normalizedPaymentMethod = String(payment_method || 'cash').trim().toLowerCase() || 'cash';
+
+    if (normalizedPaymentMethod === 'payme' && !isPaymeConfigured(restaurantSettings)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Payme не настроен для этого магазина' });
+    }
+
+    const initialPaymentStatus = normalizedPaymentMethod === 'payme' ? 'pending' : 'unpaid';
     
     // Generate short order number (5 digits)
     const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
@@ -439,14 +452,14 @@ router.post('/', authenticate, async (req, res) => {
       `INSERT INTO orders (
         restaurant_id, user_id, order_number, total_amount, delivery_address, 
         delivery_coordinates, customer_name, customer_phone, 
-        payment_method, comment, delivery_date, delivery_time, status, service_fee,
+        payment_method, payment_status, comment, delivery_date, delivery_time, status, service_fee,
         delivery_cost, delivery_distance_km
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [
         finalRestaurantId, req.user.id, orderNumber, totalAmount, delivery_address,
         delivery_coordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
-        payment_method || 'cash', comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
+        normalizedPaymentMethod, initialPaymentStatus, comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
         deliveryCost, deliveryDistanceKm
       ]
     );
@@ -482,8 +495,10 @@ router.post('/', authenticate, async (req, res) => {
     
     await client.query('COMMIT');
     
+    const shouldNotifyImmediately = normalizedPaymentMethod !== 'payme';
+
     // Send notifications using restaurant's bot if configured
-    if (finalRestaurantId) {
+    if (shouldNotifyImmediately && finalRestaurantId) {
       const restaurantResult = await pool.query(
         'SELECT telegram_bot_token, telegram_group_id, click_url, payme_url, uzum_url, xazna_url FROM restaurants WHERE id = $1',
         [finalRestaurantId]
@@ -507,7 +522,7 @@ router.post('/', authenticate, async (req, res) => {
         };
         await sendOrderUpdateToUser(req.user.telegram_id, order, 'new', restaurant?.telegram_bot_token, paymentUrls);
       }
-    } else {
+    } else if (shouldNotifyImmediately) {
       await sendOrderNotification(order, items);
       
       // Send notification to user

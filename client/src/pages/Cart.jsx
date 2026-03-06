@@ -99,11 +99,18 @@ function Cart() {
   });
   const onlinePaymentOptions = useMemo(() => ([
     { key: 'click', url: restaurant?.click_url, logo: '/click.png', alt: 'Click' },
-    { key: 'payme', url: restaurant?.payme_url, logo: '/payme.png', alt: 'Payme' },
+    {
+      key: 'payme',
+      url: restaurant?.payme_enabled ? restaurant?.payme_url : '',
+      logo: '/payme.png',
+      alt: 'Payme',
+      isServerCheckout: Boolean(restaurant?.payme_enabled)
+    },
     { key: 'uzum', url: restaurant?.uzum_url, logo: '/uzum.png', alt: 'Uzum' },
     { key: 'xazna', url: restaurant?.xazna_url, logo: '/xazna.png', alt: 'Xazna' }
-  ].filter((item) => Boolean(String(item.url || '').trim()))), [
+  ].filter((item) => item.isServerCheckout || Boolean(String(item.url || '').trim()))), [
     restaurant?.click_url,
+    restaurant?.payme_enabled,
     restaurant?.payme_url,
     restaurant?.uzum_url,
     restaurant?.xazna_url
@@ -597,18 +604,26 @@ function Cart() {
       // Store items before clearing
       const itemsForReceipt = [...orderData.items];
 
-      // Clear cart first
-      clearCart();
+      const selectedPaymentOption = onlinePaymentOptions.find((option) => option.key === formData.payment_method);
+      let redirectUrl = selectedPaymentOption?.url || '';
+
+      if (formData.payment_method === 'payme') {
+        const checkoutResponse = await axios.get(`${API_URL}/payments/payme/checkout/${orderForReceipt.id}`);
+        redirectUrl = checkoutResponse.data?.checkout_url || redirectUrl;
+      }
 
       // Открываем ссылку на оплату если выбран онлайн-способ и ссылка настроена
-      const selectedPaymentOption = onlinePaymentOptions.find((option) => option.key === formData.payment_method);
-      if (selectedPaymentOption?.url) {
+      if (redirectUrl) {
+        clearCart();
         if (window.Telegram?.WebApp?.openLink) {
-          window.Telegram.WebApp.openLink(selectedPaymentOption.url);
+          window.Telegram.WebApp.openLink(redirectUrl);
         } else {
-          window.open(selectedPaymentOption.url, '_blank');
+          window.location.assign(redirectUrl);
         }
+        return;
       }
+
+      clearCart();
 
       // Then show receipt
       setCreatedOrder(orderForReceipt);

@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Badge from 'react-bootstrap/Badge';
 import Collapse from 'react-bootstrap/Collapse';
+import Alert from 'react-bootstrap/Alert';
+import Spinner from 'react-bootstrap/Spinner';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -48,8 +51,15 @@ function Orders() {
   const [cancelling, setCancelling] = useState(null);
   const [restaurant, setRestaurant] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
+  const [paymentStatusMessage, setPaymentStatusMessage] = useState('');
+  const [isPaymentStatusPolling, setIsPaymentStatusPolling] = useState(false);
   const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
+  const location = useLocation();
+  const paymeOrderId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return Number.parseInt(params.get('payme_order_id'), 10);
+  }, [location.search]);
   
   const toggleOrderDetails = (orderId) => {
     setExpandedOrder(expandedOrder === orderId ? null : orderId);
@@ -62,6 +72,52 @@ function Orders() {
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!Number.isInteger(paymeOrderId) || paymeOrderId <= 0) {
+      setPaymentStatusMessage('');
+      setIsPaymentStatusPolling(false);
+      return undefined;
+    }
+
+    let attempts = 0;
+    setIsPaymentStatusPolling(true);
+    fetchOrders();
+
+    const interval = setInterval(() => {
+      attempts += 1;
+      fetchOrders();
+      if (attempts >= 20) {
+        clearInterval(interval);
+        setIsPaymentStatusPolling(false);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [paymeOrderId]);
+
+  useEffect(() => {
+    if (!Number.isInteger(paymeOrderId) || paymeOrderId <= 0) return;
+    const order = orders.find((entry) => Number(entry.id) === paymeOrderId);
+    if (!order) {
+      setPaymentStatusMessage('Платеж найден, заказ еще обрабатывается.');
+      return;
+    }
+
+    if (order.payment_status === 'paid') {
+      setPaymentStatusMessage('Оплата Payme прошла успешно.');
+      setIsPaymentStatusPolling(false);
+      return;
+    }
+
+    if (order.payment_status === 'cancelled' || order.payment_status === 'refunded') {
+      setPaymentStatusMessage('Оплата Payme не была завершена.');
+      setIsPaymentStatusPolling(false);
+      return;
+    }
+
+    setPaymentStatusMessage('Ожидаем подтверждение оплаты от Payme...');
+  }, [orders, paymeOrderId]);
 
   const fetchOrders = async () => {
     try {
@@ -167,7 +223,16 @@ function Orders() {
             subMessage={t('makeFirstOrder')}
           />
         ) : (
-          orders.map(order => (
+          <>
+            {paymentStatusMessage && (
+              <Alert variant={paymentStatusMessage.includes('успешно') ? 'success' : 'info'} className="border-0 shadow-sm">
+                <div className="d-flex align-items-center justify-content-between gap-3">
+                  <span>{paymentStatusMessage}</span>
+                  {isPaymentStatusPolling && <Spinner animation="border" size="sm" />}
+                </div>
+              </Alert>
+            )}
+            {orders.map(order => (
             <Card 
               key={order.id} 
               className="border-0 shadow-sm mb-3"
@@ -203,6 +268,19 @@ function Orders() {
                   <div className="text-end">
                     <div className="fw-bold text-primary">{formatPrice(order.total_amount)} {t('sum')}</div>
                     {getStatusBadge(order.status)}
+                    {order.payment_method === 'payme' && (
+                      <div className="small text-muted mt-1">
+                        {order.payment_status === 'paid'
+                          ? 'Payme: оплачено'
+                          : order.payment_status === 'pending'
+                            ? 'Payme: ожидает'
+                            : order.payment_status === 'cancelled'
+                              ? 'Payme: отменено'
+                              : order.payment_status === 'refunded'
+                                ? 'Payme: возврат'
+                                : 'Payme'}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -269,6 +347,18 @@ function Orders() {
                       )}
                     </div>
 
+                    {order.payment_method === 'payme' && (
+                      <div className="mb-2 small">
+                        <span className="text-muted">Статус оплаты:</span>{' '}
+                        <strong>{order.payment_status || 'pending'}</strong>
+                        {order.payment_paid_at && (
+                          <span className="text-muted">
+                            {' '}• {new Date(order.payment_paid_at).toLocaleString('ru-RU')}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Comment */}
                     {order.comment && (
                       <div className="mb-2 small">
@@ -300,7 +390,8 @@ function Orders() {
                 </div>
               </Card.Body>
             </Card>
-          ))
+            ))}
+          </>
         )}
 
         {/* Spacer for bottom nav */}

@@ -1063,7 +1063,11 @@ router.get('/restaurants/:id', async (req, res) => {
 router.post('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
-    const { name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled } = req.body;
+    const {
+      name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id,
+      operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled,
+      payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
+    } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
@@ -1099,9 +1103,10 @@ router.post('/restaurants', async (req, res) => {
         logo_display_mode,
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
-        balance, order_cost, activity_type_id
+        balance, order_cost, activity_type_id,
+        payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *
     `, [
       name,
@@ -1121,7 +1126,14 @@ router.post('/restaurants', async (req, res) => {
       parseFloat(req.body.service_fee) || 0,
       settings.default_starting_balance,
       req.body.service_fee !== undefined ? parseFloat(req.body.service_fee) : settings.default_order_cost,
-      activityTypeId
+      activityTypeId,
+      payme_enabled === true || payme_enabled === 'true',
+      payme_merchant_id || null,
+      payme_api_login || null,
+      payme_api_password || null,
+      payme_account_key || 'order_id',
+      payme_test_mode === true || payme_test_mode === 'true',
+      Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000
     ]);
 
 
@@ -1157,7 +1169,12 @@ router.post('/restaurants', async (req, res) => {
 router.put('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
-    const { name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id, operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled } = req.body;
+    const {
+      name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id,
+      operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee,
+      latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled,
+      payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
+    } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
@@ -1284,8 +1301,15 @@ router.put('/restaurants/:id', async (req, res) => {
           is_delivery_enabled = $22,
           order_cost = $23,
           activity_type_id = $24,
+          payme_enabled = $25,
+          payme_merchant_id = $26,
+          payme_api_login = $27,
+          payme_api_password = $28,
+          payme_account_key = $29,
+          payme_test_mode = $30,
+          payme_callback_timeout_ms = $31,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $25
+      WHERE id = $32
       RETURNING *
     `, [
       name,
@@ -1312,6 +1336,13 @@ router.put('/restaurants/:id', async (req, res) => {
       is_delivery_enabled !== undefined ? is_delivery_enabled : true,
       parseFloat(service_fee) || 0,
       hasActivityTypeField ? activityTypeId : oldValues.activity_type_id || null,
+      payme_enabled === true || payme_enabled === 'true',
+      payme_merchant_id || null,
+      payme_api_login || null,
+      payme_api_password || null,
+      payme_account_key || 'order_id',
+      payme_test_mode === true || payme_test_mode === 'true',
+      Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000,
       req.params.id
     ]);
 

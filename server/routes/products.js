@@ -396,6 +396,7 @@ router.get('/restaurant/:id', async (req, res) => {
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       click_url: r.click_url,
+      payme_enabled: isEnabledFlag(r.payme_enabled) && Boolean(String(r.payme_merchant_id || '').trim()),
       payme_url: r.payme_url,
       uzum_url: r.uzum_url,
       xazna_url: r.xazna_url
