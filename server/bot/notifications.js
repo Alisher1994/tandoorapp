@@ -317,6 +317,10 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
   const calculatedTotal = itemsBaseTotal + containerTotal + serviceFee + deliveryCost;
   const totalAmountRaw = parseNumericValue(order.total_amount);
   const orderTotal = Number.isFinite(totalAmountRaw) ? totalAmountRaw : calculatedTotal;
+  const hasDeliveryCostField = Object.prototype.hasOwnProperty.call(order || {}, 'delivery_cost');
+  const hasDeliveryAddress = Boolean(order?.delivery_address) && order.delivery_address !== 'Самовывоз';
+  const hasDeliveryCoordinates = Boolean(order?.delivery_coordinates);
+  const shouldShowDeliveryLine = hasDeliveryCostField || deliveryDistanceKm > 0 || hasDeliveryAddress || hasDeliveryCoordinates;
 
   const containerLine = containerTotal > 0
     ? `🍽 Пакет / Посуда: ${formatPrice(containerTotal)} сум\n`
@@ -325,7 +329,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     ? `🛎 Сервис: ${formatPrice(serviceFee)} сум\n`
     : '';
   let deliveryLine = '';
-  if (deliveryCost > 0) {
+  if (shouldShowDeliveryLine) {
     deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} сум`;
     if (deliveryDistanceKm > 0) {
       deliveryLine += ` (${deliveryDistanceKm} км)`;
@@ -565,9 +569,20 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
         })
         .join('\n');
       const omittedCount = Math.max(0, (items || []).length - 10);
+      const fallbackServiceFee = parseNumericValue(order?.service_fee) || 0;
+      const fallbackDeliveryCost = parseNumericValue(order?.delivery_cost) || 0;
+      const fallbackDistanceKm = parseNumericValue(order?.delivery_distance_km) || 0;
+      const fallbackHasDeliveryCostField = Object.prototype.hasOwnProperty.call(order || {}, 'delivery_cost');
+      const fallbackHasDeliveryAddress = Boolean(order?.delivery_address) && order.delivery_address !== 'Самовывоз';
+      const fallbackHasDeliveryCoordinates = Boolean(order?.delivery_coordinates);
+      const fallbackShouldShowDelivery = fallbackHasDeliveryCostField || fallbackDistanceKm > 0 || fallbackHasDeliveryAddress || fallbackHasDeliveryCoordinates;
       const fallbackMessage =
         `Заказ #${order?.order_number || order?.id || '—'}\n` +
         `Сумма: ${formatPrice(order?.total_amount)} сум\n` +
+        (fallbackServiceFee > 0 ? `Сервис: ${formatPrice(fallbackServiceFee)} сум\n` : '') +
+        (fallbackShouldShowDelivery
+          ? `Доставка: ${formatPrice(fallbackDeliveryCost)} сум${fallbackDistanceKm > 0 ? ` (${fallbackDistanceKm} км)` : ''}\n`
+          : '') +
         `${fallbackItems || 'Товары: —'}${omittedCount > 0 ? `\n… и ещё ${omittedCount} позиций` : ''}`;
 
       const fallbackResult = await bot.sendMessage(normalizedChatId, fallbackMessage, {
