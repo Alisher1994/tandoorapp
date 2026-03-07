@@ -4340,10 +4340,10 @@ function AdminDashboard() {
                 )}
 
                 <div className="admin-table-container">
-                  <Table responsive hover className="admin-table mb-0">
+                  <Table responsive hover className="admin-table admin-product-table mb-0">
                     <thead className="table-light">
                       <tr>
-                        <th style={{ width: '40px' }}>
+                        <th className="admin-product-col-check">
                           <Form.Check
                             type="checkbox"
                             checked={(() => {
@@ -4356,16 +4356,16 @@ function AdminDashboard() {
                             }}
                           />
                         </th>
-                        <th style={{ width: '50px' }}>№</th>
-                        <th style={{ width: '60px' }}>{t('photo')}</th>
-                        <th>{t('productName')}</th>
-                        <th>{t('category')}</th>
-                        <th>{t('price')}</th>
-                        <th>Ед.изм</th>
-                        <th>Шаг заказа</th>
-                        <th>Посуда/Пакет</th>
-                        <th>{t('status')}</th>
-                        <th>{t('actions')}</th>
+                        <th className="admin-product-col-index">№</th>
+                        <th className="admin-product-col-photo">{t('photo')}</th>
+                        <th className="admin-product-col-name">{t('productName')}</th>
+                        <th className="admin-product-col-category">{t('category')}</th>
+                        <th className="admin-product-col-price">{t('price')}</th>
+                        <th className="admin-product-col-unit">Ед.изм</th>
+                        <th className="admin-product-col-step">Шаг заказа</th>
+                        <th className="admin-product-col-container">Посуда/Пакет</th>
+                        <th className="admin-product-col-status">{t('status')}</th>
+                        <th className="admin-product-col-actions">{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -4382,15 +4382,15 @@ function AdminDashboard() {
                               style={{ cursor: 'pointer' }}
                               title="Двойной клик / двойной тап: открыть товар"
                             >
-                            <td>
+                            <td className="admin-product-col-check">
                               <Form.Check
                                 type="checkbox"
                                 checked={selectedProducts.includes(product.id)}
                                 onChange={() => toggleProductSelection(product.id)}
                               />
                             </td>
-                            <td className="text-muted">{(productsPage - 1) * productsLimit + index + 1}</td>
-                            <td>
+                            <td className="text-muted admin-product-col-index">{(productsPage - 1) * productsLimit + index + 1}</td>
+                            <td className="admin-product-col-photo">
                               {(product.thumb_url || product.image_url) ? (
                                 <img
                                   src={(product.thumb_url || product.image_url).startsWith('http') ? (product.thumb_url || product.image_url) : `${API_URL.replace('/api', '')}${product.thumb_url || product.image_url}`}
@@ -4417,8 +4417,8 @@ function AdminDashboard() {
                                 </div>
                               )}
                             </td>
-                            <td>{product.name_ru}</td>
-                            <td className="admin-product-category-cell">
+                            <td className="admin-product-col-name">{product.name_ru}</td>
+                            <td className="admin-product-category-cell admin-product-col-category">
                               <div className="admin-product-category-lines" title={categoryTooltip || (product.category_name || '-')}>
                                 {[0, 1, 2].map((levelIndex) => {
                                   const levelCategory = categoryHierarchy[levelIndex];
@@ -4434,11 +4434,11 @@ function AdminDashboard() {
                                 })}
                               </div>
                             </td>
-                            <td>{formatPrice(product.price)} сум</td>
-                            <td>{product.unit || '-'}</td>
-                            <td>{Number.parseFloat(product.order_step) > 0 ? formatQuantity(product.order_step) : '-'}</td>
-                            <td>{product.container_name || '-'}</td>
-                            <td>
+                            <td className="admin-product-col-price">{formatPrice(product.price)} сум</td>
+                            <td className="admin-product-col-unit"><span className="admin-product-nowrap">{product.unit || '-'}</span></td>
+                            <td className="admin-product-col-step"><span className="admin-product-nowrap">{Number.parseFloat(product.order_step) > 0 ? formatQuantity(product.order_step) : '-'}</span></td>
+                            <td className="admin-product-col-container"><span className="admin-product-ellipsis">{product.container_name || '-'}</span></td>
+                            <td className="admin-product-col-status">
                               <div className="d-flex flex-column gap-1 align-items-start">
                                 {product.in_stock ? (
                                   <Badge bg="success">В наличии</Badge>
@@ -4471,7 +4471,7 @@ function AdminDashboard() {
                                 />
                               </div>
                             </td>
-                            <td>
+                            <td className="admin-product-col-actions">
                               <div className="d-inline-flex flex-nowrap gap-1 product-table-actions">
                                 <Button
                                   className="action-btn bg-primary bg-opacity-10 text-primary border-0"

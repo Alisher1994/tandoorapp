@@ -873,15 +873,72 @@ body::-webkit-scrollbar,
     background-color: #f8fafc !important;
 }
 
+.admin-product-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.admin-product-table thead th,
+.admin-product-table tbody td {
+    padding: 0.875rem 0.7rem !important;
+}
+
+.admin-product-col-check {
+    width: 34px;
+    text-align: center;
+}
+
+.admin-product-col-index {
+    width: 40px;
+}
+
+.admin-product-col-photo {
+    width: 64px;
+}
+
+.admin-product-col-name {
+    width: 140px;
+}
+
+.admin-product-col-category {
+    width: 280px;
+}
+
+.admin-product-col-price {
+    width: 110px;
+    white-space: nowrap;
+}
+
+.admin-product-col-unit {
+    width: 72px;
+}
+
+.admin-product-col-step {
+    width: 88px;
+}
+
+.admin-product-col-container {
+    width: 108px;
+}
+
+.admin-product-col-status {
+    width: 160px;
+}
+
+.admin-product-col-actions {
+    width: 112px;
+    white-space: nowrap;
+}
+
 .admin-product-category-cell {
-    min-width: 240px;
+    min-width: 0;
 }
 
 .admin-product-category-lines {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-width: 300px;
+    max-width: 100%;
 }
 
 .admin-product-category-line {
@@ -902,6 +959,17 @@ body::-webkit-scrollbar,
 
 .admin-product-category-value {
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-product-nowrap {
+    white-space: nowrap;
+}
+
+.admin-product-ellipsis {
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
