@@ -23,7 +23,7 @@ import Pagination from 'react-bootstrap/Pagination';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
-import { formatPrice } from '../context/CartContext';
+import { formatPrice, formatQuantity } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import * as XLSX from 'xlsx';
@@ -4361,6 +4361,9 @@ function AdminDashboard() {
                         <th>{t('productName')}</th>
                         <th>{t('category')}</th>
                         <th>{t('price')}</th>
+                        <th>Ед.изм</th>
+                        <th>Шаг заказа</th>
+                        <th>Посуда/Пакет</th>
                         <th>{t('status')}</th>
                         <th>{t('actions')}</th>
                       </tr>
@@ -4432,6 +4435,9 @@ function AdminDashboard() {
                               </div>
                             </td>
                             <td>{formatPrice(product.price)} сум</td>
+                            <td>{product.unit || '-'}</td>
+                            <td>{Number.parseFloat(product.order_step) > 0 ? formatQuantity(product.order_step) : '-'}</td>
+                            <td>{product.container_name || '-'}</td>
                             <td>
                               <div className="d-flex flex-column gap-1 align-items-start">
                                 {product.in_stock ? (
