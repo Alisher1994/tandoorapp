@@ -4362,8 +4362,8 @@ function AdminDashboard() {
                         <th className="admin-product-col-category">{t('category')}</th>
                         <th className="admin-product-col-price">{t('price')}</th>
                         <th className="admin-product-col-unit">Ед.изм</th>
-                        <th className="admin-product-col-step">Шаг заказа</th>
-                        <th className="admin-product-col-container">Посуда/Пакет</th>
+                        <th className="admin-product-col-step">Шаг</th>
+                        <th className="admin-product-col-container">Пакет</th>
                         <th className="admin-product-col-status">{t('status')}</th>
                         <th className="admin-product-col-actions">{t('actions')}</th>
                       </tr>
