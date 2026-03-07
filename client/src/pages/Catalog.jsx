@@ -9,7 +9,7 @@ import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
 import Navbar from 'react-bootstrap/Navbar';
 import { useAuth } from '../context/AuthContext';
-import { useCart, formatPrice } from '../context/CartContext';
+import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
@@ -1010,6 +1010,7 @@ function Catalog() {
     const cartItem = getCartItem(product.id);
     const hasQty = !!cartItem;
     const qty = cartItem?.quantity || 0;
+    const quantityStep = resolveQuantityStep(cartItem || product);
     const overlayKey = `qty_open_${product.id}`;
     const isOpen = catalogQtyOpen?.[overlayKey];
     const favoriteActive = isFavorite(product.id);
@@ -1192,19 +1193,19 @@ function Catalog() {
                     style={{ width: 28, height: 28, fontSize: '16px' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      updateQuantity(product.id, qty - 1);
+                      updateQuantity(product.id, qty - quantityStep);
                     }}
                   >
                     −
                   </button>
-                  <span className="fw-bold px-2" style={{ fontSize: '14px' }}>{qty}</span>
+                  <span className="fw-bold px-2" style={{ fontSize: '14px' }}>{formatQuantity(qty)}</span>
                   <button
                     type="button"
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
                     style={{ width: 28, height: 28, fontSize: '16px' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      updateQuantity(product.id, qty + 1);
+                      updateQuantity(product.id, qty + quantityStep);
                     }}
                   >
                     +
@@ -1500,6 +1501,7 @@ function Catalog() {
               const category = categoriesById.get(Number(product.category_id));
               const cartItem = getCartItem(product.id);
               const qty = cartItem?.quantity || 0;
+              const quantityStep = resolveQuantityStep(cartItem || product);
               const isAvailable = product.in_stock !== false;
               return (
                 <div
@@ -1591,14 +1593,14 @@ function Catalog() {
                             style={{ width: 26, height: 26, color: '#4b5563', fontSize: '16px' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateQuantity(product.id, qty - 1);
+                              updateQuantity(product.id, qty - quantityStep);
                             }}
                             aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                           >
                             -
                           </button>
                           <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.86rem', minWidth: 18, textAlign: 'center' }}>
-                            {qty}
+                            {formatQuantity(qty)}
                           </span>
                           <button
                             type="button"
@@ -1606,7 +1608,7 @@ function Catalog() {
                             style={{ width: 26, height: 26, color: 'var(--primary-color)', fontSize: '16px' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateQuantity(product.id, qty + 1);
+                              updateQuantity(product.id, qty + quantityStep);
                             }}
                             aria-label={language === 'uz' ? 'Ko‘paytirish' : 'Увеличить'}
                           >

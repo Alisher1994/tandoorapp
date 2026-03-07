@@ -149,7 +149,8 @@ async function migrate() {
       { name: 'thumb_url', type: 'TEXT' },
       { name: 'product_images', type: `JSONB DEFAULT '[]'::jsonb` },
       { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
-      { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' }
+      { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' },
+      { name: 'order_step', type: 'DECIMAL(10, 2)' }
     ];
 
     for (const col of productColumns) {
@@ -162,6 +163,7 @@ async function migrate() {
     console.log('✅ Products table updated');
     await client.query(`UPDATE products SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
     await client.query(`UPDATE products SET season_scope = 'all' WHERE season_scope IS NULL OR season_scope = ''`).catch(() => {});
+    await client.query(`UPDATE products SET order_step = NULL WHERE order_step IS NOT NULL AND (order_step <= 0 OR unit IS DISTINCT FROM 'кг')`).catch(() => {});
     await client.query(`ALTER TABLE products ALTER COLUMN product_images SET DEFAULT '[]'::jsonb`).catch(() => {});
     await client.query(`UPDATE products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
     await client.query(`

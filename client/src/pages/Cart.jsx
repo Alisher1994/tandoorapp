@@ -10,7 +10,7 @@ import Modal from 'react-bootstrap/Modal';
 import Spinner from 'react-bootstrap/Spinner';
 import ListGroup from 'react-bootstrap/ListGroup';
 import Badge from 'react-bootstrap/Badge';
-import { useCart, formatPrice } from '../context/CartContext';
+import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import OrderReceipt from '../components/OrderReceipt';
@@ -808,7 +808,10 @@ function Cart() {
         {step === 1 && (
           <Card className="border-0 shadow-sm mb-3">
             <Card.Body className="p-0">
-              {cart.map((item, index) => (
+              {cart.map((item, index) => {
+                const quantityStep = resolveQuantityStep(item);
+
+                return (
                 <div
                   key={item.id}
                   className={`d-flex align-items-center p-3 ${index !== cart.length - 1 ? 'border-bottom' : ''}`}
@@ -838,17 +841,17 @@ function Cart() {
                       <Button
                         variant="link"
                         className="p-1 px-2 text-dark text-decoration-none"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.id, item.quantity - quantityStep)}
                       >
                         −
                       </Button>
                       <span className="mx-1 fw-semibold" style={{ minWidth: 20, textAlign: 'center' }}>
-                        {item.quantity}
+                        {formatQuantity(item.quantity)}
                       </span>
                       <Button
                         variant="link"
                         className="p-1 px-2 text-dark text-decoration-none"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.id, item.quantity + quantityStep)}
                       >
                         +
                       </Button>
@@ -862,7 +865,8 @@ function Cart() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </Card.Body>
           </Card>
         )}

@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS products (
   product_images JSONB DEFAULT '[]'::jsonb,
   price DECIMAL(10, 2) NOT NULL,
   unit VARCHAR(20) DEFAULT 'шт',
+  order_step DECIMAL(10, 2),
   barcode VARCHAR(100),
   in_stock BOOLEAN DEFAULT true,
   season_scope VARCHAR(16) DEFAULT 'all',

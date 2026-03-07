@@ -459,6 +459,7 @@ function AdminDashboard() {
     product_images: createProductImageSlots([]),
     price: '',
     unit: 'шт',
+    order_step: '',
     in_stock: true,
     season_scope: 'all',
     is_hidden_catalog: false,
@@ -2219,6 +2220,7 @@ function AdminDashboard() {
         product_images: imageSlots,
         price: product.price || '',
         unit: product.unit || 'шт',
+        order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
         in_stock: product.in_stock !== false,
         season_scope: product.season_scope || 'all',
         is_hidden_catalog: !!product.is_hidden_catalog,
@@ -2238,6 +2240,7 @@ function AdminDashboard() {
         product_images: createProductImageSlots([]),
         price: '',
         unit: 'шт',
+        order_step: '',
         in_stock: true,
         season_scope: 'all',
         is_hidden_catalog: false,
@@ -2329,6 +2332,12 @@ function AdminDashboard() {
         thumb_url: mainImage.thumb_url || '',
         product_images: normalizedImages,
         price: parseFloat(productForm.price),
+        order_step: productForm.unit === 'кг'
+          ? (() => {
+            const parsed = Number.parseFloat(String(productForm.order_step || '').replace(',', '.'));
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+          })()
+          : null,
         container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1)
       };
 
@@ -2519,6 +2528,7 @@ function AdminDashboard() {
       product_images: duplicateImageSlots,
       price: '', // Empty - admin fills manually
       unit: product.unit || 'шт',
+      order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
       in_stock: true,
       season_scope: product.season_scope || 'all',
       is_hidden_catalog: !!product.is_hidden_catalog,
@@ -2549,6 +2559,7 @@ function AdminDashboard() {
         product_images: normalizeProductImageItems(product.product_images),
         price: Number(product.price || 0),
         unit: product.unit || 'шт',
+        order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : null,
         barcode: product.barcode || '',
         in_stock: nextInStock,
         sort_order: Number(product.sort_order || 0),
@@ -6810,7 +6821,14 @@ function AdminDashboard() {
                     <Form.Select
                       required
                       value={productForm.unit}
-                      onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                      onChange={(e) => {
+                        const nextUnit = e.target.value;
+                        setProductForm({
+                          ...productForm,
+                          unit: nextUnit,
+                          order_step: nextUnit === 'кг' ? productForm.order_step : ''
+                        });
+                      }}
                     >
                       <option value="шт">{t('unitPcs')}</option>
                       <option value="порция">{t('unitPortion')}</option>
@@ -6818,9 +6836,36 @@ function AdminDashboard() {
                       <option value="л">{t('unitL')}</option>
                       <option value="г">{t('unitG')}</option>
                       <option value="мл">{t('unitMl')}</option>
+                      <option value="Стакан">{t('unitCup')}</option>
+                      <option value="Банка">{t('unitJar')}</option>
+                      <option value="Пачка">{t('unitPack')}</option>
+                      <option value="Блок">{t('unitBlock')}</option>
+                      <option value="см">{t('unitCm')}</option>
+                      <option value="м">{t('unitM')}</option>
+                      <option value="м2">{t('unitM2')}</option>
+                      <option value="м3">{t('unitM3')}</option>
+                      <option value="км">{t('unitKm')}</option>
+                      <option value="т">{t('unitT')}</option>
                     </Form.Select>
                   </Form.Group>
                 </Col>
+                {productForm.unit === 'кг' && (
+                  <Col md={3}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{t('orderStepLabel')}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={productForm.order_step}
+                        onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
+                      />
+                      <Form.Text className="text-muted">
+                        {t('orderStepNote')}
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                )}
                 <Col md={3}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('containerLabel')}</Form.Label>

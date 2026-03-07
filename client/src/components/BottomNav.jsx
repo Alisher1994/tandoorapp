@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useCart } from '../context/CartContext';
+import { useCart, formatQuantity } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -180,7 +180,7 @@ function BottomNav() {
               padding: isCompact ? '0 3px' : '0 4px',
               transition: 'all 0.24s ease'
             }}>
-              {item.badge}
+              {typeof item.badge === 'number' ? formatQuantity(item.badge) : item.badge}
             </span>
           )}
         </button>
