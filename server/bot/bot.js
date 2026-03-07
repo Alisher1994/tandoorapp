@@ -2418,6 +2418,26 @@ async function initBot() {
                 );
               }
             }
+
+            try {
+              const { buildGroupOrderNotificationPayload } = require('./notifications');
+              const updatedMessage = buildGroupOrderNotificationPayload(order, [], {
+                revealSensitive: false,
+                statusKey: 'cancelled',
+                operatorName,
+                cancelReason: text
+              });
+
+              await bot.editMessageText(updatedMessage, {
+                chat_id: chatId,
+                message_id: originalMessageId,
+                parse_mode: 'HTML',
+                disable_web_page_preview: true,
+                reply_markup: { inline_keyboard: [] }
+              });
+            } catch (editError) {
+              console.error('Reject order message update error:', editError);
+            }
           }
           
           // Update original message

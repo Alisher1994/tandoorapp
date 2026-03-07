@@ -272,8 +272,19 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     statusKey = 'new',
     operatorName = '',
     includePreviewLink = false,
-    previewUrl = null
+    previewUrl = null,
+    cancelReason = ''
   } = options;
+
+  if (statusKey === 'cancelled') {
+    const safeCancelReason = truncateText(cancelReason || order.cancel_reason || order.admin_comment || '', TELEGRAM_COMMENT_LIMIT);
+    return (
+      `<b>ID: ${order.order_number}</b>\n` +
+      `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
+      `🚫 Данные заказа скрыты, так как заказ отменен.` +
+      (safeCancelReason ? `\n\nПричина: ${escapeHtml(safeCancelReason)}` : '')
+    );
+  }
 
   const itemsList = buildItemsList(items);
 
@@ -322,7 +333,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     deliveryLine += '\n';
   }
 
-  const hiddenHint = !revealSensitive
+  const hiddenHint = statusKey === 'new' && !revealSensitive
     ? '🔒 Данные клиента будут показаны после нажатия «Принять».\n\n'
     : '';
 
@@ -407,7 +418,7 @@ function resolveGroupOrderStatusMeta(rawStatus) {
     case 'delivered':
       return { statusKey: 'delivered', keyboardStage: 'done', revealSensitive: true, clearKeyboard: false };
     case 'cancelled':
-      return { statusKey: 'cancelled', keyboardStage: null, revealSensitive: true, clearKeyboard: true };
+      return { statusKey: 'cancelled', keyboardStage: null, revealSensitive: false, clearKeyboard: true };
     case 'new':
     default:
       return { statusKey: 'new', keyboardStage: 'new', revealSensitive: false, clearKeyboard: false };
@@ -438,7 +449,8 @@ async function updateOrderGroupNotification(order, items = [], options = {}) {
     statusKey: statusMeta.statusKey,
     operatorName,
     includePreviewLink: false,
-    previewUrl
+    previewUrl,
+    cancelReason: options.cancelReason
   });
 
   const messageId = options.messageId || order.admin_message_id;

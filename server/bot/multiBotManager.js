@@ -1304,11 +1304,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           // Update the original message in the group to show cancelled status
           if (groupChatId && messageId && originalMessage) {
             try {
-              const updatedMessage = originalMessage + `\n\n❌ <b>ОТМЕНЕН</b>\nОператор: ${operatorName}\nПричина: ${text}`;
+              const updatedMessage = buildGroupOrderNotificationPayload(order, [], {
+                revealSensitive: false,
+                statusKey: 'cancelled',
+                operatorName,
+                cancelReason: text
+              });
               await bot.editMessageText(updatedMessage, {
                 chat_id: groupChatId,
                 message_id: messageId,
-                parse_mode: 'HTML'
+                parse_mode: 'HTML',
+                disable_web_page_preview: true,
+                reply_markup: { inline_keyboard: [] }
               });
             } catch (e) {
               console.error('Error updating group message:', e);

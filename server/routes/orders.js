@@ -106,6 +106,10 @@ router.get('/operator-preview', async (req, res) => {
     `, [payload.orderId]);
 
     const order = orderResult.rows[0];
+    if (String(order.status || '').toLowerCase() === 'cancelled') {
+      return res.status(410).send('Order cancelled');
+    }
+
     const items = itemsResult.rows;
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
     const host = req.headers['x-forwarded-host'] || req.get('host');
