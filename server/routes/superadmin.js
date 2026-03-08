@@ -35,6 +35,8 @@ const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
 let activityTypesSchemaReady = false;
 let activityTypesSchemaPromise = null;
+let billingSettingsSchemaReady = false;
+let billingSettingsSchemaPromise = null;
 
 const DEFAULT_ACTIVITY_TYPES = [
   'Одежда',
@@ -54,6 +56,11 @@ const normalizeTokenValue = (value) => {
 const normalizeTelegramIdValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   return normalized || null;
+};
+const SEASON_ANIMATION_MODES = new Set(['off', 'spring', 'summer', 'autumn', 'winter']);
+const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SEASON_ANIMATION_MODES.has(normalized) ? normalized : fallback;
 };
 
 const normalizeActivityTypeId = (value) => {
@@ -115,6 +122,37 @@ const ensureActivityTypesSchema = async () => {
     await activityTypesSchemaPromise;
   } finally {
     activityTypesSchemaPromise = null;
+  }
+};
+const ensureBillingSettingsSchema = async () => {
+  if (billingSettingsSchemaReady) return;
+  if (billingSettingsSchemaPromise) {
+    await billingSettingsSchemaPromise;
+    return;
+  }
+
+  billingSettingsSchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS catalog_animation_season VARCHAR(16) DEFAULT 'off'`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ALTER COLUMN catalog_animation_season SET DEFAULT 'off'`).catch(() => {});
+    await pool.query(`
+      UPDATE billing_settings
+      SET catalog_animation_season = 'off'
+      WHERE catalog_animation_season IS NULL
+        OR BTRIM(catalog_animation_season) = ''
+        OR catalog_animation_season NOT IN ('off', 'spring', 'summer', 'autumn', 'winter')
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE billing_settings
+      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
+      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
+    `).catch(() => {});
+    billingSettingsSchemaReady = true;
+  })();
+
+  try {
+    await billingSettingsSchemaPromise;
+  } finally {
+    billingSettingsSchemaPromise = null;
   }
 };
 const normalizeLogoDisplayMode = (value, fallback = 'square') => {
@@ -855,6 +893,7 @@ router.patch('/activity-types/:id/visibility', async (req, res) => {
 // Получить глобальные настройки биллинга (реквизиты)
 router.get('/billing-settings', async (req, res) => {
   try {
+    await ensureBillingSettingsSchema();
     const result = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
     const payload = await enrichBillingSettingsWithCentralBotMeta(result.rows[0] || {});
     res.json(payload);
@@ -867,16 +906,19 @@ router.get('/billing-settings', async (req, res) => {
 // Обновить глобальные настройки биллинга
 router.put('/billing-settings', async (req, res) => {
   try {
+    await ensureBillingSettingsSchema();
     const {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link,
       default_starting_balance, default_order_cost,
       superadmin_bot_token,
-      superadmin_telegram_id
+      superadmin_telegram_id,
+      catalog_animation_season
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
+    const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -889,6 +931,7 @@ router.put('/billing-settings', async (req, res) => {
           default_starting_balance = $7, default_order_cost = $8,
           superadmin_bot_token = $9,
           superadmin_telegram_id = $10,
+          catalog_animation_season = $11,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -898,7 +941,8 @@ router.put('/billing-settings', async (req, res) => {
       parseFloat(default_starting_balance) || 100000,
       parseFloat(default_order_cost) || 1000,
       normalizedToken,
-      normalizedSuperadminTelegramId
+      normalizedSuperadminTelegramId,
+      normalizedCatalogAnimationSeason
     ]);
 
     try {
@@ -2938,6 +2982,7 @@ router.delete('/ads/banners/:id', async (req, res) => {
 // Получить глобальные настройки биллинга
 router.get('/billing/settings', async (req, res) => {
   try {
+    await ensureBillingSettingsSchema();
     const result = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
     const payload = await enrichBillingSettingsWithCentralBotMeta(result.rows[0] || {});
     res.json(payload);
@@ -2950,15 +2995,18 @@ router.get('/billing/settings', async (req, res) => {
 // Обновить глобальные настройки биллинга
 router.put('/billing/settings', async (req, res) => {
   try {
+    await ensureBillingSettingsSchema();
     const {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, default_starting_balance, default_order_cost,
       superadmin_bot_token,
-      superadmin_telegram_id
+      superadmin_telegram_id,
+      catalog_animation_season
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
+    const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -2971,13 +3019,14 @@ router.put('/billing/settings', async (req, res) => {
           default_starting_balance = $7, default_order_cost = $8,
           superadmin_bot_token = $9,
           superadmin_telegram_id = $10,
+          catalog_animation_season = $11,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, default_starting_balance, default_order_cost,
-      normalizedToken, normalizedSuperadminTelegramId
+      normalizedToken, normalizedSuperadminTelegramId, normalizedCatalogAnimationSeason
     ]);
 
     try {

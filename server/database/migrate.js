@@ -608,6 +608,7 @@ async function migrate() {
         default_order_cost DECIMAL(12, 2) DEFAULT 1000.00,
         superadmin_bot_token VARCHAR(255),
         superadmin_telegram_id VARCHAR(64),
+        catalog_animation_season VARCHAR(16) DEFAULT 'off',
         card_number VARCHAR(50),
         card_holder VARCHAR(255),
         phone_number VARCHAR(50),
@@ -633,6 +634,22 @@ async function migrate() {
       ALTER TABLE billing_settings
       ADD COLUMN IF NOT EXISTS superadmin_telegram_id VARCHAR(64)
     `);
+    await client.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS catalog_animation_season VARCHAR(16) DEFAULT 'off'
+    `);
+    await client.query(`
+      UPDATE billing_settings
+      SET catalog_animation_season = 'off'
+      WHERE catalog_animation_season IS NULL
+        OR BTRIM(catalog_animation_season) = ''
+        OR catalog_animation_season NOT IN ('off', 'spring', 'summer', 'autumn', 'winter')
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE billing_settings
+      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
+      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
+    `).catch(() => {});
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS billing_transactions (

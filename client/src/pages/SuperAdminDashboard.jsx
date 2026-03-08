@@ -20,6 +20,16 @@ const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+const CATALOG_ANIMATION_SEASON_OPTIONS = [
+  { value: 'spring', label: 'Весна' },
+  { value: 'summer', label: 'Лето' },
+  { value: 'autumn', label: 'Осень' },
+  { value: 'winter', label: 'Зима' }
+];
+const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['off', 'spring', 'summer', 'autumn', 'winter'].includes(normalized) ? normalized : fallback;
+};
 const createEmptyHelpInstructionForm = () => ({
   id: null,
   title_ru: '',
@@ -492,6 +502,7 @@ function SuperAdminDashboard() {
     telegram_username: '',
     click_link: '',
     payme_link: '',
+    catalog_animation_season: 'off',
     default_starting_balance: 100000,
     default_order_cost: 1000
   });
@@ -973,6 +984,7 @@ function SuperAdminDashboard() {
           ...prev,
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
+          catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
@@ -986,6 +998,7 @@ function SuperAdminDashboard() {
       const payload = {
         ...billingSettings,
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
+        catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
         default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
       };
       const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
@@ -994,6 +1007,7 @@ function SuperAdminDashboard() {
           ...prev,
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
+          catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
@@ -4118,6 +4132,46 @@ function SuperAdminDashboard() {
                         checked={actionButtonsVisible}
                         onChange={(e) => setActionButtonsVisible(e.target.checked)}
                       />
+                    </div>
+                  </Alert>
+
+                  <Alert
+                    variant="light"
+                    className="border-0 shadow-sm rounded-4 mb-4"
+                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                  >
+                    <div className="d-flex flex-column gap-3">
+                      <div>
+                        <div className="fw-bold">Сезонная анимация каталога для клиентов</div>
+                        <div className="small text-muted">
+                          Можно включить только один сезон. Если выключить активный переключатель, останется режим "Все выключено".
+                        </div>
+                      </div>
+                      <Row className="g-2">
+                        {CATALOG_ANIMATION_SEASON_OPTIONS.map((option) => (
+                          <Col xs={12} md={6} key={option.value}>
+                            <Form.Check
+                              type="switch"
+                              id={`catalog-animation-season-${option.value}`}
+                              className="fw-semibold"
+                              label={option.label}
+                              checked={billingSettings.catalog_animation_season === option.value}
+                              onChange={(e) => {
+                                const isChecked = !!e.target.checked;
+                                setBillingSettings((prev) => ({
+                                  ...prev,
+                                  catalog_animation_season: isChecked ? option.value : 'off'
+                                }));
+                              }}
+                            />
+                          </Col>
+                        ))}
+                      </Row>
+                      <div className="small text-muted">
+                        Текущий режим: <strong>{billingSettings.catalog_animation_season === 'off'
+                          ? 'Все выключено'
+                          : (CATALOG_ANIMATION_SEASON_OPTIONS.find((item) => item.value === billingSettings.catalog_animation_season)?.label || 'Все выключено')}</strong>
+                      </div>
                     </div>
                   </Alert>
 
