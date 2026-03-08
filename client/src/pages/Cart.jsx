@@ -51,6 +51,7 @@ function Cart() {
   });
 
   const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
+  const [fulfillmentType, setFulfillmentType] = useState('delivery');
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -366,13 +367,22 @@ function Cart() {
     const flag = restaurant?.is_delivery_enabled ?? user?.active_restaurant_is_delivery_enabled;
     return toEnabledFlag(flag);
   }, [restaurant?.is_delivery_enabled, user?.active_restaurant_is_delivery_enabled]);
-  const effectiveDeliveryCost = isDeliveryEnabled ? deliveryCost : 0;
-  const effectiveDeliveryDistance = isDeliveryEnabled ? deliveryDistance : 0;
+  const isDeliverySelected = isDeliveryEnabled && fulfillmentType === 'delivery';
+  const effectiveDeliveryCost = isDeliverySelected ? deliveryCost : 0;
+  const effectiveDeliveryDistance = isDeliverySelected ? deliveryDistance : 0;
+
+  useEffect(() => {
+    if (!isDeliveryEnabled) {
+      setFulfillmentType('pickup');
+      return;
+    }
+    setFulfillmentType((prev) => (prev === 'pickup' || prev === 'delivery' ? prev : 'delivery'));
+  }, [isDeliveryEnabled]);
 
   // Fetch delivery cost when coordinates change
   useEffect(() => {
     const fetchDeliveryCost = async () => {
-      if (!mapCoordinates || !activeRestaurantId || !isDeliveryEnabled) {
+      if (!mapCoordinates || !activeRestaurantId || !isDeliverySelected) {
         setDeliveryCost(0);
         setDeliveryDistance(0);
         setDeliveryOutOfZone(false);
@@ -415,7 +425,7 @@ function Cart() {
     };
 
     fetchDeliveryCost();
-  }, [mapCoordinates, activeRestaurantId, isDeliveryEnabled, language]);
+  }, [mapCoordinates, activeRestaurantId, isDeliverySelected, language]);
 
   const useCurrentLocation = () => {
     setLocationLoading(true);
@@ -494,17 +504,17 @@ function Cart() {
       return;
     }
 
-    if (isDeliveryEnabled && !selectedAddressId) {
+    if (isDeliverySelected && !selectedAddressId) {
       setError(language === 'uz' ? 'Yetkazib berish manzilini tanlang' : 'Выберите адрес доставки');
       return;
     }
 
-    if (isDeliveryEnabled && !hasLocation) {
+    if (isDeliverySelected && !hasLocation) {
       setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
       return;
     }
 
-    if (isDeliveryEnabled && deliveryOutOfZone) {
+    if (isDeliverySelected && deliveryOutOfZone) {
       setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
       return;
     }
@@ -519,17 +529,17 @@ function Cart() {
     setLoading(true);
 
     try {
-      if (isDeliveryEnabled && !selectedAddressId) {
+      if (isDeliverySelected && !selectedAddressId) {
         setError(language === 'uz' ? 'Yetkazib berish manzilini tanlang' : 'Выберите адрес доставки');
         return;
       }
 
-      if (isDeliveryEnabled && !hasLocation) {
+      if (isDeliverySelected && !hasLocation) {
         setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
         return;
       }
 
-      if (isDeliveryEnabled && deliveryOutOfZone) {
+      if (isDeliverySelected && deliveryOutOfZone) {
         setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
         return;
       }
@@ -538,10 +548,10 @@ function Cart() {
 
       // Если нет адреса но есть локация - указываем что доставка по локации.
       // Детали адреса (дом/квартира/код) добавляем в ту же строку для операторов.
-      const baseDeliveryAddress = !isDeliveryEnabled
+      const baseDeliveryAddress = !isDeliverySelected
         ? 'Самовывоз'
         : (formData.delivery_address || (hasLocation ? 'По геолокации' : ''));
-      const deliveryAddress = !isDeliveryEnabled
+      const deliveryAddress = !isDeliverySelected
         ? baseDeliveryAddress
         : [baseDeliveryAddress, addressDetailsParts.join(', ')].filter(Boolean).join(', ');
 
@@ -560,9 +570,11 @@ function Cart() {
         service_fee: serviceFee,
         delivery_cost: effectiveDeliveryCost,
         delivery_distance_km: effectiveDeliveryDistance,
+        fulfillment_type: isDeliverySelected ? 'delivery' : 'pickup',
         restaurant_id,
         ...formData,
         delivery_address: deliveryAddress,
+        delivery_coordinates: isDeliverySelected ? formData.delivery_coordinates : '',
         customer_name: formData.customer_name || user?.full_name || 'Клиент',
         delivery_date: new Date().toISOString().split('T')[0]
       };
@@ -859,8 +871,36 @@ function Cart() {
           <Form onSubmit={handleSubmit}>
             <Card className="border-0 shadow-sm mb-3">
               <Card.Body>
-                {/* Адрес доставки */}
                 {isDeliveryEnabled && (
+                  <Form.Group className="mb-3">
+                    <Form.Label className="small text-muted mb-1">
+                      {language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}
+                    </Form.Label>
+                    <div className="cart-segmented-switch">
+                      <Button
+                        type="button"
+                        variant="light"
+                        size="sm"
+                        className={`cart-segmented-option ${fulfillmentType === 'delivery' ? 'is-active' : ''}`}
+                        onClick={() => setFulfillmentType('delivery')}
+                      >
+                        🚚 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="light"
+                        size="sm"
+                        className={`cart-segmented-option ${fulfillmentType === 'pickup' ? 'is-active' : ''}`}
+                        onClick={() => setFulfillmentType('pickup')}
+                      >
+                        🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
+                      </Button>
+                    </div>
+                  </Form.Group>
+                )}
+
+                {/* Адрес доставки */}
+                {isDeliverySelected && (
                   <div className="mb-3">
                     <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
 
@@ -925,7 +965,7 @@ function Cart() {
                   </div>
                 )}
 
-                {isDeliveryEnabled && (
+                {isDeliverySelected && (
                   <Form.Group className="mb-3">
                     <Form.Label className="small text-muted mb-1">
                       {language === 'uz' ? 'Manzil tafsilotlari' : 'Детали адреса'}
@@ -1083,7 +1123,7 @@ function Cart() {
                 )}
 
                 {/* Доставка - показываем всегда когда есть координаты */}
-                {isDeliveryEnabled && hasLocation && (
+                {isDeliverySelected && hasLocation && (
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <span className="text-muted">
                       🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
@@ -1096,6 +1136,13 @@ function Cart() {
                         `${formatPrice(effectiveDeliveryCost)} ${t('sum')}`
                       )}
                     </span>
+                  </div>
+                )}
+
+                {!isDeliverySelected && (
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span className="text-muted">🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
+                    <span>0 {t('sum')}</span>
                   </div>
                 )}
               </>
@@ -1329,7 +1376,7 @@ function Cart() {
             <Modal.Title className="fs-5">✅ {language === 'uz' ? 'Buyurtmani tasdiqlang' : 'Подтвердите заказ'}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            {isDeliveryEnabled && (
+            {isDeliverySelected && (
               <Alert variant="warning" className="mb-3">
                 <div className="fw-bold mb-1">📍 {language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}:</div>
                 <div>
@@ -1354,7 +1401,7 @@ function Cart() {
               </Alert>
             )}
 
-            {!isDeliveryEnabled && (
+            {!isDeliverySelected && (
               <Alert variant="info" className="mb-3 border-0 bg-light text-dark">
                 <div className="fw-bold mb-1">🛍 {language === 'uz' ? 'O\'zingiz olib ketish' : 'Самовывоз'}</div>
                 <div className="small">Заказ будет готов в магазине. Подходите к кассе и назовите свое имя или телефон.</div>

@@ -185,8 +185,10 @@ function Orders() {
                 </div>
               </Alert>
             )}
-            {orders.map(order => (
-            <Card 
+            {orders.map(order => {
+              const isPickupOrder = String(order?.delivery_address || '').trim().toLowerCase() === 'самовывоз';
+              return (
+            <Card
               key={order.id} 
               className="border-0 shadow-sm mb-3"
               style={{ cursor: 'pointer' }}
@@ -272,13 +274,18 @@ function Orders() {
                     )}
 
                     {/* Delivery cost */}
-                    {parseFloat(order.delivery_cost) > 0 && (
+                    {parseFloat(order.delivery_cost) > 0 && !isPickupOrder && (
                       <div className="mb-2 small">
                         <span className="text-muted">🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:</span>{' '}
                         <strong>{formatPrice(order.delivery_cost)}</strong> {t('sum')}
                         {parseFloat(order.delivery_distance_km) > 0 && (
                           <span className="text-muted ms-1">({order.delivery_distance_km} км)</span>
                         )}
+                      </div>
+                    )}
+                    {isPickupOrder && (
+                      <div className="mb-2 small">
+                        <span className="text-muted">🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
                       </div>
                     )}
 
@@ -343,7 +350,8 @@ function Orders() {
                 </div>
               </Card.Body>
             </Card>
-            ))}
+              );
+            })}
           </>
         )}
 

@@ -17,6 +17,10 @@ const normalizeContainerNorm = (value, fallback = 1) => {
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
+const normalizeFulfillmentType = (value, fallback = 'delivery') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'pickup' ? 'pickup' : fallback;
+};
 const resolveContainerUnits = (quantityValue, normValue) => {
   const quantity = Number.parseFloat(quantityValue);
   if (!Number.isFinite(quantity) || quantity <= 0) return 0;
@@ -305,7 +309,8 @@ router.post('/', authenticate, async (req, res) => {
       restaurant_id,
       service_fee,
       delivery_cost,
-      delivery_distance_km
+      delivery_distance_km,
+      fulfillment_type
     } = req.body;
     
     console.log('📦 Parsed data:', {
@@ -379,13 +384,23 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
-    if (isDeliveryEnabled) {
-      if (!delivery_coordinates) {
+    const requestedFulfillmentType = normalizeFulfillmentType(fulfillment_type, 'delivery');
+    const effectiveFulfillmentType = (isDeliveryEnabled && requestedFulfillmentType !== 'pickup') ? 'delivery' : 'pickup';
+    const isPickupOrder = effectiveFulfillmentType === 'pickup';
+    const normalizedDeliveryAddress = isPickupOrder
+      ? 'Самовывоз'
+      : (String(delivery_address || '').trim() || (delivery_coordinates ? 'По геолокации' : ''));
+    const normalizedDeliveryCoordinates = isPickupOrder
+      ? null
+      : (delivery_coordinates || null);
+
+    if (!isPickupOrder) {
+      if (!normalizedDeliveryCoordinates) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Укажите точку доставки на карте' });
       }
 
-      const coordinates = String(delivery_coordinates || '').split(',').map((v) => Number.parseFloat(v.trim()));
+      const coordinates = String(normalizedDeliveryCoordinates || '').split(',').map((v) => Number.parseFloat(v.trim()));
       const lat = coordinates[0];
       const lng = coordinates[1];
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -410,8 +425,8 @@ router.post('/', authenticate, async (req, res) => {
     }, 0);
     
     const serviceFee = parseFloat(service_fee) || 0;
-    const deliveryCost = isDeliveryEnabled ? (parseFloat(delivery_cost) || 0) : 0;
-    const deliveryDistanceKm = isDeliveryEnabled ? (parseFloat(delivery_distance_km) || 0) : 0;
+    const deliveryCost = !isPickupOrder ? (parseFloat(delivery_cost) || 0) : 0;
+    const deliveryDistanceKm = !isPickupOrder ? (parseFloat(delivery_distance_km) || 0) : 0;
     const totalAmount = itemsTotal + serviceFee + deliveryCost;
     const normalizedPaymentMethod = String(payment_method || 'cash').trim().toLowerCase() || 'cash';
 
@@ -433,7 +448,7 @@ router.post('/', authenticate, async (req, res) => {
       userId: req.user.id,
       totalAmount,
       serviceFee,
-      delivery_address,
+      normalizedDeliveryAddress,
       customer_name: customer_name || req.user.full_name || 'Клиент',
       customer_phone,
       dbDeliveryTime
@@ -461,8 +476,8 @@ router.post('/', authenticate, async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [
-        finalRestaurantId, req.user.id, orderNumber, totalAmount, delivery_address,
-        delivery_coordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
+        finalRestaurantId, req.user.id, orderNumber, totalAmount, normalizedDeliveryAddress,
+        normalizedDeliveryCoordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
         normalizedPaymentMethod, initialPaymentStatus, comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
         deliveryCost, deliveryDistanceKm
       ]
