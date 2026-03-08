@@ -653,11 +653,11 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
     }
 
     // 2. Billing logic
-    const cost = order.is_free_tier ? 0 : (order.order_cost || 1000);
+    const cost = order.is_free_tier ? 0 : Number(order.order_cost || 1000);
     const lowBalanceThreshold = Number(process.env.LOW_BALANCE_ALERT_THRESHOLD || 3000);
     const balanceBefore = Number(order.balance || 0);
 
-    if (!order.is_free_tier && order.balance < cost) {
+    if (!order.is_free_tier && balanceBefore < cost) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Недостаточно средств на балансе. Пополните счет.' });
     }
