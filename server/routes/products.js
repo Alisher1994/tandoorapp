@@ -393,6 +393,7 @@ router.get('/restaurant/:id', async (req, res) => {
       phone: r.phone,
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
+      ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       click_url: r.click_url,
@@ -591,6 +592,7 @@ router.get('/restaurants/list', async (req, res) => {
       phone: r.phone,
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
+      ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled)
       });

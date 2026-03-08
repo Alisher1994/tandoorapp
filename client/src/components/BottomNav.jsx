@@ -83,103 +83,43 @@ function BottomNav() {
     navigate(path);
   };
 
+  const navClassName = [
+    'client-bottom-nav',
+    isCompact ? 'is-compact' : '',
+    isIOSDevice ? 'is-ios' : '',
+    isDesktopViewport ? 'is-desktop' : ''
+  ].filter(Boolean).join(' ');
+
   return (
-    <nav style={{
-      position: 'fixed',
-      bottom: isIOSDevice ? 'max(10px, env(safe-area-inset-bottom))' : 10,
-      left: isDesktopViewport ? '50%' : (isIOSDevice ? 12 : 10),
-      right: isDesktopViewport ? 'auto' : (isIOSDevice ? 12 : 10),
-      width: isDesktopViewport ? 'min(920px, calc(100vw - 24px))' : 'auto',
-      transform: isDesktopViewport ? 'translateX(-50%)' : 'none',
-      background: 'rgba(255, 255, 255, 0.88)',
-      border: '1px solid rgba(71, 85, 105, 0.18)',
-      display: 'flex',
-      justifyContent: 'space-around',
-      alignItems: 'center',
-      padding: isCompact
-        ? (isIOSDevice ? '7px 8px' : '6px 6px')
-        : (isIOSDevice ? '10px 8px 12px' : '8px 6px 10px'),
-      zIndex: 1000,
-      boxShadow: '0 14px 34px rgba(52, 36, 18, 0.14)',
-      borderRadius: isCompact
-        ? (isIOSDevice ? 20 : 16)
-        : (isIOSDevice ? 28 : 20),
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
-      transition: 'padding 0.24s ease, border-radius 0.24s ease, box-shadow 0.24s ease',
-      cursor: isCompact ? 'pointer' : 'default'
-    }}
-    onClick={(e) => {
-      if (isCompact && e.target === e.currentTarget) {
-        setIsCompact(false);
-      }
-    }}>
+    <nav
+      className={navClassName}
+      onClick={(e) => {
+        if (isCompact && e.target === e.currentTarget) {
+          setIsCompact(false);
+        }
+      }}
+    >
       {navItems.map((item) => (
         <button
           key={item.path}
           onClick={() => handleNavItemClick(item.path)}
           title={item.label}
           aria-label={item.label}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: isActive(item.path) ? 'rgba(71, 85, 105, 0.08)' : 'transparent',
-            border: isActive(item.path) ? '1px solid rgba(71, 85, 105, 0.16)' : '1px solid transparent',
-            borderRadius: isIOSDevice ? 18 : 14,
-            padding: isCompact ? '5px 10px' : '6px 14px',
-            cursor: 'pointer',
-            position: 'relative',
-            opacity: isActive(item.path) ? 1 : 0.72,
-            transform: isActive(item.path) ? 'translateY(-1px)' : 'translateY(0)',
-            transition: 'all 0.24s ease',
-            minWidth: isCompact ? 50 : 70
-          }}
+          className={[
+            'client-bottom-nav-item',
+            isActive(item.path) ? 'is-active' : '',
+            isCompact ? 'is-compact' : ''
+          ].filter(Boolean).join(' ')}
         >
-          <span style={{
-            fontSize: isCompact ? '18px' : '22px',
-            lineHeight: 1,
-            marginBottom: isCompact ? 0 : '2px',
-            filter: isActive(item.path) ? 'none' : 'grayscale(0.1)'
-          }}>
+          <span className="client-bottom-nav-icon">
             {item.icon}
           </span>
-          <span style={{ 
-            fontSize: '11px', 
-            fontWeight: isActive(item.path) ? '600' : '400',
-            color: isActive(item.path) ? 'var(--primary-color)' : 'var(--text-secondary)',
-            letterSpacing: '0.02em',
-            maxHeight: isCompact ? 0 : 16,
-            opacity: isCompact ? 0 : 1,
-            marginTop: isCompact ? 0 : 1,
-            transform: `translateY(${isCompact ? -4 : 0}px)`,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            transition: 'max-height 0.22s ease, opacity 0.18s ease, transform 0.22s ease, margin-top 0.22s ease'
-          }}>
+          <span className="client-bottom-nav-label">
             {item.label}
           </span>
-          
-          {/* Badge for cart */}
+
           {item.badge > 0 && (
-            <span style={{
-              position: 'absolute',
-              top: isCompact ? -2 : 0,
-              right: isCompact ? 2 : 6,
-              background: 'linear-gradient(135deg, #64748b, #475569)',
-              color: '#fff',
-              fontSize: isCompact ? '9px' : '10px',
-              fontWeight: 'bold',
-              minWidth: isCompact ? '16px' : '18px',
-              height: isCompact ? '16px' : '18px',
-              borderRadius: isCompact ? '8px' : '9px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: isCompact ? '0 3px' : '0 4px',
-              transition: 'all 0.24s ease'
-            }}>
+            <span className="client-bottom-nav-badge">
               {typeof item.badge === 'number' ? formatQuantity(item.badge) : item.badge}
             </span>
           )}

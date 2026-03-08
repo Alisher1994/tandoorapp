@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   payme_test_mode BOOLEAN DEFAULT false,
   payme_callback_timeout_ms INTEGER DEFAULT 2000,
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
+  ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern')),
   operator_registration_code VARCHAR(64),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

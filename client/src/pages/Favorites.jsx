@@ -8,27 +8,9 @@ import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import HeartIcon from '../components/HeartIcon';
 import ClientEmptyState from '../components/ClientEmptyState';
+import ClientTopBar from '../components/ClientTopBar';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
-  const isHorizontal = String(mode || '').toLowerCase() === 'horizontal';
-  return {
-    box: {
-      width: isHorizontal ? `${horizontalWidth}px` : `${squareSize}px`,
-      height: `${squareSize}px`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden'
-    },
-    img: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'contain',
-      borderRadius: '8px'
-    }
-  };
-};
 
 function Favorites() {
   const { user } = useAuth();
@@ -56,49 +38,19 @@ function Favorites() {
   });
 
   return (
-    <>
-      <div className="bg-white shadow-sm py-3 mb-3">
-        <Container style={{ maxWidth: '600px' }}>
-          <div className="d-flex align-items-center justify-content-between">
-            <div style={{ width: '40px' }} />
-            {user?.active_restaurant_logo ? (
-              (() => {
-                const logoFrame = getHeaderLogoFrame(user?.active_restaurant_logo_display_mode);
-                return (
-                  <div style={logoFrame.box}>
-                    <img
-                      src={String(user.active_restaurant_logo).startsWith('http')
-                        ? user.active_restaurant_logo
-                        : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
-                      alt="Logo"
-                      style={logoFrame.img}
-                    />
-                  </div>
-                );
-              })()
-            ) : (
-              <HeartIcon size={20} filled color="var(--primary-color)" />
-            )}
-            <button
-              onClick={toggleLanguage}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              <img
-                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-                alt={language === 'ru' ? 'RU' : 'UZ'}
-                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-              />
-            </button>
-          </div>
-        </Container>
-      </div>
+    <div className="client-page">
+      <ClientTopBar
+        logoUrl={user?.active_restaurant_logo}
+        logoDisplayMode={user?.active_restaurant_logo_display_mode}
+        restaurantName="Tandoor"
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        fallback={<HeartIcon size={20} filled color="var(--primary-color)" />}
+        maxWidth="600px"
+        sticky
+      />
 
-      <Container className="py-2" style={{ maxWidth: '600px' }}>
+      <Container className="client-content client-content--narrow">
         <div className="d-flex align-items-center justify-content-between mb-3">
           <h5 className="mb-0" style={{ color: '#1f2937', fontWeight: 700 }}>
             <span className="me-2" style={{ verticalAlign: 'middle', display: 'inline-flex' }}>
@@ -221,11 +173,11 @@ function Favorites() {
           </div>
         )}
 
-        <div style={{ height: '70px' }} />
+        <div className="client-bottom-space" />
       </Container>
 
       <BottomNav />
-    </>
+    </div>
   );
 }
 

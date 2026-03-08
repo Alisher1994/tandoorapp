@@ -46,6 +46,7 @@ async function migrate() {
     const restaurantColumns = [
       'logo_url TEXT',
       `logo_display_mode VARCHAR(20) DEFAULT 'square'`,
+      `ui_theme VARCHAR(20) DEFAULT 'classic'`,
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',
@@ -90,6 +91,11 @@ async function migrate() {
       WHERE logo_display_mode IS NULL OR TRIM(COALESCE(logo_display_mode, '')) = ''
     `).catch(() => {});
     await client.query(`
+      UPDATE restaurants
+      SET ui_theme = 'classic'
+      WHERE ui_theme IS NULL OR TRIM(COALESCE(ui_theme, '')) = ''
+    `).catch(() => {});
+    await client.query(`
       ALTER TABLE restaurants
       DROP CONSTRAINT IF EXISTS restaurants_logo_display_mode_check
     `).catch(() => {});
@@ -97,6 +103,15 @@ async function migrate() {
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_logo_display_mode_check
       CHECK (logo_display_mode IN ('square', 'horizontal'))
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_ui_theme_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_ui_theme_check
+      CHECK (ui_theme IN ('classic', 'modern'))
     `).catch(() => {});
 
     console.log('✅ Restaurants table ready');

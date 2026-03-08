@@ -1647,7 +1647,8 @@ function AdminDashboard() {
       const response = await axios.get(`${API_URL}/admin/restaurant`);
       const settings = {
         ...(response.data || {}),
-        logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square'
+        logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
+        ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic'
       };
       setRestaurantSettings(settings);
       setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
@@ -4941,6 +4942,21 @@ function AdminDashboard() {
                                           </Form.Select>
                                           <Form.Text className="text-muted d-block mt-2">
                                             Выберите, как логотип будет отображаться у клиентов в шапке магазина.
+                                          </Form.Text>
+                                        </Form.Group>
+
+                                        <Form.Group className="mb-4">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
+                                          <Form.Select
+                                            className="form-control-custom"
+                                            value={restaurantSettings.ui_theme || 'classic'}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, ui_theme: e.target.value })}
+                                          >
+                                            <option value="classic">Текущий (Classic)</option>
+                                            <option value="modern">Новый (Modern)</option>
+                                          </Form.Select>
+                                          <Form.Text className="text-muted d-block mt-2">
+                                            Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
                                           </Form.Text>
                                         </Form.Group>
 

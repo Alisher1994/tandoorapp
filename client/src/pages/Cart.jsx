@@ -17,6 +17,7 @@ import OrderReceipt from '../components/OrderReceipt';
 import BottomNav from '../components/BottomNav';
 import ClientLocationPicker from '../components/ClientLocationPicker';
 import ClientEmptyState from '../components/ClientEmptyState';
+import ClientTopBar from '../components/ClientTopBar';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const toNumber = (value, fallback = 0) => {
@@ -24,25 +25,6 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const toEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
-const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
-  const isHorizontal = String(mode || '').toLowerCase() === 'horizontal';
-  return {
-    box: {
-      width: isHorizontal ? `${horizontalWidth}px` : `${squareSize}px`,
-      height: `${squareSize}px`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden'
-    },
-    img: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'contain',
-      borderRadius: '8px'
-    }
-  };
-};
 
 function Cart() {
   const { cart, cartTotal, productTotal, containerTotal, updateQuantity, removeFromCart, clearCart } = useCart();
@@ -664,21 +646,34 @@ function Cart() {
 
   if (cart.length === 0) {
     return (
-      <>
-        <Container className="py-4" style={{ paddingBottom: '80px' }}>
+      <div className="client-page">
+        <ClientTopBar
+          logoUrl={restaurant?.logo_url || user?.active_restaurant_logo}
+          logoDisplayMode={restaurant?.logo_display_mode || user?.active_restaurant_logo_display_mode}
+          restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
+          language={language}
+          onToggleLanguage={toggleLanguage}
+          fallback="🍽️"
+          maxWidth="500px"
+          sticky
+        />
+
+        <Container className="client-content client-content--compact">
           <ClientEmptyState
             emoji="🛒"
             message={t('cartEmpty')}
             subMessage={t('cartEmptyDesc')}
           />
+          <div className="client-bottom-space" />
         </Container>
+
         <BottomNav />
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="client-page">
       <style>{`
         .cart-addresses-sheet-modal {
           position: fixed;
@@ -761,47 +756,18 @@ function Cart() {
           background: #fff !important;
         }
       `}</style>
-      {/* Header with language switcher */}
-      <div className="bg-white shadow-sm py-3 mb-3">
-        <Container style={{ maxWidth: '500px' }}>
-          <div className="d-flex align-items-center justify-content-between">
-            <div style={{ width: '40px' }} />
-            {restaurant?.logo_url ? (
-              (() => {
-                const logoFrame = getHeaderLogoFrame(restaurant?.logo_display_mode);
-                return (
-                  <div style={logoFrame.box}>
-                    <img
-                      src={restaurant.logo_url.startsWith('http') ? restaurant.logo_url : `${API_URL.replace('/api', '')}${restaurant.logo_url}`}
-                      alt="Logo"
-                      style={logoFrame.img}
-                    />
-                  </div>
-                );
-              })()
-            ) : (
-              <span style={{ fontSize: '1.5rem' }}>🍽️</span>
-            )}
-            <button
-              onClick={toggleLanguage}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              <img
-                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-                alt={language === 'ru' ? 'RU' : 'UZ'}
-                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-              />
-            </button>
-          </div>
-        </Container>
-      </div>
+      <ClientTopBar
+        logoUrl={restaurant?.logo_url || user?.active_restaurant_logo}
+        logoDisplayMode={restaurant?.logo_display_mode || user?.active_restaurant_logo_display_mode}
+        restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        fallback="🍽️"
+        maxWidth="500px"
+        sticky
+      />
 
-      <Container className="py-3" style={{ maxWidth: '500px' }}>
+      <Container className="client-content client-content--compact">
         {error && <Alert ref={errorAlertRef} variant="danger" className="py-2 mb-3">{error}</Alert>}
 
         {/* ШАГ 1: Список товаров */}
@@ -1438,13 +1404,11 @@ function Cart() {
           </Modal.Body>
         </Modal>
 
-        {/* Spacer for bottom nav */}
-        <div style={{ height: '70px' }} />
+        <div className="client-bottom-space" />
       </Container>
 
-      {/* Bottom navigation */}
       <BottomNav />
-    </>
+    </div>
   );
 }
 

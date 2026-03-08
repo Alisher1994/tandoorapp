@@ -11,27 +11,9 @@ import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import { ListSkeleton } from '../components/SkeletonUI';
 import ClientEmptyState from '../components/ClientEmptyState';
+import ClientTopBar from '../components/ClientTopBar';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const getHeaderLogoFrame = (mode, squareSize = 36, horizontalWidth = 112) => {
-  const isHorizontal = String(mode || '').toLowerCase() === 'horizontal';
-  return {
-    box: {
-      width: isHorizontal ? `${horizontalWidth}px` : `${squareSize}px`,
-      height: `${squareSize}px`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden'
-    },
-    img: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'contain',
-      borderRadius: '8px'
-    }
-  };
-};
 
 function Feedback() {
   const { user } = useAuth();
@@ -117,55 +99,19 @@ function Feedback() {
   };
 
   return (
-    <>
-      {/* Header */}
-      <div style={{ 
-        position: 'sticky', 
-        top: 0, 
-        zIndex: 1000, 
-        backgroundColor: '#f8fafc',
-        borderBottom: '1px solid var(--border-color)',
-        padding: '12px 16px'
-      }}>
-        <Container style={{ maxWidth: '600px' }}>
-          <div className="d-flex justify-content-between align-items-center">
-            {user?.active_restaurant_logo ? (
-              (() => {
-                const logoFrame = getHeaderLogoFrame(user?.active_restaurant_logo_display_mode);
-                return (
-                  <div style={logoFrame.box}>
-                    <img
-                      src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
-                      alt="Logo"
-                      style={logoFrame.img}
-                    />
-                  </div>
-                );
-              })()
-            ) : (
-              <span style={{ fontSize: '1.5rem' }}>💬</span>
-            )}
-            <div style={{ flex: 1 }} />
-            <button
-              onClick={toggleLanguage}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              <img 
-                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-                alt={language === 'ru' ? 'RU' : 'UZ'}
-                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-              />
-            </button>
-          </div>
-        </Container>
-      </div>
+    <div className="client-page">
+      <ClientTopBar
+        logoUrl={user?.active_restaurant_logo}
+        logoDisplayMode={user?.active_restaurant_logo_display_mode}
+        restaurantName={user?.active_restaurant_name || 'Tandoor'}
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        fallback="💬"
+        maxWidth="600px"
+        sticky
+      />
 
-      <Container style={{ maxWidth: '600px', paddingTop: '16px', paddingBottom: '100px' }}>
+      <Container className="client-content client-content--narrow">
         {success && <Alert variant="success" className="mb-3">{success}</Alert>}
 
         {/* My Feedback History */}
@@ -215,6 +161,8 @@ function Feedback() {
             );
           })
         )}
+
+        <div className="client-bottom-space" />
       </Container>
 
       <Modal show={showFeedbackModal} onHide={closeFeedbackModal} centered>
@@ -264,7 +212,7 @@ function Feedback() {
       </Modal>
 
       <BottomNav />
-    </>
+    </div>
   );
 }
 

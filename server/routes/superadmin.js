@@ -121,6 +121,10 @@ const normalizeLogoDisplayMode = (value, fallback = 'square') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'horizontal' ? 'horizontal' : fallback;
 };
+const normalizeUiTheme = (value, fallback = 'classic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'modern' ? 'modern' : fallback;
+};
 
 const normalizePhoneValue = (value) => {
   const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
@@ -1064,7 +1068,7 @@ router.post('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     const {
-      name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id,
+      name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
     } = req.body;
@@ -1075,6 +1079,7 @@ router.post('/restaurants', async (req, res) => {
       ? null
       : String(telegram_group_id).trim();
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
+    const normalizedUiTheme = normalizeUiTheme(ui_theme, 'classic');
     const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
 
     if (!name) {
@@ -1100,13 +1105,13 @@ router.post('/restaurants', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO restaurants (
         name, address, phone, logo_url, delivery_zone, 
-        logo_display_mode,
+        logo_display_mode, ui_theme,
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
         balance, order_cost, activity_type_id,
         payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING *
     `, [
       name,
@@ -1115,6 +1120,7 @@ router.post('/restaurants', async (req, res) => {
       logo_url,
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       normalizedLogoDisplayMode,
+      normalizedUiTheme,
       normalizedBotToken,
       normalizedGroupId,
       operator_registration_code || null,
@@ -1170,7 +1176,7 @@ router.put('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     const {
-      name, address, phone, logo_url, logo_display_mode, delivery_zone, telegram_bot_token, telegram_group_id,
+      name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee,
       latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
@@ -1191,6 +1197,7 @@ router.put('/restaurants/:id', async (req, res) => {
     }
     const oldValues = oldResult.rows[0];
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, oldValues.logo_display_mode || 'square');
+    const normalizedUiTheme = normalizeUiTheme(ui_theme, oldValues.ui_theme || 'classic');
     const previousBotToken = normalizeRestaurantTokenForCompare(oldValues.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -1304,12 +1311,13 @@ router.put('/restaurants/:id', async (req, res) => {
           payme_enabled = $25,
           payme_merchant_id = $26,
           payme_api_login = $27,
-          payme_api_password = $28,
-          payme_account_key = $29,
-          payme_test_mode = $30,
-          payme_callback_timeout_ms = $31,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $32
+           payme_api_password = $28,
+           payme_account_key = $29,
+           payme_test_mode = $30,
+           payme_callback_timeout_ms = $31,
+           ui_theme = $32,
+           updated_at = CURRENT_TIMESTAMP
+      WHERE id = $33
       RETURNING *
     `, [
       name,
@@ -1343,6 +1351,7 @@ router.put('/restaurants/:id', async (req, res) => {
       payme_account_key || 'order_id',
       payme_test_mode === true || payme_test_mode === 'true',
       Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000,
+      normalizedUiTheme,
       req.params.id
     ]);
 

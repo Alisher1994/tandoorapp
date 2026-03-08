@@ -146,6 +146,7 @@ router.post('/login', async (req, res) => {
              r.logo_display_mode as active_restaurant_logo_display_mode,
              r.service_fee as active_restaurant_service_fee,
              r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
+             r.ui_theme as active_restaurant_ui_theme,
              CASE
                WHEN $3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
                WHEN $3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
@@ -300,6 +301,7 @@ router.post('/login', async (req, res) => {
         active_restaurant_name: user.active_restaurant_name,
         active_restaurant_logo: user.active_restaurant_logo,
         active_restaurant_logo_display_mode: user.active_restaurant_logo_display_mode,
+        active_restaurant_ui_theme: user.active_restaurant_ui_theme === 'modern' ? 'modern' : 'classic',
         active_restaurant_service_fee: user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: user.active_restaurant_is_delivery_enabled,
         restaurants
@@ -359,6 +361,7 @@ router.get('/me', authenticate, async (req, res) => {
         active_restaurant_name: req.user.active_restaurant_name,
         active_restaurant_logo: req.user.active_restaurant_logo,
         active_restaurant_logo_display_mode: req.user.active_restaurant_logo_display_mode,
+        active_restaurant_ui_theme: req.user.active_restaurant_ui_theme === 'modern' ? 'modern' : 'classic',
         active_restaurant_service_fee: req.user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: req.user.active_restaurant_is_delivery_enabled,
         restaurants: req.user.restaurants || [],

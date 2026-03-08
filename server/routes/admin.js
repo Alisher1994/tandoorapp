@@ -100,6 +100,10 @@ const normalizeLogoDisplayMode = (value, fallback = 'square') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'horizontal' ? 'horizontal' : fallback;
 };
+const normalizeUiTheme = (value, fallback = 'classic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'modern' ? 'modern' : fallback;
+};
 
 const normalizePhoneValue = (value) => {
   const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
@@ -425,7 +429,7 @@ router.post('/switch-restaurant', async (req, res) => {
 
     // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name, logo_url, logo_display_mode FROM restaurants WHERE id = $1',
+      'SELECT name, logo_url, logo_display_mode, ui_theme FROM restaurants WHERE id = $1',
       [restaurant_id]
     );
 
@@ -434,7 +438,8 @@ router.post('/switch-restaurant', async (req, res) => {
       active_restaurant_id: restaurant_id,
       active_restaurant_name: restaurantResult.rows[0]?.name,
       active_restaurant_logo: restaurantResult.rows[0]?.logo_url,
-      active_restaurant_logo_display_mode: restaurantResult.rows[0]?.logo_display_mode || 'square'
+      active_restaurant_logo_display_mode: restaurantResult.rows[0]?.logo_display_mode || 'square',
+      active_restaurant_ui_theme: normalizeUiTheme(restaurantResult.rows[0]?.ui_theme, 'classic')
     });
   } catch (error) {
     console.error('Switch restaurant error:', error);
@@ -761,7 +766,7 @@ router.put('/restaurant', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
     const previousRestaurantResult = await pool.query(
-      'SELECT name, telegram_bot_token FROM restaurants WHERE id = $1',
+      'SELECT name, telegram_bot_token, logo_display_mode, ui_theme FROM restaurants WHERE id = $1',
       [restaurantId]
     );
     if (!previousRestaurantResult.rows.length) {
@@ -776,7 +781,7 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode
+      logo_display_mode, ui_theme
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -787,6 +792,10 @@ router.put('/restaurant', async (req, res) => {
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(
       logo_display_mode,
       previousRestaurant.logo_display_mode || 'square'
+    );
+    const normalizedUiTheme = normalizeUiTheme(
+      ui_theme,
+      previousRestaurant.ui_theme || 'classic'
     );
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
@@ -847,12 +856,13 @@ router.put('/restaurant', async (req, res) => {
           is_delivery_enabled = $28,
           delivery_zone = $29,
           msg_new = $30,
-          msg_preparing = $31,
-          msg_delivering = $32,
-          msg_delivered = $33,
-          msg_cancelled = $34,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $35
+           msg_preparing = $31,
+           msg_delivering = $32,
+           msg_delivered = $33,
+           msg_cancelled = $34,
+           ui_theme = $35,
+           updated_at = CURRENT_TIMESTAMP
+      WHERE id = $36
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -869,6 +879,7 @@ router.put('/restaurant', async (req, res) => {
       delivery_price_per_km, is_delivery_enabled,
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
+      normalizedUiTheme,
       restaurantId
     ]);
 

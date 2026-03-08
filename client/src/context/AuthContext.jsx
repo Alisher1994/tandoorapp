@@ -4,6 +4,16 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const normalizeUiTheme = (value) => (String(value || '').toLowerCase() === 'modern' ? 'modern' : 'classic');
+const withNormalizedTheme = (nextUser) => (
+  nextUser
+    ? { ...nextUser, active_restaurant_ui_theme: normalizeUiTheme(nextUser.active_restaurant_ui_theme) }
+    : nextUser
+);
+const applyUiTheme = (theme) => {
+  if (typeof document === 'undefined') return;
+  document.documentElement.setAttribute('data-ui-theme', normalizeUiTheme(theme));
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -14,6 +24,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     initializeAuth();
   }, []);
+
+  useEffect(() => {
+    applyUiTheme(user?.active_restaurant_ui_theme);
+  }, [user?.active_restaurant_ui_theme]);
 
   const initializeAuth = async () => {
     // Check for token in URL first (auto-login from Telegram)
@@ -48,11 +62,12 @@ export function AuthProvider({ children }) {
   const fetchUser = async () => {
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
-      setUser(response.data.user);
-      localStorage.setItem('active_restaurant_id', String(response.data.user?.active_restaurant_id || ''));
+      const normalizedUser = withNormalizedTheme(response.data.user);
+      setUser(normalizedUser);
+      localStorage.setItem('active_restaurant_id', String(normalizedUser?.active_restaurant_id || ''));
       setIsBlocked(false);
       setSupportUsername(null);
-      return { success: true, user: response.data.user };
+      return { success: true, user: normalizedUser };
     } catch (error) {
       const status = error.response?.status;
 
@@ -95,10 +110,11 @@ export function AuthProvider({ children }) {
       });
       
       const { token, user } = response.data;
+      const normalizedUser = withNormalizedTheme(user);
       localStorage.setItem('token', token);
-      localStorage.setItem('active_restaurant_id', String(user?.active_restaurant_id || ''));
+      localStorage.setItem('active_restaurant_id', String(normalizedUser?.active_restaurant_id || ''));
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(user);
+      setUser(normalizedUser);
       return { success: true };
     } catch (error) {
       if (error.response?.status === 409 && error.response?.data?.requires_account_choice) {
@@ -141,7 +157,8 @@ export function AuthProvider({ children }) {
         active_restaurant_id: response.data.active_restaurant_id,
         active_restaurant_name: response.data.active_restaurant_name,
         active_restaurant_logo: response.data.active_restaurant_logo,
-        active_restaurant_logo_display_mode: response.data.active_restaurant_logo_display_mode
+        active_restaurant_logo_display_mode: response.data.active_restaurant_logo_display_mode,
+        active_restaurant_ui_theme: normalizeUiTheme(response.data.active_restaurant_ui_theme)
       }));
       localStorage.setItem('active_restaurant_id', String(response.data.active_restaurant_id || ''));
       

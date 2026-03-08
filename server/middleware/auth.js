@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
+const normalizeUiTheme = (value, fallback = 'classic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'modern' ? 'modern' : fallback;
+};
 
 /**
  * Аутентификация пользователя по JWT токену
@@ -67,6 +71,7 @@ const authenticate = async (req, res, next) => {
     user.active_restaurant_name = null;
     user.active_restaurant_logo = null;
     user.active_restaurant_logo_display_mode = null;
+    user.active_restaurant_ui_theme = 'classic';
     user.active_restaurant_service_fee = null;
     user.active_restaurant_is_delivery_enabled = null;
     user.restaurant_balance = null;
@@ -78,6 +83,7 @@ const authenticate = async (req, res, next) => {
           name,
           logo_url,
           logo_display_mode,
+          ui_theme,
           service_fee,
           is_delivery_enabled,
           balance,
@@ -91,6 +97,7 @@ const authenticate = async (req, res, next) => {
         user.active_restaurant_name = restaurant.name;
         user.active_restaurant_logo = restaurant.logo_url;
         user.active_restaurant_logo_display_mode = restaurant.logo_display_mode;
+        user.active_restaurant_ui_theme = normalizeUiTheme(restaurant.ui_theme, 'classic');
         user.active_restaurant_service_fee = restaurant.service_fee;
         user.active_restaurant_is_delivery_enabled = restaurant.is_delivery_enabled;
         user.restaurant_balance = restaurant.balance;
