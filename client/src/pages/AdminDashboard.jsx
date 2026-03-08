@@ -4364,6 +4364,7 @@ function AdminDashboard() {
                         const orderStatus = getOrderDisplayWorkflowStatus(order);
                         const needsPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
                         const hideSensitive = isOrderSensitiveDataHidden(order);
+                        const canCancelOrder = orderStatus !== 'cancelled' && orderStatus !== 'delivered';
 
                         return (
                           <tr
@@ -4397,77 +4398,78 @@ function AdminDashboard() {
                             </td>
                             <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
                             <td>
-                              <div className="d-flex gap-1 flex-wrap">
-                                {/* Accept & Pay Button for New Unpaid Orders */}
-                                {rawOrderStatus === 'new' && needsPayment && (
-                                  <Button
-                                    variant="success"
-                                    size="sm"
-                                    className="px-2 w-auto fw-semibold"
-                                    style={{ fontSize: '0.75rem' }}
-                                    onClick={() => handleAcceptAndPay(order.id)}
-                                    title="Принять и оплатить"
-                                  >
-                                    ✅ Принять
-                                  </Button>
-                                )}
+                              <div className="admin-order-actions-grid">
+                                <div className="admin-order-actions-slot admin-order-actions-slot-main">
+                                  {rawOrderStatus === 'new' && needsPayment ? (
+                                    <Button
+                                      variant="success"
+                                      size="sm"
+                                      className="admin-order-main-action-btn"
+                                      onClick={() => handleAcceptAndPay(order.id)}
+                                      title="Принять и оплатить"
+                                    >
+                                      ✅ Принять
+                                    </Button>
+                                  ) : (rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsPayment ? (
+                                    <Button
+                                      variant="warning"
+                                      size="sm"
+                                      className="admin-order-main-action-btn"
+                                      onClick={() => updateOrderStatus(order.id, 'preparing')}
+                                      title="Перевести в статус Готовится"
+                                    >
+                                      Готовится
+                                    </Button>
+                                  ) : orderStatus === 'preparing' ? (
+                                    <Button
+                                      variant="info"
+                                      size="sm"
+                                      className="admin-order-main-action-btn text-white"
+                                      onClick={() => updateOrderStatus(order.id, 'delivering')}
+                                      title="Перевести в статус Доставляется"
+                                    >
+                                      Доставляется
+                                    </Button>
+                                  ) : orderStatus === 'delivering' ? (
+                                    <Button
+                                      variant="success"
+                                      size="sm"
+                                      className="admin-order-main-action-btn"
+                                      onClick={() => updateOrderStatus(order.id, 'delivered')}
+                                      title="Перевести в статус Доставлен"
+                                    >
+                                      Доставлен
+                                    </Button>
+                                  ) : (
+                                    <span className="admin-order-action-placeholder admin-order-action-placeholder-main" aria-hidden="true"></span>
+                                  )}
+                                </div>
 
-                                {/* Quick status actions in table */}
-                                {(rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsPayment && (
+                                <div className="admin-order-actions-slot">
                                   <Button
-                                    variant="warning"
+                                    className="action-btn bg-primary bg-opacity-10 text-primary border-0"
                                     size="sm"
-                                    className="px-2 w-auto"
-                                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
-                                    onClick={() => updateOrderStatus(order.id, 'preparing')}
-                                    title="Перевести в статус Готовится"
+                                    onClick={() => openOrderModal(order)}
+                                    title={t('details')}
                                   >
-                                    Готовится
+                                    <ReceiptIcon />
                                   </Button>
-                                )}
-                                {orderStatus === 'preparing' && (
-                                  <Button
-                                    variant="info"
-                                    size="sm"
-                                    className="px-2 w-auto text-white"
-                                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
-                                    onClick={() => updateOrderStatus(order.id, 'delivering')}
-                                    title="Перевести в статус Доставляется"
-                                  >
-                                    Доставляется
-                                  </Button>
-                                )}
-                                {orderStatus === 'delivering' && (
-                                  <Button
-                                    variant="success"
-                                    size="sm"
-                                    className="px-2 w-auto"
-                                    style={{ fontSize: '0.75rem', fontWeight: 600 }}
-                                    onClick={() => updateOrderStatus(order.id, 'delivered')}
-                                    title="Перевести в статус Доставлен"
-                                  >
-                                    Доставлен
-                                  </Button>
-                                )}
+                                </div>
 
-                                <Button
-                                  className="action-btn bg-primary bg-opacity-10 text-primary border-0"
-                                  size="sm"
-                                  onClick={() => openOrderModal(order)}
-                                  title={t('details')}
-                                >
-                                  <ReceiptIcon />
-                                </Button>
-                                {orderStatus !== 'cancelled' && orderStatus !== 'delivered' && (
-                                  <Button
-                                    className="action-btn bg-danger bg-opacity-10 text-danger border-0"
-                                    size="sm"
-                                    onClick={() => openCancelModal(order.id)}
-                                    title={t('cancelOrder')}
-                                  >
-                                    <TrashIcon />
-                                  </Button>
-                                )}
+                                <div className="admin-order-actions-slot">
+                                  {canCancelOrder ? (
+                                    <Button
+                                      className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                      size="sm"
+                                      onClick={() => openCancelModal(order.id)}
+                                      title={t('cancelOrder')}
+                                    >
+                                      <TrashIcon />
+                                    </Button>
+                                  ) : (
+                                    <span className="admin-order-action-placeholder admin-order-action-placeholder-icon" aria-hidden="true"></span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                           </tr>

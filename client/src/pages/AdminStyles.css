@@ -1257,6 +1257,49 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+.admin-order-actions-grid {
+    display: grid;
+    grid-template-columns: 112px 32px 32px;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-order-actions-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+.admin-order-main-action-btn {
+    width: 112px;
+    min-width: 112px;
+    max-width: 112px;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
+    white-space: nowrap;
+}
+
+.admin-order-action-placeholder {
+    display: inline-block;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.admin-order-action-placeholder-main {
+    width: 112px;
+    height: 32px;
+    border-radius: 8px;
+}
+
+.admin-order-action-placeholder-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+}
+
 /* Safety mode disabled by request: keep action buttons visible even when wrapper has action-buttons-hidden */
 .action-buttons-hidden .action-btn {
     display: inline-flex !important;
