@@ -5073,59 +5073,6 @@ function AdminDashboard() {
                                           </Form.Text>
                                         </Form.Group>
 
-                                        <Form.Group className="mb-4">
-                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения логотипа</Form.Label>
-                                          <Form.Select
-                                            className="form-control-custom"
-                                            value={restaurantSettings.logo_display_mode || 'square'}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_display_mode: e.target.value })}
-                                          >
-                                            <option value="square">Квадратный</option>
-                                            <option value="horizontal">Горизонтальный</option>
-                                          </Form.Select>
-                                          <Form.Text className="text-muted d-block mt-2">
-                                            Выберите, как логотип будет отображаться у клиентов в шапке магазина.
-                                          </Form.Text>
-                                        </Form.Group>
-
-                                        <Form.Group className="mb-4">
-                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
-                                          <Form.Select
-                                            className="form-control-custom"
-                                            value={restaurantSettings.ui_theme || 'classic'}
-                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, ui_theme: e.target.value })}
-                                          >
-                                            <option value="classic">Текущий (Classic)</option>
-                                            <option value="modern">Новый (Modern)</option>
-                                          </Form.Select>
-                                          <Form.Text className="text-muted d-block mt-2">
-                                            Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
-                                          </Form.Text>
-                                        </Form.Group>
-
-                                        <Alert
-                                          variant={actionButtonsVisible ? 'warning' : 'secondary'}
-                                          className="border-0 shadow-sm rounded-4 mb-0 admin-store-safety-alert"
-                                          style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
-                                        >
-                                          <div className="d-flex flex-column gap-3">
-                                            <div>
-                                              <div className="fw-bold">Безопасный режим кнопок действий</div>
-                                              <div className="small text-muted">
-                                                Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение работает 10 минут.
-                                                {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
-                                              </div>
-                                            </div>
-                                            <Form.Check
-                                              type="switch"
-                                              id="admin-action-buttons-visibility-switch"
-                                              className="fw-semibold"
-                                              label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
-                                              checked={actionButtonsVisible}
-                                              onChange={(e) => setActionButtonsVisible(e.target.checked)}
-                                            />
-                                          </div>
-                                        </Alert>
                                       </div>
                                     </Col>
 
@@ -5186,6 +5133,55 @@ function AdminDashboard() {
                                                 onChange={e => setRestaurantSettings({ ...restaurantSettings, end_time: e.target.value })}
                                               />
                                             </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения логотипа</Form.Label>
+                                              <Form.Select
+                                                className="form-control-custom"
+                                                value={restaurantSettings.logo_display_mode || 'square'}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_display_mode: e.target.value })}
+                                              >
+                                                <option value="square">Квадратный</option>
+                                                <option value="horizontal">Горизонтальный</option>
+                                              </Form.Select>
+                                              <Form.Text className="text-muted d-block mt-2">
+                                                Выберите, как логотип будет отображаться у клиентов в шапке магазина.
+                                              </Form.Text>
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
+                                              <Form.Select
+                                                className="form-control-custom"
+                                                value={restaurantSettings.ui_theme || 'classic'}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, ui_theme: e.target.value })}
+                                              >
+                                                <option value="classic">Текущий (Classic)</option>
+                                                <option value="modern">Новый (Modern)</option>
+                                              </Form.Select>
+                                              <Form.Text className="text-muted d-block mt-2">
+                                                Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
+                                              </Form.Text>
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={12}>
+                                            <div className="admin-store-safety-panel">
+                                              <div className="fw-bold">Безопасный режим кнопок действий</div>
+                                              <div className="small text-muted mb-3">
+                                                Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение работает 10 минут.
+                                                {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
+                                              </div>
+                                              <Form.Check
+                                                type="switch"
+                                                id="admin-action-buttons-visibility-switch"
+                                                className="fw-semibold mb-0"
+                                                label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
+                                                checked={actionButtonsVisible}
+                                                onChange={(e) => setActionButtonsVisible(e.target.checked)}
+                                              />
+                                            </div>
                                           </Col>
                                         </Row>
                                       </div>

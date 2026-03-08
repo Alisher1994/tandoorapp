@@ -2241,6 +2241,21 @@ body::-webkit-scrollbar,
     color: #1f2937;
 }
 
+.admin-store-safety-panel {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px;
+    background: #f8fafc;
+    padding: 1rem;
+}
+
+.admin-store-safety-panel .form-check {
+    margin-bottom: 0;
+}
+
+.admin-store-safety-panel .form-check-label {
+    color: #1f2937;
+}
+
 @media (max-width: 991.98px) {
     .admin-store-profile-side,
     .admin-store-profile-fields {
