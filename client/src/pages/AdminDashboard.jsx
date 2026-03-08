@@ -191,6 +191,21 @@ const calculateOrderCostBreakdown = (order, items = [], productsById = null, opt
     total
   };
 };
+const calculateOrdersFinancialBreakdown = (orders = []) => (
+  (orders || []).reduce((totals, order) => {
+    const breakdown = calculateOrderCostBreakdown(order, Array.isArray(order?.items) ? order.items : [], null);
+    totals.items += breakdown.itemsSubtotal;
+    totals.delivery += breakdown.deliveryCost;
+    totals.service += breakdown.serviceFee;
+    totals.containers += breakdown.containersTotal;
+    return totals;
+  }, {
+    items: 0,
+    delivery: 0,
+    service: 0,
+    containers: 0
+  })
+);
 const normalizeOrderActionStatus = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (!normalized) return '';
@@ -719,6 +734,10 @@ function AdminDashboard() {
     averageCheck: 0,
     deliveryOrdersCount: 0,
     pickupOrdersCount: 0,
+    itemsRevenue: 0,
+    deliveryRevenue: 0,
+    serviceRevenue: 0,
+    containersRevenue: 0,
     topProducts: [],
     topCustomers: [],
     orderLocations: []
@@ -930,6 +949,7 @@ function AdminDashboard() {
     const averageCheck = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
     const pickupOrdersCount = filteredOrders.filter((order) => isPickupOrderForAnalytics(order)).length;
     const deliveryOrdersCount = Math.max(0, ordersCount - pickupOrdersCount);
+    const financialBreakdown = calculateOrdersFinancialBreakdown(filteredOrders);
 
     // Calculate top products
     const productStats = {};
@@ -1000,6 +1020,10 @@ function AdminDashboard() {
       averageCheck,
       deliveryOrdersCount,
       pickupOrdersCount,
+      itemsRevenue: financialBreakdown.items,
+      deliveryRevenue: financialBreakdown.delivery,
+      serviceRevenue: financialBreakdown.service,
+      containersRevenue: financialBreakdown.containers,
       topProducts,
       topCustomers,
       orderLocations
@@ -1018,6 +1042,13 @@ function AdminDashboard() {
       delivery: Math.max(0, total - pickup),
       total
     };
+  }, [allOrdersForAnalytics, dashboardYear]);
+  const yearlyFinancialStats = useMemo(() => {
+    const yearOrders = allOrdersForAnalytics.filter((order) => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear && order.status === 'delivered';
+    });
+    return calculateOrdersFinancialBreakdown(yearOrders);
   }, [allOrdersForAnalytics, dashboardYear]);
 
   const openAnalyticsLocationDetails = (location) => {
@@ -3756,6 +3787,14 @@ function AdminDashboard() {
                         <div>
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenue')}</h6>
                           <h3 className="mb-0 text-white">{formatPrice(analytics.revenue)} {t('sum')}</h3>
+                          <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)', lineHeight: 1.35 }}>
+                            <div>
+                              {language === 'uz' ? 'Tovarlar' : 'Товары'}: {formatPrice(analytics.itemsRevenue)} {t('sum')} / {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {formatPrice(analytics.deliveryRevenue)} {t('sum')}
+                            </div>
+                            <div>
+                              {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(analytics.serviceRevenue)} {t('sum')} / {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(analytics.containersRevenue)} {t('sum')}
+                            </div>
+                          </div>
                         </div>
                       </Card.Body>
                     </Card>
@@ -3768,8 +3807,8 @@ function AdminDashboard() {
                           <h3 className="mb-0 text-white">{analytics.ordersCount}</h3>
                           <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)' }}>
                             {language === 'uz'
-                              ? `Oydagi buyurtmalar: O'zingiz olib ketish: ${analytics.pickupOrdersCount} / Yetkazib berish: ${analytics.deliveryOrdersCount} / Jami: ${analytics.ordersCount}`
-                              : `Заказов за месяц: Самовывоз: ${analytics.pickupOrdersCount} / Доставка: ${analytics.deliveryOrdersCount} / Итого: ${analytics.ordersCount}`}
+                              ? `Oydagi buyurtmalar: O'zingiz olib ketish: ${analytics.pickupOrdersCount} / Yetkazib berish: ${analytics.deliveryOrdersCount}`
+                              : `Заказов за месяц: Самовывоз: ${analytics.pickupOrdersCount} / Доставка: ${analytics.deliveryOrdersCount}`}
                           </div>
                         </div>
                       </Card.Body>
@@ -3992,6 +4031,14 @@ function AdminDashboard() {
                             <div>
                               <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenueForYear')}</h6>
                               <h3 className="mb-0 text-white">{formatPrice(yearlyAnalytics.totalRevenue)} {t('sum')}</h3>
+                              <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)', lineHeight: 1.35 }}>
+                                <div>
+                                  {language === 'uz' ? 'Tovarlar' : 'Товары'}: {formatPrice(yearlyFinancialStats.items)} {t('sum')} / {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {formatPrice(yearlyFinancialStats.delivery)} {t('sum')}
+                                </div>
+                                <div>
+                                  {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(yearlyFinancialStats.service)} {t('sum')} / {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(yearlyFinancialStats.containers)} {t('sum')}
+                                </div>
+                              </div>
                             </div>
                           </Card.Body>
                         </Card>
@@ -4004,8 +4051,8 @@ function AdminDashboard() {
                               <h3 className="mb-0 text-white">{yearlyAnalytics.totalOrders}</h3>
                               <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)' }}>
                                 {language === 'uz'
-                                  ? `Yildagi buyurtmalar: O'zingiz olib ketish: ${yearlyFulfillmentStats.pickup} / Yetkazib berish: ${yearlyFulfillmentStats.delivery} / Jami: ${yearlyFulfillmentStats.total}`
-                                  : `Заказов в год: Самовывоз: ${yearlyFulfillmentStats.pickup} / Доставка: ${yearlyFulfillmentStats.delivery} / Итого: ${yearlyFulfillmentStats.total}`}
+                                  ? `Yildagi buyurtmalar: O'zingiz olib ketish: ${yearlyFulfillmentStats.pickup} / Yetkazib berish: ${yearlyFulfillmentStats.delivery}`
+                                  : `Заказов в год: Самовывоз: ${yearlyFulfillmentStats.pickup} / Доставка: ${yearlyFulfillmentStats.delivery}`}
                               </div>
                             </div>
                           </Card.Body>
