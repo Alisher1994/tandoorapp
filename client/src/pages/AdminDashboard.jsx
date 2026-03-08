@@ -615,6 +615,8 @@ function AdminDashboard() {
   const [editingItems, setEditingItems] = useState([]);
   const [isEditingItems, setIsEditingItems] = useState(false);
   const [savingItems, setSavingItems] = useState(false);
+  const [showAddOrderItemModal, setShowAddOrderItemModal] = useState(false);
+  const [orderItemSearch, setOrderItemSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('delivered');
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -2111,11 +2113,15 @@ function AdminDashboard() {
 
   const startEditingItems = () => {
     setEditingItems([...selectedOrder.items]);
+    setShowAddOrderItemModal(false);
+    setOrderItemSearch('');
     setIsEditingItems(true);
   };
 
   const cancelEditingItems = () => {
     setEditingItems([]);
+    setShowAddOrderItemModal(false);
+    setOrderItemSearch('');
     setIsEditingItems(false);
   };
 
@@ -2166,6 +2172,8 @@ function AdminDashboard() {
         items: nextItems,
         total_amount: toNumericValue(response.data?.total_amount, selectedOrder.total_amount)
       });
+      setShowAddOrderItemModal(false);
+      setOrderItemSearch('');
       setAlertMessage({ type: 'success', text: 'Товары обновлены' });
     } catch (error) {
       alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message));
@@ -3030,36 +3038,46 @@ function AdminDashboard() {
   };
 
   const formatDeliveryDateTime = (deliveryDate, deliveryTime) => {
-    if (!deliveryDate && !deliveryTime) return 'Как можно скорее';
-
-    if (deliveryDate && !deliveryTime && String(deliveryDate).includes('T')) {
-      const parsedDateTime = new Date(deliveryDate);
-      if (!Number.isNaN(parsedDateTime.getTime())) {
-        return parsedDateTime.toLocaleString('ru-RU');
-      }
-    }
+    const normalizedTime = String(deliveryTime || '').trim().toLowerCase();
+    const isAsap = !normalizedTime || normalizedTime === 'asap';
+    if (isAsap) return 'Как можно быстрее';
 
     const parts = [];
 
     if (deliveryDate) {
-      const parsedDate = new Date(deliveryDate);
-      if (!Number.isNaN(parsedDate.getTime())) {
-        parts.push(parsedDate.toLocaleDateString('ru-RU'));
+      const deliveryDateRaw = String(deliveryDate).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(deliveryDateRaw)) {
+        const [year, month, day] = deliveryDateRaw.split('-');
+        parts.push(`${day}.${month}.${year}`);
       } else {
-        parts.push(String(deliveryDate));
+        const parsedDate = new Date(deliveryDateRaw);
+        if (!Number.isNaN(parsedDate.getTime())) {
+          parts.push(parsedDate.toLocaleDateString('ru-RU'));
+        } else {
+          parts.push(deliveryDateRaw);
+        }
       }
     }
 
-    if (deliveryTime) {
+    if (normalizedTime) {
+      if (/^\d{1,2}:\d{2}/.test(normalizedTime)) {
+        parts.push(normalizedTime.slice(0, 5));
+      } else {
+        const parsedTime = new Date(deliveryTime);
+        if (!Number.isNaN(parsedTime.getTime())) {
+          parts.push(parsedTime.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
+        } else {
+          parts.push(String(deliveryTime));
+        }
+      }
+    } else {
       const parsedTime = new Date(deliveryTime);
       if (!Number.isNaN(parsedTime.getTime())) {
         parts.push(parsedTime.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
-      } else {
-        parts.push(String(deliveryTime));
       }
     }
 
-    return parts.join(', ');
+    return parts.join(', ') || 'Как можно быстрее';
   };
 
   const openOrderModal = (order) => {
@@ -3129,6 +3147,19 @@ function AdminDashboard() {
     }
     return map;
   }, [products]);
+  const filteredProductsForOrderEdit = useMemo(() => {
+    const query = String(orderItemSearch || '').trim().toLowerCase();
+    const source = Array.isArray(products) ? products : [];
+
+    return source
+      .filter((product) => {
+        if (!query) return true;
+        const nameRu = String(product?.name_ru || '').toLowerCase();
+        const nameUz = String(product?.name_uz || '').toLowerCase();
+        return nameRu.includes(query) || nameUz.includes(query);
+      })
+      .sort((left, right) => String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru'));
+  }, [products, orderItemSearch]);
   const paymentPlaceholders = useMemo(
     () => normalizePaymentPlaceholders(restaurantSettings?.payment_placeholders),
     [restaurantSettings?.payment_placeholders]
@@ -6183,7 +6214,11 @@ function AdminDashboard() {
         {/* Order Details Modal */}
         <Modal
           show={showOrderModal}
-          onHide={() => setShowOrderModal(false)}
+          onHide={() => {
+            setShowOrderModal(false);
+            setShowAddOrderItemModal(false);
+            setOrderItemSearch('');
+          }}
           size="xl"
           centered
           dialogClassName="order-details-modal-dialog"
@@ -6203,7 +6238,7 @@ function AdminDashboard() {
                   return (
                   <>
                 <Row className="g-3 order-details-modal-layout">
-                  <Col md={6}>
+                  <Col lg={4} md={12}>
                 <div className="order-details-side">
                 <div className="order-meta-card mb-3">
                   {hideSensitive && (
@@ -6464,7 +6499,7 @@ function AdminDashboard() {
                 )}
                 </div>
                   </Col>
-                  <Col md={3}>
+                  <Col lg={6} md={12}>
                   <div className="order-items-side">
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
                   <div className="mb-0 d-flex flex-column order-items-content">
@@ -6564,56 +6599,67 @@ function AdminDashboard() {
                       </>
                     ) : (
                       <>
-                        <Table className="mt-2" size="sm">
+                        <Table className="mt-2 order-edit-items-table" size="sm">
                           <thead>
                             <tr>
-                              <th>Товар</th>
-                              <th>Кол-во</th>
-                              <th>Цена</th>
-                              <th>Сумма</th>
-                              <th></th>
+                              <th className="order-edit-col-product">Товар</th>
+                              <th className="order-edit-col-qty">Кол-во</th>
+                              <th className="order-edit-col-price">Цена</th>
+                              <th className="order-edit-col-sum">Сумма</th>
+                              <th className="order-edit-col-remove"></th>
                             </tr>
                           </thead>
                           <tbody>
-                            {editingItems.map((item, idx) => (
+                            {editingItems.map((item, idx) => {
+                              const editImageUrl = item.image_url ? toAbsoluteFileUrl(item.image_url) : PRODUCT_PLACEHOLDER_IMAGE;
+                              return (
                               <tr key={idx}>
-                                <td>{item.product_name}</td>
-                                <td>
+                                <td className="order-edit-col-product">
+                                  <div className="order-edit-product-cell">
+                                    <img
+                                      src={editImageUrl}
+                                      alt={item.product_name}
+                                      className="order-edit-product-thumb"
+                                      onError={(e) => {
+                                        if (e.currentTarget.src !== PRODUCT_PLACEHOLDER_IMAGE) {
+                                          e.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
+                                        }
+                                      }}
+                                    />
+                                    <span>{item.product_name}</span>
+                                  </div>
+                                </td>
+                                <td className="order-edit-col-qty">
                                   <div className="d-flex align-items-center gap-1">
                                     <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, -1)}>-</Button>
                                     <span className="mx-1">{item.quantity}</span>
                                     <Button variant="outline-secondary" size="sm" onClick={() => updateItemQuantity(idx, 1)}>+</Button>
                                   </div>
                                 </td>
-                                <td>{formatPrice(item.price)}</td>
-                                <td>{formatPrice(item.quantity * item.price)}</td>
-                                <td>
+                                <td className="order-edit-col-price">{formatPrice(item.price)}</td>
+                                <td className="order-edit-col-sum">{formatPrice(item.quantity * item.price)}</td>
+                                <td className="order-edit-col-remove">
                                   <Button variant="outline-danger" size="sm" onClick={() => removeItem(idx)}>X</Button>
                                 </td>
                               </tr>
-                            ))}
+                            );
+                            })}
                           </tbody>
                         </Table>
 
-                        {/* Add product dropdown when editing */}
-                      <Form.Group className="mt-2">
-                        <Form.Label className="small">Добавить товар:</Form.Label>
-                        <Form.Select
+                      <div className="d-flex justify-content-between align-items-center mt-2 gap-2">
+                        <Button
+                          variant="outline-primary"
                           size="sm"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const product = products.find(p => p.id === parseInt(e.target.value, 10));
-                              if (product) addProductToOrder(product);
-                              e.target.value = '';
-                            }
+                          onClick={() => {
+                            setOrderItemSearch('');
+                            setShowAddOrderItemModal(true);
                           }}
                         >
-                          <option value="">Выберите товар...</option>
-                          {products.map(p => (
-                            <option key={p.id} value={p.id}>{p.name_ru} - {formatPrice(p.price)} сум</option>
-                          ))}
-                        </Form.Select>
-                      </Form.Group>
+                          + Добавить товар
+                        </Button>
+                        <span className="small text-muted">Позиций: {editingItems.length}</span>
+                      </div>
 
                       {(() => {
                         const breakdown = calculateOrderCostBreakdown(
@@ -6642,7 +6688,7 @@ function AdminDashboard() {
                 )}
                 </div>
               </Col>
-              <Col md={3}>
+              <Col lg={2} md={12}>
                 <div className="order-history-side">
                   <div className="order-status-history-card h-100 mb-0">
                     <strong className="d-block mb-2">История нажатий:</strong>
@@ -6675,8 +6721,76 @@ function AdminDashboard() {
             )}
           </Modal.Body>
           <Modal.Footer className="bg-light border-0">
-            <Button variant="secondary" onClick={() => setShowOrderModal(false)}>{t('close')}</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowOrderModal(false);
+                setShowAddOrderItemModal(false);
+                setOrderItemSearch('');
+              }}
+            >
+              {t('close')}
+            </Button>
           </Modal.Footer>
+        </Modal>
+
+        <Modal
+          show={showAddOrderItemModal}
+          onHide={() => setShowAddOrderItemModal(false)}
+          size="lg"
+          centered
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>Добавить товар в заказ</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Control
+              type="text"
+              placeholder="Поиск товара..."
+              value={orderItemSearch}
+              onChange={(e) => setOrderItemSearch(e.target.value)}
+            />
+
+            <div className="order-add-product-list mt-3">
+              {filteredProductsForOrderEdit.length > 0 ? (
+                filteredProductsForOrderEdit.map((product) => {
+                  const productImageUrl = product?.image_url ? toAbsoluteFileUrl(product.image_url) : PRODUCT_PLACEHOLDER_IMAGE;
+                  const isOutOfStock = product?.in_stock === false;
+                  return (
+                    <button
+                      key={`add-order-item-${product.id}`}
+                      type="button"
+                      className={`order-add-product-item ${isOutOfStock ? 'is-disabled' : ''}`}
+                      disabled={isOutOfStock}
+                      onClick={() => {
+                        addProductToOrder(product);
+                        setShowAddOrderItemModal(false);
+                        setOrderItemSearch('');
+                      }}
+                    >
+                      <img
+                        src={productImageUrl}
+                        alt={product.name_ru}
+                        className="order-add-product-thumb"
+                        onError={(e) => {
+                          if (e.currentTarget.src !== PRODUCT_PLACEHOLDER_IMAGE) {
+                            e.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
+                          }
+                        }}
+                      />
+                      <div className="order-add-product-content">
+                        <div className="order-add-product-name">{product.name_ru}</div>
+                        <div className="order-add-product-price">{formatPrice(product.price)} сум</div>
+                      </div>
+                      {isOutOfStock && <span className="order-add-product-stock">Нет в наличии</span>}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="text-muted small py-3">Ничего не найдено.</div>
+              )}
+            </div>
+          </Modal.Body>
         </Modal>
 
         {/* Balance Modal */}
