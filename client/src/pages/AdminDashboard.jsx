@@ -129,6 +129,11 @@ const toNumericValue = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const isPickupOrderForAnalytics = (order) => {
+  const fulfillmentType = String(order?.fulfillment_type || '').trim().toLowerCase();
+  if (fulfillmentType === 'pickup') return true;
+  return String(order?.delivery_address || '').trim().toLowerCase() === 'самовывоз';
+};
 const resolveContainerTotalsFromItems = (items = [], productsById = null) => {
   let total = 0;
 
@@ -712,6 +717,8 @@ function AdminDashboard() {
     revenue: 0,
     ordersCount: 0,
     averageCheck: 0,
+    deliveryOrdersCount: 0,
+    pickupOrdersCount: 0,
     topProducts: [],
     topCustomers: [],
     orderLocations: []
@@ -921,6 +928,8 @@ function AdminDashboard() {
     const revenue = filteredOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
     const ordersCount = filteredOrders.length;
     const averageCheck = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
+    const pickupOrdersCount = filteredOrders.filter((order) => isPickupOrderForAnalytics(order)).length;
+    const deliveryOrdersCount = Math.max(0, ordersCount - pickupOrdersCount);
 
     // Calculate top products
     const productStats = {};
@@ -985,7 +994,16 @@ function AdminDashboard() {
       })
       .filter(loc => !isNaN(loc.lat) && !isNaN(loc.lng));
 
-    setAnalytics({ revenue, ordersCount, averageCheck, topProducts, topCustomers, orderLocations });
+    setAnalytics({
+      revenue,
+      ordersCount,
+      averageCheck,
+      deliveryOrdersCount,
+      pickupOrdersCount,
+      topProducts,
+      topCustomers,
+      orderLocations
+    });
   }, [allOrdersForAnalytics, dashboardYear, dashboardMonth]);
 
   const openAnalyticsLocationDetails = (location) => {
@@ -3744,6 +3762,33 @@ function AdminDashboard() {
                         <div>
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('averageCheck')}</h6>
                           <h3 className="mb-0 text-white">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Row className="g-4 mb-4">
+                  <Col md={6}>
+                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)' }}>
+                      <Card.Body className="text-white">
+                        <div>
+                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                            {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                          </h6>
+                          <h3 className="mb-0 text-white">{analytics.deliveryOrdersCount}</h3>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col md={6}>
+                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
+                      <Card.Body className="text-white">
+                        <div>
+                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                            {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
+                          </h6>
+                          <h3 className="mb-0 text-white">{analytics.pickupOrdersCount}</h3>
                         </div>
                       </Card.Body>
                     </Card>
