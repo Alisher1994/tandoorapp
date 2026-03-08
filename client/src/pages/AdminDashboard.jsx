@@ -3787,12 +3787,22 @@ function AdminDashboard() {
                         <div>
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenue')}</h6>
                           <h3 className="mb-0 text-white">{formatPrice(analytics.revenue)} {t('sum')}</h3>
-                          <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)', lineHeight: 1.35 }}>
-                            <div>
-                              {language === 'uz' ? 'Tovarlar' : 'Товары'}: {formatPrice(analytics.itemsRevenue)} {t('sum')} / {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {formatPrice(analytics.deliveryRevenue)} {t('sum')}
+                          <div className="admin-analytics-breakdown mt-2">
+                            <div className="admin-analytics-breakdown-row">
+                              <span className="admin-analytics-chip admin-analytics-chip-items">
+                                {language === 'uz' ? 'Tovarlar' : 'Товары'}: {formatPrice(analytics.itemsRevenue)} {t('sum')}
+                              </span>
+                              <span className="admin-analytics-chip admin-analytics-chip-delivery">
+                                {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {formatPrice(analytics.deliveryRevenue)} {t('sum')}
+                              </span>
                             </div>
-                            <div>
-                              {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(analytics.serviceRevenue)} {t('sum')} / {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(analytics.containersRevenue)} {t('sum')}
+                            <div className="admin-analytics-breakdown-row">
+                              <span className="admin-analytics-chip admin-analytics-chip-service">
+                                {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(analytics.serviceRevenue)} {t('sum')}
+                              </span>
+                              <span className="admin-analytics-chip admin-analytics-chip-packaging">
+                                {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(analytics.containersRevenue)} {t('sum')}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -3805,10 +3815,15 @@ function AdminDashboard() {
                         <div>
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersCount')}</h6>
                           <h3 className="mb-0 text-white">{analytics.ordersCount}</h3>
-                          <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)' }}>
-                            {language === 'uz'
-                              ? `Oydagi buyurtmalar: O'zingiz olib ketish: ${analytics.pickupOrdersCount} / Yetkazib berish: ${analytics.deliveryOrdersCount}`
-                              : `Заказов за месяц: Самовывоз: ${analytics.pickupOrdersCount} / Доставка: ${analytics.deliveryOrdersCount}`}
+                          <div className="admin-analytics-breakdown mt-2">
+                            <div className="admin-analytics-breakdown-row">
+                              <span className="admin-analytics-chip admin-analytics-chip-pickup">
+                                {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}: {analytics.pickupOrdersCount}
+                              </span>
+                              <span className="admin-analytics-chip admin-analytics-chip-delivery-count">
+                                {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {analytics.deliveryOrdersCount}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </Card.Body>
@@ -4031,12 +4046,22 @@ function AdminDashboard() {
                             <div>
                               <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenueForYear')}</h6>
                               <h3 className="mb-0 text-white">{formatPrice(yearlyAnalytics.totalRevenue)} {t('sum')}</h3>
-                              <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)', lineHeight: 1.35 }}>
-                                <div>
-                                  {language === 'uz' ? 'Tovarlar' : 'Товары'}: {formatPrice(yearlyFinancialStats.items)} {t('sum')} / {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {formatPrice(yearlyFinancialStats.delivery)} {t('sum')}
+                              <div className="admin-analytics-breakdown mt-2">
+                                <div className="admin-analytics-breakdown-row">
+                                  <span className="admin-analytics-chip admin-analytics-chip-items">
+                                    {language === 'uz' ? 'Tovarlar' : 'Товары'}: {formatPrice(yearlyFinancialStats.items)} {t('sum')}
+                                  </span>
+                                  <span className="admin-analytics-chip admin-analytics-chip-delivery">
+                                    {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {formatPrice(yearlyFinancialStats.delivery)} {t('sum')}
+                                  </span>
                                 </div>
-                                <div>
-                                  {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(yearlyFinancialStats.service)} {t('sum')} / {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(yearlyFinancialStats.containers)} {t('sum')}
+                                <div className="admin-analytics-breakdown-row">
+                                  <span className="admin-analytics-chip admin-analytics-chip-service">
+                                    {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(yearlyFinancialStats.service)} {t('sum')}
+                                  </span>
+                                  <span className="admin-analytics-chip admin-analytics-chip-packaging">
+                                    {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(yearlyFinancialStats.containers)} {t('sum')}
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -4049,10 +4074,15 @@ function AdminDashboard() {
                             <div>
                               <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersForYear')}</h6>
                               <h3 className="mb-0 text-white">{yearlyAnalytics.totalOrders}</h3>
-                              <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)' }}>
-                                {language === 'uz'
-                                  ? `Yildagi buyurtmalar: O'zingiz olib ketish: ${yearlyFulfillmentStats.pickup} / Yetkazib berish: ${yearlyFulfillmentStats.delivery}`
-                                  : `Заказов в год: Самовывоз: ${yearlyFulfillmentStats.pickup} / Доставка: ${yearlyFulfillmentStats.delivery}`}
+                              <div className="admin-analytics-breakdown mt-2">
+                                <div className="admin-analytics-breakdown-row">
+                                  <span className="admin-analytics-chip admin-analytics-chip-pickup">
+                                    {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}: {yearlyFulfillmentStats.pickup}
+                                  </span>
+                                  <span className="admin-analytics-chip admin-analytics-chip-delivery-count">
+                                    {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}: {yearlyFulfillmentStats.delivery}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </Card.Body>
