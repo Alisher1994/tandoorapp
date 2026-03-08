@@ -117,6 +117,10 @@ function normalizePhone(rawPhone) {
   return trimmed.replace(/\D/g, '');
 }
 
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('ru-RU');
+}
+
 async function ensureActivityTypesSchema() {
   if (activityTypesSchemaReady) return;
   if (activityTypesSchemaPromise) {
@@ -2221,12 +2225,23 @@ async function initBot() {
       try {
         // Check if this order belongs to a restaurant with its own bot token
         // If so, skip processing here (multi-bot system will handle it)
-        const orderCheck = await pool.query(`
-          SELECT o.status, r.telegram_bot_token 
-          FROM orders o 
-          LEFT JOIN restaurants r ON o.restaurant_id = r.id 
-          WHERE o.id = $1
-        `, [orderId]);
+        let orderCheck;
+        try {
+          orderCheck = await pool.query(`
+            SELECT o.status, r.telegram_bot_token, r.telegram_group_id, r.send_balance_after_confirm
+            FROM orders o 
+            LEFT JOIN restaurants r ON o.restaurant_id = r.id 
+            WHERE o.id = $1
+          `, [orderId]);
+        } catch (error) {
+          if (error.code !== '42703') throw error;
+          orderCheck = await pool.query(`
+            SELECT o.status, r.telegram_bot_token, r.telegram_group_id, false AS send_balance_after_confirm
+            FROM orders o 
+            LEFT JOIN restaurants r ON o.restaurant_id = r.id 
+            WHERE o.id = $1
+          `, [orderId]);
+        }
         
         if (orderCheck.rows.length === 0) {
           bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Заказ не найден', show_alert: true });
@@ -2249,7 +2264,7 @@ async function initBot() {
         const billingResult = await ensureOrderPaidForProcessing({ orderId });
         if (!billingResult.ok) {
           const text = billingResult.code === 'INSUFFICIENT_BALANCE'
-            ? '❌ Недостаточно средств на балансе магазина'
+            ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} сум\nНужно: ${formatMoney(billingResult.requiredAmount)} сум`
             : (billingResult.error || '❌ Не удалось принять заказ');
           bot.answerCallbackQuery(callbackQuery.id, { text, show_alert: true });
           return;
@@ -2265,6 +2280,20 @@ async function initBot() {
             console.error('Low balance notify error (superadmin bot confirm):', e.message);
           }
         }
+        if (orderData.send_balance_after_confirm && orderData.telegram_group_id) {
+          try {
+            const { sendRestaurantGroupBalanceLeft } = require('./notifications');
+            await sendRestaurantGroupBalanceLeft({
+              restaurantId: billingResult.restaurantId,
+              botToken: orderData.telegram_bot_token,
+              groupId: orderData.telegram_group_id,
+              currentBalance: billingResult.remainingBalance,
+              language: 'ru'
+            });
+          } catch (e) {
+            console.error('Send group balance-left warning (legacy bot confirm):', e.message);
+          }
+        }
         
         // Update order status in database
         await pool.query(
@@ -2273,9 +2302,17 @@ async function initBot() {
         );
         
         // Add to status history
+        let actorUserId = null;
+        try {
+          const actorResult = await pool.query(
+            'SELECT id FROM users WHERE telegram_id = $1 ORDER BY id ASC LIMIT 1',
+            [String(callbackQuery?.from?.id || '')]
+          );
+          actorUserId = actorResult.rows[0]?.id || null;
+        } catch (_) { }
         await pool.query(
-          'INSERT INTO order_status_history (order_id, status, comment) VALUES ($1, $2, $3)',
-          [orderId, 'preparing', `Подтверждено: ${operatorName}`]
+          'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
+          [orderId, 'accepted', actorUserId, `Принято в Telegram-группе: ${operatorName}`]
         );
         
         // Get order details for notification with restaurant bot token
@@ -2297,19 +2334,26 @@ async function initBot() {
             await sendOrderUpdateToUser(order.telegram_id, order, 'preparing', order.telegram_bot_token);
           }
           
-          // Update message in group - remove buttons
-          const newText = callbackQuery.message.text.replace(
-            'Статус: 🆕 Новый',
-            `Статус: 👨‍🍳 Готовится\n✅ Подтвердил: ${operatorName}`
-          );
-          
-          await bot.editMessageText(newText, {
-            chat_id: chatId,
-            message_id: messageId,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true,
-            reply_markup: { inline_keyboard: [] } // Remove buttons
-          });
+          try {
+            const { updateOrderGroupNotification } = require('./notifications');
+            await updateOrderGroupNotification(
+              {
+                ...order,
+                admin_chat_id: chatId,
+                admin_message_id: messageId
+              },
+              [],
+              {
+                status: 'preparing',
+                operatorName,
+                chatId,
+                messageId,
+                botToken: order.telegram_bot_token
+              }
+            );
+          } catch (editError) {
+            console.error('Confirm order message update error:', editError);
+          }
         }
         
         bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Заказ подтвержден!' });
@@ -2344,6 +2388,7 @@ async function initBot() {
         step: 'waiting_reject_reason',
         orderId: orderId,
         operatorName: operatorName,
+        operatorTelegramId: callbackQuery?.from?.id || null,
         originalMessageId: messageId
       });
       
@@ -2373,7 +2418,7 @@ async function initBot() {
     // Find rejection state
     for (const [key, state] of registrationStates.entries()) {
       if (key.startsWith(`reject_${chatId}_`) && state.step === 'waiting_reject_reason') {
-        const { orderId, operatorName, originalMessageId } = state;
+        const { orderId, operatorName, operatorTelegramId, originalMessageId } = state;
         
         try {
           // Update order status
@@ -2383,9 +2428,17 @@ async function initBot() {
           );
           
           // Add to status history with reason
+          let actorUserId = null;
+          try {
+            const actorResult = await pool.query(
+              'SELECT id FROM users WHERE telegram_id = $1 ORDER BY id ASC LIMIT 1',
+              [String(operatorTelegramId || '')]
+            );
+            actorUserId = actorResult.rows[0]?.id || null;
+          } catch (_) { }
           await pool.query(
-            'INSERT INTO order_status_history (order_id, status, comment) VALUES ($1, $2, $3)',
-            [orderId, 'cancelled', `Отказано: ${text} (${operatorName})`]
+            'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
+            [orderId, 'cancelled', actorUserId, `Отказано: ${text} (${operatorName})`]
           );
           
           // Get order details with restaurant bot token
@@ -2420,21 +2473,23 @@ async function initBot() {
             }
 
             try {
-              const { buildGroupOrderNotificationPayload } = require('./notifications');
-              const updatedMessage = buildGroupOrderNotificationPayload(order, [], {
-                revealSensitive: false,
-                statusKey: 'cancelled',
-                operatorName,
-                cancelReason: text
-              });
-
-              await bot.editMessageText(updatedMessage, {
-                chat_id: chatId,
-                message_id: originalMessageId,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true,
-                reply_markup: { inline_keyboard: [] }
-              });
+              const { updateOrderGroupNotification } = require('./notifications');
+              await updateOrderGroupNotification(
+                {
+                  ...order,
+                  admin_chat_id: chatId,
+                  admin_message_id: originalMessageId
+                },
+                [],
+                {
+                  status: 'cancelled',
+                  operatorName,
+                  cancelReason: text,
+                  chatId,
+                  messageId: originalMessageId,
+                  botToken: order.telegram_bot_token
+                }
+              );
             } catch (editError) {
               console.error('Reject order message update error:', editError);
             }

@@ -5,10 +5,9 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const {
   sendOrderUpdateToUser,
-  buildGroupOrderNotificationPayload,
-  buildGroupOrderActionKeyboard,
-  buildOrderPreviewUrl,
-  notifyRestaurantAdminsLowBalance
+  notifyRestaurantAdminsLowBalance,
+  sendRestaurantGroupBalanceLeft,
+  updateOrderGroupNotification
 } = require('./notifications');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 
@@ -115,6 +114,10 @@ function normalizePhone(rawPhone) {
     return `+${trimmed.slice(1).replace(/\D/g, '')}`;
   }
   return trimmed.replace(/\D/g, '');
+}
+
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('ru-RU');
 }
 
 async function resolveUniqueCustomerUsername(preferredUsername, telegramUserId) {
@@ -350,6 +353,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   // Helper to get state key - includes chatId for group handling
   const getStateKey = (userId, chatId) => `${botToken}_${chatId || ''}_${userId}`;
+  const getGroupRejectStateKey = (chatId) => `${botToken}_${chatId || ''}__group_reject__`;
   const getLangStateKey = (userId, chatId) => `lang_${getStateKey(userId, chatId)}`;
   const getLangCacheKey = (userId) => `${botToken}_${userId}`;
 
@@ -453,6 +457,90 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     return isLinked ? user : null;
   };
 
+  const cancelOrderFromGroupReason = async ({
+    orderId,
+    reason,
+    operatorTelegramId,
+    operatorName,
+    groupChatId = null,
+    messageId = null
+  }) => {
+    let processedByUserId = null;
+    if (operatorTelegramId) {
+      try {
+        const operatorUser = await resolvePreferredTelegramUser(operatorTelegramId);
+        if (operatorUser && (operatorUser.role === 'operator' || operatorUser.role === 'superadmin')) {
+          processedByUserId = operatorUser.id;
+        }
+      } catch (_) { }
+    }
+
+    await pool.query(
+      `UPDATE orders
+       SET status = 'cancelled',
+           admin_comment = $1,
+           cancel_reason = $1,
+           processed_at = CURRENT_TIMESTAMP,
+           processed_by = $3,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [reason, orderId, processedByUserId]
+    );
+
+    const orderResult = await pool.query(
+      `SELECT o.*, u.telegram_id
+       FROM orders o
+       LEFT JOIN users u ON o.user_id = u.id
+       WHERE o.id = $1`,
+      [orderId]
+    );
+
+    const order = orderResult.rows[0] || null;
+    if (!order) return null;
+
+    if (order.telegram_id) {
+      try {
+        await bot.sendMessage(
+          order.telegram_id,
+          `❌ <b>Заказ #${order.order_number} отменен</b>\n\n` +
+          `Причина: ${reason}\n\n` +
+          `Приносим извинения за неудобства.`,
+          { parse_mode: 'HTML' }
+        );
+      } catch (e) {
+        console.error('Error notifying customer:', e);
+      }
+    }
+
+    const targetChatId = groupChatId || order.admin_chat_id || null;
+    const targetMessageId = messageId || order.admin_message_id || null;
+    if (targetChatId) {
+      try {
+        await updateOrderGroupNotification(
+          {
+            ...order,
+            admin_chat_id: targetChatId,
+            admin_message_id: targetMessageId || order.admin_message_id || null,
+            telegram_bot_token: order.telegram_bot_token || botToken
+          },
+          [],
+          {
+            status: 'cancelled',
+            operatorName,
+            cancelReason: reason,
+            chatId: targetChatId,
+            messageId: targetMessageId || null,
+            botToken: order.telegram_bot_token || botToken
+          }
+        );
+      } catch (e) {
+        console.error('Error updating group message:', e);
+      }
+    }
+
+    return order;
+  };
+
   const buildMainMenuButtons = (loginUrl, lang) => {
     const menuButtons = [];
     menuButtons.push([{ text: t(lang, 'myOrders'), callback_data: 'my_orders' }]);
@@ -490,6 +578,18 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       state._flowMessageIds = [];
     }
     return state;
+  };
+
+  const clearRejectionStates = (stateKey, state = null) => {
+    registrationStates.delete(stateKey);
+    const relatedChatId = state?.groupChatId || null;
+    if (relatedChatId !== null && relatedChatId !== undefined) {
+      registrationStates.delete(getGroupRejectStateKey(relatedChatId));
+    }
+    const userStateKey = state?._userStateKey || null;
+    if (userStateKey) {
+      registrationStates.delete(userStateKey);
+    }
   };
 
   const trackFlowMessageId = (stateKey, messageId) => {
@@ -1121,6 +1221,33 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
 
     if (!state) {
+      const replyText = String(msg.reply_to_message?.text || '');
+      const replyOrderMatch = replyText.match(/причин[а-я\s]*отмены заказа\s*#(\d+)/i);
+      const repliedToBot = Number(msg.reply_to_message?.from?.id || 0) === Number(bot?.id || 0);
+      if (repliedToBot && replyOrderMatch?.[1]) {
+        const orderId = Number(replyOrderMatch[1]);
+        const operatorName = msg.from?.first_name || 'Оператор';
+        console.log(`[group-cancel-fallback] ${restaurantName} order=${orderId} chat=${chatId} user=${userId}`);
+        try {
+          await cancelOrderFromGroupReason({
+            orderId,
+            reason: text,
+            operatorTelegramId: userId,
+            operatorName,
+            groupChatId: chatId
+          });
+          await bot.sendMessage(
+            chatId,
+            `❌ <b>Заказ #${orderId} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
+            { parse_mode: 'HTML' }
+          );
+        } catch (error) {
+          console.error('Reject order fallback error:', error);
+          await bot.sendMessage(chatId, '❌ Ошибка при отмене заказа');
+        }
+        return;
+      }
+
       const action = resolveTextMenuAction(text);
       if (!action) return;
 
@@ -1255,73 +1382,17 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     // Handle rejection reason
     if (state.step === 'waiting_rejection_reason') {
-      const { orderId, messageId, operatorName, groupChatId, originalMessage, operatorTelegramId } = state;
+      const { orderId, messageId, operatorName, groupChatId, operatorTelegramId } = state;
 
       try {
-        // Find operator user by telegram_id to save processed_by
-        let processedByUserId = null;
-        if (operatorTelegramId) {
-          try {
-            const operatorUser = await resolvePreferredTelegramUser(operatorTelegramId);
-            if (operatorUser && (operatorUser.role === 'operator' || operatorUser.role === 'superadmin')) {
-              processedByUserId = operatorUser.id;
-            }
-          } catch (e) { }
-        }
-
-        // Update order status with processed_by
-        await pool.query(
-          `UPDATE orders SET status = 'cancelled', admin_comment = $1, processed_at = CURRENT_TIMESTAMP, processed_by = $3 WHERE id = $2`,
-          [text, orderId, processedByUserId]
-        );
-
-        // Get order details for customer notification
-        const orderResult = await pool.query(
-          `SELECT o.*, u.telegram_id 
-           FROM orders o 
-           LEFT JOIN users u ON o.user_id = u.id 
-           WHERE o.id = $1`,
-          [orderId]
-        );
-
-        if (orderResult.rows.length > 0) {
-          const order = orderResult.rows[0];
-
-          // Notify customer
-          if (order.telegram_id) {
-            try {
-              bot.sendMessage(order.telegram_id,
-                `❌ <b>Заказ #${order.order_number} отменен</b>\n\n` +
-                `Причина: ${text}\n\n` +
-                `Приносим извинения за неудобства.`,
-                { parse_mode: 'HTML' }
-              );
-            } catch (e) {
-              console.error('Error notifying customer:', e);
-            }
-          }
-
-          // Update the original message in the group to show cancelled status
-          if (groupChatId && messageId && originalMessage) {
-            try {
-              const updatedMessage = buildGroupOrderNotificationPayload(order, [], {
-                revealSensitive: false,
-                statusKey: 'cancelled',
-                operatorName,
-                cancelReason: text
-              });
-              await bot.editMessageText(updatedMessage, {
-                chat_id: groupChatId,
-                message_id: messageId,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true,
-                reply_markup: { inline_keyboard: [] }
-              });
-            } catch (e) {
-              console.error('Error updating group message:', e);
-            }
-          }
-        }
+        await cancelOrderFromGroupReason({
+          orderId,
+          reason: text,
+          operatorTelegramId,
+          operatorName,
+          groupChatId,
+          messageId
+        });
 
         bot.sendMessage(chatId,
           `❌ <b>Заказ #${orderId} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
@@ -1897,26 +1968,46 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         });
       }
 
-      const getOperatorDbUserId = async () => {
+      const getOperatorContext = async () => {
+        const fallbackLang = getTelegramPreferredLanguage(query.from?.language_code);
         try {
           const operatorUser = await resolvePreferredTelegramUser(userId);
-          if (!operatorUser) return null;
-          if (operatorUser.role !== 'operator' && operatorUser.role !== 'superadmin') return null;
-          return operatorUser.id || null;
+          if (!operatorUser) return { id: null, language: fallbackLang };
+          const isPrivileged = operatorUser.role === 'operator' || operatorUser.role === 'superadmin';
+          return {
+            id: isPrivileged ? (operatorUser.id || null) : null,
+            language: resolveUserLanguage(operatorUser, fallbackLang)
+          };
         } catch {
-          return null;
+          return { id: null, language: fallbackLang };
         }
       };
 
       const getOrderWithItems = async (orderId) => {
-        const orderResult = await pool.query(`
-          SELECT o.*, u.telegram_id, r.telegram_bot_token, r.click_url, r.payme_url, r.uzum_url, r.xazna_url
-          FROM orders o
-          LEFT JOIN users u ON o.user_id = u.id
-          LEFT JOIN restaurants r ON o.restaurant_id = r.id
-          WHERE o.id = $1
-          LIMIT 1
-        `, [orderId]);
+        let orderResult;
+        try {
+          orderResult = await pool.query(`
+            SELECT o.*, u.telegram_id, r.telegram_bot_token, r.telegram_group_id, r.send_balance_after_confirm,
+                   r.click_url, r.payme_url, r.uzum_url, r.xazna_url
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN restaurants r ON o.restaurant_id = r.id
+            WHERE o.id = $1
+            LIMIT 1
+          `, [orderId]);
+        } catch (error) {
+          if (error.code !== '42703') throw error;
+          orderResult = await pool.query(`
+            SELECT o.*, u.telegram_id, r.telegram_bot_token, r.telegram_group_id,
+                   false AS send_balance_after_confirm,
+                   r.click_url, r.payme_url, r.uzum_url, r.xazna_url
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN restaurants r ON o.restaurant_id = r.id
+            WHERE o.id = $1
+            LIMIT 1
+          `, [orderId]);
+        }
 
         if (orderResult.rows.length === 0) return null;
 
@@ -1936,30 +2027,31 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         };
       };
 
-      const editGroupOrderMessage = async ({ order, items, statusKey, operatorName, keyboardStage, revealSensitive = true }) => {
-        const previewUrl = buildOrderPreviewUrl(order.id);
-        const text = buildGroupOrderNotificationPayload(order, items, {
-          revealSensitive,
-          statusKey,
-          operatorName,
-          includePreviewLink: false,
-          previewUrl
-        });
-
-        await bot.editMessageText(text, {
-          chat_id: chatId,
-          message_id: query.message.message_id,
-          parse_mode: 'HTML',
-          disable_web_page_preview: true,
-          reply_markup: buildGroupOrderActionKeyboard(order.id, keyboardStage, operatorName, { previewUrl })
-        });
+      const editGroupOrderMessage = async ({ order, items, statusKey, operatorName }) => {
+        await updateOrderGroupNotification(
+          {
+            ...order,
+            admin_chat_id: chatId,
+            admin_message_id: query.message.message_id,
+            telegram_bot_token: order.telegram_bot_token || botToken
+          },
+          items,
+          {
+            status: statusKey,
+            operatorName,
+            chatId,
+            messageId: query.message.message_id,
+            botToken: order.telegram_bot_token || botToken
+          }
+        );
       };
 
       // Handle order confirmation
       if (data.startsWith('confirm_order_')) {
         const orderId = Number(data.split('_')[2]);
         const operatorName = query.from.first_name || 'Оператор';
-        const processedByUserId = await getOperatorDbUserId();
+        const operatorContext = await getOperatorContext();
+        const processedByUserId = operatorContext.id;
 
         const current = await getOrderWithItems(orderId);
         if (!current) {
@@ -1978,7 +2070,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         });
         if (!billingResult.ok) {
           const text = billingResult.code === 'INSUFFICIENT_BALANCE'
-            ? '❌ Недостаточно средств на балансе магазина'
+            ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} сум\nНужно: ${formatMoney(billingResult.requiredAmount)} сум`
             : (billingResult.error || '❌ Не удалось принять заказ');
           await safeAnswerCallback({ text, show_alert: true });
           return;
@@ -1993,6 +2085,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             console.error('Low balance notify error (multi-bot confirm):', e.message);
           }
         }
+        if (current.order.send_balance_after_confirm && current.order.telegram_group_id) {
+          await sendRestaurantGroupBalanceLeft({
+            restaurantId: current.order.restaurant_id,
+            botToken: current.order.telegram_bot_token,
+            groupId: current.order.telegram_group_id,
+            currentBalance: billingResult.remainingBalance,
+            language: operatorContext.language
+          });
+        }
+
+        try {
+          await pool.query(
+            'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
+            [orderId, 'accepted', processedByUserId, `Принято в Telegram-группе: ${operatorName}`]
+          );
+        } catch (e) { }
 
         const refreshed = await getOrderWithItems(orderId);
 
@@ -2027,7 +2135,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const orderId = Number(parts[2]);
         const nextStatus = parts[3];
         const operatorName = query.from.first_name || 'Оператор';
-        const processedByUserId = await getOperatorDbUserId();
+        const operatorContext = await getOperatorContext();
+        const processedByUserId = operatorContext.id;
         const allowed = ['preparing', 'delivering', 'delivered'];
         if (!allowed.includes(nextStatus)) {
           await safeAnswerCallback({ text: '⚠️ Неизвестный шаг', show_alert: false });
@@ -2059,7 +2168,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           });
           if (!billingResult.ok) {
             const text = billingResult.code === 'INSUFFICIENT_BALANCE'
-              ? '❌ Недостаточно средств на балансе магазина'
+              ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} сум\nНужно: ${formatMoney(billingResult.requiredAmount)} сум`
               : (billingResult.error || '❌ Не удалось перевести заказ в обработку');
             await safeAnswerCallback({ text, show_alert: true });
             return;
@@ -2073,6 +2182,30 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             } catch (e) {
               console.error('Low balance notify error (multi-bot step):', e.message);
             }
+          }
+          if (current.order.send_balance_after_confirm && current.order.telegram_group_id) {
+            await sendRestaurantGroupBalanceLeft({
+              restaurantId: current.order.restaurant_id,
+              botToken: current.order.telegram_bot_token,
+              groupId: current.order.telegram_group_id,
+              currentBalance: billingResult.remainingBalance,
+              language: operatorContext.language
+            });
+          }
+
+          if (currentStatus === 'new') {
+            try {
+              const acceptedExistsResult = await pool.query(
+                'SELECT 1 FROM order_status_history WHERE order_id = $1 AND status = $2 LIMIT 1',
+                [orderId, 'accepted']
+              );
+              if (!acceptedExistsResult.rows.length) {
+                await pool.query(
+                  'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
+                  [orderId, 'accepted', processedByUserId, `Принято в Telegram-группе: ${operatorName}`]
+                );
+              }
+            } catch (e) { }
           }
         }
 
@@ -2163,7 +2296,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           originalMessage
         });
 
-        bot.sendMessage(chatId, `📝 Укажите причину отмены заказа #${orderId}:`);
+        bot.sendMessage(chatId, `📝 Ответьте на это сообщение и укажите причину отмены заказа #${orderId}:`, {
+          reply_markup: {
+            force_reply: true,
+            selective: true
+          }
+        });
         return;
       }
 

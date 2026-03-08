@@ -125,6 +125,140 @@ const normalizeYouTubeEmbedUrl = (value) => {
 
   return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
 };
+const toNumericValue = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const resolveContainerTotalsFromItems = (items = [], productsById = null) => {
+  let total = 0;
+
+  for (const item of items || []) {
+    const quantity = toNumericValue(item?.quantity, 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+
+    let containerPrice = toNumericValue(item?.container_price, NaN);
+    let containerNorm = toNumericValue(item?.container_norm, NaN);
+
+    const productId = Number.parseInt(item?.product_id, 10);
+    if ((!Number.isFinite(containerPrice) || !Number.isFinite(containerNorm)) && Number.isFinite(productId) && productsById?.has(productId)) {
+      const productMeta = productsById.get(productId);
+      containerPrice = Number.isFinite(containerPrice) ? containerPrice : toNumericValue(productMeta?.container_price, 0);
+      containerNorm = Number.isFinite(containerNorm) ? containerNorm : Math.max(1, toNumericValue(productMeta?.container_norm, 1));
+    }
+
+    if (!Number.isFinite(containerPrice) || containerPrice <= 0) continue;
+    const norm = Math.max(1, Number.isFinite(containerNorm) ? containerNorm : 1);
+    total += Math.ceil(quantity / norm) * containerPrice;
+  }
+
+  return total;
+};
+const calculateOrderCostBreakdown = (order, items = [], productsById = null, options = {}) => {
+  const useOrderTotal = options.useOrderTotal !== false;
+  const itemsSubtotal = (items || []).reduce((sum, item) => (
+    sum + (toNumericValue(item?.quantity, 0) * toNumericValue(item?.price, 0))
+  ), 0);
+
+  const serviceFee = Math.max(0, toNumericValue(order?.service_fee, 0));
+  const deliveryCost = Math.max(0, toNumericValue(order?.delivery_cost, 0));
+  const deliveryDistanceKm = Math.max(0, toNumericValue(order?.delivery_distance_km, 0));
+  let containersTotal = Math.max(0, resolveContainerTotalsFromItems(items, productsById));
+
+  const orderTotalRaw = toNumericValue(order?.total_amount, NaN);
+  if (useOrderTotal && Number.isFinite(orderTotalRaw)) {
+    const fallbackContainers = orderTotalRaw - itemsSubtotal - serviceFee - deliveryCost;
+    if (containersTotal <= 0 && fallbackContainers > 0) {
+      containersTotal = fallbackContainers;
+    }
+  }
+
+  const calculatedTotal = itemsSubtotal + containersTotal + serviceFee + deliveryCost;
+  const total = (useOrderTotal && Number.isFinite(orderTotalRaw))
+    ? orderTotalRaw
+    : calculatedTotal;
+
+  return {
+    itemsSubtotal,
+    containersTotal,
+    serviceFee,
+    deliveryCost,
+    deliveryDistanceKm,
+    total
+  };
+};
+const normalizeOrderActionStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  return normalized === 'in_progress' ? 'preparing' : normalized;
+};
+const ORDER_STATUS_ACTION_LABELS = {
+  accepted: '✅ Принят',
+  preparing: '👨‍🍳 Готовится',
+  delivering: '🚚 Доставляется',
+  delivered: '✅ Доставлен',
+  cancelled: '❌ Отменён'
+};
+const extractActorNameFromActionComment = (comment) => {
+  const text = String(comment || '').trim();
+  if (!text) return '';
+  const patterns = [
+    /из telegram-группы:\s*(.+)$/i,
+    /принято в telegram-группе:\s*(.+)$/i,
+    /подтверждено:\s*(.+)$/i,
+    /из админки:\s*(.+)$/i,
+    /принято в админке:\s*(.+)$/i,
+    /отказано:\s*.*\((.+)\)\s*$/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return '';
+};
+const normalizeStatusActions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = [];
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  return source
+    .map((rawAction, index) => {
+      const status = normalizeOrderActionStatus(rawAction?.status);
+      if (!ORDER_STATUS_ACTION_LABELS[status]) return null;
+      const createdAt = rawAction?.created_at || null;
+      const actorName =
+        String(rawAction?.actor_name || '').trim() ||
+        extractActorNameFromActionComment(rawAction?.comment) ||
+        'Неизвестно';
+      return {
+        id: rawAction?.id || null,
+        status,
+        actor_name: actorName,
+        comment: rawAction?.comment || '',
+        created_at: createdAt,
+        _sortIndex: index,
+        _sortTimestamp: createdAt ? new Date(createdAt).getTime() : 0
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => (
+      (left._sortTimestamp - right._sortTimestamp) ||
+      (left._sortIndex - right._sortIndex)
+    ))
+    .map(({ _sortIndex, _sortTimestamp, ...action }) => action);
+};
+const getOrderStatusActionLabel = (status) => ORDER_STATUS_ACTION_LABELS[normalizeOrderActionStatus(status)] || status || '—';
+const formatOrderStatusActionTime = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('ru-RU');
+};
 const getAnalyticsLocationKey = (location) => String(location?.orderId ?? location?.orderNumber ?? '');
 const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
   className: `analytics-map-point${isActive ? ' is-active' : ''}`,
@@ -433,7 +567,8 @@ function AdminDashboard() {
     status: order.status === 'in_progress' ? 'preparing' : order.status,
     cancelled_at_status: order.cancelled_at_status === 'in_progress'
       ? 'preparing'
-      : order.cancelled_at_status
+      : order.cancelled_at_status,
+    status_actions: normalizeStatusActions(order.status_actions)
   });
 
   const buildOrderStatusCounts = (ordersList = []) => {
@@ -1917,7 +2052,7 @@ function AdminDashboard() {
 
   const handleAcceptAndPay = async (orderId) => {
     try {
-      await axios.post(`${API_URL}/admin/orders/${orderId}/accept-and-pay`);
+      await axios.post(`${API_URL}/admin/orders/${orderId}/accept-and-pay`, { lang: language });
       setAlertMessage({ type: 'success', text: 'Заказ успешно принят и оплачен' });
       // Refresh user and orders
       fetchUser();
@@ -2020,12 +2155,17 @@ function AdminDashboard() {
   const saveEditedItems = async () => {
     setSavingItems(true);
     try {
-      await axios.put(`${API_URL}/admin/orders/${selectedOrder.id}/items`, { items: editingItems });
+      const response = await axios.put(`${API_URL}/admin/orders/${selectedOrder.id}/items`, { items: editingItems });
       setIsEditingItems(false);
       fetchData();
-      // Update selected order
-      const newTotal = editingItems.reduce((sum, i) => sum + i.total, 0);
-      setSelectedOrder({ ...selectedOrder, items: editingItems, total_amount: newTotal });
+      const nextOrder = response.data?.order || {};
+      const nextItems = Array.isArray(response.data?.items) ? response.data.items : editingItems;
+      setSelectedOrder({
+        ...selectedOrder,
+        ...nextOrder,
+        items: nextItems,
+        total_amount: toNumericValue(response.data?.total_amount, selectedOrder.total_amount)
+      });
       setAlertMessage({ type: 'success', text: 'Товары обновлены' });
     } catch (error) {
       alert('Ошибка сохранения: ' + (error.response?.data?.error || error.message));
@@ -2977,6 +3117,18 @@ function AdminDashboard() {
 
   const clickPaymentLink = normalizePaymentLink(billingInfo.requisites?.click_link);
   const paymePaymentLink = normalizePaymentLink(billingInfo.requisites?.payme_link);
+  const productsById = useMemo(() => {
+    const map = new Map();
+    for (const product of products || []) {
+      const productId = Number.parseInt(product?.id, 10);
+      if (!Number.isFinite(productId)) continue;
+      map.set(productId, {
+        container_price: toNumericValue(product?.container_price, 0),
+        container_norm: Math.max(1, toNumericValue(product?.container_norm, 1))
+      });
+    }
+    return map;
+  }, [products]);
   const paymentPlaceholders = useMemo(
     () => normalizePaymentPlaceholders(restaurantSettings?.payment_placeholders),
     [restaurantSettings?.payment_placeholders]
@@ -5183,6 +5335,46 @@ function AdminDashboard() {
                                               />
                                             </div>
                                           </Col>
+                                          <Col md={12}>
+                                            <div className="admin-store-automation-panel">
+                                              <div className="fw-bold mb-1">
+                                                {language === 'uz' ? "Telegram avtomatik xabarlari" : 'Автоматические уведомления в Telegram'}
+                                              </div>
+                                              <div className="small text-muted mb-3">
+                                                {language === 'uz'
+                                                  ? "Buyurtma tasdiqlangandan keyin balans qoldig'ini va do'kon yopilgandan keyin kunlik hisobotni guruhga yuborish."
+                                                  : 'Отправка остатка баланса после подтверждения заказа и детального отчёта после закрытия магазина.'}
+                                              </div>
+                                              <div className="d-flex flex-column gap-2">
+                                                <Form.Check
+                                                  type="switch"
+                                                  id="send-balance-after-confirm-switch"
+                                                  className="fw-semibold"
+                                                  label={language === 'uz'
+                                                    ? "Tasdiqlangandan keyin balans qoldig'ini yuborish"
+                                                    : 'Отправлять остаток баланса после подтверждения'}
+                                                  checked={Boolean(restaurantSettings.send_balance_after_confirm)}
+                                                  onChange={(e) => setRestaurantSettings({
+                                                    ...restaurantSettings,
+                                                    send_balance_after_confirm: e.target.checked
+                                                  })}
+                                                />
+                                                <Form.Check
+                                                  type="switch"
+                                                  id="send-daily-close-report-switch"
+                                                  className="fw-semibold"
+                                                  label={language === 'uz'
+                                                    ? "Do'kon yopilganda kunlik hisobotni yuborish"
+                                                    : 'Отправлять отчёт после закрытия магазина'}
+                                                  checked={Boolean(restaurantSettings.send_daily_close_report)}
+                                                  onChange={(e) => setRestaurantSettings({
+                                                    ...restaurantSettings,
+                                                    send_daily_close_report: e.target.checked
+                                                  })}
+                                                />
+                                              </div>
+                                            </div>
+                                          </Col>
                                         </Row>
                                       </div>
                                     </Col>
@@ -5766,14 +5958,15 @@ function AdminDashboard() {
               </Tab>
 
               <Tab eventKey="help" title={language === 'uz' ? "Yo'riqnomalar" : 'Инструкции'}>
-                <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
-                  <Card.Body className="p-4">
-                    <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                      <h5 className="fw-bold mb-0">
+                <Card className="admin-help-shell border-0 rounded-4 overflow-hidden">
+                  <Card.Body className="p-4 admin-help-body">
+                    <div className="admin-help-header d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                      <h5 className="fw-bold mb-0 admin-mobile-section-title">
                         {language === 'uz' ? "Video yo'riqnomalar" : 'Видео-инструкции'}
                       </h5>
                       <Button
                         variant="outline-secondary"
+                        className="admin-help-refresh-btn"
                         onClick={fetchHelpInstructions}
                         disabled={loadingHelpInstructions}
                       >
@@ -5790,9 +5983,13 @@ function AdminDashboard() {
                         {language === 'uz' ? "Yo'riqnomalar hali qo'shilmagan" : 'Инструкции пока не добавлены'}
                       </div>
                     ) : (
-                      <Row className="g-4">
-                        <Col xl={4} style={{ minWidth: 0 }}>
-                          <div className="d-grid gap-2 admin-custom-scrollbar" style={{ maxHeight: 560, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+                      <Row className="g-3 admin-help-layout">
+                        <Col xl={4} className="admin-help-col-list">
+                          <div className="admin-help-list-panel">
+                            <div className="admin-help-list-title">
+                              {language === 'uz' ? "Yo'riqnomalar ro'yxati" : 'Список инструкций'}
+                            </div>
+                            <div className="d-grid gap-2 admin-custom-scrollbar admin-help-list-scroll">
                             {helpInstructions.map((item) => {
                               const isActive = Number(selectedHelpInstruction?.id) === Number(item.id);
                               const title = language === 'uz'
@@ -5802,56 +5999,27 @@ function AdminDashboard() {
                                 <button
                                   key={`admin-help-${item.id}`}
                                   type="button"
-                                  className="btn text-start"
-                                  style={{
-                                    border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
-                                    background: isActive ? '#eff6ff' : '#ffffff',
-                                    borderRadius: 12,
-                                    padding: '10px 12px',
-                                    width: '100%',
-                                    maxWidth: '100%',
-                                    overflow: 'hidden',
-                                    whiteSpace: 'normal'
-                                  }}
+                                  className={`btn text-start admin-help-list-item ${isActive ? 'is-active' : ''}`}
                                   onClick={() => setSelectedHelpInstruction(item)}
                                 >
-                                  <div
-                                    className="fw-semibold"
-                                    style={{
-                                      display: 'block',
-                                      maxWidth: '100%',
-                                      overflow: 'hidden',
-                                      whiteSpace: 'normal',
-                                      overflowWrap: 'anywhere',
-                                      wordBreak: 'break-word',
-                                      lineHeight: 1.25
-                                    }}
-                                  >
+                                  <div className="fw-semibold admin-help-item-title">
                                     {title}
                                   </div>
-                                  <div
-                                    className="small text-muted"
-                                    style={{
-                                      display: 'block',
-                                      maxWidth: '100%',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                  >
+                                  <div className="small text-muted admin-help-item-url">
                                     {item.youtube_url || '—'}
                                   </div>
                                 </button>
                               );
                             })}
+                            </div>
                           </div>
                         </Col>
-                        <Col xl={8}>
+                        <Col xl={8} className="admin-help-col-preview">
                           {selectedHelpInstruction && selectedHelpInstruction.youtube_url ? (
-                            <Card className="border-0 shadow-sm h-100">
-                              <Card.Body className="p-3">
-                                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                                  <div className="fw-semibold">
+                            <Card className="admin-help-preview-card border-0 h-100">
+                              <Card.Body className="p-3 p-lg-4">
+                                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 admin-help-preview-head">
+                                  <div className="fw-semibold admin-help-preview-title">
                                     {language === 'uz'
                                       ? (selectedHelpInstruction.title_uz || selectedHelpInstruction.title_ru || '—')
                                       : (selectedHelpInstruction.title_ru || selectedHelpInstruction.title_uz || '—')}
@@ -5860,13 +6028,13 @@ function AdminDashboard() {
                                     href={selectedHelpInstruction.youtube_url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="btn btn-outline-primary btn-sm"
+                                    className="btn btn-outline-primary btn-sm admin-help-open-btn"
                                   >
                                     {language === 'uz' ? 'Yangi oynada ochish' : 'Открыть в новой вкладке'}
                                   </a>
                                 </div>
                                 {normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url) ? (
-                                  <div className="ratio ratio-16x9 rounded-3 overflow-hidden border">
+                                  <div className="ratio ratio-16x9 rounded-3 overflow-hidden admin-help-video-frame">
                                     <iframe
                                       title={`help-video-${selectedHelpInstruction.id}`}
                                       src={normalizeYouTubeEmbedUrl(selectedHelpInstruction.youtube_url)}
@@ -5885,10 +6053,13 @@ function AdminDashboard() {
                               </Card.Body>
                             </Card>
                           ) : (
-                            <div className="text-muted small py-4">
-                              {language === 'uz'
-                                ? "Ko'rish uchun video yo'riqnomani tanlang"
-                                : 'Выберите инструкцию для просмотра'}
+                            <div className="admin-help-empty-state">
+                              <div className="admin-help-empty-icon" aria-hidden="true">▶</div>
+                              <div className="admin-help-empty-text">
+                                {language === 'uz'
+                                  ? "Ko'rish uchun video yo'riqnomani tanlang"
+                                  : 'Выберите инструкцию для просмотра'}
+                              </div>
                             </div>
                           )}
                         </Col>
@@ -6285,6 +6456,28 @@ function AdminDashboard() {
                   })()}
                 </div>
 
+                <div className="order-status-history-card mb-2">
+                  <strong className="d-block mb-2">История нажатий:</strong>
+                  {Array.isArray(selectedOrder.status_actions) && selectedOrder.status_actions.length > 0 ? (
+                    <div className="order-status-history-list">
+                      {selectedOrder.status_actions.map((action, index) => (
+                        <div
+                          key={`${action.id || 'action'}-${index}`}
+                          className="order-status-history-item"
+                        >
+                          <div className="order-status-history-main">
+                            <span className="order-status-history-status">{getOrderStatusActionLabel(action.status)}</span>
+                            <span className="order-status-history-actor">{action.actor_name || 'Неизвестно'}</span>
+                          </div>
+                          <div className="order-status-history-time">{formatOrderStatusActionTime(action.created_at)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="order-status-history-empty">Действий по статусам пока нет.</div>
+                  )}
+                </div>
+
                 {/* Admin comment (rejection reason) */}
                 {selectedOrder.admin_comment && (
                   <div className="mb-2 p-2 bg-light rounded">
@@ -6354,10 +6547,34 @@ function AdminDashboard() {
                             );
                           })}
                         </div>
-                        <div className="order-items-total">
-                          <span>Итого</span>
-                          <strong>{formatPrice(selectedOrder.total_amount)} сум</strong>
-                        </div>
+                        {(() => {
+                          const breakdown = calculateOrderCostBreakdown(
+                            selectedOrder,
+                            selectedOrder.items || [],
+                            productsById
+                          );
+                          return (
+                            <div className="order-items-total">
+                              <div className="d-flex justify-content-between small text-muted"><span>Товары</span><span>{formatPrice(breakdown.itemsSubtotal)} сум</span></div>
+                              {breakdown.containersTotal > 0 && (
+                                <div className="d-flex justify-content-between small text-muted"><span>Пакет / Посуда</span><span>{formatPrice(breakdown.containersTotal)} сум</span></div>
+                              )}
+                              {breakdown.serviceFee > 0 && (
+                                <div className="d-flex justify-content-between small text-muted"><span>Сервис</span><span>{formatPrice(breakdown.serviceFee)} сум</span></div>
+                              )}
+                              {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
+                                <div className="d-flex justify-content-between small text-muted">
+                                  <span>Доставка{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}</span>
+                                  <span>{formatPrice(breakdown.deliveryCost)} сум</span>
+                                </div>
+                              )}
+                              <div className="d-flex justify-content-between fw-bold mt-1">
+                                <span>Итого</span>
+                                <strong>{formatPrice(breakdown.total)} сум</strong>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </>
                     ) : (
                       <>
@@ -6412,9 +6629,27 @@ function AdminDashboard() {
                         </Form.Select>
                       </Form.Group>
 
-                      <div className="mt-2 text-end">
-                        <strong>Новая сумма: {formatPrice(editingItems.reduce((sum, i) => sum + (i.quantity * i.price), 0))} сум</strong>
-                      </div>
+                      {(() => {
+                        const breakdown = calculateOrderCostBreakdown(
+                          { ...selectedOrder, total_amount: null },
+                          editingItems,
+                          productsById,
+                          { useOrderTotal: false }
+                        );
+                        return (
+                          <div className="mt-2 text-end">
+                            <div className="small text-muted">Товары: {formatPrice(breakdown.itemsSubtotal)} сум</div>
+                            {breakdown.containersTotal > 0 && <div className="small text-muted">Пакет / Посуда: {formatPrice(breakdown.containersTotal)} сум</div>}
+                            {breakdown.serviceFee > 0 && <div className="small text-muted">Сервис: {formatPrice(breakdown.serviceFee)} сум</div>}
+                            {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
+                              <div className="small text-muted">
+                                Доставка: {formatPrice(breakdown.deliveryCost)} сум{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}
+                              </div>
+                            )}
+                            <strong>Новая сумма: {formatPrice(breakdown.total)} сум</strong>
+                          </div>
+                        );
+                      })()}
                       </>
                     )}
                   </div>

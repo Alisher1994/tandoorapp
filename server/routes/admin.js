@@ -1,7 +1,12 @@
 const express = require('express');
 const pool = require('../database/connection');
 const { authenticate, requireOperator, requireRestaurantAccess } = require('../middleware/auth');
-const { sendOrderUpdateToUser, getRestaurantBot, updateOrderGroupNotification } = require('../bot/notifications');
+const {
+  sendOrderUpdateToUser,
+  getRestaurantBot,
+  updateOrderGroupNotification,
+  sendRestaurantGroupBalanceLeft
+} = require('../bot/notifications');
 const {
   logActivity,
   getIpFromRequest,
@@ -121,6 +126,14 @@ const normalizePaymentPlaceholders = (value) => {
     };
   }
   return normalized;
+};
+const normalizeOptionalBoolean = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return null;
 };
 
 const normalizePhoneValue = (value) => {
@@ -486,6 +499,7 @@ router.get('/orders', async (req, res) => {
                json_agg(
                  json_build_object(
                    'id', oi.id,
+                   'product_id', oi.product_id,
                     'product_name', oi.product_name,
                     'quantity', oi.quantity,
                     'unit', oi.unit,
@@ -495,7 +509,25 @@ router.get('/orders', async (req, res) => {
                   )
                 ) FILTER (WHERE oi.id IS NOT NULL),
                 '[]'
-              ) as items
+              ) as items,
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'id', osh.id,
+                     'status', osh.status,
+                     'comment', osh.comment,
+                     'created_at', osh.created_at,
+                     'actor_name', COALESCE(hu.full_name, hu.username, '')
+                   )
+                   ORDER BY osh.created_at ASC, osh.id ASC
+                 )
+                 FROM order_status_history osh
+                 LEFT JOIN users hu ON hu.id = osh.changed_by
+                 WHERE osh.order_id = o.id
+               ),
+               '[]'::json
+             ) AS status_actions
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN users pb ON o.processed_by = pb.id
@@ -623,6 +655,7 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
   try {
     const orderId = req.params.id;
     const restaurantId = req.user.active_restaurant_id;
+    const preferredLang = String(req.body?.lang || '').trim().toLowerCase() === 'uz' ? 'uz' : 'ru';
 
     await client.query('BEGIN');
 
@@ -693,19 +726,49 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
       RETURNING *
     `, [cost, req.user.id, orderId]);
 
+    const actorName = req.user.full_name || req.user.username || `user_${req.user.id}`;
+    await client.query(
+      `INSERT INTO order_status_history (order_id, status, changed_by, comment)
+       VALUES ($1, $2, $3, $4), ($1, $5, $3, $6)`,
+      [
+        orderId,
+        'accepted',
+        req.user.id,
+        `Принято в админке: ${actorName}`,
+        'preparing',
+        `Из админки: ${actorName}`
+      ]
+    );
+
     await client.query('COMMIT');
 
     // Notify customer and sync group inline buttons/message
     try {
-      const fullOrderResult = await pool.query(
-        `SELECT o.*, r.telegram_bot_token, pb.full_name AS processed_by_name
-         FROM orders o
-         JOIN restaurants r ON o.restaurant_id = r.id
-         LEFT JOIN users pb ON pb.id = o.processed_by
-         WHERE o.id = $1
-         LIMIT 1`,
-        [orderId]
-      );
+      let fullOrderResult;
+      try {
+        fullOrderResult = await pool.query(
+          `SELECT o.*, r.telegram_bot_token, r.telegram_group_id, r.send_balance_after_confirm,
+                  pb.full_name AS processed_by_name
+           FROM orders o
+           JOIN restaurants r ON o.restaurant_id = r.id
+           LEFT JOIN users pb ON pb.id = o.processed_by
+           WHERE o.id = $1
+           LIMIT 1`,
+          [orderId]
+        );
+      } catch (queryError) {
+        if (queryError.code !== '42703') throw queryError;
+        fullOrderResult = await pool.query(
+          `SELECT o.*, r.telegram_bot_token, r.telegram_group_id, false AS send_balance_after_confirm,
+                  pb.full_name AS processed_by_name
+           FROM orders o
+           JOIN restaurants r ON o.restaurant_id = r.id
+           LEFT JOIN users pb ON pb.id = o.processed_by
+           WHERE o.id = $1
+           LIMIT 1`,
+          [orderId]
+        );
+      }
 
       if (fullOrderResult.rows.length > 0) {
         const fullOrder = fullOrderResult.rows[0];
@@ -734,6 +797,16 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
           status: 'preparing',
           operatorName: fullOrder.processed_by_name || req.user.full_name || req.user.username || ''
         });
+
+        if (fullOrder.send_balance_after_confirm && fullOrder.telegram_group_id) {
+          await sendRestaurantGroupBalanceLeft({
+            restaurantId: fullOrder.restaurant_id,
+            botToken: fullOrder.telegram_bot_token,
+            groupId: fullOrder.telegram_group_id,
+            currentBalance: remainingBalance,
+            language: preferredLang
+          });
+        }
       }
     } catch (err) {
       console.error('Notify customer on accept error:', err);
@@ -799,7 +872,8 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode, ui_theme, payment_placeholders
+      logo_display_mode, ui_theme, payment_placeholders,
+      send_balance_after_confirm, send_daily_close_report
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -816,6 +890,8 @@ router.put('/restaurant', async (req, res) => {
       previousRestaurant.ui_theme || 'classic'
     );
     const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
+    const normalizedSendBalanceAfterConfirm = normalizeOptionalBoolean(send_balance_after_confirm);
+    const normalizedSendDailyCloseReport = normalizeOptionalBoolean(send_daily_close_report);
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -881,8 +957,10 @@ router.put('/restaurant', async (req, res) => {
            msg_cancelled = $34,
            ui_theme = $35,
            payment_placeholders = COALESCE($36::jsonb, payment_placeholders),
+           send_balance_after_confirm = COALESCE($37, send_balance_after_confirm),
+           send_daily_close_report = COALESCE($38, send_daily_close_report),
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $37
+      WHERE id = $39
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -901,6 +979,8 @@ router.put('/restaurant', async (req, res) => {
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       normalizedUiTheme,
       normalizedPaymentPlaceholders ? JSON.stringify(normalizedPaymentPlaceholders) : null,
+      normalizedSendBalanceAfterConfirm,
+      normalizedSendDailyCloseReport,
       restaurantId
     ]);
 
@@ -1290,7 +1370,21 @@ router.patch('/orders/:id/status', async (req, res) => {
     const order = orderResult.rows[0];
 
     // Add status history with cancel reason
-    const historyComment = cancel_reason || comment || null;
+    const actorName = req.user.full_name || req.user.username || `user_${req.user.id}`;
+    if (oldOrderStatus === 'new' && normalizedStatus === 'preparing') {
+      const acceptedExistsResult = await client.query(
+        'SELECT 1 FROM order_status_history WHERE order_id = $1 AND status = $2 LIMIT 1',
+        [order.id, 'accepted']
+      );
+      if (!acceptedExistsResult.rows.length) {
+        await client.query(
+          'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
+          [order.id, 'accepted', req.user.id, `Принято в админке: ${actorName}`]
+        );
+      }
+    }
+
+    const historyComment = cancel_reason || comment || `Из админки: ${actorName}`;
     await client.query(
       'INSERT INTO order_status_history (order_id, status, changed_by, comment) VALUES ($1, $2, $3, $4)',
       [order.id, normalizedStatus, req.user.id, historyComment]
@@ -1396,12 +1490,31 @@ router.put('/orders/:id/items', async (req, res) => {
       return res.status(400).json({ error: 'Список товаров обязателен' });
     }
 
+    const orderId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID заказа' });
+    }
+
+    const toNumber = (value, fallback = 0) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
     await client.query('BEGIN');
+
+    const hasContainerColsResult = await client.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'order_items'
+         AND column_name IN ('container_price', 'container_norm')`
+    );
+    const hasOrderItemContainerColumns = Number(hasContainerColsResult.rows[0]?.cnt || 0) === 2;
 
     // Get order and check access
     const orderCheck = await client.query(
       'SELECT * FROM orders WHERE id = $1',
-      [req.params.id]
+      [orderId]
     );
 
     if (orderCheck.rows.length === 0) {
@@ -1417,29 +1530,190 @@ router.put('/orders/:id/items', async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа к этому заказу' });
     }
 
-    // Delete old items
-    await client.query('DELETE FROM order_items WHERE order_id = $1', [req.params.id]);
-
-    // Insert new items
-    let newTotal = 0;
-    for (const item of items) {
-      const itemTotal = parseFloat(item.price) * parseFloat(item.quantity);
-      newTotal += itemTotal;
-
-      await client.query(
-        `INSERT INTO order_items(order_id, product_id, product_name, quantity, unit, price, total)
-VALUES($1, $2, $3, $4, $5, $6, $7)`,
-        [req.params.id, item.product_id || null, item.product_name, item.quantity, item.unit || 'шт', item.price, itemTotal]
+    const productIds = [...new Set(
+      items
+        .map((item) => Number.parseInt(item?.product_id, 10))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    )];
+    const productContainerMap = new Map();
+    if (productIds.length > 0) {
+      const productContainerResult = await client.query(
+        `SELECT
+           p.id AS product_id,
+           COALESCE(cnt.price, 0) AS container_price,
+           COALESCE(NULLIF(p.container_norm, 0), 1) AS container_norm
+         FROM products p
+         LEFT JOIN containers cnt ON cnt.id = p.container_id
+         WHERE p.id = ANY($1::int[])`,
+        [productIds]
       );
+
+      for (const row of productContainerResult.rows) {
+        productContainerMap.set(Number(row.product_id), {
+          container_price: toNumber(row.container_price, 0),
+          container_norm: Math.max(1, toNumber(row.container_norm, 1))
+        });
+      }
     }
+
+    // Delete old items
+    await client.query('DELETE FROM order_items WHERE order_id = $1', [orderId]);
+
+    // Insert new items and recalculate totals exactly like Telegram message
+    let itemsSubtotal = 0;
+    let containersTotal = 0;
+    const normalizedItems = [];
+
+    for (const rawItem of items) {
+      const quantity = toNumber(rawItem?.quantity, 0);
+      const price = toNumber(rawItem?.price, 0);
+      const productName = String(rawItem?.product_name || '').trim();
+      const productId = Number.parseInt(rawItem?.product_id, 10);
+      const resolvedProductId = Number.isFinite(productId) && productId > 0 ? productId : null;
+
+      if (!productName) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Название товара обязательно' });
+      }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Некорректное количество для "${productName}"` });
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Некорректная цена для "${productName}"` });
+      }
+
+      const itemTotal = quantity * price;
+      itemsSubtotal += itemTotal;
+
+      let containerPrice = toNumber(rawItem?.container_price, 0);
+      let containerNorm = Math.max(1, toNumber(rawItem?.container_norm, 1));
+
+      if ((!rawItem?.container_price && !rawItem?.container_norm) && resolvedProductId && productContainerMap.has(resolvedProductId)) {
+        const fromProduct = productContainerMap.get(resolvedProductId);
+        containerPrice = fromProduct.container_price;
+        containerNorm = fromProduct.container_norm;
+      }
+
+      const containerUnits = Math.ceil(quantity / Math.max(containerNorm, 1));
+      const lineContainerTotal = containerPrice > 0 ? (containerUnits * containerPrice) : 0;
+      containersTotal += lineContainerTotal;
+
+      if (hasOrderItemContainerColumns) {
+        await client.query(
+          `INSERT INTO order_items(order_id, product_id, product_name, quantity, unit, price, total, container_price, container_norm)
+           VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [orderId, resolvedProductId, productName, quantity, rawItem?.unit || 'шт', price, itemTotal, containerPrice, containerNorm]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO order_items(order_id, product_id, product_name, quantity, unit, price, total)
+           VALUES($1, $2, $3, $4, $5, $6, $7)`,
+          [orderId, resolvedProductId, productName, quantity, rawItem?.unit || 'шт', price, itemTotal]
+        );
+      }
+
+      normalizedItems.push({
+        product_id: resolvedProductId,
+        product_name: productName,
+        quantity,
+        unit: rawItem?.unit || 'шт',
+        price,
+        total: itemTotal,
+        container_price: containerPrice,
+        container_norm: containerNorm
+      });
+    }
+
+    const serviceFee = toNumber(order.service_fee, 0);
+    const deliveryCost = toNumber(order.delivery_cost, 0);
+    const newTotal = Math.max(0, itemsSubtotal + containersTotal + serviceFee + deliveryCost);
 
     // Update order total
     await client.query(
       'UPDATE orders SET total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [newTotal, req.params.id]
+      [newTotal, orderId]
     );
 
     await client.query('COMMIT');
+
+    // Sync customer/group notifications with updated order composition
+    try {
+      const orderNotifyResult = await pool.query(
+        `SELECT
+           o.*,
+           u.telegram_id,
+           pb.full_name AS processed_by_name,
+           r.telegram_bot_token,
+           r.click_url,
+           r.payme_url,
+           r.uzum_url,
+           r.xazna_url
+         FROM orders o
+         LEFT JOIN users u ON u.id = o.user_id
+         LEFT JOIN users pb ON pb.id = o.processed_by
+         LEFT JOIN restaurants r ON r.id = o.restaurant_id
+         WHERE o.id = $1
+         LIMIT 1`,
+        [orderId]
+      );
+
+      const orderNotifyRow = orderNotifyResult.rows[0];
+      if (orderNotifyRow) {
+        let itemsForNotifyResult;
+        if (hasOrderItemContainerColumns) {
+          itemsForNotifyResult = await pool.query(
+            `SELECT oi.*, COALESCE(p.image_url, '') AS image_url
+             FROM order_items oi
+             LEFT JOIN products p ON p.id = oi.product_id
+             WHERE oi.order_id = $1
+             ORDER BY oi.id`,
+            [orderId]
+          );
+        } else {
+          itemsForNotifyResult = await pool.query(
+            `SELECT oi.*, 0::numeric AS container_price, 1::numeric AS container_norm, COALESCE(p.image_url, '') AS image_url
+             FROM order_items oi
+             LEFT JOIN products p ON p.id = oi.product_id
+             WHERE oi.order_id = $1
+             ORDER BY oi.id`,
+            [orderId]
+          );
+        }
+
+        const normalizedStatus = normalizeOrderStatus(orderNotifyRow.status);
+
+        if (orderNotifyRow.telegram_id) {
+          await sendOrderUpdateToUser(
+            orderNotifyRow.telegram_id,
+            orderNotifyRow,
+            normalizedStatus,
+            orderNotifyRow.telegram_bot_token,
+            {
+              click_url: orderNotifyRow.click_url,
+              payme_url: orderNotifyRow.payme_url,
+              uzum_url: orderNotifyRow.uzum_url,
+              xazna_url: orderNotifyRow.xazna_url
+            }
+          );
+        }
+
+        await updateOrderGroupNotification(
+          {
+            ...orderNotifyRow,
+            status: normalizedStatus
+          },
+          itemsForNotifyResult.rows,
+          {
+            status: normalizedStatus,
+            operatorName: orderNotifyRow.processed_by_name || req.user.full_name || req.user.username || ''
+          }
+        );
+      }
+    } catch (syncError) {
+      console.error('Order items sync notify warning:', syncError);
+    }
 
     // Log activity
     await logActivity({
@@ -1449,14 +1723,36 @@ VALUES($1, $2, $3, $4, $5, $6, $7)`,
       entityType: ENTITY_TYPES.ORDER,
       entityId: order.id,
       entityName: `Заказ #${order.order_number} `,
-      newValues: { items_count: items.length, total: newTotal },
+      newValues: {
+        items_count: items.length,
+        items_subtotal: itemsSubtotal,
+        containers_total: containersTotal,
+        service_fee: serviceFee,
+        delivery_cost: deliveryCost,
+        total: newTotal
+      },
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
 
     res.json({
       message: 'Товары обновлены',
-      total_amount: newTotal
+      total_amount: newTotal,
+      breakdown: {
+        items_subtotal: itemsSubtotal,
+        containers_total: containersTotal,
+        service_fee: serviceFee,
+        delivery_cost: deliveryCost
+      },
+      order: {
+        id: order.id,
+        status: order.status,
+        total_amount: newTotal,
+        service_fee: serviceFee,
+        delivery_cost: deliveryCost,
+        delivery_distance_km: toNumber(order.delivery_distance_km, 0)
+      },
+      items: normalizedItems
     });
   } catch (error) {
     await client.query('ROLLBACK');

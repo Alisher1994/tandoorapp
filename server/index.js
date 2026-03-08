@@ -17,6 +17,7 @@ const paymeRoutes = require('./routes/payme');
 const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 const { initBroadcastWorker } = require('./services/broadcastWorker');
+const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorker');
 
 const app = express();
 // Railway автоматически устанавливает PORT, используем его
@@ -207,6 +208,9 @@ async function startServer() {
 
     // Initialize scheduled broadcast worker
     initBroadcastWorker();
+
+    // Initialize store close report worker
+    initStoreCloseReportWorker();
   });
 }
 

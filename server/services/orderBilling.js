@@ -51,8 +51,25 @@ async function ensureOrderPaidForProcessing({
     const balance = Number(order.balance || 0);
 
     if (!order.is_free_tier && balance < cost) {
+      console.warn('[billing] insufficient balance', {
+        orderId: Number(order.id || orderId),
+        orderNumber: order.order_number,
+        restaurantId: Number(order.restaurant_id || 0) || null,
+        balance,
+        requiredAmount: cost
+      });
       await client.query('ROLLBACK');
-      return { ok: false, code: 'INSUFFICIENT_BALANCE', error: 'Недостаточно средств на балансе' };
+      return {
+        ok: false,
+        code: 'INSUFFICIENT_BALANCE',
+        error: 'Недостаточно средств на балансе',
+        restaurantId: Number(order.restaurant_id || 0) || null,
+        balanceBefore: balance,
+        remainingBalance: balance,
+        requiredAmount: cost,
+        lowBalanceThreshold: LOW_BALANCE_ALERT_THRESHOLD,
+        lowBalanceCrossed: false
+      };
     }
 
     if (cost > 0) {

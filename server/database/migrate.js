@@ -59,6 +59,9 @@ async function migrate() {
       `payme_account_key VARCHAR(64) DEFAULT 'order_id'`,
       'payme_test_mode BOOLEAN DEFAULT false',
       `payme_callback_timeout_ms INTEGER DEFAULT 2000`,
+      'send_balance_after_confirm BOOLEAN DEFAULT false',
+      'send_daily_close_report BOOLEAN DEFAULT false',
+      'close_report_last_sent_at TIMESTAMP',
       `payment_placeholders JSONB DEFAULT '{}'::jsonb`,
       'uzum_url TEXT',
       'xazna_url TEXT',
@@ -100,6 +103,16 @@ async function migrate() {
       UPDATE restaurants
       SET payment_placeholders = '{}'::jsonb
       WHERE payment_placeholders IS NULL
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET send_balance_after_confirm = false
+      WHERE send_balance_after_confirm IS NULL
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET send_daily_close_report = false
+      WHERE send_daily_close_report IS NULL
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

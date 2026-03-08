@@ -174,6 +174,123 @@ function buildMilleniumTaxiUrl(lat, lng) {
   return buildTaxiUrlFromTemplate(template, lat, lng);
 }
 
+function normalizeNoticeLanguage(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'uz' ? 'uz' : 'ru';
+}
+
+function buildGroupBalanceLeftMessage(currentBalance, language = 'ru') {
+  const lang = normalizeNoticeLanguage(language);
+  const amount = formatPrice(currentBalance || 0);
+  if (lang === 'uz') {
+    return `💰 Balansingizda <b>${amount} so'm</b> qoldi.`;
+  }
+  return `💰 На вашем балансе осталось <b>${amount} сум</b>.`;
+}
+
+function normalizeActionStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'in_progress') return 'preparing';
+  return normalized;
+}
+
+function extractActorFromComment(comment) {
+  const text = String(comment || '').trim();
+  if (!text) return '';
+  const patterns = [
+    /из telegram-группы:\s*(.+)$/i,
+    /принято в telegram-группе:\s*(.+)$/i,
+    /подтверждено:\s*(.+)$/i,
+    /из админки:\s*(.+)$/i,
+    /принято в админке:\s*(.+)$/i,
+    /отменено в telegram-группе:\s*(.+)$/i,
+    /отказано:\s*.*\((.+)\)\s*$/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return '';
+}
+
+function formatActionTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function buildStatusActionsLines(actions = []) {
+  if (!Array.isArray(actions) || actions.length === 0) return '';
+
+  const labelByStatus = {
+    accepted: '✅ Принят',
+    preparing: '👨‍🍳 Готовится',
+    delivering: '🚚 Доставляется',
+    delivered: '✅ Доставлен',
+    cancelled: '❌ Отменен'
+  };
+  const preparedActions = actions
+    .map((rawAction, index) => {
+      const status = normalizeActionStatus(rawAction?.status);
+      if (!labelByStatus[status]) return null;
+      const actor =
+        String(rawAction?.actor_name || '').trim() ||
+        extractActorFromComment(rawAction?.comment) ||
+        'Неизвестно';
+      return {
+        index,
+        status,
+        actor,
+        created_at: rawAction?.created_at || null
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return a.index - b.index;
+    });
+
+  const lines = preparedActions.map((action) => {
+    const actionTime = formatActionTimestamp(action.created_at);
+    return `${labelByStatus[action.status]}: ${escapeHtml(action.actor)}${actionTime ? ` (${actionTime})` : ''}`;
+  });
+
+  if (!lines.length) return '';
+  return `<b>История действий</b>\n${lines.join('\n')}`;
+}
+
+async function fetchOrderStatusActions(orderId) {
+  const normalizedOrderId = Number(orderId);
+  if (!Number.isFinite(normalizedOrderId) || normalizedOrderId <= 0) return [];
+
+  try {
+    const result = await pool.query(
+      `SELECT
+         osh.status,
+         osh.created_at,
+         osh.comment,
+         COALESCE(u.full_name, u.username, '') AS actor_name
+       FROM order_status_history osh
+       LEFT JOIN users u ON u.id = osh.changed_by
+       WHERE osh.order_id = $1
+       ORDER BY osh.created_at ASC, osh.id ASC`,
+      [normalizedOrderId]
+    );
+    return result.rows || [];
+  } catch (error) {
+    console.error('Fetch order status actions warning:', error.message);
+    return [];
+  }
+}
+
 function buildDeliveryLinksLine(rawCoordinates) {
   const parsed = parseDeliveryCoordinates(rawCoordinates);
   if (!parsed) return '';
@@ -273,8 +390,10 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     operatorName = '',
     includePreviewLink = false,
     previewUrl = null,
-    cancelReason = ''
+    cancelReason = '',
+    statusActions = []
   } = options;
+  const statusActionsBlock = buildStatusActionsLines(statusActions);
 
   if (statusKey === 'cancelled') {
     const safeCancelReason = truncateText(cancelReason || order.cancel_reason || order.admin_comment || '', TELEGRAM_COMMENT_LIMIT);
@@ -282,7 +401,8 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
       `<b>ID: ${order.order_number}</b>\n` +
       `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
       `🚫 Данные заказа скрыты, так как заказ отменен.` +
-      (safeCancelReason ? `\n\nПричина: ${escapeHtml(safeCancelReason)}` : '')
+      (safeCancelReason ? `\n\nПричина: ${escapeHtml(safeCancelReason)}` : '') +
+      (statusActionsBlock ? `\n\n${statusActionsBlock}` : '')
     );
   }
 
@@ -363,7 +483,8 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     deliveryLine +
     `<b>Итого: ${formatPrice(orderTotal)} сум</b>` +
     `\n\n` +
-    (safeComment ? `💬 Комментарий: ${escapeHtml(safeComment)}` : '💬 Комментарий: —');
+    (safeComment ? `💬 Комментарий: ${escapeHtml(safeComment)}` : '💬 Комментарий: —') +
+    (statusActionsBlock ? `\n\n${statusActionsBlock}` : '');
 
   return message;
 }
@@ -448,13 +569,17 @@ async function updateOrderGroupNotification(order, items = [], options = {}) {
   const replyMarkup = statusMeta.clearKeyboard
     ? { inline_keyboard: [] }
     : buildGroupOrderActionKeyboard(order.id, statusMeta.keyboardStage, operatorName, { previewUrl });
+  const statusActions = Array.isArray(options.statusActions)
+    ? options.statusActions
+    : await fetchOrderStatusActions(order.id);
   const message = buildGroupOrderNotificationPayload(order, items, {
     revealSensitive: statusMeta.revealSensitive,
     statusKey: statusMeta.statusKey,
     operatorName,
     includePreviewLink: false,
     previewUrl,
-    cancelReason: options.cancelReason
+    cancelReason: options.cancelReason,
+    statusActions
   });
 
   const messageId = options.messageId || order.admin_message_id;
@@ -807,6 +932,29 @@ async function sendBalanceNotification(telegramId, amount, currentBalance, botTo
   }
 }
 
+async function sendRestaurantGroupBalanceLeft({
+  restaurantId = null,
+  botToken = null,
+  groupId = null,
+  currentBalance = 0,
+  language = 'ru'
+}) {
+  const normalizedGroupId = groupId === undefined || groupId === null ? '' : String(groupId).trim();
+  if (!normalizedGroupId) return false;
+
+  const bot = getRestaurantBot(botToken, restaurantId);
+  if (!bot) return false;
+
+  try {
+    const message = buildGroupBalanceLeftMessage(currentBalance, language);
+    await bot.sendMessage(normalizedGroupId, message, { parse_mode: 'HTML' });
+    return true;
+  } catch (error) {
+    console.error('Send group balance-left notification error:', error.message);
+    return false;
+  }
+}
+
 async function notifyRestaurantAdminsLowBalance(restaurantId, currentBalance, options = {}) {
   const normalizedRestaurantId = Number(restaurantId);
   if (!Number.isFinite(normalizedRestaurantId) || normalizedRestaurantId <= 0) return;
@@ -855,6 +1003,7 @@ module.exports = {
   sendOrderUpdateToUser,
   updateOrderNotificationForCustomerCancel,
   sendBalanceNotification,
+  sendRestaurantGroupBalanceLeft,
   notifyRestaurantAdminsLowBalance,
   getRestaurantBot,
   buildGroupOrderNotificationPayload,
