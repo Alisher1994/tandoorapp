@@ -1006,6 +1006,20 @@ function AdminDashboard() {
     });
   }, [allOrdersForAnalytics, dashboardYear, dashboardMonth]);
 
+  const yearlyFulfillmentStats = useMemo(() => {
+    const yearOrders = allOrdersForAnalytics.filter((order) => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear && order.status === 'delivered';
+    });
+    const pickup = yearOrders.filter((order) => isPickupOrderForAnalytics(order)).length;
+    const total = yearOrders.length;
+    return {
+      pickup,
+      delivery: Math.max(0, total - pickup),
+      total
+    };
+  }, [allOrdersForAnalytics, dashboardYear]);
+
   const openAnalyticsLocationDetails = (location) => {
     if (!location) return;
     setSelectedAnalyticsLocation(location);
@@ -3752,6 +3766,11 @@ function AdminDashboard() {
                         <div>
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersCount')}</h6>
                           <h3 className="mb-0 text-white">{analytics.ordersCount}</h3>
+                          <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                            {language === 'uz'
+                              ? `Oydagi buyurtmalar: O'zingiz olib ketish: ${analytics.pickupOrdersCount} / Yetkazib berish: ${analytics.deliveryOrdersCount} / Jami: ${analytics.ordersCount}`
+                              : `Заказов за месяц: Самовывоз: ${analytics.pickupOrdersCount} / Доставка: ${analytics.deliveryOrdersCount} / Итого: ${analytics.ordersCount}`}
+                          </div>
                         </div>
                       </Card.Body>
                     </Card>
@@ -3762,33 +3781,6 @@ function AdminDashboard() {
                         <div>
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('averageCheck')}</h6>
                           <h3 className="mb-0 text-white">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
-
-                <Row className="g-4 mb-4">
-                  <Col md={6}>
-                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)' }}>
-                      <Card.Body className="text-white">
-                        <div>
-                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                            {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                          </h6>
-                          <h3 className="mb-0 text-white">{analytics.deliveryOrdersCount}</h3>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={6}>
-                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
-                      <Card.Body className="text-white">
-                        <div>
-                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                            {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
-                          </h6>
-                          <h3 className="mb-0 text-white">{analytics.pickupOrdersCount}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -4010,6 +4002,11 @@ function AdminDashboard() {
                             <div>
                               <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersForYear')}</h6>
                               <h3 className="mb-0 text-white">{yearlyAnalytics.totalOrders}</h3>
+                              <div className="mt-2 small" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                                {language === 'uz'
+                                  ? `Yildagi buyurtmalar: O'zingiz olib ketish: ${yearlyFulfillmentStats.pickup} / Yetkazib berish: ${yearlyFulfillmentStats.delivery} / Jami: ${yearlyFulfillmentStats.total}`
+                                  : `Заказов в год: Самовывоз: ${yearlyFulfillmentStats.pickup} / Доставка: ${yearlyFulfillmentStats.delivery} / Итого: ${yearlyFulfillmentStats.total}`}
+                              </div>
                             </div>
                           </Card.Body>
                         </Card>
