@@ -17,6 +17,11 @@ import HeartIcon from '../components/HeartIcon';
 import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
+const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
+};
 
 const CartLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   <svg
@@ -79,6 +84,7 @@ function Catalog() {
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [galleryProductName, setGalleryProductName] = useState('');
+  const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
   const { user, isOperator, logout } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
@@ -329,10 +335,11 @@ function Catalog() {
     isDataFetchInProgressRef.current = true;
     setLoading(true);
     try {
-      const [categoriesRes, productsRes, adsRes] = await Promise.all([
+      const [categoriesRes, productsRes, adsRes, animationSeasonRes] = await Promise.all([
         axios.get(`${API_URL}/products/categories?restaurant_id=${selectedRestaurant}`),
         axios.get(`${API_URL}/products?restaurant_id=${selectedRestaurant}`),
-        axios.get(`${API_URL}/products/ads-banners?restaurant_id=${selectedRestaurant}`)
+        axios.get(`${API_URL}/products/ads-banners?restaurant_id=${selectedRestaurant}`),
+        axios.get(`${API_URL}/products/catalog-animation-season`).catch(() => ({ data: { season: 'off' } }))
       ]);
 
       const nextCategories = (categoriesRes.data || []).sort((a, b) => {
@@ -353,6 +360,7 @@ function Catalog() {
       setCategories(nextCategories);
       setProducts(nextProducts);
       setAdBanners(nextAdBanners);
+      setCatalogAnimationSeason(normalizeCatalogAnimationSeason(animationSeasonRes?.data?.season, 'off'));
       setActiveAdIndex(0);
       viewedAdsRef.current = new Set();
     } catch (error) {
@@ -361,6 +369,7 @@ function Catalog() {
       setCategories([]);
       setProducts([]);
       setAdBanners([]);
+      setCatalogAnimationSeason('off');
     } finally {
       if (fetchId === catalogFetchIdRef.current) {
         isDataFetchInProgressRef.current = false;
@@ -500,6 +509,269 @@ function Catalog() {
     () => (adBanners || []).filter((banner) => String(banner?.ad_type || 'banner').toLowerCase() === 'entry_popup'),
     [adBanners]
   );
+  const normalizedAnimationSeason = useMemo(
+    () => normalizeCatalogAnimationSeason(catalogAnimationSeason, 'off'),
+    [catalogAnimationSeason]
+  );
+
+  const springPetals = useMemo(() => (
+    Array.from({ length: 26 }, (_, idx) => ({
+      id: idx + 1,
+      left: `${Math.random() * 100}%`,
+      delay: `${(Math.random() * 9).toFixed(2)}s`,
+      duration: `${(7 + Math.random() * 8).toFixed(2)}s`,
+      drift: `${(-40 + Math.random() * 80).toFixed(1)}px`,
+      size: `${(10 + Math.random() * 12).toFixed(1)}px`,
+      opacity: `${(0.42 + Math.random() * 0.42).toFixed(2)}`,
+      rotate: `${Math.round(Math.random() * 180)}deg`
+    }))
+  ), [normalizedAnimationSeason]);
+
+  const autumnLeaves = useMemo(() => (
+    Array.from({ length: 24 }, (_, idx) => ({
+      id: idx + 1,
+      left: `${Math.random() * 100}%`,
+      delay: `${(Math.random() * 7).toFixed(2)}s`,
+      duration: `${(8 + Math.random() * 9).toFixed(2)}s`,
+      drift: `${(-70 + Math.random() * 140).toFixed(1)}px`,
+      size: `${(11 + Math.random() * 14).toFixed(1)}px`,
+      hue: `${(18 + Math.random() * 26).toFixed(1)}`,
+      rotate: `${Math.round(Math.random() * 360)}deg`
+    }))
+  ), [normalizedAnimationSeason]);
+
+  const summerMotes = useMemo(() => (
+    Array.from({ length: 18 }, (_, idx) => ({
+      id: idx + 1,
+      left: `${Math.random() * 100}%`,
+      top: `${5 + Math.random() * 80}%`,
+      delay: `${(Math.random() * 6).toFixed(2)}s`,
+      duration: `${(4 + Math.random() * 6).toFixed(2)}s`,
+      size: `${(6 + Math.random() * 18).toFixed(1)}px`,
+      drift: `${(10 + Math.random() * 40).toFixed(1)}px`,
+      opacity: `${(0.08 + Math.random() * 0.18).toFixed(2)}`
+    }))
+  ), [normalizedAnimationSeason]);
+
+  const winterSnowflakes = useMemo(() => (
+    Array.from({ length: 44 }, (_, idx) => ({
+      id: idx + 1,
+      left: `${Math.random() * 100}%`,
+      delay: `${(Math.random() * 10).toFixed(2)}s`,
+      duration: `${(7 + Math.random() * 11).toFixed(2)}s`,
+      size: `${(4 + Math.random() * 8).toFixed(1)}px`,
+      drift: `${(-55 + Math.random() * 110).toFixed(1)}px`,
+      opacity: `${(0.45 + Math.random() * 0.45).toFixed(2)}`,
+      rotate: `${Math.round(Math.random() * 120)}deg`
+    }))
+  ), [normalizedAnimationSeason]);
+
+  const renderCatalogSeasonOverlay = () => {
+    if (isOperator()) return null;
+    if (!selectedRestaurant || normalizedAnimationSeason === 'off') return null;
+
+    const topOffset = Math.max(52, Number(catalogHeaderHeight) || 52);
+
+    return (
+      <>
+        <style>{`
+          .catalog-season-overlay {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 1008;
+            overflow: hidden;
+          }
+          .catalog-season-overlay * {
+            pointer-events: none !important;
+            user-select: none;
+          }
+          .catalog-season-spring-petal,
+          .catalog-season-autumn-leaf,
+          .catalog-season-winter-snowflake {
+            position: absolute;
+            top: -8vh;
+            will-change: transform, opacity;
+          }
+          @keyframes catalogSeasonFloatDown {
+            0% {
+              transform: translate3d(0, -8vh, 0) rotate(0deg);
+              opacity: 0;
+            }
+            10% {
+              opacity: var(--item-opacity, 0.7);
+            }
+            100% {
+              transform: translate3d(var(--item-drift, 0px), 112vh, 0) rotate(var(--item-rotate, 180deg));
+              opacity: 0;
+            }
+          }
+          .catalog-season-spring-petal {
+            background: linear-gradient(145deg, rgba(255, 224, 240, 0.95) 0%, rgba(246, 175, 205, 0.92) 100%);
+            border-radius: 80% 16% 70% 12%;
+            filter: drop-shadow(0 0 2px rgba(248, 113, 160, 0.28));
+            animation: catalogSeasonFloatDown var(--item-duration, 10s) linear infinite;
+          }
+          .catalog-season-autumn-leaf {
+            background: linear-gradient(
+              155deg,
+              hsla(var(--leaf-hue, 26), 95%, 64%, 0.95) 0%,
+              hsla(calc(var(--leaf-hue, 26) - 10), 92%, 46%, 0.95) 100%
+            );
+            border-radius: 12% 68% 10% 64%;
+            filter: drop-shadow(0 0 2px rgba(217, 119, 6, 0.32));
+            animation: catalogSeasonFloatDown var(--item-duration, 10s) linear infinite;
+          }
+          .catalog-season-summer-sun {
+            position: absolute;
+            top: 3%;
+            right: 8%;
+            width: min(15vw, 96px);
+            height: min(15vw, 96px);
+            border-radius: 50%;
+            background: radial-gradient(circle at 32% 32%, rgba(255, 255, 255, 0.88), rgba(253, 224, 71, 0.86) 35%, rgba(249, 115, 22, 0.18) 100%);
+            box-shadow:
+              0 0 0 10px rgba(251, 191, 36, 0.15),
+              0 0 38px rgba(249, 115, 22, 0.26);
+            animation: catalogSeasonSummerPulse 3.2s ease-in-out infinite;
+          }
+          .catalog-season-summer-rays {
+            position: absolute;
+            top: calc(3% - 42px);
+            right: calc(8% - 42px);
+            width: min(15vw, 96px);
+            height: min(15vw, 96px);
+            transform-origin: center;
+            border-radius: 50%;
+            background: conic-gradient(
+              from 0deg,
+              rgba(251, 191, 36, 0.15),
+              rgba(251, 191, 36, 0.00) 22%,
+              rgba(251, 191, 36, 0.13) 44%,
+              rgba(251, 191, 36, 0.00) 66%,
+              rgba(251, 191, 36, 0.12) 88%,
+              rgba(251, 191, 36, 0.00) 100%
+            );
+            filter: blur(0.3px);
+            transform: scale(1.8);
+            animation: catalogSeasonSummerRotate 16s linear infinite;
+          }
+          .catalog-season-summer-mote {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(254, 243, 199, 0.95), rgba(251, 191, 36, 0.0) 72%);
+            will-change: transform, opacity;
+            animation: catalogSeasonSummerMote var(--item-duration, 6s) ease-in-out infinite;
+          }
+          @keyframes catalogSeasonSummerRotate {
+            from { transform: scale(1.8) rotate(0deg); }
+            to { transform: scale(1.8) rotate(360deg); }
+          }
+          @keyframes catalogSeasonSummerPulse {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.06); opacity: 1; }
+          }
+          @keyframes catalogSeasonSummerMote {
+            0% {
+              transform: translate3d(0, 0, 0) scale(0.8);
+              opacity: 0;
+            }
+            25% { opacity: var(--item-opacity, 0.2); }
+            100% {
+              transform: translate3d(var(--item-drift, 22px), -35px, 0) scale(1.2);
+              opacity: 0;
+            }
+          }
+          .catalog-season-winter-snowflake {
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 50%;
+            filter: drop-shadow(0 0 3px rgba(224, 242, 254, 0.65));
+            animation: catalogSeasonFloatDown var(--item-duration, 10s) linear infinite;
+          }
+        `}</style>
+
+        <div className="catalog-season-overlay" aria-hidden="true" style={{ top: `${topOffset}px` }}>
+          {normalizedAnimationSeason === 'spring' && springPetals.map((item) => (
+            <span
+              key={`spring-${item.id}`}
+              className="catalog-season-spring-petal"
+              style={{
+                left: item.left,
+                width: item.size,
+                height: `calc(${item.size} * 0.72)`,
+                animationDelay: item.delay,
+                '--item-duration': item.duration,
+                '--item-drift': item.drift,
+                '--item-opacity': item.opacity,
+                '--item-rotate': item.rotate
+              }}
+            />
+          ))}
+
+          {normalizedAnimationSeason === 'summer' && (
+            <>
+              <span className="catalog-season-summer-rays" />
+              <span className="catalog-season-summer-sun" />
+              {summerMotes.map((item) => (
+                <span
+                  key={`summer-${item.id}`}
+                  className="catalog-season-summer-mote"
+                  style={{
+                    left: item.left,
+                    top: item.top,
+                    width: item.size,
+                    height: item.size,
+                    animationDelay: item.delay,
+                    '--item-duration': item.duration,
+                    '--item-drift': item.drift,
+                    '--item-opacity': item.opacity
+                  }}
+                />
+              ))}
+            </>
+          )}
+
+          {normalizedAnimationSeason === 'autumn' && autumnLeaves.map((item) => (
+            <span
+              key={`autumn-${item.id}`}
+              className="catalog-season-autumn-leaf"
+              style={{
+                left: item.left,
+                width: item.size,
+                height: `calc(${item.size} * 0.9)`,
+                transform: `rotate(${item.rotate})`,
+                animationDelay: item.delay,
+                '--item-duration': item.duration,
+                '--item-drift': item.drift,
+                '--item-opacity': 0.92,
+                '--item-rotate': `${360 + Number.parseInt(item.rotate, 10)}deg`,
+                '--leaf-hue': item.hue
+              }}
+            />
+          ))}
+
+          {normalizedAnimationSeason === 'winter' && winterSnowflakes.map((item) => (
+            <span
+              key={`winter-${item.id}`}
+              className="catalog-season-winter-snowflake"
+              style={{
+                left: item.left,
+                width: item.size,
+                height: item.size,
+                animationDelay: item.delay,
+                '--item-duration': item.duration,
+                '--item-drift': item.drift,
+                '--item-opacity': item.opacity,
+                '--item-rotate': item.rotate
+              }}
+            />
+          ))}
+        </div>
+      </>
+    );
+  };
 
   useEffect(() => {
     setCatalogSearchPlaceholderPhraseIndex(0);
@@ -1870,6 +2142,8 @@ function Catalog() {
           />
         </div>
       </Navbar>
+
+      {renderCatalogSeasonOverlay()}
 
       <Container>
         {/* No restaurants */}

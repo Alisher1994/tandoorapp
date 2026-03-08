@@ -7,6 +7,11 @@ const geoip = require('geoip-lite');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const TASHKENT_TZ = 'Asia/Tashkent';
+const CATALOG_ANIMATION_SEASON_VALUES = new Set(['off', 'spring', 'summer', 'autumn', 'winter']);
+const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return CATALOG_ANIMATION_SEASON_VALUES.has(normalized) ? normalized : fallback;
+};
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
   if ([12, 1, 2].includes(month)) return 'winter';
@@ -76,6 +81,8 @@ const normalizeAdType = (value) => {
 
 let adBannerTargetingSchemaReady = false;
 let adBannerTargetingSchemaPromise = null;
+let catalogAnimationSettingsSchemaReady = false;
+let catalogAnimationSettingsSchemaPromise = null;
 const ensureAdBannerTargetingSchema = async () => {
   if (adBannerTargetingSchemaReady) return;
   if (adBannerTargetingSchemaPromise) {
@@ -103,6 +110,38 @@ const ensureAdBannerTargetingSchema = async () => {
     await adBannerTargetingSchemaPromise;
   } finally {
     adBannerTargetingSchemaPromise = null;
+  }
+};
+
+const ensureCatalogAnimationSettingsSchema = async () => {
+  if (catalogAnimationSettingsSchemaReady) return;
+  if (catalogAnimationSettingsSchemaPromise) {
+    await catalogAnimationSettingsSchemaPromise;
+    return;
+  }
+
+  catalogAnimationSettingsSchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS catalog_animation_season VARCHAR(16) DEFAULT 'off'`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ALTER COLUMN catalog_animation_season SET DEFAULT 'off'`).catch(() => {});
+    await pool.query(`
+      UPDATE billing_settings
+      SET catalog_animation_season = 'off'
+      WHERE catalog_animation_season IS NULL
+        OR BTRIM(catalog_animation_season) = ''
+        OR catalog_animation_season NOT IN ('off', 'spring', 'summer', 'autumn', 'winter')
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE billing_settings
+      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
+      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
+    `).catch(() => {});
+    catalogAnimationSettingsSchemaReady = true;
+  })();
+
+  try {
+    await catalogAnimationSettingsSchemaPromise;
+  } finally {
+    catalogAnimationSettingsSchemaPromise = null;
   }
 };
 
@@ -550,6 +589,19 @@ router.get('/ads-banners/:id/click', async (req, res) => {
   } catch (error) {
     console.error('Track ad click error:', error);
     res.status(500).send('Ошибка перехода по рекламе');
+  }
+});
+
+// Get active seasonal catalog animation (public - for customer catalog)
+router.get('/catalog-animation-season', async (req, res) => {
+  try {
+    await ensureCatalogAnimationSettingsSchema();
+    const result = await pool.query('SELECT catalog_animation_season FROM billing_settings WHERE id = 1 LIMIT 1');
+    const season = normalizeCatalogAnimationSeason(result.rows[0]?.catalog_animation_season, 'off');
+    res.json({ season });
+  } catch (error) {
+    console.error('Catalog animation season error:', error);
+    res.status(500).json({ season: 'off' });
   }
 });
 
