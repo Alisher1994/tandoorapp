@@ -427,10 +427,6 @@ function Cart() {
         ...prev,
         delivery_coordinates: `${lat},${lng}`
       }));
-      setShowLocationModal(false);
-      // Открыть модалку для имени адреса, сбросить имя
-      setNewAddressForm({ name: '', address: '' });
-      setTimeout(() => setShowNewAddressModal(true), 300);
     };
     if (tg?.LocationManager) {
       tg.LocationManager.init(() => {
@@ -1163,6 +1159,12 @@ function Cart() {
                     delivery_coordinates: `${lat},${lng}`
                   }));
                 }}
+                onAddressChange={(addressText) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    delivery_address: addressText || prev.delivery_address
+                  }));
+                }}
               />
             </div>
 
@@ -1185,7 +1187,7 @@ function Cart() {
                 className="w-100"
                 onClick={() => {
                   setShowLocationModal(false);
-                  // Открыть модалку для ввода названия
+                  setNewAddressForm({ name: '', address: '' });
                   if (formData.delivery_coordinates) {
                     setShowNewAddressModal(true);
                   }
@@ -1283,6 +1285,11 @@ function Cart() {
           <Modal.Header closeButton className="border-0">
           </Modal.Header>
           <Modal.Body>
+            {formData.delivery_address && (
+              <div className="small text-muted mb-3">
+                📍 {language === 'uz' ? 'Tanlangan manzil' : 'Выбранный адрес'}: {formData.delivery_address}
+              </div>
+            )}
             <Form.Group className="mb-3">
               <Form.Label>{language === 'uz' ? 'Manzil nomi' : 'Название адреса'}</Form.Label>
               <Form.Control

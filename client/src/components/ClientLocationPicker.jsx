@@ -4,7 +4,16 @@ import { ListSkeleton } from './SkeletonUI';
 
 const YANDEX_API_KEY = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
 
-function ClientLocationPicker({ latitude, longitude, onLocationChange }) {
+const resolveGeoAddress = (geoObject) => {
+  if (!geoObject) return '';
+  const thoroughfare = typeof geoObject.getThoroughfare === 'function' ? geoObject.getThoroughfare() : '';
+  const premise = typeof geoObject.getPremiseNumber === 'function' ? geoObject.getPremiseNumber() : '';
+  const shortAddress = [thoroughfare, premise].filter(Boolean).join(', ').trim();
+  if (shortAddress) return shortAddress;
+  return geoObject.getAddressLine?.() || '';
+};
+
+function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddressChange = () => {} }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const placemarkRef = useRef(null);
@@ -83,10 +92,11 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange }) {
         window.ymaps.geocode(coords).then((res) => {
           const firstGeoObject = res.geoObjects.get(0);
           if (firstGeoObject) {
-            const addr = firstGeoObject.getAddressLine();
+            const addr = resolveGeoAddress(firstGeoObject);
             setAddress(addr);
+            onAddressChange(addr);
           }
-        });
+        }).catch(() => {});
       };
 
       // Обработчик перетаскивания метки
@@ -130,12 +140,14 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange }) {
         window.ymaps.geocode(coords).then((res) => {
           const firstGeoObject = res.geoObjects.get(0);
           if (firstGeoObject) {
-            setAddress(firstGeoObject.getAddressLine());
+            const addr = resolveGeoAddress(firstGeoObject);
+            setAddress(addr);
+            onAddressChange(addr);
           }
-        });
+        }).catch(() => {});
       }
     }
-  }, [latitude, longitude]);
+  }, [latitude, longitude, onAddressChange]);
 
   if (!isLoaded) {
     return (
