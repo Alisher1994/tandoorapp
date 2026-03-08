@@ -6203,7 +6203,7 @@ function AdminDashboard() {
                   return (
                   <>
                 <Row className="g-3 order-details-modal-layout">
-                  <Col md={8} className="order-md-2">
+                  <Col md={6}>
                 <div className="order-details-side">
                 <div className="order-meta-card mb-3">
                   {hideSensitive && (
@@ -6456,28 +6456,6 @@ function AdminDashboard() {
                   })()}
                 </div>
 
-                <div className="order-status-history-card mb-2">
-                  <strong className="d-block mb-2">История нажатий:</strong>
-                  {Array.isArray(selectedOrder.status_actions) && selectedOrder.status_actions.length > 0 ? (
-                    <div className="order-status-history-list">
-                      {selectedOrder.status_actions.map((action, index) => (
-                        <div
-                          key={`${action.id || 'action'}-${index}`}
-                          className="order-status-history-item"
-                        >
-                          <div className="order-status-history-main">
-                            <span className="order-status-history-status">{getOrderStatusActionLabel(action.status)}</span>
-                            <span className="order-status-history-actor">{action.actor_name || 'Неизвестно'}</span>
-                          </div>
-                          <div className="order-status-history-time">{formatOrderStatusActionTime(action.created_at)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="order-status-history-empty">Действий по статусам пока нет.</div>
-                  )}
-                </div>
-
                 {/* Admin comment (rejection reason) */}
                 {selectedOrder.admin_comment && (
                   <div className="mb-2 p-2 bg-light rounded">
@@ -6485,9 +6463,8 @@ function AdminDashboard() {
                   </div>
                 )}
                 </div>
-
                   </Col>
-                  <Col md={4} className="order-md-1">
+                  <Col md={3}>
                   <div className="order-items-side">
                 {selectedOrder.items && selectedOrder.items.length > 0 && (
                   <div className="mb-0 d-flex flex-column order-items-content">
@@ -6555,22 +6532,31 @@ function AdminDashboard() {
                           );
                           return (
                             <div className="order-items-total">
-                              <div className="d-flex justify-content-between small text-muted"><span>Товары</span><span>{formatPrice(breakdown.itemsSubtotal)} сум</span></div>
+                              <div className="order-items-total-row">
+                                <span className="order-items-total-label">Товары</span>
+                                <span className="order-items-total-value">{formatPrice(breakdown.itemsSubtotal)} сум</span>
+                              </div>
                               {breakdown.containersTotal > 0 && (
-                                <div className="d-flex justify-content-between small text-muted"><span>Пакет / Посуда</span><span>{formatPrice(breakdown.containersTotal)} сум</span></div>
-                              )}
-                              {breakdown.serviceFee > 0 && (
-                                <div className="d-flex justify-content-between small text-muted"><span>Сервис</span><span>{formatPrice(breakdown.serviceFee)} сум</span></div>
-                              )}
-                              {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
-                                <div className="d-flex justify-content-between small text-muted">
-                                  <span>Доставка{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}</span>
-                                  <span>{formatPrice(breakdown.deliveryCost)} сум</span>
+                                <div className="order-items-total-row">
+                                  <span className="order-items-total-label">Пакет / Посуда</span>
+                                  <span className="order-items-total-value">{formatPrice(breakdown.containersTotal)} сум</span>
                                 </div>
                               )}
-                              <div className="d-flex justify-content-between fw-bold mt-1">
-                                <span>Итого</span>
-                                <strong>{formatPrice(breakdown.total)} сум</strong>
+                              {breakdown.serviceFee > 0 && (
+                                <div className="order-items-total-row">
+                                  <span className="order-items-total-label">Сервис</span>
+                                  <span className="order-items-total-value">{formatPrice(breakdown.serviceFee)} сум</span>
+                                </div>
+                              )}
+                              {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
+                                <div className="order-items-total-row">
+                                  <span className="order-items-total-label">Доставка{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}</span>
+                                  <span className="order-items-total-value">{formatPrice(breakdown.deliveryCost)} сум</span>
+                                </div>
+                              )}
+                              <div className="order-items-total-row is-total">
+                                <span className="order-items-total-label">Итого</span>
+                                <strong className="order-items-total-value">{formatPrice(breakdown.total)} сум</strong>
                               </div>
                             </div>
                           );
@@ -6654,6 +6640,31 @@ function AdminDashboard() {
                     )}
                   </div>
                 )}
+                </div>
+              </Col>
+              <Col md={3}>
+                <div className="order-history-side">
+                  <div className="order-status-history-card h-100 mb-0">
+                    <strong className="d-block mb-2">История нажатий:</strong>
+                    {Array.isArray(selectedOrder.status_actions) && selectedOrder.status_actions.length > 0 ? (
+                      <div className="order-status-history-list">
+                        {selectedOrder.status_actions.map((action, index) => (
+                          <div
+                            key={`${action.id || 'action'}-${index}`}
+                            className="order-status-history-item"
+                          >
+                            <div className="order-status-history-main">
+                              <span className="order-status-history-status">{getOrderStatusActionLabel(action.status)}</span>
+                              <span className="order-status-history-actor">{action.actor_name || 'Неизвестно'}</span>
+                            </div>
+                            <div className="order-status-history-time">{formatOrderStatusActionTime(action.created_at)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="order-status-history-empty">Действий по статусам пока нет.</div>
+                    )}
+                  </div>
                 </div>
               </Col>
                 </Row>

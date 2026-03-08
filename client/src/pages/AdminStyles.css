@@ -1369,7 +1369,8 @@ body::-webkit-scrollbar,
 }
 
 .order-details-side,
-.order-items-side {
+.order-items-side,
+.order-history-side {
     width: 100%;
     background: #ffffff;
     border: 1px solid var(--border-color);
@@ -1607,8 +1608,8 @@ body::-webkit-scrollbar,
 
 .order-items-total {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 6px;
     border-top: 1px dashed #cbd5e1;
     padding-top: 10px;
     margin-top: 12px;
@@ -1616,9 +1617,37 @@ body::-webkit-scrollbar,
     flex-shrink: 0;
 }
 
-.order-items-total strong {
-    font-size: 16px;
+.order-items-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.order-items-total-label {
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.order-items-total-value {
+    color: #1f2937;
+    font-size: 14px;
+    font-weight: 600;
     white-space: nowrap;
+}
+
+.order-items-total-row.is-total {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.order-items-total-row.is-total .order-items-total-label,
+.order-items-total-row.is-total .order-items-total-value {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 700;
 }
 
 .order-status-card {
@@ -1633,13 +1662,18 @@ body::-webkit-scrollbar,
     border-radius: 10px;
     background: #ffffff;
     padding: 10px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .order-status-history-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 220px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 4px;
 }
@@ -1817,7 +1851,8 @@ body::-webkit-scrollbar,
     }
 
     .order-details-side,
-    .order-items-side {
+    .order-items-side,
+    .order-history-side {
         height: auto;
         overflow: visible;
     }
