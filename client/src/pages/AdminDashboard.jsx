@@ -2554,11 +2554,21 @@ function AdminDashboard() {
     }
   };
 
-  const isOrderSensitiveDataHidden = (order) => {
-    if (!order) return false;
-    const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
-    return normalizedStatus === 'new' && !order.processed_at;
+  const hasAcceptedStatusAction = (order) => {
+    const actions = Array.isArray(order?.status_actions) ? order.status_actions : [];
+    return actions.some((action) => normalizeOrderActionStatus(action?.status) === 'accepted');
   };
+
+  const getOrderDisplayWorkflowStatus = (order) => {
+    if (!order) return 'new';
+    const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+    if (normalizedStatus === 'new' && (Boolean(order.processed_at) || hasAcceptedStatusAction(order))) {
+      return 'accepted';
+    }
+    return normalizedStatus;
+  };
+
+  const isOrderSensitiveDataHidden = (order) => getOrderDisplayWorkflowStatus(order) === 'new';
 
   // Bulk delete selected products
   const handleBulkDeleteProducts = async () => {
@@ -3016,6 +3026,7 @@ function AdminDashboard() {
   const getStatusBadge = (status) => {
     const statusConfig = {
       'new': { variant: 'primary', text: 'Новый' },
+      'accepted': { variant: 'info', text: 'Принят' },
       'in_progress': { variant: 'warning', text: 'Готовится' },
       'preparing': { variant: 'warning', text: 'Готовится' },
       'delivering': { variant: 'info', text: 'Доставляется' },
@@ -4349,7 +4360,8 @@ function AdminDashboard() {
                     </thead>
                     <tbody>
                       {pagedOrders.map(order => {
-                        const orderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+                        const rawOrderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+                        const orderStatus = getOrderDisplayWorkflowStatus(order);
                         const needsPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
                         const hideSensitive = isOrderSensitiveDataHidden(order);
 
@@ -4378,7 +4390,7 @@ function AdminDashboard() {
                             <td>
                               <div className="d-flex flex-column gap-1">
                                 {getStatusBadge(orderStatus)}
-                                {needsPayment && orderStatus === 'new' && (
+                                {needsPayment && rawOrderStatus === 'new' && (
                                   <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты</Badge>
                                 )}
                               </div>
@@ -4387,7 +4399,7 @@ function AdminDashboard() {
                             <td>
                               <div className="d-flex gap-1 flex-wrap">
                                 {/* Accept & Pay Button for New Unpaid Orders */}
-                                {orderStatus === 'new' && needsPayment && (
+                                {rawOrderStatus === 'new' && needsPayment && (
                                   <Button
                                     variant="success"
                                     size="sm"
@@ -4401,7 +4413,7 @@ function AdminDashboard() {
                                 )}
 
                                 {/* Quick status actions in table */}
-                                {orderStatus === 'new' && !needsPayment && (
+                                {(rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsPayment && (
                                   <Button
                                     variant="warning"
                                     size="sm"
@@ -6227,7 +6239,7 @@ function AdminDashboard() {
           <Modal.Header closeButton>
             <Modal.Title className="d-flex align-items-center gap-2">
               <span>Заказ #{selectedOrder?.order_number}</span>
-              {selectedOrder && getStatusBadge(selectedOrder.status)}
+              {selectedOrder && getStatusBadge(getOrderDisplayWorkflowStatus(selectedOrder))}
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="order-details-modal-body">
