@@ -59,6 +59,7 @@ async function migrate() {
       `payme_account_key VARCHAR(64) DEFAULT 'order_id'`,
       'payme_test_mode BOOLEAN DEFAULT false',
       `payme_callback_timeout_ms INTEGER DEFAULT 2000`,
+      `payment_placeholders JSONB DEFAULT '{}'::jsonb`,
       'uzum_url TEXT',
       'xazna_url TEXT',
       'msg_new TEXT',
@@ -94,6 +95,11 @@ async function migrate() {
       UPDATE restaurants
       SET ui_theme = 'classic'
       WHERE ui_theme IS NULL OR TRIM(COALESCE(ui_theme, '')) = ''
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET payment_placeholders = '{}'::jsonb
+      WHERE payment_placeholders IS NULL
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

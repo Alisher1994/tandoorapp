@@ -104,6 +104,24 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'modern' ? 'modern' : fallback;
 };
+const normalizePaymentPlaceholders = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const systems = ['click', 'uzum', 'xazna'];
+  const normalized = {};
+  for (const system of systems) {
+    const raw = value[system];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    normalized[system] = {
+      enabled: raw.enabled === true || raw.enabled === 'true',
+      merchant_id: raw.merchant_id === undefined || raw.merchant_id === null ? '' : String(raw.merchant_id),
+      api_login: raw.api_login === undefined || raw.api_login === null ? '' : String(raw.api_login),
+      api_password: raw.api_password === undefined || raw.api_password === null ? '' : String(raw.api_password),
+      callback_timeout_ms: Number.isFinite(Number(raw.callback_timeout_ms)) ? Number(raw.callback_timeout_ms) : 2000,
+      test_mode: raw.test_mode === true || raw.test_mode === 'true'
+    };
+  }
+  return normalized;
+};
 
 const normalizePhoneValue = (value) => {
   const raw = value === undefined || value === null ? '' : String(value).trim().replace(/\s+/g, '');
@@ -781,7 +799,7 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode, ui_theme
+      logo_display_mode, ui_theme, payment_placeholders
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -797,6 +815,7 @@ router.put('/restaurant', async (req, res) => {
       ui_theme,
       previousRestaurant.ui_theme || 'classic'
     );
+    const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -861,8 +880,9 @@ router.put('/restaurant', async (req, res) => {
            msg_delivered = $33,
            msg_cancelled = $34,
            ui_theme = $35,
+           payment_placeholders = COALESCE($36::jsonb, payment_placeholders),
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $36
+      WHERE id = $37
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -880,6 +900,7 @@ router.put('/restaurant', async (req, res) => {
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       normalizedUiTheme,
+      normalizedPaymentPlaceholders ? JSON.stringify(normalizedPaymentPlaceholders) : null,
       restaurantId
     ]);
 

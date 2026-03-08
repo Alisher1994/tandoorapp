@@ -42,6 +42,41 @@ const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
+const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
+const getDefaultPaymentPlaceholder = () => ({
+  enabled: false,
+  merchant_id: '',
+  api_login: '',
+  api_password: '',
+  callback_timeout_ms: 2000,
+  test_mode: false
+});
+const normalizePaymentPlaceholders = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = {};
+    }
+  }
+  if (!source || typeof source !== 'object') source = {};
+
+  const normalized = {};
+  for (const system of PAYMENT_PLACEHOLDER_SYSTEMS) {
+    const raw = source[system] && typeof source[system] === 'object' ? source[system] : {};
+    normalized[system] = {
+      ...getDefaultPaymentPlaceholder(),
+      ...raw,
+      enabled: raw.enabled === true || raw.enabled === 'true',
+      test_mode: raw.test_mode === true || raw.test_mode === 'true',
+      callback_timeout_ms: Number.isFinite(Number(raw.callback_timeout_ms))
+        ? Number(raw.callback_timeout_ms)
+        : 2000
+    };
+  }
+  return normalized;
+};
 const extractYouTubeVideoId = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -1648,7 +1683,8 @@ function AdminDashboard() {
       const settings = {
         ...(response.data || {}),
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
-        ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic'
+        ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic',
+        payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
       setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
@@ -2941,13 +2977,113 @@ function AdminDashboard() {
 
   const clickPaymentLink = normalizePaymentLink(billingInfo.requisites?.click_link);
   const paymePaymentLink = normalizePaymentLink(billingInfo.requisites?.payme_link);
+  const paymentPlaceholders = useMemo(
+    () => normalizePaymentPlaceholders(restaurantSettings?.payment_placeholders),
+    [restaurantSettings?.payment_placeholders]
+  );
+  const updatePaymentPlaceholder = (systemKey, patch) => {
+    setRestaurantSettings((prev) => {
+      const base = normalizePaymentPlaceholders(prev?.payment_placeholders);
+      return {
+        ...prev,
+        payment_placeholders: {
+          ...base,
+          [systemKey]: {
+            ...base[systemKey],
+            ...patch
+          }
+        }
+      };
+    });
+  };
+  const hasGatewayPlaceholderConfig = (systemKey) => {
+    const item = paymentPlaceholders?.[systemKey] || getDefaultPaymentPlaceholder();
+    return Boolean(
+      item.enabled
+      || String(item.merchant_id || '').trim()
+      || String(item.api_login || '').trim()
+      || String(item.api_password || '').trim()
+      || Number(item.callback_timeout_ms || 0) !== 2000
+      || item.test_mode
+    );
+  };
+  const renderGatewayPlaceholderFields = (systemKey, title) => {
+    const fields = paymentPlaceholders?.[systemKey] || getDefaultPaymentPlaceholder();
+    return (
+      <div className="admin-payment-placeholder-box mt-3">
+        <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+          <div>
+            <div className="small fw-bold text-muted text-uppercase">{title} Merchant API (заглушка)</div>
+            <div className="small text-muted">Поля подготовлены для будущей API-интеграции.</div>
+          </div>
+          <Form.Check
+            type="switch"
+            label={fields.enabled ? 'Включено' : 'Выключено'}
+            checked={Boolean(fields.enabled)}
+            onChange={(e) => updatePaymentPlaceholder(systemKey, { enabled: e.target.checked })}
+          />
+        </div>
+        <Row className="gy-3">
+          <Col md={4}>
+            <Form.Control
+              type="text"
+              className="form-control-custom"
+              value={fields.merchant_id || ''}
+              onChange={(e) => updatePaymentPlaceholder(systemKey, { merchant_id: e.target.value })}
+              placeholder="Merchant ID"
+            />
+          </Col>
+          <Col md={4}>
+            <Form.Control
+              type="text"
+              className="form-control-custom"
+              value={fields.api_login || ''}
+              onChange={(e) => updatePaymentPlaceholder(systemKey, { api_login: e.target.value })}
+              placeholder="API login"
+            />
+          </Col>
+          <Col md={4}>
+            <Form.Control
+              type="text"
+              className="form-control-custom"
+              value={fields.api_password || ''}
+              onChange={(e) => updatePaymentPlaceholder(systemKey, { api_password: e.target.value })}
+              placeholder="API password"
+            />
+          </Col>
+          <Col md={6}>
+            <Form.Control
+              type="number"
+              min="0"
+              className="form-control-custom"
+              value={fields.callback_timeout_ms || 2000}
+              onChange={(e) => updatePaymentPlaceholder(systemKey, { callback_timeout_ms: e.target.value })}
+              placeholder="Callback timeout ms"
+            />
+          </Col>
+          <Col md={6}>
+            <Form.Check
+              type="switch"
+              className="pt-2"
+              label={`Тестовый режим ${title}`}
+              checked={Boolean(fields.test_mode)}
+              onChange={(e) => updatePaymentPlaceholder(systemKey, { test_mode: e.target.checked })}
+            />
+          </Col>
+        </Row>
+      </div>
+    );
+  };
   const paymentSystems = [
     {
       key: 'click',
       title: 'Click',
       logo: '/click.png',
       description: 'Персональная ссылка для перевода клиента в оплату Click.',
-      configured: Boolean(String(restaurantSettings?.click_url || '').trim())
+      configured: Boolean(
+        String(restaurantSettings?.click_url || '').trim()
+        || hasGatewayPlaceholderConfig('click')
+      )
     },
     {
       key: 'payme',
@@ -2965,14 +3101,20 @@ function AdminDashboard() {
       title: 'Uzum',
       logo: '/uzum.png',
       description: 'Ссылка для перенаправления клиента на оплату через Uzum.',
-      configured: Boolean(String(restaurantSettings?.uzum_url || '').trim())
+      configured: Boolean(
+        String(restaurantSettings?.uzum_url || '').trim()
+        || hasGatewayPlaceholderConfig('uzum')
+      )
     },
     {
       key: 'xazna',
       title: 'Xazna',
       logo: '/xazna.png',
       description: 'Ссылка для перенаправления клиента на оплату через Xazna.',
-      configured: Boolean(String(restaurantSettings?.xazna_url || '').trim())
+      configured: Boolean(
+        String(restaurantSettings?.xazna_url || '').trim()
+        || hasGatewayPlaceholderConfig('xazna')
+      )
     }
   ];
 
@@ -4836,6 +4978,7 @@ function AdminDashboard() {
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
                       { key: 'general', label: language === 'uz' ? 'Umumiy' : 'Общие' },
+                      { key: 'telegram', label: 'Telegram' },
                       { key: 'payments', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
                       { key: 'delivery', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
                       { key: 'operators', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
@@ -4857,11 +5000,11 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-light" style={{ minHeight: '60vh' }}>
+                <div className="p-4 bg-light admin-settings-content" style={{ minHeight: '60vh' }}>
                   {restaurantSettings ? (
                     <>
                       {settingsTab === 'general' && (
-                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
                           <Card.Body className="p-4">
                             <Row className="gy-4">
                               <Col md={12}>
@@ -5051,164 +5194,189 @@ function AdminDashboard() {
                                 </div>
                               </Col>
 
-                              <Col md={12} className="border-top pt-4">
-                                <h6 className="fw-bold mb-3">Telegram Интеграция</h6>
-                                <Row className="gy-3">
-                                  <Col md={4}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
-                                      <InputGroup>
-                                        <Form.Control
-                                          type={isRestaurantBotTokenVisible ? 'text' : 'password'}
-                                          className="form-control-custom"
-                                          value={restaurantSettings.telegram_bot_token || ''}
-                                          onChange={e => {
-                                            setIsRestaurantBotTokenVisible(false);
-                                            setTestedBotInfo(null);
-                                            setBotProfileLookupError('');
-                                            setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
-                                          }}
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="outline-secondary"
-                                          className="px-3"
-                                          onClick={handleRestaurantTokenPreview}
-                                          disabled={!restaurantSettings.telegram_bot_token}
-                                          title={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
-                                          aria-label={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать токен'}
-                                        >
-                                          <i className={`bi ${isRestaurantBotTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
-                                        </Button>
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
-                                  <Col md={4}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Group ID (чат для заказов)</Form.Label>
-                                      <Form.Control
-                                        type="text"
-                                        className="form-control-custom"
-                                        value={restaurantSettings.telegram_group_id || ''}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_group_id: e.target.value })}
-                                      />
-                                    </Form.Group>
-                                  </Col>
-                                  <Col md={4}>
-                                    <Form.Group className="h-100 d-flex flex-column">
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Проверка</Form.Label>
-                                      <Button
-                                        variant="outline-primary"
-                                        className="w-100 px-3 py-2 rounded-3 fw-bold mt-auto"
-                                        onClick={testBot}
-                                        disabled={testingBot}
-                                      >
-                                        {testingBot ? '⌛ Проверка...' : '🔍 Проверить'}
-                                      </Button>
-                                    </Form.Group>
-                                  </Col>
+                            </Row>
 
-                                  <Col md={4}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Имя бота</Form.Label>
-                                      <InputGroup>
-                                        <Form.Control
-                                          type="text"
-                                          readOnly
-                                          className="form-control-custom"
-                                          value={testedBotInfo?.first_name || '—'}
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="outline-secondary"
-                                          className="px-3"
-                                          onClick={() => copyTelegramMetaField(testedBotInfo?.first_name, 'bot_name')}
-                                          disabled={!testedBotInfo?.first_name}
-                                          title="Копировать имя бота"
-                                          aria-label="Копировать имя бота"
-                                        >
-                                          {copiedTelegramField === 'bot_name' ? <i className="bi bi-check2" /> : <CopyIcon />}
-                                        </Button>
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                onClick={saveRestaurantSettings}
+                                disabled={savingSettings || isTokenSaveLocked}
+                              >
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : 'Сохранить изменения'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
 
-                                  <Col md={4}>
-                                    <Form.Group>
-                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Юзернейм бота</Form.Label>
-                                      <InputGroup>
-                                        <Form.Control
-                                          type="text"
-                                          readOnly
-                                          className="form-control-custom"
-                                          value={testedBotInfo?.username ? `@${testedBotInfo.username}` : '—'}
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="outline-secondary"
-                                          className="px-3"
-                                          onClick={() => copyTelegramMetaField(testedBotInfo?.username ? `@${testedBotInfo.username}` : '', 'bot_username')}
-                                          disabled={!testedBotInfo?.username}
-                                          title="Копировать юзернейм бота"
-                                          aria-label="Копировать юзернейм бота"
-                                        >
-                                          {copiedTelegramField === 'bot_username' ? <i className="bi bi-check2" /> : <CopyIcon />}
-                                        </Button>
-                                      </InputGroup>
-                                    </Form.Group>
-                                  </Col>
+                      {settingsTab === 'telegram' && (
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="d-flex flex-column gap-2 mb-4">
+                              <h5 className="fw-bold mb-0 admin-mobile-section-title">Telegram интеграция</h5>
+                              <div className="text-muted small">
+                                Настройки бота и чата для обработки заказов. Здесь же проверка токена и копирование данных бота.
+                              </div>
+                            </div>
 
-                                  <Col md={4}>
-                                    {isSuperAdmin ? (
-                                      <Form.Group>
-                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
-                                        <Form.Control
-                                          type="text"
-                                          className="form-control-custom"
-                                          value={restaurantSettings.support_username || ''}
-                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
-                                        />
-                                      </Form.Group>
-                                    ) : (
-                                      <Form.Group>
-                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
-                                        <Form.Control
-                                          type="text"
-                                          className="form-control-custom"
-                                          value="Только для суперадмина"
-                                          readOnly
-                                          disabled
-                                        />
-                                      </Form.Group>
-                                    )}
-                                  </Col>
-
-                                  {isRestaurantBotTokenChanged && (
-                                    <Col md={12}>
-                                      <Alert
-                                        variant={isTokenSaveLocked ? 'warning' : 'info'}
-                                        className="mb-0 py-2 px-3 small"
-                                      >
-                                        Перед сохранением откройте новый бот и нажмите <code>/start</code>.
-                                        {isTokenSaveLocked
-                                          ? ` Кнопка сохранения станет активной через ${tokenSaveCountdown} сек.`
-                                          : ' Теперь можно сохранять токен.'}
-                                      </Alert>
-                                    </Col>
-                                  )}
-                                  {(botProfileLookupLoading || botProfileLookupError) && (
-                                    <Col md={12}>
-                                      {botProfileLookupLoading && (
-                                        <div className="small text-muted">⌛ Определяем имя и username бота...</div>
-                                      )}
-                                      {!botProfileLookupLoading && botProfileLookupError && (
-                                        <div className="small text-danger">{botProfileLookupError}</div>
-                                      )}
-                                    </Col>
-                                  )}
-                                </Row>
+                            <Row className="gy-3">
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
+                                  <InputGroup>
+                                    <Form.Control
+                                      type={isRestaurantBotTokenVisible ? 'text' : 'password'}
+                                      className="form-control-custom"
+                                      value={restaurantSettings.telegram_bot_token || ''}
+                                      onChange={e => {
+                                        setIsRestaurantBotTokenVisible(false);
+                                        setTestedBotInfo(null);
+                                        setBotProfileLookupError('');
+                                        setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
+                                      }}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline-secondary"
+                                      className="px-3"
+                                      onClick={handleRestaurantTokenPreview}
+                                      disabled={!restaurantSettings.telegram_bot_token}
+                                      title={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
+                                      aria-label={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать токен'}
+                                    >
+                                      <i className={`bi ${isRestaurantBotTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
+                                    </Button>
+                                  </InputGroup>
+                                </Form.Group>
+                              </Col>
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Group ID (чат для заказов)</Form.Label>
+                                  <Form.Control
+                                    type="text"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.telegram_group_id || ''}
+                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_group_id: e.target.value })}
+                                  />
+                                </Form.Group>
+                              </Col>
+                              <Col md={4}>
+                                <Form.Group className="h-100 d-flex flex-column">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Проверка</Form.Label>
+                                  <Button
+                                    variant="outline-primary"
+                                    className="w-100 px-3 py-2 rounded-3 fw-bold mt-auto"
+                                    onClick={testBot}
+                                    disabled={testingBot}
+                                  >
+                                    {testingBot ? '⌛ Проверка...' : '🔍 Проверить'}
+                                  </Button>
+                                </Form.Group>
                               </Col>
 
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Имя бота</Form.Label>
+                                  <InputGroup>
+                                    <Form.Control
+                                      type="text"
+                                      readOnly
+                                      className="form-control-custom"
+                                      value={testedBotInfo?.first_name || '—'}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline-secondary"
+                                      className="px-3"
+                                      onClick={() => copyTelegramMetaField(testedBotInfo?.first_name, 'bot_name')}
+                                      disabled={!testedBotInfo?.first_name}
+                                      title="Копировать имя бота"
+                                      aria-label="Копировать имя бота"
+                                    >
+                                      {copiedTelegramField === 'bot_name' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                    </Button>
+                                  </InputGroup>
+                                </Form.Group>
+                              </Col>
+
+                              <Col md={4}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Юзернейм бота</Form.Label>
+                                  <InputGroup>
+                                    <Form.Control
+                                      type="text"
+                                      readOnly
+                                      className="form-control-custom"
+                                      value={testedBotInfo?.username ? `@${testedBotInfo.username}` : '—'}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline-secondary"
+                                      className="px-3"
+                                      onClick={() => copyTelegramMetaField(testedBotInfo?.username ? `@${testedBotInfo.username}` : '', 'bot_username')}
+                                      disabled={!testedBotInfo?.username}
+                                      title="Копировать юзернейм бота"
+                                      aria-label="Копировать юзернейм бота"
+                                    >
+                                      {copiedTelegramField === 'bot_username' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                    </Button>
+                                  </InputGroup>
+                                </Form.Group>
+                              </Col>
+
+                              <Col md={4}>
+                                {isSuperAdmin ? (
+                                  <Form.Group>
+                                    <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
+                                    <Form.Control
+                                      type="text"
+                                      className="form-control-custom"
+                                      value={restaurantSettings.support_username || ''}
+                                      onChange={e => setRestaurantSettings({ ...restaurantSettings, support_username: e.target.value })}
+                                    />
+                                  </Form.Group>
+                                ) : (
+                                  <Form.Group>
+                                    <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
+                                    <Form.Control
+                                      type="text"
+                                      className="form-control-custom"
+                                      value="Только для суперадмина"
+                                      readOnly
+                                      disabled
+                                    />
+                                  </Form.Group>
+                                )}
+                              </Col>
+
+                              {isRestaurantBotTokenChanged && (
+                                <Col md={12}>
+                                  <Alert
+                                    variant={isTokenSaveLocked ? 'warning' : 'info'}
+                                    className="mb-0 py-2 px-3 small"
+                                  >
+                                    Перед сохранением откройте новый бот и нажмите <code>/start</code>.
+                                    {isTokenSaveLocked
+                                      ? ` Кнопка сохранения станет активной через ${tokenSaveCountdown} сек.`
+                                      : ' Теперь можно сохранять токен.'}
+                                  </Alert>
+                                </Col>
+                              )}
+                              {(botProfileLookupLoading || botProfileLookupError) && (
+                                <Col md={12}>
+                                  {botProfileLookupLoading && (
+                                    <div className="small text-muted">⌛ Определяем имя и username бота...</div>
+                                  )}
+                                  {!botProfileLookupLoading && botProfileLookupError && (
+                                    <div className="small text-danger">{botProfileLookupError}</div>
+                                  )}
+                                </Col>
+                              )}
                             </Row>
 
                             <div className="mt-4 pt-3 border-top text-end">
@@ -5230,12 +5398,12 @@ function AdminDashboard() {
                       )}
 
                       {settingsTab === 'payments' && (
-                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
                           <Card.Body className="p-4">
                             <div className="d-flex flex-column gap-2 mb-4">
                               <h5 className="fw-bold mb-0 admin-mobile-section-title">Платежные системы</h5>
                               <div className="text-muted small">
-                                Откройте нужную систему и заполните только ее поля. Для Payme Merchant API настройки находятся внутри карточки Payme.
+                                Откройте нужную систему и заполните ссылку оплаты. Для всех систем доступны поля-заглушки Merchant API для будущей интеграции.
                               </div>
                             </div>
 
@@ -5260,16 +5428,19 @@ function AdminDashboard() {
                                   </Accordion.Header>
                                   <Accordion.Body>
                                     {system.key === 'click' && (
-                                      <Form.Group className="mb-0">
-                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Click</Form.Label>
-                                        <Form.Control
-                                          type="text"
-                                          className="form-control-custom"
-                                          value={restaurantSettings.click_url || ''}
-                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
-                                          placeholder="https://..."
-                                        />
-                                      </Form.Group>
+                                      <>
+                                        <Form.Group className="mb-0">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Click</Form.Label>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.click_url || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, click_url: e.target.value })}
+                                            placeholder="https://..."
+                                          />
+                                        </Form.Group>
+                                        {renderGatewayPlaceholderFields('click', 'Click')}
+                                      </>
                                     )}
 
                                     {system.key === 'payme' && (
@@ -5359,29 +5530,35 @@ function AdminDashboard() {
                                     )}
 
                                     {system.key === 'uzum' && (
-                                      <Form.Group className="mb-0">
-                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Uzum</Form.Label>
-                                        <Form.Control
-                                          type="text"
-                                          className="form-control-custom"
-                                          value={restaurantSettings.uzum_url || ''}
-                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, uzum_url: e.target.value })}
-                                          placeholder="https://..."
-                                        />
-                                      </Form.Group>
+                                      <>
+                                        <Form.Group className="mb-0">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Uzum</Form.Label>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.uzum_url || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, uzum_url: e.target.value })}
+                                            placeholder="https://..."
+                                          />
+                                        </Form.Group>
+                                        {renderGatewayPlaceholderFields('uzum', 'Uzum')}
+                                      </>
                                     )}
 
                                     {system.key === 'xazna' && (
-                                      <Form.Group className="mb-0">
-                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Xazna</Form.Label>
-                                        <Form.Control
-                                          type="text"
-                                          className="form-control-custom"
-                                          value={restaurantSettings.xazna_url || ''}
-                                          onChange={e => setRestaurantSettings({ ...restaurantSettings, xazna_url: e.target.value })}
-                                          placeholder="https://..."
-                                        />
-                                      </Form.Group>
+                                      <>
+                                        <Form.Group className="mb-0">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Ссылка Xazna</Form.Label>
+                                          <Form.Control
+                                            type="text"
+                                            className="form-control-custom"
+                                            value={restaurantSettings.xazna_url || ''}
+                                            onChange={e => setRestaurantSettings({ ...restaurantSettings, xazna_url: e.target.value })}
+                                            placeholder="https://..."
+                                          />
+                                        </Form.Group>
+                                        {renderGatewayPlaceholderFields('xazna', 'Xazna')}
+                                      </>
                                     )}
                                   </Accordion.Body>
                                 </Accordion.Item>
@@ -5407,7 +5584,7 @@ function AdminDashboard() {
                       )}
 
                       {settingsTab === 'delivery' && (
-                        <Card className="border-0 shadow-sm rounded-4 overflow-hidden">
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
                           <Card.Body className="p-4">
                             <Row className="gy-4">
                               <Col md={12}>

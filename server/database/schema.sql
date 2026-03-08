@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   payme_account_key VARCHAR(64) DEFAULT 'order_id',
   payme_test_mode BOOLEAN DEFAULT false,
   payme_callback_timeout_ms INTEGER DEFAULT 2000,
+  payment_placeholders JSONB DEFAULT '{}'::jsonb,
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
   ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern')),
   operator_registration_code VARCHAR(64),
