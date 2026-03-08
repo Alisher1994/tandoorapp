@@ -120,6 +120,29 @@ function formatMoney(value) {
   return Number(value || 0).toLocaleString('ru-RU');
 }
 
+function getBotTimeZone() {
+  const candidates = [
+    process.env.BOT_TIMEZONE,
+    process.env.TELEGRAM_TIMEZONE,
+    process.env.APP_TIMEZONE,
+    process.env.TZ,
+    'Asia/Tashkent'
+  ];
+
+  for (const rawCandidate of candidates) {
+    const candidate = String(rawCandidate || '').trim();
+    if (!candidate) continue;
+    try {
+      new Intl.DateTimeFormat('ru-RU', { timeZone: candidate }).format(new Date());
+      return candidate;
+    } catch (_) { }
+  }
+
+  return 'Asia/Tashkent';
+}
+
+const BOT_TIME_ZONE = getBotTimeZone();
+
 async function resolveUniqueCustomerUsername(preferredUsername, telegramUserId) {
   const ownerId = String(telegramUserId);
   let candidate = String(preferredUsername || '').trim() || `user_${ownerId}`;
@@ -705,7 +728,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           day: '2-digit',
           month: '2-digit',
           hour: '2-digit',
-          minute: '2-digit'
+          minute: '2-digit',
+          timeZone: BOT_TIME_ZONE
         }).replace(',', '')
         : '';
       message += `${statusEmoji[order.status] || '📦'} №${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум${dateLabel ? ` (${dateLabel})` : ''}\n`;

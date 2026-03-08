@@ -3,6 +3,30 @@ const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
 const TELEGRAM_ITEMS_HARD_LIMIT = 20;
 const TELEGRAM_COMMENT_LIMIT = 360;
+const DEFAULT_BOT_TIME_ZONE = 'Asia/Tashkent';
+
+function resolveBotTimeZone() {
+  const candidates = [
+    process.env.BOT_TIMEZONE,
+    process.env.TELEGRAM_TIMEZONE,
+    process.env.APP_TIMEZONE,
+    process.env.TZ,
+    DEFAULT_BOT_TIME_ZONE
+  ];
+
+  for (const rawCandidate of candidates) {
+    const candidate = String(rawCandidate || '').trim();
+    if (!candidate) continue;
+    try {
+      new Intl.DateTimeFormat('ru-RU', { timeZone: candidate }).format(new Date());
+      return candidate;
+    } catch (_) { }
+  }
+
+  return DEFAULT_BOT_TIME_ZONE;
+}
+
+const BOT_TIME_ZONE = resolveBotTimeZone();
 
 // Cache for restaurant-specific bots
 const restaurantBots = new Map();
@@ -221,7 +245,8 @@ function formatActionTimestamp(value) {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone: BOT_TIME_ZONE
   });
 }
 

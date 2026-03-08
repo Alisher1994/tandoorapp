@@ -121,6 +121,29 @@ function formatMoney(value) {
   return Number(value || 0).toLocaleString('ru-RU');
 }
 
+function getBotTimeZone() {
+  const candidates = [
+    process.env.BOT_TIMEZONE,
+    process.env.TELEGRAM_TIMEZONE,
+    process.env.APP_TIMEZONE,
+    process.env.TZ,
+    'Asia/Tashkent'
+  ];
+
+  for (const rawCandidate of candidates) {
+    const candidate = String(rawCandidate || '').trim();
+    if (!candidate) continue;
+    try {
+      new Intl.DateTimeFormat('ru-RU', { timeZone: candidate }).format(new Date());
+      return candidate;
+    } catch (_) { }
+  }
+
+  return 'Asia/Tashkent';
+}
+
+const BOT_TIME_ZONE = getBotTimeZone();
+
 async function ensureActivityTypesSchema() {
   if (activityTypesSchemaReady) return;
   if (activityTypesSchemaPromise) {
@@ -2026,7 +2049,7 @@ async function initBot() {
         message += `${statusEmoji[order.status] || '📦'} <b>Заказ #${order.order_number}</b>\n`;
         if (order.restaurant_name) message += `🏪 ${order.restaurant_name}\n`;
         message += `💰 ${order.total_amount} сум\n`;
-        message += `📅 ${new Date(order.created_at).toLocaleDateString('ru-RU')}\n`;
+        message += `📅 ${new Date(order.created_at).toLocaleDateString('ru-RU', { timeZone: BOT_TIME_ZONE })}\n`;
         message += `Статус: ${getStatusText(order.status)}\n\n`;
       });
       
