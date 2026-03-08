@@ -974,8 +974,9 @@ router.post('/restaurants/:id/topup', async (req, res) => {
   try {
     const { amount, description } = req.body;
     const restaurantId = req.params.id;
+    const amountValue = Number(amount);
 
-    if (!amount || isNaN(amount) || amount <= 0) {
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
       return res.status(400).json({ error: 'Некорректная сумма пополнения' });
     }
 
@@ -987,7 +988,7 @@ router.post('/restaurants/:id/topup', async (req, res) => {
       SET balance = balance + $1 
       WHERE id = $2 
       RETURNING id, name, balance
-    `, [amount, restaurantId]);
+    `, [amountValue, restaurantId]);
 
     if (updatedRest.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -995,10 +996,11 @@ router.post('/restaurants/:id/topup', async (req, res) => {
     }
 
     // Record transaction
-    await client.query(`
+    const transactionResult = await client.query(`
       INSERT INTO billing_transactions (restaurant_id, user_id, amount, type, description)
       VALUES ($1, $2, $3, $4, $5)
-    `, [restaurantId, req.user.id, amount, 'deposit', description || 'Ручное пополнение суперадмином']);
+      RETURNING id, restaurant_id, user_id, amount, type, description, created_at
+    `, [restaurantId, req.user.id, amountValue, 'deposit', description || 'Ручное пополнение суперадмином']);
 
     await client.query('COMMIT');
 
@@ -1013,17 +1015,121 @@ router.post('/restaurants/:id/topup', async (req, res) => {
       `, [restaurantId]);
 
       for (const op of operators.rows) {
-        await sendBalanceNotification(op.telegram_id, amount, updatedRest.rows[0].balance);
+        await sendBalanceNotification(op.telegram_id, amountValue, updatedRest.rows[0].balance);
       }
     } catch (notifErr) {
       console.error('Notification error on topup:', notifErr.message);
     }
 
-    res.json(updatedRest.rows[0]);
+    res.json({
+      ...updatedRest.rows[0],
+      transaction: transactionResult.rows[0] || null
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Restaurant topup error:', error);
     res.status(500).json({ error: 'Ошибка пополнения баланса' });
+  } finally {
+    client.release();
+  }
+});
+
+// История операций по балансу ресторана
+router.get('/restaurants/:id/billing-transactions', async (req, res) => {
+  try {
+    const restaurantId = req.params.id;
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 30;
+
+    const restaurantResult = await pool.query(
+      'SELECT id, name, balance FROM restaurants WHERE id = $1',
+      [restaurantId]
+    );
+    if (!restaurantResult.rows.length) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    const transactionsResult = await pool.query(`
+      SELECT
+        bt.id,
+        bt.restaurant_id,
+        bt.user_id,
+        bt.amount,
+        bt.type,
+        bt.description,
+        bt.created_at,
+        u.username AS actor_username,
+        COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Система') AS actor_name
+      FROM billing_transactions bt
+      LEFT JOIN users u ON u.id = bt.user_id
+      WHERE bt.restaurant_id = $1
+        AND bt.type IN ('deposit', 'refund')
+      ORDER BY bt.created_at DESC, bt.id DESC
+      LIMIT $2
+    `, [restaurantId, limit]);
+
+    res.json({
+      restaurant: restaurantResult.rows[0],
+      transactions: transactionsResult.rows
+    });
+  } catch (error) {
+    console.error('Billing transactions fetch error:', error);
+    res.status(500).json({ error: 'Ошибка получения истории операций' });
+  }
+});
+
+// Возврат средств с баланса ресторана
+router.post('/restaurants/:id/refund', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { amount, description } = req.body;
+    const restaurantId = req.params.id;
+    const amountValue = Number(amount);
+
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      return res.status(400).json({ error: 'Некорректная сумма возврата' });
+    }
+
+    await client.query('BEGIN');
+
+    const restaurantResult = await client.query(
+      'SELECT id, name, balance FROM restaurants WHERE id = $1 FOR UPDATE',
+      [restaurantId]
+    );
+    if (!restaurantResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    const currentBalance = Number(restaurantResult.rows[0].balance || 0);
+    if (currentBalance < amountValue) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Недостаточно средств на балансе для возврата' });
+    }
+
+    const updatedRest = await client.query(`
+      UPDATE restaurants
+      SET balance = balance - $1
+      WHERE id = $2
+      RETURNING id, name, balance
+    `, [amountValue, restaurantId]);
+
+    const transactionResult = await client.query(`
+      INSERT INTO billing_transactions (restaurant_id, user_id, amount, type, description)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, restaurant_id, user_id, amount, type, description, created_at
+    `, [restaurantId, req.user.id, amountValue, 'refund', description || 'Ручной возврат суперадмином']);
+
+    await client.query('COMMIT');
+
+    res.json({
+      ...updatedRest.rows[0],
+      transaction: transactionResult.rows[0] || null
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Restaurant refund error:', error);
+    res.status(500).json({ error: 'Ошибка возврата средств' });
   } finally {
     client.release();
   }

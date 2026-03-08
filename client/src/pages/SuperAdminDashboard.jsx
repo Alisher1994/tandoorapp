@@ -512,6 +512,10 @@ function SuperAdminDashboard() {
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
   const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
+  const [topupMode, setTopupMode] = useState('deposit');
+  const [topupTransactions, setTopupTransactions] = useState([]);
+  const [topupTransactionsLoading, setTopupTransactionsLoading] = useState(false);
+  const [topupSubmitting, setTopupSubmitting] = useState(false);
   const [adBanners, setAdBanners] = useState([]);
   const [adBannersMeta, setAdBannersMeta] = useState({ max_slots: 10, active_now_count: 0 });
   const [adBannersLoading, setAdBannersLoading] = useState(false);
@@ -1633,23 +1637,104 @@ function SuperAdminDashboard() {
     setTopupForm((prev) => ({ ...prev, amount: digitsOnly }));
   };
 
-  const handleTopup = async () => {
-    const amountValue = Number(String(topupForm.amount || '').replace(/\D/g, ''));
-    if (!amountValue || Number.isNaN(amountValue) || amountValue <= 0) {
-      setError('Некорректная сумма');
+  const formatBalanceAmount = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '0';
+    const locale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
+    return Math.round(numeric).toLocaleString(locale);
+  };
+
+  const formatBalanceOperationDate = (value) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+  };
+
+  const loadTopupTransactions = async (restaurantId) => {
+    if (!restaurantId) {
+      setTopupTransactions([]);
       return;
     }
+    setTopupTransactionsLoading(true);
     try {
-      await axios.post(`${API_URL}/superadmin/restaurants/${topupRestaurant.id}/topup`, {
-        ...topupForm,
-        amount: amountValue
+      const response = await axios.get(`${API_URL}/superadmin/restaurants/${restaurantId}/billing-transactions`, {
+        params: { limit: 40 }
       });
-      setSuccess(`Баланс магазина "${topupRestaurant.name}" пополнен`);
-      setShowTopupModal(false);
-      setTopupForm({ amount: '', description: '' });
-      loadRestaurants();
+      const historyRows = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
+      setTopupTransactions(historyRows);
+      if (response.data?.restaurant) {
+        setTopupRestaurant((prev) => (
+          prev && String(prev.id) === String(restaurantId)
+            ? { ...prev, ...response.data.restaurant }
+            : prev
+        ));
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка пополнения баланса');
+      console.error('Load topup transactions error:', err);
+      setTopupTransactions([]);
+      setError(err.response?.data?.error || (language === 'uz' ? "Operatsiyalar tarixi yuklanmadi" : 'Ошибка загрузки истории операций'));
+    } finally {
+      setTopupTransactionsLoading(false);
+    }
+  };
+
+  const openTopupModal = (restaurant) => {
+    if (!restaurant) return;
+    setTopupRestaurant(restaurant);
+    setTopupForm({ amount: '', description: '' });
+    setTopupMode('deposit');
+    setTopupTransactions([]);
+    setShowTopupModal(true);
+    loadTopupTransactions(restaurant.id);
+  };
+
+  const closeTopupModal = () => {
+    setShowTopupModal(false);
+    setTopupForm({ amount: '', description: '' });
+    setTopupMode('deposit');
+    setTopupTransactions([]);
+    setTopupTransactionsLoading(false);
+    setTopupSubmitting(false);
+    setTopupRestaurant(null);
+  };
+
+  const handleTopup = async () => {
+    if (!topupRestaurant?.id) return;
+    const amountValue = Number(String(topupForm.amount || '').replace(/\D/g, ''));
+    if (!amountValue || Number.isNaN(amountValue) || amountValue <= 0) {
+      setError(language === 'uz' ? "Noto'g'ri summa" : 'Некорректная сумма');
+      return;
+    }
+    const isRefundMode = topupMode === 'withdrawal';
+    const endpoint = isRefundMode ? 'refund' : 'topup';
+    const successMessage = isRefundMode
+      ? (language === 'uz'
+        ? `"${topupRestaurant.name}" do'koni uchun qaytarish bajarildi`
+        : `Для магазина "${topupRestaurant.name}" выполнен возврат`)
+      : `Баланс магазина "${topupRestaurant.name}" пополнен`;
+    try {
+      setTopupSubmitting(true);
+      const response = await axios.post(`${API_URL}/superadmin/restaurants/${topupRestaurant.id}/${endpoint}`, {
+        amount: amountValue,
+        description: topupForm.description
+      });
+      const updatedRestaurant = response.data?.restaurant || response.data;
+      if (updatedRestaurant && updatedRestaurant.id) {
+        setTopupRestaurant((prev) => (prev ? { ...prev, ...updatedRestaurant } : prev));
+      }
+      setSuccess(successMessage);
+      setTopupForm({ amount: '', description: '' });
+      await Promise.all([
+        loadRestaurants(),
+        loadTopupTransactions(topupRestaurant.id)
+      ]);
+    } catch (err) {
+      setError(err.response?.data?.error || (isRefundMode
+        ? (language === 'uz' ? "Qaytarishda xatolik" : 'Ошибка возврата средств')
+        : 'Ошибка пополнения баланса'));
+    } finally {
+      setTopupSubmitting(false);
     }
   };
 
@@ -3212,8 +3297,8 @@ function SuperAdminDashboard() {
                                   <Button
                                     variant="light"
                                     className="action-btn text-success"
-                                    onClick={() => { setTopupRestaurant(r); setShowTopupModal(true); }}
-                                    title="Пополнить баланс"
+                                    onClick={() => openTopupModal(r)}
+                                    title={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
                                   >
                                     💰
                                   </Button>
@@ -6576,7 +6661,7 @@ function SuperAdminDashboard() {
         </Form>
       </Modal>
       {/* Topup Modal */}
-      <Modal show={showTopupModal} onHide={() => setShowTopupModal(false)} centered className="admin-modal">
+      <Modal show={showTopupModal} onHide={closeTopupModal} centered className="admin-modal">
         <Modal.Header closeButton>
           <Modal.Title>{t('topupRestaurantBalance')}</Modal.Title>
         </Modal.Header>
@@ -6586,12 +6671,32 @@ function SuperAdminDashboard() {
               <div className="fs-1">💰</div>
               <div>
                 <h6 className="mb-1 fw-bold">{topupRestaurant.name}</h6>
-                <div className="text-muted small">{t('currentBalance')}: {parseFloat(topupRestaurant.balance).toLocaleString()} {t('sum')}</div>
+                <div className="text-muted small">{t('currentBalance')}: {formatBalanceAmount(topupRestaurant.balance)} {t('sum')}</div>
               </div>
             </div>
           )}
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <Button
+              size="sm"
+              variant={topupMode === 'deposit' ? 'success' : 'light'}
+              onClick={() => setTopupMode('deposit')}
+            >
+              {language === 'uz' ? "To'ldirish" : 'Пополнение'}
+            </Button>
+            <Button
+              size="sm"
+              variant={topupMode === 'withdrawal' ? 'danger' : 'light'}
+              onClick={() => setTopupMode('withdrawal')}
+            >
+              {language === 'uz' ? 'Qaytarish' : 'Возврат'}
+            </Button>
+          </div>
           <Form.Group className="mb-3">
-            <Form.Label className="small fw-bold text-muted text-uppercase">{t('amountToTopup')}</Form.Label>
+            <Form.Label className="small fw-bold text-muted text-uppercase">
+              {topupMode === 'withdrawal'
+                ? (language === 'uz' ? 'Qaytarish summasi' : 'Сумма возврата')
+                : t('amountToTopup')}
+            </Form.Label>
             <Form.Control
               type="text"
               inputMode="numeric"
@@ -6602,20 +6707,82 @@ function SuperAdminDashboard() {
             />
           </Form.Group>
           <Form.Group className="mb-0">
-            <Form.Label className="small fw-bold text-muted text-uppercase">{t('topupDescription')}</Form.Label>
+            <Form.Label className="small fw-bold text-muted text-uppercase">
+              {language === 'uz' ? 'Operatsiya izohi' : 'Примечание к операции'}
+            </Form.Label>
             <Form.Control
               as="textarea"
               rows={2}
               className="form-control-custom"
-              placeholder="Например: Оплата наличными в офисе"
+              placeholder={topupMode === 'withdrawal'
+                ? (language === 'uz' ? "Masalan: noto'g'ri to'lov bo'yicha qaytarish" : 'Например: Возврат по ошибочному платежу')
+                : 'Например: Оплата наличными в офисе'}
               value={topupForm.description}
               onChange={e => setTopupForm({ ...topupForm, description: e.target.value })}
             />
           </Form.Group>
+          <div className="mt-4">
+            <div className="small fw-bold text-muted text-uppercase mb-2">
+              {language === 'uz' ? 'Operatsiyalar tarixi' : 'История операций'}
+            </div>
+            <div className="border rounded-3 p-2" style={{ maxHeight: '220px', overflowY: 'auto', background: '#f8fafc' }}>
+              {topupTransactionsLoading ? (
+                <div className="text-center py-3 text-muted">
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                </div>
+              ) : topupTransactions.length ? (
+                topupTransactions.map((transaction, index) => {
+                  const isDeposit = String(transaction?.type || '').toLowerCase() === 'deposit';
+                  const actorLabel = String(transaction?.actor_name || transaction?.actor_username || '').trim() || (language === 'uz' ? 'Tizim' : 'Система');
+                  return (
+                    <div
+                      key={transaction.id || `${transaction.created_at || 'tx'}-${index}`}
+                      className={`d-flex justify-content-between align-items-start gap-3 py-2 ${index < topupTransactions.length - 1 ? 'border-bottom' : ''}`}
+                    >
+                      <div className="small">
+                        <div className="fw-semibold">
+                          {isDeposit
+                            ? (language === 'uz' ? "To'ldirish" : 'Пополнение')
+                            : (language === 'uz' ? 'Qaytarish' : 'Возврат')}
+                        </div>
+                        <div className="text-muted">
+                          {language === 'uz' ? 'Kim:' : 'Кто:'} {actorLabel}
+                        </div>
+                        {transaction?.description && (
+                          <div className="text-muted">{transaction.description}</div>
+                        )}
+                      </div>
+                      <div className="text-end small">
+                        <div className={`fw-bold ${isDeposit ? 'text-success' : 'text-danger'}`}>
+                          {isDeposit ? '+' : '-'}{formatBalanceAmount(transaction?.amount)} {t('sum')}
+                        </div>
+                        <div className="text-muted">{formatBalanceOperationDate(transaction?.created_at)}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center text-muted small py-3">
+                  {language === 'uz' ? "Operatsiyalar yo'q" : 'Операций пока нет'}
+                </div>
+              )}
+            </div>
+          </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="light" onClick={() => setShowTopupModal(false)}>{t('cancel')}</Button>
-          <Button className="btn-primary-custom px-4" onClick={handleTopup}>{t('topupAction')}</Button>
+          <Button variant="light" onClick={closeTopupModal}>{t('cancel')}</Button>
+          {topupMode === 'withdrawal' ? (
+            <Button variant="danger" className="px-4" onClick={handleTopup} disabled={topupSubmitting}>
+              {topupSubmitting && <Spinner animation="border" size="sm" className="me-2" />}
+              {language === 'uz' ? 'Qaytarish' : 'Сделать возврат'}
+            </Button>
+          ) : (
+            <Button className="btn-primary-custom px-4" onClick={handleTopup} disabled={topupSubmitting}>
+              {topupSubmitting && <Spinner animation="border" size="sm" className="me-2" />}
+              {t('topupAction')}
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
 

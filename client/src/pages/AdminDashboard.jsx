@@ -937,6 +937,11 @@ function AdminDashboard() {
 
   // Calculate analytics based on orders (only delivered orders for accurate statistics)
   useEffect(() => {
+    const periodOrders = allOrdersForAnalytics.filter(order => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear &&
+        orderDate.getMonth() + 1 === dashboardMonth;
+    });
     const filteredOrders = allOrdersForAnalytics.filter(order => {
       const orderDate = new Date(order.created_at);
       return orderDate.getFullYear() === dashboardYear &&
@@ -950,6 +955,10 @@ function AdminDashboard() {
     const pickupOrdersCount = filteredOrders.filter((order) => isPickupOrderForAnalytics(order)).length;
     const deliveryOrdersCount = Math.max(0, ordersCount - pickupOrdersCount);
     const financialBreakdown = calculateOrdersFinancialBreakdown(filteredOrders);
+    const serviceRevenueAllStatuses = periodOrders.reduce(
+      (sum, order) => sum + Math.max(0, toNumericValue(order?.service_fee, 0)),
+      0
+    );
 
     // Calculate top products
     const productStats = {};
@@ -1022,7 +1031,7 @@ function AdminDashboard() {
       pickupOrdersCount,
       itemsRevenue: financialBreakdown.items,
       deliveryRevenue: financialBreakdown.delivery,
-      serviceRevenue: financialBreakdown.service,
+      serviceRevenue: serviceRevenueAllStatuses,
       containersRevenue: financialBreakdown.containers,
       topProducts,
       topCustomers,
@@ -1048,7 +1057,18 @@ function AdminDashboard() {
       const orderDate = new Date(order.created_at);
       return orderDate.getFullYear() === dashboardYear && order.status === 'delivered';
     });
-    return calculateOrdersFinancialBreakdown(yearOrders);
+    const yearOrdersAllStatuses = allOrdersForAnalytics.filter((order) => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear;
+    });
+    const totals = calculateOrdersFinancialBreakdown(yearOrders);
+    return {
+      ...totals,
+      service: yearOrdersAllStatuses.reduce(
+        (sum, order) => sum + Math.max(0, toNumericValue(order?.service_fee, 0)),
+        0
+      )
+    };
   }, [allOrdersForAnalytics, dashboardYear]);
 
   const openAnalyticsLocationDetails = (location) => {
