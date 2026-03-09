@@ -158,6 +158,77 @@ const parseAnalyticsDateKey = (rawValue) => {
   if (Number.isNaN(probe.getTime())) return null;
   return value;
 };
+const padAnalyticsDatePart = (value) => String(value).padStart(2, '0');
+const formatAnalyticsDateKey = (year, month, day) => (
+  `${year}-${padAnalyticsDatePart(month)}-${padAnalyticsDatePart(day)}`
+);
+const parseAnalyticsInt = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const parseAnalyticsPeriod = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'monthly' || normalized === 'month') return 'monthly';
+  if (normalized === 'yearly' || normalized === 'year') return 'yearly';
+  return 'daily';
+};
+const resolveFunnelAnalyticsRange = (query = {}) => {
+  const todayDateKey = getDateKeyInTimeZone(new Date(), ANALYTICS_TIMEZONE);
+  const baseDateKey = parseAnalyticsDateKey(query.date) || todayDateKey;
+  const [baseYear, baseMonth, baseDay] = baseDateKey.split('-').map((part) => Number.parseInt(part, 10));
+  const period = parseAnalyticsPeriod(query.period);
+
+  if (period === 'monthly') {
+    const year = parseAnalyticsInt(query.year) || baseYear;
+    const monthRaw = parseAnalyticsInt(query.month) || baseMonth;
+    const month = Math.max(1, Math.min(12, monthRaw));
+    const startDateKey = formatAnalyticsDateKey(year, month, 1);
+    const nextMonthDate = new Date(Date.UTC(year, month, 1));
+    const endDateKeyExclusive = formatAnalyticsDateKey(
+      nextMonthDate.getUTCFullYear(),
+      nextMonthDate.getUTCMonth() + 1,
+      nextMonthDate.getUTCDate()
+    );
+    return {
+      period,
+      dateKey: startDateKey,
+      startDateKey,
+      endDateKeyExclusive,
+      year,
+      month
+    };
+  }
+
+  if (period === 'yearly') {
+    const year = parseAnalyticsInt(query.year) || baseYear;
+    const startDateKey = formatAnalyticsDateKey(year, 1, 1);
+    const endDateKeyExclusive = formatAnalyticsDateKey(year + 1, 1, 1);
+    return {
+      period,
+      dateKey: startDateKey,
+      startDateKey,
+      endDateKeyExclusive,
+      year,
+      month: null
+    };
+  }
+
+  const startDateKey = formatAnalyticsDateKey(baseYear, baseMonth, baseDay);
+  const nextDate = new Date(Date.UTC(baseYear, baseMonth - 1, baseDay + 1));
+  const endDateKeyExclusive = formatAnalyticsDateKey(
+    nextDate.getUTCFullYear(),
+    nextDate.getUTCMonth() + 1,
+    nextDate.getUTCDate()
+  );
+  return {
+    period: 'daily',
+    dateKey: startDateKey,
+    startDateKey,
+    endDateKeyExclusive,
+    year: baseYear,
+    month: baseMonth
+  };
+};
 const ratioPercent = (part, total) => {
   const denominator = Number(total || 0);
   const numerator = Number(part || 0);
@@ -2847,7 +2918,7 @@ router.post('/broadcast-history/:id/delete-remote', async (req, res) => {
   }
 });
 
-// Get daily funnel analytics (bot onboarding + ads)
+// Get funnel analytics (day/month/year) (bot onboarding + ads)
 router.get('/analytics/funnel', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
@@ -2855,8 +2926,10 @@ router.get('/analytics/funnel', async (req, res) => {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
 
-    const requestedDate = parseAnalyticsDateKey(req.query.date);
-    const dateKey = requestedDate || getDateKeyInTimeZone(new Date(), ANALYTICS_TIMEZONE);
+    const funnelRange = resolveFunnelAnalyticsRange(req.query);
+    const dateKey = funnelRange.dateKey;
+    const startDateKey = funnelRange.startDateKey;
+    const endDateKeyExclusive = funnelRange.endDateKeyExclusive;
 
     await ensureBotFunnelSchema().catch(() => {});
 
@@ -2872,7 +2945,7 @@ router.get('/analytics/funnel', async (req, res) => {
           WHERE restaurant_id = $1
             AND user_telegram_id IS NOT NULL
             AND created_at >= $2::date
-            AND created_at < ($2::date + interval '1 day')
+            AND created_at < $3::date
         ),
         started AS (
           SELECT DISTINCT tg FROM events WHERE event_type = 'start'
@@ -2889,17 +2962,44 @@ router.get('/analytics/funnel', async (req, res) => {
         location_shared AS (
           SELECT DISTINCT tg FROM events WHERE event_type = 'location_shared'
         ),
-        registration_completed AS (
+        registration_events AS (
           SELECT DISTINCT tg FROM events WHERE event_type = 'registration_completed'
         ),
-        day_order_users AS (
+        period_order_users AS (
           SELECT DISTINCT u.telegram_id::text AS tg
           FROM orders o
           JOIN users u ON u.id = o.user_id
           WHERE o.restaurant_id = $1
             AND o.created_at >= $2::date
-            AND o.created_at < ($2::date + interval '1 day')
+            AND o.created_at < $3::date
             AND u.telegram_id IS NOT NULL
+        ),
+        registered_users_from_db AS (
+          SELECT DISTINCT u.telegram_id::text AS tg
+          FROM users u
+          WHERE u.role = 'customer'
+            AND u.telegram_id IS NOT NULL
+            AND u.created_at >= $2::date
+            AND u.created_at < $3::date
+            AND (
+              EXISTS (
+                SELECT 1
+                FROM user_restaurants ur
+                WHERE ur.user_id = u.id
+                  AND ur.restaurant_id = $1
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM orders o_hist
+                WHERE o_hist.user_id = u.id
+                  AND o_hist.restaurant_id = $1
+              )
+            )
+        ),
+        registration_completed AS (
+          SELECT tg FROM registration_events
+          UNION
+          SELECT tg FROM registered_users_from_db
         )
         SELECT
           (SELECT COUNT(*)::int FROM started) AS started_users,
@@ -2908,18 +3008,19 @@ router.get('/analytics/funnel', async (req, res) => {
           (SELECT COUNT(*)::int FROM name_entered) AS name_entered_users,
           (SELECT COUNT(*)::int FROM location_shared) AS location_shared_users,
           (SELECT COUNT(*)::int FROM registration_completed) AS registration_completed_users,
-          (SELECT COUNT(*)::int FROM day_order_users) AS order_users_total,
-          (SELECT COUNT(*)::int FROM started s JOIN day_order_users d ON d.tg = s.tg) AS started_with_order_users,
-          (SELECT COUNT(*)::int FROM registration_completed r JOIN day_order_users d ON d.tg = r.tg) AS registered_with_order_users,
+          (SELECT COUNT(*)::int FROM registered_users_from_db) AS registered_users_from_db,
+          (SELECT COUNT(*)::int FROM period_order_users) AS order_users_total,
+          (SELECT COUNT(*)::int FROM started s JOIN period_order_users d ON d.tg = s.tg) AS started_with_order_users,
+          (SELECT COUNT(*)::int FROM registration_completed r JOIN period_order_users d ON d.tg = r.tg) AS registered_with_order_users,
           (
             SELECT COUNT(*)::int
             FROM orders o
             WHERE o.restaurant_id = $1
               AND o.created_at >= $2::date
-              AND o.created_at < ($2::date + interval '1 day')
+              AND o.created_at < $3::date
           ) AS orders_total
         `,
-        [restaurantId, dateKey]
+        [restaurantId, startDateKey, endDateKeyExclusive]
       );
       botFunnelRow = botFunnelResult.rows[0] || null;
     } catch (error) {
@@ -2938,7 +3039,7 @@ router.get('/analytics/funnel', async (req, res) => {
           FROM ad_banner_events
           WHERE restaurant_id = $1
             AND created_at >= $2::date
-            AND created_at < ($2::date + interval '1 day')
+            AND created_at < $3::date
         ),
         click_users AS (
           SELECT DISTINCT user_id
@@ -2951,7 +3052,7 @@ router.get('/analytics/funnel', async (req, res) => {
           FROM orders
           WHERE restaurant_id = $1
             AND created_at >= $2::date
-            AND created_at < ($2::date + interval '1 day')
+            AND created_at < $3::date
         )
         SELECT
           COUNT(*) FILTER (WHERE event_type = 'view')::int AS views,
@@ -2965,7 +3066,7 @@ router.get('/analytics/funnel', async (req, res) => {
           ) AS click_to_order_users
         FROM events
         `,
-        [restaurantId, dateKey]
+        [restaurantId, startDateKey, endDateKeyExclusive]
       );
       adFunnelRow = adFunnelResult.rows[0] || null;
     } catch (error) {
@@ -2983,6 +3084,7 @@ router.get('/analytics/funnel', async (req, res) => {
     const nameEnteredUsers = toInt(botFunnelRow?.name_entered_users);
     const locationSharedUsers = toInt(botFunnelRow?.location_shared_users);
     const registrationCompletedUsers = toInt(botFunnelRow?.registration_completed_users);
+    const registeredUsersFromDb = toInt(botFunnelRow?.registered_users_from_db);
     const startedWithOrderUsers = toInt(botFunnelRow?.started_with_order_users);
     const registeredWithOrderUsers = toInt(botFunnelRow?.registered_with_order_users);
     const orderUsersTotal = toInt(botFunnelRow?.order_users_total);
@@ -3000,7 +3102,12 @@ router.get('/analytics/funnel', async (req, res) => {
     const adClickToOrderUsers = toInt(adFunnelRow?.click_to_order_users);
 
     res.json({
+      period: funnelRange.period,
       date: dateKey,
+      startDate: startDateKey,
+      endDateExclusive: endDateKeyExclusive,
+      year: funnelRange.year,
+      month: funnelRange.month,
       timezone: ANALYTICS_TIMEZONE,
       bot: {
         startedUsers,
@@ -3009,6 +3116,8 @@ router.get('/analytics/funnel', async (req, res) => {
         nameEnteredUsers,
         locationSharedUsers,
         registrationCompletedUsers,
+        legacyRegisteredUsers: registeredUsersFromDb,
+        registeredUsersFromDb,
         startedWithOrderUsers,
         registeredWithOrderUsers,
         orderUsersTotal,

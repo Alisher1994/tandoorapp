@@ -1181,6 +1181,79 @@ body::-webkit-scrollbar,
     border-top: 1px dashed #e2e8f0;
 }
 
+.admin-analytics-extra-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding-top: 4px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.admin-analytics-extra-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 10px 12px;
+}
+
+.admin-analytics-extra-title {
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.admin-analytics-extra-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.admin-analytics-extra-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.admin-analytics-extra-item span {
+    color: #64748b;
+}
+
+.admin-analytics-extra-item strong {
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.admin-analytics-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.admin-analytics-status-item {
+    border: 1px solid #dbe5f0;
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 7px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.admin-analytics-status-item span {
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.15;
+}
+
+.admin-analytics-status-item strong {
+    color: #0f172a;
+    font-size: 14px;
+    line-height: 1.1;
+}
+
 .admin-analytics-chart-heading {
     display: flex;
     align-items: baseline;
@@ -1204,6 +1277,12 @@ body::-webkit-scrollbar,
     width: 100%;
     height: 190px;
     overflow: visible;
+}
+
+.admin-analytics-point-value-text {
+    fill: #334155;
+    font-size: 9px;
+    font-weight: 700;
 }
 
 .admin-analytics-axis-text {
@@ -1658,6 +1737,10 @@ body::-webkit-scrollbar,
     .admin-funnel-clean-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .admin-analytics-extra-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -1696,6 +1779,10 @@ body::-webkit-scrollbar,
 
     .admin-analytics-chart-stack {
         padding: 16px !important;
+    }
+
+    .admin-analytics-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .admin-daily-report-summary {

@@ -396,6 +396,9 @@ const normalizeOrderActionStatus = (value) => {
   if (!normalized) return '';
   return normalized === 'in_progress' ? 'preparing' : normalized;
 };
+const normalizeOrderStatusForAnalytics = (value) => (
+  value === 'in_progress' ? 'preparing' : value
+);
 const ORDER_STATUS_ACTION_LABELS = {
   accepted: '✅ Принят',
   preparing: '👨‍🍳 Готовится',
@@ -456,6 +459,12 @@ const normalizeStatusActions = (value) => {
       (left._sortIndex - right._sortIndex)
     ))
     .map(({ _sortIndex, _sortTimestamp, ...action }) => action);
+};
+const hasOrderAcceptedActionForAnalytics = (order) => {
+  const actions = Array.isArray(order?.status_actions)
+    ? order.status_actions
+    : normalizeStatusActions(order?.status_actions);
+  return actions.some((action) => normalizeOrderActionStatus(action?.status) === 'accepted');
 };
 const getOrderStatusActionLabel = (status) => ORDER_STATUS_ACTION_LABELS[normalizeOrderActionStatus(status)] || status || '—';
 const formatOrderStatusActionTime = (value) => {
@@ -1345,6 +1354,58 @@ function AdminDashboard() {
     yearlyPeriodOrders.filter((order) => order.status === 'delivered')
   ), [yearlyPeriodOrders]);
 
+  const analyticsPeriodOrders = useMemo(() => (
+    analyticsPeriod === 'daily'
+      ? dailyOrdersAllStatuses
+      : analyticsPeriod === 'yearly'
+        ? yearlyPeriodOrders
+        : monthlyPeriodOrders
+  ), [analyticsPeriod, dailyOrdersAllStatuses, yearlyPeriodOrders, monthlyPeriodOrders]);
+
+  const analyticsFinancialExtras = useMemo(() => {
+    const totals = calculateOrdersFinancialBreakdown(analyticsPeriodOrders);
+    const serviceRevenue = analyticsPeriodOrders.reduce(
+      (sum, order) => sum + Math.max(0, toNumericValue(order?.service_fee, 0)),
+      0
+    );
+    return {
+      serviceRevenue,
+      containersRevenue: totals.containers
+    };
+  }, [analyticsPeriodOrders]);
+
+  const analyticsStatusSummary = useMemo(() => {
+    const counts = {
+      new: 0,
+      accepted: 0,
+      preparing: 0,
+      delivering: 0,
+      delivered: 0,
+      cancelled: 0
+    };
+
+    for (const order of analyticsPeriodOrders) {
+      const normalizedStatus = normalizeOrderStatusForAnalytics(order?.status);
+      const isAcceptedInNewState = normalizedStatus === 'new' && (
+        hasOrderAcceptedActionForAnalytics(order) ||
+        Boolean(order?.is_paid) ||
+        String(order?.payment_status || '').trim().toLowerCase() === 'paid'
+      );
+
+      if (normalizedStatus === 'new') {
+        if (isAcceptedInNewState) counts.accepted += 1;
+        else counts.new += 1;
+        continue;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(counts, normalizedStatus)) {
+        counts[normalizedStatus] += 1;
+      }
+    }
+
+    return counts;
+  }, [analyticsPeriodOrders]);
+
   const dailyTopProducts = useMemo(() => buildTopProductsAnalytics(dailyDeliveredOrders), [dailyDeliveredOrders]);
   const dailyTopCustomers = useMemo(() => buildTopCustomersAnalytics(dailyDeliveredOrders), [dailyDeliveredOrders]);
   const dailyOrderLocations = useMemo(() => buildOrderLocationsAnalytics(dailyDeliveredOrders), [dailyDeliveredOrders]);
@@ -1445,11 +1506,28 @@ function AdminDashboard() {
     }
   };
 
-  const fetchFunnelAnalytics = async (dateKey) => {
+  const fetchFunnelAnalytics = async () => {
     setLoadingFunnelAnalytics(true);
     try {
-      const targetDateKey = String(dateKey || '').trim() || getTodayDateKey();
-      const response = await axios.get(`${API_URL}/admin/analytics/funnel?date=${encodeURIComponent(targetDateKey)}`);
+      const period = analyticsPeriod === 'yearly'
+        ? 'yearly'
+        : analyticsPeriod === 'monthly'
+          ? 'monthly'
+          : 'daily';
+      const requestParams = {
+        period,
+        year: dashboardYear
+      };
+
+      if (period === 'daily') {
+        requestParams.date = String(dashboardDailyDate || '').trim() || getTodayDateKey();
+      } else if (period === 'monthly') {
+        requestParams.month = dashboardMonth;
+      }
+
+      const response = await axios.get(`${API_URL}/admin/analytics/funnel`, {
+        params: requestParams
+      });
       setFunnelAnalytics((prev) => ({
         ...prev,
         ...(response?.data || {})
@@ -1458,7 +1536,7 @@ function AdminDashboard() {
       console.error('Error fetching funnel analytics:', error);
       setFunnelAnalytics((prev) => ({
         ...prev,
-        date: String(dateKey || '').trim() || getTodayDateKey()
+        period: analyticsPeriod
       }));
     } finally {
       setLoadingFunnelAnalytics(false);
@@ -1473,8 +1551,8 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!user?.active_restaurant_id) return;
-    fetchFunnelAnalytics(dashboardDailyDate);
-  }, [dashboardDailyDate, user?.active_restaurant_id]);
+    fetchFunnelAnalytics();
+  }, [analyticsPeriod, dashboardDailyDate, dashboardYear, dashboardMonth, user?.active_restaurant_id]);
 
   useEffect(() => {
     if (!user?.active_restaurant_id) {
@@ -3893,7 +3971,14 @@ function AdminDashboard() {
     return Math.round(numericValue).toLocaleString('ru-RU');
   };
 
-  const renderAnalyticsSvgChart = ({ data, color, gradientId, mode = 'count', showAllLabels = false }) => {
+  const renderAnalyticsSvgChart = ({
+    data,
+    color,
+    gradientId,
+    mode = 'count',
+    showAllLabels = false,
+    showPointValues = false
+  }) => {
     const chartData = Array.isArray(data) && data.length ? data : [{ label: '—', value: 0 }];
     const chartWidth = 800;
     const chartHeight = 190;
@@ -3961,6 +4046,20 @@ function AdminDashboard() {
           />
         ))}
 
+        {showPointValues && chartData.map((point, index) => (
+          Number(point.value) > 0 ? (
+            <text
+              key={`${gradientId}-point-value-${index}`}
+              x={getX(index)}
+              y={getY(point.value) - 10}
+              textAnchor="middle"
+              className="admin-analytics-point-value-text"
+            >
+              {formatAnalyticsAxisValue(point.value, mode)}
+            </text>
+          ) : null
+        ))}
+
         {chartData.map((point, index) => (
           labelIndexes.has(index) ? (
             <text
@@ -3969,6 +4068,7 @@ function AdminDashboard() {
               y={padding.top + innerHeight + 22}
               textAnchor="middle"
               className="admin-analytics-axis-text"
+              style={showAllLabels && chartData.length > 12 ? { fontSize: '8px' } : undefined}
             >
               {point.label}
             </text>
@@ -4052,6 +4152,14 @@ function AdminDashboard() {
             const contactSharedUsers = Number(botFunnel.contactSharedUsers || 0);
             const registrationCompletedUsers = Number(botFunnel.registrationCompletedUsers || 0);
             const registeredWithOrderUsers = Number(botFunnel.registeredWithOrderUsers || 0);
+            const registeredUsersFromDb = Number(botFunnel.registeredUsersFromDb || botFunnel.legacyRegisteredUsers || 0);
+            const funnelStageTrend = [
+              startedUsers,
+              languageSelectedUsers,
+              contactSharedUsers,
+              registrationCompletedUsers,
+              registeredWithOrderUsers
+            ];
             const stageMetrics = [
               {
                 key: 'started',
@@ -4061,7 +4169,7 @@ function AdminDashboard() {
                 icon: '▶',
                 accent: '#2680d9',
                 tint: 'rgba(38, 128, 217, 0.08)',
-                trend: [startedUsers * 0.62, startedUsers * 0.84, startedUsers * 0.96, startedUsers]
+                trend: funnelStageTrend.slice(0, 4)
               },
               {
                 key: 'language',
@@ -4071,7 +4179,7 @@ function AdminDashboard() {
                 icon: '🌐',
                 accent: '#1f9f95',
                 tint: 'rgba(31, 159, 149, 0.08)',
-                trend: [startedUsers, languageSelectedUsers, contactSharedUsers, registrationCompletedUsers]
+                trend: funnelStageTrend.slice(1, 5)
               },
               {
                 key: 'phone',
@@ -4091,7 +4199,7 @@ function AdminDashboard() {
                 icon: '✅',
                 accent: '#df9f1e',
                 tint: 'rgba(223, 159, 30, 0.09)',
-                trend: [contactSharedUsers, registrationCompletedUsers, registeredWithOrderUsers, Math.max(registeredWithOrderUsers * 0.95, 0)]
+                trend: [contactSharedUsers, registrationCompletedUsers, registeredWithOrderUsers, registeredWithOrderUsers]
               },
               {
                 key: 'ordered',
@@ -4101,7 +4209,7 @@ function AdminDashboard() {
                 icon: '🛒',
                 accent: '#d04b4b',
                 tint: 'rgba(208, 75, 75, 0.09)',
-                trend: [registrationCompletedUsers, registeredWithOrderUsers, Math.max(registeredWithOrderUsers * 0.78, 0), Math.max(registeredWithOrderUsers * 0.92, 0)]
+                trend: [registrationCompletedUsers, registeredWithOrderUsers, registeredWithOrderUsers, registeredWithOrderUsers]
               },
               {
                 key: 'conversion',
@@ -4114,7 +4222,7 @@ function AdminDashboard() {
                 trend: [
                   Number(botFunnel.conversionStartToRegistration || 0),
                   Number(botFunnel.conversionRegistrationToOrder || 0),
-                  Number(botFunnel.conversionStartToOrder || 0) * 0.85,
+                  Number(botFunnel.conversionStartToOrder || 0),
                   Number(botFunnel.conversionStartToOrder || 0)
                 ]
               }
@@ -4159,6 +4267,9 @@ function AdminDashboard() {
                   </span>
                   <span className="badge text-bg-light border">
                     {language === 'uz' ? 'Registratsiya -> Buyurtma' : 'Регистрация -> Заказ'}: {formatPercentLabel(botFunnel.conversionRegistrationToOrder)}
+                  </span>
+                  <span className="badge text-bg-light border">
+                    {language === 'uz' ? "Bazadagi ro'yxatdan o'tganlar" : 'Регистрации из БД'}: {registeredUsersFromDb.toLocaleString('ru-RU')}
                   </span>
                 </div>
 
@@ -4368,14 +4479,24 @@ function AdminDashboard() {
     </Row>
   );
 
-  const renderAnalyticsDashboard = () => (
-    <div className="admin-analytics-layout">
+  const renderAnalyticsDashboard = () => {
+    const analyticsStatusCards = [
+      { key: 'new', label: language === 'uz' ? 'Yangi' : 'Новые' },
+      { key: 'accepted', label: language === 'uz' ? 'Qabul qilingan' : 'Принятые' },
+      { key: 'preparing', label: language === 'uz' ? 'Tayyorlanmoqda' : 'Готовится' },
+      { key: 'delivering', label: language === 'uz' ? 'Yetkazilmoqda' : 'Доставляется' },
+      { key: 'delivered', label: language === 'uz' ? 'Yetkazildi' : 'Доставлено' },
+      { key: 'cancelled', label: language === 'uz' ? 'Bekor qilingan' : 'Отказано' }
+    ];
+
+    return (
+      <div className="admin-analytics-layout">
       <div className="admin-analytics-header-row">
         <div className="admin-analytics-period-tabs">
           {[
-            { key: 'daily', label: language === 'uz' ? 'Kunlik' : 'Ежедневный' },
-            { key: 'monthly', label: language === 'uz' ? 'Oylik' : 'Ежемесячный' },
-            { key: 'yearly', label: language === 'uz' ? 'Yillik' : 'Ежегодный' }
+            { key: 'daily', label: language === 'uz' ? 'Kun' : 'День' },
+            { key: 'monthly', label: language === 'uz' ? 'Oy' : 'Месяц' },
+            { key: 'yearly', label: language === 'uz' ? 'Yil' : 'Год' }
           ].map((periodTab) => (
             <button
               key={periodTab.key}
@@ -4466,7 +4587,8 @@ function AdminDashboard() {
                   color: '#6366f1',
                   gradientId: `analytics-revenue-${analyticsPeriod}`,
                   mode: 'currency',
-                  showAllLabels: analyticsPeriod === 'yearly'
+                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily',
+                  showPointValues: analyticsPeriod === 'daily'
                 })}
               </div>
 
@@ -4480,8 +4602,41 @@ function AdminDashboard() {
                   color: '#f43f5e',
                   gradientId: `analytics-orders-${analyticsPeriod}`,
                   mode: 'count',
-                  showAllLabels: analyticsPeriod === 'yearly'
+                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily',
+                  showPointValues: analyticsPeriod === 'daily'
                 })}
+              </div>
+
+              <div className="admin-analytics-extra-grid">
+                <div className="admin-analytics-extra-card">
+                  <div className="admin-analytics-extra-title">
+                    {language === 'uz' ? "Servis va idish/paket summasi" : 'Сумма сервиса и посуды'}
+                  </div>
+                  <div className="admin-analytics-extra-list">
+                    <div className="admin-analytics-extra-item">
+                      <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
+                      <strong>{formatPrice(analyticsFinancialExtras.serviceRevenue)} {t('sum')}</strong>
+                    </div>
+                    <div className="admin-analytics-extra-item">
+                      <span>{language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}</span>
+                      <strong>{formatPrice(analyticsFinancialExtras.containersRevenue)} {t('sum')}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="admin-analytics-extra-card">
+                  <div className="admin-analytics-extra-title">
+                    {language === 'uz' ? 'Buyurtmalar statuslari' : 'Статусы заказов'}
+                  </div>
+                  <div className="admin-analytics-status-grid">
+                    {analyticsStatusCards.map((statusCard) => (
+                      <div className="admin-analytics-status-item" key={`analytics-status-${statusCard.key}`}>
+                        <span>{statusCard.label}</span>
+                        <strong>{analyticsStatusSummary[statusCard.key] || 0}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </Card.Body>
           </Card>
@@ -4499,7 +4654,8 @@ function AdminDashboard() {
 
       {renderAnalyticsTopTables()}
     </div>
-  );
+    );
+  };
 
   return (
     <>
