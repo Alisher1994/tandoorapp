@@ -73,6 +73,28 @@ const formatPercentLabel = (value) => {
   if (!Number.isFinite(parsed)) return '0%';
   return `${parsed.toFixed(1)}%`;
 };
+const buildMiniSparklinePoints = (values = []) => {
+  const numericValues = (Array.isArray(values) ? values : [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+
+  const source = numericValues.length ? numericValues : [0, 0, 0, 0];
+  const maxValue = Math.max(...source, 1);
+  const minValue = Math.min(...source, 0);
+  const range = Math.max(maxValue - minValue, 1);
+  const width = 120;
+  const height = 28;
+  const chartHeight = 14;
+  const yOffset = 9;
+
+  return source.map((value, index) => {
+    const x = source.length === 1
+      ? 0
+      : (index / (source.length - 1)) * width;
+    const y = yOffset + chartHeight - (((value - minValue) / range) * chartHeight);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+};
 const buildDailyOrdersTimeline = (orders = []) => {
   const points = Array.from({ length: DAILY_REPORT_HOURS_COUNT }, (_, hour) => ({
     hour,
@@ -817,16 +839,6 @@ function AdminDashboard() {
       conversionStartToRegistration: 0,
       conversionStartToOrder: 0,
       conversionRegistrationToOrder: 0
-    },
-    ads: {
-      views: 0,
-      uniqueViews: 0,
-      clicks: 0,
-      uniqueClicks: 0,
-      clickToOrderUsers: 0,
-      ctrByViews: 0,
-      ctrByUniqueViews: 0,
-      clickToOrderRate: 0
     }
   });
   const [loadingFunnelAnalytics, setLoadingFunnelAnalytics] = useState(false);
@@ -4206,7 +4218,7 @@ function AdminDashboard() {
                 </Row>
 
                 <Row className="g-4 mb-4">
-                  <Col lg={7}>
+                  <Col xs={12}>
                     <Card className="border-0 shadow-sm h-100">
                       <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
                         <h6 className="mb-0">
@@ -4217,125 +4229,134 @@ function AdminDashboard() {
                         </small>
                       </Card.Header>
                       <Card.Body>
-                        {(() => {
-                          const botFunnel = funnelAnalytics.bot || {};
-                          const stages = [
-                            {
-                              key: 'startedUsers',
-                              label: language === 'uz' ? 'Start bosgan' : 'Нажали /start',
-                              value: Number(botFunnel.startedUsers || 0),
-                              color: '#3b82f6'
-                            },
-                            {
-                              key: 'languageSelectedUsers',
-                              label: language === 'uz' ? 'Til tanlagan' : 'Выбрали язык',
-                              value: Number(botFunnel.languageSelectedUsers || 0),
-                              color: '#14b8a6'
-                            },
-                            {
-                              key: 'contactSharedUsers',
-                              label: language === 'uz' ? 'Telefon yuborgan' : 'Отправили телефон',
-                              value: Number(botFunnel.contactSharedUsers || 0),
-                              color: '#22c55e'
-                            },
-                            {
-                              key: 'registrationCompletedUsers',
-                              label: language === 'uz' ? "Ro'yxatdan o'tgan" : 'Завершили регистрацию',
-                              value: Number(botFunnel.registrationCompletedUsers || 0),
-                              color: '#f59e0b'
-                            },
-                            {
-                              key: 'registeredWithOrderUsers',
-                              label: language === 'uz' ? 'Buyurtma bergan' : 'Сделали заказ',
-                              value: Number(botFunnel.registeredWithOrderUsers || 0),
-                              color: '#ef4444'
-                            }
-                          ];
-                          const maxValue = Math.max(...stages.map((stage) => stage.value), 1);
-
-                          return (
-                            <div className="d-flex flex-column gap-3">
-                              {stages.map((stage) => {
-                                const width = Math.max(4, Math.round((stage.value / maxValue) * 100));
-                                return (
-                                  <div key={`funnel-stage-${stage.key}`} className="admin-funnel-stage">
-                                    <div className="d-flex align-items-center justify-content-between mb-1">
-                                      <span className="small text-muted">{stage.label}</span>
-                                      <strong>{stage.value}</strong>
-                                    </div>
-                                    <div className="admin-funnel-stage-track">
-                                      <div
-                                        className="admin-funnel-stage-fill"
-                                        style={{
-                                          width: `${stage.value > 0 ? width : 0}%`,
-                                          background: `linear-gradient(90deg, ${stage.color}, ${stage.color}cc)`
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-
-                              <div className="d-flex flex-wrap gap-2 pt-1">
-                                <span className="badge text-bg-light border">
-                                  {language === 'uz' ? 'Start -> Registratsiya' : 'Start -> Регистрация'}: {formatPercentLabel(botFunnel.conversionStartToRegistration)}
-                                </span>
-                                <span className="badge text-bg-light border">
-                                  {language === 'uz' ? 'Start -> Buyurtma' : 'Start -> Заказ'}: {formatPercentLabel(botFunnel.conversionStartToOrder)}
-                                </span>
-                                <span className="badge text-bg-light border">
-                                  {language === 'uz' ? 'Registratsiya -> Buyurtma' : 'Регистрация -> Заказ'}: {formatPercentLabel(botFunnel.conversionRegistrationToOrder)}
-                                </span>
-                              </div>
-
-                              <div className="small text-muted d-flex flex-wrap gap-3">
-                                <span>{language === 'uz' ? 'Tilgacha tushib qolgan' : 'Потеря до выбора языка'}: <strong className="text-dark">{Number(botFunnel.noLanguageAfterStart || 0)}</strong></span>
-                                <span>{language === 'uz' ? "Telefon bermagan" : 'Не дали телефон'}: <strong className="text-dark">{Number(botFunnel.noPhoneAfterLanguage || 0)}</strong></span>
-                                <span>{language === 'uz' ? "Ro'yxatdan o'tdi, ammo buyurtma yo'q" : 'Зарегистрировались, но без заказа'}: <strong className="text-dark">{Number(botFunnel.noOrderAfterRegistration || 0)}</strong></span>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col lg={5}>
-                    <Card className="border-0 shadow-sm h-100">
-                      <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">
-                          📣 {language === 'uz' ? 'Reklama voronkasi' : 'Рекламная воронка'}
-                        </h6>
-                      </Card.Header>
-                      <Card.Body>
                         {loadingFunnelAnalytics ? (
                           <div className="text-muted small">{t('loading')}</div>
                         ) : (
-                          <div className="admin-funnel-metrics-grid">
-                            <div className="admin-funnel-metric">
-                              <span>{language === 'uz' ? "Ko'rishlar" : 'Показы'}</span>
-                              <strong>{Number(funnelAnalytics.ads?.views || 0)}</strong>
-                            </div>
-                            <div className="admin-funnel-metric">
-                              <span>{language === 'uz' ? 'Unikal ko‘rishlar' : 'Уникальные показы'}</span>
-                              <strong>{Number(funnelAnalytics.ads?.uniqueViews || 0)}</strong>
-                            </div>
-                            <div className="admin-funnel-metric">
-                              <span>{language === 'uz' ? 'Kliklar' : 'Клики'}</span>
-                              <strong>{Number(funnelAnalytics.ads?.clicks || 0)}</strong>
-                            </div>
-                            <div className="admin-funnel-metric">
-                              <span>{language === 'uz' ? 'Unikal kliklar' : 'Уникальные клики'}</span>
-                              <strong>{Number(funnelAnalytics.ads?.uniqueClicks || 0)}</strong>
-                            </div>
-                            <div className="admin-funnel-metric">
-                              <span>CTR</span>
-                              <strong>{formatPercentLabel(funnelAnalytics.ads?.ctrByViews || 0)}</strong>
-                            </div>
-                            <div className="admin-funnel-metric">
-                              <span>{language === 'uz' ? 'Klik -> Buyurtma' : 'Клик -> Заказ'}</span>
-                              <strong>{formatPercentLabel(funnelAnalytics.ads?.clickToOrderRate || 0)}</strong>
-                            </div>
-                          </div>
+                          (() => {
+                            const botFunnel = funnelAnalytics.bot || {};
+                            const startedUsers = Number(botFunnel.startedUsers || 0);
+                            const languageSelectedUsers = Number(botFunnel.languageSelectedUsers || 0);
+                            const contactSharedUsers = Number(botFunnel.contactSharedUsers || 0);
+                            const registrationCompletedUsers = Number(botFunnel.registrationCompletedUsers || 0);
+                            const registeredWithOrderUsers = Number(botFunnel.registeredWithOrderUsers || 0);
+                            const stageMetrics = [
+                              {
+                                key: 'started',
+                                title: language === 'uz' ? '/start bosgan' : 'Нажали /start',
+                                valueLabel: `${startedUsers.toLocaleString('ru-RU')}`,
+                                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                                icon: '▶',
+                                accent: '#2680d9',
+                                tint: 'rgba(38, 128, 217, 0.08)',
+                                trend: [startedUsers * 0.62, startedUsers * 0.84, startedUsers * 0.96, startedUsers]
+                              },
+                              {
+                                key: 'language',
+                                title: language === 'uz' ? 'Til tanlagan' : 'Выбрали язык',
+                                valueLabel: `${languageSelectedUsers.toLocaleString('ru-RU')}`,
+                                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                                icon: '🌐',
+                                accent: '#1f9f95',
+                                tint: 'rgba(31, 159, 149, 0.08)',
+                                trend: [startedUsers, languageSelectedUsers, contactSharedUsers, registrationCompletedUsers]
+                              },
+                              {
+                                key: 'phone',
+                                title: language === 'uz' ? 'Telefon yuborgan' : 'Отправили телефон',
+                                valueLabel: `${contactSharedUsers.toLocaleString('ru-RU')}`,
+                                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                                icon: '📱',
+                                accent: '#258f4f',
+                                tint: 'rgba(37, 143, 79, 0.08)',
+                                trend: [languageSelectedUsers, contactSharedUsers, registrationCompletedUsers, registeredWithOrderUsers]
+                              },
+                              {
+                                key: 'registered',
+                                title: language === 'uz' ? "Ro'yxatdan o'tgan" : 'Завершили регистрацию',
+                                valueLabel: `${registrationCompletedUsers.toLocaleString('ru-RU')}`,
+                                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                                icon: '✅',
+                                accent: '#df9f1e',
+                                tint: 'rgba(223, 159, 30, 0.09)',
+                                trend: [contactSharedUsers, registrationCompletedUsers, registeredWithOrderUsers, Math.max(registeredWithOrderUsers * 0.95, 0)]
+                              },
+                              {
+                                key: 'ordered',
+                                title: language === 'uz' ? 'Buyurtma bergan' : 'Сделали заказ',
+                                valueLabel: `${registeredWithOrderUsers.toLocaleString('ru-RU')}`,
+                                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                                icon: '🛒',
+                                accent: '#d04b4b',
+                                tint: 'rgba(208, 75, 75, 0.09)',
+                                trend: [registrationCompletedUsers, registeredWithOrderUsers, Math.max(registeredWithOrderUsers * 0.78, 0), Math.max(registeredWithOrderUsers * 0.92, 0)]
+                              },
+                              {
+                                key: 'conversion',
+                                title: language === 'uz' ? "Start -> Buyurtma" : 'Start -> Заказ',
+                                valueLabel: formatPercentLabel(botFunnel.conversionStartToOrder),
+                                suffix: '',
+                                icon: '↗',
+                                accent: '#5f6dd9',
+                                tint: 'rgba(95, 109, 217, 0.08)',
+                                trend: [
+                                  Number(botFunnel.conversionStartToRegistration || 0),
+                                  Number(botFunnel.conversionRegistrationToOrder || 0),
+                                  Number(botFunnel.conversionStartToOrder || 0) * 0.85,
+                                  Number(botFunnel.conversionStartToOrder || 0)
+                                ]
+                              }
+                            ];
+
+                            return (
+                              <div className="d-flex flex-column gap-3">
+                                <div className="admin-funnel-clean-grid">
+                                  {stageMetrics.map((metric) => (
+                                    <div
+                                      key={`bot-funnel-metric-${metric.key}`}
+                                      className="admin-funnel-clean-card"
+                                      style={{
+                                        '--funnel-accent': metric.accent,
+                                        '--funnel-tint': metric.tint
+                                      }}
+                                    >
+                                      <div className="admin-funnel-clean-icon">{metric.icon}</div>
+                                      <span className="admin-funnel-clean-help">?</span>
+                                      <div className="admin-funnel-clean-title">{metric.title}</div>
+                                      <div className="admin-funnel-clean-value">
+                                        {metric.valueLabel}
+                                        {metric.suffix ? <small>{metric.suffix}</small> : null}
+                                      </div>
+                                      <svg viewBox="0 0 120 28" className="admin-funnel-clean-sparkline" preserveAspectRatio="none">
+                                        <polyline
+                                          points={buildMiniSparklinePoints(metric.trend)}
+                                          fill="none"
+                                          stroke="var(--funnel-accent)"
+                                          strokeWidth="2.2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="d-flex flex-wrap gap-2 pt-1">
+                                  <span className="badge text-bg-light border">
+                                    {language === 'uz' ? 'Start -> Registratsiya' : 'Start -> Регистрация'}: {formatPercentLabel(botFunnel.conversionStartToRegistration)}
+                                  </span>
+                                  <span className="badge text-bg-light border">
+                                    {language === 'uz' ? 'Registratsiya -> Buyurtma' : 'Регистрация -> Заказ'}: {formatPercentLabel(botFunnel.conversionRegistrationToOrder)}
+                                  </span>
+                                </div>
+
+                                <div className="small text-muted d-flex flex-wrap gap-3">
+                                  <span>{language === 'uz' ? 'Tilgacha tushib qolgan' : 'Потеря до выбора языка'}: <strong className="text-dark">{Number(botFunnel.noLanguageAfterStart || 0)}</strong></span>
+                                  <span>{language === 'uz' ? "Telefon bermagan" : 'Не дали телефон'}: <strong className="text-dark">{Number(botFunnel.noPhoneAfterLanguage || 0)}</strong></span>
+                                  <span>{language === 'uz' ? "Ro'yxatdan o'tdi, ammo buyurtma yo'q" : 'Зарегистрировались, но без заказа'}: <strong className="text-dark">{Number(botFunnel.noOrderAfterRegistration || 0)}</strong></span>
+                                </div>
+                              </div>
+                            );
+                          })()
                         )}
                       </Card.Body>
                     </Card>
