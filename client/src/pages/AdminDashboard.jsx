@@ -118,6 +118,116 @@ const buildDailyOrdersTimeline = (orders = []) => {
     peakHours
   };
 };
+const buildHourlyMetricTimeline = (orders = [], valueAccessor = () => 1) => {
+  const points = Array.from({ length: DAILY_REPORT_HOURS_COUNT }, (_, hour) => ({
+    label: formatHourLabel(hour),
+    value: 0
+  }));
+
+  for (const order of orders || []) {
+    const createdAt = new Date(order?.created_at);
+    if (Number.isNaN(createdAt.getTime())) continue;
+    const hour = createdAt.getHours();
+    points[hour].value += Math.max(0, toNumericValue(valueAccessor(order), 0));
+  }
+
+  return points;
+};
+const buildMonthDayMetricTimeline = (orders = [], year, month, valueAccessor = () => 1) => {
+  const safeYear = Number(year) || new Date().getFullYear();
+  const safeMonth = Number(month) || (new Date().getMonth() + 1);
+  const daysInMonth = new Date(safeYear, safeMonth, 0).getDate();
+  const points = Array.from({ length: daysInMonth }, (_, dayIndex) => ({
+    label: `${dayIndex + 1}`,
+    value: 0
+  }));
+
+  for (const order of orders || []) {
+    const createdAt = new Date(order?.created_at);
+    if (Number.isNaN(createdAt.getTime())) continue;
+    if (createdAt.getFullYear() !== safeYear || createdAt.getMonth() + 1 !== safeMonth) continue;
+    const dayIndex = createdAt.getDate() - 1;
+    if (dayIndex < 0 || dayIndex >= points.length) continue;
+    points[dayIndex].value += Math.max(0, toNumericValue(valueAccessor(order), 0));
+  }
+
+  return points;
+};
+const buildTopProductsAnalytics = (orders = [], limit = 10) => {
+  const productStats = {};
+
+  for (const order of orders || []) {
+    if (!Array.isArray(order?.items)) continue;
+    for (const item of order.items) {
+      const productName = String(item?.product_name || '').trim() || 'Товар';
+      if (!productStats[productName]) {
+        productStats[productName] = {
+          name: productName,
+          quantity: 0,
+          revenue: 0
+        };
+      }
+      productStats[productName].quantity += toNumericValue(item?.quantity, 0);
+      productStats[productName].revenue += toNumericValue(item?.quantity, 0) * toNumericValue(item?.price, 0);
+    }
+  }
+
+  return Object.values(productStats)
+    .sort((a, b) => {
+      if (b.quantity !== a.quantity) return b.quantity - a.quantity;
+      return b.revenue - a.revenue;
+    })
+    .slice(0, limit);
+};
+const buildTopCustomersAnalytics = (orders = [], limit = 10) => {
+  const customerStats = new Map();
+
+  for (const order of orders || []) {
+    const customerName = String(order?.customer_name || '').trim() || 'Клиент';
+    const customerPhone = String(order?.customer_phone || '').trim();
+    const key = `${customerName.toLowerCase()}::${customerPhone.toLowerCase()}`;
+    if (!customerStats.has(key)) {
+      customerStats.set(key, {
+        name: customerName,
+        phone: customerPhone || '—',
+        ordersCount: 0,
+        totalAmount: 0
+      });
+    }
+    const entry = customerStats.get(key);
+    entry.ordersCount += 1;
+    entry.totalAmount += toNumericValue(order?.total_amount, 0);
+  }
+
+  return Array.from(customerStats.values())
+    .sort((a, b) => {
+      if (b.ordersCount !== a.ordersCount) return b.ordersCount - a.ordersCount;
+      return b.totalAmount - a.totalAmount;
+    })
+    .slice(0, limit);
+};
+const buildOrderLocationsAnalytics = (orders = []) => (
+  (orders || [])
+    .filter((order) => order?.delivery_coordinates)
+    .map((order) => {
+      const [lat, lng] = String(order.delivery_coordinates || '')
+        .split(',')
+        .map((value) => Number.parseFloat(value.trim()));
+      return {
+        lat,
+        lng,
+        orderId: order.id,
+        orderNumber: order.order_number,
+        customerName: order.customer_name || 'Клиент',
+        customerPhone: order.customer_phone || '—',
+        totalAmount: toNumericValue(order.total_amount, 0),
+        status: order.status,
+        deliveryAddress: order.delivery_address || '',
+        createdAt: order.created_at
+      };
+    })
+    .filter((location) => !Number.isNaN(location.lat) && !Number.isNaN(location.lng))
+);
 const getDefaultPaymentPlaceholder = () => ({
   enabled: false,
   merchant_id: '',
@@ -804,6 +914,7 @@ function AdminDashboard() {
   const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
   const [dashboardMonth, setDashboardMonth] = useState(new Date().getMonth() + 1);
   const [dashboardDailyDate, setDashboardDailyDate] = useState(() => getTodayDateKey());
+  const [analyticsPeriod, setAnalyticsPeriod] = useState('daily');
   const [analytics, setAnalytics] = useState({
     revenue: 0,
     ordersCount: 0,
@@ -1211,31 +1322,100 @@ function AdminDashboard() {
     };
   }, [allOrdersForAnalytics, dashboardYear]);
 
+  const monthlyPeriodOrders = useMemo(() => (
+    allOrdersForAnalytics.filter((order) => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear &&
+        orderDate.getMonth() + 1 === dashboardMonth;
+    })
+  ), [allOrdersForAnalytics, dashboardYear, dashboardMonth]);
+
+  const monthlyDeliveredOrders = useMemo(() => (
+    monthlyPeriodOrders.filter((order) => order.status === 'delivered')
+  ), [monthlyPeriodOrders]);
+
+  const yearlyPeriodOrders = useMemo(() => (
+    allOrdersForAnalytics.filter((order) => {
+      const orderDate = new Date(order.created_at);
+      return orderDate.getFullYear() === dashboardYear;
+    })
+  ), [allOrdersForAnalytics, dashboardYear]);
+
+  const yearlyDeliveredOrders = useMemo(() => (
+    yearlyPeriodOrders.filter((order) => order.status === 'delivered')
+  ), [yearlyPeriodOrders]);
+
+  const dailyTopProducts = useMemo(() => buildTopProductsAnalytics(dailyDeliveredOrders), [dailyDeliveredOrders]);
+  const dailyTopCustomers = useMemo(() => buildTopCustomersAnalytics(dailyDeliveredOrders), [dailyDeliveredOrders]);
+  const dailyOrderLocations = useMemo(() => buildOrderLocationsAnalytics(dailyDeliveredOrders), [dailyDeliveredOrders]);
+  const dailyRevenueTimeline = useMemo(() => (
+    buildHourlyMetricTimeline(dailyDeliveredOrders, (order) => order?.total_amount)
+  ), [dailyDeliveredOrders]);
+  const dailyOrdersCountTimeline = useMemo(() => (
+    buildHourlyMetricTimeline(dailyOrdersAllStatuses, () => 1)
+  ), [dailyOrdersAllStatuses]);
+
+  const monthlyRevenueTimeline = useMemo(() => (
+    buildMonthDayMetricTimeline(monthlyDeliveredOrders, dashboardYear, dashboardMonth, (order) => order?.total_amount)
+  ), [monthlyDeliveredOrders, dashboardYear, dashboardMonth]);
+  const monthlyOrdersCountTimeline = useMemo(() => (
+    buildMonthDayMetricTimeline(monthlyPeriodOrders, dashboardYear, dashboardMonth, () => 1)
+  ), [monthlyPeriodOrders, dashboardYear, dashboardMonth]);
+
+  const yearlyTopProducts = useMemo(() => buildTopProductsAnalytics(yearlyDeliveredOrders), [yearlyDeliveredOrders]);
+  const yearlyTopCustomers = useMemo(() => buildTopCustomersAnalytics(yearlyDeliveredOrders), [yearlyDeliveredOrders]);
+  const yearlyOrderLocations = useMemo(() => buildOrderLocationsAnalytics(yearlyDeliveredOrders), [yearlyDeliveredOrders]);
+  const yearlyRevenueTimeline = useMemo(() => (
+    (yearlyAnalytics.monthlyData || []).map((item, index) => ({
+      label: String(index + 1),
+      value: toNumericValue(item?.revenue, 0)
+    }))
+  ), [yearlyAnalytics.monthlyData]);
+  const yearlyOrdersCountTimeline = useMemo(() => (
+    (yearlyAnalytics.monthlyData || []).map((item, index) => ({
+      label: String(index + 1),
+      value: toNumericValue(item?.orders_count, 0)
+    }))
+  ), [yearlyAnalytics.monthlyData]);
+
   const openAnalyticsLocationDetails = (location) => {
     if (!location) return;
     setSelectedAnalyticsLocation(location);
   };
 
-  const analyticsLocationsList = useMemo(() => (
+  const monthlyAnalyticsLocationsList = useMemo(() => (
     [...(analytics.orderLocations || [])].sort((a, b) => (
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
     ))
   ), [analytics.orderLocations]);
+  const analyticsLocationsList = monthlyAnalyticsLocationsList;
+
+  const activeAnalyticsLocationsList = useMemo(() => {
+    const source = analyticsPeriod === 'daily'
+      ? dailyOrderLocations
+      : analyticsPeriod === 'yearly'
+        ? yearlyOrderLocations
+        : monthlyAnalyticsLocationsList;
+
+    return [...source].sort((a, b) => (
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    ));
+  }, [analyticsPeriod, dailyOrderLocations, yearlyOrderLocations, monthlyAnalyticsLocationsList]);
 
   useEffect(() => {
-    if (!analyticsLocationsList.length) {
+    if (!activeAnalyticsLocationsList.length) {
       if (selectedAnalyticsLocation) setSelectedAnalyticsLocation(null);
       return;
     }
     if (!selectedAnalyticsLocation) {
-      setSelectedAnalyticsLocation(analyticsLocationsList[0]);
+      setSelectedAnalyticsLocation(activeAnalyticsLocationsList[0]);
       return;
     }
-    const exists = analyticsLocationsList.some((location) => location.orderId === selectedAnalyticsLocation.orderId);
+    const exists = activeAnalyticsLocationsList.some((location) => location.orderId === selectedAnalyticsLocation.orderId);
     if (!exists) {
-      setSelectedAnalyticsLocation(analyticsLocationsList[0]);
+      setSelectedAnalyticsLocation(activeAnalyticsLocationsList[0]);
     }
-  }, [analyticsLocationsList, selectedAnalyticsLocation]);
+  }, [activeAnalyticsLocationsList, selectedAnalyticsLocation]);
 
   useEffect(() => {
     if (!selectedAnalyticsLocation) return;
@@ -3590,6 +3770,736 @@ function AdminDashboard() {
   const filteredRestaurants = (user?.restaurants || []).filter((r) =>
     !normalizedRestaurantSearch || String(r.name || '').toLowerCase().includes(normalizedRestaurantSearch)
   );
+  const dashboardMonthOptions = [
+    { value: 1, label: t('monthJan') },
+    { value: 2, label: t('monthFeb') },
+    { value: 3, label: t('monthMar') },
+    { value: 4, label: t('monthApr') },
+    { value: 5, label: t('monthMay') },
+    { value: 6, label: t('monthJun') },
+    { value: 7, label: t('monthJul') },
+    { value: 8, label: t('monthAug') },
+    { value: 9, label: t('monthSep') },
+    { value: 10, label: t('monthOct') },
+    { value: 11, label: t('monthNov') },
+    { value: 12, label: t('monthDec') }
+  ];
+  const dashboardMonthShortLabels = [
+    t('monthShortJan'),
+    t('monthShortFeb'),
+    t('monthShortMar'),
+    t('monthShortApr'),
+    t('monthShortMay'),
+    t('monthShortJun'),
+    t('monthShortJul'),
+    t('monthShortAug'),
+    t('monthShortSep'),
+    t('monthShortOct'),
+    t('monthShortNov'),
+    t('monthShortDec')
+  ];
+  const analyticsPeriodCaption = analyticsPeriod === 'daily'
+    ? formatDateKeyLabel(dashboardDailyDate, language)
+    : analyticsPeriod === 'monthly'
+      ? `${dashboardMonthOptions.find((option) => option.value === dashboardMonth)?.label || dashboardMonth} ${dashboardYear}`
+      : `${dashboardYear}`;
+  const activeAnalyticsView = analyticsPeriod === 'daily'
+    ? {
+        revenue: dailyAnalytics.revenue,
+        revenueRows: [
+          { label: language === 'uz' ? 'Tovarlar' : 'Товары', value: `${formatPrice(dailyAnalytics.itemsRevenue)} ${t('sum')}` },
+          { label: language === 'uz' ? 'Yetkazib berish' : 'Доставка', value: `${formatPrice(dailyAnalytics.deliveryRevenue)} ${t('sum')}` }
+        ],
+        ordersCount: dailyAnalytics.totalOrdersAllStatuses,
+        ordersRows: [
+          { label: language === 'uz' ? 'Yetkazib berilgan' : 'Доставлено', value: `${dailyAnalytics.ordersCount}` },
+          { label: language === 'uz' ? "Pik soatlar" : 'Пиковые часы', value: dailyAnalytics.peakHours.length ? dailyAnalytics.peakHours.map((hour) => formatHourLabel(hour)).join(', ') : '—' }
+        ],
+        averageCheck: dailyAnalytics.averageCheck,
+        averageRows: [
+          { label: language === 'uz' ? 'Davr' : 'Период', value: analyticsPeriodCaption },
+          { label: language === 'uz' ? 'Buyurtma/soat piki' : 'Пик заказов/час', value: `${dailyAnalytics.peakOrdersCount}` }
+        ],
+        revenueTimeline: dailyRevenueTimeline,
+        ordersTimeline: dailyOrdersCountTimeline,
+        revenueChartSubtitle: language === 'uz' ? 'soatlar bo‘yicha' : 'по часам',
+        ordersChartSubtitle: language === 'uz' ? 'soatlar bo‘yicha' : 'по часам',
+        topProducts: dailyTopProducts,
+        topCustomers: dailyTopCustomers
+      }
+    : analyticsPeriod === 'yearly'
+      ? {
+          revenue: yearlyAnalytics.totalRevenue,
+          revenueRows: [
+            { label: language === 'uz' ? 'Tovarlar' : 'Товары', value: `${formatPrice(yearlyFinancialStats.items)} ${t('sum')}` },
+            { label: language === 'uz' ? 'Yetkazib berish' : 'Доставка', value: `${formatPrice(yearlyFinancialStats.delivery)} ${t('sum')}` }
+          ],
+          ordersCount: yearlyAnalytics.totalOrders,
+          ordersRows: [
+            { label: language === 'uz' ? "Olib ketish" : 'Самовывоз', value: `${yearlyFulfillmentStats.pickup}` },
+            { label: language === 'uz' ? 'Yetkazib berish' : 'Доставка', value: `${yearlyFulfillmentStats.delivery}` }
+          ],
+          averageCheck: yearlyAnalytics.averageCheck,
+          averageRows: [
+            { label: language === 'uz' ? 'Davr' : 'Период', value: analyticsPeriodCaption },
+            { label: language === 'uz' ? 'Oylar' : 'Месяцев', value: '12' }
+          ],
+          revenueTimeline: yearlyRevenueTimeline.map((item, index) => ({ ...item, label: dashboardMonthShortLabels[index] || item.label })),
+          ordersTimeline: yearlyOrdersCountTimeline.map((item, index) => ({ ...item, label: dashboardMonthShortLabels[index] || item.label })),
+          revenueChartSubtitle: language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам',
+          ordersChartSubtitle: language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам',
+          topProducts: yearlyTopProducts,
+          topCustomers: yearlyTopCustomers
+        }
+      : {
+          revenue: analytics.revenue,
+          revenueRows: [
+            { label: language === 'uz' ? 'Tovarlar' : 'Товары', value: `${formatPrice(analytics.itemsRevenue)} ${t('sum')}` },
+            { label: language === 'uz' ? 'Yetkazib berish' : 'Доставка', value: `${formatPrice(analytics.deliveryRevenue)} ${t('sum')}` }
+          ],
+          ordersCount: analytics.ordersCount,
+          ordersRows: [
+            { label: language === 'uz' ? "Olib ketish" : 'Самовывоз', value: `${analytics.pickupOrdersCount}` },
+            { label: language === 'uz' ? 'Yetkazib berish' : 'Доставка', value: `${analytics.deliveryOrdersCount}` }
+          ],
+          averageCheck: analytics.averageCheck,
+          averageRows: [
+            { label: language === 'uz' ? 'Davr' : 'Период', value: analyticsPeriodCaption },
+            { label: language === 'uz' ? 'Yil' : 'Год', value: `${dashboardYear}` }
+          ],
+          revenueTimeline: monthlyRevenueTimeline,
+          ordersTimeline: monthlyOrdersCountTimeline,
+          revenueChartSubtitle: language === 'uz' ? 'kunlar bo‘yicha' : 'по дням',
+          ordersChartSubtitle: language === 'uz' ? 'kunlar bo‘yicha' : 'по дням',
+          topProducts: analytics.topProducts,
+          topCustomers: analytics.topCustomers
+        };
+
+  const buildChartLabelIndexes = (dataLength, showAll = false) => {
+    if (showAll) return new Set(Array.from({ length: dataLength }, (_, index) => index));
+    if (dataLength <= 5) return new Set(Array.from({ length: dataLength }, (_, index) => index));
+    const step = Math.max(1, Math.round((dataLength - 1) / 4));
+    const indexes = new Set([0, dataLength - 1]);
+    for (let index = 0; index < dataLength; index += step) indexes.add(index);
+    return indexes;
+  };
+
+  const formatAnalyticsAxisValue = (value, mode = 'count') => {
+    const numericValue = Math.max(0, Number(value) || 0);
+    if (mode === 'currency') {
+      if (numericValue >= 1000000) return `${Math.round((numericValue / 1000000) * 10) / 10}M`;
+      if (numericValue >= 1000) return `${Math.round((numericValue / 1000) * 10) / 10}K`;
+    }
+    return Math.round(numericValue).toLocaleString('ru-RU');
+  };
+
+  const renderAnalyticsSvgChart = ({ data, color, gradientId, mode = 'count', showAllLabels = false }) => {
+    const chartData = Array.isArray(data) && data.length ? data : [{ label: '—', value: 0 }];
+    const chartWidth = 800;
+    const chartHeight = 190;
+    const padding = { top: 18, right: 18, bottom: 36, left: 52 };
+    const innerWidth = chartWidth - padding.left - padding.right;
+    const innerHeight = chartHeight - padding.top - padding.bottom;
+    const maxValue = Math.max(...chartData.map((point) => Number(point.value) || 0), 1);
+    const yTicks = 4;
+    const labelIndexes = buildChartLabelIndexes(chartData.length, showAllLabels);
+    const getX = (index) => (
+      chartData.length === 1
+        ? padding.left + innerWidth / 2
+        : padding.left + ((index / (chartData.length - 1)) * innerWidth)
+    );
+    const getY = (value) => padding.top + innerHeight - (((Number(value) || 0) / maxValue) * innerHeight);
+    const linePoints = chartData.map((point, index) => `${getX(index)},${getY(point.value)}`).join(' ');
+    const areaPath = chartData
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${getX(index)} ${getY(point.value)}`)
+      .join(' ') +
+      ` L ${getX(chartData.length - 1)} ${padding.top + innerHeight}` +
+      ` L ${getX(0)} ${padding.top + innerHeight} Z`;
+
+    return (
+      <svg className="admin-analytics-svg-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none">
+        {Array.from({ length: yTicks + 1 }, (_, index) => {
+          const ratio = index / yTicks;
+          const y = padding.top + (innerHeight * ratio);
+          const tickValue = maxValue * (1 - ratio);
+          return (
+            <g key={`${gradientId}-grid-${index}`}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={padding.left + innerWidth}
+                y2={y}
+                stroke="#f1f5f9"
+                strokeWidth="1"
+              />
+              <text x={padding.left - 10} y={y + 4} textAnchor="end" className="admin-analytics-axis-text">
+                {formatAnalyticsAxisValue(tickValue, mode)}
+              </text>
+            </g>
+          );
+        })}
+
+        <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {chartData.map((point, index) => (
+          <circle
+            key={`${gradientId}-point-${index}`}
+            cx={getX(index)}
+            cy={getY(point.value)}
+            r="4"
+            fill="#ffffff"
+            stroke={color}
+            strokeWidth="2"
+          />
+        ))}
+
+        {chartData.map((point, index) => (
+          labelIndexes.has(index) ? (
+            <text
+              key={`${gradientId}-label-${index}`}
+              x={getX(index)}
+              y={padding.top + innerHeight + 22}
+              textAnchor="middle"
+              className="admin-analytics-axis-text"
+            >
+              {point.label}
+            </text>
+          ) : null
+        ))}
+
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  };
+
+  const renderAnalyticsFilters = () => (
+    <div className="admin-analytics-filters-area">
+      {analyticsPeriod === 'daily' ? (
+        <div className="admin-analytics-filter-group admin-analytics-filter-group-date">
+          <span className="admin-analytics-filter-label">{t('date')}</span>
+          <Form.Control
+            type="date"
+            value={dashboardDailyDate}
+            onChange={(e) => setDashboardDailyDate(String(e.target.value || '').trim() || getTodayDateKey())}
+            className="admin-analytics-filter-control"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="admin-analytics-filter-group">
+            <span className="admin-analytics-filter-label">{t('year')}</span>
+            <Form.Select
+              value={dashboardYear}
+              onChange={(e) => setDashboardYear(parseInt(e.target.value, 10))}
+              className="admin-analytics-filter-control"
+            >
+              {[2024, 2025, 2026, 2027].map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </Form.Select>
+          </div>
+          {analyticsPeriod === 'monthly' ? (
+            <div className="admin-analytics-filter-group">
+              <span className="admin-analytics-filter-label">{t('month')}</span>
+              <Form.Select
+                value={dashboardMonth}
+                onChange={(e) => setDashboardMonth(parseInt(e.target.value, 10))}
+                className="admin-analytics-filter-control"
+              >
+                {dashboardMonthOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Form.Select>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+
+  const renderAnalyticsFunnelCard = () => (
+    <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
+      <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+        <h6 className="mb-0 admin-analytics-card-title">
+          <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🤖</span>
+          {language === 'uz' ? 'Telegram voronkasi' : 'Воронка Telegram'}
+        </h6>
+        <small className="text-muted admin-analytics-card-subtle">
+          {analyticsPeriodCaption}
+        </small>
+      </Card.Header>
+      <Card.Body>
+        {loadingFunnelAnalytics ? (
+          <div className="text-muted small">{t('loading')}</div>
+        ) : (
+          (() => {
+            const botFunnel = funnelAnalytics.bot || {};
+            const startedUsers = Number(botFunnel.startedUsers || 0);
+            const languageSelectedUsers = Number(botFunnel.languageSelectedUsers || 0);
+            const contactSharedUsers = Number(botFunnel.contactSharedUsers || 0);
+            const registrationCompletedUsers = Number(botFunnel.registrationCompletedUsers || 0);
+            const registeredWithOrderUsers = Number(botFunnel.registeredWithOrderUsers || 0);
+            const stageMetrics = [
+              {
+                key: 'started',
+                title: language === 'uz' ? '/start bosgan' : 'Нажали /start',
+                valueLabel: `${startedUsers.toLocaleString('ru-RU')}`,
+                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                icon: '▶',
+                accent: '#2680d9',
+                tint: 'rgba(38, 128, 217, 0.08)',
+                trend: [startedUsers * 0.62, startedUsers * 0.84, startedUsers * 0.96, startedUsers]
+              },
+              {
+                key: 'language',
+                title: language === 'uz' ? 'Til tanlagan' : 'Выбрали язык',
+                valueLabel: `${languageSelectedUsers.toLocaleString('ru-RU')}`,
+                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                icon: '🌐',
+                accent: '#1f9f95',
+                tint: 'rgba(31, 159, 149, 0.08)',
+                trend: [startedUsers, languageSelectedUsers, contactSharedUsers, registrationCompletedUsers]
+              },
+              {
+                key: 'phone',
+                title: language === 'uz' ? 'Telefon yuborgan' : 'Отправили телефон',
+                valueLabel: `${contactSharedUsers.toLocaleString('ru-RU')}`,
+                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                icon: '📱',
+                accent: '#258f4f',
+                tint: 'rgba(37, 143, 79, 0.08)',
+                trend: [languageSelectedUsers, contactSharedUsers, registrationCompletedUsers, registeredWithOrderUsers]
+              },
+              {
+                key: 'registered',
+                title: language === 'uz' ? "Ro'yxatdan o'tgan" : 'Завершили регистрацию',
+                valueLabel: `${registrationCompletedUsers.toLocaleString('ru-RU')}`,
+                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                icon: '✅',
+                accent: '#df9f1e',
+                tint: 'rgba(223, 159, 30, 0.09)',
+                trend: [contactSharedUsers, registrationCompletedUsers, registeredWithOrderUsers, Math.max(registeredWithOrderUsers * 0.95, 0)]
+              },
+              {
+                key: 'ordered',
+                title: language === 'uz' ? 'Buyurtma bergan' : 'Сделали заказ',
+                valueLabel: `${registeredWithOrderUsers.toLocaleString('ru-RU')}`,
+                suffix: language === 'uz' ? 'kishi' : 'чел.',
+                icon: '🛒',
+                accent: '#d04b4b',
+                tint: 'rgba(208, 75, 75, 0.09)',
+                trend: [registrationCompletedUsers, registeredWithOrderUsers, Math.max(registeredWithOrderUsers * 0.78, 0), Math.max(registeredWithOrderUsers * 0.92, 0)]
+              },
+              {
+                key: 'conversion',
+                title: language === 'uz' ? "Start -> Buyurtma" : 'Start -> Заказ',
+                valueLabel: formatPercentLabel(botFunnel.conversionStartToOrder),
+                suffix: '',
+                icon: '↗',
+                accent: '#5f6dd9',
+                tint: 'rgba(95, 109, 217, 0.08)',
+                trend: [
+                  Number(botFunnel.conversionStartToRegistration || 0),
+                  Number(botFunnel.conversionRegistrationToOrder || 0),
+                  Number(botFunnel.conversionStartToOrder || 0) * 0.85,
+                  Number(botFunnel.conversionStartToOrder || 0)
+                ]
+              }
+            ];
+
+            return (
+              <div className="d-flex flex-column gap-3">
+                <div className="admin-funnel-clean-grid">
+                  {stageMetrics.map((metric) => (
+                    <div
+                      key={`bot-funnel-metric-${metric.key}`}
+                      className="admin-funnel-clean-card"
+                      style={{
+                        '--funnel-accent': metric.accent,
+                        '--funnel-tint': metric.tint
+                      }}
+                    >
+                      <div className="admin-funnel-clean-icon">{metric.icon}</div>
+                      <span className="admin-funnel-clean-help">?</span>
+                      <div className="admin-funnel-clean-title">{metric.title}</div>
+                      <div className="admin-funnel-clean-value">
+                        {metric.valueLabel}
+                        {metric.suffix ? <small>{metric.suffix}</small> : null}
+                      </div>
+                      <svg viewBox="0 0 120 28" className="admin-funnel-clean-sparkline" preserveAspectRatio="none">
+                        <polyline
+                          points={buildMiniSparklinePoints(metric.trend)}
+                          fill="none"
+                          stroke="var(--funnel-accent)"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="d-flex flex-wrap gap-2 pt-1">
+                  <span className="badge text-bg-light border">
+                    {language === 'uz' ? 'Start -> Registratsiya' : 'Start -> Регистрация'}: {formatPercentLabel(botFunnel.conversionStartToRegistration)}
+                  </span>
+                  <span className="badge text-bg-light border">
+                    {language === 'uz' ? 'Registratsiya -> Buyurtma' : 'Регистрация -> Заказ'}: {formatPercentLabel(botFunnel.conversionRegistrationToOrder)}
+                  </span>
+                </div>
+
+                <div className="small text-muted d-flex flex-wrap gap-3">
+                  <span>{language === 'uz' ? 'Tilgacha tushib qolgan' : 'Потеря до выбора языка'}: <strong className="text-dark">{Number(botFunnel.noLanguageAfterStart || 0)}</strong></span>
+                  <span>{language === 'uz' ? "Telefon bermagan" : 'Не дали телефон'}: <strong className="text-dark">{Number(botFunnel.noPhoneAfterLanguage || 0)}</strong></span>
+                  <span>{language === 'uz' ? "Ro'yxatdan o'tdi, ammo buyurtma yo'q" : 'Зарегистрировались, но без заказа'}: <strong className="text-dark">{Number(botFunnel.noOrderAfterRegistration || 0)}</strong></span>
+                </div>
+              </div>
+            );
+          })()
+        )}
+      </Card.Body>
+    </Card>
+  );
+
+  const renderAnalyticsMapCard = () => (
+    <Card className="border-0 shadow-sm admin-analytics-surface-card admin-analytics-map-card">
+      <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between admin-analytics-card-header">
+        <h6 className="mb-0 admin-analytics-card-title">
+          <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
+          {t('orderGeography')}
+        </h6>
+        <Button
+          size="sm"
+          variant="outline-secondary"
+          className="admin-analytics-fullscreen-btn"
+          onClick={() => setShowAnalyticsMapModal(true)}
+          title={t('fullscreen') || 'Во весь экран'}
+          aria-label={t('fullscreen') || 'Во весь экран'}
+        >
+          <i className="bi bi-arrows-fullscreen" />
+        </Button>
+      </Card.Header>
+      <Card.Body className="p-0">
+        <Row className="g-0">
+          <Col lg={8} xl={9}>
+            <div
+              style={{
+                height: '390px',
+                width: '100%',
+                background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
+              }}
+            >
+              <MapContainer
+                center={ANALYTICS_DEFAULT_MAP_CENTER}
+                zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; OpenStreetMap contributors'
+                />
+                <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
+                <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                {activeAnalyticsLocationsList.map((location) => {
+                  const isSelected = selectedAnalyticsLocation &&
+                    (selectedAnalyticsLocation.orderId === location.orderId);
+                  return (
+                    <Marker
+                      key={`analytics-map-${location.orderId || location.orderNumber}`}
+                      position={[location.lat, location.lng]}
+                      icon={getAnalyticsPointIcon(isSelected)}
+                      zIndexOffset={isSelected ? 1000 : 0}
+                      eventHandlers={{
+                        click: () => openAnalyticsLocationDetails(location)
+                      }}
+                    />
+                  );
+                })}
+              </MapContainer>
+            </div>
+          </Col>
+          <Col lg={4} xl={3} className="border-start bg-white">
+            <div className="p-3 admin-custom-scrollbar admin-analytics-map-sidebar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
+              <div className="small text-uppercase text-muted fw-semibold mb-2 admin-analytics-map-sidebar-title">
+                {t('clients') || 'Клиенты'}
+              </div>
+              <div className="d-grid gap-2">
+                {activeAnalyticsLocationsList.length > 0 ? activeAnalyticsLocationsList.map((location) => {
+                  const locationKey = getAnalyticsLocationKey(location);
+                  const isSelected = selectedAnalyticsLocation &&
+                    (selectedAnalyticsLocation.orderId === location.orderId);
+                  return (
+                    <button
+                      type="button"
+                      key={`analytics-list-${location.orderId || location.orderNumber}`}
+                      ref={(el) => {
+                        if (!locationKey) return;
+                        if (el) analyticsListItemRefs.current.set(locationKey, el);
+                        else analyticsListItemRefs.current.delete(locationKey);
+                      }}
+                      onClick={() => openAnalyticsLocationDetails(location)}
+                      className={`btn text-start admin-analytics-map-list-item${isSelected ? ' is-active' : ''}`}
+                      style={{
+                        border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`,
+                        background: isSelected ? '#eff6ff' : '#ffffff'
+                      }}
+                    >
+                      <div className="fw-semibold">{location.customerName || 'Клиент'}</div>
+                      <div className="small text-muted">{location.customerPhone || '—'}</div>
+                      <div className="small mt-1">№{location.orderNumber} · {formatPrice(location.totalAmount)} {t('sum')}</div>
+                    </button>
+                  );
+                }) : (
+                  <div className="text-muted small py-2">{t('noDataForPeriod')}</div>
+                )}
+              </div>
+
+              {selectedAnalyticsLocation && (
+                <div className="mt-3 p-3 rounded-3 border admin-analytics-map-detail" style={{ background: '#f8fafc' }}>
+                  <div className="small fw-semibold mb-2">{t('client') || 'Клиент'}</div>
+                  <div className="small"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedAnalyticsLocation.orderNumber || '—'}</div>
+                  <div className="small"><strong>{t('amount')}:</strong> {formatPrice(selectedAnalyticsLocation.totalAmount || 0)} {t('sum')}</div>
+                  <div className="small"><strong>{t('date')}:</strong> {selectedAnalyticsLocation.createdAt ? new Date(selectedAnalyticsLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
+                  <div className="small"><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedAnalyticsLocation.deliveryAddress || '—'}</div>
+                </div>
+              )}
+            </div>
+          </Col>
+        </Row>
+      </Card.Body>
+    </Card>
+  );
+
+  const renderAnalyticsTopTables = () => (
+    <Row className="g-4">
+      <Col lg={6}>
+        <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+          <Card.Header className="bg-white border-0 admin-analytics-card-header">
+            <h6 className="mb-0 admin-analytics-card-title">
+              <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>🍔</span>
+              {t('topProducts')}
+            </h6>
+          </Card.Header>
+          <Card.Body className="p-0">
+            {activeAnalyticsView.topProducts.length > 0 ? (
+              <Table hover className="mb-0 admin-analytics-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{t('productName')}</th>
+                    <th className="text-end">{t('quantity')}</th>
+                    <th className="text-end">{t('revenue')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeAnalyticsView.topProducts.map((item, idx) => (
+                    <tr key={`${analyticsPeriod}-top-product-${idx}-${item.name}`}>
+                      <td>
+                        <span className={`admin-analytics-rank ${idx === 0 ? 'r1' : idx === 1 ? 'r2' : idx === 2 ? 'r3' : ''}`}>{idx + 1}</span>
+                      </td>
+                      <td>{item.name}</td>
+                      <td className="text-end">{item.quantity}</td>
+                      <td className="text-end">{formatPrice(item.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+            )}
+          </Card.Body>
+        </Card>
+      </Col>
+      <Col lg={6}>
+        <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+          <Card.Header className="bg-white border-0 admin-analytics-card-header">
+            <h6 className="mb-0 admin-analytics-card-title">
+              <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>👑</span>
+              {t('topCustomers') || 'Топ клиентов'}
+            </h6>
+          </Card.Header>
+          <Card.Body className="p-0">
+            {activeAnalyticsView.topCustomers.length > 0 ? (
+              <Table hover className="mb-0 admin-analytics-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{t('client')}</th>
+                    <th className="text-end">{t('ordersCount')}</th>
+                    <th className="text-end">{t('revenue')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeAnalyticsView.topCustomers.map((item, idx) => (
+                    <tr key={`${analyticsPeriod}-top-customer-${idx}-${item.phone}`}>
+                      <td>
+                        <span className={`admin-analytics-rank ${idx === 0 ? 'r1' : idx === 1 ? 'r2' : idx === 2 ? 'r3' : ''}`}>{idx + 1}</span>
+                      </td>
+                      <td>
+                        <div className="fw-semibold">{item.name}</div>
+                        <small className="text-muted">{item.phone}</small>
+                      </td>
+                      <td className="text-end">{item.ordersCount}</td>
+                      <td className="text-end">{formatPrice(item.totalAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+            )}
+          </Card.Body>
+        </Card>
+      </Col>
+    </Row>
+  );
+
+  const renderAnalyticsDashboard = () => (
+    <div className="admin-analytics-layout">
+      <div className="admin-analytics-header-row">
+        <div className="admin-analytics-period-tabs">
+          {[
+            { key: 'daily', label: language === 'uz' ? 'Kunlik' : 'Ежедневный' },
+            { key: 'monthly', label: language === 'uz' ? 'Oylik' : 'Ежемесячный' },
+            { key: 'yearly', label: language === 'uz' ? 'Yillik' : 'Ежегодный' }
+          ].map((periodTab) => (
+            <button
+              key={periodTab.key}
+              type="button"
+              className={`admin-analytics-period-btn${analyticsPeriod === periodTab.key ? ' is-active' : ''}`}
+              onClick={() => setAnalyticsPeriod(periodTab.key)}
+            >
+              {periodTab.label}
+            </button>
+          ))}
+        </div>
+        {renderAnalyticsFilters()}
+      </div>
+
+      <div className="admin-analytics-kpi-grid">
+        <div className="admin-analytics-kpi-card">
+          <div className="admin-analytics-kpi-header">
+            <h6 className="mb-0 admin-analytics-card-title">
+              <span className="admin-analytics-card-title-icon" style={{ color: '#10b981', background: '#ecfdf5' }}>💰</span>
+              {t('revenue')}
+            </h6>
+          </div>
+          <div className="admin-analytics-kpi-value">
+            {formatPrice(activeAnalyticsView.revenue)} <span>{t('sum')}</span>
+          </div>
+          <div className="admin-analytics-kpi-list">
+            {activeAnalyticsView.revenueRows.map((row) => (
+              <div className="admin-analytics-kpi-row" key={`rev-${row.label}`}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="admin-analytics-kpi-card">
+          <div className="admin-analytics-kpi-header">
+            <h6 className="mb-0 admin-analytics-card-title">
+              <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>📦</span>
+              {language === 'uz' ? 'Buyurtmalar' : 'Заказы'}
+            </h6>
+          </div>
+          <div className="admin-analytics-kpi-value">
+            {activeAnalyticsView.ordersCount}
+          </div>
+          <div className="admin-analytics-kpi-list">
+            {activeAnalyticsView.ordersRows.map((row) => (
+              <div className="admin-analytics-kpi-row" key={`ord-${row.label}`}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="admin-analytics-kpi-card">
+          <div className="admin-analytics-kpi-header">
+            <h6 className="mb-0 admin-analytics-card-title">
+              <span className="admin-analytics-card-title-icon" style={{ color: '#3b82f6', background: '#eff6ff' }}>🧾</span>
+              {t('averageCheck')}
+            </h6>
+          </div>
+          <div className="admin-analytics-kpi-value">
+            {formatPrice(activeAnalyticsView.averageCheck)} <span>{t('sum')}</span>
+          </div>
+          <div className="admin-analytics-kpi-list">
+            {activeAnalyticsView.averageRows.map((row) => (
+              <div className="admin-analytics-kpi-row" key={`avg-${row.label}`}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <Row className="g-4 mb-4">
+        <Col lg={8}>
+          <Card className="border-0 shadow-sm admin-analytics-surface-card">
+            <Card.Body className="admin-analytics-chart-stack">
+              <div className="admin-analytics-chart-box">
+                <div className="admin-analytics-chart-heading">
+                  <span>{language === 'uz' ? 'Moliya' : 'Финансы'}</span>
+                  <small>{activeAnalyticsView.revenueChartSubtitle}</small>
+                </div>
+                {renderAnalyticsSvgChart({
+                  data: activeAnalyticsView.revenueTimeline,
+                  color: '#6366f1',
+                  gradientId: `analytics-revenue-${analyticsPeriod}`,
+                  mode: 'currency',
+                  showAllLabels: analyticsPeriod === 'yearly'
+                })}
+              </div>
+
+              <div className="admin-analytics-chart-box admin-analytics-chart-box-secondary">
+                <div className="admin-analytics-chart-heading">
+                  <span>{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</span>
+                  <small>{activeAnalyticsView.ordersChartSubtitle}</small>
+                </div>
+                {renderAnalyticsSvgChart({
+                  data: activeAnalyticsView.ordersTimeline,
+                  color: '#f43f5e',
+                  gradientId: `analytics-orders-${analyticsPeriod}`,
+                  mode: 'count',
+                  showAllLabels: analyticsPeriod === 'yearly'
+                })}
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col lg={4}>
+          {renderAnalyticsFunnelCard()}
+        </Col>
+      </Row>
+
+      <Row className="g-4 mb-4">
+        <Col xs={12}>
+          {renderAnalyticsMapCard()}
+        </Col>
+      </Row>
+
+      {renderAnalyticsTopTables()}
+    </div>
+  );
 
   return (
     <>
@@ -3921,6 +4831,9 @@ function AdminDashboard() {
             <Tabs activeKey={mainTab} onSelect={(k) => setMainTab(k || 'dashboard')} className="admin-tabs">
               {/* Dashboard Tab */}
               <Tab eventKey="dashboard" title={t('dashboard')}>
+                {renderAnalyticsDashboard()}
+                {false && (
+                  <>
                 {/* Filters */}
                 <Row className="mb-4 g-3">
                   <Col md={3}>
@@ -4938,6 +5851,8 @@ function AdminDashboard() {
                         </div>
                       </Card.Body>
                     </Card>
+                  </>
+                )}
                   </>
                 )}
 
@@ -7775,9 +8690,9 @@ function AdminDashboard() {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution='&copy; OpenStreetMap contributors'
                   />
-                  <AnalyticsMapAutoBounds points={analytics.orderLocations} />
+                  <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
                   <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
-                  {analytics.orderLocations.map((location) => (
+                  {activeAnalyticsLocationsList.map((location) => (
                     (() => {
                       const isSelected = selectedAnalyticsLocation &&
                         (selectedAnalyticsLocation.orderId === location.orderId);
@@ -7802,7 +8717,7 @@ function AdminDashboard() {
                     {t('clients') || 'Клиенты'}
                   </div>
                   <div className="d-grid gap-2">
-                    {analyticsLocationsList.length > 0 ? analyticsLocationsList.map((location) => {
+                    {activeAnalyticsLocationsList.length > 0 ? activeAnalyticsLocationsList.map((location) => {
                       const locationKey = getAnalyticsLocationKey(location);
                       const isSelected = selectedAnalyticsLocation &&
                         (selectedAnalyticsLocation.orderId === location.orderId);
