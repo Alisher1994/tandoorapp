@@ -49,6 +49,13 @@ const getNextFreeSortOrderClient = (items = [], excludeId = null) => {
   return candidate;
 };
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
   const totalPages = Math.ceil(total / limit);
@@ -550,7 +557,13 @@ function SuperAdminDashboard() {
   const [adPreviewRestaurantId, setAdPreviewRestaurantId] = useState('');
   const [overviewAnalyticsPeriod, setOverviewAnalyticsPeriod] = useState('monthly');
   const [overviewAnalyticsRestaurantId, setOverviewAnalyticsRestaurantId] = useState('');
+  const [showOverviewRestaurantPickerModal, setShowOverviewRestaurantPickerModal] = useState(false);
+  const [overviewRestaurantSearch, setOverviewRestaurantSearch] = useState('');
   const [overviewAnalyticsTopLimit, setOverviewAnalyticsTopLimit] = useState(10);
+  const [showOverviewCompareModal, setShowOverviewCompareModal] = useState(false);
+  const [overviewCompareRestaurantSearch, setOverviewCompareRestaurantSearch] = useState('');
+  const [overviewComparisonRestaurantIds, setOverviewComparisonRestaurantIds] = useState([]);
+  const [overviewComparisonPdfLoading, setOverviewComparisonPdfLoading] = useState(false);
   const [overviewAnalyticsYear, setOverviewAnalyticsYear] = useState(() => new Date().getFullYear());
   const [overviewAnalyticsMonth, setOverviewAnalyticsMonth] = useState(() => new Date().getMonth() + 1);
   const [overviewAnalyticsDate, setOverviewAnalyticsDate] = useState(() => {
@@ -658,26 +671,32 @@ function SuperAdminDashboard() {
     }
   };
 
+  const buildOverviewAnalyticsParams = (restaurantId = overviewAnalyticsRestaurantId) => {
+    const params = {
+      period: overviewAnalyticsPeriod,
+      year: overviewAnalyticsYear,
+      top_limit: overviewAnalyticsTopLimit
+    };
+
+    if (overviewAnalyticsPeriod === 'daily') {
+      params.date = overviewAnalyticsDate;
+    } else if (overviewAnalyticsPeriod === 'monthly') {
+      params.month = overviewAnalyticsMonth;
+    }
+
+    if (restaurantId) {
+      params.restaurant_id = restaurantId;
+    }
+
+    return params;
+  };
+
   const loadOverviewAnalytics = async () => {
     setOverviewAnalyticsLoading(true);
     try {
-      const params = {
-        period: overviewAnalyticsPeriod,
-        year: overviewAnalyticsYear,
-        top_limit: overviewAnalyticsTopLimit
-      };
-
-      if (overviewAnalyticsPeriod === 'daily') {
-        params.date = overviewAnalyticsDate;
-      } else if (overviewAnalyticsPeriod === 'monthly') {
-        params.month = overviewAnalyticsMonth;
-      }
-
-      if (overviewAnalyticsRestaurantId) {
-        params.restaurant_id = overviewAnalyticsRestaurantId;
-      }
-
-      const response = await axios.get(`${API_URL}/superadmin/analytics/overview`, { params });
+      const response = await axios.get(`${API_URL}/superadmin/analytics/overview`, {
+        params: buildOverviewAnalyticsParams()
+      });
       setOverviewAnalyticsData(response.data || null);
     } catch (err) {
       console.error('Load overview analytics error:', err);
@@ -685,6 +704,191 @@ function SuperAdminDashboard() {
       setError(err.response?.data?.error || 'Ошибка загрузки аналитики');
     } finally {
       setOverviewAnalyticsLoading(false);
+    }
+  };
+
+  const getOverviewAnalyticsPeriodCaption = () => {
+    if (overviewAnalyticsPeriod === 'daily') {
+      return overviewAnalyticsDate || '—';
+    }
+    if (overviewAnalyticsPeriod === 'monthly') {
+      return `${monthLongLabels[Math.max(0, Math.min(11, overviewAnalyticsMonth - 1))]} ${overviewAnalyticsYear}`;
+    }
+    return String(overviewAnalyticsYear || '');
+  };
+
+  const toggleOverviewComparisonRestaurant = (restaurantId) => {
+    const normalizedId = String(restaurantId);
+    setOverviewComparisonRestaurantIds((prev) => {
+      if (prev.includes(normalizedId)) {
+        return prev.filter((id) => id !== normalizedId);
+      }
+      if (prev.length >= 3) {
+        setError(language === 'uz'
+          ? "Taqqoslash uchun ko'pi bilan 3 ta do'kon tanlash mumkin"
+          : 'Для сравнения можно выбрать не более 3 магазинов');
+        return prev;
+      }
+      return [...prev, normalizedId];
+    });
+  };
+
+  const buildComparisonReportHtml = (reports, generatedAtLabel) => {
+    const periodCaption = escapeHtml(getOverviewAnalyticsPeriodCaption());
+    const cards = reports.map((payload) => {
+      const kpis = payload?.kpis || {};
+      const status = payload?.statusSummary || {};
+      const funnel = payload?.funnel || {};
+      const restaurantName = payload?.restaurant?.name || '—';
+      const startCount = Number(funnel.startedUsers || 0);
+      const orderCount = Number(funnel.registeredWithOrderUsers || 0);
+      const startToOrder = startCount > 0 ? ((orderCount / startCount) * 100).toFixed(1) : '0.0';
+
+      return `
+        <section class="cmp-store-card">
+          <div class="cmp-store-head">
+            <h2>${escapeHtml(restaurantName)}</h2>
+            <span>Период: ${periodCaption}</span>
+          </div>
+          <div class="cmp-kpi-grid">
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.revenue || 0)).toLocaleString('ru-RU')}</b><small>Выручка, сум</small></div>
+            <div class="cmp-kpi"><b>${Number(kpis.ordersCount || 0).toLocaleString('ru-RU')}</b><small>Заказы (доставлено)</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.averageCheck || 0)).toLocaleString('ru-RU')}</b><small>Средний чек, сум</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.serviceRevenue || 0)).toLocaleString('ru-RU')}</b><small>Сервис, сум</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.containersRevenue || 0)).toLocaleString('ru-RU')}</b><small>Посуда/Пакеты, сум</small></div>
+            <div class="cmp-kpi"><b>${startToOrder}%</b><small>Start -> Заказ</small></div>
+          </div>
+          <div class="cmp-row">
+            <div class="cmp-block">
+              <h3>Статусы заказов</h3>
+              <table>
+                <tbody>
+                  <tr><td>Новые</td><td>${Number(status.new || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Принятые</td><td>${Number(status.accepted || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Готовится</td><td>${Number(status.preparing || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Доставляется</td><td>${Number(status.delivering || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Доставлено</td><td>${Number(status.delivered || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Отказано</td><td>${Number(status.cancelled || 0).toLocaleString('ru-RU')}</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="cmp-block">
+              <h3>Воронка Telegram</h3>
+              <table>
+                <tbody>
+                  <tr><td>/start</td><td>${Number(funnel.startedUsers || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Язык</td><td>${Number(funnel.languageSelectedUsers || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Телефон</td><td>${Number(funnel.contactSharedUsers || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>Регистрация (/start)</td><td>${Number(funnel.registrationCompletedUsers || 0).toLocaleString('ru-RU')}</td></tr>
+                  <tr><td>С заказом (/start)</td><td>${Number(funnel.registeredWithOrderUsers || 0).toLocaleString('ru-RU')}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      `;
+    }).join('');
+
+    return `
+      <div class="cmp-report-root">
+        <style>
+          .cmp-report-root { width: 1040px; padding: 28px; background: linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%); color:#0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+          .cmp-title { margin: 0 0 14px 0; font-size: 30px; font-weight: 800; letter-spacing: .2px; }
+          .cmp-subtitle { margin: 0 0 24px 0; font-size: 14px; color:#475569; }
+          .cmp-store-card { background: #fff; border:1px solid #dbe4ef; border-radius: 16px; padding: 16px; margin-bottom: 18px; box-shadow: 0 12px 28px rgba(15,23,42,.06); }
+          .cmp-store-head { display:flex; justify-content:space-between; align-items:flex-end; gap:10px; margin-bottom:12px; }
+          .cmp-store-head h2 { margin:0; font-size: 21px; font-weight: 800; }
+          .cmp-store-head span { font-size: 12px; color:#64748b; }
+          .cmp-kpi-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+          .cmp-kpi { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:10px 12px; }
+          .cmp-kpi b { font-size: 18px; display:block; line-height:1.2; }
+          .cmp-kpi small { display:block; margin-top:3px; color:#64748b; font-size:11px; }
+          .cmp-row { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; }
+          .cmp-block { border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; }
+          .cmp-block h3 { margin:0 0 8px 0; font-size:13px; font-weight:700; color:#1e293b; text-transform: uppercase; letter-spacing: .4px; }
+          .cmp-block table { width:100%; border-collapse: collapse; }
+          .cmp-block td { padding:4px 0; border-bottom:1px dashed #e2e8f0; font-size:12px; }
+          .cmp-block td:last-child { text-align:right; font-weight:700; }
+          .cmp-block tr:last-child td { border-bottom:0; }
+        </style>
+        <h1 class="cmp-title">Сравнение магазинов</h1>
+        <p class="cmp-subtitle">Сформировано: ${escapeHtml(generatedAtLabel)} | Период: ${periodCaption}</p>
+        ${cards}
+      </div>
+    `;
+  };
+
+  const handleExportOverviewComparisonPdf = async () => {
+    if (overviewComparisonRestaurantIds.length < 2) {
+      setError(language === 'uz'
+        ? "PDF uchun kamida 2 ta do'kon tanlang"
+        : 'Для PDF-сравнения выберите минимум 2 магазина');
+      return;
+    }
+    setOverviewComparisonPdfLoading(true);
+    try {
+      const [{ default: html2canvasLib }, { jsPDF: JsPdfCtor }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+      const baseParams = buildOverviewAnalyticsParams('');
+      const requests = overviewComparisonRestaurantIds.slice(0, 3).map((restaurantId) => (
+        axios.get(`${API_URL}/superadmin/analytics/overview`, {
+          params: { ...baseParams, restaurant_id: restaurantId }
+        })
+      ));
+      const responses = await Promise.all(requests);
+      const reports = responses.map((response) => response?.data).filter(Boolean);
+      if (!reports.length) {
+        throw new Error('Нет данных для отчёта');
+      }
+
+      const reportHost = document.createElement('div');
+      reportHost.style.position = 'fixed';
+      reportHost.style.left = '-10000px';
+      reportHost.style.top = '0';
+      reportHost.style.zIndex = '-1';
+      reportHost.innerHTML = buildComparisonReportHtml(
+        reports,
+        new Date().toLocaleString('ru-RU')
+      );
+      document.body.appendChild(reportHost);
+
+      const canvas = await html2canvasLib(reportHost, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#f8fafc'
+      });
+      document.body.removeChild(reportHost);
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new JsPdfCtor('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 18;
+      const imgWidth = pageWidth - (margin * 2);
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let renderedHeight = 0;
+      let pageIndex = 0;
+
+      while (renderedHeight < imgHeight) {
+        if (pageIndex > 0) pdf.addPage();
+        const yOffset = margin - renderedHeight;
+        pdf.addImage(imgData, 'PNG', margin, yOffset, imgWidth, imgHeight);
+        renderedHeight += (pageHeight - margin * 2);
+        pageIndex += 1;
+      }
+
+      const filenameDate = new Date().toISOString().slice(0, 10);
+      pdf.save(`shops-comparison-${filenameDate}.pdf`);
+      setSuccess(language === 'uz'
+        ? 'PDF hisobot yuklab olindi'
+        : 'PDF-отчёт успешно сформирован');
+    } catch (err) {
+      console.error('Comparison PDF export error:', err);
+      setError(err.response?.data?.error || err.message || 'Ошибка формирования PDF');
+    } finally {
+      setOverviewComparisonPdfLoading(false);
     }
   };
 
@@ -1190,6 +1394,30 @@ function SuperAdminDashboard() {
     [...(Array.isArray(allRestaurants) ? allRestaurants : [])]
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ru'))
   ), [allRestaurants]);
+  const selectedOverviewAnalyticsRestaurant = useMemo(() => (
+    overviewAnalyticsRestaurantOptions.find((restaurant) => String(restaurant.id) === String(overviewAnalyticsRestaurantId)) || null
+  ), [overviewAnalyticsRestaurantOptions, overviewAnalyticsRestaurantId]);
+  const overviewAnalyticsRestaurantButtonLabel = selectedOverviewAnalyticsRestaurant?.name
+    || (language === 'uz' ? "Barcha do'konlar" : 'Все магазины');
+  const filteredOverviewAnalyticsRestaurants = useMemo(() => {
+    const query = String(overviewRestaurantSearch || '').trim().toLowerCase();
+    if (!query) return overviewAnalyticsRestaurantOptions;
+    return overviewAnalyticsRestaurantOptions.filter((restaurant) => (
+      String(restaurant?.name || '').toLowerCase().includes(query)
+    ));
+  }, [overviewAnalyticsRestaurantOptions, overviewRestaurantSearch]);
+  const filteredOverviewCompareRestaurants = useMemo(() => {
+    const query = String(overviewCompareRestaurantSearch || '').trim().toLowerCase();
+    if (!query) return overviewAnalyticsRestaurantOptions;
+    return overviewAnalyticsRestaurantOptions.filter((restaurant) => (
+      String(restaurant?.name || '').toLowerCase().includes(query)
+    ));
+  }, [overviewAnalyticsRestaurantOptions, overviewCompareRestaurantSearch]);
+  const overviewComparisonRestaurantNames = useMemo(() => (
+    overviewComparisonRestaurantIds.map((id) => (
+      overviewAnalyticsRestaurantOptions.find((restaurant) => String(restaurant.id) === String(id))?.name || String(id)
+    ))
+  ), [overviewComparisonRestaurantIds, overviewAnalyticsRestaurantOptions]);
 
   const selectedAdPreviewRestaurant = useMemo(() => {
     if (!adPreviewRestaurantOptions.length) return null;
@@ -2754,6 +2982,53 @@ function SuperAdminDashboard() {
       ? ordersTimeline.map((item, index) => ({ ...item, label: monthShortLabels[index] || item.label }))
       : ordersTimeline;
 
+    const startedUsers = Math.max(0, Number(funnel.startedUsers || 0));
+    const selectedLanguageUsers = Math.max(0, Number(funnel.languageSelectedUsers || 0));
+    const sharedPhoneUsers = Math.max(0, Number(funnel.contactSharedUsers || 0));
+    const registeredUsers = Math.max(0, Number(funnel.registrationCompletedUsers || 0));
+    const orderedUsers = Math.max(0, Number(funnel.registeredWithOrderUsers || 0));
+    const stageLanguage = Math.min(startedUsers, selectedLanguageUsers);
+    const stagePhone = Math.min(stageLanguage, sharedPhoneUsers);
+    const stageRegistration = Math.min(stagePhone, registeredUsers);
+    const stageOrder = Math.min(stageRegistration, orderedUsers);
+    const donutSegments = [
+      {
+        key: 'ordered',
+        label: language === 'uz' ? "Buyurtmaga o'tgan" : 'Дошли до заказа',
+        value: stageOrder,
+        color: '#16a34a'
+      },
+      {
+        key: 'no_order',
+        label: language === 'uz' ? 'Ro‘yxatdan o‘tib, buyurtmasiz' : 'Зарегистрировались, без заказа',
+        value: Math.max(0, stageRegistration - stageOrder),
+        color: '#f59e0b'
+      },
+      {
+        key: 'no_registration',
+        label: language === 'uz' ? "Telefon berib, ro'yxatdan o'tmagan" : 'Дали телефон, не зарегистрировались',
+        value: Math.max(0, stagePhone - stageRegistration),
+        color: '#f97316'
+      },
+      {
+        key: 'no_phone',
+        label: language === 'uz' ? 'Til tanlab, telefon bermagan' : 'Выбрали язык, без телефона',
+        value: Math.max(0, stageLanguage - stagePhone),
+        color: '#0ea5e9'
+      },
+      {
+        key: 'no_language',
+        label: language === 'uz' ? 'Start bosib, til tanlamagan' : 'Нажали start, без выбора языка',
+        value: Math.max(0, startedUsers - stageLanguage),
+        color: '#6366f1'
+      }
+    ];
+    const donutTotal = donutSegments.reduce((sum, item) => sum + Number(item.value || 0), 0);
+    const donutRadius = 58;
+    const donutStroke = 18;
+    const donutCircumference = 2 * Math.PI * donutRadius;
+    let donutProgress = 0;
+
     return (
       <div className="admin-analytics-layout">
         <div className="admin-analytics-header-row">
@@ -2777,18 +3052,50 @@ function SuperAdminDashboard() {
           <div className="admin-analytics-filters-area">
             <div className="admin-analytics-filter-group">
               <span className="admin-analytics-filter-label">{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
-              <Form.Select
-                value={overviewAnalyticsRestaurantId}
-                onChange={(e) => setOverviewAnalyticsRestaurantId(e.target.value)}
-                className="admin-analytics-filter-control"
+              <button
+                type="button"
+                className="admin-analytics-filter-control admin-analytics-filter-button"
+                onClick={() => {
+                  setOverviewRestaurantSearch('');
+                  setShowOverviewRestaurantPickerModal(true);
+                }}
               >
-                <option value="">{language === 'uz' ? "Barcha do'konlar" : 'Все магазины'}</option>
-                {overviewAnalyticsRestaurantOptions.map((restaurant) => (
-                  <option key={`sa-analytics-restaurant-${restaurant.id}`} value={String(restaurant.id)}>
-                    {restaurant.name}
-                  </option>
-                ))}
-              </Form.Select>
+                <span className="text-truncate">{overviewAnalyticsRestaurantButtonLabel}</span>
+                <i className="bi bi-search ms-2" />
+              </button>
+            </div>
+            <div className="admin-analytics-filter-group">
+              <span className="admin-analytics-filter-label">{language === 'uz' ? 'Taqqoslash' : 'Сравнение'}</span>
+              <button
+                type="button"
+                className="admin-analytics-filter-control admin-analytics-filter-button"
+                onClick={() => {
+                  setOverviewCompareRestaurantSearch('');
+                  setShowOverviewCompareModal(true);
+                }}
+              >
+                {language === 'uz'
+                  ? `Do'konlar: ${overviewComparisonRestaurantIds.length}/3`
+                  : `Магазины: ${overviewComparisonRestaurantIds.length}/3`}
+              </button>
+            </div>
+            <div className="admin-analytics-filter-group">
+              <span className="admin-analytics-filter-label">PDF</span>
+              <button
+                type="button"
+                className="admin-analytics-filter-control admin-analytics-filter-button"
+                disabled={overviewComparisonRestaurantIds.length < 2 || overviewComparisonPdfLoading}
+                onClick={handleExportOverviewComparisonPdf}
+              >
+                {overviewComparisonPdfLoading ? (
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <Spinner animation="border" size="sm" />
+                    PDF...
+                  </span>
+                ) : (
+                  language === 'uz' ? 'PDF hisobot' : 'PDF отчёт'
+                )}
+              </button>
             </div>
             <div className="admin-analytics-filter-group">
               <span className="admin-analytics-filter-label">{language === 'uz' ? 'TOP' : 'ТОП'}</span>
@@ -2846,6 +3153,15 @@ function SuperAdminDashboard() {
             )}
           </div>
         </div>
+        {overviewComparisonRestaurantNames.length > 0 ? (
+          <div className="admin-analytics-compare-strip">
+            {overviewComparisonRestaurantNames.map((name, idx) => (
+              <span key={`compare-shop-chip-${idx}`} className="admin-analytics-compare-chip">
+                {name}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         {overviewAnalyticsLoading ? (
           <div className="py-4 text-center text-muted">
@@ -3011,12 +3327,62 @@ function SuperAdminDashboard() {
                     <small className="text-muted admin-analytics-card-subtle">{startDate || '—'}</small>
                   </Card.Header>
                   <Card.Body>
-                    <div className="d-flex flex-column gap-2 small">
-                      <div className="d-flex justify-content-between"><span>/start</span><strong>{Number(funnel.startedUsers || 0)}</strong></div>
-                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Til' : 'Язык'}</span><strong>{Number(funnel.languageSelectedUsers || 0)}</strong></div>
-                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Telefon' : 'Телефон'}</span><strong>{Number(funnel.contactSharedUsers || 0)}</strong></div>
-                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? "Ro'yxat (/start)" : 'Регистрация (/start)'}</span><strong>{Number(funnel.registrationCompletedUsers || 0)}</strong></div>
-                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Buyurtma (/start)' : 'С заказом (/start)'}</span><strong>{Number(funnel.registeredWithOrderUsers || 0)}</strong></div>
+                    <div className="admin-funnel-donut-wrap">
+                      <div className="admin-funnel-donut-chart">
+                        <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Funnel donut chart">
+                          <circle
+                            cx="90"
+                            cy="90"
+                            r={donutRadius}
+                            fill="none"
+                            stroke="#e2e8f0"
+                            strokeWidth={donutStroke}
+                          />
+                          {donutTotal > 0 ? donutSegments.map((segment) => {
+                            const value = Number(segment.value || 0);
+                            if (value <= 0) return null;
+                            const ratio = value / donutTotal;
+                            const strokeLength = ratio * donutCircumference;
+                            const strokeDasharray = `${strokeLength} ${donutCircumference}`;
+                            const strokeDashoffset = -donutProgress * donutCircumference;
+                            donutProgress += ratio;
+                            return (
+                              <circle
+                                key={`funnel-donut-${segment.key}`}
+                                cx="90"
+                                cy="90"
+                                r={donutRadius}
+                                fill="none"
+                                stroke={segment.color}
+                                strokeWidth={donutStroke}
+                                strokeDasharray={strokeDasharray}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="butt"
+                                transform="rotate(-90 90 90)"
+                              />
+                            );
+                          }) : null}
+                          <circle cx="90" cy="90" r="42" fill="#ffffff" />
+                          <text x="90" y="84" textAnchor="middle" fontSize="11" fill="#64748b">
+                            /start
+                          </text>
+                          <text x="90" y="104" textAnchor="middle" fontSize="24" fontWeight="700" fill="#0f172a">
+                            {startedUsers.toLocaleString('ru-RU')}
+                          </text>
+                          <text x="90" y="122" textAnchor="middle" fontSize="10" fill="#64748b">
+                            {`-> ${Number(funnel.conversionStartToOrder || 0).toFixed(1)}%`}
+                          </text>
+                        </svg>
+                      </div>
+                      <div className="admin-funnel-donut-legend">
+                        {donutSegments.map((segment) => (
+                          <div key={`funnel-legend-${segment.key}`} className="admin-funnel-donut-legend-item">
+                            <span className="admin-funnel-donut-dot" style={{ backgroundColor: segment.color }} />
+                            <span className="admin-funnel-donut-label">{segment.label}</span>
+                            <strong className="admin-funnel-donut-value">{Number(segment.value || 0).toLocaleString('ru-RU')}</strong>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     <div className="d-flex flex-wrap gap-2 pt-3">
                       <span className="badge text-bg-light border">
@@ -3924,6 +4290,129 @@ function SuperAdminDashboard() {
           <Button className="btn-primary-custom flex-fill" onClick={() => setShowMobileFiltersSheet(false)}>
             {mobileSheetI18n.apply}
           </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showOverviewRestaurantPickerModal}
+        onHide={() => setShowOverviewRestaurantPickerModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz' ? "Do'konni tanlang" : 'Выбор магазина'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-2">
+          <Form.Control
+            className="form-control-custom mb-3"
+            type="search"
+            placeholder={language === 'uz' ? "Do'kon qidirish..." : 'Поиск магазина...'}
+            value={overviewRestaurantSearch}
+            onChange={(e) => setOverviewRestaurantSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="d-grid gap-2 overview-restaurant-picker-list">
+            <Button
+              variant={!overviewAnalyticsRestaurantId ? 'primary' : 'light'}
+              className="text-start"
+              onClick={() => {
+                setOverviewAnalyticsRestaurantId('');
+                setShowOverviewRestaurantPickerModal(false);
+              }}
+            >
+              {language === 'uz' ? "Barcha do'konlar" : 'Все магазины'}
+            </Button>
+            {filteredOverviewAnalyticsRestaurants.length ? filteredOverviewAnalyticsRestaurants.map((restaurant) => (
+              <Button
+                key={`overview-filter-shop-${restaurant.id}`}
+                variant={String(overviewAnalyticsRestaurantId) === String(restaurant.id) ? 'primary' : 'light'}
+                className="text-start"
+                onClick={() => {
+                  setOverviewAnalyticsRestaurantId(String(restaurant.id));
+                  setShowOverviewRestaurantPickerModal(false);
+                }}
+              >
+                {restaurant.name}
+              </Button>
+            )) : (
+              <div className="small text-muted text-center py-2">{t('noData')}</div>
+            )}
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <Modal
+        show={showOverviewCompareModal}
+        onHide={() => setShowOverviewCompareModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz' ? "Do'konlarni taqqoslash (max 3)" : 'Сравнение магазинов (макс 3)'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-2">
+          <Form.Control
+            className="form-control-custom mb-3"
+            type="search"
+            placeholder={language === 'uz' ? "Do'kon qidirish..." : 'Поиск магазина...'}
+            value={overviewCompareRestaurantSearch}
+            onChange={(e) => setOverviewCompareRestaurantSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="overview-compare-selected mb-3">
+            {overviewComparisonRestaurantNames.length ? overviewComparisonRestaurantNames.map((name, idx) => (
+              <span className="admin-analytics-compare-chip" key={`modal-compare-chip-${idx}`}>{name}</span>
+            )) : (
+              <span className="small text-muted">
+                {language === 'uz'
+                  ? "Tanlangan do'konlar yo'q"
+                  : 'Нет выбранных магазинов'}
+              </span>
+            )}
+          </div>
+          <div className="d-grid gap-2 overview-restaurant-picker-list">
+            {filteredOverviewCompareRestaurants.length ? filteredOverviewCompareRestaurants.map((restaurant) => {
+              const checked = overviewComparisonRestaurantIds.includes(String(restaurant.id));
+              const isLimitReached = !checked && overviewComparisonRestaurantIds.length >= 3;
+              return (
+                <button
+                  key={`compare-shop-${restaurant.id}`}
+                  type="button"
+                  className={`btn text-start d-flex align-items-center justify-content-between ${checked ? 'btn-primary' : 'btn-light'}`}
+                  onClick={() => toggleOverviewComparisonRestaurant(restaurant.id)}
+                  disabled={isLimitReached}
+                >
+                  <span>{restaurant.name}</span>
+                  <Form.Check type="checkbox" checked={checked} readOnly />
+                </button>
+              );
+            }) : (
+              <div className="small text-muted text-center py-2">{t('noData')}</div>
+            )}
+          </div>
+        </Modal.Body>
+        <Modal.Footer className="d-flex justify-content-between">
+          <Button
+            variant="light"
+            onClick={() => setOverviewComparisonRestaurantIds([])}
+            disabled={!overviewComparisonRestaurantIds.length}
+          >
+            {language === 'uz' ? 'Tozalash' : 'Очистить'}
+          </Button>
+          <div className="d-flex gap-2">
+            <Button
+              variant="outline-primary"
+              onClick={handleExportOverviewComparisonPdf}
+              disabled={overviewComparisonRestaurantIds.length < 2 || overviewComparisonPdfLoading}
+            >
+              {overviewComparisonPdfLoading ? 'PDF...' : (language === 'uz' ? 'PDF yuklash' : 'Скачать PDF')}
+            </Button>
+            <Button className="btn-primary-custom" onClick={() => setShowOverviewCompareModal(false)}>
+              {language === 'uz' ? 'Tayyor' : 'Готово'}
+            </Button>
+          </div>
         </Modal.Footer>
       </Modal>
 
