@@ -2710,7 +2710,13 @@ router.get('/analytics/overview', async (req, res) => {
         o.total_amount,
         o.service_fee,
         o.delivery_cost,
-        o.fulfillment_type,
+        COALESCE(
+          NULLIF(BTRIM(to_jsonb(o)->>'fulfillment_type'), ''),
+          CASE
+            WHEN LOWER(COALESCE(o.delivery_address, '')) = 'самовывоз' THEN 'pickup'
+            ELSE 'delivery'
+          END
+        ) AS fulfillment_type,
         o.delivery_address,
         o.created_at,
         o.customer_name,
