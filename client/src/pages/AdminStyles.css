@@ -1079,6 +1079,111 @@ body::-webkit-scrollbar,
     }
 }
 
+.admin-daily-report-card {
+    border: 1px solid rgba(14, 165, 233, 0.12) !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fcff 100%);
+}
+
+.admin-daily-report-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.admin-daily-report-kpi {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.admin-daily-report-kpi>span {
+    color: #64748b;
+    font-size: 0.76rem;
+    line-height: 1.2;
+}
+
+.admin-daily-report-kpi>strong {
+    color: #0f172a;
+    font-size: 0.98rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-daily-orders-chart {
+    height: 320px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: radial-gradient(circle at 16% 8%, rgba(186, 230, 253, 0.45) 0%, rgba(255, 255, 255, 0.95) 58%, rgba(239, 246, 255, 0.95) 100%);
+    padding: 10px 12px 8px;
+}
+
+.admin-funnel-stage-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.admin-funnel-stage-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.25s ease;
+}
+
+.admin-funnel-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.admin-funnel-metric {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.admin-funnel-metric>span {
+    font-size: 0.76rem;
+    color: #64748b;
+}
+
+.admin-funnel-metric>strong {
+    font-size: 1.02rem;
+    color: #0f172a;
+}
+
+@media (max-width: 991.98px) {
+    .admin-daily-report-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-funnel-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .admin-daily-report-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-daily-orders-chart {
+        height: 280px;
+        padding: 8px;
+    }
+}
+
 .admin-card-header {
     background: white;
     border-bottom: 1px solid var(--border-color);

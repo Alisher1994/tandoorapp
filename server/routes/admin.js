@@ -19,6 +19,7 @@ const {
   ensureHelpInstructionsSchema,
   listHelpInstructions
 } = require('../services/helpInstructions');
+const { ensureBotFunnelSchema } = require('../services/botFunnel');
 
 const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
@@ -134,6 +135,35 @@ const normalizeOptionalBoolean = (value) => {
   if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
   if (['false', '0', 'no', 'off'].includes(normalized)) return false;
   return null;
+};
+const ANALYTICS_TIMEZONE = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
+const getDateKeyInTimeZone = (date = new Date(), timeZone = ANALYTICS_TIMEZONE) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+  return `${year}-${month}-${day}`;
+};
+const parseAnalyticsDateKey = (rawValue) => {
+  const value = String(rawValue || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return null;
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(probe.getTime())) return null;
+  return value;
+};
+const ratioPercent = (part, total) => {
+  const denominator = Number(total || 0);
+  const numerator = Number(part || 0);
+  if (!denominator || denominator <= 0 || !Number.isFinite(denominator)) return 0;
+  if (!Number.isFinite(numerator) || numerator <= 0) return 0;
+  return Number(((numerator / denominator) * 100).toFixed(1));
 };
 
 const normalizePhoneValue = (value) => {
@@ -2814,6 +2844,197 @@ router.post('/broadcast-history/:id/delete-remote', async (req, res) => {
   } catch (error) {
     console.error('Delete remote broadcast error:', error);
     res.status(500).json({ error: 'Ошибка удаления сообщений: ' + error.message });
+  }
+});
+
+// Get daily funnel analytics (bot onboarding + ads)
+router.get('/analytics/funnel', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+
+    const requestedDate = parseAnalyticsDateKey(req.query.date);
+    const dateKey = requestedDate || getDateKeyInTimeZone(new Date(), ANALYTICS_TIMEZONE);
+
+    await ensureBotFunnelSchema().catch(() => {});
+
+    let botFunnelRow = null;
+    try {
+      const botFunnelResult = await pool.query(
+        `
+        WITH events AS (
+          SELECT
+            user_telegram_id::text AS tg,
+            event_type
+          FROM bot_funnel_events
+          WHERE restaurant_id = $1
+            AND user_telegram_id IS NOT NULL
+            AND created_at >= $2::date
+            AND created_at < ($2::date + interval '1 day')
+        ),
+        started AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'start'
+        ),
+        language_selected AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'language_selected'
+        ),
+        contact_shared AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'contact_shared'
+        ),
+        name_entered AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'name_entered'
+        ),
+        location_shared AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'location_shared'
+        ),
+        registration_completed AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'registration_completed'
+        ),
+        day_order_users AS (
+          SELECT DISTINCT u.telegram_id::text AS tg
+          FROM orders o
+          JOIN users u ON u.id = o.user_id
+          WHERE o.restaurant_id = $1
+            AND o.created_at >= $2::date
+            AND o.created_at < ($2::date + interval '1 day')
+            AND u.telegram_id IS NOT NULL
+        )
+        SELECT
+          (SELECT COUNT(*)::int FROM started) AS started_users,
+          (SELECT COUNT(*)::int FROM language_selected) AS language_selected_users,
+          (SELECT COUNT(*)::int FROM contact_shared) AS contact_shared_users,
+          (SELECT COUNT(*)::int FROM name_entered) AS name_entered_users,
+          (SELECT COUNT(*)::int FROM location_shared) AS location_shared_users,
+          (SELECT COUNT(*)::int FROM registration_completed) AS registration_completed_users,
+          (SELECT COUNT(*)::int FROM day_order_users) AS order_users_total,
+          (SELECT COUNT(*)::int FROM started s JOIN day_order_users d ON d.tg = s.tg) AS started_with_order_users,
+          (SELECT COUNT(*)::int FROM registration_completed r JOIN day_order_users d ON d.tg = r.tg) AS registered_with_order_users,
+          (
+            SELECT COUNT(*)::int
+            FROM orders o
+            WHERE o.restaurant_id = $1
+              AND o.created_at >= $2::date
+              AND o.created_at < ($2::date + interval '1 day')
+          ) AS orders_total
+        `,
+        [restaurantId, dateKey]
+      );
+      botFunnelRow = botFunnelResult.rows[0] || null;
+    } catch (error) {
+      if (error.code !== '42P01') throw error;
+    }
+
+    let adFunnelRow = null;
+    try {
+      const adFunnelResult = await pool.query(
+        `
+        WITH events AS (
+          SELECT
+            event_type,
+            user_id,
+            COALESCE(user_id::text, NULLIF(viewer_key, ''), NULLIF(ip_address, '')) AS viewer_id
+          FROM ad_banner_events
+          WHERE restaurant_id = $1
+            AND created_at >= $2::date
+            AND created_at < ($2::date + interval '1 day')
+        ),
+        click_users AS (
+          SELECT DISTINCT user_id
+          FROM events
+          WHERE event_type = 'click'
+            AND user_id IS NOT NULL
+        ),
+        order_users AS (
+          SELECT DISTINCT user_id
+          FROM orders
+          WHERE restaurant_id = $1
+            AND created_at >= $2::date
+            AND created_at < ($2::date + interval '1 day')
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE event_type = 'view')::int AS views,
+          COUNT(DISTINCT viewer_id) FILTER (WHERE event_type = 'view' AND viewer_id IS NOT NULL)::int AS unique_views,
+          COUNT(*) FILTER (WHERE event_type = 'click')::int AS clicks,
+          COUNT(DISTINCT viewer_id) FILTER (WHERE event_type = 'click' AND viewer_id IS NOT NULL)::int AS unique_clicks,
+          (
+            SELECT COUNT(*)::int
+            FROM click_users c
+            JOIN order_users o ON o.user_id = c.user_id
+          ) AS click_to_order_users
+        FROM events
+        `,
+        [restaurantId, dateKey]
+      );
+      adFunnelRow = adFunnelResult.rows[0] || null;
+    } catch (error) {
+      if (error.code !== '42P01') throw error;
+    }
+
+    const toInt = (value) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const startedUsers = toInt(botFunnelRow?.started_users);
+    const languageSelectedUsers = toInt(botFunnelRow?.language_selected_users);
+    const contactSharedUsers = toInt(botFunnelRow?.contact_shared_users);
+    const nameEnteredUsers = toInt(botFunnelRow?.name_entered_users);
+    const locationSharedUsers = toInt(botFunnelRow?.location_shared_users);
+    const registrationCompletedUsers = toInt(botFunnelRow?.registration_completed_users);
+    const startedWithOrderUsers = toInt(botFunnelRow?.started_with_order_users);
+    const registeredWithOrderUsers = toInt(botFunnelRow?.registered_with_order_users);
+    const orderUsersTotal = toInt(botFunnelRow?.order_users_total);
+    const ordersTotal = toInt(botFunnelRow?.orders_total);
+
+    const noLanguageAfterStart = Math.max(0, startedUsers - languageSelectedUsers);
+    const noPhoneAfterLanguage = Math.max(0, languageSelectedUsers - contactSharedUsers);
+    const noRegistrationAfterPhone = Math.max(0, contactSharedUsers - registrationCompletedUsers);
+    const noOrderAfterRegistration = Math.max(0, registrationCompletedUsers - registeredWithOrderUsers);
+
+    const adViews = toInt(adFunnelRow?.views);
+    const adUniqueViews = toInt(adFunnelRow?.unique_views);
+    const adClicks = toInt(adFunnelRow?.clicks);
+    const adUniqueClicks = toInt(adFunnelRow?.unique_clicks);
+    const adClickToOrderUsers = toInt(adFunnelRow?.click_to_order_users);
+
+    res.json({
+      date: dateKey,
+      timezone: ANALYTICS_TIMEZONE,
+      bot: {
+        startedUsers,
+        languageSelectedUsers,
+        contactSharedUsers,
+        nameEnteredUsers,
+        locationSharedUsers,
+        registrationCompletedUsers,
+        startedWithOrderUsers,
+        registeredWithOrderUsers,
+        orderUsersTotal,
+        ordersTotal,
+        noLanguageAfterStart,
+        noPhoneAfterLanguage,
+        noRegistrationAfterPhone,
+        noOrderAfterRegistration,
+        conversionStartToRegistration: ratioPercent(registrationCompletedUsers, startedUsers),
+        conversionStartToOrder: ratioPercent(startedWithOrderUsers, startedUsers),
+        conversionRegistrationToOrder: ratioPercent(registeredWithOrderUsers, registrationCompletedUsers)
+      },
+      ads: {
+        views: adViews,
+        uniqueViews: adUniqueViews,
+        clicks: adClicks,
+        uniqueClicks: adUniqueClicks,
+        clickToOrderUsers: adClickToOrderUsers,
+        ctrByViews: ratioPercent(adClicks, adViews),
+        ctrByUniqueViews: ratioPercent(adUniqueClicks, adUniqueViews),
+        clickToOrderRate: ratioPercent(adClickToOrderUsers, adUniqueClicks)
+      }
+    });
+  } catch (error) {
+    console.error('Funnel analytics error:', error);
+    res.status(500).json({ error: 'Ошибка получения воронки аналитики' });
   }
 });
 

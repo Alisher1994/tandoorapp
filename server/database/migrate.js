@@ -669,6 +669,28 @@ async function migrate() {
     console.log('✅ Billing tables and settings ready');
 
     // =====================================================
+    // Step 10.5: Bot Funnel events
+    // =====================================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bot_funnel_events (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
+        user_telegram_id BIGINT,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        event_type VARCHAR(40) NOT NULL,
+        payload JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bot_funnel_events_restaurant_created ON bot_funnel_events(restaurant_id, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bot_funnel_events_type_created ON bot_funnel_events(event_type, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bot_funnel_events_telegram ON bot_funnel_events(user_telegram_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_bot_funnel_events_user ON bot_funnel_events(user_id)');
+    console.log('✅ Bot funnel events table ready');
+
+    // =====================================================
     // Step 11: Global Ad Banners (superadmin-managed)
     // =====================================================
 

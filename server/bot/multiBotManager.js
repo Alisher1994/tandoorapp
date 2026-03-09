@@ -10,6 +10,7 @@ const {
   updateOrderGroupNotification
 } = require('./notifications');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
+const { ensureBotFunnelSchema, trackBotFunnelEvent } = require('../services/botFunnel');
 
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
@@ -379,6 +380,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   const getGroupRejectStateKey = (chatId) => `${botToken}_${chatId || ''}__group_reject__`;
   const getLangStateKey = (userId, chatId) => `lang_${getStateKey(userId, chatId)}`;
   const getLangCacheKey = (userId) => `${botToken}_${userId}`;
+  const trackFunnelEvent = async ({
+    telegramUserId,
+    userId = null,
+    eventType,
+    payload = null
+  }) => {
+    if (!telegramUserId || !eventType) return;
+    await trackBotFunnelEvent({
+      restaurantId,
+      telegramUserId,
+      userId,
+      eventType,
+      payload
+    });
+  };
 
   const saveUserLanguage = async (userId, lang) => {
     const normalized = normalizeBotLanguage(lang);
@@ -1013,6 +1029,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     console.log(`📱 /start from user ${userId} for restaurant ${restaurantName}`);
 
     try {
+      await trackFunnelEvent({
+        telegramUserId: userId,
+        eventType: 'start',
+        payload: {
+          chat_id: chatId,
+          chat_type: msg.chat?.type || 'private'
+        }
+      });
       const fallbackLang = getTelegramPreferredLanguage(msg.from?.language_code);
       await sendLanguagePicker(chatId, userId, fallbackLang);
     } catch (error) {
@@ -1146,6 +1170,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       state.lang = userLang;
       ensureFlowStateMeta(state);
       registrationStates.set(stateKey, state);
+      await trackFunnelEvent({
+        telegramUserId: userId,
+        eventType: 'contact_shared',
+        payload: {
+          phone_masked: String(state.phone || '').replace(/^(\+?\d{3})\d+(\d{2})$/, '$1***$2')
+        }
+      });
 
       await cleanupFlowMessages(chatId, stateKey);
       await sendTrackedFlowMessage(stateKey, chatId,
@@ -1320,6 +1351,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         await sendTrackedFlowMessage(stateKey, chatId, userLang === 'uz' ? '❌ Ismni kiriting.' : '❌ Введите имя.');
         return;
       }
+      await trackFunnelEvent({
+        telegramUserId: userId,
+        eventType: 'name_entered'
+      });
 
       state.name = userName;
       state.lang = userLang;
@@ -1365,6 +1400,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         ]);
 
         const newUserId = userResult.rows[0].id;
+        await trackFunnelEvent({
+          telegramUserId: userId,
+          userId: newUserId,
+          eventType: 'registration_completed'
+        });
 
         await pool.query(`
           INSERT INTO user_restaurants (user_id, restaurant_id)
@@ -1562,6 +1602,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
 
     try {
+      await trackFunnelEvent({
+        telegramUserId: userId,
+        userId: state?.user?.id || null,
+        eventType: 'location_shared',
+        payload: {
+          latitude: Number(location.latitude),
+          longitude: Number(location.longitude)
+        }
+      });
+
       // Get restaurant info
       const restaurantResult = await pool.query(
         'SELECT * FROM restaurants WHERE id = $1',
@@ -1656,6 +1706,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       `, [userId, username, hashedPassword, state.name, state.phone, location.latitude, location.longitude, restaurantId, normalizeBotLanguage(state.lang || languagePreferences.get(getLangCacheKey(userId)) || 'ru')]);
 
       const newUserId = userResult.rows[0].id;
+      await trackFunnelEvent({
+        telegramUserId: userId,
+        userId: newUserId,
+        eventType: 'registration_completed'
+      });
       await cleanupFlowMessages(chatId, stateKey);
       registrationStates.delete(stateKey);
 
@@ -1709,6 +1764,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       if (data.startsWith('set_lang_')) {
         const selectedLang = normalizeBotLanguage(data.replace('set_lang_', ''));
         await saveUserLanguage(userId, selectedLang);
+        await trackFunnelEvent({
+          telegramUserId: userId,
+          eventType: 'language_selected',
+          payload: {
+            language: selectedLang
+          }
+        });
 
         const langStateKey = getLangStateKey(userId, chatId);
         const pending = languageSelectionStates.get(langStateKey);
@@ -2349,6 +2411,10 @@ async function initMultiBots() {
   console.log('🤖 Initializing multi-bot system...');
 
   try {
+    await ensureBotFunnelSchema().catch((error) => {
+      console.error('Bot funnel schema ensure warning:', error.message);
+    });
+
     // Get all restaurants with bot tokens from database
     const result = await pool.query(`
       SELECT id, name, telegram_bot_token, telegram_group_id 

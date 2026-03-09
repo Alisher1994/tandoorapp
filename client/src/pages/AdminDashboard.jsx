@@ -42,7 +42,60 @@ const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
+const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
+const padDatePart = (value) => String(value).padStart(2, '0');
+const toLocalDateKey = (rawDate) => {
+  const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+};
+const getTodayDateKey = () => toLocalDateKey(new Date());
+const isOrderInDateKey = (value, dateKey) => {
+  if (!dateKey) return false;
+  return toLocalDateKey(value) === dateKey;
+};
+const formatHourLabel = (hour) => `${padDatePart(hour)}:00`;
+const formatDateKeyLabel = (dateKey, language = 'ru') => {
+  const [year, month, day] = String(dateKey || '').split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return dateKey || '—';
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return dateKey || '—';
+  return date.toLocaleDateString(language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    weekday: 'short'
+  });
+};
+const formatPercentLabel = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return '0%';
+  return `${parsed.toFixed(1)}%`;
+};
+const buildDailyOrdersTimeline = (orders = []) => {
+  const points = Array.from({ length: DAILY_REPORT_HOURS_COUNT }, (_, hour) => ({
+    hour,
+    count: 0
+  }));
+
+  for (const order of orders || []) {
+    const createdAt = new Date(order?.created_at);
+    if (Number.isNaN(createdAt.getTime())) continue;
+    points[createdAt.getHours()].count += 1;
+  }
+
+  const maxCount = points.reduce((max, point) => Math.max(max, point.count), 0);
+  const peakHours = maxCount > 0
+    ? points.filter((point) => point.count === maxCount).map((point) => point.hour)
+    : [];
+
+  return {
+    points,
+    maxCount,
+    peakHours
+  };
+};
 const getDefaultPaymentPlaceholder = () => ({
   enabled: false,
   merchant_id: '',
@@ -728,6 +781,7 @@ function AdminDashboard() {
   // Dashboard analytics
   const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
   const [dashboardMonth, setDashboardMonth] = useState(new Date().getMonth() + 1);
+  const [dashboardDailyDate, setDashboardDailyDate] = useState(() => getTodayDateKey());
   const [analytics, setAnalytics] = useState({
     revenue: 0,
     ordersCount: 0,
@@ -742,6 +796,40 @@ function AdminDashboard() {
     topCustomers: [],
     orderLocations: []
   });
+  const [funnelAnalytics, setFunnelAnalytics] = useState({
+    date: getTodayDateKey(),
+    timezone: 'Asia/Tashkent',
+    bot: {
+      startedUsers: 0,
+      languageSelectedUsers: 0,
+      contactSharedUsers: 0,
+      nameEnteredUsers: 0,
+      locationSharedUsers: 0,
+      registrationCompletedUsers: 0,
+      startedWithOrderUsers: 0,
+      registeredWithOrderUsers: 0,
+      orderUsersTotal: 0,
+      ordersTotal: 0,
+      noLanguageAfterStart: 0,
+      noPhoneAfterLanguage: 0,
+      noRegistrationAfterPhone: 0,
+      noOrderAfterRegistration: 0,
+      conversionStartToRegistration: 0,
+      conversionStartToOrder: 0,
+      conversionRegistrationToOrder: 0
+    },
+    ads: {
+      views: 0,
+      uniqueViews: 0,
+      clicks: 0,
+      uniqueClicks: 0,
+      clickToOrderUsers: 0,
+      ctrByViews: 0,
+      ctrByUniqueViews: 0,
+      clickToOrderRate: 0
+    }
+  });
+  const [loadingFunnelAnalytics, setLoadingFunnelAnalytics] = useState(false);
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
   const analyticsListItemRefs = useRef(new Map());
@@ -1039,6 +1127,46 @@ function AdminDashboard() {
     });
   }, [allOrdersForAnalytics, dashboardYear, dashboardMonth]);
 
+  const dailyOrdersAllStatuses = useMemo(() => (
+    allOrdersForAnalytics.filter((order) => isOrderInDateKey(order?.created_at, dashboardDailyDate))
+  ), [allOrdersForAnalytics, dashboardDailyDate]);
+
+  const dailyDeliveredOrders = useMemo(() => (
+    dailyOrdersAllStatuses.filter((order) => order.status === 'delivered')
+  ), [dailyOrdersAllStatuses]);
+
+  const dailyOrdersTimeline = useMemo(() => (
+    buildDailyOrdersTimeline(dailyOrdersAllStatuses)
+  ), [dailyOrdersAllStatuses]);
+
+  const dailyAnalytics = useMemo(() => {
+    const revenue = dailyDeliveredOrders.reduce((sum, order) => sum + toNumericValue(order?.total_amount, 0), 0);
+    const ordersCount = dailyDeliveredOrders.length;
+    const pickupOrdersCount = dailyDeliveredOrders.filter((order) => isPickupOrderForAnalytics(order)).length;
+    const deliveryOrdersCount = Math.max(0, ordersCount - pickupOrdersCount);
+    const averageCheck = ordersCount > 0 ? Math.round(revenue / ordersCount) : 0;
+    const financialBreakdown = calculateOrdersFinancialBreakdown(dailyDeliveredOrders);
+    const serviceRevenueAllStatuses = dailyOrdersAllStatuses.reduce(
+      (sum, order) => sum + Math.max(0, toNumericValue(order?.service_fee, 0)),
+      0
+    );
+
+    return {
+      revenue,
+      ordersCount,
+      averageCheck,
+      pickupOrdersCount,
+      deliveryOrdersCount,
+      itemsRevenue: financialBreakdown.items,
+      deliveryRevenue: financialBreakdown.delivery,
+      serviceRevenue: serviceRevenueAllStatuses,
+      containersRevenue: financialBreakdown.containers,
+      totalOrdersAllStatuses: dailyOrdersAllStatuses.length,
+      peakOrdersCount: dailyOrdersTimeline.maxCount,
+      peakHours: dailyOrdersTimeline.peakHours
+    };
+  }, [dailyDeliveredOrders, dailyOrdersAllStatuses, dailyOrdersTimeline]);
+
   const yearlyFulfillmentStats = useMemo(() => {
     const yearOrders = allOrdersForAnalytics.filter((order) => {
       const orderDate = new Date(order.created_at);
@@ -1125,11 +1253,36 @@ function AdminDashboard() {
     }
   };
 
+  const fetchFunnelAnalytics = async (dateKey) => {
+    setLoadingFunnelAnalytics(true);
+    try {
+      const targetDateKey = String(dateKey || '').trim() || getTodayDateKey();
+      const response = await axios.get(`${API_URL}/admin/analytics/funnel?date=${encodeURIComponent(targetDateKey)}`);
+      setFunnelAnalytics((prev) => ({
+        ...prev,
+        ...(response?.data || {})
+      }));
+    } catch (error) {
+      console.error('Error fetching funnel analytics:', error);
+      setFunnelAnalytics((prev) => ({
+        ...prev,
+        date: String(dateKey || '').trim() || getTodayDateKey()
+      }));
+    } finally {
+      setLoadingFunnelAnalytics(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.active_restaurant_id) {
       fetchYearlyAnalytics(dashboardYear);
     }
   }, [dashboardYear, user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (!user?.active_restaurant_id) return;
+    fetchFunnelAnalytics(dashboardDailyDate);
+  }, [dashboardDailyDate, user?.active_restaurant_id]);
 
   useEffect(() => {
     if (!user?.active_restaurant_id) {
@@ -3797,6 +3950,18 @@ function AdminDashboard() {
                       </Form.Select>
                     </Form.Group>
                   </Col>
+                  <Col md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">
+                        {language === 'uz' ? 'Kunlik hisobot kuni' : 'День ежедневного отчёта'}
+                      </Form.Label>
+                      <Form.Control
+                        type="date"
+                        value={dashboardDailyDate}
+                        onChange={(e) => setDashboardDailyDate(String(e.target.value || '').trim() || getTodayDateKey())}
+                      />
+                    </Form.Group>
+                  </Col>
                 </Row>
 
                 {/* Stats Widgets */}
@@ -3856,6 +4021,322 @@ function AdminDashboard() {
                           <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('averageCheck')}</h6>
                           <h3 className="mb-0 text-white">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
                         </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Row className="g-4 mb-4">
+                  <Col xs={12}>
+                    <Card className="border-0 shadow-sm admin-daily-report-card">
+                      <Card.Header className="bg-white border-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <h6 className="mb-0">
+                          ⏱️ {language === 'uz' ? "Kunlik hisobot: buyurtmalar piki" : 'Ежедневный отчёт: пик заказов'}
+                        </h6>
+                        <div className="small text-muted">
+                          {t('date')}: <span className="fw-semibold text-dark">{formatDateKeyLabel(dashboardDailyDate, language)}</span>
+                        </div>
+                      </Card.Header>
+                      <Card.Body>
+                        <div className="admin-daily-report-summary mb-3">
+                          <div className="admin-daily-report-kpi">
+                            <span>{language === 'uz' ? 'Jami buyurtmalar' : 'Все заказы'}</span>
+                            <strong>{dailyAnalytics.totalOrdersAllStatuses}</strong>
+                          </div>
+                          <div className="admin-daily-report-kpi">
+                            <span>{language === 'uz' ? 'Yakunlangan' : 'Доставлено'}</span>
+                            <strong>{dailyAnalytics.ordersCount}</strong>
+                          </div>
+                          <div className="admin-daily-report-kpi">
+                            <span>{language === 'uz' ? 'Kunlik tushum' : 'Выручка за день'}</span>
+                            <strong>{formatPrice(dailyAnalytics.revenue)} {t('sum')}</strong>
+                          </div>
+                          <div className="admin-daily-report-kpi">
+                            <span>{language === 'uz' ? 'Pik (buyurtma/soat)' : 'Пик (заказов/час)'}</span>
+                            <strong>{dailyAnalytics.peakOrdersCount}</strong>
+                          </div>
+                        </div>
+
+                        <div className="admin-daily-orders-chart">
+                          <svg viewBox="0 0 1000 320" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+                            {(() => {
+                              const chartRows = dailyOrdersTimeline.points;
+                              const chartWidth = 1000;
+                              const chartHeight = 320;
+                              const chartPadding = { top: 22, right: 28, bottom: 48, left: 56 };
+                              const innerWidth = chartWidth - chartPadding.left - chartPadding.right;
+                              const innerHeight = chartHeight - chartPadding.top - chartPadding.bottom;
+                              const maxValue = Math.max(dailyOrdersTimeline.maxCount, 1);
+                              const yTicks = 4;
+                              const peakHoursSet = new Set(dailyOrdersTimeline.peakHours);
+                              const getX = (hour) => chartPadding.left + ((hour / (chartRows.length - 1)) * innerWidth);
+                              const getY = (value) => chartPadding.top + innerHeight - ((value / maxValue) * innerHeight);
+                              const linePoints = chartRows
+                                .map((point) => `${getX(point.hour)},${getY(point.count)}`)
+                                .join(' ');
+                              const areaPath = chartRows
+                                .map((point, index) => `${index === 0 ? 'M' : 'L'} ${getX(point.hour)} ${getY(point.count)}`)
+                                .join(' ') +
+                                ` L ${getX(chartRows[chartRows.length - 1].hour)} ${chartPadding.top + innerHeight}` +
+                                ` L ${getX(chartRows[0].hour)} ${chartPadding.top + innerHeight} Z`;
+
+                              return (
+                                <>
+                                  {Array.from({ length: yTicks + 1 }, (_, index) => {
+                                    const ratio = index / yTicks;
+                                    const y = chartPadding.top + (innerHeight * ratio);
+                                    const value = Math.round(maxValue * (1 - ratio));
+                                    return (
+                                      <g key={`daily-orders-grid-${index}`}>
+                                        <line
+                                          x1={chartPadding.left}
+                                          y1={y}
+                                          x2={chartPadding.left + innerWidth}
+                                          y2={y}
+                                          stroke="#dbe8ff"
+                                          strokeWidth="1"
+                                          strokeDasharray={index === yTicks ? '0' : '4 4'}
+                                        />
+                                        <text
+                                          x={chartPadding.left - 10}
+                                          y={y + 4}
+                                          textAnchor="end"
+                                          fontSize="11"
+                                          fill="#64748b"
+                                        >
+                                          {value}
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  <path d={areaPath} fill="url(#dailyOrdersAreaGradient)" />
+                                  <polyline
+                                    points={linePoints}
+                                    fill="none"
+                                    stroke="#0ea5e9"
+                                    strokeWidth="3"
+                                    strokeLinejoin="round"
+                                    strokeLinecap="round"
+                                  />
+
+                                  {chartRows.map((point) => {
+                                    const x = getX(point.hour);
+                                    const y = getY(point.count);
+                                    const isPeak = peakHoursSet.has(point.hour) && point.count > 0;
+                                    return (
+                                      <g key={`daily-orders-point-${point.hour}`}>
+                                        <circle
+                                          cx={x}
+                                          cy={y}
+                                          r={isPeak ? 6 : 4}
+                                          fill={isPeak ? '#ef4444' : '#0ea5e9'}
+                                          stroke="#ffffff"
+                                          strokeWidth={isPeak ? 2 : 1.5}
+                                        />
+                                        {isPeak && (
+                                          <text
+                                            x={x}
+                                            y={y - 11}
+                                            textAnchor="middle"
+                                            fontSize="11"
+                                            fill="#dc2626"
+                                            fontWeight="700"
+                                          >
+                                            {point.count}
+                                          </text>
+                                        )}
+                                      </g>
+                                    );
+                                  })}
+
+                                  {chartRows.map((point) => {
+                                    if (!(point.hour % 2 === 0 || point.hour === chartRows.length - 1)) return null;
+                                    return (
+                                      <text
+                                        key={`daily-orders-hour-${point.hour}`}
+                                        x={getX(point.hour)}
+                                        y={chartPadding.top + innerHeight + 22}
+                                        textAnchor="middle"
+                                        fontSize="10.5"
+                                        fill="#64748b"
+                                      >
+                                        {formatHourLabel(point.hour)}
+                                      </text>
+                                    );
+                                  })}
+
+                                  <defs>
+                                    <linearGradient id="dailyOrdersAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.36" />
+                                      <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.04" />
+                                    </linearGradient>
+                                  </defs>
+                                </>
+                              );
+                            })()}
+                          </svg>
+                        </div>
+
+                        <div className="small text-muted mt-3 d-flex flex-wrap gap-3">
+                          <span>
+                            {language === 'uz' ? 'Pik soatlar' : 'Пиковые часы'}:{' '}
+                            <strong className="text-dark">
+                              {dailyAnalytics.peakHours.length
+                                ? dailyAnalytics.peakHours.map((hour) => formatHourLabel(hour)).join(', ')
+                                : '—'}
+                            </strong>
+                          </span>
+                          <span>
+                            {language === 'uz' ? "O'rtacha chek" : 'Средний чек'}:{' '}
+                            <strong className="text-dark">{formatPrice(dailyAnalytics.averageCheck)} {t('sum')}</strong>
+                          </span>
+                          <span>
+                            {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}:{' '}
+                            <strong className="text-dark">{dailyAnalytics.deliveryOrdersCount}</strong>
+                          </span>
+                          <span>
+                            {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}:{' '}
+                            <strong className="text-dark">{dailyAnalytics.pickupOrdersCount}</strong>
+                          </span>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Row className="g-4 mb-4">
+                  <Col lg={7}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h6 className="mb-0">
+                          🧭 {language === 'uz' ? 'Bot voronkasi' : 'Воронка бота'}
+                        </h6>
+                        <small className="text-muted">
+                          {t('date')}: {formatDateKeyLabel(funnelAnalytics.date || dashboardDailyDate, language)}
+                        </small>
+                      </Card.Header>
+                      <Card.Body>
+                        {(() => {
+                          const botFunnel = funnelAnalytics.bot || {};
+                          const stages = [
+                            {
+                              key: 'startedUsers',
+                              label: language === 'uz' ? 'Start bosgan' : 'Нажали /start',
+                              value: Number(botFunnel.startedUsers || 0),
+                              color: '#3b82f6'
+                            },
+                            {
+                              key: 'languageSelectedUsers',
+                              label: language === 'uz' ? 'Til tanlagan' : 'Выбрали язык',
+                              value: Number(botFunnel.languageSelectedUsers || 0),
+                              color: '#14b8a6'
+                            },
+                            {
+                              key: 'contactSharedUsers',
+                              label: language === 'uz' ? 'Telefon yuborgan' : 'Отправили телефон',
+                              value: Number(botFunnel.contactSharedUsers || 0),
+                              color: '#22c55e'
+                            },
+                            {
+                              key: 'registrationCompletedUsers',
+                              label: language === 'uz' ? "Ro'yxatdan o'tgan" : 'Завершили регистрацию',
+                              value: Number(botFunnel.registrationCompletedUsers || 0),
+                              color: '#f59e0b'
+                            },
+                            {
+                              key: 'registeredWithOrderUsers',
+                              label: language === 'uz' ? 'Buyurtma bergan' : 'Сделали заказ',
+                              value: Number(botFunnel.registeredWithOrderUsers || 0),
+                              color: '#ef4444'
+                            }
+                          ];
+                          const maxValue = Math.max(...stages.map((stage) => stage.value), 1);
+
+                          return (
+                            <div className="d-flex flex-column gap-3">
+                              {stages.map((stage) => {
+                                const width = Math.max(4, Math.round((stage.value / maxValue) * 100));
+                                return (
+                                  <div key={`funnel-stage-${stage.key}`} className="admin-funnel-stage">
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                      <span className="small text-muted">{stage.label}</span>
+                                      <strong>{stage.value}</strong>
+                                    </div>
+                                    <div className="admin-funnel-stage-track">
+                                      <div
+                                        className="admin-funnel-stage-fill"
+                                        style={{
+                                          width: `${stage.value > 0 ? width : 0}%`,
+                                          background: `linear-gradient(90deg, ${stage.color}, ${stage.color}cc)`
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              <div className="d-flex flex-wrap gap-2 pt-1">
+                                <span className="badge text-bg-light border">
+                                  {language === 'uz' ? 'Start -> Registratsiya' : 'Start -> Регистрация'}: {formatPercentLabel(botFunnel.conversionStartToRegistration)}
+                                </span>
+                                <span className="badge text-bg-light border">
+                                  {language === 'uz' ? 'Start -> Buyurtma' : 'Start -> Заказ'}: {formatPercentLabel(botFunnel.conversionStartToOrder)}
+                                </span>
+                                <span className="badge text-bg-light border">
+                                  {language === 'uz' ? 'Registratsiya -> Buyurtma' : 'Регистрация -> Заказ'}: {formatPercentLabel(botFunnel.conversionRegistrationToOrder)}
+                                </span>
+                              </div>
+
+                              <div className="small text-muted d-flex flex-wrap gap-3">
+                                <span>{language === 'uz' ? 'Tilgacha tushib qolgan' : 'Потеря до выбора языка'}: <strong className="text-dark">{Number(botFunnel.noLanguageAfterStart || 0)}</strong></span>
+                                <span>{language === 'uz' ? "Telefon bermagan" : 'Не дали телефон'}: <strong className="text-dark">{Number(botFunnel.noPhoneAfterLanguage || 0)}</strong></span>
+                                <span>{language === 'uz' ? "Ro'yxatdan o'tdi, ammo buyurtma yo'q" : 'Зарегистрировались, но без заказа'}: <strong className="text-dark">{Number(botFunnel.noOrderAfterRegistration || 0)}</strong></span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col lg={5}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Header className="bg-white border-0">
+                        <h6 className="mb-0">
+                          📣 {language === 'uz' ? 'Reklama voronkasi' : 'Рекламная воронка'}
+                        </h6>
+                      </Card.Header>
+                      <Card.Body>
+                        {loadingFunnelAnalytics ? (
+                          <div className="text-muted small">{t('loading')}</div>
+                        ) : (
+                          <div className="admin-funnel-metrics-grid">
+                            <div className="admin-funnel-metric">
+                              <span>{language === 'uz' ? "Ko'rishlar" : 'Показы'}</span>
+                              <strong>{Number(funnelAnalytics.ads?.views || 0)}</strong>
+                            </div>
+                            <div className="admin-funnel-metric">
+                              <span>{language === 'uz' ? 'Unikal ko‘rishlar' : 'Уникальные показы'}</span>
+                              <strong>{Number(funnelAnalytics.ads?.uniqueViews || 0)}</strong>
+                            </div>
+                            <div className="admin-funnel-metric">
+                              <span>{language === 'uz' ? 'Kliklar' : 'Клики'}</span>
+                              <strong>{Number(funnelAnalytics.ads?.clicks || 0)}</strong>
+                            </div>
+                            <div className="admin-funnel-metric">
+                              <span>{language === 'uz' ? 'Unikal kliklar' : 'Уникальные клики'}</span>
+                              <strong>{Number(funnelAnalytics.ads?.uniqueClicks || 0)}</strong>
+                            </div>
+                            <div className="admin-funnel-metric">
+                              <span>CTR</span>
+                              <strong>{formatPercentLabel(funnelAnalytics.ads?.ctrByViews || 0)}</strong>
+                            </div>
+                            <div className="admin-funnel-metric">
+                              <span>{language === 'uz' ? 'Klik -> Buyurtma' : 'Клик -> Заказ'}</span>
+                              <strong>{formatPercentLabel(funnelAnalytics.ads?.clickToOrderRate || 0)}</strong>
+                            </div>
+                          </div>
+                        )}
                       </Card.Body>
                     </Card>
                   </Col>

@@ -6,6 +6,7 @@ const CLOSE_REPORT_WINDOW_MINUTES = Number(process.env.CLOSE_REPORT_WINDOW_MINUT
 const CLOSE_REPORT_WORKER_INTERVAL_MS = Number(process.env.CLOSE_REPORT_WORKER_INTERVAL_MS || 60000);
 
 let isProcessing = false;
+const padDatePart = (value) => String(value).padStart(2, '0');
 
 function parseTimeToMinutes(value) {
   if (!value) return null;
@@ -35,7 +36,40 @@ function formatMoney(value) {
   return Number(value || 0).toLocaleString('ru-RU');
 }
 
-async function getDailyOrderStats(restaurantId) {
+function getDateKeyInTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateKey(dateKey, offsetDays) {
+  const [year, month, day] = String(dateKey || '').split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return dateKey;
+  const shifted = new Date(Date.UTC(year, month - 1, day));
+  shifted.setUTCDate(shifted.getUTCDate() + offsetDays);
+  return `${shifted.getUTCFullYear()}-${padDatePart(shifted.getUTCMonth() + 1)}-${padDatePart(shifted.getUTCDate())}`;
+}
+
+function resolveReportDateKey({ now, nowMinutes, closeMinutes, timeZone }) {
+  const todayKey = getDateKeyInTimeZone(now, timeZone);
+  if (closeMinutes === null) return todayKey;
+  return nowMinutes >= closeMinutes ? todayKey : shiftDateKey(todayKey, -1);
+}
+
+function formatReportDateLabel(dateKey) {
+  const [year, month, day] = String(dateKey || '').split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return String(dateKey || '—');
+  return `${padDatePart(day)}.${padDatePart(month)}.${year}`;
+}
+
+async function getDailyOrderStats(restaurantId, reportDateKey) {
   const statsResult = await pool.query(
     `SELECT
        COUNT(*)::int AS orders_count,
@@ -49,9 +83,9 @@ async function getDailyOrderStats(restaurantId) {
        COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_count
      FROM orders
      WHERE restaurant_id = $1
-       AND created_at >= date_trunc('day', NOW())
-       AND created_at < date_trunc('day', NOW()) + interval '1 day'`,
-    [restaurantId]
+       AND created_at >= $2::date
+       AND created_at < ($2::date + interval '1 day')`,
+    [restaurantId, reportDateKey]
   );
 
   let breakdownResult;
@@ -71,9 +105,9 @@ async function getDailyOrderStats(restaurantId) {
        FROM order_items oi
        JOIN orders o ON o.id = oi.order_id
        WHERE o.restaurant_id = $1
-         AND o.created_at >= date_trunc('day', NOW())
-         AND o.created_at < date_trunc('day', NOW()) + interval '1 day'`,
-      [restaurantId]
+         AND o.created_at >= $2::date
+         AND o.created_at < ($2::date + interval '1 day')`,
+      [restaurantId, reportDateKey]
     );
   } catch (error) {
     if (error.code === '42703') {
@@ -94,7 +128,7 @@ async function getDailyOrderStats(restaurantId) {
   };
 }
 
-function buildCloseReportMessage(restaurantName, stats, breakdown) {
+function buildCloseReportMessage(restaurantName, reportDateKey, stats, breakdown) {
   const ordersCount = Number(stats.orders_count || 0);
   const totalSum = Number(stats.total_sum || 0);
   const serviceSum = Number(stats.service_sum || 0);
@@ -109,6 +143,7 @@ function buildCloseReportMessage(restaurantName, stats, breakdown) {
   return (
     `📊 <b>Отчёт после закрытия магазина</b>\n` +
     `🏪 <b>${String(restaurantName || 'Магазин')}</b>\n\n` +
+    `📅 Дата отчёта: <b>${formatReportDateLabel(reportDateKey)}</b>\n\n` +
     `📦 Кол-во заказов: <b>${ordersCount}</b>\n` +
     `💵 Общая сумма заказов: <b>${formatMoney(totalSum)} сум</b>\n\n` +
     `🧾 Сумма товара: <b>${formatMoney(itemsSum)} сум</b>\n` +
@@ -150,6 +185,12 @@ async function processStoreCloseReports() {
 
       const minutesSinceClose = (nowMinutes - closeMinutes + 1440) % 1440;
       if (minutesSinceClose > CLOSE_REPORT_WINDOW_MINUTES) continue;
+      const reportDateKey = resolveReportDateKey({
+        now,
+        nowMinutes,
+        closeMinutes,
+        timeZone: REPORT_TIMEZONE
+      });
 
       const lastSentAtRaw = restaurant.close_report_last_sent_at;
       if (lastSentAtRaw) {
@@ -160,8 +201,8 @@ async function processStoreCloseReports() {
         }
       }
 
-      const { stats, breakdown } = await getDailyOrderStats(restaurant.id);
-      const message = buildCloseReportMessage(restaurant.name, stats, breakdown);
+      const { stats, breakdown } = await getDailyOrderStats(restaurant.id, reportDateKey);
+      const message = buildCloseReportMessage(restaurant.name, reportDateKey, stats, breakdown);
       const bot = getRestaurantBot(restaurant.telegram_bot_token, restaurant.id);
       if (!bot) continue;
 
