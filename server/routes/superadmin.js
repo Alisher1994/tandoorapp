@@ -2836,6 +2836,57 @@ router.get('/analytics/overview', async (req, res) => {
       [startDateKey, endDateKeyExclusive, restaurantId, topLimit]
     );
 
+    let activityTypeRows = [];
+    try {
+      await ensureActivityTypesSchema().catch(() => {});
+      const activityTypeAnalyticsResult = await pool.query(
+        `
+        SELECT
+          bat.id AS activity_type_id,
+          COALESCE(NULLIF(BTRIM(bat.name), ''), 'Без вида деятельности') AS activity_type_name,
+          COUNT(o.id)::int AS orders_count,
+          COALESCE(
+            SUM(
+              CASE
+                WHEN o.status = 'delivered' THEN COALESCE(o.total_amount, 0)
+                ELSE 0
+              END
+            ),
+            0
+          ) AS delivered_revenue
+        FROM restaurants r
+        LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
+        LEFT JOIN orders o
+          ON o.restaurant_id = r.id
+         AND o.created_at >= $1::date
+         AND o.created_at < $2::date
+        WHERE r.is_active = true
+          AND ($3::int IS NULL OR r.id = $3)
+        GROUP BY bat.id, bat.name
+        HAVING COUNT(o.id) > 0
+            OR COALESCE(
+              SUM(
+                CASE
+                  WHEN o.status = 'delivered' THEN COALESCE(o.total_amount, 0)
+                  ELSE 0
+                END
+              ),
+              0
+            ) > 0
+        `,
+        [startDateKey, endDateKeyExclusive, restaurantId]
+      );
+
+      activityTypeRows = activityTypeAnalyticsResult.rows.map((row) => ({
+        activityTypeId: row.activity_type_id ? Number.parseInt(row.activity_type_id, 10) : null,
+        name: row.activity_type_name || 'Без вида деятельности',
+        ordersCount: Number.parseInt(row.orders_count, 10) || 0,
+        revenue: Number(row.delivered_revenue) || 0
+      }));
+    } catch (error) {
+      if (error.code !== '42P01') throw error;
+    }
+
     const buildTimelinePoints = () => {
       if (analyticsRange.period === 'yearly') {
         return Array.from({ length: 12 }, (_, index) => ({ label: String(index + 1), value: 0 }));
@@ -3010,6 +3061,18 @@ router.get('/analytics/overview', async (req, res) => {
         return b.quantity - a.quantity;
       })
       .slice(0, 10);
+    const activityTypesByQuantity = [...activityTypeRows]
+      .sort((a, b) => {
+        if (b.ordersCount !== a.ordersCount) return b.ordersCount - a.ordersCount;
+        return b.revenue - a.revenue;
+      })
+      .slice(0, topLimit);
+    const activityTypesByRevenue = [...activityTypeRows]
+      .sort((a, b) => {
+        if (b.revenue !== a.revenue) return b.revenue - a.revenue;
+        return b.ordersCount - a.ordersCount;
+      })
+      .slice(0, topLimit);
 
     const averageCheck = deliveredOrdersCount > 0 ? Math.round(revenue / deliveredOrdersCount) : 0;
 
@@ -3080,13 +3143,13 @@ router.get('/analytics/overview', async (req, res) => {
         )
         SELECT
           (SELECT COUNT(*)::int FROM started) AS started_users,
-          (SELECT COUNT(*)::int FROM language_selected) AS language_selected_users,
-          (SELECT COUNT(*)::int FROM contact_shared) AS contact_shared_users,
-          (SELECT COUNT(*)::int FROM registration_completed) AS registration_completed_users,
+          (SELECT COUNT(*)::int FROM started s JOIN language_selected l ON l.tg = s.tg) AS language_selected_users,
+          (SELECT COUNT(*)::int FROM started s JOIN contact_shared c ON c.tg = s.tg) AS contact_shared_users,
+          (SELECT COUNT(*)::int FROM started s JOIN registration_completed r ON r.tg = s.tg) AS registration_completed_users,
           (SELECT COUNT(*)::int FROM registered_users_from_db) AS registered_users_from_db,
           (SELECT COUNT(*)::int FROM period_order_users) AS order_users_total,
           (SELECT COUNT(*)::int FROM started s JOIN period_order_users d ON d.tg = s.tg) AS started_with_order_users,
-          (SELECT COUNT(*)::int FROM registration_completed r JOIN period_order_users d ON d.tg = r.tg) AS registered_with_order_users
+          (SELECT COUNT(*)::int FROM started s JOIN registration_completed r ON r.tg = s.tg JOIN period_order_users d ON d.tg = s.tg) AS registered_with_order_users
         `,
         [startDateKey, endDateKeyExclusive, restaurantId]
       );
@@ -3139,6 +3202,10 @@ router.get('/analytics/overview', async (req, res) => {
       categories: {
         byQuantity: categoriesByQuantity,
         byRevenue: categoriesByRevenue
+      },
+      activityTypes: {
+        byQuantity: activityTypesByQuantity,
+        byRevenue: activityTypesByRevenue
       },
       shops: {
         topLimit,

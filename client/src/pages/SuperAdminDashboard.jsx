@@ -2721,6 +2721,8 @@ function SuperAdminDashboard() {
     const ordersTimeline = analyticsPayload?.timelines?.orders || [];
     const categoriesByQuantity = analyticsPayload?.categories?.byQuantity || [];
     const categoriesByRevenue = analyticsPayload?.categories?.byRevenue || [];
+    const activityTypesByQuantity = analyticsPayload?.activityTypes?.byQuantity || [];
+    const activityTypesByRevenue = analyticsPayload?.activityTypes?.byRevenue || [];
     const funnel = analyticsPayload?.funnel || {};
     const startDate = analyticsPayload?.startDate || '';
     const shopsAnalytics = analyticsPayload?.shops || {};
@@ -3000,7 +3002,7 @@ function SuperAdminDashboard() {
               </Col>
 
               <Col lg={4}>
-                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
+                <Card className="border-0 shadow-sm admin-analytics-surface-card">
                   <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
                     <h6 className="mb-0 admin-analytics-card-title">
                       <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🤖</span>
@@ -3013,8 +3015,8 @@ function SuperAdminDashboard() {
                       <div className="d-flex justify-content-between"><span>/start</span><strong>{Number(funnel.startedUsers || 0)}</strong></div>
                       <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Til' : 'Язык'}</span><strong>{Number(funnel.languageSelectedUsers || 0)}</strong></div>
                       <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Telefon' : 'Телефон'}</span><strong>{Number(funnel.contactSharedUsers || 0)}</strong></div>
-                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? "Ro'yxat" : 'Регистрация'}</span><strong>{Number(funnel.registrationCompletedUsers || 0)}</strong></div>
-                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Buyurtma' : 'С заказом'}</span><strong>{Number(funnel.registeredWithOrderUsers || 0)}</strong></div>
+                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? "Ro'yxat (/start)" : 'Регистрация (/start)'}</span><strong>{Number(funnel.registrationCompletedUsers || 0)}</strong></div>
+                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Buyurtma (/start)' : 'С заказом (/start)'}</span><strong>{Number(funnel.registeredWithOrderUsers || 0)}</strong></div>
                     </div>
                     <div className="d-flex flex-wrap gap-2 pt-3">
                       <span className="badge text-bg-light border">
@@ -3023,6 +3025,16 @@ function SuperAdminDashboard() {
                       <span className="badge text-bg-light border">
                         Регистрация -&gt; Заказ: {Number(funnel.conversionRegistrationToOrder || 0).toFixed(1)}%
                       </span>
+                    </div>
+                    <div className="d-flex flex-wrap gap-2 pt-2">
+                      <span className="badge text-bg-light border">
+                        {language === 'uz' ? "Bazadagi ro'yxatdan o'tganlar" : 'Регистрации из БД'}: {Number(funnel.registeredUsersFromDb || 0).toLocaleString('ru-RU')}
+                      </span>
+                    </div>
+                    <div className="small text-muted d-flex flex-wrap gap-3 pt-3">
+                      <span>{language === 'uz' ? 'Tilgacha yo‘qotish' : 'Потеря до языка'}: <strong className="text-dark">{Number(funnel.noLanguageAfterStart || 0)}</strong></span>
+                      <span>{language === 'uz' ? "Telefon bermagan" : 'Не дали телефон'}: <strong className="text-dark">{Number(funnel.noPhoneAfterLanguage || 0)}</strong></span>
+                      <span>{language === 'uz' ? "Ro'yxatdan o'tgan, ammo buyurtmasiz" : 'Зарегистрировались, но без заказа'}: <strong className="text-dark">{Number(funnel.noOrderAfterRegistration || 0)}</strong></span>
                     </div>
                   </Card.Body>
                 </Card>
@@ -3206,6 +3218,82 @@ function SuperAdminDashboard() {
                               <td>{item.name || '—'}</td>
                               <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
                               <td className="text-end">{Number(item.quantity || 0).toLocaleString('ru-RU')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+
+            <Row className="g-4 mt-1">
+              <Col lg={6}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>🧩</span>
+                      {language === 'uz' ? 'Faoliyat turlari (soni)' : 'Виды деятельности (количество)'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {activityTypesByQuantity.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activityTypesByQuantity.map((item, idx) => (
+                            <tr key={`sa-activity-qty-${item.activityTypeId || 'na'}-${idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{Number(item.ordersCount || 0).toLocaleString('ru-RU')}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={6}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>💼</span>
+                      {language === 'uz' ? 'Faoliyat turlari (summa)' : 'Виды деятельности (сумма)'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {activityTypesByRevenue.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activityTypesByRevenue.map((item, idx) => (
+                            <tr key={`sa-activity-sum-${item.activityTypeId || 'na'}-${idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                              <td className="text-end">{Number(item.ordersCount || 0).toLocaleString('ru-RU')}</td>
                             </tr>
                           ))}
                         </tbody>
