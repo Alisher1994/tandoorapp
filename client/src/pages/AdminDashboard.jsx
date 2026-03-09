@@ -4040,12 +4040,13 @@ function AdminDashboard() {
 
                 <Row className="g-4 mb-4">
                   <Col xs={12}>
-                    <Card className="border-0 shadow-sm admin-daily-report-card">
-                      <Card.Header className="bg-white border-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <h6 className="mb-0">
-                          ⏱️ {language === 'uz' ? "Kunlik hisobot: buyurtmalar piki" : 'Ежедневный отчёт: пик заказов'}
+                    <Card className="border-0 shadow-sm admin-daily-report-card admin-analytics-surface-card">
+                      <Card.Header className="bg-white border-0 d-flex flex-wrap align-items-center justify-content-between gap-2 admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>⏱️</span>
+                          {language === 'uz' ? "Kunlik hisobot: buyurtmalar piki" : 'Ежедневный отчёт: пик заказов'}
                         </h6>
-                        <div className="small text-muted">
+                        <div className="small text-muted admin-analytics-card-subtle">
                           {t('date')}: <span className="fw-semibold text-dark">{formatDateKeyLabel(dashboardDailyDate, language)}</span>
                         </div>
                       </Card.Header>
@@ -4219,12 +4220,13 @@ function AdminDashboard() {
 
                 <Row className="g-4 mb-4">
                   <Col xs={12}>
-                    <Card className="border-0 shadow-sm h-100">
-                      <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
-                        <h6 className="mb-0">
-                          🧭 {language === 'uz' ? 'Bot voronkasi' : 'Воронка бота'}
+                    <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
+                      <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🧭</span>
+                          {language === 'uz' ? 'Bot voronkasi' : 'Воронка бота'}
                         </h6>
-                        <small className="text-muted">
+                        <small className="text-muted admin-analytics-card-subtle">
                           {t('date')}: {formatDateKeyLabel(funnelAnalytics.date || dashboardDailyDate, language)}
                         </small>
                       </Card.Header>
@@ -4365,12 +4367,16 @@ function AdminDashboard() {
 
                 <Row className="g-4 mb-4">
                   <Col xs={12}>
-                    <Card className="border-0 shadow-sm">
-                      <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between">
-                        <h6 className="mb-0">🗺️ {t('orderGeography')}</h6>
+                    <Card className="border-0 shadow-sm admin-analytics-surface-card admin-analytics-map-card">
+                      <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
+                          {t('orderGeography')}
+                        </h6>
                         <Button
                           size="sm"
                           variant="outline-secondary"
+                          className="admin-analytics-fullscreen-btn"
                           onClick={() => setShowAnalyticsMapModal(true)}
                           title={t('fullscreen') || 'Во весь экран'}
                           aria-label={t('fullscreen') || 'Во весь экран'}
@@ -4418,8 +4424,8 @@ function AdminDashboard() {
                             </div>
                           </Col>
                           <Col lg={4} xl={3} className="border-start bg-white">
-                            <div className="p-3 admin-custom-scrollbar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
-                              <div className="small text-uppercase text-muted fw-semibold mb-2">
+                            <div className="p-3 admin-custom-scrollbar admin-analytics-map-sidebar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
+                              <div className="small text-uppercase text-muted fw-semibold mb-2 admin-analytics-map-sidebar-title">
                                 {t('clients') || 'Клиенты'}
                               </div>
                               <div className="d-grid gap-2">
@@ -4437,12 +4443,10 @@ function AdminDashboard() {
                                         else analyticsListItemRefs.current.delete(locationKey);
                                       }}
                                       onClick={() => openAnalyticsLocationDetails(location)}
-                                      className="btn text-start"
+                                      className={`btn text-start admin-analytics-map-list-item${isSelected ? ' is-active' : ''}`}
                                       style={{
                                         border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`,
-                                        background: isSelected ? '#eff6ff' : '#ffffff',
-                                        borderRadius: 10,
-                                        padding: '10px 11px'
+                                        background: isSelected ? '#eff6ff' : '#ffffff'
                                       }}
                                     >
                                       <div className="fw-semibold">{location.customerName || 'Клиент'}</div>
@@ -4456,7 +4460,7 @@ function AdminDashboard() {
                               </div>
 
                               {selectedAnalyticsLocation && (
-                                <div className="mt-3 p-3 rounded-3 border" style={{ background: '#f8fafc' }}>
+                                <div className="mt-3 p-3 rounded-3 border admin-analytics-map-detail" style={{ background: '#f8fafc' }}>
                                   <div className="small fw-semibold mb-2">{t('client') || 'Клиент'}</div>
                                   <div className="small"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedAnalyticsLocation.orderNumber || '—'}</div>
                                   <div className="small"><strong>{t('amount')}:</strong> {formatPrice(selectedAnalyticsLocation.totalAmount || 0)} {t('sum')}</div>
@@ -4474,14 +4478,17 @@ function AdminDashboard() {
 
                 <Row className="g-4">
                   <Col lg={6}>
-                    <Card className="border-0 shadow-sm h-100">
-                      <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">{t('topProducts')}</h6>
+                    <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                      <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>🍔</span>
+                          {t('topProducts')}
+                        </h6>
                       </Card.Header>
                       <Card.Body className="p-0">
                         {analytics.topProducts.length > 0 ? (
-                          <Table hover className="mb-0">
-                            <thead className="table-light">
+                          <Table hover className="mb-0 admin-analytics-table">
+                            <thead>
                               <tr>
                                 <th>#</th>
                                 <th>{t('productName')}</th>
@@ -4493,7 +4500,7 @@ function AdminDashboard() {
                               {analytics.topProducts.map((item, idx) => (
                                 <tr key={idx}>
                                   <td>
-                                    <Badge bg={idx < 3 ? 'warning' : 'secondary'}>{idx + 1}</Badge>
+                                    <span className={`admin-analytics-rank ${idx === 0 ? 'r1' : idx === 1 ? 'r2' : idx === 2 ? 'r3' : ''}`}>{idx + 1}</span>
                                   </td>
                                   <td>{item.name}</td>
                                   <td className="text-end">{item.quantity}</td>
@@ -4509,14 +4516,17 @@ function AdminDashboard() {
                     </Card>
                   </Col>
                   <Col lg={6}>
-                    <Card className="border-0 shadow-sm h-100">
-                      <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">{t('topCustomers') || 'Топ клиентов'}</h6>
+                    <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                      <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>👑</span>
+                          {t('topCustomers') || 'Топ клиентов'}
+                        </h6>
                       </Card.Header>
                       <Card.Body className="p-0">
                         {analytics.topCustomers.length > 0 ? (
-                          <Table hover className="mb-0">
-                            <thead className="table-light">
+                          <Table hover className="mb-0 admin-analytics-table">
+                            <thead>
                               <tr>
                                 <th>#</th>
                                 <th>{t('client')}</th>
@@ -4528,7 +4538,7 @@ function AdminDashboard() {
                               {analytics.topCustomers.map((item, idx) => (
                                 <tr key={`top-customer-${idx}-${item.phone}`}>
                                   <td>
-                                    <Badge bg={idx < 3 ? 'primary' : 'secondary'}>{idx + 1}</Badge>
+                                    <span className={`admin-analytics-rank ${idx === 0 ? 'r1' : idx === 1 ? 'r2' : idx === 2 ? 'r3' : ''}`}>{idx + 1}</span>
                                   </td>
                                   <td>
                                     <div className="fw-semibold">{item.name}</div>
@@ -4552,7 +4562,10 @@ function AdminDashboard() {
                     ГОДОВАЯ АНАЛИТИКА
                 ===================================================== */}
                 <hr className="my-4" />
-                <h5 className="mb-4">📈 {t('yearlyAnalytics')} {dashboardYear} {t('yearSuffix')}</h5>
+                <h5 className="mb-4 admin-analytics-year-title">
+                  <span className="admin-analytics-card-title-icon" style={{ color: '#4f46e5', background: '#eef2ff' }}>📈</span>
+                  {t('yearlyAnalytics')} {dashboardYear} {t('yearSuffix')}
+                </h5>
 
                 {loadingYearlyAnalytics ? (
                   <div className="py-3">
@@ -4622,9 +4635,12 @@ function AdminDashboard() {
                       </Col>
                     </Row>
 
-                    <Card className="border-0 shadow-sm mb-4">
-                      <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">{t('financeByMonths')}</h6>
+                    <Card className="border-0 shadow-sm mb-4 admin-analytics-surface-card admin-analytics-chart-card">
+                      <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#3b82f6', background: '#eff6ff' }}>💹</span>
+                          {t('financeByMonths')}
+                        </h6>
                       </Card.Header>
                       <Card.Body>
                         <div style={{ height: '300px', position: 'relative' }}>
@@ -4709,9 +4725,12 @@ function AdminDashboard() {
                     </Card>
 
                     {/* Orders Chart - Line Graph */}
-                    <Card className="border-0 shadow-sm mb-4">
-                      <Card.Header className="bg-white border-0">
-                        <h6 className="mb-0">{t('deliveredOrdersByMonths')}</h6>
+                    <Card className="border-0 shadow-sm mb-4 admin-analytics-surface-card admin-analytics-chart-card">
+                      <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                        <h6 className="mb-0 admin-analytics-card-title">
+                          <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>📦</span>
+                          {t('deliveredOrdersByMonths')}
+                        </h6>
                       </Card.Header>
                       <Card.Body>
                         <div style={{ height: '300px', position: 'relative' }}>

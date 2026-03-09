@@ -1971,7 +1971,8 @@ function Catalog() {
                 aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
                 title={language === 'uz' ? 'Orqaga' : 'Назад'}
                 style={{
-                  minHeight: '40px',
+                  width: '40px',
+                  height: '40px',
                   borderRadius: 12,
                   border: '1px solid rgba(71, 85, 105, 0.18)',
                   background: 'rgba(255,255,255,0.82)',
@@ -1979,15 +1980,13 @@ function Catalog() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
-                  padding: '0 12px',
-                  fontSize: '0.92rem',
+                  padding: 0,
+                  fontSize: '1rem',
                   fontWeight: 700,
                   transition: 'all 0.22s ease'
                 }}
               >
                 <span aria-hidden="true" style={{ fontSize: '1rem', lineHeight: 1 }}>←</span>
-                <span>{language === 'uz' ? 'Orqaga' : 'Назад'}</span>
               </button>
             ) : (
               <div style={{ width: '40px', height: '40px' }} aria-hidden="true" />
