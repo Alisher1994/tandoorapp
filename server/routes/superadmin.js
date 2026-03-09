@@ -2677,6 +2677,8 @@ router.get('/analytics/overview', async (req, res) => {
     const analyticsRange = resolveAnalyticsRange(req.query || {});
     const startDateKey = analyticsRange.startDateKey;
     const endDateKeyExclusive = analyticsRange.endDateKeyExclusive;
+    const parsedTopLimit = Number.parseInt(req.query.top_limit, 10);
+    const topLimit = [10, 50, 100].includes(parsedTopLimit) ? parsedTopLimit : 10;
 
     let restaurantId = null;
     if (req.query.restaurant_id !== undefined && req.query.restaurant_id !== null && String(req.query.restaurant_id).trim() !== '') {
@@ -2753,6 +2755,79 @@ router.get('/analytics/overview', async (req, res) => {
         AND ($3::int IS NULL OR o.restaurant_id = $3)
       `,
       [startDateKey, endDateKeyExclusive, restaurantId]
+    );
+
+    const lowBalanceRestaurantsResult = await pool.query(
+      `
+      SELECT id, name, COALESCE(balance, 0) AS balance
+      FROM restaurants
+      WHERE is_active = true
+        AND COALESCE(balance, 0) < 20000
+        AND ($1::int IS NULL OR id = $1)
+      ORDER BY balance ASC, name ASC
+      LIMIT 300
+      `,
+      [restaurantId]
+    );
+
+    const topStoresByOrdersResult = await pool.query(
+      `
+      SELECT
+        r.id,
+        r.name,
+        COUNT(o.id)::int AS orders_count,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN o.status = 'delivered' THEN COALESCE(o.total_amount, 0)
+              ELSE 0
+            END
+          ),
+          0
+        ) AS delivered_revenue
+      FROM restaurants r
+      LEFT JOIN orders o
+        ON o.restaurant_id = r.id
+       AND o.created_at >= $1::date
+       AND o.created_at < $2::date
+      WHERE r.is_active = true
+        AND ($3::int IS NULL OR r.id = $3)
+      GROUP BY r.id, r.name
+      HAVING COUNT(o.id) > 0
+      ORDER BY orders_count DESC, delivered_revenue DESC, r.name ASC
+      LIMIT $4
+      `,
+      [startDateKey, endDateKeyExclusive, restaurantId, topLimit]
+    );
+
+    const topStoresByRevenueResult = await pool.query(
+      `
+      SELECT
+        r.id,
+        r.name,
+        COUNT(o.id)::int AS orders_count,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN o.status = 'delivered' THEN COALESCE(o.total_amount, 0)
+              ELSE 0
+            END
+          ),
+          0
+        ) AS delivered_revenue
+      FROM restaurants r
+      LEFT JOIN orders o
+        ON o.restaurant_id = r.id
+       AND o.created_at >= $1::date
+       AND o.created_at < $2::date
+      WHERE r.is_active = true
+        AND ($3::int IS NULL OR r.id = $3)
+      GROUP BY r.id, r.name
+      HAVING COUNT(o.id) > 0
+      ORDER BY delivered_revenue DESC, orders_count DESC, r.name ASC
+      LIMIT $4
+      `,
+      [startDateKey, endDateKeyExclusive, restaurantId, topLimit]
     );
 
     const buildTimelinePoints = () => {
@@ -3058,6 +3133,26 @@ router.get('/analytics/overview', async (req, res) => {
       categories: {
         byQuantity: categoriesByQuantity,
         byRevenue: categoriesByRevenue
+      },
+      shops: {
+        topLimit,
+        lowBalance: lowBalanceRestaurantsResult.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          balance: Number(row.balance) || 0
+        })),
+        topByOrders: topStoresByOrdersResult.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          ordersCount: Number.parseInt(row.orders_count, 10) || 0,
+          revenue: Number(row.delivered_revenue) || 0
+        })),
+        topByRevenue: topStoresByRevenueResult.rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          ordersCount: Number.parseInt(row.orders_count, 10) || 0,
+          revenue: Number(row.delivered_revenue) || 0
+        }))
       },
       funnel: {
         startedUsers,

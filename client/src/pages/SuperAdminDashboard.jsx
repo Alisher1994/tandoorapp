@@ -548,8 +548,9 @@ function SuperAdminDashboard() {
     is_enabled: true
   });
   const [adPreviewRestaurantId, setAdPreviewRestaurantId] = useState('');
-  const [overviewAnalyticsPeriod, setOverviewAnalyticsPeriod] = useState('daily');
+  const [overviewAnalyticsPeriod, setOverviewAnalyticsPeriod] = useState('monthly');
   const [overviewAnalyticsRestaurantId, setOverviewAnalyticsRestaurantId] = useState('');
+  const [overviewAnalyticsTopLimit, setOverviewAnalyticsTopLimit] = useState(10);
   const [overviewAnalyticsYear, setOverviewAnalyticsYear] = useState(() => new Date().getFullYear());
   const [overviewAnalyticsMonth, setOverviewAnalyticsMonth] = useState(() => new Date().getMonth() + 1);
   const [overviewAnalyticsDate, setOverviewAnalyticsDate] = useState(() => {
@@ -599,6 +600,7 @@ function SuperAdminDashboard() {
     activeTab,
     overviewAnalyticsPeriod,
     overviewAnalyticsRestaurantId,
+    overviewAnalyticsTopLimit,
     overviewAnalyticsDate,
     overviewAnalyticsYear,
     overviewAnalyticsMonth
@@ -661,7 +663,8 @@ function SuperAdminDashboard() {
     try {
       const params = {
         period: overviewAnalyticsPeriod,
-        year: overviewAnalyticsYear
+        year: overviewAnalyticsYear,
+        top_limit: overviewAnalyticsTopLimit
       };
 
       if (overviewAnalyticsPeriod === 'daily') {
@@ -2720,6 +2723,11 @@ function SuperAdminDashboard() {
     const categoriesByRevenue = analyticsPayload?.categories?.byRevenue || [];
     const funnel = analyticsPayload?.funnel || {};
     const startDate = analyticsPayload?.startDate || '';
+    const shopsAnalytics = analyticsPayload?.shops || {};
+    const lowBalanceShops = Array.isArray(shopsAnalytics.lowBalance) ? shopsAnalytics.lowBalance : [];
+    const topShopsByOrders = Array.isArray(shopsAnalytics.topByOrders) ? shopsAnalytics.topByOrders : [];
+    const topShopsByRevenue = Array.isArray(shopsAnalytics.topByRevenue) ? shopsAnalytics.topByRevenue : [];
+    const effectiveTopLimit = Number(shopsAnalytics.topLimit || overviewAnalyticsTopLimit || 10);
 
     const statusCards = [
       { key: 'new', label: language === 'uz' ? 'Yangi' : 'Новые' },
@@ -2776,6 +2784,20 @@ function SuperAdminDashboard() {
                 {overviewAnalyticsRestaurantOptions.map((restaurant) => (
                   <option key={`sa-analytics-restaurant-${restaurant.id}`} value={String(restaurant.id)}>
                     {restaurant.name}
+                  </option>
+                ))}
+              </Form.Select>
+            </div>
+            <div className="admin-analytics-filter-group">
+              <span className="admin-analytics-filter-label">{language === 'uz' ? 'TOP' : 'ТОП'}</span>
+              <Form.Select
+                value={overviewAnalyticsTopLimit}
+                onChange={(e) => setOverviewAnalyticsTopLimit(Number.parseInt(e.target.value, 10) || 10)}
+                className="admin-analytics-filter-control"
+              >
+                {[10, 50, 100].map((limitValue) => (
+                  <option key={`sa-analytics-top-limit-${limitValue}`} value={limitValue}>
+                    TOP {limitValue}
                   </option>
                 ))}
               </Form.Select>
@@ -3002,6 +3024,119 @@ function SuperAdminDashboard() {
                         Регистрация -&gt; Заказ: {Number(funnel.conversionRegistrationToOrder || 0).toFixed(1)}%
                       </span>
                     </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+
+            <Row className="g-4 mb-4">
+              <Col lg={4}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#dc2626', background: '#fef2f2' }}>⚠</span>
+                      {language === 'uz' ? 'Balans < 20 000' : 'Баланс < 20 000'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {lowBalanceShops.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Balans' : 'Баланс'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lowBalanceShops.map((item, idx) => (
+                            <tr key={`sa-low-balance-shop-${item.id || idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.balance || 0)} {t('sum')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">
+                        {language === 'uz' ? "20 000 so'mdan past balansli do'kon yo'q" : 'Нет магазинов с балансом ниже 20 000 сум'}
+                      </div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={4}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f766e', background: '#f0fdfa' }}>🏆</span>
+                      {language === 'uz' ? `TOP ${effectiveTopLimit} (buyurtmalar)` : `ТОП ${effectiveTopLimit} (заказы)`}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {topShopsByOrders.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topShopsByOrders.map((item, idx) => (
+                            <tr key={`sa-top-shop-orders-${item.id || idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{Number(item.ordersCount || 0).toLocaleString('ru-RU')}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={4}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#1d4ed8', background: '#eff6ff' }}>💸</span>
+                      {language === 'uz' ? `TOP ${effectiveTopLimit} (summa)` : `ТОП ${effectiveTopLimit} (сумма)`}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {topShopsByRevenue.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topShopsByRevenue.map((item, idx) => (
+                            <tr key={`sa-top-shop-revenue-${item.id || idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                              <td className="text-end">{Number(item.ordersCount || 0).toLocaleString('ru-RU')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
                   </Card.Body>
                 </Card>
               </Col>
