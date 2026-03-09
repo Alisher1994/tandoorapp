@@ -3979,11 +3979,11 @@ function AdminDashboard() {
                 {/* Stats Widgets */}
                 <Row className="g-4 mb-4">
                   <Col md={4}>
-                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                      <Card.Body className="text-white">
+                    <Card className="border-0 shadow-sm h-100 admin-kpi-card admin-kpi-card-month-revenue">
+                      <Card.Body>
                         <div>
-                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenue')}</h6>
-                          <h3 className="mb-0 text-white">{formatPrice(analytics.revenue)} {t('sum')}</h3>
+                          <h6 className="mb-1 admin-kpi-title">{t('revenue')}</h6>
+                          <h3 className="mb-0 admin-kpi-value">{formatPrice(analytics.revenue)} {t('sum')}</h3>
                           <div className="admin-analytics-breakdown mt-2">
                             <div className="admin-analytics-breakdown-row">
                               <span className="admin-analytics-chip admin-analytics-chip-items">
@@ -4007,11 +4007,11 @@ function AdminDashboard() {
                     </Card>
                   </Col>
                   <Col md={4}>
-                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-                      <Card.Body className="text-white">
+                    <Card className="border-0 shadow-sm h-100 admin-kpi-card admin-kpi-card-month-orders">
+                      <Card.Body>
                         <div>
-                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersCount')}</h6>
-                          <h3 className="mb-0 text-white">{analytics.ordersCount}</h3>
+                          <h6 className="mb-1 admin-kpi-title">{t('ordersCount')}</h6>
+                          <h3 className="mb-0 admin-kpi-value">{analytics.ordersCount}</h3>
                           <div className="admin-analytics-breakdown mt-2">
                             <div className="admin-analytics-breakdown-row">
                               <span className="admin-analytics-chip admin-analytics-chip-pickup">
@@ -4027,11 +4027,11 @@ function AdminDashboard() {
                     </Card>
                   </Col>
                   <Col md={4}>
-                    <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
-                      <Card.Body className="text-white">
+                    <Card className="border-0 shadow-sm h-100 admin-kpi-card admin-kpi-card-month-average">
+                      <Card.Body>
                         <div>
-                          <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('averageCheck')}</h6>
-                          <h3 className="mb-0 text-white">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
+                          <h6 className="mb-1 admin-kpi-title">{t('averageCheck')}</h6>
+                          <h3 className="mb-0 admin-kpi-value">{formatPrice(analytics.averageCheck)} {t('sum')}</h3>
                         </div>
                       </Card.Body>
                     </Card>
@@ -4563,11 +4563,11 @@ function AdminDashboard() {
                     {/* Yearly Summary Cards */}
                     <Row className="g-4 mb-4">
                       <Col md={4}>
-                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
-                          <Card.Body className="text-white">
+                        <Card className="border-0 shadow-sm h-100 admin-kpi-card admin-kpi-card-year-revenue">
+                          <Card.Body>
                             <div>
-                              <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('revenueForYear')}</h6>
-                              <h3 className="mb-0 text-white">{formatPrice(yearlyAnalytics.totalRevenue)} {t('sum')}</h3>
+                              <h6 className="mb-1 admin-kpi-title">{t('revenueForYear')}</h6>
+                              <h3 className="mb-0 admin-kpi-value">{formatPrice(yearlyAnalytics.totalRevenue)} {t('sum')}</h3>
                               <div className="admin-analytics-breakdown mt-2">
                                 <div className="admin-analytics-breakdown-row">
                                   <span className="admin-analytics-chip admin-analytics-chip-items">
@@ -4591,11 +4591,11 @@ function AdminDashboard() {
                         </Card>
                       </Col>
                       <Col md={4}>
-                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%)' }}>
-                          <Card.Body className="text-white">
+                        <Card className="border-0 shadow-sm h-100 admin-kpi-card admin-kpi-card-year-orders">
+                          <Card.Body>
                             <div>
-                              <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('ordersForYear')}</h6>
-                              <h3 className="mb-0 text-white">{yearlyAnalytics.totalOrders}</h3>
+                              <h6 className="mb-1 admin-kpi-title">{t('ordersForYear')}</h6>
+                              <h3 className="mb-0 admin-kpi-value">{yearlyAnalytics.totalOrders}</h3>
                               <div className="admin-analytics-breakdown mt-2">
                                 <div className="admin-analytics-breakdown-row">
                                   <span className="admin-analytics-chip admin-analytics-chip-pickup">
@@ -4611,11 +4611,11 @@ function AdminDashboard() {
                         </Card>
                       </Col>
                       <Col md={4}>
-                        <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)' }}>
-                          <Card.Body className="text-white">
+                        <Card className="border-0 shadow-sm h-100 admin-kpi-card admin-kpi-card-year-average">
+                          <Card.Body>
                             <div>
-                              <h6 className="mb-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{t('avgCheckForYear')}</h6>
-                              <h3 className="mb-0 text-white">{formatPrice(yearlyAnalytics.averageCheck)} {t('sum')}</h3>
+                              <h6 className="mb-1 admin-kpi-title">{t('avgCheckForYear')}</h6>
+                              <h3 className="mb-0 admin-kpi-value">{formatPrice(yearlyAnalytics.averageCheck)} {t('sum')}</h3>
                             </div>
                           </Card.Body>
                         </Card>

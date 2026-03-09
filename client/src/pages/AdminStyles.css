@@ -1072,6 +1072,104 @@ body::-webkit-scrollbar,
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 10l2-6h14l2 6'/%3E%3Cpath d='M4 10h16v10H4z'/%3E%3Cpath d='M9 14h6'/%3E%3C/svg%3E");
 }
 
+.admin-kpi-card {
+    --kpi-surface-1: #f7fbff;
+    --kpi-surface-2: #edf4fb;
+    --kpi-border: #d9e5f2;
+    --kpi-title: #5d738d;
+    --kpi-value: #1f3d5c;
+    --kpi-chip-bg: rgba(255, 255, 255, 0.75);
+    --kpi-chip-border: #cfe0f2;
+    --kpi-chip-text: #41607f;
+    border: 1px solid var(--kpi-border) !important;
+    border-radius: 16px !important;
+    background: linear-gradient(180deg, var(--kpi-surface-1), var(--kpi-surface-2));
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06) !important;
+}
+
+.admin-kpi-title {
+    color: var(--kpi-title);
+    font-size: 0.96rem;
+    font-weight: 700;
+}
+
+.admin-kpi-value {
+    color: var(--kpi-value);
+    font-size: clamp(1.65rem, 2.2vw, 2.1rem);
+    font-weight: 800;
+    line-height: 1.12;
+}
+
+.admin-kpi-card .admin-analytics-chip {
+    background: var(--kpi-chip-bg);
+    border-color: var(--kpi-chip-border);
+    color: var(--kpi-chip-text);
+    backdrop-filter: none;
+    font-weight: 600;
+}
+
+.admin-kpi-card .admin-analytics-chip::before {
+    display: none;
+}
+
+.admin-kpi-card-month-revenue {
+    --kpi-surface-1: #f5f9ff;
+    --kpi-surface-2: #ecf4ff;
+    --kpi-border: #d5e2f5;
+    --kpi-title: #4f76a5;
+    --kpi-value: #1f63ac;
+    --kpi-chip-border: #c8dbf3;
+    --kpi-chip-text: #3b6697;
+}
+
+.admin-kpi-card-month-orders {
+    --kpi-surface-1: #fff8f3;
+    --kpi-surface-2: #fff2e9;
+    --kpi-border: #f1dcc8;
+    --kpi-title: #b57a43;
+    --kpi-value: #d2862d;
+    --kpi-chip-border: #f2d8bc;
+    --kpi-chip-text: #9a6936;
+}
+
+.admin-kpi-card-month-average {
+    --kpi-surface-1: #f8fafc;
+    --kpi-surface-2: #f2f6fa;
+    --kpi-border: #dae4ec;
+    --kpi-title: #5d6f80;
+    --kpi-value: #3d556c;
+    --kpi-chip-border: #d3dfe8;
+    --kpi-chip-text: #4f6479;
+}
+
+.admin-kpi-card-year-revenue {
+    --kpi-surface-1: #f4fbf7;
+    --kpi-surface-2: #eaf7ef;
+    --kpi-border: #cfe8d9;
+    --kpi-title: #4f8668;
+    --kpi-value: #2d8b59;
+    --kpi-chip-border: #c2e0cd;
+    --kpi-chip-text: #3f7758;
+}
+
+.admin-kpi-card-year-orders {
+    --kpi-surface-1: #fff8f1;
+    --kpi-surface-2: #fff1e4;
+    --kpi-border: #efd7bf;
+    --kpi-title: #b87a3f;
+    --kpi-value: #d67d2a;
+    --kpi-chip-border: #efd4b8;
+    --kpi-chip-text: #986437;
+}
+
+.admin-kpi-card-year-average {
+    --kpi-surface-1: #f8fafc;
+    --kpi-surface-2: #f1f5f9;
+    --kpi-border: #d8e1ea;
+    --kpi-title: #5a6774;
+    --kpi-value: #3f4f5f;
+}
+
 @media (max-width: 575.98px) {
     .admin-analytics-chip {
         font-size: 0.73rem;
