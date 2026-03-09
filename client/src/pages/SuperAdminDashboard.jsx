@@ -548,6 +548,19 @@ function SuperAdminDashboard() {
     is_enabled: true
   });
   const [adPreviewRestaurantId, setAdPreviewRestaurantId] = useState('');
+  const [overviewAnalyticsPeriod, setOverviewAnalyticsPeriod] = useState('daily');
+  const [overviewAnalyticsRestaurantId, setOverviewAnalyticsRestaurantId] = useState('');
+  const [overviewAnalyticsYear, setOverviewAnalyticsYear] = useState(() => new Date().getFullYear());
+  const [overviewAnalyticsMonth, setOverviewAnalyticsMonth] = useState(() => new Date().getMonth() + 1);
+  const [overviewAnalyticsDate, setOverviewAnalyticsDate] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
+  const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
 
   // Load data on tab change
   // Auto-hide notifications
@@ -578,6 +591,18 @@ function SuperAdminDashboard() {
     if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') loadBillingSettings();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'analytics') return;
+    loadOverviewAnalytics();
+  }, [
+    activeTab,
+    overviewAnalyticsPeriod,
+    overviewAnalyticsRestaurantId,
+    overviewAnalyticsDate,
+    overviewAnalyticsYear,
+    overviewAnalyticsMonth
+  ]);
 
   useEffect(() => {
     if (activeTab === 'restaurants') loadRestaurants();
@@ -628,6 +653,35 @@ function SuperAdminDashboard() {
       setStats(response.data);
     } catch (err) {
       console.error('Load stats error:', err);
+    }
+  };
+
+  const loadOverviewAnalytics = async () => {
+    setOverviewAnalyticsLoading(true);
+    try {
+      const params = {
+        period: overviewAnalyticsPeriod,
+        year: overviewAnalyticsYear
+      };
+
+      if (overviewAnalyticsPeriod === 'daily') {
+        params.date = overviewAnalyticsDate;
+      } else if (overviewAnalyticsPeriod === 'monthly') {
+        params.month = overviewAnalyticsMonth;
+      }
+
+      if (overviewAnalyticsRestaurantId) {
+        params.restaurant_id = overviewAnalyticsRestaurantId;
+      }
+
+      const response = await axios.get(`${API_URL}/superadmin/analytics/overview`, { params });
+      setOverviewAnalyticsData(response.data || null);
+    } catch (err) {
+      console.error('Load overview analytics error:', err);
+      setOverviewAnalyticsData(null);
+      setError(err.response?.data?.error || 'Ошибка загрузки аналитики');
+    } finally {
+      setOverviewAnalyticsLoading(false);
     }
   };
 
@@ -1126,6 +1180,10 @@ function SuperAdminDashboard() {
   };
 
   const adPreviewRestaurantOptions = useMemo(() => (
+    [...(Array.isArray(allRestaurants) ? allRestaurants : [])]
+      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ru'))
+  ), [allRestaurants]);
+  const overviewAnalyticsRestaurantOptions = useMemo(() => (
     [...(Array.isArray(allRestaurants) ? allRestaurants : [])]
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'ru'))
   ), [allRestaurants]);
@@ -2455,6 +2513,581 @@ function SuperAdminDashboard() {
     return new Date(date).toLocaleString('ru-RU');
   };
 
+  const formatAnalyticsMoney = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '0';
+    return Math.round(numeric).toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+  };
+
+  const monthShortLabels = language === 'uz'
+    ? ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun', 'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
+    : ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+
+  const monthLongLabels = language === 'uz'
+    ? ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
+    : ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+  const buildChartLabelIndexes = (dataLength, showAll = false) => {
+    if (showAll) return new Set(Array.from({ length: dataLength }, (_, index) => index));
+    if (dataLength <= 5) return new Set(Array.from({ length: dataLength }, (_, index) => index));
+    const step = Math.max(1, Math.round((dataLength - 1) / 4));
+    const indexes = new Set([0, dataLength - 1]);
+    for (let index = 0; index < dataLength; index += step) indexes.add(index);
+    return indexes;
+  };
+
+  const formatAnalyticsAxisValue = (value, mode = 'count') => {
+    const numericValue = Math.max(0, Number(value) || 0);
+    if (mode === 'currency') {
+      if (numericValue >= 1000000) return `${Math.round((numericValue / 1000000) * 10) / 10}M`;
+      if (numericValue >= 1000) return `${Math.round((numericValue / 1000) * 10) / 10}K`;
+    }
+    return Math.round(numericValue).toLocaleString('ru-RU');
+  };
+
+  const renderOverviewSvgChart = ({
+    data,
+    color,
+    gradientId,
+    mode = 'count',
+    showAllLabels = true,
+    showPointValues = true
+  }) => {
+    const chartData = Array.isArray(data) && data.length ? data : [{ label: '—', value: 0 }];
+    const chartWidth = 800;
+    const chartHeight = 190;
+    const padding = { top: 18, right: 18, bottom: 36, left: 52 };
+    const innerWidth = chartWidth - padding.left - padding.right;
+    const innerHeight = chartHeight - padding.top - padding.bottom;
+    const maxValue = Math.max(...chartData.map((point) => Number(point.value) || 0), 1);
+    const yTicks = 4;
+    const labelIndexes = buildChartLabelIndexes(chartData.length, showAllLabels);
+    const getX = (index) => (
+      chartData.length === 1
+        ? padding.left + innerWidth / 2
+        : padding.left + ((index / (chartData.length - 1)) * innerWidth)
+    );
+    const getY = (value) => padding.top + innerHeight - (((Number(value) || 0) / maxValue) * innerHeight);
+    const linePoints = chartData.map((point, index) => `${getX(index)},${getY(point.value)}`).join(' ');
+    const areaPath = chartData
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${getX(index)} ${getY(point.value)}`)
+      .join(' ') +
+      ` L ${getX(chartData.length - 1)} ${padding.top + innerHeight}` +
+      ` L ${getX(0)} ${padding.top + innerHeight} Z`;
+
+    return (
+      <svg className="admin-analytics-svg-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none">
+        {Array.from({ length: yTicks + 1 }, (_, index) => {
+          const ratio = index / yTicks;
+          const y = padding.top + (innerHeight * ratio);
+          const tickValue = maxValue * (1 - ratio);
+          return (
+            <g key={`${gradientId}-grid-${index}`}>
+              <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} stroke="#f1f5f9" strokeWidth="1" />
+              <text x={padding.left - 10} y={y + 4} textAnchor="end" className="admin-analytics-axis-text">
+                {formatAnalyticsAxisValue(tickValue, mode)}
+              </text>
+            </g>
+          );
+        })}
+
+        <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {chartData.map((point, index) => (
+          <circle
+            key={`${gradientId}-point-${index}`}
+            cx={getX(index)}
+            cy={getY(point.value)}
+            r="4"
+            fill="#ffffff"
+            stroke={color}
+            strokeWidth="2"
+          />
+        ))}
+
+        {showPointValues && chartData.map((point, index) => (
+          Number(point.value) > 0 ? (
+            <text
+              key={`${gradientId}-point-value-${index}`}
+              x={getX(index)}
+              y={getY(point.value) - 10}
+              textAnchor="middle"
+              className="admin-analytics-point-value-text"
+            >
+              {formatAnalyticsAxisValue(point.value, mode)}
+            </text>
+          ) : null
+        ))}
+
+        {chartData.map((point, index) => (
+          labelIndexes.has(index) ? (
+            <text
+              key={`${gradientId}-label-${index}`}
+              x={getX(index)}
+              y={padding.top + innerHeight + 22}
+              textAnchor="middle"
+              className="admin-analytics-axis-text"
+              style={
+                chartData.length > 24
+                  ? { fontSize: '7px' }
+                  : chartData.length > 12
+                    ? { fontSize: '8px' }
+                    : undefined
+              }
+            >
+              {point.label}
+            </text>
+          ) : null
+        ))}
+
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  };
+
+  const renderAnalyticsStatusIcon = (statusKey) => {
+    switch (statusKey) {
+      case 'new':
+        return (
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M10 6v8M6 10h8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        );
+      case 'accepted':
+        return (
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="3.2" y="3.2" width="13.6" height="13.6" rx="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M6.8 10.2l2.2 2.2 4.4-4.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        );
+      case 'preparing':
+        return (
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M4 12.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M6.2 12.5a3.8 3.8 0 0 1 7.6 0" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M7 7.2c0-1.1.9-2 2-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        );
+      case 'delivering':
+        return (
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="2.5" y="7" width="8.5" height="5.5" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M11 8.2h3.2l2.3 2.3v2H11z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="6.1" cy="14.2" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="14.2" cy="14.2" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          </svg>
+        );
+      case 'delivered':
+        return (
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M6.3 10.2 8.8 12.7 13.8 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        );
+      case 'cancelled':
+        return (
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M7 7l6 6M13 7l-6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderOverviewAnalyticsTab = () => {
+    const analyticsPayload = overviewAnalyticsData || {};
+    const kpis = analyticsPayload.kpis || {};
+    const statusSummary = analyticsPayload.statusSummary || {};
+    const revenueTimeline = analyticsPayload?.timelines?.revenue || [];
+    const ordersTimeline = analyticsPayload?.timelines?.orders || [];
+    const categoriesByQuantity = analyticsPayload?.categories?.byQuantity || [];
+    const categoriesByRevenue = analyticsPayload?.categories?.byRevenue || [];
+    const funnel = analyticsPayload?.funnel || {};
+    const startDate = analyticsPayload?.startDate || '';
+
+    const statusCards = [
+      { key: 'new', label: language === 'uz' ? 'Yangi' : 'Новые' },
+      { key: 'accepted', label: language === 'uz' ? 'Qabul qilingan' : 'Принятые' },
+      { key: 'preparing', label: language === 'uz' ? 'Tayyorlanmoqda' : 'Готовится' },
+      { key: 'delivering', label: language === 'uz' ? 'Yetkazilmoqda' : 'Доставляется' },
+      { key: 'delivered', label: language === 'uz' ? 'Yetkazildi' : 'Доставлено' },
+      { key: 'cancelled', label: language === 'uz' ? 'Bekor qilingan' : 'Отказано' }
+    ];
+
+    const yearOptions = Array.from({ length: 7 }, (_, index) => (new Date().getFullYear() - 3 + index));
+    const periodCaption = overviewAnalyticsPeriod === 'daily'
+      ? (overviewAnalyticsDate || '—')
+      : overviewAnalyticsPeriod === 'monthly'
+        ? `${monthLongLabels[Math.max(0, Math.min(11, overviewAnalyticsMonth - 1))]} ${overviewAnalyticsYear}`
+        : String(overviewAnalyticsYear || '');
+
+    const normalizedRevenueTimeline = overviewAnalyticsPeriod === 'yearly'
+      ? revenueTimeline.map((item, index) => ({ ...item, label: monthShortLabels[index] || item.label }))
+      : revenueTimeline;
+    const normalizedOrdersTimeline = overviewAnalyticsPeriod === 'yearly'
+      ? ordersTimeline.map((item, index) => ({ ...item, label: monthShortLabels[index] || item.label }))
+      : ordersTimeline;
+
+    return (
+      <div className="admin-analytics-layout">
+        <div className="admin-analytics-header-row">
+          <div className="admin-analytics-period-tabs">
+            {[
+              { key: 'daily', label: language === 'uz' ? 'Kun' : 'День' },
+              { key: 'monthly', label: language === 'uz' ? 'Oy' : 'Месяц' },
+              { key: 'yearly', label: language === 'uz' ? 'Yil' : 'Год' }
+            ].map((periodTab) => (
+              <button
+                key={`sa-analytics-period-${periodTab.key}`}
+                type="button"
+                className={`admin-analytics-period-btn${overviewAnalyticsPeriod === periodTab.key ? ' is-active' : ''}`}
+                onClick={() => setOverviewAnalyticsPeriod(periodTab.key)}
+              >
+                {periodTab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="admin-analytics-filters-area">
+            <div className="admin-analytics-filter-group">
+              <span className="admin-analytics-filter-label">{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
+              <Form.Select
+                value={overviewAnalyticsRestaurantId}
+                onChange={(e) => setOverviewAnalyticsRestaurantId(e.target.value)}
+                className="admin-analytics-filter-control"
+              >
+                <option value="">{language === 'uz' ? "Barcha do'konlar" : 'Все магазины'}</option>
+                {overviewAnalyticsRestaurantOptions.map((restaurant) => (
+                  <option key={`sa-analytics-restaurant-${restaurant.id}`} value={String(restaurant.id)}>
+                    {restaurant.name}
+                  </option>
+                ))}
+              </Form.Select>
+            </div>
+            {overviewAnalyticsPeriod === 'daily' ? (
+              <div className="admin-analytics-filter-group admin-analytics-filter-group-date">
+                <span className="admin-analytics-filter-label">{t('date')}</span>
+                <Form.Control
+                  type="date"
+                  value={overviewAnalyticsDate}
+                  onChange={(e) => setOverviewAnalyticsDate(String(e.target.value || ''))}
+                  className="admin-analytics-filter-control"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="admin-analytics-filter-group">
+                  <span className="admin-analytics-filter-label">{t('year')}</span>
+                  <Form.Select
+                    value={overviewAnalyticsYear}
+                    onChange={(e) => setOverviewAnalyticsYear(Number.parseInt(e.target.value, 10))}
+                    className="admin-analytics-filter-control"
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={`sa-analytics-year-${year}`} value={year}>{year}</option>
+                    ))}
+                  </Form.Select>
+                </div>
+                {overviewAnalyticsPeriod === 'monthly' ? (
+                  <div className="admin-analytics-filter-group">
+                    <span className="admin-analytics-filter-label">{t('month')}</span>
+                    <Form.Select
+                      value={overviewAnalyticsMonth}
+                      onChange={(e) => setOverviewAnalyticsMonth(Number.parseInt(e.target.value, 10))}
+                      className="admin-analytics-filter-control"
+                    >
+                      {monthLongLabels.map((monthLabel, index) => (
+                        <option key={`sa-analytics-month-${index + 1}`} value={index + 1}>{monthLabel}</option>
+                      ))}
+                    </Form.Select>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+
+        {overviewAnalyticsLoading ? (
+          <div className="py-4 text-center text-muted">
+            <Spinner animation="border" size="sm" className="me-2" />
+            {language === 'uz' ? 'Analitika yuklanmoqda...' : 'Загрузка аналитики...'}
+          </div>
+        ) : (
+          <>
+            <div className="admin-analytics-kpi-grid">
+              <div className="admin-analytics-kpi-card">
+                <div className="admin-analytics-kpi-header">
+                  <h6 className="mb-0 admin-analytics-card-title">
+                    <span className="admin-analytics-card-title-icon" style={{ color: '#10b981', background: '#ecfdf5' }}>💰</span>
+                    {t('revenue')}
+                  </h6>
+                </div>
+                <div className="admin-analytics-kpi-value">
+                  {formatAnalyticsMoney(kpis.revenue)} <span>{t('sum')}</span>
+                </div>
+                <div className="admin-analytics-kpi-list">
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? 'Tovarlar' : 'Товары'}</span>
+                    <strong>{formatAnalyticsMoney(kpis.itemsRevenue)} {t('sum')}</strong>
+                  </div>
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
+                    <strong>{formatAnalyticsMoney(kpis.deliveryRevenue)} {t('sum')}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-analytics-kpi-card">
+                <div className="admin-analytics-kpi-header">
+                  <h6 className="mb-0 admin-analytics-card-title">
+                    <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>📦</span>
+                    {language === 'uz' ? 'Buyurtmalar' : 'Заказы'}
+                  </h6>
+                </div>
+                <div className="admin-analytics-kpi-value">{Number(kpis.ordersCount || 0)}</div>
+                <div className="admin-analytics-kpi-list">
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
+                    <strong>{Number(kpis.pickupOrdersCount || 0)}</strong>
+                  </div>
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
+                    <strong>{Number(kpis.deliveryOrdersCount || 0)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-analytics-kpi-card">
+                <div className="admin-analytics-kpi-header">
+                  <h6 className="mb-0 admin-analytics-card-title">
+                    <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🧺</span>
+                    {language === 'uz' ? 'Idish/paket' : 'Посуды/Пакеты'}
+                  </h6>
+                </div>
+                <div className="admin-analytics-kpi-value">
+                  {formatAnalyticsMoney(kpis.containersRevenue)} <span>{t('sum')}</span>
+                </div>
+              </div>
+
+              <div className="admin-analytics-kpi-card">
+                <div className="admin-analytics-kpi-header">
+                  <h6 className="mb-0 admin-analytics-card-title">
+                    <span className="admin-analytics-card-title-icon" style={{ color: '#06b6d4', background: '#ecfeff' }}>🛎️</span>
+                    {language === 'uz' ? 'Servis summasi' : 'Сумма сервиса'}
+                  </h6>
+                </div>
+                <div className="admin-analytics-kpi-value">
+                  {formatAnalyticsMoney(kpis.serviceRevenue)} <span>{t('sum')}</span>
+                </div>
+              </div>
+
+              <div className="admin-analytics-kpi-card">
+                <div className="admin-analytics-kpi-header">
+                  <h6 className="mb-0 admin-analytics-card-title">
+                    <span className="admin-analytics-card-title-icon" style={{ color: '#3b82f6', background: '#eff6ff' }}>🧾</span>
+                    {t('averageCheck')}
+                  </h6>
+                </div>
+                <div className="admin-analytics-kpi-value">
+                  {formatAnalyticsMoney(kpis.averageCheck)} <span>{t('sum')}</span>
+                </div>
+                <div className="admin-analytics-kpi-list">
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? 'Davr' : 'Период'}</span>
+                    <strong>{periodCaption}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-analytics-status-strip">
+              {statusCards.map((statusCard) => (
+                <div className="admin-analytics-status-strip-item" key={`sa-analytics-status-${statusCard.key}`}>
+                  <span className={`admin-analytics-status-strip-icon is-${statusCard.key}`}>
+                    {renderAnalyticsStatusIcon(statusCard.key)}
+                  </span>
+                  <span className="admin-analytics-status-strip-label">{statusCard.label}</span>
+                  <strong className="admin-analytics-status-strip-value">{Number(statusSummary[statusCard.key] || 0)}</strong>
+                </div>
+              ))}
+            </div>
+
+            <Row className="g-4 mb-4">
+              <Col lg={8}>
+                <Card className="border-0 shadow-sm admin-analytics-surface-card">
+                  <Card.Body className="admin-analytics-chart-stack">
+                    <div className="admin-analytics-chart-box">
+                      <div className="admin-analytics-chart-heading">
+                        <span>{language === 'uz' ? 'Moliya' : 'Финансы'}</span>
+                        <small>
+                          {overviewAnalyticsPeriod === 'daily'
+                            ? (language === 'uz' ? 'soatlar bo‘yicha' : 'по часам')
+                            : overviewAnalyticsPeriod === 'monthly'
+                              ? (language === 'uz' ? 'kunlar bo‘yicha' : 'по дням')
+                              : (language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам')}
+                        </small>
+                      </div>
+                      {renderOverviewSvgChart({
+                        data: normalizedRevenueTimeline,
+                        color: '#6366f1',
+                        gradientId: `sa-analytics-revenue-${overviewAnalyticsPeriod}`,
+                        mode: 'currency',
+                        showAllLabels: true,
+                        showPointValues: true
+                      })}
+                    </div>
+
+                    <div className="admin-analytics-chart-box admin-analytics-chart-box-secondary">
+                      <div className="admin-analytics-chart-heading">
+                        <span>{language === 'uz' ? 'Buyurtmalar' : 'Заказы'}</span>
+                        <small>
+                          {overviewAnalyticsPeriod === 'daily'
+                            ? (language === 'uz' ? 'soatlar bo‘yicha' : 'по часам')
+                            : overviewAnalyticsPeriod === 'monthly'
+                              ? (language === 'uz' ? 'kunlar bo‘yicha' : 'по дням')
+                              : (language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам')}
+                        </small>
+                      </div>
+                      {renderOverviewSvgChart({
+                        data: normalizedOrdersTimeline,
+                        color: '#f43f5e',
+                        gradientId: `sa-analytics-orders-${overviewAnalyticsPeriod}`,
+                        mode: 'count',
+                        showAllLabels: true,
+                        showPointValues: true
+                      })}
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={4}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
+                  <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🤖</span>
+                      {language === 'uz' ? 'Telegram voronkasi' : 'Воронка Telegram'}
+                    </h6>
+                    <small className="text-muted admin-analytics-card-subtle">{startDate || '—'}</small>
+                  </Card.Header>
+                  <Card.Body>
+                    <div className="d-flex flex-column gap-2 small">
+                      <div className="d-flex justify-content-between"><span>/start</span><strong>{Number(funnel.startedUsers || 0)}</strong></div>
+                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Til' : 'Язык'}</span><strong>{Number(funnel.languageSelectedUsers || 0)}</strong></div>
+                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Telefon' : 'Телефон'}</span><strong>{Number(funnel.contactSharedUsers || 0)}</strong></div>
+                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? "Ro'yxat" : 'Регистрация'}</span><strong>{Number(funnel.registrationCompletedUsers || 0)}</strong></div>
+                      <div className="d-flex justify-content-between"><span>{language === 'uz' ? 'Buyurtma' : 'С заказом'}</span><strong>{Number(funnel.registeredWithOrderUsers || 0)}</strong></div>
+                    </div>
+                    <div className="d-flex flex-wrap gap-2 pt-3">
+                      <span className="badge text-bg-light border">
+                        Start -&gt; Регистрация: {Number(funnel.conversionStartToRegistration || 0).toFixed(1)}%
+                      </span>
+                      <span className="badge text-bg-light border">
+                        Регистрация -&gt; Заказ: {Number(funnel.conversionRegistrationToOrder || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+
+            <Row className="g-4">
+              <Col lg={6}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>📊</span>
+                      {language === 'uz' ? 'Kategoriyalar (soni)' : 'Категории (количество)'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {categoriesByQuantity.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? 'Kategoriya' : 'Категория'}</th>
+                            <th className="text-end">{t('quantity')}</th>
+                            <th className="text-end">{t('revenue')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {categoriesByQuantity.map((item, idx) => (
+                            <tr key={`sa-cat-qty-${item.categoryId || 'na'}-${idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{Number(item.quantity || 0).toLocaleString('ru-RU')}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={6}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>💹</span>
+                      {language === 'uz' ? 'Kategoriyalar (summa)' : 'Категории (сумма)'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {categoriesByRevenue.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? 'Kategoriya' : 'Категория'}</th>
+                            <th className="text-end">{t('revenue')}</th>
+                            <th className="text-end">{t('quantity')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {categoriesByRevenue.map((item, idx) => (
+                            <tr key={`sa-cat-sum-${item.categoryId || 'na'}-${idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                              <td className="text-end">{Number(item.quantity || 0).toLocaleString('ru-RU')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const getActionTypeLabel = (type) => {
     const labels = {
       'create_product': 'Создание товара',
@@ -3143,6 +3776,9 @@ function SuperAdminDashboard() {
         <Card className="admin-card border-0 shadow-sm">
           <Card.Body className="p-4">
             <Tabs activeKey={activeTab} onSelect={setActiveTab} className="admin-tabs mb-4">
+              <Tab eventKey="analytics" title={`📈 ${language === 'uz' ? 'Analitika' : 'Аналитика'}`}>
+                {renderOverviewAnalyticsTab()}
+              </Tab>
 
               {/* Restaurants Tab */}
               <Tab eventKey="restaurants" title={`🏪 ${t('restaurants')}`}>

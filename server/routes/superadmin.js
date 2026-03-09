@@ -24,6 +24,7 @@ const {
   updateHelpInstruction,
   deleteHelpInstruction
 } = require('../services/helpInstructions');
+const { ensureBotFunnelSchema } = require('../services/botFunnel');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -472,6 +473,107 @@ const AD_BANNER_MAX_SLOTS = 10;
 const AD_TRANSITIONS = new Set(['none', 'fade', 'slide']);
 const AD_BANNER_TYPES = new Set(['banner', 'entry_popup']);
 const TASHKENT_TZ = 'Asia/Tashkent';
+const ANALYTICS_TIMEZONE = process.env.RESTAURANT_TIMEZONE || TASHKENT_TZ;
+
+const padAnalyticsDatePart = (value) => String(value).padStart(2, '0');
+const formatAnalyticsDateKey = (year, month, day) => (
+  `${year}-${padAnalyticsDatePart(month)}-${padAnalyticsDatePart(day)}`
+);
+const parseAnalyticsDateKey = (rawValue) => {
+  const value = String(rawValue || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return null;
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(probe.getTime())) return null;
+  return value;
+};
+const parseAnalyticsInt = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const parseAnalyticsPeriod = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'monthly' || normalized === 'month') return 'monthly';
+  if (normalized === 'yearly' || normalized === 'year') return 'yearly';
+  return 'daily';
+};
+const getDateKeyInTimeZone = (date = new Date(), timeZone = ANALYTICS_TIMEZONE) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+  return `${year}-${month}-${day}`;
+};
+const resolveAnalyticsRange = (query = {}) => {
+  const todayDateKey = getDateKeyInTimeZone(new Date(), ANALYTICS_TIMEZONE);
+  const baseDateKey = parseAnalyticsDateKey(query.date) || todayDateKey;
+  const [baseYear, baseMonth, baseDay] = baseDateKey.split('-').map((part) => Number.parseInt(part, 10));
+  const period = parseAnalyticsPeriod(query.period);
+
+  if (period === 'monthly') {
+    const year = parseAnalyticsInt(query.year) || baseYear;
+    const monthRaw = parseAnalyticsInt(query.month) || baseMonth;
+    const month = Math.max(1, Math.min(12, monthRaw));
+    const startDateKey = formatAnalyticsDateKey(year, month, 1);
+    const nextMonthDate = new Date(Date.UTC(year, month, 1));
+    const endDateKeyExclusive = formatAnalyticsDateKey(
+      nextMonthDate.getUTCFullYear(),
+      nextMonthDate.getUTCMonth() + 1,
+      nextMonthDate.getUTCDate()
+    );
+    return {
+      period,
+      dateKey: startDateKey,
+      startDateKey,
+      endDateKeyExclusive,
+      year,
+      month
+    };
+  }
+
+  if (period === 'yearly') {
+    const year = parseAnalyticsInt(query.year) || baseYear;
+    const startDateKey = formatAnalyticsDateKey(year, 1, 1);
+    const endDateKeyExclusive = formatAnalyticsDateKey(year + 1, 1, 1);
+    return {
+      period,
+      dateKey: startDateKey,
+      startDateKey,
+      endDateKeyExclusive,
+      year,
+      month: null
+    };
+  }
+
+  const startDateKey = formatAnalyticsDateKey(baseYear, baseMonth, baseDay);
+  const nextDate = new Date(Date.UTC(baseYear, baseMonth - 1, baseDay + 1));
+  const endDateKeyExclusive = formatAnalyticsDateKey(
+    nextDate.getUTCFullYear(),
+    nextDate.getUTCMonth() + 1,
+    nextDate.getUTCDate()
+  );
+  return {
+    period: 'daily',
+    dateKey: startDateKey,
+    startDateKey,
+    endDateKeyExclusive,
+    year: baseYear,
+    month: baseMonth
+  };
+};
+const ratioPercent = (part, total) => {
+  const denominator = Number(total || 0);
+  const numerator = Number(part || 0);
+  if (!denominator || denominator <= 0 || !Number.isFinite(denominator)) return 0;
+  if (!Number.isFinite(numerator) || numerator <= 0) return 0;
+  return Number(((numerator / denominator) * 100).toFixed(1));
+};
 
 const normalizeAdRepeatDays = (value) => {
   let days = [];
@@ -2566,6 +2668,417 @@ router.get('/stats', async (req, res) => {
   } catch (error) {
     console.error('Get stats error:', error);
     res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
+// Сводная аналитика (день/месяц/год) для суперадмина
+router.get('/analytics/overview', async (req, res) => {
+  try {
+    const analyticsRange = resolveAnalyticsRange(req.query || {});
+    const startDateKey = analyticsRange.startDateKey;
+    const endDateKeyExclusive = analyticsRange.endDateKeyExclusive;
+
+    let restaurantId = null;
+    if (req.query.restaurant_id !== undefined && req.query.restaurant_id !== null && String(req.query.restaurant_id).trim() !== '') {
+      const parsedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
+      if (!Number.isFinite(parsedRestaurantId) || parsedRestaurantId <= 0) {
+        return res.status(400).json({ error: 'Некорректный restaurant_id' });
+      }
+      restaurantId = parsedRestaurantId;
+    }
+
+    let restaurantMeta = null;
+    if (restaurantId) {
+      const restaurantResult = await pool.query(
+        'SELECT id, name FROM restaurants WHERE id = $1 LIMIT 1',
+        [restaurantId]
+      );
+      if (!restaurantResult.rows.length) {
+        return res.status(404).json({ error: 'Магазин не найден' });
+      }
+      restaurantMeta = restaurantResult.rows[0];
+    }
+
+    const ordersResult = await pool.query(
+      `
+      SELECT
+        o.id,
+        o.order_number,
+        o.status,
+        o.total_amount,
+        o.service_fee,
+        o.delivery_cost,
+        o.fulfillment_type,
+        o.delivery_address,
+        o.created_at,
+        o.customer_name,
+        o.customer_phone,
+        o.is_paid,
+        o.payment_status,
+        COALESCE(NULLIF(BTRIM(u.phone), ''), NULLIF(BTRIM(o.customer_phone), ''), '') AS customer_phone_normalized,
+        EXISTS(
+          SELECT 1
+          FROM order_status_history osh
+          WHERE osh.order_id = o.id
+            AND osh.status = 'accepted'
+        ) AS has_accepted_action
+      FROM orders o
+      LEFT JOIN users u ON u.id = o.user_id
+      WHERE o.created_at >= $1::date
+        AND o.created_at < $2::date
+        AND ($3::int IS NULL OR o.restaurant_id = $3)
+      ORDER BY o.created_at ASC, o.id ASC
+      `,
+      [startDateKey, endDateKeyExclusive, restaurantId]
+    );
+
+    const itemsResult = await pool.query(
+      `
+      SELECT
+        o.id AS order_id,
+        o.status,
+        oi.product_name,
+        oi.quantity,
+        oi.price,
+        oi.container_price,
+        oi.container_norm,
+        c.id AS category_id,
+        c.name_ru AS category_name
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN products p ON p.id = oi.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      WHERE o.created_at >= $1::date
+        AND o.created_at < $2::date
+        AND ($3::int IS NULL OR o.restaurant_id = $3)
+      `,
+      [startDateKey, endDateKeyExclusive, restaurantId]
+    );
+
+    const buildTimelinePoints = () => {
+      if (analyticsRange.period === 'yearly') {
+        return Array.from({ length: 12 }, (_, index) => ({ label: String(index + 1), value: 0 }));
+      }
+      if (analyticsRange.period === 'monthly') {
+        const daysInMonth = new Date(analyticsRange.year, analyticsRange.month, 0).getDate();
+        return Array.from({ length: daysInMonth }, (_, index) => ({ label: String(index + 1), value: 0 }));
+      }
+      return Array.from({ length: 24 }, (_, hour) => ({ label: `${String(hour).padStart(2, '0')}:00`, value: 0 }));
+    };
+
+    const revenueTimeline = buildTimelinePoints();
+    const ordersTimeline = buildTimelinePoints();
+    const statusSummary = {
+      new: 0,
+      accepted: 0,
+      preparing: 0,
+      delivering: 0,
+      delivered: 0,
+      cancelled: 0
+    };
+
+    const resolveTimelineIndex = (dateValue) => {
+      if (analyticsRange.period === 'yearly') return dateValue.getMonth();
+      if (analyticsRange.period === 'monthly') return dateValue.getDate() - 1;
+      return dateValue.getHours();
+    };
+
+    const toNumeric = (value, fallback = 0) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const normalizeStatus = (value) => (value === 'in_progress' ? 'preparing' : String(value || '').trim().toLowerCase());
+    const isPickupOrder = (order) => {
+      const fulfillmentType = String(order?.fulfillment_type || '').trim().toLowerCase();
+      if (fulfillmentType === 'pickup') return true;
+      return String(order?.delivery_address || '').trim().toLowerCase() === 'самовывоз';
+    };
+
+    let revenue = 0;
+    let deliveredOrdersCount = 0;
+    let pickupOrdersCount = 0;
+    let deliveryOrdersCount = 0;
+    let deliveryRevenue = 0;
+    let serviceRevenue = 0;
+    let containersRevenue = 0;
+
+    const topCustomersMap = new Map();
+
+    for (const order of ordersResult.rows) {
+      const createdAt = new Date(order.created_at);
+      if (Number.isNaN(createdAt.getTime())) continue;
+
+      const timelineIndex = resolveTimelineIndex(createdAt);
+      if (timelineIndex >= 0 && timelineIndex < ordersTimeline.length) {
+        ordersTimeline[timelineIndex].value += 1;
+      }
+
+      const normalizedStatus = normalizeStatus(order.status);
+      const isAcceptedInNewState = normalizedStatus === 'new' && (
+        Boolean(order?.has_accepted_action) ||
+        Boolean(order?.is_paid) ||
+        String(order?.payment_status || '').trim().toLowerCase() === 'paid'
+      );
+
+      if (normalizedStatus === 'new') {
+        if (isAcceptedInNewState) statusSummary.accepted += 1;
+        else statusSummary.new += 1;
+      } else if (Object.prototype.hasOwnProperty.call(statusSummary, normalizedStatus)) {
+        statusSummary[normalizedStatus] += 1;
+      }
+
+      serviceRevenue += Math.max(0, toNumeric(order.service_fee, 0));
+
+      if (normalizedStatus !== 'delivered') continue;
+
+      const totalAmount = Math.max(0, toNumeric(order.total_amount, 0));
+      revenue += totalAmount;
+      deliveredOrdersCount += 1;
+      deliveryRevenue += Math.max(0, toNumeric(order.delivery_cost, 0));
+
+      if (timelineIndex >= 0 && timelineIndex < revenueTimeline.length) {
+        revenueTimeline[timelineIndex].value += totalAmount;
+      }
+
+      if (isPickupOrder(order)) pickupOrdersCount += 1;
+      else deliveryOrdersCount += 1;
+
+      const customerName = String(order.customer_name || '').trim() || 'Клиент';
+      const customerPhone = String(order.customer_phone_normalized || '').trim();
+      const customerKey = `${customerName.toLowerCase()}::${customerPhone.toLowerCase()}`;
+      if (!topCustomersMap.has(customerKey)) {
+        topCustomersMap.set(customerKey, {
+          name: customerName,
+          phone: customerPhone || '—',
+          ordersCount: 0,
+          totalAmount: 0
+        });
+      }
+      const customerEntry = topCustomersMap.get(customerKey);
+      customerEntry.ordersCount += 1;
+      customerEntry.totalAmount += totalAmount;
+    }
+
+    let itemsRevenue = 0;
+    const topProductsMap = new Map();
+    const categoriesMap = new Map();
+
+    for (const item of itemsResult.rows) {
+      const quantity = Math.max(0, toNumeric(item.quantity, 0));
+      const price = Math.max(0, toNumeric(item.price, 0));
+      const containerPrice = Math.max(0, toNumeric(item.container_price, 0));
+      const containerNorm = Math.max(1, toNumeric(item.container_norm, 1));
+      if (quantity > 0 && containerPrice > 0) {
+        containersRevenue += Math.ceil(quantity / containerNorm) * containerPrice;
+      }
+
+      const normalizedStatus = normalizeStatus(item.status);
+      if (normalizedStatus !== 'delivered') continue;
+
+      const lineRevenue = quantity * price;
+      itemsRevenue += lineRevenue;
+
+      const productName = String(item.product_name || '').trim() || 'Товар';
+      if (!topProductsMap.has(productName)) {
+        topProductsMap.set(productName, { name: productName, quantity: 0, revenue: 0 });
+      }
+      const productEntry = topProductsMap.get(productName);
+      productEntry.quantity += quantity;
+      productEntry.revenue += lineRevenue;
+
+      const categoryId = Number.parseInt(item.category_id, 10);
+      const categoryKey = Number.isFinite(categoryId) ? `id:${categoryId}` : 'uncategorized';
+      const categoryName = String(item.category_name || '').trim() || 'Без категории';
+      if (!categoriesMap.has(categoryKey)) {
+        categoriesMap.set(categoryKey, {
+          categoryId: Number.isFinite(categoryId) ? categoryId : null,
+          name: categoryName,
+          quantity: 0,
+          revenue: 0
+        });
+      }
+      const categoryEntry = categoriesMap.get(categoryKey);
+      categoryEntry.quantity += quantity;
+      categoryEntry.revenue += lineRevenue;
+    }
+
+    const topProducts = Array.from(topProductsMap.values())
+      .sort((a, b) => {
+        if (b.quantity !== a.quantity) return b.quantity - a.quantity;
+        return b.revenue - a.revenue;
+      })
+      .slice(0, 10);
+
+    const topCustomers = Array.from(topCustomersMap.values())
+      .sort((a, b) => {
+        if (b.ordersCount !== a.ordersCount) return b.ordersCount - a.ordersCount;
+        return b.totalAmount - a.totalAmount;
+      })
+      .slice(0, 10);
+
+    const categoryRows = Array.from(categoriesMap.values());
+    const categoriesByQuantity = [...categoryRows]
+      .sort((a, b) => {
+        if (b.quantity !== a.quantity) return b.quantity - a.quantity;
+        return b.revenue - a.revenue;
+      })
+      .slice(0, 10);
+    const categoriesByRevenue = [...categoryRows]
+      .sort((a, b) => {
+        if (b.revenue !== a.revenue) return b.revenue - a.revenue;
+        return b.quantity - a.quantity;
+      })
+      .slice(0, 10);
+
+    const averageCheck = deliveredOrdersCount > 0 ? Math.round(revenue / deliveredOrdersCount) : 0;
+
+    await ensureBotFunnelSchema().catch(() => {});
+
+    let botFunnelRow = null;
+    try {
+      const botFunnelResult = await pool.query(
+        `
+        WITH events AS (
+          SELECT
+            user_telegram_id::text AS tg,
+            event_type
+          FROM bot_funnel_events
+          WHERE user_telegram_id IS NOT NULL
+            AND created_at >= $1::date
+            AND created_at < $2::date
+            AND ($3::int IS NULL OR restaurant_id = $3)
+        ),
+        started AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'start'
+        ),
+        language_selected AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'language_selected'
+        ),
+        contact_shared AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'contact_shared'
+        ),
+        registration_events AS (
+          SELECT DISTINCT tg FROM events WHERE event_type = 'registration_completed'
+        ),
+        period_order_users AS (
+          SELECT DISTINCT u.telegram_id::text AS tg
+          FROM orders o
+          JOIN users u ON u.id = o.user_id
+          WHERE o.created_at >= $1::date
+            AND o.created_at < $2::date
+            AND u.telegram_id IS NOT NULL
+            AND ($3::int IS NULL OR o.restaurant_id = $3)
+        ),
+        registered_users_from_db AS (
+          SELECT DISTINCT u.telegram_id::text AS tg
+          FROM users u
+          WHERE u.role = 'customer'
+            AND u.telegram_id IS NOT NULL
+            AND u.created_at >= $1::date
+            AND u.created_at < $2::date
+            AND (
+              $3::int IS NULL
+              OR EXISTS (
+                SELECT 1
+                FROM user_restaurants ur
+                WHERE ur.user_id = u.id
+                  AND ur.restaurant_id = $3
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM orders o_hist
+                WHERE o_hist.user_id = u.id
+                  AND o_hist.restaurant_id = $3
+              )
+            )
+        ),
+        registration_completed AS (
+          SELECT tg FROM registration_events
+          UNION
+          SELECT tg FROM registered_users_from_db
+        )
+        SELECT
+          (SELECT COUNT(*)::int FROM started) AS started_users,
+          (SELECT COUNT(*)::int FROM language_selected) AS language_selected_users,
+          (SELECT COUNT(*)::int FROM contact_shared) AS contact_shared_users,
+          (SELECT COUNT(*)::int FROM registration_completed) AS registration_completed_users,
+          (SELECT COUNT(*)::int FROM registered_users_from_db) AS registered_users_from_db,
+          (SELECT COUNT(*)::int FROM period_order_users) AS order_users_total,
+          (SELECT COUNT(*)::int FROM started s JOIN period_order_users d ON d.tg = s.tg) AS started_with_order_users,
+          (SELECT COUNT(*)::int FROM registration_completed r JOIN period_order_users d ON d.tg = r.tg) AS registered_with_order_users
+        `,
+        [startDateKey, endDateKeyExclusive, restaurantId]
+      );
+      botFunnelRow = botFunnelResult.rows[0] || null;
+    } catch (error) {
+      if (error.code !== '42P01') throw error;
+    }
+
+    const toInt = (value) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const startedUsers = toInt(botFunnelRow?.started_users);
+    const languageSelectedUsers = toInt(botFunnelRow?.language_selected_users);
+    const contactSharedUsers = toInt(botFunnelRow?.contact_shared_users);
+    const registrationCompletedUsers = toInt(botFunnelRow?.registration_completed_users);
+    const registeredUsersFromDb = toInt(botFunnelRow?.registered_users_from_db);
+    const startedWithOrderUsers = toInt(botFunnelRow?.started_with_order_users);
+    const registeredWithOrderUsers = toInt(botFunnelRow?.registered_with_order_users);
+    const orderUsersTotal = toInt(botFunnelRow?.order_users_total);
+
+    res.json({
+      period: analyticsRange.period,
+      date: analyticsRange.dateKey,
+      startDate: startDateKey,
+      endDateExclusive: endDateKeyExclusive,
+      year: analyticsRange.year,
+      month: analyticsRange.month,
+      timezone: ANALYTICS_TIMEZONE,
+      restaurant: restaurantMeta,
+      kpis: {
+        revenue,
+        ordersCount: deliveredOrdersCount,
+        averageCheck,
+        pickupOrdersCount,
+        deliveryOrdersCount,
+        itemsRevenue,
+        deliveryRevenue,
+        serviceRevenue,
+        containersRevenue
+      },
+      statusSummary,
+      timelines: {
+        revenue: revenueTimeline,
+        orders: ordersTimeline
+      },
+      topProducts,
+      topCustomers,
+      categories: {
+        byQuantity: categoriesByQuantity,
+        byRevenue: categoriesByRevenue
+      },
+      funnel: {
+        startedUsers,
+        languageSelectedUsers,
+        contactSharedUsers,
+        registrationCompletedUsers,
+        registeredUsersFromDb,
+        startedWithOrderUsers,
+        registeredWithOrderUsers,
+        orderUsersTotal,
+        noLanguageAfterStart: Math.max(0, startedUsers - languageSelectedUsers),
+        noPhoneAfterLanguage: Math.max(0, languageSelectedUsers - contactSharedUsers),
+        noOrderAfterRegistration: Math.max(0, registrationCompletedUsers - registeredWithOrderUsers),
+        conversionStartToRegistration: ratioPercent(registrationCompletedUsers, startedUsers),
+        conversionStartToOrder: ratioPercent(startedWithOrderUsers, startedUsers),
+        conversionRegistrationToOrder: ratioPercent(registeredWithOrderUsers, registrationCompletedUsers)
+      }
+    });
+  } catch (error) {
+    console.error('Superadmin analytics overview error:', error);
+    res.status(500).json({ error: 'Ошибка получения аналитики' });
   }
 });
 

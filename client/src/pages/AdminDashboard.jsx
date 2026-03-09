@@ -1551,8 +1551,9 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!user?.active_restaurant_id) return;
+    if (user?.role === 'operator') return;
     fetchFunnelAnalytics();
-  }, [analyticsPeriod, dashboardDailyDate, dashboardYear, dashboardMonth, user?.active_restaurant_id]);
+  }, [analyticsPeriod, dashboardDailyDate, dashboardYear, dashboardMonth, user?.active_restaurant_id, user?.role]);
 
   useEffect(() => {
     if (!user?.active_restaurant_id) {
@@ -4670,7 +4671,7 @@ function AdminDashboard() {
         </div>
 
       <Row className="g-4 mb-4">
-        <Col lg={8}>
+        <Col lg={user?.role === 'operator' ? 12 : 8}>
           <Card className="border-0 shadow-sm admin-analytics-surface-card">
             <Card.Body className="admin-analytics-chart-stack">
               <div className="admin-analytics-chart-box">
@@ -4705,9 +4706,11 @@ function AdminDashboard() {
             </Card.Body>
           </Card>
         </Col>
-        <Col lg={4}>
-          {renderAnalyticsFunnelCard()}
-        </Col>
+        {user?.role !== 'operator' ? (
+          <Col lg={4}>
+            {renderAnalyticsFunnelCard()}
+          </Col>
+        ) : null}
       </Row>
 
       <Row className="g-4 mb-4">
