@@ -1931,6 +1931,8 @@ function Catalog() {
     return <PageSkeleton fullscreen label="Загрузка магазинов" cards={8} />;
   }
 
+  const isCategoryView = selectedCategory !== null;
+
   return (
     <>
       <Navbar
@@ -1952,37 +1954,47 @@ function Catalog() {
         }}
       >
         <div
-          className="d-flex justify-content-between align-items-center w-100 px-3 mx-auto"
-          style={{ maxWidth: '1280px' }}
+          className="w-100 px-3 mx-auto"
+          style={{
+            maxWidth: '1280px',
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            gap: '12px'
+          }}
         >
-          <button
-            type="button"
-            onClick={toggleHeaderSearch}
-            aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
-            title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: 12,
-              border: isHeaderSearchOpen || normalizedCatalogSearch
-                ? '1px solid rgba(71, 85, 105, 0.22)'
-                : '1px solid transparent',
-              background: isHeaderSearchOpen || normalizedCatalogSearch
-                ? 'rgba(255,255,255,0.7)'
-                : 'transparent',
-              color: '#4b5563',
-              fontSize: '1rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.22s ease'
-            }}
-          >
-            <SearchLucideIcon size={17} color="#4b5563" />
-          </button>
+          <div className="d-flex align-items-center justify-content-start">
+            {isCategoryView ? (
+              <button
+                type="button"
+                onClick={closeLevel2Category}
+                aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
+                title={language === 'uz' ? 'Orqaga' : 'Назад'}
+                style={{
+                  minHeight: '40px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(71, 85, 105, 0.18)',
+                  background: 'rgba(255,255,255,0.82)',
+                  color: '#334155',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '0 12px',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  transition: 'all 0.22s ease'
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: '1rem', lineHeight: 1 }}>←</span>
+                <span>{language === 'uz' ? 'Orqaga' : 'Назад'}</span>
+              </button>
+            ) : (
+              <div style={{ width: '40px', height: '40px' }} aria-hidden="true" />
+            )}
+          </div>
 
-          {/* Center logo */}
-          <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto">
+          <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto mb-0">
             {currentRestaurant?.logo_url ? (
               (() => {
                 const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
@@ -2001,8 +2013,33 @@ function Catalog() {
             )}
           </Navbar.Brand>
 
-          <div className="d-flex align-items-center gap-2">
-            {/* Language switcher with flag + label */}
+          <div className="d-flex align-items-center justify-content-end gap-2">
+            <button
+              type="button"
+              onClick={toggleHeaderSearch}
+              aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+              title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 12,
+                border: isHeaderSearchOpen || normalizedCatalogSearch
+                  ? '1px solid rgba(71, 85, 105, 0.22)'
+                  : '1px solid transparent',
+                background: isHeaderSearchOpen || normalizedCatalogSearch
+                  ? 'rgba(255,255,255,0.7)'
+                  : 'transparent',
+                color: '#4b5563',
+                fontSize: '1rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.22s ease'
+              }}
+            >
+              <SearchLucideIcon size={17} color="#4b5563" />
+            </button>
+
             <button
               onClick={toggleLanguage}
               style={{
@@ -2250,11 +2287,8 @@ function Catalog() {
             {!loading && !normalizedCatalogSearch && selectedCategory !== null && selectedLevel2Category && (
               <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
-                <div className="d-flex align-items-center justify-content-between mb-3">
-                  <Button variant="outline-secondary" size="sm" onClick={closeLevel2Category}>
-                    {language === 'uz' ? 'Orqaga' : 'Назад'}
-                  </Button>
-                  <h6 className="mb-0 fw-bold text-dark text-end ms-3">{getCategoryName(selectedLevel2Category)}</h6>
+                <div className="mb-3">
+                  <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
                 </div>
 
                 {productSections.map((section) => (

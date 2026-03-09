@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Tab Modern Preview</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --border: #e2e8f0;
+      --brand: #475569;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+      --shadow-md: 0 12px 30px rgba(15, 23, 42, 0.08);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Inter", "Segoe UI", sans-serif;
+      color: var(--text-main);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(255, 255, 255, 0.85), transparent 24%),
+        linear-gradient(180deg, #eef2f7 0%, #f3f4f6 24%, #f8fafc 100%);
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background:
+        radial-gradient(circle at 12% 30%, rgba(255, 255, 255, 0.14), transparent 34%),
+        radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.09), transparent 32%),
+        linear-gradient(135deg, #64748b 0%, #475569 48%, #334155 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.18);
+      display: grid;
+      place-items: center;
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 18px;
+    }
+
+    .nav-title {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .nav-sub {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .nav-pill,
+    .nav-balance,
+    .nav-user {
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+    }
+
+    .nav-pill {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .nav-user {
+      padding: 6px 14px 6px 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.18);
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .nav-balance {
+      padding: 7px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      min-width: 138px;
+    }
+
+    .nav-balance small {
+      font-size: 9px;
+      opacity: 0.72;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .nav-balance strong {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .container {
+      width: min(100%, 1600px);
+      margin: 0 auto;
+      padding: 24px;
+      flex: 1;
+    }
+
+    .workspace {
+      min-height: calc(100vh - 112px);
+      display: grid;
+      gap: 24px;
+      align-content: start;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding: 24px 28px;
+      border-radius: var(--radius-xl);
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.98)),
+        radial-gradient(circle at 85% 20%, rgba(59, 130, 246, 0.14), transparent 26%);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: var(--shadow-md);
+    }
+
+    .hero h1 {
+      font-size: clamp(28px, 3vw, 36px);
+      line-height: 1.05;
+      margin-bottom: 8px;
+      letter-spacing: -0.03em;
+    }
+
+    .hero p {
+      max-width: 760px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .hero-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hero-badge {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.88);
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .period-tabs {
+      display: inline-flex;
+      background: #e2e8f0;
+      border-radius: 999px;
+      padding: 4px;
+      box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.05);
+    }
+
+    .p-tab {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 10px 24px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .p-tab.active {
+      background: var(--surface);
+      color: var(--text-main);
+      box-shadow: 0 2px 5px rgba(15, 23, 42, 0.10);
+    }
+
+    .filters-area {
+      display: flex;
+      gap: 14px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 12px 16px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      flex-wrap: wrap;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 140px;
+    }
+
+    .filter-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .filter-control {
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-soft);
+      color: var(--text-main);
+      font-size: 14px;
+      font-weight: 600;
+      outline: none;
+    }
+
+    .grid-3,
+    .grid-2,
+    .grid-21 {
+      display: grid;
+      gap: 24px;
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-21 {
+      grid-template-columns: minmax(0, 1.65fr) minmax(360px, 0.95fr);
+      align-items: start;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
+      padding: 24px;
+    }
+
+    .card-h {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .card-h h3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .card-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+    }
+
+    .kpi-val {
+      font-size: clamp(34px, 3vw, 40px);
+      font-weight: 900;
+      color: var(--text-main);
+      line-height: 1.05;
+      margin-bottom: 18px;
+    }
+
+    .kpi-unit {
+      margin-left: 6px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .kpi-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 0;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+    }
+
+    .item-row:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .item-lbl {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .item-num {
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .charts-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      height: 100%;
+    }
+
+    .chart-box {
+      min-height: 260px;
+    }
+
+    .chart-box + .chart-box {
+      border-top: 1px dashed var(--border);
+      padding-top: 24px;
+    }
+
+    .chart-header {
+      font-size: 14px;
+      font-weight: 800;
+      color: #1e293b;
+      margin-bottom: 20px;
+    }
+
+    .chart-header span {
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    .svg-chart {
+      width: 100%;
+      height: 190px;
+      overflow: visible;
+      display: block;
+    }
+
+    .axis-line {
+      stroke: #e2e8f0;
+      stroke-width: 1;
+    }
+
+    .axis-text {
+      fill: #94a3b8;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .funnel-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .donut-area {
+      height: 190px;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+
+    .donut-ring {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at center, #ffffff 0 57px, transparent 58px),
+        conic-gradient(
+          #cbd5e1 0 calc(var(--slice-1) * 1%),
+          #0ea5e9 calc(var(--slice-1) * 1%) calc((var(--slice-1) + var(--slice-2)) * 1%),
+          #8b5cf6 calc((var(--slice-1) + var(--slice-2)) * 1%) calc((var(--slice-1) + var(--slice-2) + var(--slice-3)) * 1%),
+          #f59e0b calc((var(--slice-1) + var(--slice-2) + var(--slice-3)) * 1%) calc((var(--slice-1) + var(--slice-2) + var(--slice-3) + var(--slice-4)) * 1%),
+          #10b981 calc((var(--slice-1) + var(--slice-2) + var(--slice-3) + var(--slice-4)) * 1%) 100%
+        );
+      box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.82);
+    }
+
+    .donut-center {
+      position: absolute;
+      text-align: center;
+    }
+
+    .donut-center-val {
+      font-size: 30px;
+      font-weight: 900;
+      line-height: 1.05;
+      color: #0f172a;
+    }
+
+    .donut-center-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .funnel-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .f-row,
+    .f-conv {
+      border-radius: 12px;
+    }
+
+    .f-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px 14px 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+
+    .f-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .f-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid #eef2f7;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .f-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .f-count {
+      font-size: 19px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+
+    .f-conv {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: #f8fafc;
+      border: 1px dashed #93c5fd;
+    }
+
+    .f-conv span {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+
+    .geo-wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      min-height: 430px;
+      background: #fff;
+    }
+
+    .geo-map {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(191, 219, 254, 0.95), transparent 22%),
+        radial-gradient(circle at 82% 16%, rgba(224, 242, 254, 0.9), transparent 18%),
+        linear-gradient(180deg, #eef6ff 0%, #f8fafc 55%, #e2e8f0 100%);
+    }
+
+    .geo-map::before,
+    .geo-map::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .geo-map::before {
+      background-image:
+        linear-gradient(rgba(148, 163, 184, 0.13) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.13) 1px, transparent 1px);
+      background-size: 36px 36px;
+      opacity: 0.45;
+    }
+
+    .geo-map::after {
+      background:
+        linear-gradient(120deg, transparent 0 22%, rgba(59, 130, 246, 0.10) 22% 26%, transparent 26% 100%),
+        linear-gradient(38deg, transparent 0 58%, rgba(16, 185, 129, 0.10) 58% 62%, transparent 62% 100%);
+    }
+
+    .geo-points {
+      position: absolute;
+      inset: 0;
+    }
+
+    .geo-point {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      display: grid;
+      gap: 6px;
+      place-items: center;
+      padding: 0;
+    }
+
+    .geo-point-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.94);
+      border: 2px solid #93c5fd;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+      color: #1d4ed8;
+      font-size: 16px;
+      transition: 0.2s ease;
+    }
+
+    .geo-point.is-active .geo-point-badge {
+      transform: scale(1.06);
+      border-color: #2563eb;
+      box-shadow: 0 14px 26px rgba(37, 99, 235, 0.24);
+    }
+
+    .geo-point-text {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.88);
+      color: #0f172a;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: var(--shadow-sm);
+      white-space: nowrap;
+    }
+
+    .geo-badge {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.96);
+      box-shadow: var(--shadow-md);
+      max-width: 260px;
+    }
+
+    .geo-badge small {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .geo-badge strong {
+      font-size: 22px;
+      line-height: 1;
+      color: #0f172a;
+    }
+
+    .geo-badge span {
+      font-size: 12px;
+      color: #475569;
+    }
+
+    .geo-sidebar {
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-left: 1px solid var(--border);
+    }
+
+    .geo-sidebar-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .geo-items {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      max-height: 284px;
+      overflow-y: auto;
+    }
+
+    .geo-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 12px;
+      padding: 11px 12px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .geo-item.active {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+
+    .geo-item-top,
+    .geo-item-bottom {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .geo-item-top {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    .geo-item-bottom {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .geo-detail {
+      margin: auto 12px 12px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid #dbeafe;
+      background: #f8fbff;
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    .geo-detail strong {
+      color: #0f172a;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin: -10px -24px -24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 440px;
+    }
+
+    th,
+    td {
+      padding: 14px 24px;
+      text-align: left;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #f8fafc;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td:last-child,
+    th:last-child,
+    .ta-right {
+      text-align: right;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .rank {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 900;
+      background: var(--border);
+      color: var(--text-muted);
+    }
+
+    .r1 {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+    }
+
+    .r2 {
+      background: linear-gradient(135deg, #94a3b8, #64748b);
+      color: #fff;
+    }
+
+    .r3 {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #fff;
+    }
+
+    @media (max-width: 1240px) {
+      .grid-3,
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-21 {
+        grid-template-columns: 1fr;
+      }
+
+      .geo-wrap {
+        grid-template-columns: 1fr;
+      }
+
+      .geo-sidebar {
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .container {
+        padding: 16px;
+      }
+
+      .hero,
+      .card {
+        padding: 20px;
+      }
+
+      .grid-3,
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .period-tabs {
+        width: 100%;
+      }
+
+      .p-tab {
+        flex: 1;
+        padding-inline: 12px;
+      }
+
+      .filters-area {
+        width: 100%;
+      }
+
+      .filter-group {
+        flex: 1 1 100%;
+      }
+
+      .f-conv {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="navbar">
+      <div class="nav-brand">
+        <div class="nav-logo">◌</div>
+        <div>
+          <div class="nav-title">Аналитика магазина</div>
+          <div class="nav-sub">Unified modern preview</div>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="nav-pill">Полноэкранный preview</div>
+        <div class="nav-user">
+          <div class="nav-avatar">DV</div>
+          <div>
+            <div style="font-size:13px; font-weight:700; line-height:1.2;">Dashboard View</div>
+            <div style="font-size:10px; color:rgba(255,255,255,0.64);">Template Sync</div>
+          </div>
+        </div>
+        <div class="nav-balance">
+          <small>Последнее обновление</small>
+          <strong>09.03.2026 · 21:00</strong>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container">
+      <div class="workspace">
+        <section class="hero">
+          <div>
+            <h1>Стилистика и аналитика перенесены из `claude-tabs`</h1>
+            <p>Оставлены периодические вкладки, KPI, графики, воронка, топ товаров и топ клиентов. Карта с клиентами возвращена в отдельный полноширинный блок и работает для ежедневной, ежемесячной и ежегодной аналитики.</p>
+          </div>
+          <div class="hero-badges">
+            <div class="hero-badge">Карта + клиенты</div>
+            <div class="hero-badge">Сохраняет fullscreen</div>
+            <div class="hero-badge">Адаптивная сетка</div>
+          </div>
+        </section>
+
+        <section class="toolbar">
+          <div class="period-tabs">
+            <button class="p-tab active" data-period="daily" type="button">Ежедневный</button>
+            <button class="p-tab" data-period="monthly" type="button">Ежемесячный</button>
+            <button class="p-tab" data-period="yearly" type="button">Ежегодный</button>
+          </div>
+          <div class="filters-area" id="dynamic-filters"></div>
+        </section>
+
+        <section class="grid-3">
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#10b981; background:#ecfdf5;">💰</span>Выручка</h3>
+            </div>
+            <div class="kpi-val" id="kpi-rev-val"></div>
+            <div class="kpi-breakdown" id="kpi-rev-breakdown"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#f59e0b; background:#fffbeb;">📦</span>Заказы</h3>
+            </div>
+            <div class="kpi-val" id="kpi-ord-val"></div>
+            <div class="kpi-breakdown" id="kpi-ord-breakdown"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#3b82f6; background:#eff6ff;">🧾</span>Средний чек</h3>
+            </div>
+            <div class="kpi-val" id="kpi-avg-val"></div>
+            <div class="kpi-breakdown">
+              <div class="item-row">
+                <span class="item-lbl">Динамика к прошлому периоду</span>
+                <span class="item-num" id="avg-delta"></span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid-21">
+          <article class="card">
+            <div class="charts-wrapper">
+              <div class="chart-box">
+                <div class="chart-header">Финансы <span id="chart-sub-1"></span></div>
+                <svg class="svg-chart" viewBox="0 0 800 180" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.22"></stop>
+                      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"></stop>
+                    </linearGradient>
+                  </defs>
+                  <g class="axis-line">
+                    <line x1="50" y1="20" x2="750" y2="20"></line>
+                    <line x1="50" y1="60" x2="750" y2="60"></line>
+                    <line x1="50" y1="100" x2="750" y2="100"></line>
+                    <line x1="50" y1="140" x2="750" y2="140"></line>
+                    <line x1="50" y1="140" x2="50" y2="145"></line>
+                    <line x1="400" y1="140" x2="400" y2="145"></line>
+                    <line x1="750" y1="140" x2="750" y2="145"></line>
+                  </g>
+                  <g class="axis-text">
+                    <text x="40" y="24" text-anchor="end" id="chart-y1-top">16M</text>
+                    <text x="40" y="64" text-anchor="end" id="chart-y1-midtop">12M</text>
+                    <text x="40" y="104" text-anchor="end" id="chart-y1-mid">8M</text>
+                    <text x="40" y="144" text-anchor="end">0</text>
+                  </g>
+                  <g id="chart-path-rev" stroke="#6366f1" stroke-width="2.5" fill="none"></g>
+                  <g class="axis-text" id="chart-x-rev" style="text-anchor: middle;"></g>
+                </svg>
+              </div>
+
+              <div class="chart-box">
+                <div class="chart-header">Заказы <span id="chart-sub-2"></span></div>
+                <svg class="svg-chart" viewBox="0 0 800 180" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.22"></stop>
+                      <stop offset="100%" stop-color="#ef4444" stop-opacity="0"></stop>
+                    </linearGradient>
+                  </defs>
+                  <g class="axis-line">
+                    <line x1="50" y1="20" x2="750" y2="20"></line>
+                    <line x1="50" y1="60" x2="750" y2="60"></line>
+                    <line x1="50" y1="100" x2="750" y2="100"></line>
+                    <line x1="50" y1="140" x2="750" y2="140"></line>
+                    <line x1="50" y1="140" x2="50" y2="145"></line>
+                    <line x1="400" y1="140" x2="400" y2="145"></line>
+                    <line x1="750" y1="140" x2="750" y2="145"></line>
+                  </g>
+                  <g class="axis-text">
+                    <text x="40" y="24" text-anchor="end" id="chart-y2-top">60</text>
+                    <text x="40" y="64" text-anchor="end" id="chart-y2-midtop">45</text>
+                    <text x="40" y="104" text-anchor="end" id="chart-y2-mid">30</text>
+                    <text x="40" y="144" text-anchor="end">0</text>
+                  </g>
+                  <g id="chart-path-ord" stroke="#f43f5e" stroke-width="2.5" fill="none"></g>
+                  <g class="axis-text" id="chart-x-ord" style="text-anchor: middle;"></g>
+                </svg>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#8b5cf6; background:#f5f3ff;">🤖</span>Воронка Telegram</h3>
+            </div>
+            <div class="funnel-layout">
+              <div class="donut-area">
+                <div class="donut-ring" id="donut-ring"></div>
+                <div class="donut-center">
+                  <div class="donut-center-val" id="donut-total"></div>
+                  <div class="donut-center-lbl">Всего</div>
+                </div>
+              </div>
+              <div class="funnel-list" id="funnel-list"></div>
+            </div>
+          </article>
+        </section>
+
+        <section>
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#ef4444; background:#fff1f2;">🗺️</span>География заказов</h3>
+              <span class="hero-badge">Во весь экран</span>
+            </div>
+            <div class="geo-wrap">
+              <div class="geo-map">
+                <div class="geo-points" id="geo-points"></div>
+                <div class="geo-badge">
+                  <small id="geo-period-label">Ежедневный срез</small>
+                  <strong id="geo-count">0</strong>
+                  <span>активных клиентов на карте</span>
+                </div>
+              </div>
+              <aside class="geo-sidebar">
+                <div class="geo-sidebar-head">Клиенты на карте</div>
+                <div class="geo-items" id="geo-clients"></div>
+                <div class="geo-detail" id="geo-detail"></div>
+              </aside>
+            </div>
+          </article>
+        </section>
+
+        <section class="grid-2">
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#0f172a; background:#f1f5f9;">🍔</span>Топ Товаров</h3>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:40px">#</th>
+                    <th>Наименование</th>
+                    <th class="ta-right">Кол-во</th>
+                    <th class="ta-right">Сумма</th>
+                  </tr>
+                </thead>
+                <tbody id="top-products"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-h">
+              <h3><span class="card-icon" style="color:#0f172a; background:#f1f5f9;">👑</span>Топ Клиентов</h3>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:40px">#</th>
+                    <th>Клиент</th>
+                    <th class="ta-right">Заказов</th>
+                    <th class="ta-right">LTV</th>
+                  </tr>
+                </thead>
+                <tbody id="top-clients"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    const periods = {
+      daily: {
+        filters: `
+          <div class="filter-group">
+            <span class="filter-label">Дата</span>
+            <input type="date" class="filter-control" value="2026-03-09">
+          </div>
+        `,
+        revenue: {
+          val: "2 399 000",
+          brk: [
+            { lbl: "Товары", val: "2 140 000" },
+            { lbl: "Доставка", val: "259 000" }
+          ]
+        },
+        orders: {
+          val: "11",
+          brk: [
+            { lbl: "Доставка", val: "10" },
+            { lbl: "Самовывоз", val: "1" }
+          ]
+        },
+        avg: "218 090",
+        avgDelta: "+4.2%",
+        chartSubtitle: "по часам",
+        revenueAxis: ["2.4M", "1.8M", "1.2M"],
+        orderAxis: ["12", "8", "4"],
+        chartLabels: [
+          { x: 50, label: "00:00" },
+          { x: 250, label: "06:00" },
+          { x: 450, label: "12:00" },
+          { x: 650, label: "18:00" },
+          { x: 750, label: "23:00" }
+        ],
+        revenuePoints: ["50,140", "250,140", "450,60", "650,20", "750,140"],
+        orderPoints: ["50,140", "250,140", "450,80", "650,30", "750,140"],
+        geoLabel: "Ежедневный срез",
+        geo: [
+          { name: "Alisher", sum: "348 000", phone: "+998 90 123 45 67", order: "№1042", address: "Юнусабад, 4 квартал", x: 20, y: 34, act: true },
+          { name: "Laylo", sum: "229 000", phone: "+998 90 555 23 10", order: "№1041", address: "Чиланзар, 9 квартал", x: 44, y: 58 },
+          { name: "Sardor", sum: "411 000", phone: "+998 93 887 11 20", order: "№1040", address: "Мирабад, Афросиаб", x: 68, y: 28 }
+        ],
+        funnel: { s1: 122, s2: 115, s3: 91, s4: 87, s5: 54, c1: "71.3%", c2: "44.3%" },
+        products: [
+          { name: "Лаваш с курицей", q: 8, sum: "480 000" },
+          { name: "Самса с мясом", q: 5, sum: "150 000" },
+          { name: "Чай зелёный", q: 4, sum: "60 000" }
+        ],
+        clients: [
+          { name: "Alisher", num: "+998 90 123 45 67", ord: 1, sum: "348 000" },
+          { name: "Laylo", num: "+998 90 555 23 10", ord: 1, sum: "229 000" }
+        ]
+      },
+      monthly: {
+        filters: `
+          <div class="filter-group">
+            <span class="filter-label">Год</span>
+            <select class="filter-control"><option>2026</option></select>
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">Месяц</span>
+            <select class="filter-control"><option>Март</option></select>
+          </div>
+        `,
+        revenue: {
+          val: "16 200 500",
+          brk: [
+            { lbl: "Товары", val: "14 541 000" },
+            { lbl: "Доставка", val: "1 407 500" },
+            { lbl: "Сервис", val: "197 000" },
+            { lbl: "Упаковка", val: "200 000" }
+          ]
+        },
+        orders: {
+          val: "58",
+          brk: [
+            { lbl: "Доставка", val: "57" },
+            { lbl: "Самовывоз", val: "1" }
+          ]
+        },
+        avg: "279 319",
+        avgDelta: "+9.8%",
+        chartSubtitle: "по дням",
+        revenueAxis: ["16M", "12M", "8M"],
+        orderAxis: ["60", "45", "30"],
+        chartLabels: [
+          { x: 50, label: "1 Мар" },
+          { x: 250, label: "8 Мар" },
+          { x: 450, label: "15 Мар" },
+          { x: 650, label: "22 Мар" },
+          { x: 750, label: "31 Мар" }
+        ],
+        revenuePoints: ["50,140", "250,80", "450,110", "650,40", "750,140"],
+        orderPoints: ["50,140", "250,100", "450,120", "650,60", "750,140"],
+        geoLabel: "Месячный срез",
+        geo: [
+          { name: "Alisher", sum: "5 205 000", phone: "+998 90 123 45 67", order: "14 зак.", address: "Юнусабад, 4 квартал", x: 18, y: 36, act: true },
+          { name: "Sardor", sum: "3 908 000", phone: "+998 93 887 11 20", order: "10 зак.", address: "Мирабад, Афросиаб", x: 62, y: 26 },
+          { name: "Laylo", sum: "3 417 000", phone: "+998 90 555 23 10", order: "9 зак.", address: "Чиланзар, 9 квартал", x: 42, y: 60 },
+          { name: "Aziza", sum: "2 974 000", phone: "+998 97 201 98 30", order: "8 зак.", address: "Сергелийский район", x: 74, y: 56 }
+        ],
+        funnel: { s1: 854, s2: 790, s3: 650, s4: 610, s5: 340, c1: "71.4%", c2: "39.8%" },
+        products: [
+          { name: "Лаваш с курицей", q: 42, sum: "2 520 000" },
+          { name: "Пицца Маргарита", q: 36, sum: "2 880 000" },
+          { name: "Самса с мясом", q: 31, sum: "930 000" },
+          { name: "Чай зелёный 1л", q: 28, sum: "420 000" },
+          { name: "Плов", q: 24, sum: "1 440 000" }
+        ],
+        clients: [
+          { name: "Alisher", num: "+998 90 123 45 67", ord: 14, sum: "5 205 000" },
+          { name: "Sardor", num: "+998 93 887 11 20", ord: 10, sum: "3 908 000" },
+          { name: "Laylo", num: "+998 90 555 23 10", ord: 9, sum: "3 417 000" },
+          { name: "Aziza", num: "+998 97 201 98 30", ord: 8, sum: "2 974 000" }
+        ]
+      },
+      yearly: {
+        filters: `
+          <div class="filter-group">
+            <span class="filter-label">Год</span>
+            <select class="filter-control"><option>2026</option><option>2025</option></select>
+          </div>
+        `,
+        revenue: {
+          val: "185 400 000",
+          brk: [
+            { lbl: "Товары", val: "160 100 000" },
+            { lbl: "Доставка", val: "20 500 000" },
+            { lbl: "Остальное", val: "4 800 000" }
+          ]
+        },
+        orders: {
+          val: "780",
+          brk: [
+            { lbl: "Доставка", val: "720" },
+            { lbl: "Самовывоз", val: "60" }
+          ]
+        },
+        avg: "237 692",
+        avgDelta: "+12.4%",
+        chartSubtitle: "по месяцам",
+        revenueAxis: ["185M", "120M", "60M"],
+        orderAxis: ["780", "520", "260"],
+        chartLabels: [
+          { x: 50, label: "Янв" },
+          { x: 200, label: "Фев" },
+          { x: 350, label: "Мар" },
+          { x: 500, label: "Апр" },
+          { x: 650, label: "Ноя" },
+          { x: 750, label: "Дек" }
+        ],
+        revenuePoints: ["50,140", "200,140", "350,30", "500,140", "650,140", "750,140"],
+        orderPoints: ["50,140", "200,140", "350,20", "500,140", "650,140", "750,140"],
+        geoLabel: "Годовой срез",
+        geo: [
+          { name: "Alisher", sum: "15 205 000", phone: "+998 90 123 45 67", order: "56 зак.", address: "Юнусабад, 4 квартал", x: 20, y: 34, act: true },
+          { name: "Toshkent City", sum: "10 908 000", phone: "Корпоративный", order: "24 зак.", address: "Шайхантахур, бизнес-центр", x: 48, y: 42 },
+          { name: "Laylo", sum: "8 214 000", phone: "+998 90 555 23 10", order: "19 зак.", address: "Чиланзар, 9 квартал", x: 36, y: 66 },
+          { name: "Aziza", sum: "7 108 000", phone: "+998 97 201 98 30", order: "17 зак.", address: "Сергелийский район", x: 74, y: 58 }
+        ],
+        funnel: { s1: 12400, s2: 11050, s3: 8900, s4: 8500, s5: 4100, c1: "68.5%", c2: "33.0%" },
+        products: [
+          { name: "Лаваш с курицей", q: 850, sum: "51 000 000" },
+          { name: "Пицца Маргарита", q: 620, sum: "49 600 000" },
+          { name: "Плов", q: 512, sum: "30 720 000" }
+        ],
+        clients: [
+          { name: "Alisher", num: "+998 90 123 45 67", ord: 56, sum: "15 205 000" },
+          { name: "Toshkent City", num: "Корпоративный", ord: 24, sum: "10 908 000" }
+        ]
+      }
+    };
+
+    function renderAxis(groupId, labels) {
+      document.getElementById(groupId).innerHTML = labels
+        .map(({ x, label }) => `<text x="${x}" y="165">${label}</text>`)
+        .join("");
+    }
+
+    function renderPath(groupId, points, gradientId, strokeColor) {
+      const [firstX] = points[0].split(",");
+      const [lastX] = points[points.length - 1].split(",");
+      const areaPath = `M${points[0].replace(",", " ")} ${points.slice(1).map((point) => `L${point.replace(",", " ")}`).join(" ")} L${lastX} 140 L${firstX} 140 Z`;
+      const circles = points.map((point) => {
+        const [cx, cy] = point.split(",");
+        return `<circle cx="${cx}" cy="${cy}" r="4" fill="#fff" stroke="${strokeColor}" stroke-width="2"></circle>`;
+      }).join("");
+
+      document.getElementById(groupId).innerHTML = `
+        <path d="${areaPath}" fill="url(#${gradientId})" stroke="none"></path>
+        <polyline points="${points.join(" ")}"></polyline>
+        ${circles}
+      `;
+    }
+
+    function renderBreakdown(targetId, items) {
+      document.getElementById(targetId).innerHTML = items
+        .map((item) => `<div class="item-row"><span class="item-lbl">${item.lbl}</span><span class="item-num">${item.val}</span></div>`)
+        .join("");
+    }
+
+    function renderTableRows(targetId, rows, renderer) {
+      document.getElementById(targetId).innerHTML = rows.map(renderer).join("");
+    }
+
+    function renderGeo(data) {
+      const items = Array.isArray(data.geo) ? data.geo : [];
+      const activeIndex = Math.max(0, items.findIndex((item) => item.act));
+      const safeActiveIndex = items.length ? activeIndex : -1;
+      const pointsHost = document.getElementById("geo-points");
+      const clientsHost = document.getElementById("geo-clients");
+      const detailHost = document.getElementById("geo-detail");
+      document.getElementById("geo-period-label").textContent = data.geoLabel || "Срез";
+      document.getElementById("geo-count").textContent = String(items.length);
+
+      const applyActive = (index) => {
+        pointsHost.innerHTML = items.map((item, itemIndex) => `
+          <button
+            type="button"
+            class="geo-point${itemIndex === index ? " is-active" : ""}"
+            data-geo-index="${itemIndex}"
+            style="left:${item.x}%; top:${item.y}%"
+            aria-label="${item.name}"
+          >
+            <span class="geo-point-badge">🙋🏻</span>
+            <span class="geo-point-text">${item.order}</span>
+          </button>
+        `).join("");
+
+        clientsHost.innerHTML = items.map((item, itemIndex) => `
+          <button type="button" class="geo-item${itemIndex === index ? " active" : ""}" data-geo-index="${itemIndex}">
+            <div class="geo-item-top"><span>${item.name}</span><span>${item.sum}</span></div>
+            <div class="geo-item-bottom"><span>${item.phone}</span><span>${item.order}</span></div>
+          </button>
+        `).join("");
+
+        const selected = items[index];
+        detailHost.innerHTML = selected ? `
+          <div><strong>Клиент:</strong> ${selected.name}</div>
+          <div><strong>Телефон:</strong> ${selected.phone}</div>
+          <div><strong>Заказ:</strong> ${selected.order}</div>
+          <div><strong>Сумма:</strong> ${selected.sum} сум</div>
+          <div><strong>Адрес:</strong> ${selected.address || "—"}</div>
+        ` : `<div>Нет данных по карте</div>`;
+      };
+
+      applyActive(safeActiveIndex);
+
+      if (!items.length) {
+        pointsHost.innerHTML = "";
+        clientsHost.innerHTML = `<div class="text-muted small">Нет клиентов для выбранного периода</div>`;
+        detailHost.innerHTML = `<div>Нет данных по карте</div>`;
+        return;
+      }
+
+      const bindClicks = (host) => {
+        host.querySelectorAll("[data-geo-index]").forEach((node) => {
+          node.addEventListener("click", () => {
+            const nextIndex = Number(node.getAttribute("data-geo-index"));
+            if (Number.isFinite(nextIndex)) applyActive(nextIndex);
+          });
+        });
+      };
+
+      bindClicks(pointsHost);
+      bindClicks(clientsHost);
+    }
+
+    function setDonutSlices(funnel) {
+      const segments = [
+        funnel.s1 - funnel.s2,
+        funnel.s2 - funnel.s3,
+        funnel.s3 - funnel.s4,
+        funnel.s4 - funnel.s5,
+        funnel.s5
+      ];
+      const total = segments.reduce((sum, value) => sum + value, 0) || 1;
+      const percentages = segments.map((value) => (value / total) * 100);
+      const donut = document.getElementById("donut-ring");
+      donut.style.setProperty("--slice-1", percentages[0].toFixed(4));
+      donut.style.setProperty("--slice-2", percentages[1].toFixed(4));
+      donut.style.setProperty("--slice-3", percentages[2].toFixed(4));
+      donut.style.setProperty("--slice-4", percentages[3].toFixed(4));
+      document.getElementById("donut-total").textContent = funnel.s1;
+    }
+
+    function switchData(periodId) {
+      const data = periods[periodId];
+      if (!data) return;
+
+      document.querySelectorAll(".p-tab").forEach((button) => {
+        button.classList.toggle("active", button.dataset.period === periodId);
+      });
+
+      document.getElementById("dynamic-filters").innerHTML = data.filters;
+      document.getElementById("kpi-rev-val").innerHTML = `${data.revenue.val}<span class="kpi-unit">сум</span>`;
+      document.getElementById("kpi-ord-val").textContent = data.orders.val;
+      document.getElementById("kpi-avg-val").innerHTML = `${data.avg}<span class="kpi-unit">сум</span>`;
+
+      const avgDelta = document.getElementById("avg-delta");
+      avgDelta.textContent = data.avgDelta;
+      avgDelta.style.color = data.avgDelta.startsWith("+") ? "#10b981" : "#ef4444";
+
+      renderBreakdown("kpi-rev-breakdown", data.revenue.brk);
+      renderBreakdown("kpi-ord-breakdown", data.orders.brk);
+
+      document.getElementById("chart-sub-1").textContent = data.chartSubtitle;
+      document.getElementById("chart-sub-2").textContent = data.chartSubtitle;
+      document.getElementById("chart-y1-top").textContent = data.revenueAxis[0];
+      document.getElementById("chart-y1-midtop").textContent = data.revenueAxis[1];
+      document.getElementById("chart-y1-mid").textContent = data.revenueAxis[2];
+      document.getElementById("chart-y2-top").textContent = data.orderAxis[0];
+      document.getElementById("chart-y2-midtop").textContent = data.orderAxis[1];
+      document.getElementById("chart-y2-mid").textContent = data.orderAxis[2];
+
+      renderAxis("chart-x-rev", data.chartLabels);
+      renderAxis("chart-x-ord", data.chartLabels);
+      renderPath("chart-path-rev", data.revenuePoints, "blueGrad", "#6366f1");
+      renderPath("chart-path-ord", data.orderPoints, "redGrad", "#f43f5e");
+      renderGeo(data);
+
+      setDonutSlices(data.funnel);
+      document.getElementById("funnel-list").innerHTML = `
+        <div class="f-row" style="border-left:4px solid #cbd5e1;"><div class="f-left"><div class="f-icon" style="color:#64748b;">▶</div><div class="f-name">Нажали /start</div></div><div class="f-count">${data.funnel.s1}</div></div>
+        <div class="f-row" style="border-left:4px solid #0ea5e9;"><div class="f-left"><div class="f-icon" style="color:#0ea5e9;">🌐</div><div class="f-name">Выбрали язык</div></div><div class="f-count">${data.funnel.s2}</div></div>
+        <div class="f-row" style="border-left:4px solid #8b5cf6;"><div class="f-left"><div class="f-icon" style="color:#8b5cf6;">📱</div><div class="f-name">Телефон</div></div><div class="f-count">${data.funnel.s3}</div></div>
+        <div class="f-row" style="border-left:4px solid #f59e0b;"><div class="f-left"><div class="f-icon" style="color:#f59e0b;">✅</div><div class="f-name">Регистрация</div></div><div class="f-count">${data.funnel.s4}</div></div>
+        <div class="f-row" style="border-left:4px solid #10b981;"><div class="f-left"><div class="f-icon" style="color:#10b981;">🛒</div><div class="f-name">Сделали заказ</div></div><div class="f-count">${data.funnel.s5}</div></div>
+        <div class="f-conv">
+          <span>Старт → Рега: ${data.funnel.c1}</span>
+          <span>Старт → Заказ: ${data.funnel.c2}</span>
+        </div>
+      `;
+
+      renderTableRows("top-products", data.products, (product, index) => `
+        <tr>
+          <td><div class="rank r${index + 1 > 3 ? 0 : index + 1}">${index + 1}</div></td>
+          <td><strong>${product.name}</strong></td>
+          <td class="ta-right"><strong>${product.q}</strong></td>
+          <td class="ta-right"><strong>${product.sum}</strong></td>
+        </tr>
+      `);
+
+      renderTableRows("top-clients", data.clients, (client, index) => `
+        <tr>
+          <td><div class="rank r${index + 1 > 3 ? 0 : index + 1}">${index + 1}</div></td>
+          <td>
+            <div style="font-weight:700">${client.name}</div>
+            <div style="font-size:11px; color:var(--text-muted)">${client.num}</div>
+          </td>
+          <td class="ta-right" style="font-weight:700">${client.ord}</td>
+          <td class="ta-right" style="font-weight:700">${client.sum}</td>
+        </tr>
+      `);
+    }
+
+    document.querySelectorAll(".p-tab").forEach((button) => {
+      button.addEventListener("click", () => switchData(button.dataset.period));
+    });
+
+    switchData("daily");
+  </script>
+</body>
+</html>
