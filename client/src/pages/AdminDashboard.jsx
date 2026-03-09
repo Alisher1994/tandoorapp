@@ -4068,7 +4068,15 @@ function AdminDashboard() {
               y={padding.top + innerHeight + 22}
               textAnchor="middle"
               className="admin-analytics-axis-text"
-              style={showAllLabels && chartData.length > 12 ? { fontSize: '8px' } : undefined}
+              style={
+                showAllLabels
+                  ? (chartData.length > 24
+                    ? { fontSize: '7px' }
+                    : chartData.length > 12
+                      ? { fontSize: '8px' }
+                      : undefined)
+                  : undefined
+              }
             >
               {point.label}
             </text>
@@ -4480,6 +4488,58 @@ function AdminDashboard() {
   );
 
   const renderAnalyticsDashboard = () => {
+    const renderStatusIcon = (statusKey) => {
+      switch (statusKey) {
+        case 'new':
+          return (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M10 6v8M6 10h8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          );
+        case 'accepted':
+          return (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="3.2" y="3.2" width="13.6" height="13.6" rx="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M6.8 10.2l2.2 2.2 4.4-4.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          );
+        case 'preparing':
+          return (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 12.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M6.2 12.5a3.8 3.8 0 0 1 7.6 0" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M7 7.2c0-1.1.9-2 2-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          );
+        case 'delivering':
+          return (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="2.5" y="7" width="8.5" height="5.5" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M11 8.2h3.2l2.3 2.3v2H11z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <circle cx="6.1" cy="14.2" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <circle cx="14.2" cy="14.2" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+          );
+        case 'delivered':
+          return (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M6.3 10.2 8.8 12.7 13.8 7.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          );
+        case 'cancelled':
+          return (
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M7 7l6 6M13 7l-6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          );
+        default:
+          return null;
+      }
+    };
+
     const analyticsStatusCards = [
       { key: 'new', label: language === 'uz' ? 'Yangi' : 'Новые' },
       { key: 'accepted', label: language === 'uz' ? 'Qabul qilingan' : 'Принятые' },
@@ -4509,10 +4569,10 @@ function AdminDashboard() {
           ))}
         </div>
         {renderAnalyticsFilters()}
-      </div>
+        </div>
 
-      <div className="admin-analytics-kpi-grid">
-        <div className="admin-analytics-kpi-card">
+        <div className="admin-analytics-kpi-grid">
+          <div className="admin-analytics-kpi-card">
           <div className="admin-analytics-kpi-header">
             <h6 className="mb-0 admin-analytics-card-title">
               <span className="admin-analytics-card-title-icon" style={{ color: '#10b981', background: '#ecfdf5' }}>💰</span>
@@ -4530,17 +4590,17 @@ function AdminDashboard() {
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="admin-analytics-kpi-card">
-          <div className="admin-analytics-kpi-header">
-            <h6 className="mb-0 admin-analytics-card-title">
-              <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>📦</span>
-              {language === 'uz' ? 'Buyurtmalar' : 'Заказы'}
-            </h6>
           </div>
-          <div className="admin-analytics-kpi-value">
-            {activeAnalyticsView.ordersCount}
+
+          <div className="admin-analytics-kpi-card">
+            <div className="admin-analytics-kpi-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>📦</span>
+                {language === 'uz' ? 'Buyurtmalar' : 'Заказы'}
+              </h6>
+            </div>
+            <div className="admin-analytics-kpi-value">
+              {activeAnalyticsView.ordersCount}
           </div>
           <div className="admin-analytics-kpi-list">
             {activeAnalyticsView.ordersRows.map((row) => (
@@ -4548,15 +4608,39 @@ function AdminDashboard() {
                 <span>{row.label}</span>
                 <strong>{row.value}</strong>
               </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="admin-analytics-kpi-card">
-          <div className="admin-analytics-kpi-header">
-            <h6 className="mb-0 admin-analytics-card-title">
-              <span className="admin-analytics-card-title-icon" style={{ color: '#3b82f6', background: '#eff6ff' }}>🧾</span>
-              {t('averageCheck')}
+          <div className="admin-analytics-kpi-card">
+            <div className="admin-analytics-kpi-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🧺</span>
+                {language === 'uz' ? 'Idish/paket' : 'Посуды/Пакеты'}
+              </h6>
+            </div>
+            <div className="admin-analytics-kpi-value">
+              {formatPrice(analyticsFinancialExtras.containersRevenue)} <span>{t('sum')}</span>
+            </div>
+          </div>
+
+          <div className="admin-analytics-kpi-card">
+            <div className="admin-analytics-kpi-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#06b6d4', background: '#ecfeff' }}>🛎️</span>
+                {language === 'uz' ? 'Servis summasi' : 'Сумма сервиса'}
+              </h6>
+            </div>
+            <div className="admin-analytics-kpi-value">
+              {formatPrice(analyticsFinancialExtras.serviceRevenue)} <span>{t('sum')}</span>
+            </div>
+          </div>
+
+          <div className="admin-analytics-kpi-card">
+            <div className="admin-analytics-kpi-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#3b82f6', background: '#eff6ff' }}>🧾</span>
+                {t('averageCheck')}
             </h6>
           </div>
           <div className="admin-analytics-kpi-value">
@@ -4569,9 +4653,21 @@ function AdminDashboard() {
                 <strong>{row.value}</strong>
               </div>
             ))}
+            </div>
           </div>
         </div>
-      </div>
+
+        <div className="admin-analytics-status-strip">
+          {analyticsStatusCards.map((statusCard) => (
+            <div className="admin-analytics-status-strip-item" key={`analytics-status-strip-${statusCard.key}`}>
+              <span className={`admin-analytics-status-strip-icon is-${statusCard.key}`}>
+                {renderStatusIcon(statusCard.key)}
+              </span>
+              <span className="admin-analytics-status-strip-label">{statusCard.label}</span>
+              <strong className="admin-analytics-status-strip-value">{analyticsStatusSummary[statusCard.key] || 0}</strong>
+            </div>
+          ))}
+        </div>
 
       <Row className="g-4 mb-4">
         <Col lg={8}>
@@ -4587,8 +4683,8 @@ function AdminDashboard() {
                   color: '#6366f1',
                   gradientId: `analytics-revenue-${analyticsPeriod}`,
                   mode: 'currency',
-                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily',
-                  showPointValues: analyticsPeriod === 'daily'
+                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily' || analyticsPeriod === 'monthly',
+                  showPointValues: true
                 })}
               </div>
 
@@ -4602,41 +4698,9 @@ function AdminDashboard() {
                   color: '#f43f5e',
                   gradientId: `analytics-orders-${analyticsPeriod}`,
                   mode: 'count',
-                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily',
-                  showPointValues: analyticsPeriod === 'daily'
+                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily' || analyticsPeriod === 'monthly',
+                  showPointValues: true
                 })}
-              </div>
-
-              <div className="admin-analytics-extra-grid">
-                <div className="admin-analytics-extra-card">
-                  <div className="admin-analytics-extra-title">
-                    {language === 'uz' ? "Servis va idish/paket summasi" : 'Сумма сервиса и посуды'}
-                  </div>
-                  <div className="admin-analytics-extra-list">
-                    <div className="admin-analytics-extra-item">
-                      <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
-                      <strong>{formatPrice(analyticsFinancialExtras.serviceRevenue)} {t('sum')}</strong>
-                    </div>
-                    <div className="admin-analytics-extra-item">
-                      <span>{language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}</span>
-                      <strong>{formatPrice(analyticsFinancialExtras.containersRevenue)} {t('sum')}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="admin-analytics-extra-card">
-                  <div className="admin-analytics-extra-title">
-                    {language === 'uz' ? 'Buyurtmalar statuslari' : 'Статусы заказов'}
-                  </div>
-                  <div className="admin-analytics-status-grid">
-                    {analyticsStatusCards.map((statusCard) => (
-                      <div className="admin-analytics-status-item" key={`analytics-status-${statusCard.key}`}>
-                        <span>{statusCard.label}</span>
-                        <strong>{analyticsStatusSummary[statusCard.key] || 0}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </Card.Body>
           </Card>
