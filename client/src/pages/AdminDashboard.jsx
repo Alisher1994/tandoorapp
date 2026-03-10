@@ -3579,6 +3579,7 @@ function AdminDashboard() {
     if (methodKey === 'card') return <span title={label} aria-label={label}>💳</span>;
     return <span title={label}>{label}</span>;
   };
+  const shouldRenderAnalyticsPaymentMethodText = (methodKey) => !['payme', 'click', 'uzum', 'xazna'].includes(String(methodKey || '').trim().toLowerCase());
 
   const formatDeliveryDateTime = (deliveryDate, deliveryTime) => {
     const normalizedTime = String(deliveryTime || '').trim().toLowerCase();
@@ -4550,7 +4551,7 @@ function AdminDashboard() {
 
         <Row className="g-4 mb-4">
           <Col lg={4}>
-            <Card className="border-0 shadow-sm admin-analytics-surface-card">
+            <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
               <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
                 <h6 className="mb-0 admin-analytics-card-title">
                   <span className="admin-analytics-card-title-icon" style={{ color: '#2563eb', background: '#eff6ff' }}>💳</span>
@@ -4612,7 +4613,7 @@ function AdminDashboard() {
                         <span className="admin-funnel-donut-dot" style={{ backgroundColor: row.color }} />
                         <span className="admin-funnel-donut-label d-flex align-items-center gap-2">
                           {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
-                          <span>{row.label}</span>
+                          {shouldRenderAnalyticsPaymentMethodText(row.key) ? <span>{row.label}</span> : null}
                         </span>
                         <strong className="admin-funnel-donut-value">{formatPaymentPercent(row.percent)}</strong>
                       </div>
@@ -4653,7 +4654,7 @@ function AdminDashboard() {
                           <td>
                             <div className="d-flex align-items-center gap-2">
                               {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
-                              <span>{row.label}</span>
+                              {shouldRenderAnalyticsPaymentMethodText(row.key) ? <span>{row.label}</span> : null}
                             </div>
                           </td>
                           <td className="text-end">{Number(row.count || 0).toLocaleString('ru-RU')}</td>

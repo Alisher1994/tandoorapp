@@ -1489,6 +1489,7 @@ function SuperAdminDashboard() {
     if (methodKey === 'card') return <span title={label} aria-label={label}>💳</span>;
     return <span title={label}>{label}</span>;
   };
+  const shouldRenderAnalyticsPaymentMethodText = (methodKey) => !['payme', 'click', 'uzum', 'xazna'].includes(String(methodKey || '').trim().toLowerCase());
 
   const formatDeviceTypeLabel = (type) => {
     const map = language === 'uz'
@@ -2986,10 +2987,16 @@ function SuperAdminDashboard() {
       (sum, methodKey) => sum + Number(operatorPaymentTotals?.[methodKey]?.count || 0),
       0
     );
+    const paymentFallbackTotalAmount = superAdminPaymentMethodOrder.reduce(
+      (sum, methodKey) => sum + Number(operatorPaymentTotals?.[methodKey]?.amount || 0),
+      0
+    );
     const superAdminPaymentTotalCount = Number(operatorPaymentsAnalytics?.totalCount || paymentFallbackTotalCount || 0);
+    const superAdminPaymentTotalAmount = Number(operatorPaymentsAnalytics?.totalAmount || paymentFallbackTotalAmount || 0);
     const superAdminPaymentRows = superAdminPaymentMethodOrder.map((methodKey) => {
       const bucket = operatorPaymentTotals?.[methodKey] || {};
       const count = Number(bucket.count || 0);
+      const amount = Number(bucket.amount || 0);
       const percent = superAdminPaymentTotalCount > 0
         ? (count * 100) / superAdminPaymentTotalCount
         : Number(bucket.percent || 0);
@@ -2998,6 +3005,7 @@ function SuperAdminDashboard() {
         label: superAdminPaymentMethodMeta[methodKey]?.label || methodKey,
         color: superAdminPaymentMethodMeta[methodKey]?.color || '#94a3b8',
         count,
+        amount,
         percent
       };
     });
@@ -3729,7 +3737,7 @@ function SuperAdminDashboard() {
             </Row>
 
             <Row className="g-4 mt-1">
-              <Col lg={12}>
+              <Col lg={4}>
                 <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
                   <Card.Header className="bg-white border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 admin-analytics-card-header">
                     <h6 className="mb-0 admin-analytics-card-title">
@@ -3800,7 +3808,7 @@ function SuperAdminDashboard() {
                             <span className="admin-funnel-donut-dot" style={{ backgroundColor: row.color }} />
                             <span className="admin-funnel-donut-label d-flex align-items-center gap-2">
                               {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
-                              <span>{row.label}</span>
+                              {shouldRenderAnalyticsPaymentMethodText(row.key) ? <span>{row.label}</span> : null}
                             </span>
                             <strong className="admin-funnel-donut-value">{formatAnalyticsPercent(row.percent)}</strong>
                           </div>
@@ -3811,6 +3819,57 @@ function SuperAdminDashboard() {
                       {language === 'uz'
                         ? `Jami to'lovlar soni: ${superAdminPaymentTotalCount.toLocaleString('ru-RU')}`
                         : `Всего оплат: ${superAdminPaymentTotalCount.toLocaleString('ru-RU')}`}
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={8}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0369a1', background: '#f0f9ff' }}>🧾</span>
+                      {language === 'uz' ? "To'lov tizimlari" : 'Платежные системы'}
+                    </h6>
+                    <small className="text-muted">
+                      {language === 'uz' ? "Qator: soni / foiz / summa" : 'Строка: количество / процент / сумма'}
+                    </small>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    <div className="table-responsive">
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? "To'lov turi" : 'Тип оплаты'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Soni' : 'Количество'}</th>
+                            <th className="text-end">%</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {superAdminPaymentRows.map((row, idx) => (
+                            <tr key={`sa-payment-row-${row.key}`}>
+                              <td>{idx + 1}</td>
+                              <td>
+                                <div className="d-flex align-items-center gap-2">
+                                  {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
+                                  {shouldRenderAnalyticsPaymentMethodText(row.key) ? <span>{row.label}</span> : null}
+                                </div>
+                              </td>
+                              <td className="text-end">{Number(row.count || 0).toLocaleString('ru-RU')}</td>
+                              <td className="text-end">{formatAnalyticsPercent(row.percent)}</td>
+                              <td className="text-end">{formatAnalyticsMoney(row.amount || 0)} {t('sum')}</td>
+                            </tr>
+                          ))}
+                          <tr className="table-light fw-semibold">
+                            <td colSpan={2}>{language === 'uz' ? 'Jami' : 'Итого'}</td>
+                            <td className="text-end">{superAdminPaymentTotalCount.toLocaleString('ru-RU')}</td>
+                            <td className="text-end">{formatAnalyticsPercent(superAdminPaymentTotalCount > 0 ? 100 : 0)}</td>
+                            <td className="text-end">{formatAnalyticsMoney(superAdminPaymentTotalAmount)} {t('sum')}</td>
+                          </tr>
+                        </tbody>
+                      </Table>
                     </div>
                   </Card.Body>
                 </Card>
