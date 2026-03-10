@@ -1473,25 +1473,21 @@ function SuperAdminDashboard() {
     const num = Number(value || 0);
     return `${num.toFixed(2)}%`;
   };
-  const getAnalyticsPaymentMethodLabel = (methodKey, fallbackLabel = '') => {
-    const labels = language === 'uz'
-      ? {
-          click: 'Click',
-          payme: 'Payme',
-          cash: 'Naqd',
-          card: 'Karta',
-          xazna: 'Xazna',
-          uzum: 'Uzum'
-        }
-      : {
-          click: 'Click',
-          payme: 'Payme',
-          cash: 'Наличные',
-          card: 'Карта',
-          xazna: 'Xazna',
-          uzum: 'Uzum'
-        };
-    return labels[methodKey] || fallbackLabel || methodKey || '—';
+  const renderAnalyticsPaymentMethodIcon = (methodKey, fallbackLabel = '') => {
+    const label = fallbackLabel || methodKey || 'payment';
+    if (methodKey === 'click' || methodKey === 'payme' || methodKey === 'xazna' || methodKey === 'uzum') {
+      return (
+        <img
+          src={`/${methodKey}.png`}
+          alt={label}
+          title={label}
+          style={{ height: 18, width: 'auto', objectFit: 'contain', borderRadius: 4 }}
+        />
+      );
+    }
+    if (methodKey === 'cash') return <span title={label} aria-label={label}>💵</span>;
+    if (methodKey === 'card') return <span title={label} aria-label={label}>💳</span>;
+    return <span title={label}>{label}</span>;
   };
 
   const formatDeviceTypeLabel = (type) => {
@@ -3723,7 +3719,7 @@ function SuperAdminDashboard() {
                               <th className="text-end">{language === 'uz' ? 'Jami' : 'Итого'}</th>
                               {operatorPaymentMethods.map((method) => (
                                 <th key={`sa-operator-payment-head-${method.key}`} className="text-end">
-                                  {getAnalyticsPaymentMethodLabel(method.key, method.label)}
+                                  {renderAnalyticsPaymentMethodIcon(method.key, method.label)}
                                 </th>
                               ))}
                             </tr>
