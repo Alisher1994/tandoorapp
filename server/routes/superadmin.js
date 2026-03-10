@@ -474,6 +474,15 @@ const AD_TRANSITIONS = new Set(['none', 'fade', 'slide']);
 const AD_BANNER_TYPES = new Set(['banner', 'entry_popup']);
 const TASHKENT_TZ = 'Asia/Tashkent';
 const ANALYTICS_TIMEZONE = process.env.RESTAURANT_TIMEZONE || TASHKENT_TZ;
+const OPERATOR_PAYMENT_METHODS = ['click', 'payme', 'cash', 'card', 'xazna', 'uzum'];
+const OPERATOR_PAYMENT_LABELS = {
+  click: 'Click',
+  payme: 'Payme',
+  cash: 'Наличные',
+  card: 'Карта',
+  xazna: 'Xazna',
+  uzum: 'Uzum'
+};
 
 const padAnalyticsDatePart = (value) => String(value).padStart(2, '0');
 const formatAnalyticsDateKey = (year, month, day) => (
@@ -2708,6 +2717,8 @@ router.get('/analytics/overview', async (req, res) => {
         o.order_number,
         o.status,
         o.total_amount,
+        o.payment_method,
+        o.processed_by,
         o.service_fee,
         o.delivery_cost,
         COALESCE(
@@ -2723,6 +2734,11 @@ router.get('/analytics/overview', async (req, res) => {
         o.customer_phone,
         o.is_paid,
         o.payment_status,
+        COALESCE(
+          NULLIF(BTRIM(u_operator.full_name), ''),
+          NULLIF(BTRIM(u_operator.username), ''),
+          CASE WHEN o.processed_by IS NOT NULL THEN CONCAT('ID ', o.processed_by::text) ELSE '' END
+        ) AS processed_by_name,
         COALESCE(NULLIF(BTRIM(u.phone), ''), NULLIF(BTRIM(o.customer_phone), ''), '') AS customer_phone_normalized,
         EXISTS(
           SELECT 1
@@ -2732,6 +2748,7 @@ router.get('/analytics/overview', async (req, res) => {
         ) AS has_accepted_action
       FROM orders o
       LEFT JOIN users u ON u.id = o.user_id
+      LEFT JOIN users u_operator ON u_operator.id = o.processed_by
       WHERE o.created_at >= $1::date
         AND o.created_at < $2::date
         AND ($3::int IS NULL OR o.restaurant_id = $3)
@@ -2933,6 +2950,14 @@ router.get('/analytics/overview', async (req, res) => {
     let deliveryRevenue = 0;
     let serviceRevenue = 0;
     let containersRevenue = 0;
+    const buildEmptyOperatorPaymentBuckets = () => OPERATOR_PAYMENT_METHODS.reduce((acc, methodKey) => {
+      acc[methodKey] = { count: 0, amount: 0, percent: 0 };
+      return acc;
+    }, {});
+    const operatorPaymentsByOperatorMap = new Map();
+    const operatorPaymentsTotalsByMethod = buildEmptyOperatorPaymentBuckets();
+    let operatorPaymentsTotalCount = 0;
+    let operatorPaymentsTotalAmount = 0;
 
     const topCustomersMap = new Map();
 
@@ -2989,6 +3014,36 @@ router.get('/analytics/overview', async (req, res) => {
       const customerEntry = topCustomersMap.get(customerKey);
       customerEntry.ordersCount += 1;
       customerEntry.totalAmount += totalAmount;
+
+      const normalizedPaymentMethod = String(order.payment_method || '').trim().toLowerCase();
+      if (OPERATOR_PAYMENT_METHODS.includes(normalizedPaymentMethod)) {
+        const rawOperatorId = Number.parseInt(order.processed_by, 10);
+        const operatorId = Number.isFinite(rawOperatorId) && rawOperatorId > 0 ? rawOperatorId : null;
+        const operatorKey = operatorId ? `id:${operatorId}` : 'unassigned';
+        const operatorName = String(order.processed_by_name || '').trim() || 'Без оператора';
+
+        if (!operatorPaymentsByOperatorMap.has(operatorKey)) {
+          operatorPaymentsByOperatorMap.set(operatorKey, {
+            operatorId,
+            operatorName,
+            totalCount: 0,
+            totalAmount: 0,
+            methods: buildEmptyOperatorPaymentBuckets()
+          });
+        }
+
+        const operatorEntry = operatorPaymentsByOperatorMap.get(operatorKey);
+        const methodBucket = operatorEntry.methods[normalizedPaymentMethod];
+        operatorEntry.totalCount += 1;
+        operatorEntry.totalAmount += totalAmount;
+        methodBucket.count += 1;
+        methodBucket.amount += totalAmount;
+
+        operatorPaymentsTotalsByMethod[normalizedPaymentMethod].count += 1;
+        operatorPaymentsTotalsByMethod[normalizedPaymentMethod].amount += totalAmount;
+        operatorPaymentsTotalCount += 1;
+        operatorPaymentsTotalAmount += totalAmount;
+      }
     }
 
     let itemsRevenue = 0;
@@ -3073,6 +3128,38 @@ router.get('/analytics/overview', async (req, res) => {
         return b.ordersCount - a.ordersCount;
       })
       .slice(0, topLimit);
+    const operatorPaymentRows = Array.from(operatorPaymentsByOperatorMap.values())
+      .map((row) => ({
+        operatorId: row.operatorId,
+        operatorName: row.operatorName,
+        totalCount: Number.parseInt(row.totalCount, 10) || 0,
+        totalAmount: Number(row.totalAmount) || 0,
+        methods: OPERATOR_PAYMENT_METHODS.reduce((acc, methodKey) => {
+          const bucket = row.methods?.[methodKey] || { count: 0, amount: 0 };
+          const count = Number.parseInt(bucket.count, 10) || 0;
+          acc[methodKey] = {
+            count,
+            amount: Number(bucket.amount) || 0,
+            percent: ratioPercent(count, row.totalCount)
+          };
+          return acc;
+        }, {})
+      }))
+      .sort((a, b) => {
+        if (b.totalCount !== a.totalCount) return b.totalCount - a.totalCount;
+        if (b.totalAmount !== a.totalAmount) return b.totalAmount - a.totalAmount;
+        return String(a.operatorName || '').localeCompare(String(b.operatorName || ''), 'ru');
+      });
+    const operatorPaymentTotals = OPERATOR_PAYMENT_METHODS.reduce((acc, methodKey) => {
+      const bucket = operatorPaymentsTotalsByMethod[methodKey] || { count: 0, amount: 0 };
+      const count = Number.parseInt(bucket.count, 10) || 0;
+      acc[methodKey] = {
+        count,
+        amount: Number(bucket.amount) || 0,
+        percent: ratioPercent(count, operatorPaymentsTotalCount)
+      };
+      return acc;
+    }, {});
 
     const averageCheck = deliveredOrdersCount > 0 ? Math.round(revenue / deliveredOrdersCount) : 0;
 
@@ -3206,6 +3293,16 @@ router.get('/analytics/overview', async (req, res) => {
       activityTypes: {
         byQuantity: activityTypesByQuantity,
         byRevenue: activityTypesByRevenue
+      },
+      operatorPayments: {
+        paymentMethods: OPERATOR_PAYMENT_METHODS.map((methodKey) => ({
+          key: methodKey,
+          label: OPERATOR_PAYMENT_LABELS[methodKey] || methodKey
+        })),
+        totalCount: operatorPaymentsTotalCount,
+        totalAmount: operatorPaymentsTotalAmount,
+        operators: operatorPaymentRows,
+        totalsByMethod: operatorPaymentTotals
       },
       shops: {
         topLimit,

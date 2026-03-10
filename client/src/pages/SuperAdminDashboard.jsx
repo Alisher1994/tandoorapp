@@ -1473,6 +1473,26 @@ function SuperAdminDashboard() {
     const num = Number(value || 0);
     return `${num.toFixed(2)}%`;
   };
+  const getAnalyticsPaymentMethodLabel = (methodKey, fallbackLabel = '') => {
+    const labels = language === 'uz'
+      ? {
+          click: 'Click',
+          payme: 'Payme',
+          cash: 'Naqd',
+          card: 'Karta',
+          xazna: 'Xazna',
+          uzum: 'Uzum'
+        }
+      : {
+          click: 'Click',
+          payme: 'Payme',
+          cash: 'Наличные',
+          card: 'Карта',
+          xazna: 'Xazna',
+          uzum: 'Uzum'
+        };
+    return labels[methodKey] || fallbackLabel || methodKey || '—';
+  };
 
   const formatDeviceTypeLabel = (type) => {
     const map = language === 'uz'
@@ -2953,6 +2973,14 @@ function SuperAdminDashboard() {
     const activityTypesByRevenue = analyticsPayload?.activityTypes?.byRevenue || [];
     const funnel = analyticsPayload?.funnel || {};
     const startDate = analyticsPayload?.startDate || '';
+    const operatorPaymentsAnalytics = analyticsPayload?.operatorPayments || {};
+    const operatorPaymentMethods = Array.isArray(operatorPaymentsAnalytics?.paymentMethods) ? operatorPaymentsAnalytics.paymentMethods : [];
+    const operatorPaymentRows = Array.isArray(operatorPaymentsAnalytics?.operators) ? operatorPaymentsAnalytics.operators : [];
+    const operatorPaymentTotals = operatorPaymentsAnalytics?.totalsByMethod && typeof operatorPaymentsAnalytics.totalsByMethod === 'object'
+      ? operatorPaymentsAnalytics.totalsByMethod
+      : {};
+    const operatorPaymentGrandTotalCount = Number(operatorPaymentsAnalytics?.totalCount || 0);
+    const operatorPaymentGrandTotalAmount = Number(operatorPaymentsAnalytics?.totalAmount || 0);
     const shopsAnalytics = analyticsPayload?.shops || {};
     const lowBalanceShops = Array.isArray(shopsAnalytics.lowBalance) ? shopsAnalytics.lowBalance : [];
     const topShopsByOrders = Array.isArray(shopsAnalytics.topByOrders) ? shopsAnalytics.topByOrders : [];
@@ -3664,6 +3692,85 @@ function SuperAdminDashboard() {
                           ))}
                         </tbody>
                       </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+
+            <Row className="g-4 mt-1">
+              <Col lg={12}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0369a1', background: '#f0f9ff' }}>💳</span>
+                      {language === 'uz' ? "Operatorlar bo'yicha to'lov tizimlari" : 'Платежные системы по операторам'}
+                    </h6>
+                    <small className="text-muted">
+                      {language === 'uz' ? "Katak: soni / foiz / summa" : 'Ячейка: количество / процент / сумма'}
+                    </small>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {operatorPaymentRows.length > 0 && operatorPaymentMethods.length > 0 ? (
+                      <div className="table-responsive">
+                        <Table hover className="mb-0 admin-analytics-table">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>{language === 'uz' ? 'Operator' : 'Оператор'}</th>
+                              <th className="text-end">{language === 'uz' ? 'Jami' : 'Итого'}</th>
+                              {operatorPaymentMethods.map((method) => (
+                                <th key={`sa-operator-payment-head-${method.key}`} className="text-end">
+                                  {getAnalyticsPaymentMethodLabel(method.key, method.label)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {operatorPaymentRows.map((row, idx) => (
+                              <tr key={`sa-operator-payment-row-${row.operatorId || 'na'}-${idx}`}>
+                                <td>{idx + 1}</td>
+                                <td>{row.operatorName || '—'}</td>
+                                <td className="text-end">
+                                  <div>{Number(row.totalCount || 0).toLocaleString('ru-RU')}</div>
+                                  <div className="small text-muted">{formatAnalyticsPercent(row.totalCount > 0 ? 100 : 0)}</div>
+                                  <div className="small fw-semibold">{formatAnalyticsMoney(row.totalAmount || 0)} {t('sum')}</div>
+                                </td>
+                                {operatorPaymentMethods.map((method) => {
+                                  const methodStats = row?.methods?.[method.key] || {};
+                                  return (
+                                    <td key={`sa-operator-payment-cell-${method.key}-${row.operatorId || 'na'}-${idx}`} className="text-end">
+                                      <div>{Number(methodStats.count || 0).toLocaleString('ru-RU')}</div>
+                                      <div className="small text-muted">{formatAnalyticsPercent(methodStats.percent || 0)}</div>
+                                      <div className="small fw-semibold">{formatAnalyticsMoney(methodStats.amount || 0)} {t('sum')}</div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                            <tr className="table-light fw-semibold">
+                              <td colSpan={2}>{language === 'uz' ? 'Jami' : 'Итого'}</td>
+                              <td className="text-end">
+                                <div>{operatorPaymentGrandTotalCount.toLocaleString('ru-RU')}</div>
+                                <div className="small text-muted">{formatAnalyticsPercent(operatorPaymentGrandTotalCount > 0 ? 100 : 0)}</div>
+                                <div className="small">{formatAnalyticsMoney(operatorPaymentGrandTotalAmount)} {t('sum')}</div>
+                              </td>
+                              {operatorPaymentMethods.map((method) => {
+                                const methodTotal = operatorPaymentTotals?.[method.key] || {};
+                                return (
+                                  <td key={`sa-operator-payment-total-${method.key}`} className="text-end">
+                                    <div>{Number(methodTotal.count || 0).toLocaleString('ru-RU')}</div>
+                                    <div className="small text-muted">{formatAnalyticsPercent(methodTotal.percent || 0)}</div>
+                                    <div className="small">{formatAnalyticsMoney(methodTotal.amount || 0)} {t('sum')}</div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </tbody>
+                        </Table>
+                      </div>
                     ) : (
                       <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
                     )}
