@@ -2970,13 +2970,45 @@ function SuperAdminDashboard() {
     const funnel = analyticsPayload?.funnel || {};
     const startDate = analyticsPayload?.startDate || '';
     const operatorPaymentsAnalytics = analyticsPayload?.operatorPayments || {};
-    const operatorPaymentMethods = Array.isArray(operatorPaymentsAnalytics?.paymentMethods) ? operatorPaymentsAnalytics.paymentMethods : [];
-    const operatorPaymentRows = Array.isArray(operatorPaymentsAnalytics?.operators) ? operatorPaymentsAnalytics.operators : [];
     const operatorPaymentTotals = operatorPaymentsAnalytics?.totalsByMethod && typeof operatorPaymentsAnalytics.totalsByMethod === 'object'
       ? operatorPaymentsAnalytics.totalsByMethod
       : {};
-    const operatorPaymentGrandTotalCount = Number(operatorPaymentsAnalytics?.totalCount || 0);
-    const operatorPaymentGrandTotalAmount = Number(operatorPaymentsAnalytics?.totalAmount || 0);
+    const superAdminPaymentMethodOrder = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
+    const superAdminPaymentMethodMeta = {
+      payme: { label: 'Payme', color: '#26c6da' },
+      click: { label: 'Click', color: '#2563eb' },
+      uzum: { label: 'Uzum', color: '#7c3aed' },
+      xazna: { label: 'Xazna', color: '#166534' },
+      card: { label: language === 'uz' ? 'Karta' : 'Карта', color: '#0ea5e9' },
+      cash: { label: language === 'uz' ? 'Naqd' : 'Наличные', color: '#16a34a' }
+    };
+    const paymentFallbackTotalCount = superAdminPaymentMethodOrder.reduce(
+      (sum, methodKey) => sum + Number(operatorPaymentTotals?.[methodKey]?.count || 0),
+      0
+    );
+    const superAdminPaymentTotalCount = Number(operatorPaymentsAnalytics?.totalCount || paymentFallbackTotalCount || 0);
+    const superAdminPaymentRows = superAdminPaymentMethodOrder.map((methodKey) => {
+      const bucket = operatorPaymentTotals?.[methodKey] || {};
+      const count = Number(bucket.count || 0);
+      const percent = superAdminPaymentTotalCount > 0
+        ? (count * 100) / superAdminPaymentTotalCount
+        : Number(bucket.percent || 0);
+      return {
+        key: methodKey,
+        label: superAdminPaymentMethodMeta[methodKey]?.label || methodKey,
+        color: superAdminPaymentMethodMeta[methodKey]?.color || '#94a3b8',
+        count,
+        percent
+      };
+    });
+    const superAdminPaymentLeader = superAdminPaymentRows.reduce((best, row) => {
+      if (!best || row.count > best.count) return row;
+      return best;
+    }, null);
+    const superAdminPaymentDonutRadius = 58;
+    const superAdminPaymentDonutStroke = 18;
+    const superAdminPaymentDonutCircumference = 2 * Math.PI * superAdminPaymentDonutRadius;
+    let superAdminPaymentDonutProgress = 0;
     const shopsAnalytics = analyticsPayload?.shops || {};
     const lowBalanceShops = Array.isArray(shopsAnalytics.lowBalance) ? shopsAnalytics.lowBalance : [];
     const topShopsByOrders = Array.isArray(shopsAnalytics.topByOrders) ? shopsAnalytics.topByOrders : [];
@@ -3698,78 +3730,88 @@ function SuperAdminDashboard() {
 
             <Row className="g-4 mt-1">
               <Col lg={12}>
-                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
-                  <Card.Header className="bg-white border-0 admin-analytics-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
+                  <Card.Header className="bg-white border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 admin-analytics-card-header">
                     <h6 className="mb-0 admin-analytics-card-title">
                       <span className="admin-analytics-card-title-icon" style={{ color: '#0369a1', background: '#f0f9ff' }}>💳</span>
-                      {language === 'uz' ? "Operatorlar bo'yicha to'lov tizimlari" : 'Платежные системы по операторам'}
+                      {language === 'uz' ? "To'lov turlari ulushi (%)" : 'Доли типов платежей (%)'}
                     </h6>
                     <small className="text-muted">
-                      {language === 'uz' ? "Katak: soni / foiz / summa" : 'Ячейка: количество / процент / сумма'}
+                      {superAdminPaymentLeader && superAdminPaymentLeader.count > 0
+                        ? `${language === 'uz' ? 'Lider' : 'Лидер'}: ${superAdminPaymentLeader.label} (${formatAnalyticsPercent(superAdminPaymentLeader.percent)})`
+                        : (language === 'uz' ? "Ma'lumot yo'q" : 'Нет данных')}
                     </small>
                   </Card.Header>
-                  <Card.Body className="p-0">
-                    {operatorPaymentRows.length > 0 && operatorPaymentMethods.length > 0 ? (
-                      <div className="table-responsive">
-                        <Table hover className="mb-0 admin-analytics-table">
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>{language === 'uz' ? 'Operator' : 'Оператор'}</th>
-                              <th className="text-end">{language === 'uz' ? 'Jami' : 'Итого'}</th>
-                              {operatorPaymentMethods.map((method) => (
-                                <th key={`sa-operator-payment-head-${method.key}`} className="text-end">
-                                  {renderAnalyticsPaymentMethodIcon(method.key, method.label)}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {operatorPaymentRows.map((row, idx) => (
-                              <tr key={`sa-operator-payment-row-${row.operatorId || 'na'}-${idx}`}>
-                                <td>{idx + 1}</td>
-                                <td>{row.operatorName || '—'}</td>
-                                <td className="text-end">
-                                  <div>{Number(row.totalCount || 0).toLocaleString('ru-RU')}</div>
-                                  <div className="small text-muted">{formatAnalyticsPercent(row.totalCount > 0 ? 100 : 0)}</div>
-                                  <div className="small fw-semibold">{formatAnalyticsMoney(row.totalAmount || 0)} {t('sum')}</div>
-                                </td>
-                                {operatorPaymentMethods.map((method) => {
-                                  const methodStats = row?.methods?.[method.key] || {};
-                                  return (
-                                    <td key={`sa-operator-payment-cell-${method.key}-${row.operatorId || 'na'}-${idx}`} className="text-end">
-                                      <div>{Number(methodStats.count || 0).toLocaleString('ru-RU')}</div>
-                                      <div className="small text-muted">{formatAnalyticsPercent(methodStats.percent || 0)}</div>
-                                      <div className="small fw-semibold">{formatAnalyticsMoney(methodStats.amount || 0)} {t('sum')}</div>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                            <tr className="table-light fw-semibold">
-                              <td colSpan={2}>{language === 'uz' ? 'Jami' : 'Итого'}</td>
-                              <td className="text-end">
-                                <div>{operatorPaymentGrandTotalCount.toLocaleString('ru-RU')}</div>
-                                <div className="small text-muted">{formatAnalyticsPercent(operatorPaymentGrandTotalCount > 0 ? 100 : 0)}</div>
-                                <div className="small">{formatAnalyticsMoney(operatorPaymentGrandTotalAmount)} {t('sum')}</div>
-                              </td>
-                              {operatorPaymentMethods.map((method) => {
-                                const methodTotal = operatorPaymentTotals?.[method.key] || {};
-                                return (
-                                  <td key={`sa-operator-payment-total-${method.key}`} className="text-end">
-                                    <div>{Number(methodTotal.count || 0).toLocaleString('ru-RU')}</div>
-                                    <div className="small text-muted">{formatAnalyticsPercent(methodTotal.percent || 0)}</div>
-                                    <div className="small">{formatAnalyticsMoney(methodTotal.amount || 0)} {t('sum')}</div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          </tbody>
-                        </Table>
+                  <Card.Body>
+                    <div className="admin-funnel-donut-wrap">
+                      <div className="admin-funnel-donut-chart">
+                        <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Payment methods donut chart">
+                          <circle
+                            cx="90"
+                            cy="90"
+                            r={superAdminPaymentDonutRadius}
+                            fill="none"
+                            stroke="#e2e8f0"
+                            strokeWidth={superAdminPaymentDonutStroke}
+                          />
+                          {superAdminPaymentTotalCount > 0 ? superAdminPaymentRows.map((row) => {
+                            const value = Number(row.count || 0);
+                            if (value <= 0) return null;
+                            const ratio = value / superAdminPaymentTotalCount;
+                            const strokeLength = ratio * superAdminPaymentDonutCircumference;
+                            const strokeDasharray = `${strokeLength} ${superAdminPaymentDonutCircumference}`;
+                            const strokeDashoffset = -superAdminPaymentDonutProgress * superAdminPaymentDonutCircumference;
+                            superAdminPaymentDonutProgress += ratio;
+                            return (
+                              <circle
+                                key={`sa-payment-donut-${row.key}`}
+                                cx="90"
+                                cy="90"
+                                r={superAdminPaymentDonutRadius}
+                                fill="none"
+                                stroke={row.color}
+                                strokeWidth={superAdminPaymentDonutStroke}
+                                strokeDasharray={strokeDasharray}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="butt"
+                                transform="rotate(-90 90 90)"
+                              />
+                            );
+                          }) : null}
+                          <circle cx="90" cy="90" r="42" fill="#ffffff" />
+                          <text x="90" y="84" textAnchor="middle" fontSize="11" fill="#64748b">
+                            {language === 'uz' ? 'Lider' : 'Лидер'}
+                          </text>
+                          <text x="90" y="104" textAnchor="middle" fontSize="20" fontWeight="700" fill="#0f172a">
+                            {superAdminPaymentLeader && superAdminPaymentLeader.count > 0
+                              ? formatAnalyticsPercent(superAdminPaymentLeader.percent)
+                              : '0.00%'}
+                          </text>
+                          <text x="90" y="122" textAnchor="middle" fontSize="10" fill="#64748b">
+                            {superAdminPaymentLeader && superAdminPaymentLeader.count > 0
+                              ? superAdminPaymentLeader.label
+                              : (language === 'uz' ? "Ma'lumot yo'q" : 'Нет данных')}
+                          </text>
+                        </svg>
                       </div>
-                    ) : (
-                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
-                    )}
+                      <div className="admin-funnel-donut-legend">
+                        {superAdminPaymentRows.map((row) => (
+                          <div key={`sa-payment-legend-${row.key}`} className="admin-funnel-donut-legend-item">
+                            <span className="admin-funnel-donut-dot" style={{ backgroundColor: row.color }} />
+                            <span className="admin-funnel-donut-label d-flex align-items-center gap-2">
+                              {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
+                              <span>{row.label}</span>
+                            </span>
+                            <strong className="admin-funnel-donut-value">{formatAnalyticsPercent(row.percent)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="small text-muted pt-3">
+                      {language === 'uz'
+                        ? `Jami to'lovlar soni: ${superAdminPaymentTotalCount.toLocaleString('ru-RU')}`
+                        : `Всего оплат: ${superAdminPaymentTotalCount.toLocaleString('ru-RU')}`}
+                    </div>
                   </Card.Body>
                 </Card>
               </Col>

@@ -44,6 +44,19 @@ const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
 const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
+const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
+const ANALYTICS_PAYMENT_METHOD_META = {
+  payme: { labelRu: 'Payme', labelUz: 'Payme', color: '#26c6da', iconType: 'image' },
+  click: { labelRu: 'Click', labelUz: 'Click', color: '#2563eb', iconType: 'image' },
+  uzum: { labelRu: 'Uzum', labelUz: 'Uzum', color: '#7c3aed', iconType: 'image' },
+  xazna: { labelRu: 'Xazna', labelUz: 'Xazna', color: '#166534', iconType: 'image' },
+  card: { labelRu: 'Карта', labelUz: 'Karta', color: '#0ea5e9', iconType: 'emoji', icon: '💳' },
+  cash: { labelRu: 'Наличные', labelUz: 'Naqd', color: '#16a34a', iconType: 'emoji', icon: '💵' }
+};
+const normalizeAnalyticsPaymentMethod = (paymentMethod) => {
+  const normalized = String(paymentMethod || '').trim().toLowerCase();
+  return ANALYTICS_PAYMENT_METHOD_ORDER.includes(normalized) ? normalized : '';
+};
 const padDatePart = (value) => String(value).padStart(2, '0');
 const toLocalDateKey = (rawDate) => {
   const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
@@ -1337,6 +1350,63 @@ function AdminDashboard() {
         ? yearlyPeriodOrders
         : monthlyPeriodOrders
   ), [analyticsPeriod, dailyOrdersAllStatuses, yearlyPeriodOrders, monthlyPeriodOrders]);
+  const analyticsDeliveredPeriodOrders = useMemo(() => (
+    analyticsPeriod === 'daily'
+      ? dailyDeliveredOrders
+      : analyticsPeriod === 'yearly'
+        ? yearlyDeliveredOrders
+        : monthlyDeliveredOrders
+  ), [analyticsPeriod, dailyDeliveredOrders, yearlyDeliveredOrders, monthlyDeliveredOrders]);
+
+  const analyticsPaymentMethodSummary = useMemo(() => {
+    const buckets = ANALYTICS_PAYMENT_METHOD_ORDER.reduce((acc, methodKey) => {
+      acc[methodKey] = { count: 0, amount: 0 };
+      return acc;
+    }, {});
+
+    let totalCount = 0;
+    let totalAmount = 0;
+
+    for (const order of analyticsDeliveredPeriodOrders) {
+      const methodKey = normalizeAnalyticsPaymentMethod(order?.payment_method);
+      if (!methodKey) continue;
+      const amount = Math.max(0, toNumericValue(order?.total_amount, 0));
+      buckets[methodKey].count += 1;
+      buckets[methodKey].amount += amount;
+      totalCount += 1;
+      totalAmount += amount;
+    }
+
+    const rows = ANALYTICS_PAYMENT_METHOD_ORDER.map((methodKey) => {
+      const methodMeta = ANALYTICS_PAYMENT_METHOD_META[methodKey] || {};
+      const count = Number(buckets[methodKey]?.count || 0);
+      const amount = Number(buckets[methodKey]?.amount || 0);
+      const percent = totalCount > 0 ? (count * 100) / totalCount : 0;
+
+      return {
+        key: methodKey,
+        label: language === 'uz' ? (methodMeta.labelUz || methodKey) : (methodMeta.labelRu || methodKey),
+        color: methodMeta.color || '#94a3b8',
+        iconType: methodMeta.iconType || 'text',
+        icon: methodMeta.icon || '',
+        count,
+        amount,
+        percent
+      };
+    });
+
+    const leader = rows.reduce((best, row) => {
+      if (!best || row.count > best.count) return row;
+      return best;
+    }, null);
+
+    return {
+      rows,
+      totalCount,
+      totalAmount,
+      leader: leader && leader.count > 0 ? leader : null
+    };
+  }, [analyticsDeliveredPeriodOrders, language]);
 
   const analyticsFinancialExtras = useMemo(() => {
     const totals = calculateOrdersFinancialBreakdown(analyticsPeriodOrders);
@@ -3488,6 +3558,28 @@ function AdminDashboard() {
     return paymentMethod || '-';
   };
 
+  const getAnalyticsPaymentMethodLabel = (methodKey) => {
+    const meta = ANALYTICS_PAYMENT_METHOD_META[methodKey] || {};
+    return language === 'uz' ? (meta.labelUz || methodKey || '-') : (meta.labelRu || methodKey || '-');
+  };
+
+  const renderAnalyticsPaymentMethodIcon = (methodKey, fallbackLabel = '') => {
+    const label = fallbackLabel || getAnalyticsPaymentMethodLabel(methodKey);
+    if (methodKey === 'click' || methodKey === 'payme' || methodKey === 'xazna' || methodKey === 'uzum') {
+      return (
+        <img
+          src={`/${methodKey}.png`}
+          alt={label}
+          title={label}
+          style={{ height: 18, width: 'auto', objectFit: 'contain', borderRadius: 4 }}
+        />
+      );
+    }
+    if (methodKey === 'cash') return <span title={label} aria-label={label}>💵</span>;
+    if (methodKey === 'card') return <span title={label} aria-label={label}>💳</span>;
+    return <span title={label}>{label}</span>;
+  };
+
   const formatDeliveryDateTime = (deliveryDate, deliveryTime) => {
     const normalizedTime = String(deliveryTime || '').trim().toLowerCase();
     const isAsap = !normalizedTime || normalizedTime === 'asap';
@@ -4326,6 +4418,15 @@ function AdminDashboard() {
       { key: 'delivered', label: language === 'uz' ? 'Yetkazildi' : 'Доставлено' },
       { key: 'cancelled', label: language === 'uz' ? 'Bekor qilingan' : 'Отказано' }
     ];
+    const paymentRows = analyticsPaymentMethodSummary.rows || [];
+    const paymentTotalCount = Number(analyticsPaymentMethodSummary.totalCount || 0);
+    const paymentTotalAmount = Number(analyticsPaymentMethodSummary.totalAmount || 0);
+    const paymentLeader = analyticsPaymentMethodSummary.leader || null;
+    const paymentDonutRadius = 58;
+    const paymentDonutStroke = 18;
+    const paymentDonutCircumference = 2 * Math.PI * paymentDonutRadius;
+    let paymentDonutProgress = 0;
+    const formatPaymentPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
 
     return (
       <div className="admin-analytics-layout">
@@ -4446,6 +4547,133 @@ function AdminDashboard() {
             </div>
           ))}
         </div>
+
+        <Row className="g-4 mb-4">
+          <Col lg={4}>
+            <Card className="border-0 shadow-sm admin-analytics-surface-card">
+              <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+                <h6 className="mb-0 admin-analytics-card-title">
+                  <span className="admin-analytics-card-title-icon" style={{ color: '#2563eb', background: '#eff6ff' }}>💳</span>
+                  {language === 'uz' ? "To'lov turlari ulushi" : 'Доли типов платежей'}
+                </h6>
+                <small className="text-muted admin-analytics-card-subtle">{analyticsPeriodCaption}</small>
+              </Card.Header>
+              <Card.Body>
+                <div className="admin-funnel-donut-wrap">
+                  <div className="admin-funnel-donut-chart">
+                    <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Payment methods donut chart">
+                      <circle
+                        cx="90"
+                        cy="90"
+                        r={paymentDonutRadius}
+                        fill="none"
+                        stroke="#e2e8f0"
+                        strokeWidth={paymentDonutStroke}
+                      />
+                      {paymentTotalCount > 0 ? paymentRows.map((row) => {
+                        const value = Number(row.count || 0);
+                        if (value <= 0) return null;
+                        const ratio = value / paymentTotalCount;
+                        const strokeLength = ratio * paymentDonutCircumference;
+                        const strokeDasharray = `${strokeLength} ${paymentDonutCircumference}`;
+                        const strokeDashoffset = -paymentDonutProgress * paymentDonutCircumference;
+                        paymentDonutProgress += ratio;
+                        return (
+                          <circle
+                            key={`admin-payment-donut-${row.key}`}
+                            cx="90"
+                            cy="90"
+                            r={paymentDonutRadius}
+                            fill="none"
+                            stroke={row.color}
+                            strokeWidth={paymentDonutStroke}
+                            strokeDasharray={strokeDasharray}
+                            strokeDashoffset={strokeDashoffset}
+                            strokeLinecap="butt"
+                            transform="rotate(-90 90 90)"
+                          />
+                        );
+                      }) : null}
+                      <circle cx="90" cy="90" r="42" fill="#ffffff" />
+                      <text x="90" y="84" textAnchor="middle" fontSize="11" fill="#64748b">
+                        {language === 'uz' ? 'Lider' : 'Лидер'}
+                      </text>
+                      <text x="90" y="104" textAnchor="middle" fontSize="20" fontWeight="700" fill="#0f172a">
+                        {paymentLeader ? formatPaymentPercent(paymentLeader.percent) : '0.00%'}
+                      </text>
+                      <text x="90" y="122" textAnchor="middle" fontSize="10" fill="#64748b">
+                        {paymentLeader ? paymentLeader.label : (language === 'uz' ? "Ma'lumot yo'q" : 'Нет данных')}
+                      </text>
+                    </svg>
+                  </div>
+                  <div className="admin-funnel-donut-legend">
+                    {paymentRows.map((row) => (
+                      <div key={`admin-payment-legend-${row.key}`} className="admin-funnel-donut-legend-item">
+                        <span className="admin-funnel-donut-dot" style={{ backgroundColor: row.color }} />
+                        <span className="admin-funnel-donut-label d-flex align-items-center gap-2">
+                          {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
+                          <span>{row.label}</span>
+                        </span>
+                        <strong className="admin-funnel-donut-value">{formatPaymentPercent(row.percent)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          <Col lg={8}>
+            <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+              <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+                <h6 className="mb-0 admin-analytics-card-title">
+                  <span className="admin-analytics-card-title-icon" style={{ color: '#0369a1', background: '#f0f9ff' }}>🧾</span>
+                  {language === 'uz' ? "To'lov tizimlari" : 'Платежные системы'}
+                </h6>
+                <small className="text-muted">
+                  {language === 'uz' ? "Qator: soni / foiz / summa" : 'Строка: количество / процент / сумма'}
+                </small>
+              </Card.Header>
+              <Card.Body className="p-0">
+                <div className="table-responsive">
+                  <Table hover className="mb-0 admin-analytics-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>{language === 'uz' ? "To'lov turi" : 'Тип оплаты'}</th>
+                        <th className="text-end">{language === 'uz' ? 'Soni' : 'Количество'}</th>
+                        <th className="text-end">%</th>
+                        <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentRows.map((row, idx) => (
+                        <tr key={`admin-payment-row-${row.key}`}>
+                          <td>{idx + 1}</td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2">
+                              {renderAnalyticsPaymentMethodIcon(row.key, row.label)}
+                              <span>{row.label}</span>
+                            </div>
+                          </td>
+                          <td className="text-end">{Number(row.count || 0).toLocaleString('ru-RU')}</td>
+                          <td className="text-end">{formatPaymentPercent(row.percent)}</td>
+                          <td className="text-end">{formatPrice(row.amount || 0)} {t('sum')}</td>
+                        </tr>
+                      ))}
+                      <tr className="table-light fw-semibold">
+                        <td colSpan={2}>{language === 'uz' ? 'Jami' : 'Итого'}</td>
+                        <td className="text-end">{paymentTotalCount.toLocaleString('ru-RU')}</td>
+                        <td className="text-end">{formatPaymentPercent(paymentTotalCount > 0 ? 100 : 0)}</td>
+                        <td className="text-end">{formatPrice(paymentTotalAmount)} {t('sum')}</td>
+                      </tr>
+                    </tbody>
+                  </Table>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
 
       <Row className="g-4 mb-4">
         <Col lg={12}>
