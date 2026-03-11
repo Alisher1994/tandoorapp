@@ -908,6 +908,186 @@ body::-webkit-scrollbar,
     max-width: min(760px, calc(100vw - 20px));
 }
 
+.admin-balance-modal-redesign .modal-content {
+    border-radius: 14px;
+    border: 1px solid #cfd8e3;
+    overflow: hidden;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 14px;
+}
+
+.admin-balance-modal-redesign .modal-header.admin-balance-modal-header {
+    background: linear-gradient(135deg, #64748b 0%, #55657d 100%);
+    color: #f8fafc;
+    padding: 14px 18px;
+}
+
+.admin-balance-modal-redesign .modal-header .modal-title h5 {
+    font-size: 1.05rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.admin-balance-modal-redesign .modal-header .modal-title p {
+    font-size: 0.8rem;
+    font-weight: 400;
+}
+
+.admin-balance-modal-redesign .modal-header .btn-close {
+    filter: invert(1) grayscale(100%) brightness(210%);
+    opacity: 0.9;
+}
+
+.admin-balance-modal-redesign .modal-body {
+    background: #f8fafc;
+}
+
+.admin-balance-modal-redesign .bg-light.p-3.border-bottom {
+    background: #eef2f7 !important;
+    border-color: #d8e0ea !important;
+}
+
+.admin-balance-modal-redesign .admin-balance-metric-card {
+    padding: 10px !important;
+    border-color: #d2dbe6 !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+}
+
+.admin-balance-modal-redesign .admin-balance-metric-label {
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: #5b6778 !important;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-balance-modal-redesign .admin-balance-metric-value {
+    font-size: 1.05rem !important;
+    font-weight: 500;
+    line-height: 1.2;
+    color: #2b4f76 !important;
+}
+
+.admin-balance-modal-redesign .admin-balance-metric-value .small {
+    font-size: 0.9em;
+    color: #3f5876;
+}
+
+.admin-balance-modal-redesign .admin-balance-tabs {
+    background: #edf1f6 !important;
+    border: 1px solid #d8e0ea;
+    gap: 4px;
+}
+
+.admin-balance-modal-redesign .admin-balance-tabs > div {
+    white-space: nowrap;
+    font-size: 0.92rem;
+    font-weight: 400;
+    color: #5b6778 !important;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-balance-modal-redesign .admin-balance-tabs > div.bg-white {
+    font-weight: 500;
+    color: #2b4f76 !important;
+}
+
+.admin-balance-modal-redesign .admin-balance-info-card {
+    padding: 12px !important;
+    border-color: #d2dbe6 !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+}
+
+.admin-balance-modal-redesign .admin-balance-info-title {
+    font-size: 0.86rem;
+    font-weight: 500;
+    color: #334155 !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-balance-modal-redesign .admin-balance-info-label {
+    font-size: 0.67rem !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: #6b7280 !important;
+    letter-spacing: 0.04em;
+}
+
+.admin-balance-modal-redesign .admin-balance-info-value {
+    font-size: 0.96rem;
+    font-weight: 500;
+    color: #334155 !important;
+}
+
+.admin-balance-modal-redesign .admin-balance-telegram-link {
+    font-weight: 500;
+}
+
+.admin-balance-modal-redesign .admin-balance-hint {
+    background: #eef4ff;
+    border: 1px solid #c5d7f6;
+    color: #334155;
+}
+
+.admin-balance-modal-redesign .admin-balance-close-btn {
+    font-weight: 500;
+    color: #334155;
+    border-color: #d0d8e4 !important;
+    background: #f4f7fb !important;
+}
+
+.admin-balance-modal-redesign .admin-table thead th {
+    font-weight: 500 !important;
+    font-size: 0.7rem !important;
+}
+
+.admin-balance-modal-redesign .admin-table tbody td {
+    font-size: 0.86rem !important;
+}
+
+.admin-balance-modal-redesign .fw-bold {
+    font-weight: 500 !important;
+}
+
+.admin-balance-modal-redesign .fw-medium {
+    font-weight: 500 !important;
+}
+
+@media (max-width: 767.98px) {
+    .admin-balance-modal-redesign .modal-content {
+        font-size: 13px;
+    }
+
+    .admin-balance-modal-redesign .admin-balance-metric-card {
+        padding: 8px !important;
+    }
+
+    .admin-balance-modal-redesign .admin-balance-metric-label {
+        font-size: 0.68rem;
+    }
+
+    .admin-balance-modal-redesign .admin-balance-metric-value {
+        font-size: 0.98rem !important;
+    }
+
+    .admin-balance-modal-redesign .admin-balance-info-title {
+        font-size: 0.8rem;
+    }
+}
+
 @media (max-width: 991.98px) {
     .admin-navbar-shell .navbar-collapse {
         padding-top: 0.5rem;

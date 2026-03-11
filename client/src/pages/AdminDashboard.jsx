@@ -8708,14 +8708,14 @@ function AdminDashboard() {
           onHide={() => setShowBalanceModal(false)}
           centered
           dialogClassName="admin-balance-modal-compact"
-          className="admin-modal"
+          className="admin-modal admin-balance-modal-redesign"
         >
-          <Modal.Header closeButton className="border-0" style={{ background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', color: '#ffffff' }}>
+          <Modal.Header closeButton className="border-0 admin-balance-modal-header">
             <Modal.Title className="d-flex align-items-center gap-3">
               <span className="fs-4">💰</span>
               <div>
-                <h5 className="mb-0 fw-bold">{t('accountBalance')}</h5>
-                <p className="mb-0 small opacity-75 fw-normal">{user?.active_restaurant_name}</p>
+                <h5 className="mb-0">{t('accountBalance')}</h5>
+                <p className="mb-0 small opacity-75">{user?.active_restaurant_name}</p>
               </div>
             </Modal.Title>
           </Modal.Header>
@@ -8727,38 +8727,38 @@ function AdminDashboard() {
               )}
               <Row className="g-2">
                 <Col md={4}>
-                  <div className="bg-white rounded-3 border p-2 h-100">
-                    <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
+                  <div className="bg-white rounded-3 border p-2 h-100 admin-balance-metric-card">
+                    <div className="text-muted small mb-1 admin-balance-metric-label">
                       {language === 'uz' ? 'Balans' : 'Баланс'}
                     </div>
-                    <div className="fw-bold text-primary fs-5">
-                      {formatPrice(user?.balance || 0)} <span className="small fw-normal">{activeRestaurantCurrencyLabel}</span>
+                    <div className="text-primary fs-5 admin-balance-metric-value">
+                      {formatPrice(user?.balance || 0)} <span className="small">{activeRestaurantCurrencyLabel}</span>
                     </div>
                     <div className="text-muted small mt-1">{language === 'uz' ? 'Summa' : 'Сумма'}</div>
                   </div>
                 </Col>
                 <Col md={4}>
-                  <div className="bg-white rounded-3 border p-2 h-100">
-                    <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
+                  <div className="bg-white rounded-3 border p-2 h-100 admin-balance-metric-card">
+                    <div className="text-muted small mb-1 admin-balance-metric-label">
                       {checksAvailableLabel}
                     </div>
-                    <div className="fw-bold text-primary fs-5">
-                      {formatChecksCount(balanceChecksCount)} <span className="small fw-normal">{checksCountLabel}</span>
+                    <div className="text-primary fs-5 admin-balance-metric-value">
+                      {formatChecksCount(balanceChecksCount)} <span className="small">{checksCountLabel}</span>
                     </div>
                     <div className="text-muted small mt-1">{language === 'uz' ? "Soni" : 'Кол-во'}</div>
                   </div>
                 </Col>
                 <Col md={4}>
-                  <div className="bg-white rounded-3 border p-2 h-100">
-                    <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
-                      {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'}
+                  <div className="bg-white rounded-3 border p-2 h-100 admin-balance-metric-card">
+                    <div className="text-muted small mb-1 admin-balance-metric-label">
+                      {language === 'uz' ? '1 chek narxi' : 'Стоимость чека'}
                     </div>
-                    <div className="fw-bold text-primary fs-5">
+                    <div className="text-primary fs-5 admin-balance-metric-value">
                       {billingInfo.restaurant?.is_free_tier ? (
                         <span className="fs-6">{language === 'uz' ? 'Bepul' : 'Бесплатно'}</span>
                       ) : (
                         <>
-                          {formatPrice(resolvedOrderCost)} <span className="small fw-normal">{activeRestaurantCurrencyLabel}</span>
+                          {formatPrice(resolvedOrderCost)} <span className="small">{activeRestaurantCurrencyLabel}</span>
                         </>
                       )}
                     </div>
@@ -8775,16 +8775,16 @@ function AdminDashboard() {
 
             <div className="p-3">
               {/* Navigation Tabs */}
-              <div className="custom-modal-tabs mb-3 p-1 bg-light rounded-3 d-flex overflow-hidden">
+              <div className="custom-modal-tabs admin-balance-tabs mb-3 p-1 bg-light rounded-3 d-flex overflow-hidden">
                 <div
-                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'data' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
+                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'data' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
                   onClick={() => setBalanceTab('data')}
                   style={{ cursor: 'pointer' }}
                 >
                   {t('paymentInfo')}
                 </div>
                 <div
-                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'incomes' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
+                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'incomes' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
                   onClick={() => {
                     setBalanceTab('incomes');
                     fetchBillingHistory('deposit');
@@ -8794,7 +8794,7 @@ function AdminDashboard() {
                   {t('incomes')}
                 </div>
                 <div
-                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'expenses' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
+                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'expenses' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
                   onClick={() => {
                     setBalanceTab('expenses');
                     fetchBillingHistory('withdrawal');
@@ -8809,16 +8809,16 @@ function AdminDashboard() {
                 <div className="animate-fade-in">
                   <Row className="g-3">
                     <Col md={6}>
-                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100">
+                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100 admin-balance-info-card">
                         <div className="d-flex align-items-center gap-2 mb-3">
                           <span className="fs-5">💳</span>
-                          <h6 className="mb-0 fw-bold text-dark text-uppercase small" style={{ letterSpacing: '0.05rem' }}>{t('bankCard')}</h6>
+                          <h6 className="mb-0 small admin-balance-info-title">{t('bankCard')}</h6>
                         </div>
 
                         <div className="mb-3">
-                          <label className="text-muted extra-small fw-bold text-uppercase mb-2 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>{t('cardNumber')}</label>
+                          <label className="text-muted extra-small mb-2 d-block admin-balance-info-label">{t('cardNumber')}</label>
                           <div className="d-flex align-items-center justify-content-between p-2 bg-light rounded-3 border">
-                            <span className="fw-bold fs-6 font-monospace">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
+                            <span className="fs-6 font-monospace admin-balance-info-value">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
                             {billingInfo.requisites?.card_number && (
                               <Button
                                 variant="link"
@@ -8836,38 +8836,38 @@ function AdminDashboard() {
                         </div>
 
                         <div className="mb-3">
-                          <label className="text-muted extra-small fw-bold text-uppercase mb-1 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>{t('cardHolder')}</label>
-                          <div className="fw-bold text-dark">{billingInfo.requisites?.card_holder || '—'}</div>
+                          <label className="text-muted extra-small mb-1 d-block admin-balance-info-label">{t('cardHolder')}</label>
+                          <div className="admin-balance-info-value">{billingInfo.requisites?.card_holder || '—'}</div>
                         </div>
 
                         <div>
-                          <label className="text-muted extra-small fw-bold text-uppercase mb-1 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>{t('phoneNumber')}</label>
-                          <div className="fw-bold text-dark">{billingInfo.requisites?.phone_number || '—'}</div>
+                          <label className="text-muted extra-small mb-1 d-block admin-balance-info-label">{t('phoneNumber')}</label>
+                          <div className="admin-balance-info-value">{billingInfo.requisites?.phone_number || '—'}</div>
                         </div>
                       </div>
                     </Col>
 
                     <Col md={6}>
-                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100">
+                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100 admin-balance-info-card">
                         <div className="d-flex align-items-center gap-2 mb-3">
                           <span className="fs-5">💬</span>
-                          <h6 className="mb-0 fw-bold text-dark text-uppercase small" style={{ letterSpacing: '0.05rem' }}>{t('supportTitle')}</h6>
+                          <h6 className="mb-0 small admin-balance-info-title">{t('supportTitle')}</h6>
                         </div>
 
                         <div className="mb-3">
-                          <label className="text-muted extra-small fw-bold text-uppercase mb-2 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>Telegram</label>
+                          <label className="text-muted extra-small mb-2 d-block admin-balance-info-label">Telegram</label>
                           <div className="p-2 bg-light rounded-3 border">
                             {billingInfo.requisites?.telegram_username ? (
                               <a
                                 href={`https://t.me/${billingInfo.requisites.telegram_username.replace('@', '')}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="fw-bold text-info text-decoration-none d-flex align-items-center gap-2"
+                                className="text-info text-decoration-none d-flex align-items-center gap-2 admin-balance-telegram-link"
                               >
                                 <span>@{billingInfo.requisites.telegram_username.replace('@', '')}</span>
                                 <span className="small">↗️</span>
                               </a>
-                            ) : <span className="fw-bold text-muted">—</span>}
+                            ) : <span className="text-muted">—</span>}
                           </div>
                         </div>
 
@@ -8885,7 +8885,7 @@ function AdminDashboard() {
                                 <>
                                   <Button
                                     size="sm"
-                                    className="fw-bold px-2 py-1"
+                                    className="px-2 py-1"
                                     href={clickPaymentLink}
                                     target="_blank"
                                     rel="noreferrer"
@@ -8933,7 +8933,7 @@ function AdminDashboard() {
                                 <>
                                   <Button
                                     size="sm"
-                                    className="fw-bold px-2 py-1"
+                                    className="px-2 py-1"
                                     href={paymePaymentLink}
                                     target="_blank"
                                     rel="noreferrer"
@@ -8972,9 +8972,9 @@ function AdminDashboard() {
                     </Col>
                   </Row>
 
-                  <div className="mt-3 p-2 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-3 d-flex gap-2 align-items-center shadow-sm">
+                  <div className="admin-balance-hint mt-3 p-2 rounded-3 d-flex gap-2 align-items-center">
                     <div className="fs-5">ℹ️</div>
-                    <div className="small text-dark fw-medium lh-sm">
+                    <div className="small lh-sm">
                       {t('topupInstruction')}
                     </div>
                   </div>
@@ -9021,7 +9021,7 @@ function AdminDashboard() {
             </div>
           </Modal.Body>
         <Modal.Footer className="border-top p-3">
-          <Button variant="light" className="fw-bold px-4 rounded-3 border" onClick={() => setShowBalanceModal(false)}>{t('close')}</Button>
+          <Button variant="light" className="admin-balance-close-btn px-4 rounded-3 border" onClick={() => setShowBalanceModal(false)}>{t('close')}</Button>
         </Modal.Footer>
       </Modal>
 
