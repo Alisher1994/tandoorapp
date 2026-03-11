@@ -14,7 +14,11 @@ const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
 };
 const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'single_list' ? 'single_list' : fallback;
+  if (normalized === 'single_list' || normalized === 'grid_categories') {
+    return normalized;
+  }
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
