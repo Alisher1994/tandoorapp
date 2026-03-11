@@ -5660,7 +5660,16 @@ function SuperAdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {pagedAdBanners.map((banner) => (
+                          {pagedAdBanners.map((banner) => {
+                            const activityTypeNames = getActivityTypeNamesByIds(banner.target_activity_type_ids || []);
+                            const activityTypesFullText = activityTypeNames.length
+                              ? activityTypeNames.join(', ')
+                              : adI18n.activityTypeNoTarget;
+                            const activityTypesShortText = activityTypeNames.length > 2
+                              ? `${activityTypeNames.slice(0, 2).join(', ')}...`
+                              : activityTypesFullText;
+
+                            return (
                             <tr key={banner.id}>
                               <td>
                                 <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
@@ -5698,10 +5707,8 @@ function SuperAdminDashboard() {
                                         {getAdTypeLabel(banner.ad_type)}
                                       </Badge>
                                     </div>
-                                    <div className="small text-muted text-truncate" title={(getActivityTypeNamesByIds(banner.target_activity_type_ids || []).join(', ') || 'Все виды деятельности')}>
-                                      🧩 {(banner.target_activity_type_ids || []).length
-                                        ? getActivityTypeNamesByIds(banner.target_activity_type_ids).join(', ')
-                                        : 'Все виды деятельности'}
+                                    <div className="small text-muted text-truncate" title={activityTypesFullText}>
+                                      🧩 {activityTypesShortText}
                                     </div>
                                   </div>
                                 </div>
@@ -5782,7 +5789,8 @@ function SuperAdminDashboard() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                           {adBanners.length === 0 && (
                             <tr>
                               <td colSpan="8" className="text-center py-5 text-muted">

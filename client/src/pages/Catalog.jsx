@@ -220,30 +220,11 @@ function Catalog() {
     if (!tabsScroller || !activeTabButton) return;
 
     const safeBehavior = behavior === 'smooth' ? 'smooth' : 'auto';
-    if (typeof activeTabButton.scrollIntoView === 'function') {
-      activeTabButton.scrollIntoView({
-        behavior: safeBehavior,
-        block: 'nearest',
-        inline: 'nearest'
-      });
-    }
-
     const tabLeft = activeTabButton.offsetLeft;
-    const tabRight = tabLeft + activeTabButton.offsetWidth;
-    const visibleLeft = tabsScroller.scrollLeft;
-    const visibleRight = visibleLeft + tabsScroller.clientWidth;
-
-    let targetLeft = visibleLeft;
-    if (tabLeft < visibleLeft + 8) {
-      targetLeft = Math.max(0, tabLeft - 12);
-    } else if (tabRight > visibleRight - 8) {
-      targetLeft = Math.max(0, tabRight - tabsScroller.clientWidth + 12);
-    } else {
-      return;
-    }
-
     const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
-    targetLeft = Math.min(maxScrollLeft, Math.max(0, targetLeft));
+    const targetLeft = Math.min(maxScrollLeft, Math.max(0, tabLeft - 12));
+    if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
+
     tabsScroller.scrollTo({
       left: targetLeft,
       behavior: safeBehavior
