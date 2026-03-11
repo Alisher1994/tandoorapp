@@ -1044,11 +1044,38 @@ function AdminDashboard() {
   const categoryLineLabels = language === 'uz'
     ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
     : ['Категория 1', 'Категория 2', 'Категория 3'];
+  const resolveCurrencyLabelByCode = useCallback((rawCode) => {
+    const normalizedCode = String(rawCode || '').trim().toLowerCase();
+    const fallback = countryCurrencyOptions?.[0];
+    const matched = countryCurrencyOptions?.find((option) => (
+      String(option?.code || '').trim().toLowerCase() === normalizedCode
+    )) || fallback;
+
+    if (!matched) return t('sum');
+    if (language === 'uz') {
+      return matched.currencyUz || matched.currencyRu || t('sum');
+    }
+    return matched.currencyRu || matched.currencyUz || t('sum');
+  }, [countryCurrencyOptions, language, t]);
+  const activeRestaurantCurrencyLabel = useMemo(() => (
+    resolveCurrencyLabelByCode(
+      restaurantSettings?.currency_code
+      || billingInfo?.restaurant?.currency_code
+      || user?.active_restaurant_currency_code
+      || countryCurrency?.code
+    )
+  ), [
+    resolveCurrencyLabelByCode,
+    restaurantSettings?.currency_code,
+    billingInfo?.restaurant?.currency_code,
+    user?.active_restaurant_currency_code,
+    countryCurrency?.code
+  ]);
   const resolvedOrderCost = useMemo(() => {
     const billingCost = Number(billingInfo?.restaurant?.order_cost);
-    if (Number.isFinite(billingCost) && billingCost > 0) return billingCost;
+    if (Number.isFinite(billingCost) && billingCost >= 0) return billingCost;
     const settingsCost = Number(restaurantSettings?.order_cost);
-    if (Number.isFinite(settingsCost) && settingsCost > 0) return settingsCost;
+    if (Number.isFinite(settingsCost) && settingsCost >= 0) return settingsCost;
     return 1000;
   }, [billingInfo?.restaurant?.order_cost, restaurantSettings?.order_cost]);
   const isUnlimitedChecksBalance = Boolean(
@@ -1058,7 +1085,8 @@ function AdminDashboard() {
     if (isUnlimitedChecksBalance) return Number.POSITIVE_INFINITY;
     const currentBalance = Number(user?.balance);
     if (!Number.isFinite(currentBalance) || currentBalance <= 0) return 0;
-    if (!Number.isFinite(resolvedOrderCost) || resolvedOrderCost <= 0) return 0;
+    if (!Number.isFinite(resolvedOrderCost)) return 0;
+    if (resolvedOrderCost <= 0) return Number.POSITIVE_INFINITY;
     return Math.max(0, Math.floor(currentBalance / resolvedOrderCost));
   }, [isUnlimitedChecksBalance, user?.balance, resolvedOrderCost]);
   const checksCountLabel = language === 'uz' ? 'ta chek' : 'чеков';
@@ -1652,6 +1680,11 @@ function AdminDashboard() {
       fetchBillingInfo();
     }
   }, [user?.active_restaurant_id]);
+  useEffect(() => {
+    if (user?.active_restaurant_currency_code) {
+      setCountryCurrency(user.active_restaurant_currency_code);
+    }
+  }, [user?.active_restaurant_currency_code, setCountryCurrency]);
 
   useEffect(() => {
     if (mainTab !== 'help' || !user?.active_restaurant_id) return;
@@ -8725,18 +8758,54 @@ function AdminDashboard() {
           </Modal.Header>
           <Modal.Body className="p-0">
             {/* Balance Overview */}
-            <div className="bg-light p-4 border-bottom d-flex justify-content-between align-items-center">
-              <div>
-                <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>{checksAvailableLabel}</div>
-                <h2 className="mb-0 fw-bold text-primary">{formatChecksCount(balanceChecksCount)} <span className="fs-5 fw-normal">{checksCountLabel}</span></h2>
-                <div className="text-muted small mt-1">{t('currentBalance')}: {formatPrice(user?.balance || 0)} {t('sum')}</div>
-              </div>
-              {billingInfo.restaurant?.is_free_tier ? (
-                <Badge bg="success" className="px-3 py-2 fs-6">⭐ {t('freeTier')}</Badge>
-              ) : (
-                <div className="text-end">
-                  <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>{t('orderCost')}</div>
-                  <h4 className="mb-0 fw-bold">{formatPrice(resolvedOrderCost)} <span className="fs-6 fw-normal text-muted">{t('sum')}</span></h4>
+            <div className="bg-light p-4 border-bottom">
+              {billingInfo.restaurant?.is_free_tier && (
+                <Badge bg="success" className="px-3 py-2 fs-6 mb-3">⭐ {t('freeTier')}</Badge>
+              )}
+              <Row className="g-3">
+                <Col md={4}>
+                  <div className="bg-white rounded-3 border p-3 h-100">
+                    <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
+                      {language === 'uz' ? 'Balans' : 'Баланс'}
+                    </div>
+                    <div className="fw-bold text-primary fs-4">
+                      {formatPrice(user?.balance || 0)} <span className="fs-6 fw-normal">{activeRestaurantCurrencyLabel}</span>
+                    </div>
+                    <div className="text-muted small mt-1">{language === 'uz' ? 'Summa' : 'Сумма'}</div>
+                  </div>
+                </Col>
+                <Col md={4}>
+                  <div className="bg-white rounded-3 border p-3 h-100">
+                    <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
+                      {checksAvailableLabel}
+                    </div>
+                    <div className="fw-bold text-primary fs-4">
+                      {formatChecksCount(balanceChecksCount)} <span className="fs-6 fw-normal">{checksCountLabel}</span>
+                    </div>
+                    <div className="text-muted small mt-1">{language === 'uz' ? "Soni" : 'Кол-во'}</div>
+                  </div>
+                </Col>
+                <Col md={4}>
+                  <div className="bg-white rounded-3 border p-3 h-100">
+                    <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
+                      {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'}
+                    </div>
+                    <div className="fw-bold text-primary fs-4">
+                      {billingInfo.restaurant?.is_free_tier ? (
+                        <span className="fs-5">{language === 'uz' ? 'Bepul' : 'Бесплатно'}</span>
+                      ) : (
+                        <>
+                          {formatPrice(resolvedOrderCost)} <span className="fs-6 fw-normal">{activeRestaurantCurrencyLabel}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="text-muted small mt-1">{language === 'uz' ? 'Summa' : 'Сумма'}</div>
+                  </div>
+                </Col>
+              </Row>
+              {!billingInfo.restaurant?.is_free_tier && (
+                <div className="text-muted small mt-3">
+                  {t('orderCost')}: {formatPrice(resolvedOrderCost)} {activeRestaurantCurrencyLabel}
                 </div>
               )}
             </div>

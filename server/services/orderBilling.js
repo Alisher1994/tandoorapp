@@ -1,5 +1,13 @@
 const pool = require('../database/connection');
 const LOW_BALANCE_ALERT_THRESHOLD = Number(process.env.LOW_BALANCE_ALERT_THRESHOLD || 3000);
+const resolveOrderCostAmount = (value, fallback = 1000) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = typeof value === 'string'
+    ? value.trim().replace(/\s+/g, '').replace(',', '.')
+    : value;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
 
 async function ensureOrderPaidForProcessing({
   orderId,
@@ -37,7 +45,7 @@ async function ensureOrderPaidForProcessing({
       return {
         ok: true,
         alreadyPaid: true,
-        cost: Number(order.order_cost || 0),
+        cost: resolveOrderCostAmount(order.order_cost, 0),
         order,
         restaurantId: Number(order.restaurant_id || 0) || null,
         balanceBefore: Number(order.balance || 0),
@@ -47,7 +55,7 @@ async function ensureOrderPaidForProcessing({
       };
     }
 
-    const cost = order.is_free_tier ? 0 : Number(order.order_cost || 1000);
+    const cost = order.is_free_tier ? 0 : resolveOrderCostAmount(order.order_cost, 1000);
     const balance = Number(order.balance || 0);
 
     if (!order.is_free_tier && balance < cost) {

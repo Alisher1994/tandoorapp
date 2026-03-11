@@ -1961,12 +1961,43 @@ function SuperAdminDashboard() {
     const digitsOnly = String(event.target.value || '').replace(/\D/g, '');
     setTopupForm((prev) => ({ ...prev, amount: digitsOnly }));
   };
+  const parseDecimalInputOrZero = (value) => {
+    const normalized = String(value ?? '').trim().replace(/\s+/g, '').replace(',', '.');
+    if (!normalized) return 0;
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const getCurrencyLabelByCode = (code) => {
+    const normalizedCode = String(code || '').trim().toLowerCase();
+    const fallback = countryCurrencyOptions?.[0];
+    const matched = countryCurrencyOptions?.find((option) => (
+      String(option?.code || '').trim().toLowerCase() === normalizedCode
+    )) || fallback;
+    if (!matched) return t('sum');
+    if (language === 'uz') return matched.currencyUz || matched.currencyRu || t('sum');
+    return matched.currencyRu || matched.currencyUz || t('sum');
+  };
 
   const formatBalanceAmount = (value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return '0';
     const locale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
-    return Math.round(numeric).toLocaleString(locale);
+    const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+    const hasFraction = Math.abs(rounded % 1) > 0.0000001;
+    return rounded.toLocaleString(locale, {
+      minimumFractionDigits: hasFraction ? 2 : 0,
+      maximumFractionDigits: 2
+    });
+  };
+  const formatChecksCount = (balanceValue, orderCostValue, isFreeTier) => {
+    if (isFreeTier) return '∞';
+    const balance = Number(balanceValue);
+    const orderCost = Number(orderCostValue);
+    if (!Number.isFinite(balance) || balance <= 0) return '0';
+    if (!Number.isFinite(orderCost)) return '0';
+    if (orderCost <= 0) return '∞';
+    const checks = Math.max(0, Math.floor(balance / orderCost));
+    return checks.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
   };
 
   const formatBalanceOperationDate = (value) => {
@@ -3517,7 +3548,7 @@ function SuperAdminDashboard() {
                             <tr key={`sa-low-balance-shop-${item.id || idx}`}>
                               <td>{idx + 1}</td>
                               <td>{item.name || '—'}</td>
-                              <td className="text-end">{formatAnalyticsMoney(item.balance || 0)} {t('sum')}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.balance || 0)} {getCurrencyLabelByCode(item.currency_code || countryCurrency?.code)}</td>
                               <td className="text-end">
                                 <Button
                                   variant="light"
@@ -3535,8 +3566,8 @@ function SuperAdminDashboard() {
                     ) : (
                       <div className="text-center text-muted py-4">
                         {language === 'uz'
-                          ? `20 000 ${t('sum')}dan past balansli do'kon yo'q`
-                          : `Нет магазинов с балансом ниже 20 000 ${t('sum')}`}
+                          ? "Belgilangan chegaradan past balansli do'kon yo'q"
+                          : 'Нет магазинов с балансом ниже установленного порога'}
                       </div>
                     )}
                   </Card.Body>
@@ -4871,12 +4902,24 @@ function SuperAdminDashboard() {
                                 </div>
                               </td>
                               <td>
-                                <div className="fw-bold text-primary">{parseFloat(r.balance || 0).toLocaleString()} {t('sum')}</div>
-                                <small className="text-muted">Стоимость заказа: {parseFloat(r.order_cost || 1000).toLocaleString()}</small>
+                                {(() => {
+                                  const currencyLabel = getCurrencyLabelByCode(r.currency_code || countryCurrency?.code);
+                                  return (
+                                    <>
+                                      <div className="fw-bold text-primary">{formatBalanceAmount(r.balance || 0)} {currencyLabel}</div>
+                                      <small className="text-muted d-block">
+                                        {language === 'uz' ? "Qolgan cheklar" : 'Доступно чеков'}: {formatChecksCount(r.balance || 0, r.order_cost || 0, r.is_free_tier)} {language === 'uz' ? 'ta' : 'шт'}
+                                      </small>
+                                      <small className="text-muted">
+                                        {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'}: {formatBalanceAmount(r.order_cost || 0)} {currencyLabel}
+                                      </small>
+                                    </>
+                                  );
+                                })()}
                               </td>
                               <td>
                                 <div className="fw-semibold">
-                                  {parseFloat(r.service_fee || 0).toLocaleString()} {t('sum')}
+                                  {formatBalanceAmount(r.service_fee || 0)} {getCurrencyLabelByCode(r.currency_code || countryCurrency?.code)}
                                 </div>
                               </td>
                               <td>
@@ -7556,27 +7599,18 @@ function SuperAdminDashboard() {
                   </div>
 
                   <div className="mb-4 bg-light p-3 rounded border border-light">
-                    <div className="d-flex align-items-center justify-content-between">
-                      <Form.Label className="fw-medium text-secondary m-0">🛎 {t('saServiceFee')} ({t('sum')})</Form.Label>
-                      <Form.Check
-                        type="switch"
-                        id="service-fee-switch"
-                        checked={restaurantForm.service_fee > 0}
-                        onChange={(e) => setRestaurantForm({ ...restaurantForm, service_fee: e.target.checked ? 1000 : 0 })}
-                        className="fs-5 m-0"
-                      />
-                    </div>
-                    {restaurantForm.service_fee > 0 && (
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        step="1000"
-                        value={restaurantForm.service_fee}
-                        onChange={(e) => setRestaurantForm({ ...restaurantForm, service_fee: parseFloat(e.target.value) || 0 })}
-                        placeholder="0"
-                        className="mt-3"
-                      />
-                    )}
+                    <Form.Label className="fw-medium text-secondary m-0">
+                      🛎 {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})
+                    </Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={restaurantForm.service_fee}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, service_fee: parseDecimalInputOrZero(e.target.value) })}
+                      placeholder="0"
+                      className="mt-3"
+                    />
                     <Form.Text className="text-muted mt-2 d-block">Укажите сумму, которая будет списываться с баланса заведения за каждый принятый заказ. Эта же сумма может отображаться клиенту в чеке как сбор за обслуживание.</Form.Text>
                   </div>
 
@@ -7612,7 +7646,7 @@ function SuperAdminDashboard() {
                         </Col>
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saBasePrice')} ({t('sum')})</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small">{t('saBasePrice')} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})</Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -7626,7 +7660,7 @@ function SuperAdminDashboard() {
                         </Col>
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saPricePerKm')} ({t('sum')})</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small">{t('saPricePerKm')} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})</Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -8291,7 +8325,7 @@ function SuperAdminDashboard() {
               <div className="fs-1">💰</div>
               <div>
                 <h6 className="mb-1 fw-bold">{topupRestaurant.name}</h6>
-                <div className="text-muted small">{t('currentBalance')}: {formatBalanceAmount(topupRestaurant.balance)} {t('sum')}</div>
+                <div className="text-muted small">{t('currentBalance')}: {formatBalanceAmount(topupRestaurant.balance)} {getCurrencyLabelByCode(topupRestaurant.currency_code || countryCurrency?.code)}</div>
               </div>
             </div>
           )}
@@ -8375,7 +8409,7 @@ function SuperAdminDashboard() {
                       </div>
                       <div className="text-end small">
                         <div className={`fw-bold ${isDeposit ? 'text-success' : 'text-danger'}`}>
-                          {isDeposit ? '+' : '-'}{formatBalanceAmount(transaction?.amount)} {t('sum')}
+                          {isDeposit ? '+' : '-'}{formatBalanceAmount(transaction?.amount)} {getCurrencyLabelByCode(topupRestaurant?.currency_code || countryCurrency?.code)}
                         </div>
                         <div className="text-muted">{formatBalanceOperationDate(transaction?.created_at)}</div>
                       </div>

@@ -181,6 +181,13 @@ const normalizePhoneValue = (value) => {
   if (!digits) return null;
   return `+${digits}`;
 };
+const parseFlexibleAmount = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 const normalizeInstructionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -1085,7 +1092,7 @@ router.put('/billing-settings', async (req, res) => {
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link,
       parseFloat(default_starting_balance) || 100000,
-      parseFloat(default_order_cost) || 1000,
+      parseFlexibleAmount(default_order_cost, 1000),
       normalizedToken,
       normalizedSuperadminTelegramId,
       normalizedCatalogAnimationSeason
@@ -1133,7 +1140,7 @@ router.post('/restaurants/:id/topup', async (req, res) => {
       UPDATE restaurants 
       SET balance = balance + $1 
       WHERE id = $2 
-      RETURNING id, name, balance
+      RETURNING id, name, balance, currency_code
     `, [amountValue, restaurantId]);
 
     if (updatedRest.rows.length === 0) {
@@ -1188,7 +1195,7 @@ router.get('/restaurants/:id/billing-transactions', async (req, res) => {
     const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 30;
 
     const restaurantResult = await pool.query(
-      'SELECT id, name, balance FROM restaurants WHERE id = $1',
+      'SELECT id, name, balance, currency_code FROM restaurants WHERE id = $1',
       [restaurantId]
     );
     if (!restaurantResult.rows.length) {
@@ -1239,7 +1246,7 @@ router.post('/restaurants/:id/refund', async (req, res) => {
     await client.query('BEGIN');
 
     const restaurantResult = await client.query(
-      'SELECT id, name, balance FROM restaurants WHERE id = $1 FOR UPDATE',
+      'SELECT id, name, balance, currency_code FROM restaurants WHERE id = $1 FOR UPDATE',
       [restaurantId]
     );
     if (!restaurantResult.rows.length) {
@@ -1257,7 +1264,7 @@ router.post('/restaurants/:id/refund', async (req, res) => {
       UPDATE restaurants
       SET balance = balance - $1
       WHERE id = $2
-      RETURNING id, name, balance
+      RETURNING id, name, balance, currency_code
     `, [amountValue, restaurantId]);
 
     const transactionResult = await client.query(`
@@ -1400,6 +1407,10 @@ router.post('/restaurants', async (req, res) => {
     // Get default billing settings
     const settingsResult = await pool.query('SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1');
     const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
+    const parsedServiceFee = parseFlexibleAmount(req.body.service_fee, 0);
+    const parsedOrderCost = req.body.service_fee !== undefined
+      ? parsedServiceFee
+      : parseFlexibleAmount(settings.default_order_cost, 1000);
 
     const result = await pool.query(`
       INSERT INTO restaurants (
@@ -1428,9 +1439,9 @@ router.post('/restaurants', async (req, res) => {
       click_url || null,
       payme_url || null,
       is_delivery_enabled !== undefined ? is_delivery_enabled : true,
-      parseFloat(req.body.service_fee) || 0,
+      parsedServiceFee,
       settings.default_starting_balance,
-      req.body.service_fee !== undefined ? parseFloat(req.body.service_fee) : settings.default_order_cost,
+      parsedOrderCost,
       activityTypeId,
       normalizedCurrencyCode,
       payme_enabled === true || payme_enabled === 'true',
@@ -1526,6 +1537,7 @@ router.put('/restaurants/:id', async (req, res) => {
     }
 
     console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
+    const parsedServiceFee = parseFlexibleAmount(service_fee, 0);
 
     // Check if service_fee column exists, if not - create it
     const hasServiceFee = oldValues.hasOwnProperty('service_fee');
@@ -1639,14 +1651,14 @@ router.put('/restaurants/:id', async (req, res) => {
       payme_url || null,
       support_username || null,
       operator_registration_code || null,
-      parseFloat(service_fee) || 0,
+      parsedServiceFee,
       latitude ? parseFloat(latitude) : null,
       longitude ? parseFloat(longitude) : null,
       parseFloat(delivery_base_radius) || 0,
       parseFloat(delivery_base_price) || 0,
       parseFloat(delivery_price_per_km) || 0,
       is_delivery_enabled !== undefined ? is_delivery_enabled : true,
-      parseFloat(service_fee) || 0,
+      parsedServiceFee,
       hasActivityTypeField ? activityTypeId : oldValues.activity_type_id || null,
       payme_enabled === true || payme_enabled === 'true',
       payme_merchant_id || null,
@@ -2826,7 +2838,7 @@ router.get('/analytics/overview', async (req, res) => {
 
     const lowBalanceRestaurantsResult = await pool.query(
       `
-      SELECT id, name, COALESCE(balance, 0) AS balance
+      SELECT id, name, COALESCE(balance, 0) AS balance, currency_code
       FROM restaurants
       WHERE is_active = true
         AND COALESCE(balance, 0) < 20000
@@ -3953,7 +3965,7 @@ router.put('/billing/settings', async (req, res) => {
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link, default_starting_balance, default_order_cost,
+      click_link, payme_link, parseFloat(default_starting_balance) || 100000, parseFlexibleAmount(default_order_cost, 1000),
       normalizedToken, normalizedSuperadminTelegramId, normalizedCatalogAnimationSeason
     ]);
 

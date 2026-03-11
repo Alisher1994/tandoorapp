@@ -213,6 +213,17 @@ const parseAnalyticsInt = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
 };
+const parseFlexibleAmount = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const resolveOrderCostAmount = (value, fallback = 1000) => {
+  const parsed = parseFlexibleAmount(value, Number.NaN);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
 const parseAnalyticsPeriod = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'monthly' || normalized === 'month') return 'monthly';
@@ -727,7 +738,7 @@ router.get('/orders', async (req, res) => {
       const isProcessedOrder = normalizedStatus && normalizedStatus !== 'new';
       const isFreeTier = Boolean(order.restaurant_is_free_tier);
       const restaurantBalance = parseFloat(order.restaurant_balance || 0);
-      const orderCost = parseFloat(order.restaurant_order_cost || 1000);
+      const orderCost = resolveOrderCostAmount(order.restaurant_order_cost, 1000);
       const canViewNewOrderSensitiveData = isFreeTier || order.is_paid || restaurantBalance >= orderCost;
 
       if (isProcessedOrder || canViewNewOrderSensitiveData) {
@@ -838,7 +849,7 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
     }
 
     // 2. Billing logic
-    const cost = order.is_free_tier ? 0 : Number(order.order_cost || 1000);
+    const cost = order.is_free_tier ? 0 : resolveOrderCostAmount(order.order_cost, 1000);
     const lowBalanceThreshold = Number(process.env.LOW_BALANCE_ALERT_THRESHOLD || 3000);
     const balanceBefore = Number(order.balance || 0);
 
@@ -1463,7 +1474,7 @@ router.get('/billing/info', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
-    const restResult = await pool.query('SELECT id, balance, is_free_tier, order_cost FROM restaurants WHERE id = $1', [restaurantId]);
+    const restResult = await pool.query('SELECT id, balance, is_free_tier, order_cost, currency_code FROM restaurants WHERE id = $1', [restaurantId]);
     const settingsResult = await pool.query('SELECT card_number, card_holder, phone_number, telegram_username, click_link, payme_link FROM billing_settings WHERE id = 1');
 
     res.json({
