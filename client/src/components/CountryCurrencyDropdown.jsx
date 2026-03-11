@@ -5,15 +5,18 @@ function CountryCurrencyDropdown({
   selectedOption = null,
   options = [],
   onChange,
-  className = ''
+  className = '',
+  readOnly = false,
+  disabled = false
 }) {
   const rootRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
   const currentOption = selectedOption || safeOptions[0] || null;
+  const isInteractive = !readOnly && !disabled && typeof onChange === 'function';
 
   useEffect(() => {
-    if (!isOpen) return undefined;
+    if (!isOpen || !isInteractive) return undefined;
 
     const handleDocumentClick = (event) => {
       if (rootRef.current && !rootRef.current.contains(event.target)) {
@@ -33,7 +36,7 @@ function CountryCurrencyDropdown({
       document.removeEventListener('mousedown', handleDocumentClick);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, isInteractive]);
 
   const getCountryName = (option) => (
     language === 'uz'
@@ -42,6 +45,7 @@ function CountryCurrencyDropdown({
   );
 
   const handleSelect = (code) => {
+    if (!isInteractive) return;
     if (typeof onChange === 'function') {
       onChange(code);
     }
@@ -52,10 +56,15 @@ function CountryCurrencyDropdown({
     <div ref={rootRef} className={`country-currency-dropdown ${className}`.trim()}>
       <button
         type="button"
-        className={`country-currency-trigger ${isOpen ? 'is-open' : ''}`}
-        onClick={() => setIsOpen((prev) => !prev)}
-        aria-expanded={isOpen}
+        className={`country-currency-trigger ${isOpen ? 'is-open' : ''} ${readOnly ? 'is-readonly' : ''} ${disabled ? 'is-disabled' : ''}`}
+        onClick={() => {
+          if (!isInteractive) return;
+          setIsOpen((prev) => !prev);
+        }}
+        aria-expanded={isInteractive ? isOpen : false}
         aria-haspopup="listbox"
+        aria-disabled={!isInteractive}
+        disabled={disabled}
       >
         {currentOption ? (
           <>
@@ -70,10 +79,12 @@ function CountryCurrencyDropdown({
             <span className="country-currency-country">-</span>
           </span>
         )}
-        <span className={`country-currency-chevron ${isOpen ? 'is-open' : ''}`} aria-hidden="true">▾</span>
+        {isInteractive && (
+          <span className={`country-currency-chevron ${isOpen ? 'is-open' : ''}`} aria-hidden="true">▾</span>
+        )}
       </button>
 
-      {isOpen && (
+      {isInteractive && isOpen && (
         <div className="country-currency-menu" role="listbox">
           {safeOptions.map((option) => {
             const isActive = currentOption?.code === option.code;

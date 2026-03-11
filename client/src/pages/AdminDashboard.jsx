@@ -54,15 +54,6 @@ const ANALYTICS_PAYMENT_METHOD_META = {
   card: { labelRu: 'Карта', labelUz: 'Karta', color: '#0ea5e9', iconType: 'emoji', icon: '💳' },
   cash: { labelRu: 'Наличные', labelUz: 'Naqd', color: '#16a34a', iconType: 'emoji', icon: '💵' }
 };
-const RESTAURANT_CURRENCY_OPTIONS = [
-  { value: 'uz', labelRu: 'Узбекистан - сум', labelUz: 'O\'zbekiston - so\'m' },
-  { value: 'kz', labelRu: 'Казахстан - тенге', labelUz: 'Qozog\'iston - tenge' },
-  { value: 'tm', labelRu: 'Туркменистан - манат', labelUz: 'Turkmaniston - manat' },
-  { value: 'tj', labelRu: 'Таджикистан - сомони', labelUz: 'Tojikiston - somoni' },
-  { value: 'kg', labelRu: 'Кыргызстан - сом', labelUz: 'Qirg\'iziston - som' },
-  { value: 'af', labelRu: 'Афганистан - афгани', labelUz: 'Afg\'oniston - afg\'oni' },
-  { value: 'ru', labelRu: 'Россия - руб', labelUz: 'Rossiya - rubl' }
-];
 const normalizeAnalyticsPaymentMethod = (paymentMethod) => {
   const normalized = String(paymentMethod || '').trim().toLowerCase();
   return ANALYTICS_PAYMENT_METHOD_ORDER.includes(normalized) ? normalized : '';
@@ -1040,10 +1031,24 @@ function AdminDashboard() {
   const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
   const allThirdCategoriesLabel = language === 'uz' ? 'Barcha 3-daraja kategoriyalari' : 'Все категории 3 уровня';
   const thirdCategoryLabel = language === 'uz' ? '3-daraja kategoriya' : 'Категория 3';
-  const currencyCountryLabel = language === 'uz' ? 'Mamlakat va valyuta' : 'Страна и валюта';
   const categoryLineLabels = language === 'uz'
     ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
     : ['Категория 1', 'Категория 2', 'Категория 3'];
+  const canEditStoreCurrency = isSuperAdmin();
+  const selectedRestaurantCurrencyOption = useMemo(() => {
+    const nextCode = String(
+      restaurantSettings?.currency_code
+      || user?.active_restaurant_currency_code
+      || countryCurrency?.code
+      || 'uz'
+    ).trim().toLowerCase();
+    return countryCurrencyOptions.find((option) => option.code === nextCode) || countryCurrencyOptions[0] || null;
+  }, [
+    restaurantSettings?.currency_code,
+    user?.active_restaurant_currency_code,
+    countryCurrency?.code,
+    countryCurrencyOptions
+  ]);
   const resolveCurrencyLabelByCode = useCallback((rawCode) => {
     const normalizedCode = String(rawCode || '').trim().toLowerCase();
     const fallback = countryCurrencyOptions?.[0];
@@ -3953,29 +3958,6 @@ function AdminDashboard() {
     return <PageSkeleton fullscreen label="Загрузка панели оператора" cards={9} />;
   }
 
-  const handleCountryCurrencyChange = async (code) => {
-    const previousCode = countryCurrency?.code;
-    setCountryCurrency(code);
-    try {
-      const response = await axios.patch(`${API_URL}/admin/restaurant/currency`, { currency_code: code });
-      const savedCode = response.data?.currency_code;
-      if (savedCode) {
-        setCountryCurrency(savedCode);
-      }
-      setRestaurantSettings((prev) => (
-        prev
-          ? { ...prev, currency_code: savedCode || code }
-          : prev
-      ));
-    } catch (error) {
-      setCountryCurrency(previousCode || 'uz');
-      setAlertMessage({
-        type: 'danger',
-        text: error.response?.data?.error || 'Ошибка обновления валюты магазина'
-      });
-    }
-  };
-
   const handleSwitchRestaurant = async (restaurantId) => {
     if (Number(restaurantId) === Number(user?.active_restaurant_id)) {
       setShowRestaurantPickerModal(false);
@@ -4961,16 +4943,6 @@ function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="px-2 pb-2">
-                      <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
-                      <CountryCurrencyDropdown
-                        language={language}
-                        selectedOption={countryCurrency}
-                        options={countryCurrencyOptions}
-                        onChange={handleCountryCurrencyChange}
-                      />
-                    </div>
-
                     <Dropdown.Divider className="mx-2" />
                     <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2 rounded-3">
                       <i className="bi bi-box-arrow-right"></i> <span>{t('logout')}</span>
@@ -5124,16 +5096,6 @@ function AdminDashboard() {
                   <img src="https://flagcdn.com/w20/uz.png" width="14" alt="UZ" className="me-1" /> O'zb
                 </div>
               </div>
-            </div>
-
-            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
-              <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
-              <CountryCurrencyDropdown
-                language={language}
-                selectedOption={countryCurrency}
-                options={countryCurrencyOptions}
-                onChange={handleCountryCurrencyChange}
-              />
             </div>
 
             <Button
@@ -7183,25 +7145,25 @@ function AdminDashboard() {
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
                                                 {language === 'uz' ? 'Do\'kon valyutasi' : 'Валюта магазина'}
                                               </Form.Label>
-                                              <Form.Select
-                                                className="form-control-custom"
-                                                value={restaurantSettings.currency_code || 'uz'}
-                                                onChange={e => {
-                                                  const nextCode = e.target.value;
-                                                  setRestaurantSettings({ ...restaurantSettings, currency_code: nextCode });
-                                                  setCountryCurrency(nextCode);
+                                              <CountryCurrencyDropdown
+                                                language={language}
+                                                selectedOption={selectedRestaurantCurrencyOption}
+                                                options={countryCurrencyOptions}
+                                                readOnly={!canEditStoreCurrency}
+                                                onChange={(code) => {
+                                                  if (!canEditStoreCurrency) return;
+                                                  setRestaurantSettings({ ...restaurantSettings, currency_code: code });
+                                                  setCountryCurrency(code);
                                                 }}
-                                              >
-                                                {RESTAURANT_CURRENCY_OPTIONS.map((option) => (
-                                                  <option key={option.value} value={option.value}>
-                                                    {language === 'uz' ? option.labelUz : option.labelRu}
-                                                  </option>
-                                                ))}
-                                              </Form.Select>
+                                              />
                                               <Form.Text className="text-muted d-block mt-2">
-                                                {language === 'uz'
-                                                  ? 'Bu tanlov mijozlar uchun ham summalarda aks etadi.'
-                                                  : 'Этот выбор также применяется к отображению сумм у клиентов.'}
+                                                {canEditStoreCurrency
+                                                  ? (language === 'uz'
+                                                    ? 'Bu tanlov mijozlar uchun ham summalarda aks etadi.'
+                                                    : 'Этот выбор также применяется к отображению сумм у клиентов.')
+                                                  : (language === 'uz'
+                                                    ? "Valyutani faqat superadmin o'zgartiradi."
+                                                    : 'Валюту может менять только супер-админ.')}
                                               </Form.Text>
                                             </Form.Group>
                                           </Col>
@@ -8749,7 +8711,7 @@ function AdminDashboard() {
         >
           <Modal.Header closeButton className="border-0" style={{ background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', color: '#ffffff' }}>
             <Modal.Title className="d-flex align-items-center gap-3">
-              <span className="fs-3">💰</span>
+              <span className="fs-4">💰</span>
               <div>
                 <h5 className="mb-0 fw-bold">{t('accountBalance')}</h5>
                 <p className="mb-0 small opacity-75 fw-normal">{user?.active_restaurant_name}</p>
@@ -8758,44 +8720,44 @@ function AdminDashboard() {
           </Modal.Header>
           <Modal.Body className="p-0">
             {/* Balance Overview */}
-            <div className="bg-light p-4 border-bottom">
+            <div className="bg-light p-3 border-bottom">
               {billingInfo.restaurant?.is_free_tier && (
-                <Badge bg="success" className="px-3 py-2 fs-6 mb-3">⭐ {t('freeTier')}</Badge>
+                <Badge bg="success" className="px-2 py-1 mb-2">⭐ {t('freeTier')}</Badge>
               )}
-              <Row className="g-3">
+              <Row className="g-2">
                 <Col md={4}>
-                  <div className="bg-white rounded-3 border p-3 h-100">
+                  <div className="bg-white rounded-3 border p-2 h-100">
                     <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
                       {language === 'uz' ? 'Balans' : 'Баланс'}
                     </div>
-                    <div className="fw-bold text-primary fs-4">
-                      {formatPrice(user?.balance || 0)} <span className="fs-6 fw-normal">{activeRestaurantCurrencyLabel}</span>
+                    <div className="fw-bold text-primary fs-5">
+                      {formatPrice(user?.balance || 0)} <span className="small fw-normal">{activeRestaurantCurrencyLabel}</span>
                     </div>
                     <div className="text-muted small mt-1">{language === 'uz' ? 'Summa' : 'Сумма'}</div>
                   </div>
                 </Col>
                 <Col md={4}>
-                  <div className="bg-white rounded-3 border p-3 h-100">
+                  <div className="bg-white rounded-3 border p-2 h-100">
                     <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
                       {checksAvailableLabel}
                     </div>
-                    <div className="fw-bold text-primary fs-4">
-                      {formatChecksCount(balanceChecksCount)} <span className="fs-6 fw-normal">{checksCountLabel}</span>
+                    <div className="fw-bold text-primary fs-5">
+                      {formatChecksCount(balanceChecksCount)} <span className="small fw-normal">{checksCountLabel}</span>
                     </div>
                     <div className="text-muted small mt-1">{language === 'uz' ? "Soni" : 'Кол-во'}</div>
                   </div>
                 </Col>
                 <Col md={4}>
-                  <div className="bg-white rounded-3 border p-3 h-100">
+                  <div className="bg-white rounded-3 border p-2 h-100">
                     <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>
                       {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'}
                     </div>
-                    <div className="fw-bold text-primary fs-4">
+                    <div className="fw-bold text-primary fs-5">
                       {billingInfo.restaurant?.is_free_tier ? (
-                        <span className="fs-5">{language === 'uz' ? 'Bepul' : 'Бесплатно'}</span>
+                        <span className="fs-6">{language === 'uz' ? 'Bepul' : 'Бесплатно'}</span>
                       ) : (
                         <>
-                          {formatPrice(resolvedOrderCost)} <span className="fs-6 fw-normal">{activeRestaurantCurrencyLabel}</span>
+                          {formatPrice(resolvedOrderCost)} <span className="small fw-normal">{activeRestaurantCurrencyLabel}</span>
                         </>
                       )}
                     </div>
@@ -8810,9 +8772,9 @@ function AdminDashboard() {
               )}
             </div>
 
-            <div className="p-4">
+            <div className="p-3">
               {/* Navigation Tabs */}
-              <div className="custom-modal-tabs mb-4 p-1 bg-light rounded-3 d-flex overflow-hidden">
+              <div className="custom-modal-tabs mb-3 p-1 bg-light rounded-3 d-flex overflow-hidden">
                 <div
                   className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'data' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
                   onClick={() => setBalanceTab('data')}
@@ -8844,18 +8806,18 @@ function AdminDashboard() {
 
               {balanceTab === 'data' && (
                 <div className="animate-fade-in">
-                  <Row className="g-4">
+                  <Row className="g-3">
                     <Col md={6}>
-                      <div className="p-4 rounded-4 bg-white border border-light shadow-sm h-100">
-                        <div className="d-flex align-items-center gap-2 mb-4">
+                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100">
+                        <div className="d-flex align-items-center gap-2 mb-3">
                           <span className="fs-5">💳</span>
                           <h6 className="mb-0 fw-bold text-dark text-uppercase small" style={{ letterSpacing: '0.05rem' }}>{t('bankCard')}</h6>
                         </div>
 
-                        <div className="mb-4">
+                        <div className="mb-3">
                           <label className="text-muted extra-small fw-bold text-uppercase mb-2 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>{t('cardNumber')}</label>
                           <div className="d-flex align-items-center justify-content-between p-2 bg-light rounded-3 border">
-                            <span className="fw-bold fs-5 font-monospace">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
+                            <span className="fw-bold fs-6 font-monospace">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
                             {billingInfo.requisites?.card_number && (
                               <Button
                                 variant="link"
@@ -8885,13 +8847,13 @@ function AdminDashboard() {
                     </Col>
 
                     <Col md={6}>
-                      <div className="p-4 rounded-4 bg-white border border-light shadow-sm h-100">
-                        <div className="d-flex align-items-center gap-2 mb-4">
+                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100">
+                        <div className="d-flex align-items-center gap-2 mb-3">
                           <span className="fs-5">💬</span>
                           <h6 className="mb-0 fw-bold text-dark text-uppercase small" style={{ letterSpacing: '0.05rem' }}>{t('supportTitle')}</h6>
                         </div>
 
-                        <div className="mb-4">
+                        <div className="mb-3">
                           <label className="text-muted extra-small fw-bold text-uppercase mb-2 d-block" style={{ letterSpacing: '0.05rem', fontSize: '0.65rem' }}>Telegram</label>
                           <div className="p-2 bg-light rounded-3 border">
                             {billingInfo.requisites?.telegram_username ? (

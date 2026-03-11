@@ -13,7 +13,6 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
-import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
@@ -375,10 +374,8 @@ function SuperAdminDashboard() {
     toggleLanguage,
     t,
     countryCurrency,
-    countryCurrencyOptions,
-    setCountryCurrency
+    countryCurrencyOptions
   } = useLanguage();
-  const currencyCountryLabel = language === 'uz' ? 'Interfeys valyutasi (lokal)' : 'Валюта интерфейса (локально)';
   const {
     actionButtonsVisible,
     actionButtonsRemainingLabel,
@@ -4463,15 +4460,6 @@ function SuperAdminDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div className="px-3 pb-2">
-                    <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
-                    <CountryCurrencyDropdown
-                      language={language}
-                      selectedOption={countryCurrency}
-                      options={countryCurrencyOptions}
-                      onChange={setCountryCurrency}
-                    />
-                  </div>
                   <Dropdown.Divider />
                   <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2">
                     <i className="bi bi-box-arrow-right"></i> Выйти
@@ -4499,20 +4487,14 @@ function SuperAdminDashboard() {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body className="pt-0">
-          <div className="d-grid gap-2">
-            <Button
-              variant="light"
-              className="text-start d-flex align-items-center gap-2"
-              onClick={() => {
-                setShowMobileAccountSheet(false);
-                navigate('/admin');
-              }}
-            >
-              <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
-            </Button>
+          <div className="d-grid gap-3">
+            <div className="rounded-3 border p-3 bg-light">
+              <div className="fw-bold text-dark">{user?.full_name || user?.username || 'Super Administrator'}</div>
+              <div className="small text-muted mt-1">Супер-админ</div>
+            </div>
 
             <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
-              <div className="small text-muted mb-2 fw-semibold">Язык</div>
+              <div className="small text-muted mb-2 fw-semibold">Язык интерфейса</div>
               <div className="admin-lang-switch">
                 <div
                   onClick={language !== 'ru' ? toggleLanguage : undefined}
@@ -4531,19 +4513,20 @@ function SuperAdminDashboard() {
               </div>
             </div>
 
-            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
-              <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
-              <CountryCurrencyDropdown
-                language={language}
-                selectedOption={countryCurrency}
-                options={countryCurrencyOptions}
-                onChange={setCountryCurrency}
-              />
-            </div>
-
             <Button
               variant="light"
-              className="text-danger text-start d-flex align-items-center gap-2"
+              className="text-start d-flex align-items-center gap-2"
+              onClick={() => {
+                setShowMobileAccountSheet(false);
+                navigate('/admin');
+              }}
+            >
+              <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
+            </Button>
+
+            <Button
+              variant="outline-danger"
+              className="text-start d-flex align-items-center gap-2"
               onClick={() => {
                 setShowMobileAccountSheet(false);
                 handleLogout();
