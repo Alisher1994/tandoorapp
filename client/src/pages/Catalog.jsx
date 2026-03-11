@@ -91,6 +91,11 @@ function Catalog() {
   const [galleryProductName, setGalleryProductName] = useState('');
   const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
+  const [catalogTabsLayout, setCatalogTabsLayout] = useState({
+    centerSlotWidth: 152,
+    startSpacerWidth: 0,
+    endSpacerWidth: 0
+  });
   const { user, isOperator, logout } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
@@ -126,9 +131,8 @@ function Catalog() {
   const tabActivationSourceRef = useRef('init');
   const suppressNextTabClickRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
-  const catalogTabCenterSlotWidth = 128;
+  const catalogTabGap = 8;
   const catalogTabEdgeFadeWidth = 24;
-  const catalogTabSideInset = `calc(50% - ${Math.round(catalogTabCenterSlotWidth / 2)}px)`;
   const isTelegramWebView = useMemo(() => (
     typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
   ), []);
@@ -1315,6 +1319,69 @@ function Catalog() {
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
   useEffect(() => {
+    if (activeCatalogTabs.length === 0) {
+      setCatalogTabsLayout((prev) => (
+        prev.startSpacerWidth === 0 && prev.endSpacerWidth === 0 && prev.centerSlotWidth === 152
+          ? prev
+          : { centerSlotWidth: 152, startSpacerWidth: 0, endSpacerWidth: 0 }
+      ));
+      return undefined;
+    }
+
+    let rafId = null;
+    const updateTabsLayout = () => {
+      const tabsScroller = level3TabsScrollerRef.current;
+      if (!tabsScroller) return;
+
+      const orderedButtons = activeCatalogTabs
+        .map((section) => level3TabButtonRefs.current[section.id])
+        .filter(Boolean);
+      if (orderedButtons.length === 0) return;
+
+      const firstButton = orderedButtons[0];
+      const lastButton = orderedButtons[orderedButtons.length - 1];
+      const activeButton = level3TabButtonRefs.current[activeSubcategoryTab] || firstButton;
+      const containerWidth = tabsScroller.clientWidth;
+      if (!containerWidth || containerWidth <= 0) return;
+
+      const startSpacerWidth = Math.max(0, ((containerWidth - firstButton.offsetWidth) / 2) - catalogTabGap);
+      const endSpacerWidth = Math.max(0, ((containerWidth - lastButton.offsetWidth) / 2) - catalogTabGap);
+      const centerSlotWidth = Math.min(280, Math.max(132, activeButton.offsetWidth + 24));
+
+      setCatalogTabsLayout((prev) => {
+        const nextLayout = {
+          centerSlotWidth: Math.round(centerSlotWidth),
+          startSpacerWidth: Math.round(startSpacerWidth),
+          endSpacerWidth: Math.round(endSpacerWidth)
+        };
+        if (
+          prev.centerSlotWidth === nextLayout.centerSlotWidth
+          && prev.startSpacerWidth === nextLayout.startSpacerWidth
+          && prev.endSpacerWidth === nextLayout.endSpacerWidth
+        ) {
+          return prev;
+        }
+        return nextLayout;
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateTabsLayout();
+      });
+    };
+
+    scheduleUpdate();
+    window.addEventListener('resize', scheduleUpdate);
+    return () => {
+      window.removeEventListener('resize', scheduleUpdate);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [activeCatalogTabs, activeSubcategoryTab, catalogTabGap]);
+
+  useEffect(() => {
     if (activeCatalogTabs.length === 0 || normalizedCatalogSearch || loading) {
       return undefined;
     }
@@ -2462,13 +2529,13 @@ function Catalog() {
               style={{
                 position: 'absolute',
                 left: '50%',
-                top: 6,
-                width: catalogTabCenterSlotWidth,
-                height: 32,
+                top: 5,
+                width: catalogTabsLayout.centerSlotWidth,
+                height: 34,
                 transform: 'translateX(-50%)',
-                borderRadius: 8,
-                background: 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
+                borderRadius: 10,
+                background: 'linear-gradient(180deg, #6f8097 0%, #4f6078 100%)',
+                boxShadow: '0 8px 18px rgba(53, 65, 88, 0.18), inset 0 1px 0 rgba(255,255,255,0.28)',
                 pointerEvents: 'none',
                 zIndex: 1
               }}
@@ -2486,13 +2553,12 @@ function Catalog() {
                 zIndex: 2,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: `${catalogTabGap}px`,
                 overflowY: 'hidden',
                 overflowX: 'auto',
-                paddingTop: 6,
+                minHeight: 44,
+                paddingTop: 5,
                 paddingBottom: 7,
-                paddingLeft: catalogTabSideInset,
-                paddingRight: catalogTabSideInset,
                 scrollSnapType: 'x mandatory',
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
@@ -2504,6 +2570,15 @@ function Catalog() {
                 maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
               }}
             >
+            <div
+              aria-hidden="true"
+              style={{
+                flex: '0 0 auto',
+                width: `${catalogTabsLayout.startSpacerWidth}px`,
+                minWidth: `${catalogTabsLayout.startSpacerWidth}px`,
+                pointerEvents: 'none'
+              }}
+            />
             {activeCatalogTabs.map((section) => (
               <button
                 ref={(el) => {
@@ -2522,16 +2597,22 @@ function Catalog() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   scrollSnapAlign: 'center',
+                  maxWidth: 'min(72vw, 260px)',
                   border: 'none',
                   boxShadow: 'none',
-                  borderRadius: 8,
-                  minHeight: 32,
-                  padding: '6px 12px',
-                  fontSize: '0.9rem',
-                  fontWeight: activeSubcategoryTab === section.id ? 600 : 400,
+                  borderRadius: 10,
+                  minHeight: 34,
+                  padding: '6px 14px',
+                  fontSize: '0.92rem',
+                  lineHeight: 1.1,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  fontWeight: activeSubcategoryTab === section.id ? 600 : 500,
                   color: activeSubcategoryTab === section.id ? '#ffffff' : '#526277',
                   background: 'transparent',
-                  transition: 'color 0.2s ease, font-weight 0.2s ease',
+                  transition: 'color 0.2s ease, font-weight 0.2s ease, opacity 0.2s ease',
+                  opacity: activeSubcategoryTab === section.id ? 1 : 0.9,
                   pointerEvents: 'auto'
                 }}
                 onClick={() => handleCatalogTabClick(section.id)}
@@ -2540,6 +2621,15 @@ function Catalog() {
                 {section.title}
               </button>
             ))}
+            <div
+              aria-hidden="true"
+              style={{
+                flex: '0 0 auto',
+                width: `${catalogTabsLayout.endSpacerWidth}px`,
+                minWidth: `${catalogTabsLayout.endSpacerWidth}px`,
+                pointerEvents: 'none'
+              }}
+            />
             </div>
           </div>
         </div>
