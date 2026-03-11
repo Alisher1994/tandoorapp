@@ -4008,7 +4008,7 @@ function AdminDashboard() {
   }) => {
     const chartData = Array.isArray(data) && data.length ? data : [{ label: '—', value: 0 }];
     const chartWidth = 800;
-    const chartHeight = 190;
+    const chartHeight = 220;
     const padding = { top: 18, right: 18, bottom: 36, left: 52 };
     const innerWidth = chartWidth - padding.left - padding.right;
     const innerHeight = chartHeight - padding.top - padding.bottom;
@@ -4029,7 +4029,7 @@ function AdminDashboard() {
       ` L ${getX(0)} ${padding.top + innerHeight} Z`;
 
     return (
-      <svg className="admin-analytics-svg-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none">
+      <svg className="admin-analytics-svg-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="xMidYMid meet">
         {Array.from({ length: yTicks + 1 }, (_, index) => {
           const ratio = index / yTicks;
           const y = padding.top + (innerHeight * ratio);
@@ -4559,8 +4559,8 @@ function AdminDashboard() {
                 </h6>
                 <small className="text-muted admin-analytics-card-subtle">{analyticsPeriodCaption}</small>
               </Card.Header>
-              <Card.Body>
-                <div className="admin-funnel-donut-wrap">
+              <Card.Body className="d-flex align-items-center justify-content-center">
+                <div className="admin-payment-donut-stack">
                   <div className="admin-funnel-donut-chart">
                     <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Payment methods donut chart">
                       <circle
@@ -4690,7 +4690,7 @@ function AdminDashboard() {
                   color: '#6366f1',
                   gradientId: `analytics-revenue-${analyticsPeriod}`,
                   mode: 'currency',
-                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily' || analyticsPeriod === 'monthly',
+                  showAllLabels: analyticsPeriod !== 'monthly',
                   showPointValues: true
                 })}
               </div>
@@ -4705,7 +4705,7 @@ function AdminDashboard() {
                   color: '#f43f5e',
                   gradientId: `analytics-orders-${analyticsPeriod}`,
                   mode: 'count',
-                  showAllLabels: analyticsPeriod === 'yearly' || analyticsPeriod === 'daily' || analyticsPeriod === 'monthly',
+                  showAllLabels: analyticsPeriod !== 'monthly',
                   showPointValues: true
                 })}
               </div>

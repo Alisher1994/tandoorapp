@@ -1315,7 +1315,9 @@ body::-webkit-scrollbar,
 
 .admin-analytics-svg-chart {
     width: 100%;
-    height: 190px;
+    height: auto;
+    min-height: 210px;
+    aspect-ratio: 800 / 220;
     overflow: visible;
 }
 
@@ -1371,6 +1373,18 @@ body::-webkit-scrollbar,
 
 .admin-funnel-donut-value {
     color: #0f172a;
+}
+
+.admin-payment-donut-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+}
+
+.admin-payment-donut-stack .admin-funnel-donut-legend {
+    width: 100%;
 }
 
 .overview-restaurant-picker-list {
@@ -1911,6 +1925,10 @@ body::-webkit-scrollbar,
 
     .admin-funnel-donut-legend-item {
         font-size: 11px;
+    }
+
+    .admin-analytics-svg-chart {
+        min-height: 180px;
     }
 }
 
