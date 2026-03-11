@@ -7640,9 +7640,9 @@ function AdminDashboard() {
                                               <Form.Control
                                                 type="text"
                                                 className="form-control-custom"
-                                                value={restaurantSettings.payme_account_key || 'order_id'}
+                                                value={restaurantSettings.payme_account_key ?? ''}
                                                 onChange={e => setRestaurantSettings({ ...restaurantSettings, payme_account_key: e.target.value })}
-                                                placeholder="account key"
+                                                placeholder="order_id"
                                               />
                                             </Col>
                                             <Col md={6}>
