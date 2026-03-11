@@ -6123,7 +6123,12 @@ function AdminDashboard() {
                       {pagedOrders.map(order => {
                         const rawOrderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
                         const orderStatus = getOrderDisplayWorkflowStatus(order);
-                        const needsPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
+                        const needsBillingPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
+                        const paymentMethodKey = normalizeAnalyticsPaymentMethod(order.payment_method);
+                        const paymentStatusKey = String(order.payment_status || '').trim().toLowerCase();
+                        const isPaymeOrder = paymentMethodKey === 'payme';
+                        const requiresPaymePayment = isPaymeOrder && paymentStatusKey !== 'paid';
+                        const isPaymePaid = isPaymeOrder && paymentStatusKey === 'paid';
                         const hideSensitive = isOrderSensitiveDataHidden(order);
                         const canCancelOrder = orderStatus !== 'cancelled' && orderStatus !== 'delivered';
 
@@ -6140,9 +6145,9 @@ function AdminDashboard() {
                               <div>
                                 <strong>{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</strong>
                                 <br />
-                                <small className={needsPayment ? "text-muted opacity-50" : ""}>
+                                <small className={needsBillingPayment ? "text-muted opacity-50" : ""}>
                                   {hideSensitive ? 'Нажмите «Принять»' : order.customer_phone}
-                                  {needsPayment && (
+                                  {needsBillingPayment && (
                                     <span className="ms-1" title="Требуется оплата">🔒</span>
                                   )}
                                 </small>
@@ -6152,8 +6157,14 @@ function AdminDashboard() {
                             <td>
                               <div className="d-flex flex-column gap-1">
                                 {getStatusBadge(orderStatus)}
-                                {needsPayment && rawOrderStatus === 'new' && (
-                                  <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты</Badge>
+                                {requiresPaymePayment && rawOrderStatus === 'new' && (
+                                  <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты (Payme)</Badge>
+                                )}
+                                {isPaymePaid && (
+                                  <Badge bg="success" style={{ fontSize: '0.65rem' }}>Payme оплачено</Badge>
+                                )}
+                                {needsBillingPayment && rawOrderStatus === 'new' && (
+                                  <Badge bg="secondary" style={{ fontSize: '0.65rem' }}>Требует списания чека</Badge>
                                 )}
                               </div>
                             </td>
@@ -6161,7 +6172,7 @@ function AdminDashboard() {
                             <td>
                               <div className="admin-order-actions-grid">
                                 <div className="admin-order-actions-slot admin-order-actions-slot-main">
-                                  {rawOrderStatus === 'new' && needsPayment ? (
+                                  {rawOrderStatus === 'new' && needsBillingPayment ? (
                                     <Button
                                       variant="success"
                                       size="sm"
@@ -6171,7 +6182,7 @@ function AdminDashboard() {
                                     >
                                       ✅ Принять
                                     </Button>
-                                  ) : (rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsPayment ? (
+                                  ) : (rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsBillingPayment ? (
                                     <Button
                                       variant="warning"
                                       size="sm"
