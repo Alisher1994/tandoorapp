@@ -252,6 +252,7 @@ function Catalog() {
     const tabsScroller = level3TabsScrollerRef.current;
     if (!tabsScroller) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.pointerType === 'touch') return;
 
     tabsDragStateRef.current = {
       isPointerDown: true,
@@ -277,6 +278,7 @@ function Catalog() {
     const tabsScroller = level3TabsScrollerRef.current;
     const drag = tabsDragStateRef.current;
     if (!tabsScroller || !drag.isPointerDown) return;
+    if (drag.pointerType === 'touch') return;
     if (drag.pointerId !== null && event.pointerId !== drag.pointerId) return;
 
     const deltaX = event.clientX - drag.startX;
@@ -308,6 +310,10 @@ function Catalog() {
     const tabsScroller = level3TabsScrollerRef.current;
     const drag = tabsDragStateRef.current;
     if (!drag.isPointerDown) return;
+    if (drag.pointerType === 'touch') {
+      tabsDragStateRef.current.isPointerDown = false;
+      return;
+    }
     if (drag.pointerId !== null && event?.pointerId !== undefined && event.pointerId !== drag.pointerId) return;
 
     if (tabsScroller) {
@@ -2001,66 +2007,66 @@ function Catalog() {
     if (!hasCartTotalBanner) return null;
 
     return (
-    <div className="mt-2 mb-0">
-      <button
-        type="button"
-        onClick={() => navigate('/cart')}
-        style={{
-          width: '100%',
-          border: '1px solid rgba(71, 85, 105,0.22)',
-          background: (cartTotal || 0) > 0 ? 'rgba(71, 85, 105,0.10)' : 'rgba(255,255,255,0.85)',
-          color: '#111827',
-          borderRadius: '12px',
-          padding: '11px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '10px',
-          cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(60, 42, 24, 0.04)'
-        }}
-        title={language === 'uz' ? 'Savatni ochish' : 'Открыть корзину'}
-      >
-        <div className="d-flex align-items-center gap-2 min-w-0">
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 30,
-              height: 30,
-              borderRadius: 999,
-              background: 'rgba(71, 85, 105,0.13)',
-              color: 'var(--primary-color)',
-              flexShrink: 0
-            }}
-          >
-            <CartLucideIcon size={16} />
-          </span>
-          <span
-            style={{
-              color: '#4b5563',
-              fontWeight: 500,
-              fontSize: '0.88rem',
-              lineHeight: 1.1
-            }}
-          >
-            {language === 'uz' ? 'Jami summa' : 'Итого сумма'}
-          </span>
-        </div>
-        <span
+      <div className="mt-2 mb-0">
+        <button
+          type="button"
+          onClick={() => navigate('/cart')}
           style={{
-            marginLeft: 'auto',
-            whiteSpace: 'nowrap',
-            color: 'var(--primary-color)',
-            fontWeight: 700,
-            fontSize: '0.95rem'
+            width: '100%',
+            border: '1px solid rgba(71, 85, 105,0.22)',
+            background: (cartTotal || 0) > 0 ? 'rgba(71, 85, 105,0.10)' : 'rgba(255,255,255,0.85)',
+            color: '#111827',
+            borderRadius: '12px',
+            padding: '11px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(60, 42, 24, 0.04)'
           }}
+          title={language === 'uz' ? 'Savatni ochish' : 'Открыть корзину'}
         >
-          {formatPrice(cartTotal || 0)} {t('sum')}
-        </span>
-      </button>
-    </div>
+          <div className="d-flex align-items-center gap-2 min-w-0">
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 30,
+                height: 30,
+                borderRadius: 999,
+                background: 'rgba(71, 85, 105,0.13)',
+                color: 'var(--primary-color)',
+                flexShrink: 0
+              }}
+            >
+              <CartLucideIcon size={16} />
+            </span>
+            <span
+              style={{
+                color: '#4b5563',
+                fontWeight: 500,
+                fontSize: '0.88rem',
+                lineHeight: 1.1
+              }}
+            >
+              {language === 'uz' ? 'Jami summa' : 'Итого сумма'}
+            </span>
+          </div>
+          <span
+            style={{
+              marginLeft: 'auto',
+              whiteSpace: 'nowrap',
+              color: 'var(--primary-color)',
+              fontWeight: 700,
+              fontSize: '0.95rem'
+            }}
+          >
+            {formatPrice(cartTotal || 0)} {t('sum')}
+          </span>
+        </button>
+      </div>
     );
   };
 
@@ -2099,15 +2105,15 @@ function Catalog() {
           >
             <SearchLucideIcon size={16} color="#475569" />
           </span>
-            <input
-              ref={catalogSearchInputRef}
-              type="search"
-              value={catalogSearchQuery}
-              onChange={(e) => setCatalogSearchQuery(e.target.value)}
-              placeholder={animatedCatalogSearchPlaceholder || (language === 'uz' ? 'Tovar qidirish...' : 'Поиск товара...')}
-              style={{
-                flex: 1,
-                border: 'none',
+          <input
+            ref={catalogSearchInputRef}
+            type="search"
+            value={catalogSearchQuery}
+            onChange={(e) => setCatalogSearchQuery(e.target.value)}
+            placeholder={animatedCatalogSearchPlaceholder || (language === 'uz' ? 'Tovar qidirish...' : 'Поиск товара...')}
+            style={{
+              flex: 1,
+              border: 'none',
               outline: 'none',
               background: 'transparent',
               color: '#111827',
@@ -2540,86 +2546,87 @@ function Catalog() {
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
-                touchAction: 'pan-y',
+                touchAction: 'pan-x pan-y',
+                position: 'relative',
                 cursor: 'grab',
                 userSelect: 'none',
                 WebkitMaskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`,
                 maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
               }}
             >
-            <div
-              aria-hidden="true"
-              style={{
-                flex: '0 0 auto',
-                width: `${catalogTabsLayout.startSpacerWidth}px`,
-                minWidth: `${catalogTabsLayout.startSpacerWidth}px`,
-                pointerEvents: 'none'
-              }}
-            />
-            {activeCatalogTabs.map((section) => (
-              <button
-                ref={(el) => {
-                  if (el) {
-                    level3TabButtonRefs.current[section.id] = el;
-                  } else {
-                    delete level3TabButtonRefs.current[section.id];
-                  }
-                }}
-                key={section.id}
-                type="button"
-                className="btn mb-0 btn-sm"
+              <div
+                aria-hidden="true"
                 style={{
                   flex: '0 0 auto',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  scrollSnapAlign: 'center',
-                  maxWidth: 'min(72vw, 260px)',
-                  border: 'none',
-                  boxShadow: 'none',
-                  borderRadius: 999,
-                  minHeight: 34,
-                  padding: 0,
-                  fontSize: '0.92rem',
-                  lineHeight: 1.1,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  fontWeight: activeSubcategoryTab === section.id ? 600 : 500,
-                  color: activeSubcategoryTab === section.id ? '#0f172a' : '#64748b',
-                  background: 'transparent',
-                  transition: 'color 0.2s ease, font-weight 0.2s ease',
-                  pointerEvents: 'auto'
+                  width: `${catalogTabsLayout.startSpacerWidth}px`,
+                  minWidth: `${catalogTabsLayout.startSpacerWidth}px`,
+                  pointerEvents: 'none'
                 }}
-                onClick={() => handleCatalogTabClick(section.id)}
-                aria-current={activeSubcategoryTab === section.id ? 'true' : undefined}
-              >
-                <span
+              />
+              {activeCatalogTabs.map((section) => (
+                <button
+                  ref={(el) => {
+                    if (el) {
+                      level3TabButtonRefs.current[section.id] = el;
+                    } else {
+                      delete level3TabButtonRefs.current[section.id];
+                    }
+                  }}
+                  key={section.id}
+                  type="button"
+                  className="btn mb-0 btn-sm"
                   style={{
-                    display: 'inline-block',
-                    maxWidth: '100%',
-                    padding: '7px 14px',
+                    flex: '0 0 auto',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    scrollSnapAlign: 'center',
+                    maxWidth: 'min(72vw, 260px)',
+                    border: 'none',
+                    boxShadow: 'none',
                     borderRadius: 999,
-                    background: activeSubcategoryTab === section.id ? 'rgba(148, 163, 184, 0.34)' : 'transparent',
+                    minHeight: 34,
+                    padding: 0,
+                    fontSize: '0.92rem',
+                    lineHeight: 1.1,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    transition: 'background 0.2s ease'
+                    fontWeight: activeSubcategoryTab === section.id ? 600 : 500,
+                    color: activeSubcategoryTab === section.id ? '#0f172a' : '#64748b',
+                    background: 'transparent',
+                    transition: 'color 0.2s ease, font-weight 0.2s ease',
+                    pointerEvents: 'auto'
                   }}
+                  onClick={() => handleCatalogTabClick(section.id)}
+                  aria-current={activeSubcategoryTab === section.id ? 'true' : undefined}
                 >
-                  {section.title}
-                </span>
-              </button>
-            ))}
-            <div
-              aria-hidden="true"
-              style={{
-                flex: '0 0 auto',
-                width: `${catalogTabsLayout.endSpacerWidth}px`,
-                minWidth: `${catalogTabsLayout.endSpacerWidth}px`,
-                pointerEvents: 'none'
-              }}
-            />
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      maxWidth: '100%',
+                      padding: '7px 14px',
+                      borderRadius: 999,
+                      background: activeSubcategoryTab === section.id ? 'rgba(148, 163, 184, 0.34)' : 'transparent',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    {section.title}
+                  </span>
+                </button>
+              ))}
+              <div
+                aria-hidden="true"
+                style={{
+                  flex: '0 0 auto',
+                  width: `${catalogTabsLayout.endSpacerWidth}px`,
+                  minWidth: `${catalogTabsLayout.endSpacerWidth}px`,
+                  pointerEvents: 'none'
+                }}
+              />
             </div>
           </div>
         </div>
@@ -2754,33 +2761,33 @@ function Catalog() {
             {!loading && !normalizedCatalogSearch && (
               (isSingleListMode || (selectedCategory !== null && selectedLevel2Category))
             ) && (
-              <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
-                {renderAdBannerCarousel()}
-                <>
-                  {!isSingleListMode && selectedLevel2Category && (
-                    <div className="mb-3">
-                      <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
-                    </div>
-                  )}
-                  {visibleProductSections.map((section) => (
-                    <section
-                      key={section.id}
-                      ref={(el) => { productGroupRefs.current[section.id] = el; }}
-                      className="mb-4"
-                    >
-                      <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
-                      <Row className="g-3">
-                        {section.products.map((product) => (
-                          <Col key={product.id} xs={6} lg={3}>
-                            {renderProductCard(product)}
-                          </Col>
-                        ))}
-                      </Row>
-                    </section>
-                  ))}
-                </>
-              </div>
-            )}
+                <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
+                  {renderAdBannerCarousel()}
+                  <>
+                    {!isSingleListMode && selectedLevel2Category && (
+                      <div className="mb-3">
+                        <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
+                      </div>
+                    )}
+                    {visibleProductSections.map((section) => (
+                      <section
+                        key={section.id}
+                        ref={(el) => { productGroupRefs.current[section.id] = el; }}
+                        className="mb-4"
+                      >
+                        <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
+                        <Row className="g-3">
+                          {section.products.map((product) => (
+                            <Col key={product.id} xs={6} lg={3}>
+                              {renderProductCard(product)}
+                            </Col>
+                          ))}
+                        </Row>
+                      </section>
+                    ))}
+                  </>
+                </div>
+              )}
 
             {!loading && !normalizedCatalogSearch && !isSingleListMode && selectedCategory === null && level1Categories.length === 0 && (
               <div className="text-center py-5">
