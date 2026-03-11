@@ -174,7 +174,23 @@ const findRestaurantByPaymeAuth = async (login, password) => {
 };
 
 const getOrderByAccount = async (restaurantId, accountKey, account) => {
-  const orderIdRaw = account?.[accountKey];
+  const resolveAccountValue = (source, key) => {
+    if (!source || typeof source !== 'object') return undefined;
+    if (Object.prototype.hasOwnProperty.call(source, key)) return source[key];
+
+    const normalizedTarget = String(key || '').trim().toLowerCase();
+    if (!normalizedTarget) return undefined;
+
+    for (const candidateKey of Object.keys(source)) {
+      if (String(candidateKey || '').trim().toLowerCase() === normalizedTarget) {
+        return source[candidateKey];
+      }
+    }
+
+    return undefined;
+  };
+
+  const orderIdRaw = resolveAccountValue(account, accountKey);
   const orderId = Number.parseInt(orderIdRaw, 10);
 
   if (!Number.isInteger(orderId) || orderId <= 0) {
