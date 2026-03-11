@@ -1415,22 +1415,22 @@ function Catalog() {
       activeCatalogTabs.forEach((section) => {
         const sectionElement = productGroupRefs.current[section.id];
         if (!sectionElement) return;
-        const sectionTop = sectionElement.getBoundingClientRect().top;
+        const rect = sectionElement.getBoundingClientRect();
+        // If the top of the section is above our probe line, it's a candidate
+        if (rect.top <= sectionProbeLine + 2) {
+          currentId = section.id;
+        }
         if (firstId === null) firstId = section.id;
-        if (sectionTop <= sectionProbeLine) currentId = section.id;
       });
 
+      // Special case: check if we are at the very bottom of the page
       let isAtBottom = false;
-      if (scrollContainer === window) {
-        const scrollY = window.scrollY || document.documentElement?.scrollTop || 0;
-        const windowHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
-        const documentHeight = Math.max(
-          document.body?.scrollHeight || 0,
-          document.documentElement?.scrollHeight || 0
-        );
-        isAtBottom = Math.ceil(scrollY + windowHeight) >= documentHeight - 10;
-      } else {
-        isAtBottom = Math.ceil(scrollContainer.scrollTop + scrollContainer.clientHeight) >= scrollContainer.scrollHeight - 10;
+      const scrollPos = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
+      const containerHeight = scrollContainer === window ? window.innerHeight : scrollContainer.clientHeight;
+      const totalHeight = scrollContainer === window ? document.documentElement.scrollHeight : scrollContainer.scrollHeight;
+
+      if (scrollPos + containerHeight >= totalHeight - 20) {
+        isAtBottom = true;
       }
 
       if (isAtBottom && activeCatalogTabs.length > 0) {
@@ -2558,7 +2558,7 @@ function Catalog() {
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                cursor: 'grab',
+                cursor: 'pointer',
                 WebkitMaskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`,
                 maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
               }}
