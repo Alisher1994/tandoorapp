@@ -127,11 +127,18 @@ function Catalog() {
     isHorizontalDrag: false,
     dragged: false
   });
+  const tabsTouchStateRef = useRef({
+    isTouching: false,
+    startX: 0,
+    startY: 0,
+    startScrollLeft: 0,
+    isHorizontalDrag: false,
+    dragged: false
+  });
   const tabActivationSourceRef = useRef('init');
   const suppressNextTabClickRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
   const catalogTabGap = 8;
-  const catalogTabEdgeFadeWidth = 12;
   const isTelegramWebView = useMemo(() => (
     typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
   ), []);
@@ -225,16 +232,21 @@ function Catalog() {
     const activeTabButton = level3TabButtonRefs.current[tabId];
     if (!tabsScroller || !activeTabButton) return;
 
-    const tabLeft = activeTabButton.offsetLeft;
-    const tabWidth = activeTabButton.offsetWidth;
-    const scrollerWidth = tabsScroller.clientWidth;
-    const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - scrollerWidth);
-    // Align the active tab near the left edge with a small gutter to avoid huge center shifts
+    const scrollerRect = tabsScroller.getBoundingClientRect();
+    const tabRect = activeTabButton.getBoundingClientRect();
     const gutter = 12;
-    const targetLeft = Math.min(
-      maxScrollLeft,
-      Math.max(0, tabLeft - gutter)
-    );
+    const minVisibleLeft = scrollerRect.left + gutter;
+    const maxVisibleRight = scrollerRect.right - gutter;
+    let targetLeft = tabsScroller.scrollLeft;
+
+    if (tabRect.left < minVisibleLeft) {
+      targetLeft -= (minVisibleLeft - tabRect.left);
+    } else if (tabRect.right > maxVisibleRight) {
+      targetLeft += (tabRect.right - maxVisibleRight);
+    }
+
+    const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
+    targetLeft = Math.min(maxScrollLeft, Math.max(0, targetLeft));
     if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
     tabsScroller.scrollTo({
       left: targetLeft,
@@ -250,6 +262,64 @@ function Catalog() {
 
     tabsScroller.scrollLeft += primaryDelta;
     event.preventDefault();
+  };
+  const handleTabsTouchStart = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    const touch = event.touches?.[0];
+    if (!tabsScroller || !touch) return;
+
+    tabsTouchStateRef.current = {
+      isTouching: true,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startScrollLeft: tabsScroller.scrollLeft,
+      isHorizontalDrag: false,
+      dragged: false
+    };
+  };
+  const handleTabsTouchMove = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    const drag = tabsTouchStateRef.current;
+    const touch = event.touches?.[0];
+    if (!tabsScroller || !drag.isTouching || !touch) return;
+
+    const deltaX = touch.clientX - drag.startX;
+    const deltaY = touch.clientY - drag.startY;
+
+    if (!drag.isHorizontalDrag) {
+      if (Math.abs(deltaX) < 4 && Math.abs(deltaY) < 4) return;
+      if (Math.abs(deltaX) > Math.abs(deltaY) + 2) {
+        drag.isHorizontalDrag = true;
+      } else {
+        return;
+      }
+    }
+
+    if (Math.abs(deltaX) > 6) {
+      drag.dragged = true;
+    }
+    tabsScroller.scrollLeft = drag.startScrollLeft - deltaX;
+    event.preventDefault();
+  };
+  const finishTabsTouchInteraction = () => {
+    const drag = tabsTouchStateRef.current;
+    if (!drag.isTouching) return;
+
+    if (drag.dragged) {
+      suppressNextTabClickRef.current = true;
+      setTimeout(() => {
+        suppressNextTabClickRef.current = false;
+      }, 120);
+    }
+
+    tabsTouchStateRef.current = {
+      isTouching: false,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      isHorizontalDrag: false,
+      dragged: false
+    };
   };
   const handleTabsPointerDown = (event) => {
     const tabsScroller = level3TabsScrollerRef.current;
@@ -2494,13 +2564,22 @@ function Catalog() {
             <div
               ref={level3TabsScrollerRef}
               onWheel={handleTabsWheelScroll}
+              onTouchStart={handleTabsTouchStart}
+              onTouchMove={handleTabsTouchMove}
+              onTouchEnd={finishTabsTouchInteraction}
+              onTouchCancel={finishTabsTouchInteraction}
+              onPointerDown={handleTabsPointerDown}
+              onPointerMove={handleTabsPointerMove}
+              onPointerUp={finishTabsPointerInteraction}
+              onPointerCancel={finishTabsPointerInteraction}
+              onPointerLeave={finishTabsPointerInteraction}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: `${catalogTabGap}px`,
                 overflowY: 'hidden',
                 overflowX: 'auto',
-                touchAction: 'pan-x pan-y',
+                touchAction: 'pan-y',
                 overscrollBehaviorX: 'contain',
                 overscrollBehaviorY: 'none',
                 minHeight: 42,
@@ -2512,9 +2591,7 @@ function Catalog() {
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                cursor: 'pointer',
-                WebkitMaskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`,
-                maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
+                cursor: 'grab'
               }}
             >
               {activeCatalogTabs.map((section) => (
@@ -2534,7 +2611,7 @@ function Catalog() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    maxWidth: 'min(72vw, 260px)',
+                    maxWidth: 'min(62vw, 220px)',
                     border: 'none',
                     boxShadow: 'none',
                     borderRadius: 999,
