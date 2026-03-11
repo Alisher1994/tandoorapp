@@ -226,16 +226,28 @@ function Catalog() {
     if (!tabsScroller || !activeTabButton) return;
 
     const safeBehavior = behavior === 'smooth' ? 'smooth' : 'auto';
-    const tabLeft = activeTabButton.offsetLeft;
-    const tabCenter = tabLeft + (activeTabButton.offsetWidth / 2);
-    const scrollerCenter = tabsScroller.clientWidth / 2;
-    const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
-    const targetLeft = Math.min(maxScrollLeft, Math.max(0, tabCenter - scrollerCenter));
-    if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
+    // Use native scrollIntoView for Safari/Telegram Web quirks, then fine‑tune centering
+    try {
+      activeTabButton.scrollIntoView({
+        behavior: safeBehavior,
+        block: 'nearest',
+        inline: 'center'
+      });
+    } catch (e) {
+      // ignore
+    }
 
-    tabsScroller.scrollTo({
-      left: targetLeft,
-      behavior: safeBehavior
+    requestAnimationFrame(() => {
+      const tabLeft = activeTabButton.offsetLeft;
+      const tabCenter = tabLeft + (activeTabButton.offsetWidth / 2);
+      const scrollerCenter = tabsScroller.clientWidth / 2;
+      const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
+      const targetLeft = Math.min(maxScrollLeft, Math.max(0, tabCenter - scrollerCenter));
+      if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
+      tabsScroller.scrollTo({
+        left: targetLeft,
+        behavior: 'auto'
+      });
     });
   };
   const handleTabsWheelScroll = (event) => {
@@ -2500,6 +2512,7 @@ function Catalog() {
                 touchAction: 'pan-x pan-y',
                 overscrollBehaviorX: 'contain',
                 overscrollBehaviorY: 'none',
+                scrollbarGutter: 'stable',
                 minHeight: 42,
                 paddingTop: 4,
                 paddingBottom: 7,
