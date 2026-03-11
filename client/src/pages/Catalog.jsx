@@ -156,7 +156,24 @@ function Catalog() {
     }
   }, [selectedRestaurant]);
 
-  const getScrollContainer = () => document.getElementById('root') || window;
+  const getScrollContainer = () => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return window;
+    }
+
+    const rootNode = document.getElementById('root');
+    if (!rootNode) return window;
+
+    const style = window.getComputedStyle(rootNode);
+    const overflowRule = `${style.overflow || ''} ${style.overflowY || ''}`.toLowerCase();
+    const canScrollVertically = /(auto|scroll|overlay)/.test(overflowRule);
+
+    if (canScrollVertically && rootNode.scrollHeight > rootNode.clientHeight + 2) {
+      return rootNode;
+    }
+
+    return window;
+  };
   const getCurrentScrollOffset = () => {
     const scrollContainer = getScrollContainer();
     if (scrollContainer === window) {
@@ -183,6 +200,42 @@ function Catalog() {
       return;
     }
     scrollContainer.scrollTo({ top: target, behavior: 'auto' });
+  };
+  const scrollActiveTabIntoView = (tabId, behavior = 'smooth') => {
+    if (!tabId) return;
+    const tabsScroller = level3TabsScrollerRef.current;
+    const activeTabButton = level3TabButtonRefs.current[tabId];
+    if (!tabsScroller || !activeTabButton) return;
+
+    const tabLeft = activeTabButton.offsetLeft;
+    const tabRight = tabLeft + activeTabButton.offsetWidth;
+    const visibleLeft = tabsScroller.scrollLeft;
+    const visibleRight = visibleLeft + tabsScroller.clientWidth;
+
+    let targetLeft = visibleLeft;
+    if (tabLeft < visibleLeft + 8) {
+      targetLeft = Math.max(0, tabLeft - 12);
+    } else if (tabRight > visibleRight - 8) {
+      targetLeft = Math.max(0, tabRight - tabsScroller.clientWidth + 12);
+    } else {
+      const centered = tabLeft - ((tabsScroller.clientWidth - activeTabButton.offsetWidth) / 2);
+      targetLeft = Math.max(0, centered);
+    }
+
+    tabsScroller.scrollTo({
+      left: targetLeft,
+      behavior
+    });
+  };
+  const handleTabsWheelScroll = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    if (!tabsScroller) return;
+
+    const primaryDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    if (Math.abs(primaryDelta) < 1) return;
+
+    tabsScroller.scrollLeft += primaryDelta;
+    event.preventDefault();
   };
 
   const resolveImageUrl = (url) => {
@@ -1141,14 +1194,10 @@ function Catalog() {
 
   useEffect(() => {
     if (!activeSubcategoryTab) return;
-    const tabsScroller = level3TabsScrollerRef.current;
-    const activeTabButton = level3TabButtonRefs.current[activeSubcategoryTab];
-    if (!tabsScroller || !activeTabButton) return;
-    const targetLeft = activeTabButton.offsetLeft - ((tabsScroller.clientWidth - activeTabButton.offsetWidth) / 2);
-    tabsScroller.scrollTo({
-      left: Math.max(0, targetLeft),
-      behavior: 'smooth'
+    const rafId = requestAnimationFrame(() => {
+      scrollActiveTabIntoView(activeSubcategoryTab, 'smooth');
     });
+    return () => cancelAnimationFrame(rafId);
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
   useEffect(() => {
@@ -2263,6 +2312,7 @@ function Catalog() {
           <div
             className="mx-auto"
             ref={level3TabsScrollerRef}
+            onWheel={handleTabsWheelScroll}
             style={{
               maxWidth: '1280px',
               overflowX: 'auto',
@@ -2274,14 +2324,17 @@ function Catalog() {
             }}
           >
             {activeCatalogTabs.map((section) => (
-              <Button
+              <button
                 ref={(el) => {
-                  if (el) level3TabButtonRefs.current[section.id] = el;
+                  if (el) {
+                    level3TabButtonRefs.current[section.id] = el;
+                  } else {
+                    delete level3TabButtonRefs.current[section.id];
+                  }
                 }}
                 key={section.id}
-                variant="light"
-                className="me-2 mb-0"
-                size="sm"
+                type="button"
+                className="btn btn-light me-2 mb-0 btn-sm"
                 style={{
                   border: 'none',
                   boxShadow: 'none',
@@ -2297,9 +2350,10 @@ function Catalog() {
                   transition: 'background 0.2s ease, color 0.2s ease'
                 }}
                 onClick={() => scrollToProductGroup(section.id)}
+                aria-current={activeSubcategoryTab === section.id ? 'true' : undefined}
               >
                 {section.title}
-              </Button>
+              </button>
             ))}
           </div>
         </div>
