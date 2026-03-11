@@ -221,8 +221,10 @@ function Catalog() {
 
     const safeBehavior = behavior === 'smooth' ? 'smooth' : 'auto';
     const tabLeft = activeTabButton.offsetLeft;
+    const tabCenter = tabLeft + (activeTabButton.offsetWidth / 2);
+    const scrollerCenter = tabsScroller.clientWidth / 2;
     const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
-    const targetLeft = Math.min(maxScrollLeft, Math.max(0, tabLeft - 12));
+    const targetLeft = Math.min(maxScrollLeft, Math.max(0, tabCenter - scrollerCenter));
     if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
 
     tabsScroller.scrollTo({
@@ -2467,7 +2469,9 @@ function Catalog() {
               WebkitOverflowScrolling: 'touch',
               touchAction: 'pan-y',
               cursor: 'grab',
-              userSelect: 'none'
+              userSelect: 'none',
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)',
+              maskImage: 'linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)'
             }}
           >
             {activeCatalogTabs.map((section) => (
