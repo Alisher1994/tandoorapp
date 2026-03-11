@@ -225,29 +225,20 @@ function Catalog() {
     const activeTabButton = level3TabButtonRefs.current[tabId];
     if (!tabsScroller || !activeTabButton) return;
 
-    const safeBehavior = behavior === 'smooth' ? 'smooth' : 'auto';
-    // Use native scrollIntoView for Safari/Telegram Web quirks, then fine‑tune centering
-    try {
-      activeTabButton.scrollIntoView({
-        behavior: safeBehavior,
-        block: 'nearest',
-        inline: 'center'
-      });
-    } catch (e) {
-      // ignore
-    }
-
-    requestAnimationFrame(() => {
-      const tabLeft = activeTabButton.offsetLeft;
-      const tabCenter = tabLeft + (activeTabButton.offsetWidth / 2);
-      const scrollerCenter = tabsScroller.clientWidth / 2;
-      const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
-      const targetLeft = Math.min(maxScrollLeft, Math.max(0, tabCenter - scrollerCenter));
-      if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
-      tabsScroller.scrollTo({
-        left: targetLeft,
-        behavior: 'auto'
-      });
+    const tabLeft = activeTabButton.offsetLeft;
+    const tabWidth = activeTabButton.offsetWidth;
+    const scrollerWidth = tabsScroller.clientWidth;
+    const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - scrollerWidth);
+    // Align the active tab near the left edge with a small gutter to avoid huge center shifts
+    const gutter = 12;
+    const targetLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, tabLeft - gutter)
+    );
+    if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
+    tabsScroller.scrollTo({
+      left: targetLeft,
+      behavior: behavior === 'smooth' ? 'smooth' : 'auto'
     });
   };
   const handleTabsWheelScroll = (event) => {
@@ -2512,7 +2503,6 @@ function Catalog() {
                 touchAction: 'pan-x pan-y',
                 overscrollBehaviorX: 'contain',
                 overscrollBehaviorY: 'none',
-                scrollbarGutter: 'stable',
                 minHeight: 42,
                 paddingTop: 4,
                 paddingBottom: 7,
