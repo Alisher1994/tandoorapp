@@ -26,6 +26,7 @@ const ORDER_PAYMENT_REFUNDED = 'refunded';
 const PAYME_ERROR_INVALID_AMOUNT = -31001;
 const PAYME_ERROR_TRANSACTION_NOT_FOUND = -31003;
 const PAYME_ERROR_INVALID_ACCOUNT = -31050;
+const PAYME_ERROR_ACCOUNT_BUSY = -31099;
 const PAYME_ERROR_CANNOT_PERFORM = -31008;
 const PAYME_ERROR_AUTH = -32504;
 const PAYME_ERROR_METHOD_NOT_FOUND = -32601;
@@ -414,7 +415,7 @@ router.post('/merchant', async (req, res) => {
           const activeTransaction = await cancelExpiredPendingTransaction(client, activeResult.rows[0]);
           if (isPendingTransaction(activeTransaction)) {
             await client.query('ROLLBACK');
-            return res.status(200).json(buildPaymeRpcError(rpcId, PAYME_ERROR_CANNOT_PERFORM, 'Transaction cannot be performed'));
+            return res.status(200).json(buildPaymeRpcError(rpcId, PAYME_ERROR_ACCOUNT_BUSY, 'Another transaction is in progress'));
           }
         }
 
