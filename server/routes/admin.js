@@ -35,6 +35,13 @@ const normalizeContainerNorm = (value, fallback = 1) => {
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
+const normalizeProductPrice = (value, fallback = null) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.round(parsed);
+};
 const normalizeProductOrderStep = (value, unit, fallback = null) => {
   if (String(unit || '').trim() !== 'кг') return null;
   const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
@@ -2032,7 +2039,8 @@ router.post('/products', async (req, res) => {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
 
-    if (!name_ru || !price) {
+    const normalizedPrice = normalizeProductPrice(price, null);
+    if (!name_ru || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название и цена обязательны' });
     }
 
@@ -2062,7 +2070,7 @@ RETURNING *
   `, [
       restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      price, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
+      normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog
     ]);
 
@@ -2104,7 +2112,8 @@ router.post('/products/upsert', async (req, res) => {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
 
-    if (!name_ru || !price) {
+    const normalizedPrice = normalizeProductPrice(price, null);
+    if (!name_ru || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название и цена обязательны' });
     }
 
@@ -2152,7 +2161,7 @@ router.post('/products/upsert', async (req, res) => {
       // Обновляем существующий товар
       isUpdate = true;
       const updateFields = ['price = $1', 'unit = $2', 'order_step = $3'];
-      const updateValues = [price, unit || 'шт', normalizedOrderStep];
+      const updateValues = [normalizedPrice, unit || 'шт', normalizedOrderStep];
       let paramIndex = 4;
 
       if (name_uz) {
@@ -2236,7 +2245,7 @@ RETURNING *
   `, [
         restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-        price, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
+        normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog
       ]);
     }
@@ -2294,6 +2303,12 @@ router.put('/products/:id', async (req, res) => {
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, oldProduct.season_scope || 'all');
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, normalizeContainerNorm(oldProduct.container_norm, 1));
+    const normalizedPrice = price === undefined
+      ? normalizeProductPrice(oldProduct.price, null)
+      : normalizeProductPrice(price, null);
+    if (normalizedPrice === null) {
+      return res.status(400).json({ error: 'Цена должна быть больше 0' });
+    }
     const nextUnit = unit === undefined ? (oldProduct.unit || 'шт') : unit;
     const fallbackOrderStep = normalizeProductOrderStep(oldProduct.order_step, nextUnit, null);
     const normalizedOrderStep = order_step === undefined
@@ -2322,7 +2337,7 @@ RETURNING *
   `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      price, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
+      normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, req.params.id
     ]);
 

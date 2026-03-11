@@ -443,6 +443,28 @@ function getGroupOrderStatusLine(statusKey, operatorName = '') {
   }
 }
 
+const PAYME_PENDING_STATUSES = new Set(['pending', 'created', 'processing', 'waiting', 'awaiting', 'new']);
+const PAYME_UNPAID_STATUSES = new Set(['unpaid', 'cancelled', 'canceled', 'failed', 'refunded', 'rejected', 'expired']);
+
+function buildGroupPaymePaymentStatusLine(order, statusKey = 'new') {
+  const paymentMethod = String(order?.payment_method || '').trim().toLowerCase();
+  if (paymentMethod !== 'payme') return '';
+
+  const paymentStatus = String(order?.payment_status || '').trim().toLowerCase();
+  const isPaid = order?.is_paid === true || paymentStatus === 'paid' || paymentStatus === 'success' || paymentStatus === 'completed';
+  if (isPaid) return '💳 Payme: ✅ Оплачено';
+
+  if (PAYME_PENDING_STATUSES.has(paymentStatus) || (!paymentStatus && statusKey === 'new')) {
+    return '💳 Payme: ⏳ В ожидании оплаты';
+  }
+
+  if (PAYME_UNPAID_STATUSES.has(paymentStatus) || !paymentStatus) {
+    return '💳 Payme: ❌ Не оплачено';
+  }
+
+  return '💳 Payme: ❌ Не оплачено';
+}
+
 function buildGroupOrderNotificationPayload(order, items, options = {}) {
   const {
     revealSensitive = false,
@@ -454,12 +476,14 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     statusActions = []
   } = options;
   const statusActionsBlock = buildStatusActionsLines(statusActions);
+  const paymePaymentStatusLine = buildGroupPaymePaymentStatusLine(order, statusKey);
 
   if (statusKey === 'cancelled') {
     const safeCancelReason = truncateText(cancelReason || order.cancel_reason || order.admin_comment || '', TELEGRAM_COMMENT_LIMIT);
     return (
       `<b>ID: ${order.order_number}</b>\n` +
       `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
+      (paymePaymentStatusLine ? `${paymePaymentStatusLine}\n\n` : '') +
       `🚫 Данные заказа скрыты, так как заказ отменен.` +
       (safeCancelReason ? `\n\nПричина: ${escapeHtml(safeCancelReason)}` : '') +
       (statusActionsBlock ? `\n\n${statusActionsBlock}` : '')
@@ -540,6 +564,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     `${getGroupOrderStatusLine(statusKey, operatorName)}\n\n` +
     hiddenHint +
     customerBlock +
+    (paymePaymentStatusLine ? `${paymePaymentStatusLine}\n` : '') +
     `🕐 К времени: ${deliveryTime}\n\n` +
     `<b>Товары</b>\n\n${itemsList}\n\n` +
     containerLine +
@@ -765,9 +790,11 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       const fallbackHasDeliveryAddress = Boolean(order?.delivery_address) && order.delivery_address !== 'Самовывоз';
       const fallbackHasDeliveryCoordinates = Boolean(order?.delivery_coordinates);
       const fallbackShouldShowDelivery = !fallbackPickupOrder && (fallbackDeliveryCost > 0 || fallbackDistanceKm > 0 || fallbackHasDeliveryAddress || fallbackHasDeliveryCoordinates);
+      const fallbackPaymePaymentStatusLine = buildGroupPaymePaymentStatusLine(order, 'new');
       const fallbackMessage =
         `Заказ #${order?.order_number || order?.id || '—'}\n` +
         `Сумма: ${formatPrice(order?.total_amount)} сум\n` +
+        (fallbackPaymePaymentStatusLine ? `${fallbackPaymePaymentStatusLine}\n` : '') +
         (fallbackServiceFee > 0 ? `Сервис: ${formatPrice(fallbackServiceFee)} сум\n` : '') +
         (fallbackPickupOrder
           ? 'Самовывоз\n'

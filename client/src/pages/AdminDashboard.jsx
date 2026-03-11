@@ -328,6 +328,13 @@ const toNumericValue = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const normalizeProductPriceValue = (value, fallback = NaN) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.round(parsed);
+};
 const isPickupOrderForAnalytics = (order) => {
   const fulfillmentType = String(order?.fulfillment_type || '').trim().toLowerCase();
   if (fulfillmentType === 'pickup') return true;
@@ -3004,7 +3011,7 @@ function AdminDashboard() {
         image_url: mainImage.url || '',
         thumb_url: mainImage.thumb_url || '',
         product_images: imageSlots,
-        price: product.price || '',
+        price: Number.isFinite(normalizeProductPriceValue(product.price)) ? normalizeProductPriceValue(product.price) : '',
         unit: product.unit || 'шт',
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
         in_stock: product.in_stock !== false,
@@ -3110,6 +3117,11 @@ function AdminDashboard() {
     }
 
     try {
+      const normalizedPrice = normalizeProductPriceValue(productForm.price);
+      if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+        alert('Укажите корректную цену больше 0');
+        return;
+      }
       const normalizedImages = serializeProductImageSlots(productForm.product_images);
       const mainImage = normalizedImages[0] || { url: '', thumb_url: '' };
       const productData = {
@@ -3117,7 +3129,7 @@ function AdminDashboard() {
         image_url: mainImage.url || '',
         thumb_url: mainImage.thumb_url || '',
         product_images: normalizedImages,
-        price: parseFloat(productForm.price),
+        price: normalizedPrice,
         order_step: productForm.unit === 'кг'
           ? (() => {
             const parsed = Number.parseFloat(String(productForm.order_step || '').replace(',', '.'));
@@ -3517,7 +3529,7 @@ function AdminDashboard() {
               category_label: categoryResolved.category?.path || '',
               name_ru: String(row['Название (RU)'] || row['Название'] || row.name_ru || '').trim(),
               name_uz: String(row['Название (UZ)'] || row.name_uz || '').trim(),
-              price: parseFloat(row['Цена'] || row.price || 0),
+              price: normalizeProductPriceValue(row['Цена'] ?? row.price, 0),
               unit: String(row['Единица'] || row.unit || 'шт').trim() || 'шт',
               in_stock: parseYesNoForImport(row['В наличии'] ?? row.in_stock, true),
               season_scope: parseSeasonScopeForImport(row['Сезонность'] ?? row.season_scope),
@@ -9320,7 +9332,7 @@ function AdminDashboard() {
                     <Form.Control
                       required
                       type="number"
-                      step="0.01"
+                      step="1"
                       min="0"
                       value={productForm.price}
                       onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
