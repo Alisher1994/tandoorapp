@@ -47,6 +47,7 @@ async function migrate() {
       'logo_url TEXT',
       `logo_display_mode VARCHAR(20) DEFAULT 'square'`,
       `ui_theme VARCHAR(20) DEFAULT 'classic'`,
+      `menu_view_mode VARCHAR(24) DEFAULT 'grid_categories'`,
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',
@@ -106,6 +107,13 @@ async function migrate() {
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
+      SET menu_view_mode = 'grid_categories'
+      WHERE menu_view_mode IS NULL
+        OR BTRIM(COALESCE(menu_view_mode, '')) = ''
+        OR menu_view_mode NOT IN ('grid_categories', 'single_list')
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
       SET payment_placeholders = '{}'::jsonb
       WHERE payment_placeholders IS NULL
     `).catch(() => {});
@@ -146,6 +154,15 @@ async function migrate() {
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_ui_theme_check
       CHECK (ui_theme IN ('classic', 'modern'))
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_menu_view_mode_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_menu_view_mode_check
+      CHECK (menu_view_mode IN ('grid_categories', 'single_list'))
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

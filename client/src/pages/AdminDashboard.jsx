@@ -2332,6 +2332,7 @@ function AdminDashboard() {
         cash_enabled: response.data?.cash_enabled === false ? false : true,
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic',
+        menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
@@ -7031,6 +7032,22 @@ function AdminDashboard() {
                                               </Form.Select>
                                               <Form.Text className="text-muted d-block mt-2">
                                                 Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
+                                              </Form.Text>
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения каталога</Form.Label>
+                                              <Form.Select
+                                                className="form-control-custom"
+                                                value={restaurantSettings.menu_view_mode || 'grid_categories'}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: e.target.value })}
+                                              >
+                                                <option value="grid_categories">Папки (Grid Categories)</option>
+                                                <option value="single_list">Прямой список (Single List)</option>
+                                              </Form.Select>
+                                              <Form.Text className="text-muted d-block mt-2">
+                                                Папки: сначала плитка категорий. Прямой список: сразу все товары по категориям с верхними табами.
                                               </Form.Text>
                                             </Form.Group>
                                           </Col>

@@ -18,9 +18,14 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
+const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
+};
+const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return MENU_VIEW_MODES.includes(normalized) ? normalized : fallback;
 };
 
 const CartLucideIcon = ({ size = 18, color = 'currentColor' }) => (
@@ -406,6 +411,18 @@ function Catalog() {
     categories.forEach((category) => map.set(category.id, category));
     return map;
   }, [categories]);
+  const currentRestaurant = useMemo(
+    () => restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant)) || null,
+    [restaurants, selectedRestaurant]
+  );
+  const menuViewMode = useMemo(
+    () => normalizeMenuViewMode(currentRestaurant?.menu_view_mode, 'grid_categories'),
+    [currentRestaurant]
+  );
+  const isSingleListMode = menuViewMode === 'single_list';
+  const getCategorySortVal = (category) => (
+    category?.sort_order === null || category?.sort_order === undefined ? 9999 : Number(category.sort_order)
+  );
 
   const childrenByParent = useMemo(() => {
     const map = new Map();
@@ -920,6 +937,16 @@ function Catalog() {
     if (!selectedCategory) return null;
     return categoriesById.get(Number(selectedCategory)) || null;
   }, [selectedCategory, categoriesById]);
+  const productsByCategoryId = useMemo(() => {
+    const map = new Map();
+    products.forEach((product) => {
+      const categoryId = Number(product?.category_id);
+      if (!Number.isFinite(categoryId)) return;
+      if (!map.has(categoryId)) map.set(categoryId, []);
+      map.get(categoryId).push(product);
+    });
+    return map;
+  }, [products]);
 
   const level3Categories = useMemo(() => {
     if (!selectedLevel2Category) return [];
@@ -931,25 +958,38 @@ function Catalog() {
     return products.filter((product) => Number(product.category_id) === selectedLevel2Category.id);
   }, [products, selectedLevel2Category]);
 
-  const level3Sections = useMemo(() => (
-    level3Categories
-      .map((category) => ({
-        id: category.id,
-        title: getCategoryName(category),
-        products: products.filter((product) => Number(product.category_id) === category.id)
-      }))
-      .filter((section) => section.products.length > 0)
-  ), [level3Categories, products, language]);
+  const level3Sections = useMemo(() => {
+    const groupedSections = new Map();
+
+    level3Categories.forEach((category) => {
+      const categoryProducts = productsByCategoryId.get(category.id) || [];
+      if (categoryProducts.length === 0) return;
+
+      const title = getCategoryName(category) || '';
+      const normalizedTitle = String(title).trim().toLowerCase();
+      const groupKey = normalizedTitle || `__category_${category.id}`;
+
+      if (!groupedSections.has(groupKey)) {
+        groupedSections.set(groupKey, {
+          id: category.id,
+          title,
+          products: [...categoryProducts]
+        });
+        return;
+      }
+
+      const existingSection = groupedSections.get(groupKey);
+      existingSection.products.push(...categoryProducts);
+    });
+
+    return Array.from(groupedSections.values());
+  }, [level3Categories, productsByCategoryId, language]);
 
   const hasLevel3Sections = level3Sections.length > 0;
 
   const level3Tabs = useMemo(() => (
     hasLevel3Sections ? level3Sections : []
   ), [hasLevel3Sections, level3Sections]);
-
-  useEffect(() => {
-    level3TabButtonRefs.current = {};
-  }, [selectedCategory, level3Tabs]);
 
   const productSections = useMemo(() => {
     if (!selectedLevel2Category) return [];
@@ -986,18 +1026,118 @@ function Catalog() {
       tab: false
     }];
   }, [selectedLevel2Category, hasLevel3Sections, level3Sections, directSelectedProducts, language]);
+  const singleListLevel2Categories = useMemo(() => (
+    categories
+      .filter((category) => {
+        if (!nonEmptyCategoryIds.has(category.id)) return false;
+        const parent = categoriesById.get(Number(category.parent_id));
+        return Boolean(parent && parent.parent_id === null);
+      })
+      .sort((a, b) => {
+        const sortDiff = getCategorySortVal(a) - getCategorySortVal(b);
+        if (sortDiff !== 0) return sortDiff;
+        return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
+      })
+  ), [categories, nonEmptyCategoryIds, categoriesById]);
+  const singleListSections = useMemo(() => {
+    const groupedSections = new Map();
+
+    const collectDescendantIds = (rootCategoryId) => {
+      const ids = [];
+      const stack = [rootCategoryId];
+      while (stack.length > 0) {
+        const currentId = Number(stack.pop());
+        if (!Number.isFinite(currentId)) continue;
+        ids.push(currentId);
+        const children = childrenByParent.get(currentId) || [];
+        children.forEach((child) => stack.push(child.id));
+      }
+      return ids;
+    };
+
+    singleListLevel2Categories.forEach((level2Category) => {
+      const descendantIds = collectDescendantIds(level2Category.id);
+      const sectionProducts = [];
+
+      descendantIds.forEach((categoryId) => {
+        const categoryProducts = productsByCategoryId.get(categoryId) || [];
+        if (categoryProducts.length > 0) {
+          sectionProducts.push(...categoryProducts);
+        }
+      });
+
+      if (sectionProducts.length === 0) return;
+
+      const title = getCategoryName(level2Category) || '';
+      const normalizedTitle = String(title).trim().toLowerCase();
+      const groupKey = normalizedTitle || `__single_${level2Category.id}`;
+
+      if (!groupedSections.has(groupKey)) {
+        groupedSections.set(groupKey, {
+          id: `single-${level2Category.id}`,
+          title,
+          products: [...sectionProducts]
+        });
+        return;
+      }
+
+      const existingSection = groupedSections.get(groupKey);
+      existingSection.products.push(...sectionProducts);
+    });
+
+    return Array.from(groupedSections.values()).map((section) => {
+      const seenIds = new Set();
+      const uniqueProducts = [];
+      section.products.forEach((product) => {
+        const productId = Number(product?.id);
+        if (Number.isFinite(productId) && seenIds.has(productId)) return;
+        if (Number.isFinite(productId)) seenIds.add(productId);
+        uniqueProducts.push(product);
+      });
+      return {
+        ...section,
+        products: uniqueProducts
+      };
+    });
+  }, [singleListLevel2Categories, productsByCategoryId, childrenByParent, language]);
+  const visibleProductSections = useMemo(() => (
+    isSingleListMode ? singleListSections : productSections
+  ), [isSingleListMode, singleListSections, productSections]);
+  const activeCatalogTabs = useMemo(() => {
+    if (isSingleListMode) {
+      return singleListSections;
+    }
+    if (selectedCategory === null) {
+      return [];
+    }
+    return level3Tabs;
+  }, [isSingleListMode, singleListSections, selectedCategory, level3Tabs]);
+
+  useEffect(() => {
+    level3TabButtonRefs.current = {};
+  }, [selectedCategory, activeCatalogTabs, isSingleListMode]);
 
   useEffect(() => {
     productGroupRefs.current = {};
-  }, [selectedCategory]);
+  }, [selectedCategory, isSingleListMode]);
 
   useEffect(() => {
-    if (!selectedCategory || level3Tabs.length === 0) {
+    if (!isSingleListMode || selectedCategory === null) return;
+    setSelectedCategory(null);
+    setActiveSubcategoryTab(null);
+  }, [isSingleListMode, selectedCategory]);
+
+  useEffect(() => {
+    if (normalizedCatalogSearch || loading || activeCatalogTabs.length === 0) {
       setActiveSubcategoryTab(null);
       return;
     }
-    setActiveSubcategoryTab(level3Tabs[0].id);
-  }, [selectedCategory, level3Tabs]);
+
+    const isCurrentTabPresent = activeCatalogTabs.some((section) => section.id === activeSubcategoryTab);
+    if (!isCurrentTabPresent) {
+      setActiveSubcategoryTab(activeCatalogTabs[0].id);
+    }
+  }, [activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading]);
 
   useEffect(() => {
     if (!activeSubcategoryTab) return;
@@ -1009,10 +1149,14 @@ function Catalog() {
       left: Math.max(0, targetLeft),
       behavior: 'smooth'
     });
-  }, [activeSubcategoryTab, level3Tabs]);
+  }, [activeSubcategoryTab, activeCatalogTabs]);
 
   useEffect(() => {
-    if (selectedCategory === null || level3Tabs.length === 0 || normalizedCatalogSearch || loading) {
+    if (activeCatalogTabs.length === 0 || normalizedCatalogSearch || loading) {
+      return undefined;
+    }
+
+    if (!isSingleListMode && selectedCategory === null) {
       return undefined;
     }
 
@@ -1030,7 +1174,7 @@ function Catalog() {
       let currentId = null;
       let firstId = null;
 
-      level3Tabs.forEach((section) => {
+      activeCatalogTabs.forEach((section) => {
         const sectionElement = productGroupRefs.current[section.id];
         if (!sectionElement) return;
         const sectionTop = sectionElement.getBoundingClientRect().top;
@@ -1064,7 +1208,7 @@ function Catalog() {
         tabScrollSpyRafRef.current = null;
       }
     };
-  }, [selectedCategory, level3Tabs, activeSubcategoryTab, normalizedCatalogSearch, loading, catalogHeaderHeight]);
+  }, [selectedCategory, activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading, catalogHeaderHeight, isSingleListMode]);
 
   useEffect(() => {
     if (!selectedRestaurant || loading) {
@@ -1108,7 +1252,7 @@ function Catalog() {
         scrollProgressRafRef.current = null;
       }
     };
-  }, [selectedRestaurant, loading, selectedCategory, normalizedCatalogSearch, productSections.length]);
+  }, [selectedRestaurant, loading, selectedCategory, normalizedCatalogSearch, visibleProductSections.length]);
 
   useEffect(() => () => {
     if (tabScrollLockTimeoutRef.current) {
@@ -1157,8 +1301,6 @@ function Catalog() {
       isTabAutoScrollRef.current = false;
     }, 450);
   };
-
-  const currentRestaurant = restaurants.find(r => r.id === selectedRestaurant);
 
   const getAdViewerKey = () => {
     try {
@@ -1931,7 +2073,13 @@ function Catalog() {
     return <PageSkeleton fullscreen label="Загрузка магазинов" cards={8} />;
   }
 
-  const isCategoryView = selectedCategory !== null;
+  const isCategoryView = !isSingleListMode && selectedCategory !== null;
+  const shouldShowCatalogTabs = Boolean(
+    selectedRestaurant
+    && !loading
+    && !normalizedCatalogSearch
+    && activeCatalogTabs.length > 0
+  );
 
   return (
     <>
@@ -1948,7 +2096,7 @@ function Catalog() {
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           backgroundColor: catalogHeaderBackground,
-          borderBottom: selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0
+          borderBottom: shouldShowCatalogTabs
             ? 'none'
             : '1px solid var(--border-color)'
         }}
@@ -2106,7 +2254,7 @@ function Catalog() {
         </div>
         <div
           style={{
-            display: selectedRestaurant && selectedCategory !== null && level3Tabs.length > 0 ? 'block' : 'none',
+            display: shouldShowCatalogTabs ? 'block' : 'none',
             backgroundColor: catalogHeaderBackground,
             borderBottom: 'none',
             boxShadow: 'none'
@@ -2125,7 +2273,7 @@ function Catalog() {
               WebkitOverflowScrolling: 'touch'
             }}
           >
-            {level3Tabs.map((section) => (
+            {activeCatalogTabs.map((section) => (
               <Button
                 ref={(el) => {
                   if (el) level3TabButtonRefs.current[section.id] = el;
@@ -2206,7 +2354,7 @@ function Catalog() {
             {!loading && renderCartTotalBanner()}
             {!loading && normalizedCatalogSearch && renderCatalogSearchResults()}
 
-            {!loading && !normalizedCatalogSearch && selectedCategory === null && (
+            {!loading && !normalizedCatalogSearch && !isSingleListMode && selectedCategory === null && (
               <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
                 {level1Categories.map((level1Category) => {
@@ -2283,33 +2431,38 @@ function Catalog() {
               </div>
             )}
 
-            {!loading && !normalizedCatalogSearch && selectedCategory !== null && selectedLevel2Category && (
+            {!loading && !normalizedCatalogSearch && (
+              (isSingleListMode || (selectedCategory !== null && selectedLevel2Category))
+            ) && (
               <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                 {renderAdBannerCarousel()}
-                <div className="mb-3">
-                  <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
-                </div>
-
-                {productSections.map((section) => (
-                  <section
-                    key={section.id}
-                    ref={(el) => { productGroupRefs.current[section.id] = el; }}
-                    className="mb-4"
-                  >
-                    <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
-                    <Row className="g-3">
-                      {section.products.map((product) => (
-                        <Col key={product.id} xs={6} lg={3}>
-                          {renderProductCard(product)}
-                        </Col>
-                      ))}
-                    </Row>
-                  </section>
-                ))}
+                <>
+                  {!isSingleListMode && selectedLevel2Category && (
+                    <div className="mb-3">
+                      <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
+                    </div>
+                  )}
+                  {visibleProductSections.map((section) => (
+                    <section
+                      key={section.id}
+                      ref={(el) => { productGroupRefs.current[section.id] = el; }}
+                      className="mb-4"
+                    >
+                      <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
+                      <Row className="g-3">
+                        {section.products.map((product) => (
+                          <Col key={product.id} xs={6} lg={3}>
+                            {renderProductCard(product)}
+                          </Col>
+                        ))}
+                      </Row>
+                    </section>
+                  ))}
+                </>
               </div>
             )}
 
-            {!loading && !normalizedCatalogSearch && selectedCategory === null && level1Categories.length === 0 && (
+            {!loading && !normalizedCatalogSearch && !isSingleListMode && selectedCategory === null && level1Categories.length === 0 && (
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🏪</div>
                 <p className="text-muted mt-3">Товары пока не добавлены</p>
@@ -2321,7 +2474,7 @@ function Catalog() {
               </div>
             )}
 
-            {!loading && !normalizedCatalogSearch && selectedCategory !== null && productSections.length === 0 && (
+            {!loading && !normalizedCatalogSearch && (isSingleListMode || selectedCategory !== null) && visibleProductSections.length === 0 && (
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🏪</div>
                 <p className="text-muted mt-3">

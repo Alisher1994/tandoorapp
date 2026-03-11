@@ -12,6 +12,10 @@ const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASON_VALUES.has(normalized) ? normalized : fallback;
 };
+const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'single_list' ? 'single_list' : fallback;
+};
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
   if ([12, 1, 2].includes(month)) return 'winter';
@@ -441,6 +445,7 @@ router.get('/restaurant/:id', async (req, res) => {
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
+      menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       cash_enabled: cashEnabled,
@@ -660,6 +665,7 @@ router.get('/restaurants/list', async (req, res) => {
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
+      menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled)
       });

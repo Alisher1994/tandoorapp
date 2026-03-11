@@ -110,6 +110,10 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'modern' ? 'modern' : fallback;
 };
+const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'single_list' ? 'single_list' : fallback;
+};
 const normalizeCardReceiptTarget = (value, fallback = 'bot') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'admin') return 'admin';
@@ -566,7 +570,7 @@ router.post('/switch-restaurant', async (req, res) => {
 
     // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name, logo_url, logo_display_mode, ui_theme FROM restaurants WHERE id = $1',
+      'SELECT name, logo_url, logo_display_mode, ui_theme, menu_view_mode FROM restaurants WHERE id = $1',
       [restaurant_id]
     );
 
@@ -576,7 +580,8 @@ router.post('/switch-restaurant', async (req, res) => {
       active_restaurant_name: restaurantResult.rows[0]?.name,
       active_restaurant_logo: restaurantResult.rows[0]?.logo_url,
       active_restaurant_logo_display_mode: restaurantResult.rows[0]?.logo_display_mode || 'square',
-      active_restaurant_ui_theme: normalizeUiTheme(restaurantResult.rows[0]?.ui_theme, 'classic')
+      active_restaurant_ui_theme: normalizeUiTheme(restaurantResult.rows[0]?.ui_theme, 'classic'),
+      active_restaurant_menu_view_mode: normalizeMenuViewMode(restaurantResult.rows[0]?.menu_view_mode, 'grid_categories')
     });
   } catch (error) {
     console.error('Switch restaurant error:', error);
@@ -963,7 +968,7 @@ router.put('/restaurant', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
     const previousRestaurantResult = await pool.query(
-      'SELECT name, telegram_bot_token, logo_display_mode, ui_theme FROM restaurants WHERE id = $1',
+      'SELECT name, telegram_bot_token, logo_display_mode, ui_theme, menu_view_mode FROM restaurants WHERE id = $1',
       [restaurantId]
     );
     if (!previousRestaurantResult.rows.length) {
@@ -980,7 +985,7 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode, ui_theme, payment_placeholders,
+      logo_display_mode, ui_theme, menu_view_mode, payment_placeholders,
       send_balance_after_confirm, send_daily_close_report
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
@@ -996,6 +1001,10 @@ router.put('/restaurant', async (req, res) => {
     const normalizedUiTheme = normalizeUiTheme(
       ui_theme,
       previousRestaurant.ui_theme || 'classic'
+    );
+    const normalizedMenuViewMode = normalizeMenuViewMode(
+      menu_view_mode,
+      previousRestaurant.menu_view_mode || 'grid_categories'
     );
     const normalizedCardReceiptTarget = normalizeCardReceiptTarget(card_receipt_target, 'bot');
     const normalizedCashEnabled = normalizeOptionalBoolean(cash_enabled);
@@ -1071,11 +1080,12 @@ router.put('/restaurant', async (req, res) => {
            msg_delivered = $38,
            msg_cancelled = $39,
            ui_theme = $40,
-           payment_placeholders = COALESCE($41::jsonb, payment_placeholders),
-           send_balance_after_confirm = COALESCE($42, send_balance_after_confirm),
-           send_daily_close_report = COALESCE($43, send_daily_close_report),
+           menu_view_mode = $41,
+           payment_placeholders = COALESCE($42::jsonb, payment_placeholders),
+           send_balance_after_confirm = COALESCE($43, send_balance_after_confirm),
+           send_daily_close_report = COALESCE($44, send_daily_close_report),
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $44
+      WHERE id = $45
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1099,6 +1109,7 @@ router.put('/restaurant', async (req, res) => {
       delivery_zone ? JSON.stringify(delivery_zone) : null,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       normalizedUiTheme,
+      normalizedMenuViewMode,
       normalizedPaymentPlaceholders ? JSON.stringify(normalizedPaymentPlaceholders) : null,
       normalizedSendBalanceAfterConfirm,
       normalizedSendDailyCloseReport,
