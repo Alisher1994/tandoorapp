@@ -30,6 +30,7 @@ import * as XLSX from 'xlsx';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
 import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
+import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
@@ -1019,10 +1020,18 @@ function AdminDashboard() {
   const [customerOrdersPage, setCustomerOrdersPage] = useState(1);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
-  const { language, toggleLanguage, t } = useLanguage();
+  const {
+    language,
+    toggleLanguage,
+    t,
+    countryCurrency,
+    countryCurrencyOptions,
+    setCountryCurrency
+  } = useLanguage();
   const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
   const allThirdCategoriesLabel = language === 'uz' ? 'Barcha 3-daraja kategoriyalari' : 'Все категории 3 уровня';
   const thirdCategoryLabel = language === 'uz' ? '3-daraja kategoriya' : 'Категория 3';
+  const currencyCountryLabel = language === 'uz' ? 'Mamlakat va valyuta' : 'Страна и валюта';
   const categoryLineLabels = language === 'uz'
     ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
     : ['Категория 1', 'Категория 2', 'Категория 3'];
@@ -4854,6 +4863,16 @@ function AdminDashboard() {
                       </div>
                     </div>
 
+                    <div className="px-2 pb-2">
+                      <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
+                      <CountryCurrencyDropdown
+                        language={language}
+                        selectedOption={countryCurrency}
+                        options={countryCurrencyOptions}
+                        onChange={setCountryCurrency}
+                      />
+                    </div>
+
                     <Dropdown.Divider className="mx-2" />
                     <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2 rounded-3">
                       <i className="bi bi-box-arrow-right"></i> <span>{t('logout')}</span>
@@ -5007,6 +5026,16 @@ function AdminDashboard() {
                   <img src="https://flagcdn.com/w20/uz.png" width="14" alt="UZ" className="me-1" /> O'zb
                 </div>
               </div>
+            </div>
+
+            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
+              <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
+              <CountryCurrencyDropdown
+                language={language}
+                selectedOption={countryCurrency}
+                options={countryCurrencyOptions}
+                onChange={setCountryCurrency}
+              />
             </div>
 
             <Button
@@ -6446,7 +6475,7 @@ function AdminDashboard() {
                                 })}
                               </div>
                             </td>
-                            <td className="admin-product-col-price">{formatPrice(product.price)} сум</td>
+                            <td className="admin-product-col-price">{formatPrice(product.price)} {t('sum')}</td>
                             <td className="admin-product-col-unit"><span className="admin-product-nowrap">{product.unit || '-'}</span></td>
                             <td className="admin-product-col-step"><span className="admin-product-nowrap">{Number.parseFloat(product.order_step) > 0 ? formatQuantity(product.order_step) : '-'}</span></td>
                             <td className="admin-product-col-container"><span className="admin-product-ellipsis">{product.container_name || '-'}</span></td>
@@ -7659,7 +7688,7 @@ function AdminDashboard() {
                               </Col>
                               <Col md={4}>
                                 <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовая цена (сум)</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовая цена ({t('sum')})</Form.Label>
                                   <Form.Control
                                     type="number"
                                     className="form-control-custom"
@@ -7670,7 +7699,7 @@ function AdminDashboard() {
                               </Col>
                               <Col md={4}>
                                 <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Цена за доп. км (сум)</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Цена за доп. км ({t('sum')})</Form.Label>
                                   <Form.Control
                                     type="number"
                                     className="form-control-custom"
@@ -8344,9 +8373,9 @@ function AdminDashboard() {
                                 </div>
                                 <div className="order-item-content">
                                   <div className="order-item-title">{item.product_name}</div>
-                                  <div className="order-item-caption">{item.quantity} {item.unit || 'шт'} x {formatPrice(item.price)} сум</div>
+                                  <div className="order-item-caption">{item.quantity} {item.unit || 'шт'} x {formatPrice(item.price)} {t('sum')}</div>
                                 </div>
-                                <div className="order-item-total">{formatPrice(lineTotal)} сум</div>
+                                <div className="order-item-total">{formatPrice(lineTotal)} {t('sum')}</div>
                               </div>
                             );
                           })}
@@ -8361,29 +8390,29 @@ function AdminDashboard() {
                             <div className="order-items-total">
                               <div className="order-items-total-row">
                                 <span className="order-items-total-label">Товары</span>
-                                <span className="order-items-total-value">{formatPrice(breakdown.itemsSubtotal)} сум</span>
+                                <span className="order-items-total-value">{formatPrice(breakdown.itemsSubtotal)} {t('sum')}</span>
                               </div>
                               {breakdown.containersTotal > 0 && (
                                 <div className="order-items-total-row">
                                   <span className="order-items-total-label">Пакет / Посуда</span>
-                                  <span className="order-items-total-value">{formatPrice(breakdown.containersTotal)} сум</span>
+                                  <span className="order-items-total-value">{formatPrice(breakdown.containersTotal)} {t('sum')}</span>
                                 </div>
                               )}
                               {breakdown.serviceFee > 0 && (
                                 <div className="order-items-total-row">
                                   <span className="order-items-total-label">Сервис</span>
-                                  <span className="order-items-total-value">{formatPrice(breakdown.serviceFee)} сум</span>
+                                  <span className="order-items-total-value">{formatPrice(breakdown.serviceFee)} {t('sum')}</span>
                                 </div>
                               )}
                               {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
                                 <div className="order-items-total-row">
                                   <span className="order-items-total-label">Доставка{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}</span>
-                                  <span className="order-items-total-value">{formatPrice(breakdown.deliveryCost)} сум</span>
+                                  <span className="order-items-total-value">{formatPrice(breakdown.deliveryCost)} {t('sum')}</span>
                                 </div>
                               )}
                               <div className="order-items-total-row is-total">
                                 <span className="order-items-total-label">Итого</span>
-                                <strong className="order-items-total-value">{formatPrice(breakdown.total)} сум</strong>
+                                <strong className="order-items-total-value">{formatPrice(breakdown.total)} {t('sum')}</strong>
                               </div>
                             </div>
                           );
@@ -8462,15 +8491,15 @@ function AdminDashboard() {
                         );
                         return (
                           <div className="mt-2 text-end">
-                            <div className="small text-muted">Товары: {formatPrice(breakdown.itemsSubtotal)} сум</div>
-                            {breakdown.containersTotal > 0 && <div className="small text-muted">Пакет / Посуда: {formatPrice(breakdown.containersTotal)} сум</div>}
-                            {breakdown.serviceFee > 0 && <div className="small text-muted">Сервис: {formatPrice(breakdown.serviceFee)} сум</div>}
+                            <div className="small text-muted">Товары: {formatPrice(breakdown.itemsSubtotal)} {t('sum')}</div>
+                            {breakdown.containersTotal > 0 && <div className="small text-muted">Пакет / Посуда: {formatPrice(breakdown.containersTotal)} {t('sum')}</div>}
+                            {breakdown.serviceFee > 0 && <div className="small text-muted">Сервис: {formatPrice(breakdown.serviceFee)} {t('sum')}</div>}
                             {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
                               <div className="small text-muted">
-                                Доставка: {formatPrice(breakdown.deliveryCost)} сум{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}
+                                Доставка: {formatPrice(breakdown.deliveryCost)} {t('sum')}{breakdown.deliveryDistanceKm > 0 ? ` (${breakdown.deliveryDistanceKm} км)` : ''}
                               </div>
                             )}
-                            <strong>Новая сумма: {formatPrice(breakdown.total)} сум</strong>
+                            <strong>Новая сумма: {formatPrice(breakdown.total)} {t('sum')}</strong>
                           </div>
                         );
                       })()}
@@ -8572,7 +8601,7 @@ function AdminDashboard() {
                       />
                       <div className="order-add-product-content">
                         <div className="order-add-product-name">{product.name_ru}</div>
-                        <div className="order-add-product-price">{formatPrice(product.price)} сум</div>
+                        <div className="order-add-product-price">{formatPrice(product.price)} {t('sum')}</div>
                       </div>
                       {isOutOfStock && <span className="order-add-product-stock">Нет в наличии</span>}
                     </button>

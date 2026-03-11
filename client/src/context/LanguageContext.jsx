@@ -1,5 +1,76 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+const COUNTRY_CURRENCY_STORAGE_KEY = 'country_currency_preference';
+const DEFAULT_COUNTRY_CURRENCY_CODE = 'uz';
+const COUNTRY_CURRENCY_OPTIONS = [
+  {
+    code: 'uz',
+    flag: '/flags/uz.svg',
+    nameRu: 'Узбекистан',
+    nameUz: "O'zbekiston",
+    currencyRu: 'сум',
+    currencyUz: "so'm"
+  },
+  {
+    code: 'kz',
+    flag: '/flags/kz.svg',
+    nameRu: 'Казахстан',
+    nameUz: "Qozog'iston",
+    currencyRu: '₸',
+    currencyUz: '₸'
+  },
+  {
+    code: 'tm',
+    flag: '/flags/tm.svg',
+    nameRu: 'Туркменистан',
+    nameUz: 'Turkmaniston',
+    currencyRu: 'TMT',
+    currencyUz: 'TMT'
+  },
+  {
+    code: 'tj',
+    flag: '/flags/tj.svg',
+    nameRu: 'Таджикистан',
+    nameUz: 'Tojikiston',
+    currencyRu: 'TJS',
+    currencyUz: 'TJS'
+  },
+  {
+    code: 'kg',
+    flag: '/flags/kg.svg',
+    nameRu: 'Кыргызстан',
+    nameUz: "Qirg'iziston",
+    currencyRu: 'KGS',
+    currencyUz: 'KGS'
+  },
+  {
+    code: 'af',
+    flag: '/flags/af.svg',
+    nameRu: 'Афганистан',
+    nameUz: "Afg'oniston",
+    currencyRu: 'AFN',
+    currencyUz: 'AFN'
+  },
+  {
+    code: 'ru',
+    flag: '/flags/ru.svg',
+    nameRu: 'Россия',
+    nameUz: 'Rossiya',
+    currencyRu: '₽',
+    currencyUz: '₽'
+  }
+];
+const normalizeCountryCurrencyCode = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return COUNTRY_CURRENCY_OPTIONS.some((option) => option.code === normalized)
+    ? normalized
+    : DEFAULT_COUNTRY_CURRENCY_CODE;
+};
+const getCountryCurrencyByCode = (code) => (
+  COUNTRY_CURRENCY_OPTIONS.find((option) => option.code === code)
+  || COUNTRY_CURRENCY_OPTIONS[0]
+);
+
 // Translations
 const translations = {
   ru: {
@@ -232,7 +303,7 @@ const translations = {
     nameUz: 'Название (UZ)',
     descriptionRu: 'Описание (RU)',
     descriptionUz: 'Описание (UZ)',
-    priceSum: 'Цена (сум) *',
+    priceSum: 'Цена ({sum}) *',
     unit: 'Единица измерения *',
     unitPcs: 'шт',
     unitPortion: 'порция',
@@ -277,7 +348,7 @@ const translations = {
     addContainer: 'Добавить посуду',
     containerName: 'Название *',
     containerNamePlaceholder: 'Например: Контейнер 1л, Стакан 0.5л',
-    containerPrice: 'Цена (сум) *',
+    containerPrice: 'Цена ({sum}) *',
     sortOrderLabel: 'Порядок сортировки',
 
     // Feedback
@@ -671,7 +742,7 @@ const translations = {
     nameUz: 'Nomi (UZ)',
     descriptionRu: 'Tavsif (RU)',
     descriptionUz: 'Tavsif (UZ)',
-    priceSum: 'Narxi (so\'m) *',
+    priceSum: 'Narxi ({sum}) *',
     unit: 'O\'lchov birligi *',
     unitPcs: 'dona',
     unitPortion: 'porsiya',
@@ -716,7 +787,7 @@ const translations = {
     addContainer: 'Idish qo\'shish',
     containerName: 'Nomi *',
     containerNamePlaceholder: 'Masalan: Konteyner 1l, Stakan 0.5l',
-    containerPrice: 'Narxi (so\'m) *',
+    containerPrice: 'Narxi ({sum}) *',
     sortOrderLabel: 'Tartiblash tartibi',
 
     // Feedback
@@ -888,21 +959,51 @@ export function LanguageProvider({ children }) {
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('language') || 'ru';
   });
+  const [countryCurrencyCode, setCountryCurrencyCode] = useState(() => (
+    normalizeCountryCurrencyCode(localStorage.getItem(COUNTRY_CURRENCY_STORAGE_KEY))
+  ));
+  const countryCurrency = getCountryCurrencyByCode(countryCurrencyCode);
+  const currencyLabel = language === 'uz'
+    ? countryCurrency.currencyUz
+    : countryCurrency.currencyRu;
 
   useEffect(() => {
     localStorage.setItem('language', language);
   }, [language]);
 
+  useEffect(() => {
+    localStorage.setItem(COUNTRY_CURRENCY_STORAGE_KEY, countryCurrencyCode);
+  }, [countryCurrencyCode]);
+
   const t = (key) => {
-    return translations[language]?.[key] || translations.ru[key] || key;
+    if (key === 'sum') return currencyLabel;
+    const source = translations[language]?.[key] || translations.ru[key] || key;
+    return typeof source === 'string'
+      ? source.replaceAll('{sum}', currencyLabel)
+      : source;
   };
 
   const toggleLanguage = () => {
     setLanguage(prev => prev === 'ru' ? 'uz' : 'ru');
   };
 
+  const setCountryCurrency = (code) => {
+    setCountryCurrencyCode(normalizeCountryCurrencyCode(code));
+  };
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, toggleLanguage, t }}>
+    <LanguageContext.Provider value={{
+      language,
+      setLanguage,
+      toggleLanguage,
+      t,
+      countryCurrencyCode,
+      countryCurrency,
+      countryCurrencyOptions: COUNTRY_CURRENCY_OPTIONS,
+      setCountryCurrency,
+      currencyLabel
+    }}
+    >
       {children}
     </LanguageContext.Provider>
   );

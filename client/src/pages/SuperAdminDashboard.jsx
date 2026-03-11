@@ -13,6 +13,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
+import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
@@ -360,7 +361,15 @@ const MiniLineChart = ({
 
 function SuperAdminDashboard() {
   const { user, logout } = useAuth();
-  const { language, toggleLanguage, t } = useLanguage();
+  const {
+    language,
+    toggleLanguage,
+    t,
+    countryCurrency,
+    countryCurrencyOptions,
+    setCountryCurrency
+  } = useLanguage();
+  const currencyCountryLabel = language === 'uz' ? 'Mamlakat va valyuta' : 'Страна и валюта';
   const {
     actionButtonsVisible,
     actionButtonsRemainingLabel,
@@ -751,11 +760,11 @@ function SuperAdminDashboard() {
             <span>Период: ${periodCaption}</span>
           </div>
           <div class="cmp-kpi-grid">
-            <div class="cmp-kpi"><b>${Math.round(Number(kpis.revenue || 0)).toLocaleString('ru-RU')}</b><small>Выручка, сум</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.revenue || 0)).toLocaleString('ru-RU')}</b><small>Выручка, ${t('sum')}</small></div>
             <div class="cmp-kpi"><b>${Number(kpis.ordersCount || 0).toLocaleString('ru-RU')}</b><small>Заказы (доставлено)</small></div>
-            <div class="cmp-kpi"><b>${Math.round(Number(kpis.averageCheck || 0)).toLocaleString('ru-RU')}</b><small>Средний чек, сум</small></div>
-            <div class="cmp-kpi"><b>${Math.round(Number(kpis.serviceRevenue || 0)).toLocaleString('ru-RU')}</b><small>Сервис, сум</small></div>
-            <div class="cmp-kpi"><b>${Math.round(Number(kpis.containersRevenue || 0)).toLocaleString('ru-RU')}</b><small>Посуда/Пакеты, сум</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.averageCheck || 0)).toLocaleString('ru-RU')}</b><small>Средний чек, ${t('sum')}</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.serviceRevenue || 0)).toLocaleString('ru-RU')}</b><small>Сервис, ${t('sum')}</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.containersRevenue || 0)).toLocaleString('ru-RU')}</b><small>Посуда/Пакеты, ${t('sum')}</small></div>
             <div class="cmp-kpi"><b>${startToOrder}%</b><small>Start -> Заказ</small></div>
           </div>
           <div class="cmp-row">
@@ -3513,7 +3522,9 @@ function SuperAdminDashboard() {
                       </Table>
                     ) : (
                       <div className="text-center text-muted py-4">
-                        {language === 'uz' ? "20 000 so'mdan past balansli do'kon yo'q" : 'Нет магазинов с балансом ниже 20 000 сум'}
+                        {language === 'uz'
+                          ? `20 000 ${t('sum')}dan past balansli do'kon yo'q`
+                          : `Нет магазинов с балансом ниже 20 000 ${t('sum')}`}
                       </div>
                     )}
                   </Card.Body>
@@ -4409,6 +4420,15 @@ function SuperAdminDashboard() {
                       </div>
                     </div>
                   </div>
+                  <div className="px-3 pb-2">
+                    <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
+                    <CountryCurrencyDropdown
+                      language={language}
+                      selectedOption={countryCurrency}
+                      options={countryCurrencyOptions}
+                      onChange={setCountryCurrency}
+                    />
+                  </div>
                   <Dropdown.Divider />
                   <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2">
                     <i className="bi bi-box-arrow-right"></i> Выйти
@@ -4466,6 +4486,16 @@ function SuperAdminDashboard() {
                   O'zb
                 </div>
               </div>
+            </div>
+
+            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
+              <div className="small text-muted mb-2 fw-semibold">{currencyCountryLabel}</div>
+              <CountryCurrencyDropdown
+                language={language}
+                selectedOption={countryCurrency}
+                options={countryCurrencyOptions}
+                onChange={setCountryCurrency}
+              />
             </div>
 
             <Button
@@ -4829,12 +4859,12 @@ function SuperAdminDashboard() {
                                 </div>
                               </td>
                               <td>
-                                <div className="fw-bold text-primary">{parseFloat(r.balance || 0).toLocaleString()} сум</div>
+                                <div className="fw-bold text-primary">{parseFloat(r.balance || 0).toLocaleString()} {t('sum')}</div>
                                 <small className="text-muted">Стоимость заказа: {parseFloat(r.order_cost || 1000).toLocaleString()}</small>
                               </td>
                               <td>
                                 <div className="fw-semibold">
-                                  {parseFloat(r.service_fee || 0).toLocaleString()} сум
+                                  {parseFloat(r.service_fee || 0).toLocaleString()} {t('sum')}
                                 </div>
                               </td>
                               <td>
@@ -5314,7 +5344,7 @@ function SuperAdminDashboard() {
                                     {c.orders_count}
                                   </Badge>
                                 </td>
-                                <td><span className="fw-semibold">{parseFloat(c.total_spent || 0).toLocaleString()} сум</span></td>
+                                <td><span className="fw-semibold">{parseFloat(c.total_spent || 0).toLocaleString()} {t('sum')}</span></td>
                                 <td>
                                   {!c.user_is_active ? (
                                     <Badge className="badge-custom bg-danger bg-opacity-10 text-danger">Бан (Глобал)</Badge>
@@ -7500,7 +7530,7 @@ function SuperAdminDashboard() {
 
                   <div className="mb-4 bg-light p-3 rounded border border-light">
                     <div className="d-flex align-items-center justify-content-between">
-                      <Form.Label className="fw-medium text-secondary m-0">🛎 {t('saServiceFee')} (Сум)</Form.Label>
+                      <Form.Label className="fw-medium text-secondary m-0">🛎 {t('saServiceFee')} ({t('sum')})</Form.Label>
                       <Form.Check
                         type="switch"
                         id="service-fee-switch"
@@ -7555,7 +7585,7 @@ function SuperAdminDashboard() {
                         </Col>
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saBasePrice')} (Сум)</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small">{t('saBasePrice')} ({t('sum')})</Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -7569,7 +7599,7 @@ function SuperAdminDashboard() {
                         </Col>
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saPricePerKm')} (Сум)</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small">{t('saPricePerKm')} ({t('sum')})</Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -7782,7 +7812,7 @@ function SuperAdminDashboard() {
                     </Col>
                     <Col md={3}>
                       <small className="text-muted">Сумма покупок</small>
-                      <div><strong>{parseFloat(customerOrders.orders?.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0) || 0).toLocaleString()} сум</strong></div>
+                      <div><strong>{parseFloat(customerOrders.orders?.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0) || 0).toLocaleString()} {t('sum')}</strong></div>
                     </Col>
                   </Row>
                 </Card.Body>
@@ -7809,7 +7839,7 @@ function SuperAdminDashboard() {
                         <td><strong>#{order.order_number}</strong></td>
                         <td><small>{formatDate(order.created_at)}</small></td>
                         <td>{order.restaurant_name || '-'}</td>
-                        <td><strong>{parseFloat(order.total_amount).toLocaleString()} сум</strong></td>
+                        <td><strong>{parseFloat(order.total_amount).toLocaleString()} {t('sum')}</strong></td>
                         <td>
                           <Badge bg={
                             order.status === 'new' ? 'primary' :
@@ -7994,15 +8024,15 @@ function SuperAdminDashboard() {
                           <td>{index + 1}</td>
                           <td>{item.product_name}</td>
                           <td>{item.quantity} {item.unit || 'шт'}</td>
-                          <td>{parseFloat(item.price).toLocaleString()} сум</td>
-                          <td><strong>{parseFloat(item.total || item.quantity * item.price).toLocaleString()} сум</strong></td>
+                          <td>{parseFloat(item.price).toLocaleString()} {t('sum')}</td>
+                          <td><strong>{parseFloat(item.total || item.quantity * item.price).toLocaleString()} {t('sum')}</strong></td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="table-light">
                       <tr>
                         <td colSpan="4" className="text-end"><strong>ИТОГО:</strong></td>
-                        <td><strong style={{ fontSize: '1.2rem' }}>{parseFloat(selectedOrder.total_amount).toLocaleString()} сум</strong></td>
+                        <td><strong style={{ fontSize: '1.2rem' }}>{parseFloat(selectedOrder.total_amount).toLocaleString()} {t('sum')}</strong></td>
                       </tr>
                     </tfoot>
                   </Table>

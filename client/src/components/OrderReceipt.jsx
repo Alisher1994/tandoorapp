@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import droneDeliveryVideo from '../assets/animations/drone-delivery.mp4';
+import { useLanguage } from '../context/LanguageContext';
 
 const normalizeContainerNorm = (value, fallback = 1) => {
   const parsed = Number.parseFloat(value);
@@ -17,6 +18,7 @@ const resolveContainerUnits = (quantityValue, normValue) => {
 function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, cardPaymentInfo = null }) {
   const [visible, setVisible] = useState(false);
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   useEffect(() => {
     // Trigger animation after mount
@@ -204,7 +206,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
               fontSize: '22px', 
               fontWeight: 'bold'
             }}>
-              {formatPrice(order?.total_amount)} сум
+              {formatPrice(order?.total_amount)} {t('sum')}
             </span>
           </div>
 

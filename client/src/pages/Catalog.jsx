@@ -1686,7 +1686,7 @@ function Catalog() {
             {language === 'uz' && product.unit_uz ? product.unit_uz : product.unit}
           </Card.Text>
           <div className="fw-bold mt-auto" style={{ fontSize: '0.9rem', color: 'var(--primary-color)' }}>
-            {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
+            {formatPrice(product.price)} {t('sum')}
           </div>
         </Card.Body>
       </Card>
@@ -1854,7 +1854,7 @@ function Catalog() {
             fontSize: '0.95rem'
           }}
         >
-          {formatPrice(cartTotal || 0)} {language === 'uz' ? "so'm" : 'сум'}
+          {formatPrice(cartTotal || 0)} {t('sum')}
         </span>
       </button>
     </div>
@@ -2106,7 +2106,7 @@ function Catalog() {
                       className="text-end mt-1"
                       style={{ color: 'var(--primary-color)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.83rem' }}
                     >
-                      {formatPrice(product.price)} {language === 'uz' ? "so'm" : 'сум'}
+                      {formatPrice(product.price)} {t('sum')}
                     </div>
                   </div>
                 </div>
