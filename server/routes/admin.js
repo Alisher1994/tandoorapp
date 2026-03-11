@@ -118,6 +118,40 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (RESTAURANT_CURRENCY_CODES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return RESTAURANT_CURRENCY_CODES.has(normalizedFallback) ? normalizedFallback : 'uz';
+};
+let restaurantCurrencySchemaReady = false;
+let restaurantCurrencySchemaPromise = null;
+const ensureRestaurantCurrencySchema = async () => {
+  if (restaurantCurrencySchemaReady) return;
+  if (restaurantCurrencySchemaPromise) {
+    await restaurantCurrencySchemaPromise;
+    return;
+  }
+
+  restaurantCurrencySchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET currency_code = 'uz'
+      WHERE currency_code IS NULL
+         OR BTRIM(currency_code) = ''
+         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+    `).catch(() => {});
+    restaurantCurrencySchemaReady = true;
+  })();
+
+  try {
+    await restaurantCurrencySchemaPromise;
+  } finally {
+    restaurantCurrencySchemaPromise = null;
+  }
+};
 const normalizeCardReceiptTarget = (value, fallback = 'bot') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'admin') return 'admin';
@@ -540,6 +574,7 @@ router.get('/me', (req, res) => {
     role: req.user.role,
     active_restaurant_id: req.user.active_restaurant_id,
     active_restaurant_name: req.user.active_restaurant_name,
+    active_restaurant_currency_code: req.user.active_restaurant_currency_code || 'uz',
     restaurants: req.user.restaurants || [],
     balance: req.user.balance
   });
@@ -548,6 +583,7 @@ router.get('/me', (req, res) => {
 // Переключить активный ресторан
 router.post('/switch-restaurant', async (req, res) => {
   try {
+    await ensureRestaurantCurrencySchema();
     const { restaurant_id } = req.body;
 
     if (!restaurant_id) {
@@ -574,7 +610,7 @@ router.post('/switch-restaurant', async (req, res) => {
 
     // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name, logo_url, logo_display_mode, ui_theme, menu_view_mode FROM restaurants WHERE id = $1',
+      'SELECT name, logo_url, logo_display_mode, ui_theme, menu_view_mode, currency_code FROM restaurants WHERE id = $1',
       [restaurant_id]
     );
 
@@ -585,7 +621,8 @@ router.post('/switch-restaurant', async (req, res) => {
       active_restaurant_logo: restaurantResult.rows[0]?.logo_url,
       active_restaurant_logo_display_mode: restaurantResult.rows[0]?.logo_display_mode || 'square',
       active_restaurant_ui_theme: normalizeUiTheme(restaurantResult.rows[0]?.ui_theme, 'classic'),
-      active_restaurant_menu_view_mode: normalizeMenuViewMode(restaurantResult.rows[0]?.menu_view_mode, 'grid_categories')
+      active_restaurant_menu_view_mode: normalizeMenuViewMode(restaurantResult.rows[0]?.menu_view_mode, 'grid_categories'),
+      active_restaurant_currency_code: normalizeRestaurantCurrencyCode(restaurantResult.rows[0]?.currency_code, 'uz')
     });
   } catch (error) {
     console.error('Switch restaurant error:', error);
@@ -953,6 +990,7 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 // Получить настройки текущего ресторана
 router.get('/restaurant', async (req, res) => {
   try {
+    await ensureRestaurantCurrencySchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
@@ -969,10 +1007,11 @@ router.get('/restaurant', async (req, res) => {
 // Обновить настройки текущего ресторана
 router.put('/restaurant', async (req, res) => {
   try {
+    await ensureRestaurantCurrencySchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
     const previousRestaurantResult = await pool.query(
-      'SELECT name, telegram_bot_token, logo_display_mode, ui_theme, menu_view_mode FROM restaurants WHERE id = $1',
+      'SELECT name, telegram_bot_token, logo_display_mode, ui_theme, menu_view_mode, currency_code FROM restaurants WHERE id = $1',
       [restaurantId]
     );
     if (!previousRestaurantResult.rows.length) {
@@ -989,7 +1028,7 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode, ui_theme, menu_view_mode, payment_placeholders,
+      logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
       send_balance_after_confirm, send_daily_close_report
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
@@ -1010,6 +1049,7 @@ router.put('/restaurant', async (req, res) => {
       menu_view_mode,
       previousRestaurant.menu_view_mode || 'grid_categories'
     );
+    const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, previousRestaurant.currency_code || 'uz');
     const normalizedCardReceiptTarget = normalizeCardReceiptTarget(card_receipt_target, 'bot');
     const normalizedCashEnabled = normalizeOptionalBoolean(cash_enabled);
     const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
@@ -1085,11 +1125,12 @@ router.put('/restaurant', async (req, res) => {
            msg_cancelled = $39,
            ui_theme = $40,
            menu_view_mode = $41,
-           payment_placeholders = COALESCE($42::jsonb, payment_placeholders),
-           send_balance_after_confirm = COALESCE($43, send_balance_after_confirm),
-           send_daily_close_report = COALESCE($44, send_daily_close_report),
-           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $45
+          payment_placeholders = COALESCE($42::jsonb, payment_placeholders),
+          send_balance_after_confirm = COALESCE($43, send_balance_after_confirm),
+          send_daily_close_report = COALESCE($44, send_daily_close_report),
+          currency_code = $45,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $46
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1117,6 +1158,7 @@ router.put('/restaurant', async (req, res) => {
       normalizedPaymentPlaceholders ? JSON.stringify(normalizedPaymentPlaceholders) : null,
       normalizedSendBalanceAfterConfirm,
       normalizedSendDailyCloseReport,
+      normalizedCurrencyCode,
       restaurantId
     ]);
 
@@ -1146,6 +1188,33 @@ router.put('/restaurant', async (req, res) => {
   } catch (error) {
     console.error('Update restaurant settings error:', error);
     res.status(500).json({ error: 'Ошибка обновления настроек ресторана' });
+  }
+});
+
+// Обновить только валюту текущего ресторана (быстрое переключение из хедера)
+router.patch('/restaurant/currency', async (req, res) => {
+  try {
+    await ensureRestaurantCurrencySchema();
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(req.body?.currency_code, 'uz');
+    const result = await pool.query(
+      `UPDATE restaurants
+       SET currency_code = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, currency_code`,
+      [normalizedCurrencyCode, restaurantId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Patch restaurant currency error:', error);
+    res.status(500).json({ error: 'Ошибка обновления валюты магазина' });
   }
 });
 

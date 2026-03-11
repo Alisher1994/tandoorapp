@@ -7,6 +7,13 @@ const geoip = require('geoip-lite');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const TASHKENT_TZ = 'Asia/Tashkent';
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (RESTAURANT_CURRENCY_CODES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return RESTAURANT_CURRENCY_CODES.has(normalizedFallback) ? normalizedFallback : 'uz';
+};
 const CATALOG_ANIMATION_SEASON_VALUES = new Set(['off', 'spring', 'summer', 'autumn', 'winter']);
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -91,6 +98,8 @@ let adBannerTargetingSchemaReady = false;
 let adBannerTargetingSchemaPromise = null;
 let catalogAnimationSettingsSchemaReady = false;
 let catalogAnimationSettingsSchemaPromise = null;
+let restaurantCurrencySchemaReady = false;
+let restaurantCurrencySchemaPromise = null;
 const ensureAdBannerTargetingSchema = async () => {
   if (adBannerTargetingSchemaReady) return;
   if (adBannerTargetingSchemaPromise) {
@@ -150,6 +159,32 @@ const ensureCatalogAnimationSettingsSchema = async () => {
     await catalogAnimationSettingsSchemaPromise;
   } finally {
     catalogAnimationSettingsSchemaPromise = null;
+  }
+};
+
+const ensureRestaurantCurrencySchema = async () => {
+  if (restaurantCurrencySchemaReady) return;
+  if (restaurantCurrencySchemaPromise) {
+    await restaurantCurrencySchemaPromise;
+    return;
+  }
+
+  restaurantCurrencySchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET currency_code = 'uz'
+      WHERE currency_code IS NULL
+         OR BTRIM(currency_code) = ''
+         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+    `).catch(() => {});
+    restaurantCurrencySchemaReady = true;
+  })();
+
+  try {
+    await restaurantCurrencySchemaPromise;
+  } finally {
+    restaurantCurrencySchemaPromise = null;
   }
 };
 
@@ -421,6 +456,7 @@ router.get('/', async (req, res) => {
 // Get restaurant by id (public - for receipt/logo)
 router.get('/restaurant/:id', async (req, res) => {
   try {
+    await ensureRestaurantCurrencySchema();
     const result = await pool.query(
       `SELECT * FROM restaurants WHERE id = $1`,
       [req.params.id]
@@ -450,6 +486,7 @@ router.get('/restaurant/:id', async (req, res) => {
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
+      currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       cash_enabled: cashEnabled,
@@ -653,6 +690,7 @@ router.get('/:id', async (req, res) => {
 // Get restaurants list (public - for customer app to select restaurant)
 router.get('/restaurants/list', async (req, res) => {
   try {
+    await ensureRestaurantCurrencySchema();
     const result = await pool.query(`
       SELECT * FROM restaurants 
       WHERE is_active = true 
@@ -670,6 +708,7 @@ router.get('/restaurants/list', async (req, res) => {
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
+      currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled)
       });

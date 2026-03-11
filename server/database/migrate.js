@@ -85,6 +85,7 @@ async function migrate() {
       'delivery_base_price DECIMAL(10, 2) DEFAULT 5000',
       'delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000',
       'is_delivery_enabled BOOLEAN DEFAULT true',
+      `currency_code VARCHAR(8) DEFAULT 'uz'`,
       'balance DECIMAL(12, 2) DEFAULT 100000.00',
       'is_free_tier BOOLEAN DEFAULT false',
       'order_cost DECIMAL(12, 2) DEFAULT 1000.00'
@@ -136,6 +137,13 @@ async function migrate() {
       UPDATE restaurants
       SET send_daily_close_report = false
       WHERE send_daily_close_report IS NULL
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET currency_code = 'uz'
+      WHERE currency_code IS NULL
+        OR BTRIM(COALESCE(currency_code, '')) = ''
+        OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

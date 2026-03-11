@@ -158,7 +158,8 @@ export function AuthProvider({ children }) {
         active_restaurant_name: response.data.active_restaurant_name,
         active_restaurant_logo: response.data.active_restaurant_logo,
         active_restaurant_logo_display_mode: response.data.active_restaurant_logo_display_mode,
-        active_restaurant_ui_theme: normalizeUiTheme(response.data.active_restaurant_ui_theme)
+        active_restaurant_ui_theme: normalizeUiTheme(response.data.active_restaurant_ui_theme),
+        active_restaurant_currency_code: response.data.active_restaurant_currency_code || prev?.active_restaurant_currency_code || 'uz'
       }));
       localStorage.setItem('active_restaurant_id', String(response.data.active_restaurant_id || ''));
       

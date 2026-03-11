@@ -16,48 +16,48 @@ const COUNTRY_CURRENCY_OPTIONS = [
     flag: '/flags/kz.svg',
     nameRu: 'Казахстан',
     nameUz: "Qozog'iston",
-    currencyRu: '₸',
-    currencyUz: '₸'
+    currencyRu: 'тенге',
+    currencyUz: 'tenge'
   },
   {
     code: 'tm',
     flag: '/flags/tm.svg',
     nameRu: 'Туркменистан',
     nameUz: 'Turkmaniston',
-    currencyRu: 'TMT',
-    currencyUz: 'TMT'
+    currencyRu: 'манат',
+    currencyUz: 'manat'
   },
   {
     code: 'tj',
     flag: '/flags/tj.svg',
     nameRu: 'Таджикистан',
     nameUz: 'Tojikiston',
-    currencyRu: 'TJS',
-    currencyUz: 'TJS'
+    currencyRu: 'сомони',
+    currencyUz: 'somoni'
   },
   {
     code: 'kg',
     flag: '/flags/kg.svg',
     nameRu: 'Кыргызстан',
     nameUz: "Qirg'iziston",
-    currencyRu: 'KGS',
-    currencyUz: 'KGS'
+    currencyRu: 'сом',
+    currencyUz: 'som'
   },
   {
     code: 'af',
     flag: '/flags/af.svg',
     nameRu: 'Афганистан',
     nameUz: "Afg'oniston",
-    currencyRu: 'AFN',
-    currencyUz: 'AFN'
+    currencyRu: 'афгани',
+    currencyUz: "afg'oni"
   },
   {
     code: 'ru',
     flag: '/flags/ru.svg',
     nameRu: 'Россия',
     nameUz: 'Rossiya',
-    currencyRu: '₽',
-    currencyUz: '₽'
+    currencyRu: 'руб',
+    currencyUz: 'rubl'
   }
 ];
 const normalizeCountryCurrencyCode = (value) => {

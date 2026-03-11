@@ -27,6 +27,15 @@ const CATALOG_ANIMATION_SEASON_OPTIONS = [
   { value: 'autumn', label: 'Осень' },
   { value: 'winter', label: 'Зима' }
 ];
+const RESTAURANT_CURRENCY_OPTIONS = [
+  { value: 'uz', label: 'Узбекистан - so\'m' },
+  { value: 'kz', label: 'Казахстан - тенге' },
+  { value: 'tm', label: 'Туркменистан - манат' },
+  { value: 'tj', label: 'Таджикистан - сомони' },
+  { value: 'kg', label: 'Кыргызстан - сом' },
+  { value: 'af', label: 'Афганистан - афгани' },
+  { value: 'ru', label: 'Россия - руб' }
+];
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return ['off', 'spring', 'summer', 'autumn', 'winter'].includes(normalized) ? normalized : fallback;
@@ -369,7 +378,7 @@ function SuperAdminDashboard() {
     countryCurrencyOptions,
     setCountryCurrency
   } = useLanguage();
-  const currencyCountryLabel = language === 'uz' ? 'Mamlakat va valyuta' : 'Страна и валюта';
+  const currencyCountryLabel = language === 'uz' ? 'Interfeys valyutasi (lokal)' : 'Валюта интерфейса (локально)';
   const {
     actionButtonsVisible,
     actionButtonsRemainingLabel,
@@ -444,6 +453,7 @@ function SuperAdminDashboard() {
     payme_account_key: 'order_id',
     payme_test_mode: false,
     payme_callback_timeout_ms: 2000,
+    currency_code: 'uz',
     support_username: '',
     service_fee: 1000,
     latitude: '',
@@ -2536,6 +2546,7 @@ function SuperAdminDashboard() {
         payme_account_key: restaurant.payme_account_key || 'order_id',
         payme_test_mode: Boolean(restaurant.payme_test_mode),
         payme_callback_timeout_ms: restaurant.payme_callback_timeout_ms || 2000,
+        currency_code: restaurant.currency_code || 'uz',
         support_username: restaurant.support_username || '',
         service_fee: restaurant.hasOwnProperty('service_fee') ? parseFloat(restaurant.service_fee) : 1000,
         latitude: restaurant.latitude || '',
@@ -2569,6 +2580,7 @@ function SuperAdminDashboard() {
         payme_account_key: 'order_id',
         payme_test_mode: false,
         payme_callback_timeout_ms: 2000,
+        currency_code: 'uz',
         support_username: '',
         service_fee: 1000,
         latitude: '',
@@ -7301,6 +7313,21 @@ function SuperAdminDashboard() {
                     </Form.Select>
                     <Form.Text className="text-muted d-block mt-1">
                       Используется в дальнейшем для классификации магазина и выбора в боте.
+                    </Form.Text>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-secondary">Валюта магазина</Form.Label>
+                    <Form.Select
+                      value={restaurantForm.currency_code || 'uz'}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, currency_code: e.target.value })}
+                    >
+                      {RESTAURANT_CURRENCY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted d-block mt-1">
+                      Эта валюта будет показываться клиентам во всех суммах этого магазина.
                     </Form.Text>
                   </Form.Group>
 

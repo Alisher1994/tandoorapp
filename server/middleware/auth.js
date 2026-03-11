@@ -72,6 +72,7 @@ const authenticate = async (req, res, next) => {
     user.active_restaurant_logo = null;
     user.active_restaurant_logo_display_mode = null;
     user.active_restaurant_ui_theme = 'classic';
+    user.active_restaurant_currency_code = 'uz';
     user.active_restaurant_service_fee = null;
     user.active_restaurant_is_delivery_enabled = null;
     user.restaurant_balance = null;
@@ -84,6 +85,7 @@ const authenticate = async (req, res, next) => {
           logo_url,
           logo_display_mode,
           ui_theme,
+          currency_code,
           service_fee,
           is_delivery_enabled,
           balance,
@@ -98,6 +100,7 @@ const authenticate = async (req, res, next) => {
         user.active_restaurant_logo = restaurant.logo_url;
         user.active_restaurant_logo_display_mode = restaurant.logo_display_mode;
         user.active_restaurant_ui_theme = normalizeUiTheme(restaurant.ui_theme, 'classic');
+        user.active_restaurant_currency_code = restaurant.currency_code || 'uz';
         user.active_restaurant_service_fee = restaurant.service_fee;
         user.active_restaurant_is_delivery_enabled = restaurant.is_delivery_enabled;
         user.restaurant_balance = restaurant.balance;

@@ -94,7 +94,7 @@ function Catalog() {
   const { user, isOperator, logout } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
-  const { language, toggleLanguage, t } = useLanguage();
+  const { language, toggleLanguage, t, setCountryCurrency } = useLanguage();
   const navigate = useNavigate();
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= 992 : false
@@ -548,6 +548,11 @@ function Catalog() {
     () => restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant)) || null,
     [restaurants, selectedRestaurant]
   );
+  useEffect(() => {
+    if (currentRestaurant?.currency_code) {
+      setCountryCurrency(currentRestaurant.currency_code);
+    }
+  }, [currentRestaurant?.currency_code, setCountryCurrency]);
   const menuViewMode = useMemo(
     () => normalizeMenuViewMode(currentRestaurant?.menu_view_mode, 'grid_categories'),
     [currentRestaurant]

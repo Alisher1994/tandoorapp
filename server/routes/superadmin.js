@@ -34,10 +34,19 @@ const { sendBalanceNotification, getRestaurantBot } = require('../bot/notificati
 
 const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (RESTAURANT_CURRENCY_CODES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return RESTAURANT_CURRENCY_CODES.has(normalizedFallback) ? normalizedFallback : 'uz';
+};
 let activityTypesSchemaReady = false;
 let activityTypesSchemaPromise = null;
 let billingSettingsSchemaReady = false;
 let billingSettingsSchemaPromise = null;
+let restaurantCurrencySchemaReady = false;
+let restaurantCurrencySchemaPromise = null;
 
 const DEFAULT_ACTIVITY_TYPES = [
   'Одежда',
@@ -483,6 +492,31 @@ const OPERATOR_PAYMENT_LABELS = {
   xazna: 'Xazna',
   uzum: 'Uzum'
 };
+const ensureRestaurantCurrencySchema = async () => {
+  if (restaurantCurrencySchemaReady) return;
+  if (restaurantCurrencySchemaPromise) {
+    await restaurantCurrencySchemaPromise;
+    return;
+  }
+
+  restaurantCurrencySchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET currency_code = 'uz'
+      WHERE currency_code IS NULL
+         OR BTRIM(currency_code) = ''
+         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+    `).catch(() => {});
+    restaurantCurrencySchemaReady = true;
+  })();
+
+  try {
+    await restaurantCurrencySchemaPromise;
+  } finally {
+    restaurantCurrencySchemaPromise = null;
+  }
+};
 
 const padAnalyticsDatePart = (value) => String(value).padStart(2, '0');
 const formatAnalyticsDateKey = (year, month, day) => (
@@ -839,6 +873,7 @@ const getCategorySubtreeDepth = async (client, categoryId) => {
 router.get('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
+    await ensureRestaurantCurrencySchema();
     const result = await pool.query(`
       SELECT r.*, 
         bat.name AS activity_type_name,
@@ -1292,6 +1327,7 @@ router.post('/restaurants/:id/toggle-free', async (req, res) => {
 router.get('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
+    await ensureRestaurantCurrencySchema();
     const result = await pool.query(`
       SELECT r.*,
         bat.name AS activity_type_name,
@@ -1328,6 +1364,7 @@ router.get('/restaurants/:id', async (req, res) => {
 router.post('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
+    await ensureRestaurantCurrencySchema();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled,
@@ -1342,6 +1379,7 @@ router.post('/restaurants', async (req, res) => {
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
     const normalizedUiTheme = normalizeUiTheme(ui_theme, 'classic');
     const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
+    const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(req.body?.currency_code, 'uz');
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
@@ -1369,10 +1407,10 @@ router.post('/restaurants', async (req, res) => {
         logo_display_mode, ui_theme,
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
-        balance, order_cost, activity_type_id,
+        balance, order_cost, activity_type_id, currency_code,
         payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *
     `, [
       name,
@@ -1394,6 +1432,7 @@ router.post('/restaurants', async (req, res) => {
       settings.default_starting_balance,
       req.body.service_fee !== undefined ? parseFloat(req.body.service_fee) : settings.default_order_cost,
       activityTypeId,
+      normalizedCurrencyCode,
       payme_enabled === true || payme_enabled === 'true',
       payme_merchant_id || null,
       payme_api_login || null,
@@ -1436,11 +1475,13 @@ router.post('/restaurants', async (req, res) => {
 router.put('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
+    await ensureRestaurantCurrencySchema();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee,
       latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled,
-      payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
+      payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
+      currency_code
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1459,6 +1500,7 @@ router.put('/restaurants/:id', async (req, res) => {
     const oldValues = oldResult.rows[0];
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, oldValues.logo_display_mode || 'square');
     const normalizedUiTheme = normalizeUiTheme(ui_theme, oldValues.ui_theme || 'classic');
+    const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, oldValues.currency_code || 'uz');
     const previousBotToken = normalizeRestaurantTokenForCompare(oldValues.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -1572,13 +1614,14 @@ router.put('/restaurants/:id', async (req, res) => {
           payme_enabled = $25,
           payme_merchant_id = $26,
           payme_api_login = $27,
-           payme_api_password = $28,
+          payme_api_password = $28,
            payme_account_key = $29,
            payme_test_mode = $30,
            payme_callback_timeout_ms = $31,
-           ui_theme = $32,
+           currency_code = $32,
+           ui_theme = $33,
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $33
+      WHERE id = $34
       RETURNING *
     `, [
       name,
@@ -1612,6 +1655,7 @@ router.put('/restaurants/:id', async (req, res) => {
       payme_account_key || 'order_id',
       payme_test_mode === true || payme_test_mode === 'true',
       Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000,
+      normalizedCurrencyCode,
       normalizedUiTheme,
       req.params.id
     ]);

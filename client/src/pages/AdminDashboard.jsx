@@ -54,6 +54,15 @@ const ANALYTICS_PAYMENT_METHOD_META = {
   card: { labelRu: 'Карта', labelUz: 'Karta', color: '#0ea5e9', iconType: 'emoji', icon: '💳' },
   cash: { labelRu: 'Наличные', labelUz: 'Naqd', color: '#16a34a', iconType: 'emoji', icon: '💵' }
 };
+const RESTAURANT_CURRENCY_OPTIONS = [
+  { value: 'uz', labelRu: 'Узбекистан - сум', labelUz: 'O\'zbekiston - so\'m' },
+  { value: 'kz', labelRu: 'Казахстан - тенге', labelUz: 'Qozog\'iston - tenge' },
+  { value: 'tm', labelRu: 'Туркменистан - манат', labelUz: 'Turkmaniston - manat' },
+  { value: 'tj', labelRu: 'Таджикистан - сомони', labelUz: 'Tojikiston - somoni' },
+  { value: 'kg', labelRu: 'Кыргызстан - сом', labelUz: 'Qirg\'iziston - som' },
+  { value: 'af', labelRu: 'Афганистан - афгани', labelUz: 'Afg\'oniston - afg\'oni' },
+  { value: 'ru', labelRu: 'Россия - руб', labelUz: 'Rossiya - rubl' }
+];
 const normalizeAnalyticsPaymentMethod = (paymentMethod) => {
   const normalized = String(paymentMethod || '').trim().toLowerCase();
   return ANALYTICS_PAYMENT_METHOD_ORDER.includes(normalized) ? normalized : '';
@@ -2339,12 +2348,16 @@ function AdminDashboard() {
       const settings = {
         ...(response.data || {}),
         cash_enabled: response.data?.cash_enabled === false ? false : true,
+        currency_code: response.data?.currency_code || 'uz',
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic',
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
+      if (settings.currency_code) {
+        setCountryCurrency(settings.currency_code);
+      }
       setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
       setTokenSaveCountdown(0);
       tokenCountdownArmedRef.current = false;
@@ -2361,6 +2374,9 @@ function AdminDashboard() {
       const response = await axios.put(`${API_URL}/admin/restaurant`, restaurantSettings);
       const savedSettings = response.data || {};
       setRestaurantSettings((prev) => ({ ...prev, ...savedSettings }));
+      if (savedSettings.currency_code) {
+        setCountryCurrency(savedSettings.currency_code);
+      }
       setInitialRestaurantBotToken((savedSettings.telegram_bot_token || '').trim());
       setTokenSaveCountdown(0);
       tokenCountdownArmedRef.current = false;
@@ -3878,6 +3894,29 @@ function AdminDashboard() {
     return <PageSkeleton fullscreen label="Загрузка панели оператора" cards={9} />;
   }
 
+  const handleCountryCurrencyChange = async (code) => {
+    const previousCode = countryCurrency?.code;
+    setCountryCurrency(code);
+    try {
+      const response = await axios.patch(`${API_URL}/admin/restaurant/currency`, { currency_code: code });
+      const savedCode = response.data?.currency_code;
+      if (savedCode) {
+        setCountryCurrency(savedCode);
+      }
+      setRestaurantSettings((prev) => (
+        prev
+          ? { ...prev, currency_code: savedCode || code }
+          : prev
+      ));
+    } catch (error) {
+      setCountryCurrency(previousCode || 'uz');
+      setAlertMessage({
+        type: 'danger',
+        text: error.response?.data?.error || 'Ошибка обновления валюты магазина'
+      });
+    }
+  };
+
   const handleSwitchRestaurant = async (restaurantId) => {
     if (Number(restaurantId) === Number(user?.active_restaurant_id)) {
       setShowRestaurantPickerModal(false);
@@ -4869,7 +4908,7 @@ function AdminDashboard() {
                         language={language}
                         selectedOption={countryCurrency}
                         options={countryCurrencyOptions}
-                        onChange={setCountryCurrency}
+                        onChange={handleCountryCurrencyChange}
                       />
                     </div>
 
@@ -5034,7 +5073,7 @@ function AdminDashboard() {
                 language={language}
                 selectedOption={countryCurrency}
                 options={countryCurrencyOptions}
-                onChange={setCountryCurrency}
+                onChange={handleCountryCurrencyChange}
               />
             </div>
 
@@ -7077,6 +7116,33 @@ function AdminDashboard() {
                                               </Form.Select>
                                               <Form.Text className="text-muted d-block mt-2">
                                                 Папки: сначала плитка категорий. Прямой список: сразу все товары по категориям с верхними табами.
+                                              </Form.Text>
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                                {language === 'uz' ? 'Do\'kon valyutasi' : 'Валюта магазина'}
+                                              </Form.Label>
+                                              <Form.Select
+                                                className="form-control-custom"
+                                                value={restaurantSettings.currency_code || 'uz'}
+                                                onChange={e => {
+                                                  const nextCode = e.target.value;
+                                                  setRestaurantSettings({ ...restaurantSettings, currency_code: nextCode });
+                                                  setCountryCurrency(nextCode);
+                                                }}
+                                              >
+                                                {RESTAURANT_CURRENCY_OPTIONS.map((option) => (
+                                                  <option key={option.value} value={option.value}>
+                                                    {language === 'uz' ? option.labelUz : option.labelRu}
+                                                  </option>
+                                                ))}
+                                              </Form.Select>
+                                              <Form.Text className="text-muted d-block mt-2">
+                                                {language === 'uz'
+                                                  ? 'Bu tanlov mijozlar uchun ham summalarda aks etadi.'
+                                                  : 'Этот выбор также применяется к отображению сумм у клиентов.'}
                                               </Form.Text>
                                             </Form.Group>
                                           </Col>
