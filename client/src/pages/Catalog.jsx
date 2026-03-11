@@ -2308,7 +2308,9 @@ function Catalog() {
         className="mb-0"
         style={{
           position: 'sticky',
-          top: 0,
+          top: 'env(safe-area-inset-top, 0px)',
+          left: 0,
+          right: 0,
           zIndex: 1010,
           transform: 'translateZ(0)',
           willChange: 'transform',
@@ -2495,6 +2497,9 @@ function Catalog() {
                 gap: `${catalogTabGap}px`,
                 overflowY: 'hidden',
                 overflowX: 'auto',
+                touchAction: 'pan-x pan-y',
+                overscrollBehaviorX: 'contain',
+                overscrollBehaviorY: 'none',
                 minHeight: 42,
                 paddingTop: 4,
                 paddingBottom: 7,
