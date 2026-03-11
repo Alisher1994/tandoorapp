@@ -14,7 +14,7 @@ const resolveContainerUnits = (quantityValue, normValue) => {
   return Math.ceil(quantity / normalizeContainerNorm(normValue, 1));
 };
 
-function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName }) {
+function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, cardPaymentInfo = null }) {
   const [visible, setVisible] = useState(false);
   const navigate = useNavigate();
 
@@ -29,6 +29,20 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
       onClose?.();
       navigate('/orders');
     }, 500);
+  };
+
+  const openReceiptDestination = () => {
+    const targetUrl = String(cardPaymentInfo?.receiptUrl || '').trim();
+    const supportUsername = String(cardPaymentInfo?.supportUsername || '').trim().replace(/^@/, '');
+    const fallbackTarget = supportUsername ? `https://t.me/${supportUsername}` : '';
+    const url = targetUrl || fallbackTarget;
+    if (!url) return;
+
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(url);
+      return;
+    }
+    window.location.assign(url);
   };
 
   const formatPrice = (price) => parseFloat(price).toLocaleString('ru-RU');
@@ -216,6 +230,39 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName })
                       ? '💳 Оплата через Xazna'
                       : '💵 Оплата наличными'}
           </div>
+
+          {order?.payment_method === 'card' && cardPaymentInfo && (
+            <div style={{
+              padding: '14px 20px',
+              borderBottom: '1px dashed var(--border-color)',
+              background: '#f8fafc'
+            }}>
+              <div style={{ fontSize: '12px', color: '#475569', marginBottom: '4px' }}>
+                {cardPaymentInfo.title || 'Карта'}
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '2px' }}>
+                {cardPaymentInfo.number || '—'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                {cardPaymentInfo.holder || '—'}
+              </div>
+              <button
+                onClick={openReceiptDestination}
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  background: '#0ea5e9',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🧾 Отправить чек
+              </button>
+            </div>
+          )}
 
           {/* Thank you message */}
           <div style={{

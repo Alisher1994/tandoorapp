@@ -110,6 +110,11 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'modern' ? 'modern' : fallback;
 };
+const normalizeCardReceiptTarget = (value, fallback = 'bot') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'admin') return 'admin';
+  return fallback;
+};
 const normalizePaymentPlaceholders = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const systems = ['click', 'uzum', 'xazna'];
@@ -968,7 +973,8 @@ router.put('/restaurant', async (req, res) => {
 
     const {
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
-      operator_registration_code, start_time, end_time, click_url, payme_url, uzum_url, xazna_url, support_username,
+      operator_registration_code, start_time, end_time, click_url, payme_url, uzum_url, xazna_url,
+      card_payment_title, card_payment_number, card_payment_holder, card_receipt_target, support_username,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
@@ -990,6 +996,7 @@ router.put('/restaurant', async (req, res) => {
       ui_theme,
       previousRestaurant.ui_theme || 'classic'
     );
+    const normalizedCardReceiptTarget = normalizeCardReceiptTarget(card_receipt_target, 'bot');
     const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
     const normalizedSendBalanceAfterConfirm = normalizeOptionalBoolean(send_balance_after_confirm);
     const normalizedSendDailyCloseReport = normalizeOptionalBoolean(send_daily_close_report);
@@ -1035,37 +1042,46 @@ router.put('/restaurant', async (req, res) => {
           payme_url = $11,
           uzum_url = $12,
           xazna_url = $13,
-          support_username = $14,
-          operator_registration_code = $15,
-          payme_enabled = $16,
-          payme_merchant_id = $17,
-          payme_api_login = $18,
-          payme_api_password = $19,
-          payme_account_key = $20,
-          payme_test_mode = $21,
-          payme_callback_timeout_ms = $22,
-          latitude = $23,
-          longitude = $24,
-          delivery_base_radius = $25,
-          delivery_base_price = $26,
-          delivery_price_per_km = $27,
-          is_delivery_enabled = $28,
-          delivery_zone = $29,
-          msg_new = $30,
-           msg_preparing = $31,
-           msg_delivering = $32,
-           msg_delivered = $33,
-           msg_cancelled = $34,
-           ui_theme = $35,
-           payment_placeholders = COALESCE($36::jsonb, payment_placeholders),
-           send_balance_after_confirm = COALESCE($37, send_balance_after_confirm),
-           send_daily_close_report = COALESCE($38, send_daily_close_report),
+          card_payment_title = $14,
+          card_payment_number = $15,
+          card_payment_holder = $16,
+          card_receipt_target = $17,
+          support_username = $18,
+          operator_registration_code = $19,
+          payme_enabled = $20,
+          payme_merchant_id = $21,
+          payme_api_login = $22,
+          payme_api_password = $23,
+          payme_account_key = $24,
+          payme_test_mode = $25,
+          payme_callback_timeout_ms = $26,
+          latitude = $27,
+          longitude = $28,
+          delivery_base_radius = $29,
+          delivery_base_price = $30,
+          delivery_price_per_km = $31,
+          is_delivery_enabled = $32,
+          delivery_zone = $33,
+          msg_new = $34,
+           msg_preparing = $35,
+           msg_delivering = $36,
+           msg_delivered = $37,
+           msg_cancelled = $38,
+           ui_theme = $39,
+           payment_placeholders = COALESCE($40::jsonb, payment_placeholders),
+           send_balance_after_confirm = COALESCE($41, send_balance_after_confirm),
+           send_daily_close_report = COALESCE($42, send_daily_close_report),
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $39
+      WHERE id = $43
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
-      start_time, end_time, click_url, payme_url, uzum_url, xazna_url, support_username,
+      start_time, end_time, click_url, payme_url, uzum_url, xazna_url,
+      card_payment_title || null,
+      card_payment_number ? String(card_payment_number).replace(/\D/g, '').slice(0, 19) : null,
+      card_payment_holder || null,
+      normalizedCardReceiptTarget,
+      support_username,
       operator_registration_code || null,
       payme_enabled,
       payme_merchant_id || null,

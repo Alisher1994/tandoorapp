@@ -31,6 +31,11 @@ const BOT_TIME_ZONE = resolveBotTimeZone();
 // Cache for restaurant-specific bots
 const restaurantBots = new Map();
 const customerOrderStatusMessageCache = new Map();
+const botProfileCache = new Map();
+const RECEIPT_PLACEHOLDER_WHITE_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=',
+  'base64'
+);
 
 // Lazy import to avoid circular dependency
 function getDefaultBot() {
@@ -75,6 +80,29 @@ function getRestaurantBot(botToken, restaurantId = null) {
   } catch (error) {
     console.error('Error creating restaurant bot:', error);
     return getDefaultBot();
+  }
+}
+
+function normalizeCardReceiptTarget(value, fallback = 'bot') {
+  return String(value || '').trim().toLowerCase() === 'admin' ? 'admin' : fallback;
+}
+
+async function resolveBotPublicUsername(bot, cacheKey) {
+  if (!bot || !cacheKey) return '';
+  const cached = botProfileCache.get(cacheKey);
+  if (cached?.username && (Date.now() - cached.updatedAt) < (60 * 60 * 1000)) {
+    return cached.username;
+  }
+
+  try {
+    const me = await bot.getMe();
+    const username = String(me?.username || '').trim();
+    if (username) {
+      botProfileCache.set(cacheKey, { username, updatedAt: Date.now() });
+    }
+    return username;
+  } catch (_) {
+    return '';
   }
 }
 
@@ -766,6 +794,124 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
   }
 }
 
+async function sendCardReceiptPlaceholderToGroup(order, options = {}) {
+  if (!order?.id) return null;
+  const targetChatId = String(options.chatId || order.payment_receipt_chat_id || order.admin_chat_id || '').trim();
+  if (!targetChatId) return null;
+
+  const normalizedBotToken = String(options.botToken || order.telegram_bot_token || '').trim();
+  if (!normalizedBotToken) return null;
+
+  const bot = getRestaurantBot(normalizedBotToken, options.restaurantId || order.restaurant_id || null);
+  if (!bot) return null;
+
+  const caption =
+    `🧾 Чек оплаты\n` +
+    `Заказ #${order.order_number}\n` +
+    `Ожидаем чек от клиента...`;
+
+  try {
+    const sent = await bot.sendPhoto(targetChatId, RECEIPT_PLACEHOLDER_WHITE_PNG, {
+      caption
+    });
+
+    if (sent?.message_id) {
+      await pool.query(
+        `UPDATE orders
+         SET payment_receipt_chat_id = $1,
+             payment_receipt_message_id = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [targetChatId, sent.message_id, order.id]
+      );
+    }
+
+    return sent || null;
+  } catch (error) {
+    console.error('Send card receipt placeholder error:', error.message);
+    return null;
+  }
+}
+
+async function replaceCardReceiptPlaceholderInGroup({
+  orderId,
+  fileId,
+  orderNumber = null,
+  botToken = null,
+  restaurantId = null,
+  chatId = null,
+  messageId = null
+}) {
+  const normalizedOrderId = Number(orderId);
+  if (!Number.isFinite(normalizedOrderId) || normalizedOrderId <= 0) {
+    return { ok: false, error: 'invalid_order_id' };
+  }
+
+  const normalizedFileId = String(fileId || '').trim();
+  if (!normalizedFileId) {
+    return { ok: false, error: 'missing_file_id' };
+  }
+
+  const targetChatId = String(chatId || '').trim();
+  const targetMessageId = Number(messageId);
+  const normalizedBotToken = String(botToken || '').trim();
+  if (!normalizedBotToken) {
+    return { ok: false, error: 'missing_bot_token' };
+  }
+
+  const bot = getRestaurantBot(normalizedBotToken, restaurantId || null);
+  if (!bot) {
+    return { ok: false, error: 'bot_not_available' };
+  }
+
+  const caption =
+    `✅ Чек оплаты получен\n` +
+    `Заказ #${orderNumber || normalizedOrderId}`;
+
+  try {
+    if (targetChatId && Number.isFinite(targetMessageId) && targetMessageId > 0) {
+      await bot.editMessageMedia(
+        {
+          type: 'photo',
+          media: normalizedFileId,
+          caption
+        },
+        {
+          chat_id: targetChatId,
+          message_id: targetMessageId
+        }
+      );
+    } else if (targetChatId) {
+      const sent = await bot.sendPhoto(targetChatId, normalizedFileId, { caption });
+      if (sent?.message_id) {
+        await pool.query(
+          `UPDATE orders
+           SET payment_receipt_chat_id = $1,
+               payment_receipt_message_id = $2
+           WHERE id = $3`,
+          [targetChatId, sent.message_id, normalizedOrderId]
+        );
+      }
+    } else {
+      return { ok: false, error: 'missing_chat_id' };
+    }
+
+    await pool.query(
+      `UPDATE orders
+       SET payment_receipt_file_id = $1,
+           payment_receipt_submitted_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [normalizedFileId, normalizedOrderId]
+    );
+
+    return { ok: true };
+  } catch (error) {
+    console.error('Replace card receipt placeholder error:', error.message);
+    return { ok: false, error: error.message };
+  }
+}
+
 /**
  * Replace placeholders in message template
  * Available placeholders:
@@ -840,8 +986,9 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
 
     const tag = statusTags[status] || '#обновлен';
 
-    // Build payment link for new orders
+    // Build payment link/details for new orders
     let paymentLine = '';
+    let sendReceiptButton = null;
     if (status === 'new' && order.payment_method && restaurantPaymentUrls) {
       if (order.payment_method === 'click' && restaurantPaymentUrls.click_url) {
         paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.click_url}">Click</a>`;
@@ -851,6 +998,33 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
         paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.uzum_url}">Uzum</a>`;
       } else if (order.payment_method === 'xazna' && restaurantPaymentUrls.xazna_url) {
         paymentLine = `\nСсылка для оплаты: <a href="${restaurantPaymentUrls.xazna_url}">Xazna</a>`;
+      } else if (order.payment_method === 'card') {
+        const cardTitle = String(restaurantPaymentUrls.card_payment_title || '').trim() || 'Банковская карта';
+        const cardNumber = String(restaurantPaymentUrls.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
+        const cardHolder = String(restaurantPaymentUrls.card_payment_holder || '').trim();
+        const receiptTarget = normalizeCardReceiptTarget(restaurantPaymentUrls.card_receipt_target, 'bot');
+        const supportUsernameRaw = String(restaurantPaymentUrls.support_username || '').trim();
+        const supportUsername = supportUsernameRaw.replace(/^@/, '');
+
+        const cardDetails = [
+          cardTitle ? `\nКарта: <b>${escapeHtml(cardTitle)}</b>` : '',
+          cardNumber ? `\nНомер: <code>${escapeHtml(cardNumber)}</code>` : '',
+          cardHolder ? `\nВладелец: <b>${escapeHtml(cardHolder)}</b>` : ''
+        ].join('');
+
+        paymentLine = `${cardDetails}\n\nПосле оплаты отправьте чек.`;
+
+        if (receiptTarget === 'admin' && supportUsername) {
+          sendReceiptButton = {
+            text: '🧾 Отправить чек',
+            url: `https://t.me/${supportUsername}`
+          };
+        } else if (order?.id) {
+          sendReceiptButton = {
+            text: '🧾 Отправить чек',
+            callback_data: `card_receipt_${order.id}`
+          };
+        }
       }
     }
 
@@ -862,6 +1036,9 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
 
     const inlineKeyboard = [];
     inlineKeyboard.push([{ text: '📋 Мои заказы', callback_data: 'my_orders' }]);
+    if (sendReceiptButton) {
+      inlineKeyboard.push([sendReceiptButton]);
+    }
 
     const options = {
       parse_mode: 'HTML',
@@ -1040,6 +1217,8 @@ module.exports = {
   sendOrderNotification,
   sendOrderUpdateToUser,
   updateOrderNotificationForCustomerCancel,
+  sendCardReceiptPlaceholderToGroup,
+  replaceCardReceiptPlaceholderInGroup,
   sendBalanceNotification,
   sendRestaurantGroupBalanceLeft,
   notifyRestaurantAdminsLowBalance,

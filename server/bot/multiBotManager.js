@@ -7,7 +7,8 @@ const {
   sendOrderUpdateToUser,
   notifyRestaurantAdminsLowBalance,
   sendRestaurantGroupBalanceLeft,
-  updateOrderGroupNotification
+  updateOrderGroupNotification,
+  replaceCardReceiptPlaceholderInGroup
 } = require('./notifications');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 const { ensureBotFunnelSchema, trackBotFunnelEvent } = require('../services/botFunnel');
@@ -115,6 +116,10 @@ function normalizePhone(rawPhone) {
     return `+${trimmed.slice(1).replace(/\D/g, '')}`;
   }
   return trimmed.replace(/\D/g, '');
+}
+
+function normalizeCardReceiptTarget(value, fallback = 'bot') {
+  return String(value || '').trim().toLowerCase() === 'admin' ? 'admin' : fallback;
 }
 
 function formatMoney(value) {
@@ -494,6 +499,71 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     if (user.role !== 'customer') return user;
     const isLinked = await isCustomerLinkedToRestaurant(user.id);
     return isLinked ? user : null;
+  };
+
+  const loadCustomerCardReceiptOrder = async ({ orderId, telegramUserId }) => {
+    const normalizedOrderId = Number(orderId);
+    if (!Number.isFinite(normalizedOrderId) || normalizedOrderId <= 0) return null;
+
+    const result = await pool.query(
+      `SELECT o.id, o.order_number, o.user_id, o.payment_method,
+              o.payment_receipt_chat_id, o.payment_receipt_message_id,
+              r.id AS restaurant_id,
+              r.telegram_group_id,
+              r.telegram_bot_token,
+              r.card_receipt_target,
+              r.support_username
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       LEFT JOIN restaurants r ON r.id = o.restaurant_id
+       WHERE o.id = $1
+         AND u.telegram_id = $2
+       LIMIT 1`,
+      [normalizedOrderId, telegramUserId]
+    );
+
+    return result.rows[0] || null;
+  };
+
+  const openCardReceiptFlow = async ({ chatId, telegramUserId, orderId }) => {
+    const order = await loadCustomerCardReceiptOrder({ orderId, telegramUserId });
+    if (!order) {
+      await bot.sendMessage(chatId, '❌ Заказ не найден.');
+      return false;
+    }
+
+    if (String(order.payment_method || '').trim().toLowerCase() !== 'card') {
+      await bot.sendMessage(chatId, 'ℹ️ Для этого заказа чек через бот не требуется.');
+      return false;
+    }
+
+    const receiptTarget = normalizeCardReceiptTarget(order.card_receipt_target, 'bot');
+    if (receiptTarget === 'admin') {
+      const username = String(order.support_username || '').trim().replace(/^@/, '');
+      if (username) {
+        await bot.sendMessage(
+          chatId,
+          `Для этого заказа чек отправляется администратору: https://t.me/${username}`
+        );
+      } else {
+        await bot.sendMessage(chatId, 'Для этого заказа отправка чека через бот отключена.');
+      }
+      return false;
+    }
+
+    const receiptStateKey = getStateKey(telegramUserId, chatId);
+    registrationStates.set(receiptStateKey, ensureFlowStateMeta({
+      step: 'waiting_card_receipt_photo',
+      restaurantId,
+      orderId: order.id
+    }));
+
+    await bot.sendMessage(
+      chatId,
+      `🧾 Заказ #${order.order_number}\n\nОтправьте фото чека одним изображением в этот чат.`,
+      { reply_markup: { remove_keyboard: true } }
+    );
+    return true;
   };
 
   const cancelOrderFromGroupReason = async ({
@@ -1025,10 +1095,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
+    const startText = String(msg.text || '').trim();
+    const receiptStartMatch = startText.match(/^\/start\s+receipt_(\d+)$/i);
 
     console.log(`📱 /start from user ${userId} for restaurant ${restaurantName}`);
 
     try {
+      if (receiptStartMatch) {
+        const receiptOrderId = Number.parseInt(receiptStartMatch[1], 10);
+        await openCardReceiptFlow({
+          chatId,
+          telegramUserId: userId,
+          orderId: receiptOrderId
+        });
+        return;
+      }
+
       await trackFunnelEvent({
         telegramUserId: userId,
         eventType: 'start',
@@ -1744,6 +1826,73 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   });
 
+  bot.on('photo', async (msg) => {
+    const chatId = msg.chat?.id;
+    const userId = msg.from?.id;
+    if (!chatId || !userId) return;
+
+    const stateKey = getStateKey(userId, chatId);
+    const state = registrationStates.get(stateKey);
+    if (!state || state.step !== 'waiting_card_receipt_photo') return;
+
+    if (msg.chat?.type !== 'private') {
+      await bot.sendMessage(chatId, 'Отправьте чек в личном чате с ботом.');
+      return;
+    }
+
+    const photos = Array.isArray(msg.photo) ? msg.photo : [];
+    const bestPhoto = photos[photos.length - 1];
+    const fileId = String(bestPhoto?.file_id || '').trim();
+    if (!fileId) {
+      await bot.sendMessage(chatId, '❌ Не удалось прочитать фото. Отправьте чек еще раз.');
+      return;
+    }
+
+    try {
+      const order = await loadCustomerCardReceiptOrder({
+        orderId: state.orderId,
+        telegramUserId: userId
+      });
+
+      if (!order) {
+        registrationStates.delete(stateKey);
+        await bot.sendMessage(chatId, '❌ Заказ не найден.');
+        return;
+      }
+
+      const receiptTarget = normalizeCardReceiptTarget(order.card_receipt_target, 'bot');
+      if (receiptTarget !== 'bot') {
+        registrationStates.delete(stateKey);
+        await bot.sendMessage(chatId, 'Для этого заказа чек через бот отключен.');
+        return;
+      }
+
+      const replaceResult = await replaceCardReceiptPlaceholderInGroup({
+        orderId: order.id,
+        fileId,
+        orderNumber: order.order_number,
+        botToken: order.telegram_bot_token || botToken,
+        restaurantId: order.restaurant_id || restaurantId,
+        chatId: order.payment_receipt_chat_id || order.telegram_group_id || null,
+        messageId: order.payment_receipt_message_id || null
+      });
+
+      if (!replaceResult.ok) {
+        await bot.sendMessage(chatId, '❌ Не удалось отправить чек в группу. Попробуйте позже.');
+        return;
+      }
+
+      registrationStates.delete(stateKey);
+      await bot.sendMessage(
+        chatId,
+        `✅ Чек по заказу #${order.order_number} принят. Оператор проверит оплату.`
+      );
+    } catch (error) {
+      console.error('Card receipt photo handler error:', error);
+      await bot.sendMessage(chatId, '❌ Ошибка обработки чека. Попробуйте позже.');
+    }
+  });
+
   // Handle callback queries
   bot.on('callback_query', async (query) => {
     const chatId = query.message?.chat?.id;
@@ -1829,6 +1978,27 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       if (data === 'my_orders') {
         await sendRecentOrders(chatId, userId);
+      }
+
+      if (data.startsWith('card_receipt_')) {
+        const orderId = Number.parseInt(data.replace('card_receipt_', ''), 10);
+        if (!Number.isInteger(orderId) || orderId <= 0) {
+          await safeAnswerCallback({ text: 'Некорректный заказ', show_alert: true });
+          return;
+        }
+
+        const opened = await openCardReceiptFlow({
+          chatId,
+          telegramUserId: userId,
+          orderId
+        });
+
+        if (opened) {
+          await safeAnswerCallback({ text: 'Отправьте фото чека в чат' });
+        } else {
+          await safeAnswerCallback({ text: 'Чек отправляется другим способом', show_alert: false });
+        }
+        return;
       }
 
       // Handle feedback

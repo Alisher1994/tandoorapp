@@ -3488,6 +3488,7 @@ function SuperAdminDashboard() {
                             <th>#</th>
                             <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
                             <th className="text-end">{language === 'uz' ? 'Balans' : 'Баланс'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3496,6 +3497,16 @@ function SuperAdminDashboard() {
                               <td>{idx + 1}</td>
                               <td>{item.name || '—'}</td>
                               <td className="text-end">{formatAnalyticsMoney(item.balance || 0)} {t('sum')}</td>
+                              <td className="text-end">
+                                <Button
+                                  variant="light"
+                                  className="action-btn text-success"
+                                  onClick={() => openTopupModal(item)}
+                                  title={language === 'uz' ? 'Balansni to‘ldirish' : 'Пополнить баланс'}
+                                >
+                                  💰
+                                </Button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -8343,4 +8354,3 @@ function SuperAdminDashboard() {
 }
 
 export default SuperAdminDashboard;
-

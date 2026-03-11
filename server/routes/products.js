@@ -425,6 +425,11 @@ router.get('/restaurant/:id', async (req, res) => {
     // Return only safe public fields
     const r = result.rows[0];
     const serviceFee = Number.parseFloat(r.service_fee ?? 0);
+    const cardNumber = String(r.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
+    const cardTitle = String(r.card_payment_title || '').trim();
+    const cardHolder = String(r.card_payment_holder || '').trim();
+    const cardPaymentEnabled = Boolean(cardTitle && cardNumber && cardHolder);
+    const cardReceiptTarget = String(r.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot';
     res.json({
       id: r.id,
       name: r.name,
@@ -439,7 +444,13 @@ router.get('/restaurant/:id', async (req, res) => {
       payme_enabled: isEnabledFlag(r.payme_enabled) && Boolean(String(r.payme_merchant_id || '').trim()),
       payme_url: r.payme_url,
       uzum_url: r.uzum_url,
-      xazna_url: r.xazna_url
+      xazna_url: r.xazna_url,
+      card_payment_enabled: cardPaymentEnabled,
+      card_payment_title: cardPaymentEnabled ? cardTitle : '',
+      card_payment_number: cardPaymentEnabled ? cardNumber : '',
+      card_payment_holder: cardPaymentEnabled ? cardHolder : '',
+      card_receipt_target: cardReceiptTarget,
+      support_username: r.support_username || ''
     });
   } catch (error) {
     console.error('Restaurant error:', error);

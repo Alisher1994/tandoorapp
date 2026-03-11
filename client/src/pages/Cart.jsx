@@ -90,13 +90,21 @@ function Cart() {
       isServerCheckout: Boolean(restaurant?.payme_enabled)
     },
     { key: 'uzum', url: restaurant?.uzum_url, logo: '/uzum.png', alt: 'Uzum' },
-    { key: 'xazna', url: restaurant?.xazna_url, logo: '/xazna.png', alt: 'Xazna' }
-  ].filter((item) => item.isServerCheckout || Boolean(String(item.url || '').trim()))), [
+    { key: 'xazna', url: restaurant?.xazna_url, logo: '/xazna.png', alt: 'Xazna' },
+    {
+      key: 'card',
+      isCard: true,
+      enabled: Boolean(restaurant?.card_payment_enabled),
+      label: restaurant?.card_payment_title ? `💳 ${restaurant.card_payment_title}` : '💳 Карта'
+    }
+  ].filter((item) => item.isCard ? item.enabled : (item.isServerCheckout || Boolean(String(item.url || '').trim())))), [
     restaurant?.click_url,
     restaurant?.payme_enabled,
     restaurant?.payme_url,
     restaurant?.uzum_url,
-    restaurant?.xazna_url
+    restaurant?.xazna_url,
+    restaurant?.card_payment_enabled,
+    restaurant?.card_payment_title
   ]);
   const addressDetailsParts = useMemo(() => {
     const parts = [];
@@ -602,6 +610,16 @@ function Cart() {
         redirectUrl = checkoutResponse.data?.checkout_url || redirectUrl;
       }
 
+      if (formData.payment_method === 'card' && orderForReceipt?.id) {
+        try {
+          const receiptLinkResponse = await axios.get(`${API_URL}/orders/${orderForReceipt.id}/receipt-link`);
+          orderForReceipt.card_receipt_target = receiptLinkResponse.data?.target || 'bot';
+          orderForReceipt.card_receipt_url = receiptLinkResponse.data?.url || '';
+        } catch (receiptLinkError) {
+          console.warn('Card receipt link resolve warning:', receiptLinkError?.response?.data || receiptLinkError?.message);
+        }
+      }
+
       // Открываем ссылку на оплату если выбран онлайн-способ и ссылка настроена
       if (redirectUrl) {
         clearCart();
@@ -642,6 +660,14 @@ function Cart() {
       <OrderReceipt
         order={createdOrder}
         items={orderItems}
+        cardPaymentInfo={createdOrder?.payment_method === 'card' ? {
+          title: restaurant?.card_payment_title || '',
+          number: restaurant?.card_payment_number || '',
+          holder: restaurant?.card_payment_holder || '',
+          receiptTarget: createdOrder?.card_receipt_target || restaurant?.card_receipt_target || 'bot',
+          receiptUrl: createdOrder?.card_receipt_url || '',
+          supportUsername: restaurant?.support_username || ''
+        } : null}
         restaurantLogo={logoUrl}
         restaurantName={restaurant?.name}
         onClose={() => {
@@ -1085,13 +1111,35 @@ function Cart() {
                             }}
                             onClick={() => setFormData({ ...formData, payment_method: option.key })}
                           >
-                            <img src={option.logo} alt={option.alt} style={{ height: 22, objectFit: 'contain' }} />
+                            {option.logo ? (
+                              <img src={option.logo} alt={option.alt} style={{ height: 22, objectFit: 'contain' }} />
+                            ) : (
+                              <span>{option.label || option.key}</span>
+                            )}
                           </Button>
                         ))}
                       </div>
                     )}
                   </div>
                 </Form.Group>
+
+                {formData.payment_method === 'card' && restaurant?.card_payment_enabled && (
+                  <div className="p-3 rounded-3 border bg-light">
+                    <div className="small text-muted mb-2">{language === 'uz' ? "Karta rekvizitlari" : 'Реквизиты карты'}</div>
+                    <div className="fw-bold">{restaurant.card_payment_title || 'Карта'}</div>
+                    <div className="font-monospace">{restaurant.card_payment_number || '—'}</div>
+                    <div>{restaurant.card_payment_holder || '—'}</div>
+                    <div className="small text-muted mt-2">
+                      {restaurant.card_receipt_target === 'admin'
+                        ? (language === 'uz'
+                          ? "To'lovdan so'ng chekni administratorga yuboring."
+                          : 'После оплаты отправьте чек администратору.')
+                        : (language === 'uz'
+                          ? "To'lovdan so'ng chekni bot orqali yuboring."
+                          : 'После оплаты отправьте чек через бота.')}
+                    </div>
+                  </div>
+                )}
               </Card.Body>
             </Card>
           </Form>

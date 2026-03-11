@@ -65,6 +65,10 @@ async function migrate() {
       `payment_placeholders JSONB DEFAULT '{}'::jsonb`,
       'uzum_url TEXT',
       'xazna_url TEXT',
+      'card_payment_title VARCHAR(120)',
+      'card_payment_number VARCHAR(40)',
+      'card_payment_holder VARCHAR(120)',
+      `card_receipt_target VARCHAR(16) DEFAULT 'bot'`,
       'msg_new TEXT',
       'msg_preparing TEXT',
       'msg_delivering TEXT',
@@ -106,6 +110,11 @@ async function migrate() {
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
+      SET card_receipt_target = 'bot'
+      WHERE card_receipt_target IS NULL OR BTRIM(COALESCE(card_receipt_target, '')) = ''
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
       SET send_balance_after_confirm = false
       WHERE send_balance_after_confirm IS NULL
     `).catch(() => {});
@@ -131,6 +140,15 @@ async function migrate() {
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_ui_theme_check
       CHECK (ui_theme IN ('classic', 'modern'))
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_card_receipt_target_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_card_receipt_target_check
+      CHECK (card_receipt_target IN ('bot', 'admin'))
     `).catch(() => {});
 
     console.log('✅ Restaurants table ready');
@@ -252,7 +270,11 @@ async function migrate() {
       { name: 'payment_provider', type: 'VARCHAR(32)' },
       { name: 'payment_reference', type: 'VARCHAR(128)' },
       { name: 'payment_paid_at', type: 'TIMESTAMP' },
-      { name: 'payment_cancelled_at', type: 'TIMESTAMP' }
+      { name: 'payment_cancelled_at', type: 'TIMESTAMP' },
+      { name: 'payment_receipt_chat_id', type: 'TEXT' },
+      { name: 'payment_receipt_message_id', type: 'BIGINT' },
+      { name: 'payment_receipt_file_id', type: 'TEXT' },
+      { name: 'payment_receipt_submitted_at', type: 'TIMESTAMP' }
     ];
 
     for (const col of orderColumns) {

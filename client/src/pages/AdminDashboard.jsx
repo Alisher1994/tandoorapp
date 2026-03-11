@@ -3803,6 +3803,17 @@ function AdminDashboard() {
   };
   const paymentSystems = [
     {
+      key: 'card',
+      title: 'Карта',
+      logo: '/card.svg',
+      description: 'Оплата переводом на карту магазина с отправкой чека.',
+      configured: Boolean(
+        String(restaurantSettings?.card_payment_title || '').trim()
+        && String(restaurantSettings?.card_payment_number || '').replace(/\D/g, '').trim()
+        && String(restaurantSettings?.card_payment_holder || '').trim()
+      )
+    },
+    {
       key: 'click',
       title: 'Click',
       logo: '/click.png',
@@ -7312,6 +7323,77 @@ function AdminDashboard() {
                                     </div>
                                   </Accordion.Header>
                                   <Accordion.Body>
+                                    {system.key === 'card' && (
+                                      <div className="d-flex flex-column gap-4">
+                                        <Row className="gy-3">
+                                          <Col md={12}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название карты</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_payment_title || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_payment_title: e.target.value })}
+                                                placeholder="Например: HUMO / UZCARD"
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Номер карты</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_payment_number || ''}
+                                                onChange={e => setRestaurantSettings({
+                                                  ...restaurantSettings,
+                                                  card_payment_number: String(e.target.value || '').replace(/\D/g, '').slice(0, 19)
+                                                })}
+                                                placeholder="8600..."
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Владелец карты</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_payment_holder || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_payment_holder: e.target.value })}
+                                                placeholder="ИМЯ ФАМИЛИЯ"
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                        </Row>
+
+                                        <div className="admin-payment-placeholder-box">
+                                          <div className="small fw-bold text-muted text-uppercase mb-2">Куда отправлять чек оплаты</div>
+                                          <div className="d-flex flex-column gap-2">
+                                            <Form.Check
+                                              type="radio"
+                                              id="card-receipt-target-bot"
+                                              name="card-receipt-target"
+                                              label="Отправить чек оплаты через бот"
+                                              checked={(restaurantSettings.card_receipt_target || 'bot') === 'bot'}
+                                              onChange={() => setRestaurantSettings({ ...restaurantSettings, card_receipt_target: 'bot' })}
+                                            />
+                                            <Form.Check
+                                              type="radio"
+                                              id="card-receipt-target-admin"
+                                              name="card-receipt-target"
+                                              label="Отправить чек оплаты администратору"
+                                              checked={restaurantSettings.card_receipt_target === 'admin'}
+                                              onChange={() => setRestaurantSettings({ ...restaurantSettings, card_receipt_target: 'admin' })}
+                                            />
+                                          </div>
+                                          <div className="small text-muted mt-2">
+                                            По умолчанию выбран вариант через бот.
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {system.key === 'click' && (
                                       <>
                                         <Form.Group className="mb-0">

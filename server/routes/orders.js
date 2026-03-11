@@ -1,7 +1,13 @@
 const express = require('express');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
-const { sendOrderNotification, sendOrderUpdateToUser, updateOrderNotificationForCustomerCancel } = require('../bot/notifications');
+const {
+  sendOrderNotification,
+  sendOrderUpdateToUser,
+  updateOrderNotificationForCustomerCancel,
+  sendCardReceiptPlaceholderToGroup,
+  getRestaurantBot
+} = require('../bot/notifications');
 const { isPaymeConfigured } = require('../services/payme');
 const jwt = require('jsonwebtoken');
 
@@ -255,6 +261,79 @@ router.get('/my-orders', authenticate, async (req, res) => {
   }
 });
 
+// Resolve receipt delivery link for card payment orders
+router.get('/:id/receipt-link', authenticate, async (req, res) => {
+  try {
+    const orderId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID заказа' });
+    }
+
+    const result = await pool.query(
+      `SELECT o.id, o.order_number, o.payment_method, o.user_id,
+              r.id AS restaurant_id,
+              r.support_username,
+              r.card_receipt_target,
+              r.telegram_bot_token
+       FROM orders o
+       LEFT JOIN restaurants r ON r.id = o.restaurant_id
+       WHERE o.id = $1 AND o.user_id = $2
+       LIMIT 1`,
+      [orderId, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+
+    const order = result.rows[0];
+    if (String(order.payment_method || '').trim().toLowerCase() !== 'card') {
+      return res.status(400).json({ error: 'Ссылка доступна только для оплаты картой' });
+    }
+
+    const receiptTarget = String(order.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot';
+    const supportUsername = String(order.support_username || '').trim().replace(/^@/, '');
+    if (receiptTarget === 'admin') {
+      if (!supportUsername) {
+        return res.status(400).json({ error: 'Username администратора не настроен' });
+      }
+      return res.json({
+        target: 'admin',
+        url: `https://t.me/${supportUsername}`
+      });
+    }
+
+    if (!order.telegram_bot_token) {
+      return res.status(400).json({ error: 'Бот магазина не настроен' });
+    }
+
+    const bot = getRestaurantBot(order.telegram_bot_token, order.restaurant_id);
+    if (!bot) {
+      return res.status(500).json({ error: 'Не удалось получить бота магазина' });
+    }
+
+    let botUsername = '';
+    try {
+      const me = await bot.getMe();
+      botUsername = String(me?.username || '').trim();
+    } catch (error) {
+      return res.status(500).json({ error: 'Не удалось определить username бота' });
+    }
+
+    if (!botUsername) {
+      return res.status(500).json({ error: 'У бота не найден username' });
+    }
+
+    return res.json({
+      target: 'bot',
+      url: `https://t.me/${botUsername}?start=receipt_${order.id}`
+    });
+  } catch (error) {
+    console.error('Get receipt link error:', error);
+    return res.status(500).json({ error: 'Ошибка получения ссылки для чека' });
+  }
+});
+
 // Get single order
 router.get('/:id', authenticate, async (req, res) => {
   try {
@@ -349,7 +428,8 @@ router.post('/', authenticate, async (req, res) => {
     if (finalRestaurantId) {
       const hoursResult = await client.query(
         `SELECT start_time, end_time, is_delivery_enabled, delivery_zone,
-                payme_enabled, payme_merchant_id, payme_api_login, payme_api_password
+                payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
+                card_receipt_target
          FROM restaurants
          WHERE id = $1`,
         [finalRestaurantId]
@@ -519,13 +599,32 @@ router.post('/', authenticate, async (req, res) => {
     // Send notifications using restaurant's bot if configured
     if (shouldNotifyImmediately && finalRestaurantId) {
       const restaurantResult = await pool.query(
-        'SELECT telegram_bot_token, telegram_group_id, click_url, payme_url, uzum_url, xazna_url FROM restaurants WHERE id = $1',
+        `SELECT telegram_bot_token, telegram_group_id, click_url, payme_url, uzum_url, xazna_url,
+                card_payment_title, card_payment_number, card_payment_holder, card_receipt_target, support_username
+         FROM restaurants
+         WHERE id = $1`,
         [finalRestaurantId]
       );
       const restaurant = restaurantResult.rows[0];
       if (restaurant?.telegram_group_id) {
         // Use restaurant-specific bot/group for notification
         await sendOrderNotification(order, items, restaurant.telegram_group_id, restaurant.telegram_bot_token);
+
+        const cardReceiptTarget = String(restaurant?.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot';
+        if (normalizedPaymentMethod === 'card' && cardReceiptTarget === 'bot') {
+          await sendCardReceiptPlaceholderToGroup(
+            {
+              ...order,
+              telegram_bot_token: restaurant.telegram_bot_token,
+              admin_chat_id: restaurant.telegram_group_id
+            },
+            {
+              chatId: restaurant.telegram_group_id,
+              botToken: restaurant.telegram_bot_token,
+              restaurantId: finalRestaurantId
+            }
+          );
+        }
       } else {
         // Fall back to default notification
         await sendOrderNotification(order, items);
@@ -537,7 +636,12 @@ router.post('/', authenticate, async (req, res) => {
           click_url: restaurant?.click_url,
           payme_url: restaurant?.payme_url,
           uzum_url: restaurant?.uzum_url,
-          xazna_url: restaurant?.xazna_url
+          xazna_url: restaurant?.xazna_url,
+          card_payment_title: restaurant?.card_payment_title,
+          card_payment_number: restaurant?.card_payment_number,
+          card_payment_holder: restaurant?.card_payment_holder,
+          card_receipt_target: restaurant?.card_receipt_target,
+          support_username: restaurant?.support_username
         };
         await sendOrderUpdateToUser(req.user.telegram_id, order, 'new', restaurant?.telegram_bot_token, paymentUrls);
       }
