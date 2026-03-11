@@ -1323,64 +1323,8 @@ function Catalog() {
     return () => cancelAnimationFrame(rafId);
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
-  useEffect(() => {
-    if (activeCatalogTabs.length === 0) {
-      setCatalogTabsLayout((prev) => (
-        prev.startSpacerWidth === 0 && prev.endSpacerWidth === 0
-          ? prev
-          : { startSpacerWidth: 0, endSpacerWidth: 0 }
-      ));
-      return undefined;
-    }
+  // Tabs layout management removed to simplify native scrolling
 
-    let rafId = null;
-    const updateTabsLayout = () => {
-      const tabsScroller = level3TabsScrollerRef.current;
-      if (!tabsScroller) return;
-
-      const orderedButtons = activeCatalogTabs
-        .map((section) => level3TabButtonRefs.current[section.id])
-        .filter(Boolean);
-      if (orderedButtons.length === 0) return;
-
-      const firstButton = orderedButtons[0];
-      const lastButton = orderedButtons[orderedButtons.length - 1];
-      const containerWidth = tabsScroller.clientWidth;
-      if (!containerWidth || containerWidth <= 0) return;
-
-      const startSpacerWidth = Math.max(0, ((containerWidth - firstButton.offsetWidth) / 2) - catalogTabGap);
-      const endSpacerWidth = Math.max(0, ((containerWidth - lastButton.offsetWidth) / 2) - catalogTabGap);
-
-      setCatalogTabsLayout((prev) => {
-        const nextLayout = {
-          startSpacerWidth: Math.round(startSpacerWidth),
-          endSpacerWidth: Math.round(endSpacerWidth)
-        };
-        if (
-          prev.startSpacerWidth === nextLayout.startSpacerWidth
-          && prev.endSpacerWidth === nextLayout.endSpacerWidth
-        ) {
-          return prev;
-        }
-        return nextLayout;
-      });
-    };
-
-    const scheduleUpdate = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        updateTabsLayout();
-      });
-    };
-
-    scheduleUpdate();
-    window.addEventListener('resize', scheduleUpdate);
-    return () => {
-      window.removeEventListener('resize', scheduleUpdate);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [activeCatalogTabs, catalogTabGap]);
 
   useEffect(() => {
     if (activeCatalogTabs.length === 0 || normalizedCatalogSearch || loading) {
@@ -2554,6 +2498,8 @@ function Catalog() {
                 minHeight: 42,
                 paddingTop: 4,
                 paddingBottom: 7,
+                paddingLeft: '16px',
+                paddingRight: '16px',
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
@@ -2563,15 +2509,6 @@ function Catalog() {
                 maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
               }}
             >
-              <div
-                aria-hidden="true"
-                style={{
-                  flex: '0 0 auto',
-                  width: `${catalogTabsLayout.startSpacerWidth}px`,
-                  minWidth: `${catalogTabsLayout.startSpacerWidth}px`,
-                  pointerEvents: 'none'
-                }}
-              />
               {activeCatalogTabs.map((section) => (
                 <button
                   ref={(el) => {
@@ -2626,15 +2563,6 @@ function Catalog() {
                   </span>
                 </button>
               ))}
-              <div
-                aria-hidden="true"
-                style={{
-                  flex: '0 0 auto',
-                  width: `${catalogTabsLayout.endSpacerWidth}px`,
-                  minWidth: `${catalogTabsLayout.endSpacerWidth}px`,
-                  pointerEvents: 'none'
-                }}
-              />
             </div>
           </div>
         </div>
