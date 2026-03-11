@@ -126,6 +126,9 @@ function Catalog() {
   const tabActivationSourceRef = useRef('init');
   const suppressNextTabClickRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
+  const catalogTabCenterSlotWidth = 128;
+  const catalogTabEdgeFadeWidth = 24;
+  const catalogTabSideInset = `calc(50% - ${Math.round(catalogTabCenterSlotWidth / 2)}px)`;
   const isTelegramWebView = useMemo(() => (
     typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
   ), []);
@@ -2449,31 +2452,58 @@ function Catalog() {
         >
           <div
             className="mx-auto"
-            ref={level3TabsScrollerRef}
-            onWheel={handleTabsWheelScroll}
-            onPointerDown={handleTabsPointerDown}
-            onPointerMove={handleTabsPointerMove}
-            onPointerUp={finishTabsPointerInteraction}
-            onPointerCancel={finishTabsPointerInteraction}
-            onPointerLeave={finishTabsPointerInteraction}
             style={{
               maxWidth: '1280px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              overflowY: 'hidden',
-              overflowX: 'auto',
-              padding: '6px 12px 7px',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-              touchAction: 'pan-y',
-              cursor: 'grab',
-              userSelect: 'none',
-              WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)',
-              maskImage: 'linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)'
+              position: 'relative'
             }}
           >
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: 6,
+                width: catalogTabCenterSlotWidth,
+                height: 32,
+                transform: 'translateX(-50%)',
+                borderRadius: 8,
+                background: 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
+                pointerEvents: 'none',
+                zIndex: 1
+              }}
+            />
+            <div
+              ref={level3TabsScrollerRef}
+              onWheel={handleTabsWheelScroll}
+              onPointerDown={handleTabsPointerDown}
+              onPointerMove={handleTabsPointerMove}
+              onPointerUp={finishTabsPointerInteraction}
+              onPointerCancel={finishTabsPointerInteraction}
+              onPointerLeave={finishTabsPointerInteraction}
+              style={{
+                position: 'relative',
+                zIndex: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                overflowY: 'hidden',
+                overflowX: 'auto',
+                paddingTop: 6,
+                paddingBottom: 7,
+                paddingLeft: catalogTabSideInset,
+                paddingRight: catalogTabSideInset,
+                scrollSnapType: 'x mandatory',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch',
+                touchAction: 'pan-y',
+                cursor: 'grab',
+                userSelect: 'none',
+                WebkitMaskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`,
+                maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
+              }}
+            >
             {activeCatalogTabs.map((section) => (
               <button
                 ref={(el) => {
@@ -2485,24 +2515,23 @@ function Catalog() {
                 }}
                 key={section.id}
                 type="button"
-                className="btn btn-light mb-0 btn-sm"
+                className="btn mb-0 btn-sm"
                 style={{
                   flex: '0 0 auto',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  scrollSnapAlign: 'center',
                   border: 'none',
                   boxShadow: 'none',
                   borderRadius: 8,
                   minHeight: 32,
                   padding: '6px 12px',
                   fontSize: '0.9rem',
-                  fontWeight: activeSubcategoryTab === section.id ? 500 : 400,
+                  fontWeight: activeSubcategoryTab === section.id ? 600 : 400,
                   color: activeSubcategoryTab === section.id ? '#ffffff' : '#526277',
-                  background: activeSubcategoryTab === section.id
-                    ? 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)'
-                    : 'rgba(255, 255, 255, 0.88)',
-                  transition: 'background 0.2s ease, color 0.2s ease',
+                  background: 'transparent',
+                  transition: 'color 0.2s ease, font-weight 0.2s ease',
                   pointerEvents: 'auto'
                 }}
                 onClick={() => handleCatalogTabClick(section.id)}
@@ -2511,6 +2540,7 @@ function Catalog() {
                 {section.title}
               </button>
             ))}
+            </div>
           </div>
         </div>
         <div
