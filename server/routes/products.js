@@ -430,6 +430,9 @@ router.get('/restaurant/:id', async (req, res) => {
     const cardHolder = String(r.card_payment_holder || '').trim();
     const cardPaymentEnabled = Boolean(cardTitle && cardNumber && cardHolder);
     const cardReceiptTarget = String(r.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot';
+    const cashEnabled = r.cash_enabled === undefined || r.cash_enabled === null
+      ? true
+      : isEnabledFlag(r.cash_enabled);
     res.json({
       id: r.id,
       name: r.name,
@@ -440,6 +443,7 @@ router.get('/restaurant/:id', async (req, res) => {
       ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
+      cash_enabled: cashEnabled,
       click_url: r.click_url,
       payme_enabled: isEnabledFlag(r.payme_enabled) && Boolean(String(r.payme_merchant_id || '').trim()),
       payme_url: r.payme_url,

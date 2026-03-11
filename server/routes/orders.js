@@ -429,7 +429,7 @@ router.post('/', authenticate, async (req, res) => {
       const hoursResult = await client.query(
         `SELECT start_time, end_time, is_delivery_enabled, delivery_zone,
                 payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
-                card_receipt_target
+                card_receipt_target, cash_enabled
          FROM restaurants
          WHERE id = $1`,
         [finalRestaurantId]
@@ -509,6 +509,14 @@ router.post('/', authenticate, async (req, res) => {
     const deliveryDistanceKm = !isPickupOrder ? (parseFloat(delivery_distance_km) || 0) : 0;
     const totalAmount = itemsTotal + serviceFee + deliveryCost;
     const normalizedPaymentMethod = String(payment_method || 'cash').trim().toLowerCase() || 'cash';
+    const isCashEnabled = restaurantSettings?.cash_enabled === undefined || restaurantSettings?.cash_enabled === null
+      ? true
+      : isEnabledFlag(restaurantSettings?.cash_enabled);
+
+    if (normalizedPaymentMethod === 'cash' && !isCashEnabled) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Оплата наличными отключена для этого магазина' });
+    }
 
     if (normalizedPaymentMethod === 'payme' && !isPaymeConfigured(restaurantSettings)) {
       await client.query('ROLLBACK');

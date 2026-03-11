@@ -65,6 +65,7 @@ async function migrate() {
       `payment_placeholders JSONB DEFAULT '{}'::jsonb`,
       'uzum_url TEXT',
       'xazna_url TEXT',
+      'cash_enabled BOOLEAN DEFAULT true',
       'card_payment_title VARCHAR(120)',
       'card_payment_number VARCHAR(40)',
       'card_payment_holder VARCHAR(120)',
@@ -112,6 +113,11 @@ async function migrate() {
       UPDATE restaurants
       SET card_receipt_target = 'bot'
       WHERE card_receipt_target IS NULL OR BTRIM(COALESCE(card_receipt_target, '')) = ''
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET cash_enabled = true
+      WHERE cash_enabled IS NULL
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants

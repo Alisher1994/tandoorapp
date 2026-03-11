@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   payme_account_key VARCHAR(64) DEFAULT 'order_id',
   payme_test_mode BOOLEAN DEFAULT false,
   payme_callback_timeout_ms INTEGER DEFAULT 2000,
+  cash_enabled BOOLEAN DEFAULT true,
   card_payment_title VARCHAR(120),
   card_payment_number VARCHAR(40),
   card_payment_holder VARCHAR(120),

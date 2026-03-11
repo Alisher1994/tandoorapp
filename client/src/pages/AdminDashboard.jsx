@@ -2329,6 +2329,7 @@ function AdminDashboard() {
       const response = await axios.get(`${API_URL}/admin/restaurant`);
       const settings = {
         ...(response.data || {}),
+        cash_enabled: response.data?.cash_enabled === false ? false : true,
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic',
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
@@ -3802,6 +3803,13 @@ function AdminDashboard() {
     );
   };
   const paymentSystems = [
+    {
+      key: 'cash',
+      title: 'Наличные',
+      logo: '/cash.svg',
+      description: 'Оплата наличными при получении заказа.',
+      configured: restaurantSettings?.cash_enabled !== false
+    },
     {
       key: 'card',
       title: 'Карта',
@@ -7323,6 +7331,25 @@ function AdminDashboard() {
                                     </div>
                                   </Accordion.Header>
                                   <Accordion.Body>
+                                    {system.key === 'cash' && (
+                                      <div className="d-flex flex-column gap-3">
+                                        <div className="admin-payment-placeholder-box">
+                                          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                                            <div>
+                                              <div className="small fw-bold text-muted text-uppercase">Оплата наличными</div>
+                                              <div className="small text-muted">Если выключить, клиенты не смогут выбрать наличную оплату.</div>
+                                            </div>
+                                            <Form.Check
+                                              type="switch"
+                                              checked={restaurantSettings.cash_enabled !== false}
+                                              onChange={e => setRestaurantSettings({ ...restaurantSettings, cash_enabled: e.target.checked })}
+                                              label={restaurantSettings.cash_enabled !== false ? 'Включено' : 'Выключено'}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {system.key === 'card' && (
                                       <div className="d-flex flex-column gap-4">
                                         <Row className="gy-3">

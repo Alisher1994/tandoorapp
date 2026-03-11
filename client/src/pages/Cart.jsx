@@ -80,6 +80,12 @@ function Cart() {
     borderColor: isActive ? 'var(--primary-color)' : 'var(--border-color, #d1d5db)',
     color: isActive ? '#fff' : 'var(--text-color, #111827)'
   });
+  const isCashEnabled = useMemo(
+    () => (restaurant?.cash_enabled === undefined || restaurant?.cash_enabled === null
+      ? true
+      : toEnabledFlag(restaurant?.cash_enabled)),
+    [restaurant?.cash_enabled]
+  );
   const onlinePaymentOptions = useMemo(() => ([
     { key: 'click', url: restaurant?.click_url, logo: '/click.png', alt: 'Click' },
     {
@@ -106,6 +112,10 @@ function Cart() {
     restaurant?.card_payment_enabled,
     restaurant?.card_payment_title
   ]);
+  const availablePaymentMethods = useMemo(() => ([
+    ...(isCashEnabled ? ['cash'] : []),
+    ...onlinePaymentOptions.map((option) => option.key)
+  ]), [isCashEnabled, onlinePaymentOptions]);
   const addressDetailsParts = useMemo(() => {
     const parts = [];
     if (String(formData.house || '').trim()) {
@@ -253,12 +263,15 @@ function Cart() {
   }, []);
 
   useEffect(() => {
-    if (formData.payment_method === 'cash') return;
-    const selectedIsAvailable = onlinePaymentOptions.some((option) => option.key === formData.payment_method);
-    if (!selectedIsAvailable) {
-      setFormData((prev) => (prev.payment_method === 'cash' ? prev : { ...prev, payment_method: 'cash' }));
-    }
-  }, [formData.payment_method, onlinePaymentOptions]);
+    const selectedIsAvailable = availablePaymentMethods.includes(formData.payment_method);
+    if (selectedIsAvailable) return;
+    const fallbackMethod = availablePaymentMethods[0] || 'cash';
+    setFormData((prev) => (
+      prev.payment_method === fallbackMethod
+        ? prev
+        : { ...prev, payment_method: fallbackMethod }
+    ));
+  }, [formData.payment_method, availablePaymentMethods]);
 
   // Выбор адреса из списка
   const selectAddress = (addr) => {
@@ -504,6 +517,11 @@ function Cart() {
 
     if (cart.length === 0) {
       setError('Корзина пуста');
+      return;
+    }
+
+    if (availablePaymentMethods.length === 0) {
+      setError(language === 'uz' ? "To'lov usuli mavjud emas" : 'Нет доступных способов оплаты');
       return;
     }
 
@@ -1087,16 +1105,17 @@ function Cart() {
                 <Form.Group>
                   <Form.Label className="small text-muted mb-1">{t('paymentMethod')}</Form.Label>
                   <div className="d-flex flex-column gap-2">
-                    {/* Наличные */}
-                    <Button
-                      variant="light"
-                      size="sm"
-                      className="w-100"
-                      style={paymentButtonStyle(formData.payment_method === 'cash')}
-                      onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
-                    >
-                      💵 {t('cash')}
-                    </Button>
+                    {isCashEnabled && (
+                      <Button
+                        variant="light"
+                        size="sm"
+                        className="w-100"
+                        style={paymentButtonStyle(formData.payment_method === 'cash')}
+                        onClick={() => setFormData({ ...formData, payment_method: 'cash' })}
+                      >
+                        💵 {t('cash')}
+                      </Button>
+                    )}
                     {onlinePaymentOptions.length > 0 && (
                       <div className="d-flex gap-2 flex-wrap">
                         {onlinePaymentOptions.map((option) => (
@@ -1118,6 +1137,13 @@ function Cart() {
                             )}
                           </Button>
                         ))}
+                      </div>
+                    )}
+                    {!isCashEnabled && onlinePaymentOptions.length === 0 && (
+                      <div className="small text-danger">
+                        {language === 'uz'
+                          ? "Bu do'konda to'lov usullari hozircha yo'q."
+                          : 'В этом магазине сейчас нет доступных способов оплаты.'}
                       </div>
                     )}
                   </div>
