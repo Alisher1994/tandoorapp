@@ -120,6 +120,14 @@ function Catalog() {
     startScrollLeft: 0,
     dragged: false
   });
+  const tabsTouchStateRef = useRef({
+    isTouching: false,
+    startX: 0,
+    startY: 0,
+    startScrollLeft: 0,
+    isHorizontalDrag: false
+  });
+  const tabActivationSourceRef = useRef('init');
   const suppressNextTabClickRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
   const isTelegramWebView = useMemo(() => (
@@ -226,10 +234,11 @@ function Catalog() {
     } else if (tabRight > visibleRight - 8) {
       targetLeft = Math.max(0, tabRight - tabsScroller.clientWidth + 12);
     } else {
-      const centered = tabLeft - ((tabsScroller.clientWidth - activeTabButton.offsetWidth) / 2);
-      targetLeft = Math.max(0, centered);
+      return;
     }
 
+    const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
+    targetLeft = Math.min(maxScrollLeft, Math.max(0, targetLeft));
     tabsScroller.scrollTo({
       left: targetLeft,
       behavior
@@ -248,6 +257,7 @@ function Catalog() {
   const handleTabsPointerDown = (event) => {
     const tabsScroller = level3TabsScrollerRef.current;
     if (!tabsScroller) return;
+    if (event.pointerType === 'touch') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
 
     tabsDragStateRef.current = {
@@ -313,8 +323,67 @@ function Catalog() {
       dragged: false
     };
   };
+  const handleTabsTouchStart = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    const touch = event.touches?.[0];
+    if (!tabsScroller || !touch) return;
+
+    tabsTouchStateRef.current = {
+      isTouching: true,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startScrollLeft: tabsScroller.scrollLeft,
+      isHorizontalDrag: false
+    };
+  };
+  const handleTabsTouchMove = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    const touch = event.touches?.[0];
+    const touchState = tabsTouchStateRef.current;
+    if (!tabsScroller || !touch || !touchState.isTouching) return;
+
+    const deltaX = touch.clientX - touchState.startX;
+    const deltaY = touch.clientY - touchState.startY;
+
+    if (!touchState.isHorizontalDrag) {
+      if (Math.abs(deltaY) >= 7 && Math.abs(deltaY) > Math.abs(deltaX)) {
+        tabsTouchStateRef.current = {
+          isTouching: false,
+          startX: 0,
+          startY: 0,
+          startScrollLeft: 0,
+          isHorizontalDrag: false
+        };
+        return;
+      }
+      if (Math.abs(deltaX) >= 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        touchState.isHorizontalDrag = true;
+      }
+    }
+
+    if (touchState.isHorizontalDrag) {
+      tabsScroller.scrollLeft = touchState.startScrollLeft - deltaX;
+      event.preventDefault();
+    }
+  };
+  const finishTabsTouchInteraction = () => {
+    if (tabsTouchStateRef.current.isHorizontalDrag) {
+      suppressNextTabClickRef.current = true;
+      setTimeout(() => {
+        suppressNextTabClickRef.current = false;
+      }, 120);
+    }
+    tabsTouchStateRef.current = {
+      isTouching: false,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      isHorizontalDrag: false
+    };
+  };
   const handleCatalogTabClick = (sectionId) => {
     if (suppressNextTabClickRef.current) return;
+    tabActivationSourceRef.current = 'click';
     scrollToProductGroup(sectionId);
   };
 
@@ -1273,15 +1342,19 @@ function Catalog() {
 
     const isCurrentTabPresent = activeCatalogTabs.some((section) => section.id === activeSubcategoryTab);
     if (!isCurrentTabPresent) {
+      tabActivationSourceRef.current = 'init';
       setActiveSubcategoryTab(activeCatalogTabs[0].id);
     }
   }, [activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading]);
 
   useEffect(() => {
     if (!activeSubcategoryTab) return;
+    const activationSource = tabActivationSourceRef.current;
+    const behavior = activationSource === 'click' ? 'smooth' : 'auto';
     const rafId = requestAnimationFrame(() => {
-      scrollActiveTabIntoView(activeSubcategoryTab, 'smooth');
+      scrollActiveTabIntoView(activeSubcategoryTab, behavior);
     });
+    tabActivationSourceRef.current = 'scroll';
     return () => cancelAnimationFrame(rafId);
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
@@ -1325,6 +1398,7 @@ function Catalog() {
 
       const nextActiveId = currentId ?? firstId;
       if (nextActiveId && nextActiveId !== activeSubcategoryTab) {
+        tabActivationSourceRef.current = 'scroll';
         setActiveSubcategoryTab(nextActiveId);
       }
     };
@@ -1451,6 +1525,7 @@ function Catalog() {
     const rect = sectionElement.getBoundingClientRect();
     const stickyOffset = Math.max(56, catalogHeaderHeight) + 12;
     const topOffset = rect.top + currentScroll - stickyOffset;
+    tabActivationSourceRef.current = 'click';
     setActiveSubcategoryTab(sectionId);
     scrollToOffset(topOffset);
     tabScrollLockTimeoutRef.current = setTimeout(() => {
@@ -2424,6 +2499,11 @@ function Catalog() {
             onPointerMove={handleTabsPointerMove}
             onPointerUp={finishTabsPointerInteraction}
             onPointerCancel={finishTabsPointerInteraction}
+            onPointerLeave={finishTabsPointerInteraction}
+            onTouchStart={handleTabsTouchStart}
+            onTouchMove={handleTabsTouchMove}
+            onTouchEnd={finishTabsTouchInteraction}
+            onTouchCancel={finishTabsTouchInteraction}
             style={{
               maxWidth: '1280px',
               display: 'flex',
@@ -2435,7 +2515,7 @@ function Catalog() {
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch',
-              touchAction: 'none',
+              touchAction: 'pan-y',
               cursor: 'grab',
               userSelect: 'none'
             }}

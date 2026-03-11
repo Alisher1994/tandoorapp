@@ -1044,6 +1044,31 @@ function AdminDashboard() {
   const categoryLineLabels = language === 'uz'
     ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
     : ['Категория 1', 'Категория 2', 'Категория 3'];
+  const resolvedOrderCost = useMemo(() => {
+    const billingCost = Number(billingInfo?.restaurant?.order_cost);
+    if (Number.isFinite(billingCost) && billingCost > 0) return billingCost;
+    const settingsCost = Number(restaurantSettings?.order_cost);
+    if (Number.isFinite(settingsCost) && settingsCost > 0) return settingsCost;
+    return 1000;
+  }, [billingInfo?.restaurant?.order_cost, restaurantSettings?.order_cost]);
+  const isUnlimitedChecksBalance = Boolean(
+    billingInfo?.restaurant?.is_free_tier ?? restaurantSettings?.is_free_tier
+  );
+  const balanceChecksCount = useMemo(() => {
+    if (isUnlimitedChecksBalance) return Number.POSITIVE_INFINITY;
+    const currentBalance = Number(user?.balance);
+    if (!Number.isFinite(currentBalance) || currentBalance <= 0) return 0;
+    if (!Number.isFinite(resolvedOrderCost) || resolvedOrderCost <= 0) return 0;
+    return Math.max(0, Math.floor(currentBalance / resolvedOrderCost));
+  }, [isUnlimitedChecksBalance, user?.balance, resolvedOrderCost]);
+  const checksCountLabel = language === 'uz' ? 'ta chek' : 'чеков';
+  const checksAvailableLabel = language === 'uz' ? 'Qolgan cheklar' : 'Доступно чеков';
+  const formatChecksCount = (value) => {
+    if (value === Number.POSITIVE_INFINITY) return '∞';
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) return '0';
+    return Math.floor(numeric).toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+  };
   const {
     actionButtonsVisible,
     actionButtonsRemainingLabel,
@@ -1624,6 +1649,7 @@ function AdminDashboard() {
     if (user?.active_restaurant_id) {
       fetchRestaurantSettings();
       fetchOperators();
+      fetchBillingInfo();
     }
   }, [user?.active_restaurant_id]);
 
@@ -4953,8 +4979,8 @@ function AdminDashboard() {
                     e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
                   }}
                 >
-                  <span className="text-white-50 extra-small fw-bold text-uppercase" style={{ fontSize: '0.55rem', letterSpacing: '0.05rem' }}>{t('balance')}</span>
-                  <span className="text-white fw-bold" style={{ fontSize: '0.85rem' }}>{formatPrice(user?.balance || 0)} <span className="opacity-75 fw-normal small">{t('sum')}</span></span>
+                  <span className="text-white-50 extra-small fw-bold text-uppercase" style={{ fontSize: '0.55rem', letterSpacing: '0.05rem' }}>{checksAvailableLabel}</span>
+                  <span className="text-white fw-bold" style={{ fontSize: '0.85rem' }}>{formatChecksCount(balanceChecksCount)} <span className="opacity-75 fw-normal small">{checksCountLabel}</span></span>
                 </div>
               </div>
             </Nav>
@@ -8701,15 +8727,16 @@ function AdminDashboard() {
             {/* Balance Overview */}
             <div className="bg-light p-4 border-bottom d-flex justify-content-between align-items-center">
               <div>
-                <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>{t('currentBalance')}</div>
-                <h2 className="mb-0 fw-bold text-primary">{formatPrice(user?.balance || 0)} <span className="fs-5 fw-normal">{t('sum')}</span></h2>
+                <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>{checksAvailableLabel}</div>
+                <h2 className="mb-0 fw-bold text-primary">{formatChecksCount(balanceChecksCount)} <span className="fs-5 fw-normal">{checksCountLabel}</span></h2>
+                <div className="text-muted small mt-1">{t('currentBalance')}: {formatPrice(user?.balance || 0)} {t('sum')}</div>
               </div>
               {billingInfo.restaurant?.is_free_tier ? (
                 <Badge bg="success" className="px-3 py-2 fs-6">⭐ {t('freeTier')}</Badge>
               ) : (
                 <div className="text-end">
                   <div className="text-muted small text-uppercase fw-bold mb-1" style={{ letterSpacing: '0.05rem' }}>{t('orderCost')}</div>
-                  <h4 className="mb-0 fw-bold">{formatPrice(billingInfo.restaurant?.order_cost || 1000)} <span className="fs-6 fw-normal text-muted">{t('sum')}</span></h4>
+                  <h4 className="mb-0 fw-bold">{formatPrice(resolvedOrderCost)} <span className="fs-6 fw-normal text-muted">{t('sum')}</span></h4>
                 </div>
               )}
             </div>
