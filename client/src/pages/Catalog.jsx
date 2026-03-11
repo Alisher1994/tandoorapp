@@ -113,6 +113,14 @@ function Catalog() {
   const scrollProgressRafRef = useRef(null);
   const tabScrollLockTimeoutRef = useRef(null);
   const isTabAutoScrollRef = useRef(false);
+  const tabsDragStateRef = useRef({
+    isPointerDown: false,
+    pointerId: null,
+    startX: 0,
+    startScrollLeft: 0,
+    dragged: false
+  });
+  const suppressNextTabClickRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
   const isTelegramWebView = useMemo(() => (
     typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
@@ -236,6 +244,78 @@ function Catalog() {
 
     tabsScroller.scrollLeft += primaryDelta;
     event.preventDefault();
+  };
+  const handleTabsPointerDown = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    if (!tabsScroller) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    tabsDragStateRef.current = {
+      isPointerDown: true,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScrollLeft: tabsScroller.scrollLeft,
+      dragged: false
+    };
+    tabsScroller.style.cursor = 'grabbing';
+    tabsScroller.style.userSelect = 'none';
+    try {
+      tabsScroller.setPointerCapture(event.pointerId);
+    } catch (error) {
+      // ignore pointer capture errors
+    }
+  };
+  const handleTabsPointerMove = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    const drag = tabsDragStateRef.current;
+    if (!tabsScroller || !drag.isPointerDown) return;
+    if (drag.pointerId !== null && event.pointerId !== drag.pointerId) return;
+
+    const deltaX = event.clientX - drag.startX;
+    if (Math.abs(deltaX) > 4) {
+      drag.dragged = true;
+    }
+    tabsScroller.scrollLeft = drag.startScrollLeft - deltaX;
+    if (drag.dragged) {
+      event.preventDefault();
+    }
+  };
+  const finishTabsPointerInteraction = (event) => {
+    const tabsScroller = level3TabsScrollerRef.current;
+    const drag = tabsDragStateRef.current;
+    if (!drag.isPointerDown) return;
+    if (drag.pointerId !== null && event?.pointerId !== undefined && event.pointerId !== drag.pointerId) return;
+
+    if (tabsScroller) {
+      tabsScroller.style.cursor = 'grab';
+      tabsScroller.style.userSelect = '';
+      if (drag.pointerId !== null) {
+        try {
+          tabsScroller.releasePointerCapture(drag.pointerId);
+        } catch (error) {
+          // ignore pointer capture errors
+        }
+      }
+    }
+
+    if (drag.dragged) {
+      suppressNextTabClickRef.current = true;
+      setTimeout(() => {
+        suppressNextTabClickRef.current = false;
+      }, 120);
+    }
+
+    tabsDragStateRef.current = {
+      isPointerDown: false,
+      pointerId: null,
+      startX: 0,
+      startScrollLeft: 0,
+      dragged: false
+    };
+  };
+  const handleCatalogTabClick = (sectionId) => {
+    if (suppressNextTabClickRef.current) return;
+    scrollToProductGroup(sectionId);
   };
 
   const resolveImageUrl = (url) => {
@@ -1211,6 +1291,13 @@ function Catalog() {
 
     const scrollContainer = getScrollContainer();
     const scrollTarget = scrollContainer === window ? window : scrollContainer;
+    const rootScrollNode = typeof document !== 'undefined' ? document.getElementById('root') : null;
+    const scrollTargets = [
+      scrollTarget,
+      rootScrollNode,
+      window
+    ].filter(Boolean);
+    const uniqueScrollTargets = [...new Set(scrollTargets)];
     const stickyOffset = Math.max(56, catalogHeaderHeight);
 
     const detectVisibleSection = () => {
@@ -1246,11 +1333,15 @@ function Catalog() {
     };
 
     detectVisibleSection();
-    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    uniqueScrollTargets.forEach((target) => {
+      target.addEventListener('scroll', onScroll, { passive: true });
+    });
     window.addEventListener('resize', onScroll);
 
     return () => {
-      scrollTarget.removeEventListener('scroll', onScroll);
+      uniqueScrollTargets.forEach((target) => {
+        target.removeEventListener('scroll', onScroll);
+      });
       window.removeEventListener('resize', onScroll);
       if (tabScrollSpyRafRef.current) {
         cancelAnimationFrame(tabScrollSpyRafRef.current);
@@ -1267,6 +1358,13 @@ function Catalog() {
 
     const scrollContainer = getScrollContainer();
     const scrollTarget = scrollContainer === window ? window : scrollContainer;
+    const rootScrollNode = typeof document !== 'undefined' ? document.getElementById('root') : null;
+    const scrollTargets = [
+      scrollTarget,
+      rootScrollNode,
+      window
+    ].filter(Boolean);
+    const uniqueScrollTargets = [...new Set(scrollTargets)];
 
     const updateProgress = () => {
       const scrollTop = scrollContainer === window
@@ -1290,11 +1388,15 @@ function Catalog() {
     };
 
     updateProgress();
-    scrollTarget.addEventListener('scroll', onScroll, { passive: true });
+    uniqueScrollTargets.forEach((target) => {
+      target.addEventListener('scroll', onScroll, { passive: true });
+    });
     window.addEventListener('resize', onScroll);
 
     return () => {
-      scrollTarget.removeEventListener('scroll', onScroll);
+      uniqueScrollTargets.forEach((target) => {
+        target.removeEventListener('scroll', onScroll);
+      });
       window.removeEventListener('resize', onScroll);
       if (scrollProgressRafRef.current) {
         cancelAnimationFrame(scrollProgressRafRef.current);
@@ -2313,14 +2415,24 @@ function Catalog() {
             className="mx-auto"
             ref={level3TabsScrollerRef}
             onWheel={handleTabsWheelScroll}
+            onPointerDown={handleTabsPointerDown}
+            onPointerMove={handleTabsPointerMove}
+            onPointerUp={finishTabsPointerInteraction}
+            onPointerCancel={finishTabsPointerInteraction}
             style={{
               maxWidth: '1280px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              overflowY: 'hidden',
               overflowX: 'auto',
-              whiteSpace: 'nowrap',
               padding: '6px 12px 7px',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch'
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'none',
+              cursor: 'grab',
+              userSelect: 'none'
             }}
           >
             {activeCatalogTabs.map((section) => (
@@ -2334,8 +2446,12 @@ function Catalog() {
                 }}
                 key={section.id}
                 type="button"
-                className="btn btn-light me-2 mb-0 btn-sm"
+                className="btn btn-light mb-0 btn-sm"
                 style={{
+                  flex: '0 0 auto',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   border: 'none',
                   boxShadow: 'none',
                   borderRadius: 8,
@@ -2347,9 +2463,10 @@ function Catalog() {
                   background: activeSubcategoryTab === section.id
                     ? 'linear-gradient(180deg, #66768e 0%, #4f6078 100%)'
                     : 'rgba(255, 255, 255, 0.88)',
-                  transition: 'background 0.2s ease, color 0.2s ease'
+                  transition: 'background 0.2s ease, color 0.2s ease',
+                  pointerEvents: 'auto'
                 }}
-                onClick={() => scrollToProductGroup(section.id)}
+                onClick={() => handleCatalogTabClick(section.id)}
                 aria-current={activeSubcategoryTab === section.id ? 'true' : undefined}
               >
                 {section.title}
