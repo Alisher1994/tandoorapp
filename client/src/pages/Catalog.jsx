@@ -1420,6 +1420,23 @@ function Catalog() {
         if (sectionTop <= sectionProbeLine) currentId = section.id;
       });
 
+      let isAtBottom = false;
+      if (scrollContainer === window) {
+        const scrollY = window.scrollY || document.documentElement?.scrollTop || 0;
+        const windowHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+        const documentHeight = Math.max(
+          document.body?.scrollHeight || 0,
+          document.documentElement?.scrollHeight || 0
+        );
+        isAtBottom = Math.ceil(scrollY + windowHeight) >= documentHeight - 10;
+      } else {
+        isAtBottom = Math.ceil(scrollContainer.scrollTop + scrollContainer.clientHeight) >= scrollContainer.scrollHeight - 10;
+      }
+
+      if (isAtBottom && activeCatalogTabs.length > 0) {
+        currentId = activeCatalogTabs[activeCatalogTabs.length - 1].id;
+      }
+
       const nextActiveId = currentId ?? firstId;
       if (!nextActiveId) return;
 
@@ -2542,14 +2559,11 @@ function Catalog() {
                 minHeight: 42,
                 paddingTop: 4,
                 paddingBottom: 7,
-                scrollSnapType: 'x mandatory',
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
-                touchAction: 'pan-x pan-y',
                 position: 'relative',
                 cursor: 'grab',
-                userSelect: 'none',
                 WebkitMaskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`,
                 maskImage: `linear-gradient(to right, transparent 0, black ${catalogTabEdgeFadeWidth}px, black calc(100% - ${catalogTabEdgeFadeWidth}px), transparent 100%)`
               }}
@@ -2580,7 +2594,6 @@ function Catalog() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    scrollSnapAlign: 'center',
                     maxWidth: 'min(72vw, 260px)',
                     border: 'none',
                     boxShadow: 'none',
