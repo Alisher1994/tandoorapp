@@ -117,26 +117,7 @@ function Catalog() {
   const scrollProgressRafRef = useRef(null);
   const tabScrollLockTimeoutRef = useRef(null);
   const isTabAutoScrollRef = useRef(false);
-  const tabsDragStateRef = useRef({
-    isPointerDown: false,
-    pointerId: null,
-    pointerType: null,
-    startX: 0,
-    startY: 0,
-    startScrollLeft: 0,
-    isHorizontalDrag: false,
-    dragged: false
-  });
-  const tabsTouchStateRef = useRef({
-    isTouching: false,
-    startX: 0,
-    startY: 0,
-    startScrollLeft: 0,
-    isHorizontalDrag: false,
-    dragged: false
-  });
   const tabActivationSourceRef = useRef('init');
-  const suppressNextTabClickRef = useRef(false);
   const catalogHeaderBackground = '#f8fafc';
   const catalogTabGap = 8;
   const isTelegramWebView = useMemo(() => (
@@ -232,17 +213,17 @@ function Catalog() {
     const activeTabButton = level3TabButtonRefs.current[tabId];
     if (!tabsScroller || !activeTabButton) return;
 
-    const scrollerRect = tabsScroller.getBoundingClientRect();
-    const tabRect = activeTabButton.getBoundingClientRect();
     const gutter = 12;
-    const minVisibleLeft = scrollerRect.left + gutter;
-    const maxVisibleRight = scrollerRect.right - gutter;
-    let targetLeft = tabsScroller.scrollLeft;
+    const viewStart = tabsScroller.scrollLeft;
+    const viewEnd = viewStart + tabsScroller.clientWidth;
+    const tabStart = activeTabButton.offsetLeft - gutter;
+    const tabEnd = activeTabButton.offsetLeft + activeTabButton.offsetWidth + gutter;
+    let targetLeft = viewStart;
 
-    if (tabRect.left < minVisibleLeft) {
-      targetLeft -= (minVisibleLeft - tabRect.left);
-    } else if (tabRect.right > maxVisibleRight) {
-      targetLeft += (tabRect.right - maxVisibleRight);
+    if (tabStart < viewStart) {
+      targetLeft = tabStart;
+    } else if (tabEnd > viewEnd) {
+      targetLeft = tabEnd - tabsScroller.clientWidth;
     }
 
     const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
@@ -263,164 +244,7 @@ function Catalog() {
     tabsScroller.scrollLeft += primaryDelta;
     event.preventDefault();
   };
-  const handleTabsTouchStart = (event) => {
-    const tabsScroller = level3TabsScrollerRef.current;
-    const touch = event.touches?.[0];
-    if (!tabsScroller || !touch) return;
-
-    tabsTouchStateRef.current = {
-      isTouching: true,
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startScrollLeft: tabsScroller.scrollLeft,
-      isHorizontalDrag: false,
-      dragged: false
-    };
-  };
-  const handleTabsTouchMove = (event) => {
-    const tabsScroller = level3TabsScrollerRef.current;
-    const drag = tabsTouchStateRef.current;
-    const touch = event.touches?.[0];
-    if (!tabsScroller || !drag.isTouching || !touch) return;
-
-    const deltaX = touch.clientX - drag.startX;
-    const deltaY = touch.clientY - drag.startY;
-
-    if (!drag.isHorizontalDrag) {
-      if (Math.abs(deltaX) < 4 && Math.abs(deltaY) < 4) return;
-      if (Math.abs(deltaX) > Math.abs(deltaY) + 2) {
-        drag.isHorizontalDrag = true;
-      } else {
-        return;
-      }
-    }
-
-    if (Math.abs(deltaX) > 6) {
-      drag.dragged = true;
-    }
-    tabsScroller.scrollLeft = drag.startScrollLeft - deltaX;
-    event.preventDefault();
-  };
-  const finishTabsTouchInteraction = () => {
-    const drag = tabsTouchStateRef.current;
-    if (!drag.isTouching) return;
-
-    if (drag.dragged) {
-      suppressNextTabClickRef.current = true;
-      setTimeout(() => {
-        suppressNextTabClickRef.current = false;
-      }, 120);
-    }
-
-    tabsTouchStateRef.current = {
-      isTouching: false,
-      startX: 0,
-      startY: 0,
-      startScrollLeft: 0,
-      isHorizontalDrag: false,
-      dragged: false
-    };
-  };
-  const handleTabsPointerDown = (event) => {
-    const tabsScroller = level3TabsScrollerRef.current;
-    if (!tabsScroller) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (event.pointerType === 'touch') return;
-
-    tabsDragStateRef.current = {
-      isPointerDown: true,
-      pointerId: event.pointerId,
-      pointerType: event.pointerType,
-      startX: event.clientX,
-      startY: event.clientY,
-      startScrollLeft: tabsScroller.scrollLeft,
-      isHorizontalDrag: false,
-      dragged: false
-    };
-    tabsScroller.style.cursor = 'grabbing';
-    tabsScroller.style.userSelect = 'none';
-    if (event.pointerType !== 'touch') {
-      try {
-        tabsScroller.setPointerCapture(event.pointerId);
-      } catch (error) {
-        // ignore pointer capture errors
-      }
-    }
-  };
-  const handleTabsPointerMove = (event) => {
-    const tabsScroller = level3TabsScrollerRef.current;
-    const drag = tabsDragStateRef.current;
-    if (!tabsScroller || !drag.isPointerDown) return;
-    if (drag.pointerType === 'touch') return;
-    if (drag.pointerId !== null && event.pointerId !== drag.pointerId) return;
-
-    const deltaX = event.clientX - drag.startX;
-    const deltaY = event.clientY - drag.startY;
-
-    if (!drag.isHorizontalDrag) {
-      if (Math.abs(deltaX) < 4 && Math.abs(deltaY) < 4) return;
-      if (Math.abs(deltaX) > Math.abs(deltaY) + 2) {
-        drag.isHorizontalDrag = true;
-        if (drag.pointerType === 'touch' && drag.pointerId !== null) {
-          try {
-            tabsScroller.setPointerCapture(drag.pointerId);
-          } catch (error) {
-            // ignore pointer capture errors
-          }
-        }
-      } else {
-        return;
-      }
-    }
-
-    if (Math.abs(deltaX) > 3) {
-      drag.dragged = true;
-    }
-    tabsScroller.scrollLeft = drag.startScrollLeft - deltaX;
-    event.preventDefault();
-  };
-  const finishTabsPointerInteraction = (event) => {
-    const tabsScroller = level3TabsScrollerRef.current;
-    const drag = tabsDragStateRef.current;
-    if (!drag.isPointerDown) return;
-    if (drag.pointerType === 'touch') {
-      tabsDragStateRef.current.isPointerDown = false;
-      return;
-    }
-    if (drag.pointerId !== null && event?.pointerId !== undefined && event.pointerId !== drag.pointerId) return;
-
-    if (tabsScroller) {
-      tabsScroller.style.cursor = 'grab';
-      tabsScroller.style.userSelect = '';
-      if (drag.pointerId !== null) {
-        try {
-          tabsScroller.releasePointerCapture(drag.pointerId);
-        } catch (error) {
-          // ignore pointer capture errors
-        }
-      }
-    }
-
-    if (drag.dragged) {
-      suppressNextTabClickRef.current = true;
-      setTimeout(() => {
-        suppressNextTabClickRef.current = false;
-      }, 120);
-    }
-
-    tabsDragStateRef.current = {
-      isPointerDown: false,
-      pointerId: null,
-      pointerType: null,
-      startX: 0,
-      startY: 0,
-      startScrollLeft: 0,
-      isHorizontalDrag: false,
-      dragged: false
-    };
-  };
   const handleCatalogTabClick = (sectionId) => {
-    if (suppressNextTabClickRef.current) return;
     tabActivationSourceRef.current = 'click';
     scrollToProductGroup(sectionId);
   };
@@ -2564,22 +2388,13 @@ function Catalog() {
             <div
               ref={level3TabsScrollerRef}
               onWheel={handleTabsWheelScroll}
-              onTouchStart={handleTabsTouchStart}
-              onTouchMove={handleTabsTouchMove}
-              onTouchEnd={finishTabsTouchInteraction}
-              onTouchCancel={finishTabsTouchInteraction}
-              onPointerDown={handleTabsPointerDown}
-              onPointerMove={handleTabsPointerMove}
-              onPointerUp={finishTabsPointerInteraction}
-              onPointerCancel={finishTabsPointerInteraction}
-              onPointerLeave={finishTabsPointerInteraction}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: `${catalogTabGap}px`,
                 overflowY: 'hidden',
                 overflowX: 'auto',
-                touchAction: 'pan-y',
+                touchAction: 'pan-x pan-y',
                 overscrollBehaviorX: 'contain',
                 overscrollBehaviorY: 'none',
                 minHeight: 42,
@@ -2591,7 +2406,7 @@ function Catalog() {
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                cursor: 'grab'
+                cursor: 'pointer'
               }}
             >
               {activeCatalogTabs.map((section) => (
