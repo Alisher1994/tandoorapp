@@ -2545,11 +2545,6 @@ function Catalog() {
             <div
               ref={level3TabsScrollerRef}
               onWheel={handleTabsWheelScroll}
-              onPointerDown={handleTabsPointerDown}
-              onPointerMove={handleTabsPointerMove}
-              onPointerUp={finishTabsPointerInteraction}
-              onPointerCancel={finishTabsPointerInteraction}
-              onPointerLeave={finishTabsPointerInteraction}
               style={{
                 display: 'flex',
                 alignItems: 'center',
