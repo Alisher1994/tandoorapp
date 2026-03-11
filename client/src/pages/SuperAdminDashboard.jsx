@@ -13,6 +13,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
+import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
@@ -25,15 +26,6 @@ const CATALOG_ANIMATION_SEASON_OPTIONS = [
   { value: 'summer', label: 'Лето' },
   { value: 'autumn', label: 'Осень' },
   { value: 'winter', label: 'Зима' }
-];
-const RESTAURANT_CURRENCY_OPTIONS = [
-  { value: 'uz', label: 'Узбекистан - so\'m' },
-  { value: 'kz', label: 'Казахстан - тенге' },
-  { value: 'tm', label: 'Туркменистан - манат' },
-  { value: 'tj', label: 'Таджикистан - сомони' },
-  { value: 'kg', label: 'Кыргызстан - сом' },
-  { value: 'af', label: 'Афганистан - афгани' },
-  { value: 'ru', label: 'Россия - руб' }
 ];
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -7344,14 +7336,12 @@ function SuperAdminDashboard() {
 
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-medium text-secondary">Валюта магазина</Form.Label>
-                    <Form.Select
-                      value={restaurantForm.currency_code || 'uz'}
-                      onChange={(e) => setRestaurantForm({ ...restaurantForm, currency_code: e.target.value })}
-                    >
-                      {RESTAURANT_CURRENCY_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </Form.Select>
+                    <CountryCurrencyDropdown
+                      language={language}
+                      options={countryCurrencyOptions}
+                      selectedOption={countryCurrencyOptions.find((option) => option.code === (restaurantForm.currency_code || 'uz')) || countryCurrencyOptions[0] || null}
+                      onChange={(code) => setRestaurantForm({ ...restaurantForm, currency_code: code })}
+                    />
                     <Form.Text className="text-muted d-block mt-1">
                       Эта валюта будет показываться клиентам во всех суммах этого магазина.
                     </Form.Text>
@@ -7365,31 +7355,6 @@ function SuperAdminDashboard() {
                       placeholder="Адрес магазина"
                     />
                   </Form.Group>
-
-                  <h6 className="fw-bold text-dark mt-2 mb-3"><i className="bi bi-clock text-primary"></i> {t('saWorkingHours')}</h6>
-                  <Row className="mb-2">
-                    <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Label className="fw-medium text-secondary small">{t('saStartTime')}</Form.Label>
-                        <Form.Control
-                          type="time"
-                          value={restaurantForm.start_time}
-                          onChange={(e) => setRestaurantForm({ ...restaurantForm, start_time: e.target.value })}
-                        />
-                      </Form.Group>
-                    </Col>
-                    <Col md={6}>
-                      <Form.Group className="mb-3">
-                        <Form.Label className="fw-medium text-secondary small">{t('saEndTime')}</Form.Label>
-                        <Form.Control
-                          type="time"
-                          value={restaurantForm.end_time}
-                          onChange={(e) => setRestaurantForm({ ...restaurantForm, end_time: e.target.value })}
-                        />
-                      </Form.Group>
-                    </Col>
-                  </Row>
-                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> Если не указано, магазин считается открытым всегда.</Form.Text>
 
                   <hr className="my-4" />
                   <h6 className="fw-bold text-dark mb-3">📍 {t('saCoordinates')}</h6>
@@ -7432,6 +7397,35 @@ function SuperAdminDashboard() {
                   <Form.Text className="text-muted mt-2 d-block">
                     <i className="bi bi-cursor"></i> Кликните на карту или перетащите маркер, чтобы задать координаты магазина.
                   </Form.Text>
+                </div>
+              </Tab>
+
+              <Tab eventKey="working-hours" title="🕒 Часы работы">
+                <div className="p-4 pt-3">
+                  <h6 className="fw-bold text-dark mt-2 mb-3"><i className="bi bi-clock text-primary"></i> {t('saWorkingHours')}</h6>
+                  <Row className="mb-2">
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label className="fw-medium text-secondary small">{t('saStartTime')}</Form.Label>
+                        <Form.Control
+                          type="time"
+                          value={restaurantForm.start_time}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, start_time: e.target.value })}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label className="fw-medium text-secondary small">{t('saEndTime')}</Form.Label>
+                        <Form.Control
+                          type="time"
+                          value={restaurantForm.end_time}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, end_time: e.target.value })}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> Если не указано, магазин считается открытым всегда.</Form.Text>
                 </div>
               </Tab>
 
@@ -7480,40 +7474,9 @@ function SuperAdminDashboard() {
                 </div>
               </Tab>
 
-              <Tab eventKey="delivery-payment" title="💳 Доставка и оплата">
+              <Tab eventKey="payment" title="💳 Оплата">
                 <div className="p-4 pt-3">
                   <h6 className="fw-bold text-dark mb-3">💰 {t('saPaymentMethods')}</h6>
-
-                  <Row className="mb-4">
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="fw-medium text-secondary d-flex align-items-center">
-                          <img src="/click.png" alt="Click" style={{ height: 20, marginRight: 8, borderRadius: 4 }} />
-                          Click - персональная ссылка
-                        </Form.Label>
-                        <Form.Control
-                          value={restaurantForm.click_url}
-                          onChange={(e) => setRestaurantForm({ ...restaurantForm, click_url: e.target.value })}
-                          placeholder="https://my.click.uz/services/pay?service_id=..."
-                          className="bg-light"
-                        />
-                      </Form.Group>
-                    </Col>
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label className="fw-medium text-secondary d-flex align-items-center">
-                          <img src="/payme.png" alt="Payme" style={{ height: 20, marginRight: 8, borderRadius: 4 }} />
-                          Payme - персональная ссылка
-                        </Form.Label>
-                        <Form.Control
-                          value={restaurantForm.payme_url}
-                          onChange={(e) => setRestaurantForm({ ...restaurantForm, payme_url: e.target.value })}
-                          placeholder="https://payme.uz/fallback/merchant/..."
-                          className="bg-light"
-                        />
-                      </Form.Group>
-                    </Col>
-                  </Row>
 
                   <div className="mb-4 p-3 rounded border bg-white">
                     <div className="d-flex align-items-center justify-content-between mb-3">
@@ -7596,9 +7559,11 @@ function SuperAdminDashboard() {
                     />
                     <Form.Text className="text-muted mt-2 d-block">Укажите сумму, которая будет списываться с баланса заведения за каждый принятый заказ. Эта же сумма может отображаться клиенту в чеке как сбор за обслуживание.</Form.Text>
                   </div>
+                </div>
+              </Tab>
 
-                  <hr className="my-4" />
-
+              <Tab eventKey="delivery" title="🚕 Доставка">
+                <div className="p-4 pt-3">
                   <div className="d-flex align-items-center justify-content-between mb-4">
                     <h6 className="fw-bold text-dark m-0">🚕 {t('saDeliverySettings')}</h6>
                     <Form.Check

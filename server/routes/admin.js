@@ -1206,6 +1206,9 @@ router.put('/restaurant', async (req, res) => {
 router.patch('/restaurant/currency', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Только супер-админ может менять валюту магазина' });
+    }
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 

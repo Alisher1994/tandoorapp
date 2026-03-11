@@ -7150,11 +7150,12 @@ function AdminDashboard() {
                                                 selectedOption={selectedRestaurantCurrencyOption}
                                                 options={countryCurrencyOptions}
                                                 readOnly={!canEditStoreCurrency}
-                                                onChange={(code) => {
+                                                disabled={!canEditStoreCurrency}
+                                                onChange={canEditStoreCurrency ? (code) => {
                                                   if (!canEditStoreCurrency) return;
                                                   setRestaurantSettings({ ...restaurantSettings, currency_code: code });
                                                   setCountryCurrency(code);
-                                                }}
+                                                } : undefined}
                                               />
                                               <Form.Text className="text-muted d-block mt-2">
                                                 {canEditStoreCurrency
@@ -7367,7 +7368,7 @@ function AdminDashboard() {
                               </Col>
 
                               <Col md={4}>
-                                {isSuperAdmin ? (
+                                {isSuperAdmin() ? (
                                   <Form.Group>
                                     <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Username поддержки (@...)</Form.Label>
                                     <Form.Control
@@ -8705,8 +8706,8 @@ function AdminDashboard() {
         <Modal
           show={showBalanceModal}
           onHide={() => setShowBalanceModal(false)}
-          size="lg"
           centered
+          dialogClassName="admin-balance-modal-compact"
           className="admin-modal"
         >
           <Modal.Header closeButton className="border-0" style={{ background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)', color: '#ffffff' }}>
@@ -8899,8 +8900,8 @@ function AdminDashboard() {
                             </div>
                             <div
                               style={{
-                                width: 88,
-                                height: 88,
+                                width: 72,
+                                height: 72,
                                 borderRadius: 8,
                                 border: '1px dashed #d1d5db',
                                 background: '#fff',
@@ -8912,7 +8913,7 @@ function AdminDashboard() {
                               }}
                             >
                               {clickPaymentLink ? (
-                                <img src={getQrCodeUrl(clickPaymentLink)} alt="Click QR" width="88" height="88" />
+                                <img src={getQrCodeUrl(clickPaymentLink)} alt="Click QR" width="72" height="72" />
                               ) : (
                                 <span className="small text-muted">QR</span>
                               )}
@@ -8947,8 +8948,8 @@ function AdminDashboard() {
                             </div>
                             <div
                               style={{
-                                width: 88,
-                                height: 88,
+                                width: 72,
+                                height: 72,
                                 borderRadius: 8,
                                 border: '1px dashed #d1d5db',
                                 background: '#fff',
@@ -8960,7 +8961,7 @@ function AdminDashboard() {
                               }}
                             >
                               {paymePaymentLink ? (
-                                <img src={getQrCodeUrl(paymePaymentLink)} alt="Payme QR" width="88" height="88" />
+                                <img src={getQrCodeUrl(paymePaymentLink)} alt="Payme QR" width="72" height="72" />
                               ) : (
                                 <span className="small text-muted">QR</span>
                               )}
@@ -8971,8 +8972,8 @@ function AdminDashboard() {
                     </Col>
                   </Row>
 
-                  <div className="mt-4 p-3 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-4 d-flex gap-3 align-items-center shadow-sm">
-                    <div className="fs-3">ℹ️</div>
+                  <div className="mt-3 p-2 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-3 d-flex gap-2 align-items-center shadow-sm">
+                    <div className="fs-5">ℹ️</div>
                     <div className="small text-dark fw-medium lh-sm">
                       {t('topupInstruction')}
                     </div>

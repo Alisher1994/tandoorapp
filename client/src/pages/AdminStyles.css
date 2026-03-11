@@ -904,6 +904,10 @@ body::-webkit-scrollbar,
     border-bottom: none;
 }
 
+.admin-balance-modal-compact .modal-dialog {
+    max-width: min(760px, calc(100vw - 20px));
+}
+
 @media (max-width: 991.98px) {
     .admin-navbar-shell .navbar-collapse {
         padding-top: 0.5rem;
