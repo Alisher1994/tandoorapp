@@ -879,6 +879,7 @@ function AdminDashboard() {
   const [showAddOrderItemModal, setShowAddOrderItemModal] = useState(false);
   const [orderItemSearch, setOrderItemSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('delivered');
+  const [ordersViewMode, setOrdersViewMode] = useState('list');
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productForm, setProductForm] = useState({
@@ -1153,6 +1154,10 @@ function AdminDashboard() {
     { value: 'delivering', label: t('statusDelivering'), color: '#06b6d4' },
     { value: 'delivered', label: t('statusDelivered'), color: '#16a34a' },
     { value: 'cancelled', label: t('statusCancelled'), color: '#ef4444' },
+  ];
+  const orderViewModeItems = [
+    { value: 'list', label: language === 'uz' ? "Ro'yxat" : 'Список' },
+    { value: 'kanban', label: 'Kanban' }
   ];
 
   // Excel export function
@@ -1894,6 +1899,28 @@ function AdminDashboard() {
     const start = (ordersPage - 1) * ordersLimit;
     return orders.slice(start, start + ordersLimit);
   }, [orders, ordersPage, ordersLimit]);
+
+  const kanbanColumns = useMemo(() => {
+    const workflowColumns = orderStatusPillItems.filter((item) => item.value !== 'all');
+    if (statusFilter === 'all') return workflowColumns;
+    return workflowColumns.filter((item) => item.value === statusFilter);
+  }, [orderStatusPillItems, statusFilter]);
+
+  const kanbanOrdersByStatus = useMemo(() => {
+    const grouped = {};
+    kanbanColumns.forEach((column) => {
+      grouped[column.value] = [];
+    });
+
+    orders.forEach((order) => {
+      const normalizedStatus = order?.status === 'in_progress' ? 'preparing' : order?.status;
+      if (grouped[normalizedStatus]) {
+        grouped[normalizedStatus].push(order);
+      }
+    });
+
+    return grouped;
+  }, [orders, kanbanColumns]);
 
   const pagedProducts = useMemo(() => {
     const start = (productsPage - 1) * productsLimit;
@@ -3208,6 +3235,81 @@ function AdminDashboard() {
   };
 
   const isOrderSensitiveDataHidden = (order) => getOrderDisplayWorkflowStatus(order) === 'new';
+
+  const getOrderMainActionConfig = (order) => {
+    const rawOrderStatus = order?.status === 'in_progress' ? 'preparing' : order?.status;
+    const orderStatus = getOrderDisplayWorkflowStatus(order);
+    const needsBillingPayment = !order?.is_paid && !billingInfo?.restaurant?.is_free_tier;
+
+    if (rawOrderStatus === 'new' && needsBillingPayment) {
+      return {
+        variant: 'success',
+        label: '✅ Принять',
+        title: 'Принять и оплатить',
+        onClick: () => handleAcceptAndPay(order.id),
+        textWhite: false
+      };
+    }
+
+    if ((rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsBillingPayment) {
+      return {
+        variant: 'warning',
+        label: 'Готовится',
+        title: 'Перевести в статус Готовится',
+        onClick: () => updateOrderStatus(order.id, 'preparing'),
+        textWhite: false
+      };
+    }
+
+    if (orderStatus === 'preparing') {
+      return {
+        variant: 'info',
+        label: 'Доставляется',
+        title: 'Перевести в статус Доставляется',
+        onClick: () => updateOrderStatus(order.id, 'delivering'),
+        textWhite: true
+      };
+    }
+
+    if (orderStatus === 'delivering') {
+      return {
+        variant: 'success',
+        label: 'Доставлен',
+        title: 'Перевести в статус Доставлен',
+        onClick: () => updateOrderStatus(order.id, 'delivered'),
+        textWhite: false
+      };
+    }
+
+    return null;
+  };
+
+  const canCancelOrder = (order) => {
+    const orderStatus = getOrderDisplayWorkflowStatus(order);
+    return orderStatus !== 'cancelled' && orderStatus !== 'delivered';
+  };
+
+  const renderOrderMainActionButton = (order, options = {}) => {
+    const { showPlaceholder = false, buttonClassName = 'admin-order-main-action-btn' } = options;
+    const actionConfig = getOrderMainActionConfig(order);
+
+    if (!actionConfig) {
+      if (!showPlaceholder) return null;
+      return <span className="admin-order-action-placeholder admin-order-action-placeholder-main" aria-hidden="true"></span>;
+    }
+
+    return (
+      <Button
+        variant={actionConfig.variant}
+        size="sm"
+        className={`${buttonClassName}${actionConfig.textWhite ? ' text-white' : ''}`}
+        onClick={actionConfig.onClick}
+        title={actionConfig.title}
+      >
+        {actionConfig.label}
+      </Button>
+    );
+  };
 
   // Bulk delete selected products
   const handleBulkDeleteProducts = async () => {
@@ -6134,10 +6236,26 @@ function AdminDashboard() {
                       );
                     })}
                   </div>
-                  <div className="d-flex align-items-center gap-2">
+                  <div className="d-flex align-items-center gap-2 admin-order-toolbar-right">
                     <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none" onClick={() => setShowMobileFiltersSheet(true)}>
                       <i className="bi bi-funnel"></i> Фильтр
                     </Button>
+                    <div className="admin-order-view-switch" role="tablist" aria-label={language === 'uz' ? "Buyurtmalar ko'rinishi" : 'Вид заказов'}>
+                      {orderViewModeItems.map((modeItem) => {
+                        const isActive = ordersViewMode === modeItem.value;
+                        return (
+                          <button
+                            key={`orders-view-${modeItem.value}`}
+                            type="button"
+                            className={`admin-order-view-switch-btn${isActive ? ' is-active' : ''}`}
+                            onClick={() => setOrdersViewMode(modeItem.value)}
+                            aria-pressed={isActive}
+                          >
+                            {modeItem.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
                       <span className="d-none d-md-inline">{t('downloadExcel')}</span>
                       <span className="d-md-none">Экспорт</span>
@@ -6145,160 +6263,236 @@ function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="admin-table-container">
-                  <Table responsive hover className="admin-table mb-0">
-                    <thead>
-                      <tr>
-                        <th>{t('orderNumber')}</th>
-                        <th>{t('client')}</th>
-                        <th>{t('amount')}</th>
-                        <th>{t('status')}</th>
-                        <th>{t('date')}</th>
-                        <th>{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pagedOrders.map(order => {
-                        const rawOrderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
-                        const orderStatus = getOrderDisplayWorkflowStatus(order);
-                        const needsBillingPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
-                        const paymentMethodKey = normalizeAnalyticsPaymentMethod(order.payment_method);
-                        const paymentStatusKey = String(order.payment_status || '').trim().toLowerCase();
-                        const isPaymeOrder = paymentMethodKey === 'payme';
-                        const requiresPaymePayment = isPaymeOrder && paymentStatusKey !== 'paid';
-                        const isPaymePaid = isPaymeOrder && paymentStatusKey === 'paid';
-                        const hideSensitive = isOrderSensitiveDataHidden(order);
-                        const canCancelOrder = orderStatus !== 'cancelled' && orderStatus !== 'delivered';
-
-                        return (
-                          <tr
-                            key={order.id}
-                            onDoubleClick={() => openOrderModal(order)}
-                            onTouchEnd={(e) => handleRowTouchOpen(e, `order-${order.id}`, () => openOrderModal(order))}
-                            style={{ cursor: 'pointer' }}
-                            title="Двойной клик / двойной тап: открыть заказ"
-                          >
-                            <td>{order.order_number}</td>
-                            <td>
-                              <div>
-                                <strong>{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</strong>
-                                <br />
-                                <small className={needsBillingPayment ? "text-muted opacity-50" : ""}>
-                                  {hideSensitive ? 'Нажмите «Принять»' : order.customer_phone}
-                                  {needsBillingPayment && (
-                                    <span className="ms-1" title="Требуется оплата">🔒</span>
-                                  )}
-                                </small>
-                              </div>
-                            </td>
-                            <td>{formatPrice(order.total_amount)} {t('sum')}</td>
-                            <td>
-                              <div className="d-flex flex-column gap-1">
-                                {getStatusBadge(orderStatus)}
-                                {requiresPaymePayment && rawOrderStatus === 'new' && (
-                                  <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты (Payme)</Badge>
-                                )}
-                                {isPaymePaid && (
-                                  <Badge bg="success" style={{ fontSize: '0.65rem' }}>Payme оплачено</Badge>
-                                )}
-                                {needsBillingPayment && rawOrderStatus === 'new' && (
-                                  <Badge bg="secondary" style={{ fontSize: '0.65rem' }}>Требует списания чека</Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
-                            <td>
-                              <div className="admin-order-actions-grid">
-                                <div className="admin-order-actions-slot admin-order-actions-slot-main">
-                                  {rawOrderStatus === 'new' && needsBillingPayment ? (
-                                    <Button
-                                      variant="success"
-                                      size="sm"
-                                      className="admin-order-main-action-btn"
-                                      onClick={() => handleAcceptAndPay(order.id)}
-                                      title="Принять и оплатить"
-                                    >
-                                      ✅ Принять
-                                    </Button>
-                                  ) : (rawOrderStatus === 'new' || orderStatus === 'accepted') && !needsBillingPayment ? (
-                                    <Button
-                                      variant="warning"
-                                      size="sm"
-                                      className="admin-order-main-action-btn"
-                                      onClick={() => updateOrderStatus(order.id, 'preparing')}
-                                      title="Перевести в статус Готовится"
-                                    >
-                                      Готовится
-                                    </Button>
-                                  ) : orderStatus === 'preparing' ? (
-                                    <Button
-                                      variant="info"
-                                      size="sm"
-                                      className="admin-order-main-action-btn text-white"
-                                      onClick={() => updateOrderStatus(order.id, 'delivering')}
-                                      title="Перевести в статус Доставляется"
-                                    >
-                                      Доставляется
-                                    </Button>
-                                  ) : orderStatus === 'delivering' ? (
-                                    <Button
-                                      variant="success"
-                                      size="sm"
-                                      className="admin-order-main-action-btn"
-                                      onClick={() => updateOrderStatus(order.id, 'delivered')}
-                                      title="Перевести в статус Доставлен"
-                                    >
-                                      Доставлен
-                                    </Button>
-                                  ) : (
-                                    <span className="admin-order-action-placeholder admin-order-action-placeholder-main" aria-hidden="true"></span>
-                                  )}
-                                </div>
-
-                                <div className="admin-order-actions-slot">
-                                  <Button
-                                    className="action-btn bg-primary bg-opacity-10 text-primary border-0"
-                                    size="sm"
-                                    onClick={() => openOrderModal(order)}
-                                    title={t('details')}
-                                  >
-                                    <ReceiptIcon />
-                                  </Button>
-                                </div>
-
-                                <div className="admin-order-actions-slot">
-                                  {canCancelOrder ? (
-                                    <Button
-                                      className="action-btn bg-danger bg-opacity-10 text-danger border-0"
-                                      size="sm"
-                                      onClick={() => openCancelModal(order.id)}
-                                      title={t('cancelOrder')}
-                                    >
-                                      <TrashIcon />
-                                    </Button>
-                                  ) : (
-                                    <span className="admin-order-action-placeholder admin-order-action-placeholder-icon" aria-hidden="true"></span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
+                {ordersViewMode === 'list' ? (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table mb-0">
+                        <thead>
+                          <tr>
+                            <th>{t('orderNumber')}</th>
+                            <th>{t('client')}</th>
+                            <th>{t('amount')}</th>
+                            <th>{t('status')}</th>
+                            <th>{t('date')}</th>
+                            <th>{t('actions')}</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </Table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {pagedOrders.map(order => {
+                            const rawOrderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+                            const orderStatus = getOrderDisplayWorkflowStatus(order);
+                            const needsBillingPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
+                            const paymentMethodKey = normalizeAnalyticsPaymentMethod(order.payment_method);
+                            const paymentStatusKey = String(order.payment_status || '').trim().toLowerCase();
+                            const isPaymeOrder = paymentMethodKey === 'payme';
+                            const requiresPaymePayment = isPaymeOrder && paymentStatusKey !== 'paid';
+                            const isPaymePaid = isPaymeOrder && paymentStatusKey === 'paid';
+                            const hideSensitive = isOrderSensitiveDataHidden(order);
+                            const canCancelCurrentOrder = canCancelOrder(order);
 
-                <AdminListPagination
-                  current={ordersPage}
-                  total={orders.length}
-                  limit={ordersLimit}
-                  onPageChange={setOrdersPage}
-                  onLimitChange={(value) => {
-                    setOrdersLimit(value);
-                    setOrdersPage(1);
-                  }}
-                />
+                            return (
+                              <tr
+                                key={order.id}
+                                onDoubleClick={() => openOrderModal(order)}
+                                onTouchEnd={(e) => handleRowTouchOpen(e, `order-${order.id}`, () => openOrderModal(order))}
+                                style={{ cursor: 'pointer' }}
+                                title="Двойной клик / двойной тап: открыть заказ"
+                              >
+                                <td>{order.order_number}</td>
+                                <td>
+                                  <div>
+                                    <strong>{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</strong>
+                                    <br />
+                                    <small className={needsBillingPayment ? "text-muted opacity-50" : ""}>
+                                      {hideSensitive ? 'Нажмите «Принять»' : order.customer_phone}
+                                      {needsBillingPayment && (
+                                        <span className="ms-1" title="Требуется оплата">🔒</span>
+                                      )}
+                                    </small>
+                                  </div>
+                                </td>
+                                <td>{formatPrice(order.total_amount)} {t('sum')}</td>
+                                <td>
+                                  <div className="d-flex flex-column gap-1">
+                                    {getStatusBadge(orderStatus)}
+                                    {requiresPaymePayment && rawOrderStatus === 'new' && (
+                                      <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты (Payme)</Badge>
+                                    )}
+                                    {isPaymePaid && (
+                                      <Badge bg="success" style={{ fontSize: '0.65rem' }}>Payme оплачено</Badge>
+                                    )}
+                                    {needsBillingPayment && rawOrderStatus === 'new' && (
+                                      <Badge bg="secondary" style={{ fontSize: '0.65rem' }}>Требует списания чека</Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td>{new Date(order.created_at).toLocaleString('ru-RU')}</td>
+                                <td>
+                                  <div className="admin-order-actions-grid">
+                                    <div className="admin-order-actions-slot admin-order-actions-slot-main">
+                                      {renderOrderMainActionButton(order, { showPlaceholder: true })}
+                                    </div>
+
+                                    <div className="admin-order-actions-slot">
+                                      <Button
+                                        className="action-btn bg-primary bg-opacity-10 text-primary border-0"
+                                        size="sm"
+                                        onClick={() => openOrderModal(order)}
+                                        title={t('details')}
+                                      >
+                                        <ReceiptIcon />
+                                      </Button>
+                                    </div>
+
+                                    <div className="admin-order-actions-slot">
+                                      {canCancelCurrentOrder ? (
+                                        <Button
+                                          className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                          size="sm"
+                                          onClick={() => openCancelModal(order.id)}
+                                          title={t('cancelOrder')}
+                                        >
+                                          <TrashIcon />
+                                        </Button>
+                                      ) : (
+                                        <span className="admin-order-action-placeholder admin-order-action-placeholder-icon" aria-hidden="true"></span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </Table>
+                    </div>
+
+                    <AdminListPagination
+                      current={ordersPage}
+                      total={orders.length}
+                      limit={ordersLimit}
+                      onPageChange={setOrdersPage}
+                      onLimitChange={(value) => {
+                        setOrdersLimit(value);
+                        setOrdersPage(1);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <div className="admin-order-kanban-board">
+                    {kanbanColumns.map((column) => {
+                      const columnOrders = kanbanOrdersByStatus[column.value] || [];
+                      return (
+                        <section className="admin-order-kanban-column" key={`kanban-column-${column.value}`}>
+                          <header className="admin-order-kanban-column-header">
+                            <div className="admin-order-kanban-column-title-wrap">
+                              <span
+                                className="admin-order-kanban-column-dot"
+                                style={{ background: column.color }}
+                                aria-hidden="true"
+                              />
+                              <span className="admin-order-kanban-column-title">{column.label}</span>
+                            </div>
+                            <Badge pill className="admin-order-kanban-column-count">
+                              {columnOrders.length}
+                            </Badge>
+                          </header>
+
+                          <div className="admin-order-kanban-column-body">
+                            {columnOrders.length > 0 ? columnOrders.map((order) => {
+                              const rawOrderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
+                              const orderStatus = getOrderDisplayWorkflowStatus(order);
+                              const needsBillingPayment = !order.is_paid && !billingInfo.restaurant?.is_free_tier;
+                              const paymentMethodKey = normalizeAnalyticsPaymentMethod(order.payment_method);
+                              const paymentStatusKey = String(order.payment_status || '').trim().toLowerCase();
+                              const isPaymeOrder = paymentMethodKey === 'payme';
+                              const requiresPaymePayment = isPaymeOrder && paymentStatusKey !== 'paid';
+                              const isPaymePaid = isPaymeOrder && paymentStatusKey === 'paid';
+                              const hideSensitive = isOrderSensitiveDataHidden(order);
+                              const canCancelCurrentOrder = canCancelOrder(order);
+
+                              return (
+                                <article
+                                  key={`kanban-order-${order.id}`}
+                                  className="admin-order-kanban-card"
+                                  onDoubleClick={() => openOrderModal(order)}
+                                  onTouchEnd={(e) => handleRowTouchOpen(e, `kanban-order-${order.id}`, () => openOrderModal(order))}
+                                  title="Двойной клик / двойной тап: открыть заказ"
+                                >
+                                  <div className="admin-order-kanban-card-head">
+                                    <strong>#{order.order_number}</strong>
+                                    {getStatusBadge(orderStatus)}
+                                  </div>
+
+                                  <div className="admin-order-kanban-card-customer">
+                                    <div className="fw-semibold">{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</div>
+                                    <small className={needsBillingPayment ? "text-muted opacity-50" : "text-muted"}>
+                                      {hideSensitive ? 'Нажмите «Принять»' : order.customer_phone}
+                                      {needsBillingPayment && (
+                                        <span className="ms-1" title="Требуется оплата">🔒</span>
+                                      )}
+                                    </small>
+                                  </div>
+
+                                  <div className="admin-order-kanban-card-meta">
+                                    <span className="admin-order-kanban-amount">{formatPrice(order.total_amount)} {t('sum')}</span>
+                                    <small className="text-muted">{new Date(order.created_at).toLocaleString('ru-RU')}</small>
+                                  </div>
+
+                                  <div className="admin-order-kanban-card-badges">
+                                    {requiresPaymePayment && rawOrderStatus === 'new' && (
+                                      <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты (Payme)</Badge>
+                                    )}
+                                    {isPaymePaid && (
+                                      <Badge bg="success" style={{ fontSize: '0.65rem' }}>Payme оплачено</Badge>
+                                    )}
+                                    {needsBillingPayment && rawOrderStatus === 'new' && (
+                                      <Badge bg="secondary" style={{ fontSize: '0.65rem' }}>Требует списания чека</Badge>
+                                    )}
+                                  </div>
+
+                                  <div className="admin-order-kanban-card-actions">
+                                    <div className="admin-order-actions-slot admin-order-actions-slot-main">
+                                      {renderOrderMainActionButton(order, { buttonClassName: 'admin-order-main-action-btn admin-order-main-action-btn-kanban' })}
+                                    </div>
+                                    <div className="admin-order-actions-slot">
+                                      <Button
+                                        className="action-btn bg-primary bg-opacity-10 text-primary border-0"
+                                        size="sm"
+                                        onClick={() => openOrderModal(order)}
+                                        title={t('details')}
+                                      >
+                                        <ReceiptIcon />
+                                      </Button>
+                                    </div>
+                                    <div className="admin-order-actions-slot">
+                                      {canCancelCurrentOrder ? (
+                                        <Button
+                                          className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                          size="sm"
+                                          onClick={() => openCancelModal(order.id)}
+                                          title={t('cancelOrder')}
+                                        >
+                                          <TrashIcon />
+                                        </Button>
+                                      ) : (
+                                        <span className="admin-order-action-placeholder admin-order-action-placeholder-icon" aria-hidden="true"></span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </article>
+                              );
+                            }) : (
+                              <div className="admin-order-kanban-empty">
+                                {t('noData')}
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
 
               </Tab>
 

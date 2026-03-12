@@ -880,6 +880,41 @@ body::-webkit-scrollbar,
     display: none;
 }
 
+.admin-order-toolbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.admin-order-view-switch {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.admin-order-view-switch-btn {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.48rem 0.75rem;
+    transition: all 0.18s ease;
+}
+
+.admin-order-view-switch-btn:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.admin-order-view-switch-btn.is-active {
+    background: var(--primary-color);
+    color: #fff;
+}
+
 .btn-mobile-filter {
     display: inline-flex;
     align-items: center;
@@ -1178,6 +1213,21 @@ body::-webkit-scrollbar,
 
     .admin-order-status-tabs>* {
         flex: 0 0 auto;
+    }
+
+    .admin-order-toolbar-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .admin-order-view-switch {
+        flex: 1 1 auto;
+        max-width: 240px;
+    }
+
+    .admin-order-view-switch-btn {
+        flex: 1 1 50%;
+        text-align: center;
     }
 
     .superadmin-stats-grid {
@@ -2484,6 +2534,141 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+.admin-order-kanban-board {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+}
+
+.admin-order-kanban-column {
+    min-width: 280px;
+    width: 280px;
+    flex: 0 0 280px;
+    border: 1px solid #dbe4ef;
+    border-radius: 12px;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-order-kanban-column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.26);
+}
+
+.admin-order-kanban-column-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.admin-order-kanban-column-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.admin-order-kanban-column-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.admin-order-kanban-column-count {
+    background: #e2e8f0 !important;
+    color: #334155 !important;
+    font-weight: 700 !important;
+}
+
+.admin-order-kanban-column-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    min-height: 140px;
+    max-height: min(70vh, 640px);
+    overflow-y: auto;
+}
+
+.admin-order-kanban-card {
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.admin-order-kanban-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.admin-order-kanban-card-customer {
+    line-height: 1.25;
+}
+
+.admin-order-kanban-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.8rem;
+}
+
+.admin-order-kanban-amount {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.admin-order-kanban-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 0.75rem;
+}
+
+.admin-order-kanban-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 32px 32px;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-order-main-action-btn-kanban {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.admin-order-kanban-empty {
+    border: 1px dashed rgba(148, 163, 184, 0.38);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    min-height: 92px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 10px;
+}
+
 .admin-order-actions-grid {
     display: grid;
     grid-template-columns: 112px 32px 32px;
@@ -2525,6 +2710,14 @@ body::-webkit-scrollbar,
     width: 32px;
     height: 32px;
     border-radius: 8px;
+}
+
+@media (max-width: 991.98px) {
+    .admin-order-kanban-column {
+        min-width: min(86vw, 320px);
+        width: min(86vw, 320px);
+        flex-basis: min(86vw, 320px);
+    }
 }
 
 /* Safety mode disabled by request: keep action buttons visible even when wrapper has action-buttons-hidden */
