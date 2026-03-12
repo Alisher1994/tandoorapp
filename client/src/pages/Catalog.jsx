@@ -75,6 +75,8 @@ function Catalog() {
   const [activeAdIndex, setActiveAdIndex] = useState(0);
   const [entryPopupBanner, setEntryPopupBanner] = useState(null);
   const [showEntryPopupModal, setShowEntryPopupModal] = useState(false);
+  const [showLanguageSetupModal, setShowLanguageSetupModal] = useState(false);
+  const [pendingLanguage, setPendingLanguage] = useState('ru');
   const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
@@ -98,7 +100,7 @@ function Catalog() {
   const { user, isOperator, logout } = useAuth();
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
-  const { language, toggleLanguage, t, setCountryCurrency } = useLanguage();
+  const { language, t, setCountryCurrency, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= 992 : false
@@ -136,6 +138,14 @@ function Catalog() {
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const languagePromptShown = sessionStorage.getItem('client_language_prompt_done') === '1';
+    if (!languagePromptShown) {
+      setPendingLanguage(language === 'uz' ? 'uz' : 'ru');
+      setShowLanguageSetupModal(true);
+    }
   }, []);
 
   // For customers: lock to active_restaurant_id from bot
@@ -452,6 +462,13 @@ function Catalog() {
     setSelectedRestaurant(restaurantId);
     setSelectedCategory(null);
     setActiveSubcategoryTab(null);
+  };
+
+  const handleSaveLanguagePreference = () => {
+    const nextLanguage = pendingLanguage === 'uz' ? 'uz' : 'ru';
+    setLanguage(nextLanguage);
+    sessionStorage.setItem('client_language_prompt_done', '1');
+    setShowLanguageSetupModal(false);
   };
 
   const handleAddToCart = (product) => {
@@ -2305,41 +2322,6 @@ function Catalog() {
               <SearchLucideIcon size={17} color="#4b5563" />
             </button>
 
-            <button
-              onClick={toggleLanguage}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-              title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
-            >
-              <span
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 500,
-                  color: '#4b5563',
-                  letterSpacing: '0.04em',
-                  lineHeight: 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '20px',
-                  textShadow: 'none'
-                }}
-              >
-                {language === 'ru' ? 'RU' : 'UZ'}
-              </span>
-              <img
-                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-                alt={language === 'ru' ? 'RU' : 'UZ'}
-                style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-              />
-            </button>
             {shouldShowDesktopLogout && (
               <button
                 type="button"
@@ -2648,6 +2630,44 @@ function Catalog() {
           </>
         )}
       </Container>
+
+      <Modal
+        show={showLanguageSetupModal}
+        backdrop="static"
+        keyboard={false}
+        centered
+      >
+        <Modal.Header className="border-0 pb-0">
+          <Modal.Title className="w-100 text-center">Til / Язык</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-2">
+          <div className="d-flex gap-2 mb-3">
+            <Button
+              type="button"
+              variant={pendingLanguage === 'uz' ? 'primary' : 'outline-secondary'}
+              className="flex-fill"
+              onClick={() => setPendingLanguage('uz')}
+            >
+              O'zbekcha
+            </Button>
+            <Button
+              type="button"
+              variant={pendingLanguage === 'ru' ? 'primary' : 'outline-secondary'}
+              className="flex-fill"
+              onClick={() => setPendingLanguage('ru')}
+            >
+              Русский
+            </Button>
+          </div>
+          <Button
+            type="button"
+            className="w-100"
+            onClick={handleSaveLanguagePreference}
+          >
+            {pendingLanguage === 'uz' ? 'Saqlash' : 'Сохранить'}
+          </Button>
+        </Modal.Body>
+      </Modal>
 
       <Modal
         show={showEntryPopupModal && !!entryPopupBanner}

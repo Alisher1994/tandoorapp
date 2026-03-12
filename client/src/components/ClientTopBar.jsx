@@ -34,9 +34,10 @@ function ClientTopBar({
   restaurantName = 'Logo',
   language = 'ru',
   onToggleLanguage = () => {},
+  onBrandClick = null,
   onBack = null,
   showBackButton = false,
-  showLanguageToggle = true,
+  showLanguageToggle = false,
   fallback = '🏪',
   maxWidth = '600px',
   sticky = false
@@ -63,7 +64,12 @@ function ClientTopBar({
           )}
         </div>
 
-        <div className="client-topbar-brand" aria-label={restaurantName}>
+        <div
+          className="client-topbar-brand"
+          aria-label={restaurantName}
+          onClick={onBrandClick || undefined}
+          style={onBrandClick ? { cursor: 'pointer' } : undefined}
+        >
           {logoSrc ? (
             <div style={frame.box}>
               <img src={logoSrc} alt={restaurantName} style={frame.img} />

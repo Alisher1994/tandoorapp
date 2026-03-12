@@ -106,6 +106,7 @@ function Feedback() {
         restaurantName={user?.active_restaurant_name || 'Tandoor'}
         language={language}
         onToggleLanguage={toggleLanguage}
+        showLanguageToggle
         fallback="💬"
         maxWidth="600px"
         sticky

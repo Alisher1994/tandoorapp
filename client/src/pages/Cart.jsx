@@ -14,7 +14,6 @@ import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../co
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import OrderReceipt from '../components/OrderReceipt';
-import BottomNav from '../components/BottomNav';
 import ClientLocationPicker from '../components/ClientLocationPicker';
 import ClientEmptyState from '../components/ClientEmptyState';
 import ClientTopBar from '../components/ClientTopBar';
@@ -29,7 +28,7 @@ const toEnabledFlag = (value) => value === true || value === 'true' || value ===
 function Cart() {
   const { cart, cartTotal, productTotal, containerTotal, updateQuantity, removeFromCart, clearCart } = useCart();
   const { user } = useAuth();
-  const { language, toggleLanguage, t } = useLanguage();
+  const { language, t } = useLanguage();
   const navigate = useNavigate();
 
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
@@ -844,9 +843,9 @@ function Cart() {
           logoDisplayMode={restaurant?.logo_display_mode || user?.active_restaurant_logo_display_mode}
           restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
           language={language}
-          onToggleLanguage={toggleLanguage}
           showBackButton
           onBack={handleTopBarBack}
+          onBrandClick={handleTopBarBack}
           showLanguageToggle={false}
           fallback="🍽️"
           maxWidth="500px"
@@ -859,10 +858,8 @@ function Cart() {
             message={t('cartEmpty')}
             subMessage={t('cartEmptyDesc')}
           />
-          <div className="client-bottom-space" />
+          <div style={{ height: 12 }} />
         </Container>
-
-        <BottomNav />
       </div>
     );
   }
@@ -979,9 +976,9 @@ function Cart() {
         logoDisplayMode={restaurant?.logo_display_mode || user?.active_restaurant_logo_display_mode}
         restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
         language={language}
-        onToggleLanguage={toggleLanguage}
         showBackButton
         onBack={handleTopBarBack}
+        onBrandClick={handleTopBarBack}
         showLanguageToggle={false}
         fallback="🍽️"
         maxWidth="500px"
@@ -1763,7 +1760,7 @@ function Cart() {
             <img
               src="/Cat playing animation.gif"
               alt="Cat playing animation"
-              style={{ width: 112, height: 112, objectFit: 'contain' }}
+              style={{ width: 224, height: 224, objectFit: 'contain' }}
               className="mb-3"
             />
             <div className="fs-5 fw-bold mb-2">{shopHoursMessage || (language === 'uz' ? "Do'kon hozir yopiq" : 'Магазин сейчас закрыт')}</div>
@@ -1778,10 +1775,8 @@ function Cart() {
           </Modal.Body>
         </Modal>
 
-        <div className="client-bottom-space" />
+        <div style={{ height: 12 }} />
       </Container>
-
-      <BottomNav />
     </div>
   );
 }
