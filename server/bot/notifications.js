@@ -344,6 +344,51 @@ async function fetchOrderStatusActions(orderId) {
   }
 }
 
+function buildCustomerDeliverySummaryMessage(order, actions = []) {
+  const statusOrder = ['accepted', 'preparing', 'delivering', 'delivered'];
+  const statusLabels = {
+    accepted: '✅ Принят',
+    preparing: '👨‍🍳 Готовится',
+    delivering: '🚚 Доставляется',
+    delivered: '✅ Доставлен'
+  };
+
+  const preparedActions = (Array.isArray(actions) ? actions : [])
+    .map((rawAction, index) => ({
+      index,
+      status: normalizeActionStatus(rawAction?.status),
+      created_at: rawAction?.created_at || null
+    }))
+    .filter((action) => statusOrder.includes(action.status))
+    .sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return a.index - b.index;
+    });
+
+  const firstByStatus = new Map();
+  for (const action of preparedActions) {
+    if (!firstByStatus.has(action.status)) {
+      firstByStatus.set(action.status, action);
+    }
+  }
+
+  const timelineLines = statusOrder.map((status) => {
+    const action = firstByStatus.get(status);
+    const timeText = formatActionTimestamp(action?.created_at);
+    return `${statusLabels[status]}${timeText ? ` (${timeText})` : ''}`;
+  });
+
+  return (
+    `<b>ID: ${escapeHtml(order?.order_number || '')}</b> #доставлен\n\n` +
+    `✅ Заказ доставлен.\n\n` +
+    `<b>Этапы заказа</b>\n` +
+    `${timelineLines.join('\n')}\n\n` +
+    `Сумма заказа: ${formatPrice(order?.total_amount)} сум`
+  );
+}
+
 function buildDeliveryLinksLine(rawCoordinates) {
   const parsed = parseDeliveryCoordinates(rawCoordinates);
   if (!parsed) return '';
@@ -1000,6 +1045,7 @@ async function sendOrderUpdateToUser(
   try {
     const statusTags = {
       'new': '#новый',
+      'accepted': '#принят',
       'preparing': '#готовится',
       'delivering': '#доставляется',
       'delivered': '#доставлен',
@@ -1009,6 +1055,7 @@ async function sendOrderUpdateToUser(
     // Default messages
     const defaultMessages = {
       'new': '📦 Ваш заказ в обработке!',
+      'accepted': '✅ Заказ принят. Оператор подтвердил заказ.',
       'preparing': '👨‍🍳 Ваш заказ готовится',
       'delivering': '🚗 Ваш заказ в пути',
       'delivered': '✅ Ваш заказ доставлен!',
@@ -1087,44 +1134,45 @@ async function sendOrderUpdateToUser(
       reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined
     };
 
-    const cacheKey = `${botToken || 'default'}:${telegramId}:${order?.id || order?.order_number || 'order'}`;
+    const cacheScope = resolvedRestaurantId ? `restaurant:${resolvedRestaurantId}` : (botToken || 'default');
+    const cacheKey = `${cacheScope}:${telegramId}:${order?.id || order?.order_number || 'order'}`;
     const cached = customerOrderStatusMessageCache.get(cacheKey);
+    const previousMessageIds = Array.isArray(cached?.messageIds)
+      ? cached.messageIds
+      : (cached?.messageId ? [cached.messageId] : []);
 
-    if (cached?.messageId) {
-      try {
-        await bot.editMessageText(message, {
-          chat_id: telegramId,
-          message_id: cached.messageId,
-          parse_mode: options.parse_mode,
-          disable_web_page_preview: options.disable_web_page_preview,
-          reply_markup: options.reply_markup
-        });
-        customerOrderStatusMessageCache.set(cacheKey, {
-          messageId: cached.messageId,
-          status,
-          updatedAt: Date.now()
-        });
-        console.log(`✅ Order update edited for user ${telegramId}`);
-        return true;
-      } catch (editError) {
-        const editMessage = String(editError?.message || '').toLowerCase();
-        if (!editMessage.includes('message is not modified')) {
-          try {
-            await bot.deleteMessage(telegramId, cached.messageId);
-          } catch (_) { }
-        } else {
-          return true;
-        }
-      }
+    let outgoingMessage = message;
+    if (status === 'delivered' && order?.id) {
+      const actions = await fetchOrderStatusActions(order.id);
+      outgoingMessage = buildCustomerDeliverySummaryMessage(order, actions);
     }
 
-    const sent = await bot.sendMessage(telegramId, message, options);
-    if (sent?.message_id) {
+    const sent = await bot.sendMessage(telegramId, outgoingMessage, options);
+    const sentMessageId = Number(sent?.message_id || 0);
+    if (sentMessageId > 0) {
+      const uniqueMessageIds = Array.from(
+        new Set(
+          status === 'delivered'
+            ? [sentMessageId]
+            : [...previousMessageIds, sentMessageId]
+        )
+      ).filter((id) => Number.isFinite(id) && id > 0);
+
       customerOrderStatusMessageCache.set(cacheKey, {
-        messageId: sent.message_id,
+        messageIds: uniqueMessageIds.slice(-15),
         status,
         updatedAt: Date.now()
       });
+
+      if (status === 'delivered') {
+        for (const previousId of previousMessageIds) {
+          const normalizedId = Number(previousId || 0);
+          if (!Number.isFinite(normalizedId) || normalizedId <= 0 || normalizedId === sentMessageId) continue;
+          try {
+            await bot.deleteMessage(telegramId, normalizedId);
+          } catch (_) { }
+        }
+      }
     }
     console.log(`✅ Order update sent to user ${telegramId}`);
     return true;
