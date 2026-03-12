@@ -2563,18 +2563,32 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
         if (refreshed.order.telegram_id) {
           try {
-            await sendOrderUpdateToUser(
+            const notifySent = await sendOrderUpdateToUser(
               refreshed.order.telegram_id,
               refreshed.order,
               nextStatus,
-              refreshed.order.telegram_bot_token,
+              refreshed.order.telegram_bot_token || botToken,
               {
                 click_url: refreshed.order.click_url,
                 payme_url: refreshed.order.payme_url,
                 uzum_url: refreshed.order.uzum_url,
                 xazna_url: refreshed.order.xazna_url
-              }
+              },
+              null,
+              refreshed.order.restaurant_id
             );
+
+            if (!notifySent) {
+              const fallbackStatusMap = {
+                preparing: '👨‍🍳 Готовится',
+                delivering: '🚚 Доставляется',
+                delivered: '✅ Доставлен'
+              };
+              await bot.sendMessage(
+                refreshed.order.telegram_id,
+                `🔄 Заказ #${refreshed.order.order_number}\nСтатус: ${fallbackStatusMap[nextStatus] || nextStatus}`
+              );
+            }
           } catch (e) {
             console.error('Customer status notify error:', e.message);
           }

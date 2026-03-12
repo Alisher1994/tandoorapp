@@ -973,14 +973,28 @@ function replacePlaceholders(template, order) {
 /**
  * Send order status update to user
  * @param {Object} customMessages - Custom messages from restaurant settings { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled }
+ * @param {number|null} restaurantId - Restaurant ID for resolving active multi-bot instance
  */
-async function sendOrderUpdateToUser(telegramId, order, status, botToken = null, restaurantPaymentUrls = null, customMessages = null) {
-  if (!telegramId) return;
+async function sendOrderUpdateToUser(
+  telegramId,
+  order,
+  status,
+  botToken = null,
+  restaurantPaymentUrls = null,
+  customMessages = null,
+  restaurantId = null
+) {
+  if (!telegramId) return false;
 
-  const bot = getRestaurantBot(botToken);
+  const resolvedRestaurantIdRaw = Number(order?.restaurant_id || restaurantId || 0);
+  const resolvedRestaurantId = Number.isFinite(resolvedRestaurantIdRaw) && resolvedRestaurantIdRaw > 0
+    ? resolvedRestaurantIdRaw
+    : null;
+
+  const bot = getRestaurantBot(botToken, resolvedRestaurantId);
   if (!bot) {
     console.warn('⚠️  Bot not initialized, cannot send update');
-    return;
+    return false;
   }
 
   try {
@@ -1091,7 +1105,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
           updatedAt: Date.now()
         });
         console.log(`✅ Order update edited for user ${telegramId}`);
-        return;
+        return true;
       } catch (editError) {
         const editMessage = String(editError?.message || '').toLowerCase();
         if (!editMessage.includes('message is not modified')) {
@@ -1099,7 +1113,7 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
             await bot.deleteMessage(telegramId, cached.messageId);
           } catch (_) { }
         } else {
-          return;
+          return true;
         }
       }
     }
@@ -1113,8 +1127,10 @@ async function sendOrderUpdateToUser(telegramId, order, status, botToken = null,
       });
     }
     console.log(`✅ Order update sent to user ${telegramId}`);
+    return true;
   } catch (error) {
     console.error('Send order update error:', error);
+    return false;
   }
 }
 
