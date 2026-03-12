@@ -78,7 +78,6 @@ function BottomNav() {
   const handleNavItemClick = (path) => {
     if (isCompact) {
       setIsCompact(false);
-      return;
     }
     navigate(path);
   };

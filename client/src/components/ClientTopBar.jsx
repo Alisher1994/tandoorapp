@@ -34,6 +34,8 @@ function ClientTopBar({
   restaurantName = 'Logo',
   language = 'ru',
   onToggleLanguage = () => {},
+  onBack = null,
+  showBackButton = false,
   fallback = '🏪',
   maxWidth = '600px',
   sticky = false
@@ -44,8 +46,20 @@ function ClientTopBar({
   return (
     <header className={`client-topbar ${sticky ? 'is-sticky' : ''}`}>
       <Container className="client-topbar-inner" style={{ maxWidth }}>
-        <div className="client-topbar-side" aria-hidden="true">
-          <span className="client-topbar-spacer" />
+        <div className="client-topbar-side">
+          {showBackButton ? (
+            <button
+              type="button"
+              className="client-topbar-back-btn"
+              onClick={onBack}
+              aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
+              title={language === 'uz' ? 'Orqaga' : 'Назад'}
+            >
+              <span aria-hidden="true">←</span>
+            </button>
+          ) : (
+            <span className="client-topbar-spacer" aria-hidden="true" />
+          )}
         </div>
 
         <div className="client-topbar-brand" aria-label={restaurantName}>

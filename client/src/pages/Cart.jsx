@@ -53,6 +53,7 @@ function Cart() {
   const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
   const [fulfillmentType, setFulfillmentType] = useState('delivery');
   const [step, setStep] = useState(1);
+  const [checkoutStep, setCheckoutStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [error, setError] = useState('');
@@ -73,6 +74,7 @@ function Cart() {
   const [showNewAddressModal, setShowNewAddressModal] = useState(false);
   const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
+  const [cardCopyNotice, setCardCopyNotice] = useState(false);
 
   const themePrimaryTextStyle = { color: 'var(--primary-color)' };
   const paymentButtonStyle = (isActive) => ({
@@ -143,6 +145,7 @@ function Cart() {
   // Ref for comment textarea for keyboard avoidance
   const commentRef = useRef(null);
   const errorAlertRef = useRef(null);
+  const cardCopyTimeoutRef = useRef(null);
 
   // Keyboard avoidance - scroll to comment field when focused (works on iOS)
   const handleCommentFocus = () => {
@@ -399,6 +402,18 @@ function Cart() {
     }
     setFulfillmentType((prev) => (prev === 'pickup' || prev === 'delivery' ? prev : 'delivery'));
   }, [isDeliveryEnabled]);
+
+  useEffect(() => {
+    if (step !== 2) {
+      setCheckoutStep(1);
+    }
+  }, [step]);
+
+  useEffect(() => () => {
+    if (cardCopyTimeoutRef.current) {
+      clearTimeout(cardCopyTimeoutRef.current);
+    }
+  }, []);
 
   // Fetch delivery cost when coordinates change
   useEffect(() => {
@@ -668,6 +683,44 @@ function Cart() {
     }
   };
 
+  const handleTopBarBack = () => {
+    if (step === 2) {
+      setStep(1);
+      setCheckoutStep(1);
+      return;
+    }
+    navigate(-1);
+  };
+
+  const handleCopyCardNumber = async () => {
+    const number = String(restaurant?.card_payment_number || '').trim();
+    if (!number) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(number);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = number;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      setCardCopyNotice(true);
+      if (cardCopyTimeoutRef.current) {
+        clearTimeout(cardCopyTimeoutRef.current);
+      }
+      cardCopyTimeoutRef.current = setTimeout(() => setCardCopyNotice(false), 1800);
+    } catch (copyError) {
+      console.error('Copy card number error:', copyError);
+    }
+  };
+
   // Show receipt if order was created (even if cart is empty now)
   if (showReceipt) {
     const logoUrl = restaurant?.logo_url
@@ -705,6 +758,8 @@ function Cart() {
           restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
           language={language}
           onToggleLanguage={toggleLanguage}
+          showBackButton
+          onBack={handleTopBarBack}
           fallback="🍽️"
           maxWidth="500px"
           sticky
@@ -794,6 +849,48 @@ function Cart() {
           color: #1f2937 !important;
           font-weight: 600;
         }
+        .cart-mini-stepper {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .cart-mini-step-button {
+          border: 1px solid rgba(71, 85, 105, 0.2);
+          border-radius: 10px;
+          background: #fff;
+          color: #334155;
+          min-height: 38px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          line-height: 1.2;
+          padding: 4px 8px;
+        }
+        .cart-mini-step-button.is-active {
+          border-color: var(--primary-color);
+          background: rgba(15, 118, 110, 0.08);
+          color: #0f172a;
+        }
+        .cart-mini-step-button.is-done {
+          border-color: rgba(15, 118, 110, 0.45);
+          background: rgba(15, 118, 110, 0.05);
+        }
+        .cart-card-copy-btn {
+          width: 28px;
+          height: 28px;
+          border: 1px solid rgba(71, 85, 105, 0.28);
+          border-radius: 8px;
+          background: #fff;
+          color: #0f172a;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          cursor: pointer;
+        }
+        .cart-summary-row {
+          font-size: 0.82rem;
+        }
         .cart-select-custom {
           background: #f8fafc !important;
           border: 1px solid rgba(71, 85, 105, 0.22) !important;
@@ -814,6 +911,8 @@ function Cart() {
         restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
         language={language}
         onToggleLanguage={toggleLanguage}
+        showBackButton
+        onBack={handleTopBarBack}
         fallback="🍽️"
         maxWidth="500px"
         sticky
@@ -915,135 +1014,184 @@ function Cart() {
           <Form onSubmit={handleSubmit}>
             <Card className="border-0 shadow-sm mb-3">
               <Card.Body>
-                {isDeliveryEnabled && (
-                  <Form.Group className="mb-3">
+                <div className="cart-mini-stepper">
+                  <button
+                    type="button"
+                    className={`cart-mini-step-button ${checkoutStep === 1 ? 'is-active' : checkoutStep > 1 ? 'is-done' : ''}`}
+                    onClick={() => setCheckoutStep(1)}
+                  >
+                    1. {language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`cart-mini-step-button ${checkoutStep === 2 ? 'is-active' : ''}`}
+                    onClick={() => setCheckoutStep(2)}
+                  >
+                    2. {language === 'uz' ? 'Manzil' : 'Адрес'}
+                  </button>
+                </div>
+
+                {checkoutStep === 1 && (
+                  <div className="mb-3">
                     <Form.Label className="small text-muted mb-1">
                       {language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}
                     </Form.Label>
-                    <div className="cart-segmented-switch">
-                      <Button
-                        type="button"
-                        variant="light"
-                        size="sm"
-                        className={`cart-segmented-option ${fulfillmentType === 'delivery' ? 'is-active' : ''}`}
-                        onClick={() => setFulfillmentType('delivery')}
-                      >
-                        🚚 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="light"
-                        size="sm"
-                        className={`cart-segmented-option ${fulfillmentType === 'pickup' ? 'is-active' : ''}`}
-                        onClick={() => setFulfillmentType('pickup')}
-                      >
-                        🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
-                      </Button>
-                    </div>
-                  </Form.Group>
-                )}
-
-                {/* Адрес доставки */}
-                {isDeliverySelected && (
-                  <div className="mb-3">
-                    <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
-
-                    {/* Если есть выбранный адрес */}
-                    {selectedSavedAddress ? (
-                      <div className="p-3 rounded mb-2 cart-surface-panel">
-                        <div className="d-flex align-items-center">
-                          <span className="me-2">📍</span>
-                          <div className="flex-grow-1">
-                            <div className="fw-bold">{selectedSavedAddress.name}</div>
-                            {hasDistinctAddressLine(selectedSavedAddress) && (
-                              <div className="small text-muted">{selectedSavedAddress.address}</div>
-                            )}
-                          </div>
-                          <Button
-                            variant="link"
-                            size="sm"
-                            className="p-0 text-decoration-none fw-medium"
-                            style={{ ...themePrimaryTextStyle, whiteSpace: 'nowrap' }}
-                            onClick={() => setShowAddressModal(true)}
-                          >
-                            {language === 'uz' ? 'Mening manzillarim' : 'Мои адреса'}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : savedAddresses.length > 0 ? (
-                      /* Есть сохранённые адреса но не выбран - быстрый выбор */
-                      <div className="mb-2">
-                    <div className="d-flex flex-wrap gap-2 mb-2">
-                          {savedAddresses.slice(0, 3).map(addr => (
-                            <Button
-                              key={addr.id}
-                              variant="outline-secondary"
-                              size="sm"
-                              className="d-flex align-items-center"
-                              onClick={() => selectAddress(addr)}
-                            >
-                              {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' :
-                                addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'} {addr.name}
-                            </Button>
-                          ))}
-                        </div>
+                    {isDeliveryEnabled ? (
+                      <div className="cart-segmented-switch">
                         <Button
-                          variant="outline-primary"
+                          type="button"
+                          variant="light"
                           size="sm"
-                          onClick={() => setShowLocationModal(true)}
+                          className={`cart-segmented-option ${fulfillmentType === 'delivery' ? 'is-active' : ''}`}
+                          onClick={() => setFulfillmentType('delivery')}
                         >
-                          ➕ {language === 'uz' ? "Yangi manzil" : 'Новый адрес'}
+                          🚚 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="light"
+                          size="sm"
+                          className={`cart-segmented-option ${fulfillmentType === 'pickup' ? 'is-active' : ''}`}
+                          onClick={() => setFulfillmentType('pickup')}
+                        >
+                          🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
                         </Button>
                       </div>
                     ) : (
-                      /* Нет адресов - показать кнопку Новый адрес */
-                      <Button
-                        variant="primary"
-                        className="w-100"
-                        onClick={() => setShowLocationModal(true)}
-                        style={{ color: '#fff', fontWeight: 600 }}
-                      >
-                        + {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
-                      </Button>
+                      <div className="small text-muted px-3 py-2 cart-surface-panel">
+                        🛍 {language === 'uz' ? "Faqat o'zingiz olib ketish mavjud" : 'Доступен только самовывоз'}
+                      </div>
                     )}
+                    <div className="d-flex justify-content-end mt-2">
+                      <Button
+                        type="button"
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => setCheckoutStep(2)}
+                      >
+                        {language === 'uz' ? 'Keyingi' : 'Далее'} →
+                      </Button>
+                    </div>
                   </div>
                 )}
 
-                {isDeliverySelected && (
-                  <Form.Group className="mb-3">
-                    <Form.Label className="small text-muted mb-1">
-                      {language === 'uz' ? 'Manzil tafsilotlari' : 'Детали адреса'}
-                    </Form.Label>
-                    <div className="row g-2">
-                      <div className="col-6">
-                        <Form.Control
-                          type="text"
-                          value={formData.house}
-                          onChange={(e) => setFormData({ ...formData, house: e.target.value })}
-                          placeholder={language === 'uz' ? 'Uy' : 'Дом'}
-                          className="cart-surface-field"
-                        />
+                {checkoutStep === 2 && (
+                  <>
+                    {isDeliverySelected ? (
+                      <>
+                        <div className="mb-3">
+                          <div className="small text-muted mb-2">{language === 'uz' ? 'Manzil' : 'Адрес доставки'}</div>
+
+                          {selectedSavedAddress ? (
+                            <div className="p-3 rounded mb-2 cart-surface-panel">
+                              <div className="d-flex align-items-center">
+                                <span className="me-2">📍</span>
+                                <div className="flex-grow-1">
+                                  <div className="fw-bold">{selectedSavedAddress.name}</div>
+                                  {hasDistinctAddressLine(selectedSavedAddress) && (
+                                    <div className="small text-muted">{selectedSavedAddress.address}</div>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  className="p-0 text-decoration-none fw-medium"
+                                  style={{ ...themePrimaryTextStyle, whiteSpace: 'nowrap' }}
+                                  onClick={() => setShowAddressModal(true)}
+                                >
+                                  {language === 'uz' ? 'Mening manzillarim' : 'Мои адреса'}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : savedAddresses.length > 0 ? (
+                            <div className="mb-2">
+                              <div className="d-flex flex-wrap gap-2 mb-2">
+                                {savedAddresses.slice(0, 3).map(addr => (
+                                  <Button
+                                    key={addr.id}
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    className="d-flex align-items-center"
+                                    onClick={() => selectAddress(addr)}
+                                  >
+                                    {addr.name === 'Дом' || addr.name === 'Uy' ? '🏠' :
+                                      addr.name === 'Работа' || addr.name === 'Ish' ? '💼' : '📍'} {addr.name}
+                                  </Button>
+                                ))}
+                              </div>
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => setShowLocationModal(true)}
+                              >
+                                ➕ {language === 'uz' ? "Yangi manzil" : 'Новый адрес'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="primary"
+                              className="w-100"
+                              onClick={() => setShowLocationModal(true)}
+                              style={{ color: '#fff', fontWeight: 600 }}
+                            >
+                              + {language === 'uz' ? "Yangi manzil qo'shish" : 'Добавить новый адрес'}
+                            </Button>
+                          )}
+                        </div>
+
+                        <Form.Group className="mb-3">
+                          <Form.Label className="small text-muted mb-1">
+                            {language === 'uz' ? 'Manzil tafsilotlari' : 'Детали адреса'}
+                          </Form.Label>
+                          <div className="row g-2">
+                            <div className="col-6">
+                              <Form.Control
+                                type="text"
+                                value={formData.house}
+                                onChange={(e) => setFormData({ ...formData, house: e.target.value })}
+                                placeholder={language === 'uz' ? 'Uy' : 'Дом'}
+                                className="cart-surface-field"
+                              />
+                            </div>
+                            <div className="col-6">
+                              <Form.Control
+                                type="text"
+                                value={formData.apartment}
+                                onChange={(e) => setFormData({ ...formData, apartment: e.target.value })}
+                                placeholder={language === 'uz' ? 'Kvartira' : 'Квартира'}
+                                className="cart-surface-field"
+                              />
+                            </div>
+                            <div className="col-12">
+                              <Form.Control
+                                type="text"
+                                value={formData.door_code}
+                                onChange={(e) => setFormData({ ...formData, door_code: e.target.value })}
+                                placeholder={language === 'uz' ? 'Eshik kodi / domofon' : 'Код двери / домофон'}
+                                className="cart-surface-field"
+                              />
+                            </div>
+                          </div>
+                        </Form.Group>
+                      </>
+                    ) : (
+                      <div className="small text-muted px-3 py-2 mb-3 cart-surface-panel">
+                        {language === 'uz'
+                          ? "Samovozda manzil kiritish shart emas."
+                          : 'Для самовывоза адрес заполнять не нужно.'}
                       </div>
-                      <div className="col-6">
-                        <Form.Control
-                          type="text"
-                          value={formData.apartment}
-                          onChange={(e) => setFormData({ ...formData, apartment: e.target.value })}
-                          placeholder={language === 'uz' ? 'Kvartira' : 'Квартира'}
-                          className="cart-surface-field"
-                        />
-                      </div>
-                      <div className="col-12">
-                        <Form.Control
-                          type="text"
-                          value={formData.door_code}
-                          onChange={(e) => setFormData({ ...formData, door_code: e.target.value })}
-                          placeholder={language === 'uz' ? 'Eshik kodi / domofon' : 'Код двери / домофон'}
-                          className="cart-surface-field"
-                        />
-                      </div>
+                    )}
+                    <div className="d-flex justify-content-start mb-3">
+                      <Button
+                        type="button"
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => setCheckoutStep(1)}
+                      >
+                        ← {language === 'uz' ? 'Orqaga' : 'Назад'}
+                      </Button>
                     </div>
-                  </Form.Group>
+                  </>
                 )}
 
                 {/* Телефон */}
@@ -1151,11 +1299,28 @@ function Cart() {
 
                 {formData.payment_method === 'card' && restaurant?.card_payment_enabled && (
                   <div className="p-3 rounded-3 border bg-light">
-                    <div className="small text-muted mb-2">{language === 'uz' ? "Karta rekvizitlari" : 'Реквизиты карты'}</div>
-                    <div className="fw-bold">{restaurant.card_payment_title || 'Карта'}</div>
-                    <div className="font-monospace">{restaurant.card_payment_number || '—'}</div>
+                    <div className="d-flex align-items-center gap-2">
+                      <div className="font-monospace fw-semibold">{restaurant.card_payment_number || '—'}</div>
+                      <button
+                        type="button"
+                        className="cart-card-copy-btn"
+                        onClick={handleCopyCardNumber}
+                        aria-label={language === 'uz' ? 'Karta raqamini nusxalash' : 'Скопировать номер карты'}
+                        title={language === 'uz' ? 'Nusxalash' : 'Скопировать'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M5 1.5h7A1.5 1.5 0 0 1 13.5 3v8A1.5 1.5 0 0 1 12 12.5H5A1.5 1.5 0 0 1 3.5 11V3A1.5 1.5 0 0 1 5 1.5Z" stroke="currentColor" strokeWidth="1.2" />
+                          <path d="M2.5 4.5V13A1.5 1.5 0 0 0 4 14.5h7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                    {cardCopyNotice && (
+                      <div className="small text-success mt-1">
+                        {language === 'uz' ? 'Karta nusxalandi' : 'Карта скопировано'}
+                      </div>
+                    )}
                     <div>{restaurant.card_payment_holder || '—'}</div>
-                    <div className="small text-muted mt-2">
+                    <div className="small text-danger mt-2">
                       {restaurant.card_receipt_target === 'admin'
                         ? (language === 'uz'
                           ? "To'lovdan so'ng chekni administratorga yuboring."
@@ -1177,33 +1342,33 @@ function Cart() {
             {/* Детализация только на шаге 2 */}
             {step === 2 && (
               <>
-                <div className="d-flex justify-content-between align-items-center mb-2">
+                <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
                   <span className="text-muted">{t('products')}:</span>
-                  <span>{formatPrice(productTotal)} {t('sum')}</span>
+                  <span className="text-muted">{formatPrice(productTotal)} {t('sum')}</span>
                 </div>
 
                 {containerTotal > 0 && (
-                  <div className="d-flex justify-content-between align-items-center mb-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
                     <span className="text-muted">🍽 {t('containers') || 'Посуда'}:</span>
-                    <span>{formatPrice(containerTotal)} {t('sum')}</span>
+                    <span className="text-muted">{formatPrice(containerTotal)} {t('sum')}</span>
                   </div>
                 )}
 
                 {serviceFee > 0 && (
-                  <div className="d-flex justify-content-between align-items-center mb-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
                     <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
-                    <span>{formatPrice(serviceFee)} {t('sum')}</span>
+                    <span className="text-muted">{formatPrice(serviceFee)} {t('sum')}</span>
                   </div>
                 )}
 
                 {/* Доставка - показываем всегда когда есть координаты */}
                 {isDeliverySelected && hasLocation && (
-                  <div className="d-flex justify-content-between align-items-center mb-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
                     <span className="text-muted">
                       🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
                       {effectiveDeliveryDistance > 0 && <small className="ms-1">({effectiveDeliveryDistance} км)</small>}
                     </span>
-                    <span>
+                    <span className="text-muted">
                       {deliveryLoading ? (
                         <Spinner animation="border" size="sm" />
                       ) : (
@@ -1214,9 +1379,9 @@ function Cart() {
                 )}
 
                 {!isDeliverySelected && (
-                  <div className="d-flex justify-content-between align-items-center mb-2">
+                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
                     <span className="text-muted">🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
-                    <span>0 {t('sum')}</span>
+                    <span className="text-muted">0 {t('sum')}</span>
                   </div>
                 )}
               </>
