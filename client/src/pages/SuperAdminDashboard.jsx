@@ -4809,7 +4809,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <TableSkeleton rows={8} columns={8} label="Загрузка списка магазинов" />
+                  <TableSkeleton rows={8} columns={9} label="Загрузка списка магазинов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -4819,6 +4819,7 @@ function SuperAdminDashboard() {
                             <th>ID</th>
                             <th>{t('saTableLogo')}</th>
                             <th>{t('saTableName')}</th>
+                            <th>{language === 'uz' ? "Ro'yxatdan o'tgan" : 'Дата регистрации'}</th>
                             <th>{t('saTableBalance') || 'Баланс'}</th>
                             <th>{t('saServiceFee') || 'Сбор за обслуживание'}</th>
                             <th>{t('saTableTier') || 'Тариф'}</th>
@@ -4875,6 +4876,9 @@ function SuperAdminDashboard() {
                                     </button>
                                   )}
                                 </div>
+                              </td>
+                              <td>
+                                <small className="text-muted">{formatDate(r.created_at)}</small>
                               </td>
                               <td>
                                 {(() => {
@@ -4939,7 +4943,7 @@ function SuperAdminDashboard() {
                             </tr>
                           ))}
                           {filteredRestaurants?.length === 0 && (
-                            <tr><td colSpan="8" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
+                            <tr><td colSpan="9" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
                           )}
                         </tbody>
                       </Table>
@@ -5336,7 +5340,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <TableSkeleton rows={7} columns={8} label="Загрузка клиентов" />
+                  <TableSkeleton rows={7} columns={9} label="Загрузка клиентов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -5349,6 +5353,7 @@ function SuperAdminDashboard() {
                             <th>{t('saTableShop')}</th>
                             <th>{t('saTableOrders')}</th>
                             <th>{t('saTableSum')}</th>
+                            <th>{language === 'uz' ? "Ro'yxatdan o'tgan" : 'Дата регистрации'}</th>
                             <th>{t('saTableStatus')}</th>
                             <th className="text-end">{t('saTableActions')}</th>
                           </tr>
@@ -5375,6 +5380,7 @@ function SuperAdminDashboard() {
                                   </Badge>
                                 </td>
                                 <td><span className="fw-semibold">{parseFloat(c.total_spent || 0).toLocaleString()} {t('sum')}</span></td>
+                                <td><small className="text-muted">{formatDate(c.created_at)}</small></td>
                                 <td>
                                   {!c.user_is_active ? (
                                     <Badge className="badge-custom bg-danger bg-opacity-10 text-danger">Бан (Глобал)</Badge>
@@ -5405,7 +5411,7 @@ function SuperAdminDashboard() {
                             );
                           })}
                           {customers.customers?.length === 0 && (
-                            <tr><td colSpan="8" className="text-center py-5 text-muted">{t('saEmptyCustomers')}</td></tr>
+                            <tr><td colSpan="9" className="text-center py-5 text-muted">{t('saEmptyCustomers')}</td></tr>
                           )}
                         </tbody>
                       </Table>
