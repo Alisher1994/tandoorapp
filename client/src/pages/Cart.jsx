@@ -74,6 +74,8 @@ function Cart() {
   const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
   const [cardCopyNotice, setCardCopyNotice] = useState(false);
+  const [typedReceiptInstruction, setTypedReceiptInstruction] = useState('');
+  const [receiptInstructionBlink, setReceiptInstructionBlink] = useState(false);
   const [showShopHoursModal, setShowShopHoursModal] = useState(false);
   const [shopHoursMessage, setShopHoursMessage] = useState('');
 
@@ -136,6 +138,15 @@ function Cart() {
     () => savedAddresses.find((a) => a.id === selectedAddressId) || null,
     [savedAddresses, selectedAddressId]
   );
+  const cardReceiptInstructionText = useMemo(() => (
+    restaurant?.card_receipt_target === 'admin'
+      ? (language === 'uz'
+        ? "To'lovdan so'ng chekni administratorga yuboring."
+        : 'После оплаты отправьте чек администратору.')
+      : (language === 'uz'
+        ? "To'lovdan so'ng chekni bot orqali yuboring."
+        : 'После оплаты отправьте чек через бота.')
+  ), [restaurant?.card_receipt_target, language]);
   const hasDistinctAddressLine = (addr) => {
     const name = String(addr?.name || '').trim().toLowerCase();
     const address = String(addr?.address || '').trim().toLowerCase();
@@ -147,6 +158,8 @@ function Cart() {
   const commentRef = useRef(null);
   const errorAlertRef = useRef(null);
   const cardCopyTimeoutRef = useRef(null);
+  const receiptTypingIntervalRef = useRef(null);
+  const receiptBlinkTimeoutRef = useRef(null);
 
   // Keyboard avoidance - scroll to comment field when focused (works on iOS)
   const handleCommentFocus = () => {
@@ -408,7 +421,54 @@ function Cart() {
     if (cardCopyTimeoutRef.current) {
       clearTimeout(cardCopyTimeoutRef.current);
     }
+    if (receiptTypingIntervalRef.current) {
+      clearInterval(receiptTypingIntervalRef.current);
+    }
+    if (receiptBlinkTimeoutRef.current) {
+      clearTimeout(receiptBlinkTimeoutRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    const shouldAnimateReceiptInstruction = (
+      step === 3 &&
+      formData.payment_method === 'card' &&
+      Boolean(restaurant?.card_payment_enabled)
+    );
+
+    if (receiptTypingIntervalRef.current) {
+      clearInterval(receiptTypingIntervalRef.current);
+      receiptTypingIntervalRef.current = null;
+    }
+    if (receiptBlinkTimeoutRef.current) {
+      clearTimeout(receiptBlinkTimeoutRef.current);
+      receiptBlinkTimeoutRef.current = null;
+    }
+
+    if (!shouldAnimateReceiptInstruction) {
+      setTypedReceiptInstruction(cardReceiptInstructionText);
+      setReceiptInstructionBlink(false);
+      return;
+    }
+
+    setTypedReceiptInstruction('');
+    setReceiptInstructionBlink(false);
+
+    let index = 0;
+    receiptTypingIntervalRef.current = setInterval(() => {
+      index += 1;
+      setTypedReceiptInstruction(cardReceiptInstructionText.slice(0, index));
+      if (index >= cardReceiptInstructionText.length) {
+        clearInterval(receiptTypingIntervalRef.current);
+        receiptTypingIntervalRef.current = null;
+        setReceiptInstructionBlink(true);
+        receiptBlinkTimeoutRef.current = setTimeout(() => {
+          setReceiptInstructionBlink(false);
+          receiptBlinkTimeoutRef.current = null;
+        }, 950);
+      }
+    }, 32);
+  }, [step, formData.payment_method, restaurant?.card_payment_enabled, cardReceiptInstructionText]);
 
   // Fetch delivery cost when coordinates change
   useEffect(() => {
@@ -894,7 +954,7 @@ function Cart() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.2; }
         }
-        .cart-receipt-attention {
+        .cart-receipt-attention.is-blinking {
           animation: cart-receipt-blink 0.45s ease-in-out 2;
         }
         .cart-select-custom {
@@ -1044,12 +1104,12 @@ function Cart() {
                           className={`cart-segmented-option ${fulfillmentType === 'pickup' ? 'is-active' : ''}`}
                           onClick={() => setFulfillmentType('pickup')}
                         >
-                          🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
+                          👤 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
                         </Button>
                       </div>
                     ) : (
                       <div className="small text-muted px-3 py-2 cart-surface-panel">
-                        🛍 {language === 'uz' ? "Faqat o'zingiz olib ketish mavjud" : 'Доступен только самовывоз'}
+                        👤 {language === 'uz' ? "Faqat o'zingiz olib ketish mavjud" : 'Доступен только самовывоз'}
                       </div>
                     )}
                   </div>
@@ -1292,14 +1352,8 @@ function Cart() {
                       </div>
                     )}
                     <div>{restaurant.card_payment_holder || '—'}</div>
-                    <div className="small text-danger mt-2 cart-receipt-attention">
-                      {restaurant.card_receipt_target === 'admin'
-                        ? (language === 'uz'
-                          ? "To'lovdan so'ng chekni administratorga yuboring."
-                          : 'После оплаты отправьте чек администратору.')
-                        : (language === 'uz'
-                          ? "To'lovdan so'ng chekni bot orqali yuboring."
-                          : 'После оплаты отправьте чек через бота.')}
+                    <div className={`small text-danger mt-2 cart-receipt-attention ${receiptInstructionBlink ? 'is-blinking' : ''}`}>
+                      {typedReceiptInstruction}
                     </div>
                   </div>
                 )}
@@ -1354,7 +1408,7 @@ function Cart() {
 
                 {!isDeliverySelected && (
                   <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">🛍 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
+                    <span className="text-muted">👤 {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
                     <span className="text-muted">0 {t('sum')}</span>
                   </div>
                 )}
@@ -1639,19 +1693,19 @@ function Cart() {
 
             {!isDeliverySelected && (
               <Alert variant="info" className="mb-3 border-0 bg-light text-dark">
-                <div className="fw-bold mb-1">🛍 {language === 'uz' ? 'O\'zingiz olib ketish' : 'Самовывоз'}</div>
+                <div className="fw-bold mb-1">👤 {language === 'uz' ? 'O\'zingiz olib ketish' : 'Самовывоз'}</div>
                 <div className="small">Заказ будет готов в магазине. Подходите к кассе и назовите свое имя или телефон.</div>
               </Alert>
             )}
 
             <div className="mb-3">
               <div className="d-flex justify-content-between">
-                <span>{language === 'uz' ? 'Mahsulotlar' : 'Товары'}:</span>
+                <span>🛒 {language === 'uz' ? 'Mahsulotlar' : 'Товары'}:</span>
                 <span>{formatPrice(productTotal)} {t('sum')}</span>
               </div>
               {containerTotal > 0 && (
                 <div className="d-flex justify-content-between">
-                  <span>🍽 {language === 'uz' ? 'Idishlar' : 'Посуда'}:</span>
+                  <span>📦 {language === 'uz' ? 'Paket / Idish' : 'Пакет / Посуда'}:</span>
                   <span>{formatPrice(containerTotal)} {t('sum')}</span>
                 </div>
               )}
