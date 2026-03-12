@@ -161,7 +161,7 @@ async function migrate() {
     await client.query(`
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_ui_theme_check
-      CHECK (ui_theme IN ('classic', 'modern'))
+      CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow'))
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

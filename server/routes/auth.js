@@ -12,6 +12,22 @@ const {
 } = require('../services/activityLogger');
 
 const router = express.Router();
+const UI_THEME_VALUES = new Set([
+  'classic',
+  'modern',
+  'talablar_blue',
+  'mint_fresh',
+  'sunset_pop',
+  'berry_blast',
+  'violet_wave',
+  'rainbow'
+]);
+const normalizeUiTheme = (value, fallback = 'classic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_THEME_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
+};
 
 function normalizePhone(rawPhone) {
   if (!rawPhone) return '';
@@ -303,7 +319,7 @@ router.post('/login', async (req, res) => {
         active_restaurant_logo: user.active_restaurant_logo,
         active_restaurant_logo_display_mode: user.active_restaurant_logo_display_mode,
         active_restaurant_currency_code: user.active_restaurant_currency_code || 'uz',
-        active_restaurant_ui_theme: user.active_restaurant_ui_theme === 'modern' ? 'modern' : 'classic',
+        active_restaurant_ui_theme: normalizeUiTheme(user.active_restaurant_ui_theme, 'classic'),
         active_restaurant_service_fee: user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: user.active_restaurant_is_delivery_enabled,
         restaurants
@@ -364,7 +380,7 @@ router.get('/me', authenticate, async (req, res) => {
         active_restaurant_logo: req.user.active_restaurant_logo,
         active_restaurant_logo_display_mode: req.user.active_restaurant_logo_display_mode,
         active_restaurant_currency_code: req.user.active_restaurant_currency_code || 'uz',
-        active_restaurant_ui_theme: req.user.active_restaurant_ui_theme === 'modern' ? 'modern' : 'classic',
+        active_restaurant_ui_theme: normalizeUiTheme(req.user.active_restaurant_ui_theme, 'classic'),
         active_restaurant_service_fee: req.user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: req.user.active_restaurant_is_delivery_enabled,
         restaurants: req.user.restaurants || [],

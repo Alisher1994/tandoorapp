@@ -1,8 +1,20 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
+const UI_THEME_VALUES = new Set([
+  'classic',
+  'modern',
+  'talablar_blue',
+  'mint_fresh',
+  'sunset_pop',
+  'berry_blast',
+  'violet_wave',
+  'rainbow'
+]);
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'modern' ? 'modern' : fallback;
+  if (UI_THEME_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
 };
 
 /**

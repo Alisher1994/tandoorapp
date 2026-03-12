@@ -7,6 +7,22 @@ const geoip = require('geoip-lite');
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const TASHKENT_TZ = 'Asia/Tashkent';
+const UI_THEME_VALUES = new Set([
+  'classic',
+  'modern',
+  'talablar_blue',
+  'mint_fresh',
+  'sunset_pop',
+  'berry_blast',
+  'violet_wave',
+  'rainbow'
+]);
+const normalizeUiTheme = (value, fallback = 'classic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_THEME_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
+};
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
 const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -484,7 +500,7 @@ router.get('/restaurant/:id', async (req, res) => {
       phone: r.phone,
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
-      ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
+      ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
@@ -706,7 +722,7 @@ router.get('/restaurants/list', async (req, res) => {
       phone: r.phone,
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
-      ui_theme: r.ui_theme === 'modern' ? 'modern' : 'classic',
+      ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,

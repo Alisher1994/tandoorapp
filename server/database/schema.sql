@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   close_report_last_sent_at TIMESTAMP,
   payment_placeholders JSONB DEFAULT '{}'::jsonb,
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
-  ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern')),
+  ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow')),
   currency_code VARCHAR(8) DEFAULT 'uz',
   operator_registration_code VARCHAR(64),
   is_active BOOLEAN DEFAULT true,

@@ -37,6 +37,32 @@ const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
 const MILLENIUM_TAXI_URL_TEMPLATE = import.meta.env.VITE_MILLENIUM_TAXI_URL_TEMPLATE || '';
 const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxiapp://start?q={lat},{lng}';
 const DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE = 'app_name://order';
+const UI_THEME_VALUES = new Set([
+  'classic',
+  'modern',
+  'talablar_blue',
+  'mint_fresh',
+  'sunset_pop',
+  'berry_blast',
+  'violet_wave',
+  'rainbow'
+]);
+const UI_THEME_OPTIONS = [
+  { value: 'classic', label: 'Текущий (Classic)' },
+  { value: 'modern', label: 'Новый (Modern)' },
+  { value: 'talablar_blue', label: 'Talablar Blue (бело-синий)' },
+  { value: 'mint_fresh', label: 'Mint Fresh (мятный)' },
+  { value: 'sunset_pop', label: 'Sunset Pop (тёплый)' },
+  { value: 'berry_blast', label: 'Berry Blast (ягодный)' },
+  { value: 'violet_wave', label: 'Violet Wave (фиолетовый)' },
+  { value: 'rainbow', label: 'Rainbow (радужный)' }
+];
+const normalizeUiTheme = (value, fallback = 'classic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_THEME_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
+};
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
@@ -2421,7 +2447,7 @@ function AdminDashboard() {
         cash_enabled: response.data?.cash_enabled === false ? false : true,
         currency_code: response.data?.currency_code || 'uz',
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
-        ui_theme: response.data?.ui_theme === 'modern' ? 'modern' : 'classic',
+        ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
@@ -7139,8 +7165,11 @@ function AdminDashboard() {
                                                 value={restaurantSettings.ui_theme || 'classic'}
                                                 onChange={e => setRestaurantSettings({ ...restaurantSettings, ui_theme: e.target.value })}
                                               >
-                                                <option value="classic">Текущий (Classic)</option>
-                                                <option value="modern">Новый (Modern)</option>
+                                                {UI_THEME_OPTIONS.map((themeOption) => (
+                                                  <option key={themeOption.value} value={themeOption.value}>
+                                                    {themeOption.label}
+                                                  </option>
+                                                ))}
                                               </Form.Select>
                                               <Form.Text className="text-muted d-block mt-2">
                                                 Выбранный стиль применяется к вашей админке и клиентской части этого магазина.

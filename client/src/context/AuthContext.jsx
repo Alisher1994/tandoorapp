@@ -4,7 +4,20 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const normalizeUiTheme = (value) => (String(value || '').toLowerCase() === 'modern' ? 'modern' : 'classic');
+const UI_THEME_VALUES = new Set([
+  'classic',
+  'modern',
+  'talablar_blue',
+  'mint_fresh',
+  'sunset_pop',
+  'berry_blast',
+  'violet_wave',
+  'rainbow'
+]);
+const normalizeUiTheme = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return UI_THEME_VALUES.has(normalized) ? normalized : 'classic';
+};
 const withNormalizedTheme = (nextUser) => (
   nextUser
     ? { ...nextUser, active_restaurant_ui_theme: normalizeUiTheme(nextUser.active_restaurant_ui_theme) }
