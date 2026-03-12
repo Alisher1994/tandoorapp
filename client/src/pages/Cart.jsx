@@ -577,11 +577,14 @@ function Cart() {
     if (!error) return;
 
     const normalizedError = String(error).trim();
-    const hoursMatch = normalizedError.match(/магазин работает с\s*([0-2]\d:[0-5]\d)\s*по\s*([0-2]\d:[0-5]\d)/i);
-    if (hoursMatch || /магазин работает/i.test(normalizedError)) {
+    const hoursMatch = normalizedError.match(/([0-2]\d:[0-5]\d)\D+([0-2]\d:[0-5]\d)/);
+    const isShopHoursError = /магазин работает/i.test(normalizedError) || /do'?kon.*ishlaydi/i.test(normalizedError);
+    if (hoursMatch || isShopHoursError) {
       const message = hoursMatch
-        ? `Магазин работает с ${hoursMatch[1]} по ${hoursMatch[2]}`
-        : normalizedError;
+        ? (language === 'uz'
+          ? `Do'kon ${hoursMatch[1]} dan ${hoursMatch[2]} gacha ishlaydi`
+          : `Магазин работает с ${hoursMatch[1]} по ${hoursMatch[2]}`)
+        : (language === 'uz' ? "Do'kon hozir yopiq" : 'Магазин сейчас закрыт');
       setShopHoursMessage(message);
       setShowShopHoursModal(true);
       setError('');
@@ -591,7 +594,7 @@ function Cart() {
     setTimeout(() => {
       errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
-  }, [error]);
+  }, [error, language]);
 
   // Показать модалку подтверждения перед заказом
   const handleSubmit = async (e) => {
@@ -1757,9 +1760,14 @@ function Cart() {
           keyboard={false}
         >
           <Modal.Body className="d-flex flex-column justify-content-center align-items-center text-center p-4">
-            <div className="fs-3 mb-3">⏰</div>
-            <div className="fs-5 fw-bold mb-2">{shopHoursMessage || 'Магазин сейчас закрыт'}</div>
-            <div className="text-muted mb-4">{language === 'uz' ? 'Iltimos, keyinroq qayting.' : 'Вернитесь по позже.'}</div>
+            <img
+              src="/Cat playing animation.gif"
+              alt="Cat playing animation"
+              style={{ width: 112, height: 112, objectFit: 'contain' }}
+              className="mb-3"
+            />
+            <div className="fs-5 fw-bold mb-2">{shopHoursMessage || (language === 'uz' ? "Do'kon hozir yopiq" : 'Магазин сейчас закрыт')}</div>
+            <div className="text-muted mb-4">{language === 'uz' ? 'Iltimos, keyinroq qayting.' : 'Вернитесь позже.'}</div>
             <Button
               variant="primary"
               className="px-5"
