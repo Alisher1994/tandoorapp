@@ -74,6 +74,8 @@ function Cart() {
   const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
   const [cardCopyNotice, setCardCopyNotice] = useState(false);
+  const [showShopHoursModal, setShowShopHoursModal] = useState(false);
+  const [shopHoursMessage, setShopHoursMessage] = useState('');
 
   const themePrimaryTextStyle = { color: 'var(--primary-color)' };
   const paymentButtonStyle = (isActive) => ({
@@ -513,6 +515,19 @@ function Cart() {
 
   useEffect(() => {
     if (!error) return;
+
+    const normalizedError = String(error).trim();
+    const hoursMatch = normalizedError.match(/магазин работает с\s*([0-2]\d:[0-5]\d)\s*по\s*([0-2]\d:[0-5]\d)/i);
+    if (hoursMatch || /магазин работает/i.test(normalizedError)) {
+      const message = hoursMatch
+        ? `Магазин работает с ${hoursMatch[1]} по ${hoursMatch[2]}`
+        : normalizedError;
+      setShopHoursMessage(message);
+      setShowShopHoursModal(true);
+      setError('');
+      return;
+    }
+
     setTimeout(() => {
       errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 50);
@@ -874,6 +889,13 @@ function Cart() {
         }
         .cart-summary-row {
           font-size: 0.82rem;
+        }
+        @keyframes cart-receipt-blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.2; }
+        }
+        .cart-receipt-attention {
+          animation: cart-receipt-blink 0.45s ease-in-out 2;
         }
         .cart-select-custom {
           background: #f8fafc !important;
@@ -1270,7 +1292,7 @@ function Cart() {
                       </div>
                     )}
                     <div>{restaurant.card_payment_holder || '—'}</div>
-                    <div className="small text-danger mt-2">
+                    <div className="small text-danger mt-2 cart-receipt-attention">
                       {restaurant.card_receipt_target === 'admin'
                         ? (language === 'uz'
                           ? "To'lovdan so'ng chekni administratorga yuboring."
@@ -1669,6 +1691,28 @@ function Cart() {
                 {loading ? <Spinner size="sm" /> : (language === 'uz' ? 'Tasdiqlash' : 'Подтвердить')}
               </Button>
             </div>
+          </Modal.Body>
+        </Modal>
+
+        <Modal
+          show={showShopHoursModal}
+          onHide={() => setShowShopHoursModal(false)}
+          fullscreen
+          centered
+          backdrop="static"
+          keyboard={false}
+        >
+          <Modal.Body className="d-flex flex-column justify-content-center align-items-center text-center p-4">
+            <div className="fs-3 mb-3">⏰</div>
+            <div className="fs-5 fw-bold mb-2">{shopHoursMessage || 'Магазин сейчас закрыт'}</div>
+            <div className="text-muted mb-4">{language === 'uz' ? 'Iltimos, keyinroq qayting.' : 'Вернитесь по позже.'}</div>
+            <Button
+              variant="primary"
+              className="px-5"
+              onClick={() => setShowShopHoursModal(false)}
+            >
+              Ок
+            </Button>
           </Modal.Body>
         </Modal>
 
