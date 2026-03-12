@@ -53,7 +53,6 @@ function Cart() {
   const [deliveryTimeMode, setDeliveryTimeMode] = useState('asap');
   const [fulfillmentType, setFulfillmentType] = useState('delivery');
   const [step, setStep] = useState(1);
-  const [checkoutStep, setCheckoutStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [error, setError] = useState('');
@@ -403,12 +402,6 @@ function Cart() {
     setFulfillmentType((prev) => (prev === 'pickup' || prev === 'delivery' ? prev : 'delivery'));
   }, [isDeliveryEnabled]);
 
-  useEffect(() => {
-    if (step !== 2) {
-      setCheckoutStep(1);
-    }
-  }, [step]);
-
   useEffect(() => () => {
     if (cardCopyTimeoutRef.current) {
       clearTimeout(cardCopyTimeoutRef.current);
@@ -684,12 +677,28 @@ function Cart() {
   };
 
   const handleTopBarBack = () => {
-    if (step === 2) {
-      setStep(1);
-      setCheckoutStep(1);
+    if (step > 1) {
+      setStep((prev) => Math.max(1, prev - 1));
       return;
     }
     navigate(-1);
+  };
+
+  const handleProceedToFinalStep = () => {
+    setError('');
+    if (isDeliverySelected && !selectedAddressId) {
+      setError(language === 'uz' ? 'Yetkazib berish manzilini tanlang' : 'Выберите адрес доставки');
+      return;
+    }
+    if (isDeliverySelected && !hasLocation) {
+      setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
+      return;
+    }
+    if (isDeliverySelected && deliveryOutOfZone) {
+      setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
+      return;
+    }
+    setStep(3);
   };
 
   const handleCopyCardNumber = async () => {
@@ -760,6 +769,7 @@ function Cart() {
           onToggleLanguage={toggleLanguage}
           showBackButton
           onBack={handleTopBarBack}
+          showLanguageToggle={false}
           fallback="🍽️"
           maxWidth="500px"
           sticky
@@ -849,32 +859,6 @@ function Cart() {
           color: #1f2937 !important;
           font-weight: 600;
         }
-        .cart-mini-stepper {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-        .cart-mini-step-button {
-          border: 1px solid rgba(71, 85, 105, 0.2);
-          border-radius: 10px;
-          background: #fff;
-          color: #334155;
-          min-height: 38px;
-          font-size: 0.78rem;
-          font-weight: 600;
-          line-height: 1.2;
-          padding: 4px 8px;
-        }
-        .cart-mini-step-button.is-active {
-          border-color: var(--primary-color);
-          background: rgba(15, 118, 110, 0.08);
-          color: #0f172a;
-        }
-        .cart-mini-step-button.is-done {
-          border-color: rgba(15, 118, 110, 0.45);
-          background: rgba(15, 118, 110, 0.05);
-        }
         .cart-card-copy-btn {
           width: 28px;
           height: 28px;
@@ -913,6 +897,7 @@ function Cart() {
         onToggleLanguage={toggleLanguage}
         showBackButton
         onBack={handleTopBarBack}
+        showLanguageToggle={false}
         fallback="🍽️"
         maxWidth="500px"
         sticky
@@ -1009,29 +994,12 @@ function Cart() {
           </Card>
         )}
 
-        {/* ШАГ 2: Данные доставки */}
-        {step === 2 && (
-          <Form onSubmit={handleSubmit}>
+        {/* ШАГ 2/3: Оформление */}
+        {(step === 2 || step === 3) && (
+          <Form onSubmit={step === 3 ? handleSubmit : undefined}>
             <Card className="border-0 shadow-sm mb-3">
               <Card.Body>
-                <div className="cart-mini-stepper">
-                  <button
-                    type="button"
-                    className={`cart-mini-step-button ${checkoutStep === 1 ? 'is-active' : checkoutStep > 1 ? 'is-done' : ''}`}
-                    onClick={() => setCheckoutStep(1)}
-                  >
-                    1. {language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}
-                  </button>
-                  <button
-                    type="button"
-                    className={`cart-mini-step-button ${checkoutStep === 2 ? 'is-active' : ''}`}
-                    onClick={() => setCheckoutStep(2)}
-                  >
-                    2. {language === 'uz' ? 'Manzil' : 'Адрес'}
-                  </button>
-                </div>
-
-                {checkoutStep === 1 && (
+                {step === 2 && (
                   <div className="mb-3">
                     <Form.Label className="small text-muted mb-1">
                       {language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}
@@ -1062,20 +1030,10 @@ function Cart() {
                         🛍 {language === 'uz' ? "Faqat o'zingiz olib ketish mavjud" : 'Доступен только самовывоз'}
                       </div>
                     )}
-                    <div className="d-flex justify-content-end mt-2">
-                      <Button
-                        type="button"
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => setCheckoutStep(2)}
-                      >
-                        {language === 'uz' ? 'Keyingi' : 'Далее'} →
-                      </Button>
-                    </div>
                   </div>
                 )}
 
-                {checkoutStep === 2 && (
+                {step === 2 && (
                   <>
                     {isDeliverySelected ? (
                       <>
@@ -1181,19 +1139,11 @@ function Cart() {
                           : 'Для самовывоза адрес заполнять не нужно.'}
                       </div>
                     )}
-                    <div className="d-flex justify-content-start mb-3">
-                      <Button
-                        type="button"
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => setCheckoutStep(1)}
-                      >
-                        ← {language === 'uz' ? 'Orqaga' : 'Назад'}
-                      </Button>
-                    </div>
                   </>
                 )}
 
+                {step === 3 && (
+                  <>
                 {/* Телефон */}
                 <Form.Group className="mb-3">
                   <Form.Label className="small text-muted mb-1">
@@ -1331,6 +1281,8 @@ function Cart() {
                     </div>
                   </div>
                 )}
+                  </>
+                )}
               </Card.Body>
             </Card>
           </Form>
@@ -1339,17 +1291,17 @@ function Cart() {
         {/* Итого и кнопки */}
         <Card className="border-0 shadow-sm">
           <Card.Body>
-            {/* Детализация только на шаге 2 */}
-            {step === 2 && (
+            {/* Детализация и итог только на финальном шаге */}
+            {step === 3 && (
               <>
                 <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                  <span className="text-muted">{t('products')}:</span>
+                  <span className="text-muted">🛒 {t('products')}:</span>
                   <span className="text-muted">{formatPrice(productTotal)} {t('sum')}</span>
                 </div>
 
                 {containerTotal > 0 && (
                   <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">🍽 {t('containers') || 'Посуда'}:</span>
+                    <span className="text-muted">📦 {language === 'uz' ? 'Paket / Idish' : 'Пакет / Посуда'}:</span>
                     <span className="text-muted">{formatPrice(containerTotal)} {t('sum')}</span>
                   </div>
                 )}
@@ -1387,12 +1339,14 @@ function Cart() {
               </>
             )}
 
-            <div className={`d-flex justify-content-between align-items-center mb-3 ${step === 2 ? 'pt-2 border-top' : ''}`}>
-              <span className="text-muted fw-bold">{t('total')}:</span>
-              <span className="fs-4 fw-bold" style={themePrimaryTextStyle}>{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
-            </div>
+            {step === 3 && (
+              <div className="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
+                <span className="text-muted fw-bold">{t('total')}:</span>
+                <span className="fs-4 fw-bold" style={themePrimaryTextStyle}>{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
+              </div>
+            )}
 
-            {step === 1 ? (
+            {step === 1 && (
               <Button
                 variant="primary"
                 size="lg"
@@ -1401,12 +1355,33 @@ function Cart() {
               >
                 {t('next')} →
               </Button>
-            ) : (
+            )}
+
+            {step === 2 && (
               <div className="d-flex gap-2">
                 <Button
                   variant="outline-secondary"
                   className="flex-fill"
                   onClick={() => setStep(1)}
+                >
+                  ← {t('back')}
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-fill"
+                  onClick={handleProceedToFinalStep}
+                >
+                  {t('next')} →
+                </Button>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-secondary"
+                  className="flex-fill"
+                  onClick={() => setStep(2)}
                 >
                   ← {t('back')}
                 </Button>

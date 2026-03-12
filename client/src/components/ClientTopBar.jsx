@@ -36,6 +36,7 @@ function ClientTopBar({
   onToggleLanguage = () => {},
   onBack = null,
   showBackButton = false,
+  showLanguageToggle = true,
   fallback = '🏪',
   maxWidth = '600px',
   sticky = false
@@ -73,20 +74,24 @@ function ClientTopBar({
         </div>
 
         <div className="client-topbar-side client-topbar-side--right">
-          <button
-            type="button"
-            onClick={onToggleLanguage}
-            className="client-language-toggle"
-            aria-label={language === 'ru' ? 'Switch to Uzbek' : 'Переключить на русский'}
-            title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
-          >
-            <span className="client-language-code">{language === 'ru' ? 'RU' : 'UZ'}</span>
-            <img
-              src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
-              alt={language === 'ru' ? 'RU' : 'UZ'}
-              className="client-language-flag"
-            />
-          </button>
+          {showLanguageToggle ? (
+            <button
+              type="button"
+              onClick={onToggleLanguage}
+              className="client-language-toggle"
+              aria-label={language === 'ru' ? 'Switch to Uzbek' : 'Переключить на русский'}
+              title={language === 'ru' ? 'Ўзбекча' : 'Русский'}
+            >
+              <span className="client-language-code">{language === 'ru' ? 'RU' : 'UZ'}</span>
+              <img
+                src={language === 'ru' ? '/ru.svg' : '/uz.svg'}
+                alt={language === 'ru' ? 'RU' : 'UZ'}
+                className="client-language-flag"
+              />
+            </button>
+          ) : (
+            <span className="client-topbar-spacer" aria-hidden="true" />
+          )}
         </div>
       </Container>
     </header>
