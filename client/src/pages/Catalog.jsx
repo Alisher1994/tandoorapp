@@ -2637,31 +2637,65 @@ function Catalog() {
         keyboard={false}
         centered
       >
-        <Modal.Header className="border-0 pb-0">
-          <Modal.Title className="w-100 text-center">Til / Язык</Modal.Title>
+        <Modal.Header className="border-0 pb-1">
+          <Modal.Title className="w-100 text-center">
+            {pendingLanguage === 'uz' ? 'Tilni tanlang' : 'Выберите язык'}
+          </Modal.Title>
         </Modal.Header>
-        <Modal.Body className="pt-2">
+        <Modal.Body className="pt-1">
+          <div className="text-muted text-center mb-3" style={{ fontSize: '0.92rem' }}>
+            {pendingLanguage === 'uz' ? 'Interfeys tilini tanlang' : 'Выберите язык интерфейса'}
+          </div>
           <div className="d-flex gap-2 mb-3">
             <Button
               type="button"
-              variant={pendingLanguage === 'uz' ? 'primary' : 'outline-secondary'}
+              variant={pendingLanguage === 'uz' ? 'primary' : 'light'}
               className="flex-fill"
+              style={{
+                minHeight: 48,
+                borderRadius: 12,
+                border: pendingLanguage === 'uz' ? 'none' : '1px solid #ced4da',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8
+              }}
               onClick={() => setPendingLanguage('uz')}
             >
-              O'zbekcha
+              <img
+                src="/uz.svg"
+                alt="UZ"
+                style={{ width: 22, height: 16, objectFit: 'cover', borderRadius: 2 }}
+              />
+              <span>O'zbekcha</span>
             </Button>
             <Button
               type="button"
-              variant={pendingLanguage === 'ru' ? 'primary' : 'outline-secondary'}
+              variant={pendingLanguage === 'ru' ? 'primary' : 'light'}
               className="flex-fill"
+              style={{
+                minHeight: 48,
+                borderRadius: 12,
+                border: pendingLanguage === 'ru' ? 'none' : '1px solid #ced4da',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8
+              }}
               onClick={() => setPendingLanguage('ru')}
             >
-              Русский
+              <img
+                src="/ru.svg"
+                alt="RU"
+                style={{ width: 22, height: 16, objectFit: 'cover', borderRadius: 2 }}
+              />
+              <span>Русский</span>
             </Button>
           </div>
           <Button
             type="button"
             className="w-100"
+            style={{ minHeight: 46, borderRadius: 12 }}
             onClick={handleSaveLanguagePreference}
           >
             {pendingLanguage === 'uz' ? 'Saqlash' : 'Сохранить'}

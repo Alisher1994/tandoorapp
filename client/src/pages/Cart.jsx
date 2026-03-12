@@ -1760,7 +1760,7 @@ function Cart() {
             <img
               src="/Cat playing animation.gif"
               alt="Cat playing animation"
-              style={{ width: 224, height: 224, objectFit: 'contain' }}
+              style={{ width: 112, height: 112, objectFit: 'contain' }}
               className="mb-3"
             />
             <div className="fs-5 fw-bold mb-2">{shopHoursMessage || (language === 'uz' ? "Do'kon hozir yopiq" : 'Магазин сейчас закрыт')}</div>
