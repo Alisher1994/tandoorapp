@@ -80,6 +80,52 @@ const authenticate = async (req, res, next) => {
       user.active_restaurant_id = tokenRestaurantId;
     }
 
+    let operatorEffectiveRestaurant = null;
+    if (user.role === 'operator') {
+      const operatorRestaurantsResult = await pool.query(`
+        SELECT
+          r.id,
+          r.name,
+          r.logo_url,
+          r.logo_display_mode,
+          r.ui_theme,
+          r.currency_code,
+          r.service_fee,
+          r.is_delivery_enabled,
+          r.balance,
+          r.is_free_tier
+        FROM restaurants r
+        INNER JOIN operator_restaurants opr ON r.id = opr.restaurant_id
+        WHERE opr.user_id = $1
+          AND r.is_active = true
+        ORDER BY r.name
+      `, [user.id]);
+
+      if (operatorRestaurantsResult.rows.length === 0) {
+        return res.status(403).json({
+          error: 'Магазин деактивирован. Обратитесь к супер-администратору.',
+          blocked: true
+        });
+      }
+
+      user.restaurants = operatorRestaurantsResult.rows.map((row) => ({
+        id: row.id,
+        name: row.name
+      }));
+
+      operatorEffectiveRestaurant = operatorRestaurantsResult.rows.find(
+        (row) => Number(row.id) === Number(user.active_restaurant_id)
+      ) || operatorRestaurantsResult.rows[0];
+
+      if (Number(operatorEffectiveRestaurant.id) !== Number(user.active_restaurant_id)) {
+        await pool.query(
+          'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
+          [operatorEffectiveRestaurant.id, user.id]
+        );
+        user.active_restaurant_id = operatorEffectiveRestaurant.id;
+      }
+    }
+
     user.active_restaurant_name = null;
     user.active_restaurant_logo = null;
     user.active_restaurant_logo_display_mode = null;
@@ -90,7 +136,18 @@ const authenticate = async (req, res, next) => {
     user.restaurant_balance = null;
     user.restaurant_is_free_tier = null;
 
-    if (user.active_restaurant_id) {
+    if (operatorEffectiveRestaurant) {
+      const restaurant = operatorEffectiveRestaurant;
+      user.active_restaurant_name = restaurant.name;
+      user.active_restaurant_logo = restaurant.logo_url;
+      user.active_restaurant_logo_display_mode = restaurant.logo_display_mode;
+      user.active_restaurant_ui_theme = normalizeUiTheme(restaurant.ui_theme, 'classic');
+      user.active_restaurant_currency_code = restaurant.currency_code || 'uz';
+      user.active_restaurant_service_fee = restaurant.service_fee;
+      user.active_restaurant_is_delivery_enabled = restaurant.is_delivery_enabled;
+      user.restaurant_balance = restaurant.balance;
+      user.restaurant_is_free_tier = restaurant.is_free_tier;
+    } else if (user.active_restaurant_id) {
       const restaurantResult = await pool.query(`
         SELECT
           name,
@@ -145,8 +202,9 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Get list of restaurants user has access to (for operators and superadmins)
-    if (user.role === 'superadmin' || user.role === 'operator') {
+    // Get list of restaurants user has access to (for superadmins).
+    // For operators this list is already resolved above with active-only filtering.
+    if (user.role === 'superadmin') {
       const restaurantsResult = await pool.query(`
         SELECT r.id, r.name 
         FROM restaurants r

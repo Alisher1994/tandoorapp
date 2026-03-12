@@ -1963,12 +1963,18 @@ router.get('/operators', async (req, res) => {
 // Получить все категории
 router.get('/categories', async (req, res) => {
   try {
+    const includeInactive = ['1', 'true', 'yes'].includes(
+      String(req.query.include_inactive || '').toLowerCase()
+    );
+    const categoriesFilter = includeInactive ? '' : 'WHERE c.is_active = true';
+    const subcategoriesFilter = includeInactive ? '' : 'AND sc.is_active = true';
     const result = await pool.query(`
       SELECT
         c.*,
         (SELECT COUNT(*)::int FROM products p WHERE p.category_id = c.id) AS products_count,
-        (SELECT COUNT(*)::int FROM categories sc WHERE sc.parent_id = c.id) AS subcategories_count
+        (SELECT COUNT(*)::int FROM categories sc WHERE sc.parent_id = c.id ${subcategoriesFilter}) AS subcategories_count
       FROM categories c
+      ${categoriesFilter}
       ORDER BY c.sort_order, c.name_ru
     `);
     res.json(result.rows || []);

@@ -620,15 +620,19 @@ router.post('/switch-restaurant', async (req, res) => {
       return res.status(400).json({ error: 'ID ресторана обязателен' });
     }
 
-    // Check if user has access to this restaurant (superadmin has access to all)
+    // Check if user has access to an active restaurant (superadmin has access to all, but still only active shops here)
     if (req.user.role !== 'superadmin') {
       const accessCheck = await pool.query(`
-        SELECT 1 FROM operator_restaurants 
-        WHERE user_id = $1 AND restaurant_id = $2
+        SELECT 1
+        FROM operator_restaurants opr
+        INNER JOIN restaurants r ON r.id = opr.restaurant_id
+        WHERE opr.user_id = $1
+          AND opr.restaurant_id = $2
+          AND r.is_active = true
       `, [req.user.id, restaurant_id]);
 
       if (accessCheck.rows.length === 0) {
-        return res.status(403).json({ error: 'Нет доступа к этому ресторану' });
+        return res.status(403).json({ error: 'Нет доступа к этому активному магазину' });
       }
     }
 
@@ -640,9 +644,13 @@ router.post('/switch-restaurant', async (req, res) => {
 
     // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name, logo_url, logo_display_mode, ui_theme, menu_view_mode, currency_code FROM restaurants WHERE id = $1',
+      'SELECT name, logo_url, logo_display_mode, ui_theme, menu_view_mode, currency_code FROM restaurants WHERE id = $1 AND is_active = true',
       [restaurant_id]
     );
+
+    if (!restaurantResult.rows.length) {
+      return res.status(403).json({ error: 'Магазин деактивирован' });
+    }
 
     res.json({
       message: 'Ресторан переключен',
@@ -2540,7 +2548,12 @@ router.delete('/containers/:id', async (req, res) => {
 // Получить категории (фильтруются по активному ресторану)
 router.get('/categories', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM categories ORDER BY sort_order, name_ru');
+    const includeInactive = ['1', 'true', 'yes'].includes(
+      String(req.query.include_inactive || '').toLowerCase()
+    );
+    const result = includeInactive
+      ? await pool.query('SELECT * FROM categories ORDER BY sort_order, name_ru')
+      : await pool.query('SELECT * FROM categories WHERE is_active = true ORDER BY sort_order, name_ru');
     res.json(result.rows);
   } catch (error) {
     console.error('Admin categories error:', error);
