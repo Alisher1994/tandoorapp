@@ -7754,10 +7754,10 @@ function AdminDashboard() {
                               <Col md={4}>
                                 <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
-                                  <InputGroup className="admin-telegram-input-group">
+                                  <div className="admin-input-action-field">
                                     <Form.Control
                                       type={isRestaurantBotTokenVisible ? 'text' : 'password'}
-                                      className="form-control-custom"
+                                      className="form-control-custom admin-input-action-control"
                                       value={restaurantSettings.telegram_bot_token || ''}
                                       onChange={e => {
                                         setIsRestaurantBotTokenVisible(false);
@@ -7766,18 +7766,17 @@ function AdminDashboard() {
                                         setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
                                       }}
                                     />
-                                    <Button
+                                    <button
                                       type="button"
-                                      variant="outline-secondary"
-                                      className="px-3 admin-telegram-action-btn"
+                                      className="admin-input-action-btn"
                                       onClick={handleRestaurantTokenPreview}
                                       disabled={!restaurantSettings.telegram_bot_token}
                                       title={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
                                       aria-label={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать токен'}
                                     >
                                       <i className={`bi ${isRestaurantBotTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
-                                    </Button>
-                                  </InputGroup>
+                                    </button>
+                                  </div>
                                 </Form.Group>
                               </Col>
                               <Col md={4}>
@@ -7808,50 +7807,48 @@ function AdminDashboard() {
                               <Col md={4}>
                                 <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Имя бота</Form.Label>
-                                  <InputGroup className="admin-telegram-input-group">
+                                  <div className="admin-input-action-field">
                                     <Form.Control
                                       type="text"
                                       readOnly
-                                      className="form-control-custom"
+                                      className="form-control-custom admin-input-action-control"
                                       value={testedBotInfo?.first_name || '—'}
                                     />
-                                    <Button
+                                    <button
                                       type="button"
-                                      variant="outline-secondary"
-                                      className="px-3 admin-telegram-action-btn"
+                                      className="admin-input-action-btn"
                                       onClick={() => copyTelegramMetaField(testedBotInfo?.first_name, 'bot_name')}
                                       disabled={!testedBotInfo?.first_name}
                                       title="Копировать имя бота"
                                       aria-label="Копировать имя бота"
                                     >
                                       {copiedTelegramField === 'bot_name' ? <i className="bi bi-check2" /> : <CopyIcon />}
-                                    </Button>
-                                  </InputGroup>
+                                    </button>
+                                  </div>
                                 </Form.Group>
                               </Col>
 
                               <Col md={4}>
                                 <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Юзернейм бота</Form.Label>
-                                  <InputGroup className="admin-telegram-input-group">
+                                  <div className="admin-input-action-field">
                                     <Form.Control
                                       type="text"
                                       readOnly
-                                      className="form-control-custom"
+                                      className="form-control-custom admin-input-action-control"
                                       value={testedBotInfo?.username ? `@${testedBotInfo.username}` : '—'}
                                     />
-                                    <Button
+                                    <button
                                       type="button"
-                                      variant="outline-secondary"
-                                      className="px-3 admin-telegram-action-btn"
+                                      className="admin-input-action-btn"
                                       onClick={() => copyTelegramMetaField(testedBotInfo?.username ? `@${testedBotInfo.username}` : '', 'bot_username')}
                                       disabled={!testedBotInfo?.username}
                                       title="Копировать юзернейм бота"
                                       aria-label="Копировать юзернейм бота"
                                     >
                                       {copiedTelegramField === 'bot_username' ? <i className="bi bi-check2" /> : <CopyIcon />}
-                                    </Button>
-                                  </InputGroup>
+                                    </button>
+                                  </div>
                                 </Form.Group>
                               </Col>
 
