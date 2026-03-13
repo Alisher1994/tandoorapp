@@ -1173,10 +1173,10 @@ body::-webkit-scrollbar,
 
 .admin-balance-modal-redesign .modal-content {
     border-radius: 14px;
-    border: 1px solid #cfd8e3;
+    border: 1px solid var(--border-color);
     overflow: hidden;
-    background: #f8fafc;
-    color: #334155;
+    background: var(--secondary-bg);
+    color: var(--text-main);
     font-size: 14px;
     display: flex;
     flex-direction: column;
@@ -1185,8 +1185,8 @@ body::-webkit-scrollbar,
 }
 
 .admin-balance-modal-redesign .modal-header.admin-balance-modal-header {
-    background: linear-gradient(135deg, #64748b 0%, #55657d 100%);
-    color: #f8fafc;
+    background: linear-gradient(135deg, var(--primary-light, #64748b) 0%, var(--primary-color, #475569) 58%, var(--primary-dark, #334155) 100%);
+    color: #ffffff;
     padding: 14px 18px;
 }
 
@@ -1207,7 +1207,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-balance-modal-redesign .modal-body {
-    background: #f8fafc;
+    background: var(--secondary-bg);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -1232,21 +1232,21 @@ body::-webkit-scrollbar,
 }
 
 .admin-balance-modal-redesign .bg-light.p-3.border-bottom {
-    background: #eef2f7 !important;
-    border-color: #d8e0ea !important;
+    background: var(--secondary-bg) !important;
+    border-color: var(--border-color) !important;
 }
 
 .admin-balance-modal-redesign .admin-balance-metric-card {
     padding: 10px !important;
-    border-color: #d2dbe6 !important;
+    border-color: var(--border-color) !important;
     border-radius: 10px !important;
-    background: #ffffff !important;
+    background: var(--surface-color) !important;
 }
 
 .admin-balance-modal-redesign .admin-balance-metric-label {
     font-size: 0.74rem;
     font-weight: 500;
-    color: #5b6778 !important;
+    color: var(--text-muted) !important;
     line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
@@ -1257,17 +1257,17 @@ body::-webkit-scrollbar,
     font-size: 1.05rem !important;
     font-weight: 500;
     line-height: 1.2;
-    color: #2b4f76 !important;
+    color: var(--primary-color) !important;
 }
 
 .admin-balance-modal-redesign .admin-balance-metric-value .small {
     font-size: 0.9em;
-    color: #3f5876;
+    color: var(--text-muted);
 }
 
 .admin-balance-modal-redesign .admin-balance-tabs {
-    background: #edf1f6 !important;
-    border: 1px solid #d8e0ea;
+    background: var(--secondary-bg) !important;
+    border: 1px solid var(--border-color);
     gap: 4px;
 }
 
@@ -1275,7 +1275,7 @@ body::-webkit-scrollbar,
     white-space: nowrap;
     font-size: 0.92rem;
     font-weight: 400;
-    color: #5b6778 !important;
+    color: var(--text-muted) !important;
     min-height: 38px;
     display: flex;
     align-items: center;
@@ -1284,20 +1284,22 @@ body::-webkit-scrollbar,
 
 .admin-balance-modal-redesign .admin-balance-tabs > div.bg-white {
     font-weight: 500;
-    color: #2b4f76 !important;
+    color: var(--primary-color) !important;
+    background: var(--surface-color) !important;
 }
 
 .admin-balance-modal-redesign .admin-balance-info-card {
     padding: 12px !important;
-    border-color: #d2dbe6 !important;
+    border-color: var(--border-color) !important;
     border-radius: 10px !important;
+    background: var(--surface-color) !important;
     box-shadow: none !important;
 }
 
 .admin-balance-modal-redesign .admin-balance-info-title {
     font-size: 0.86rem;
     font-weight: 500;
-    color: #334155 !important;
+    color: var(--text-main) !important;
     text-transform: none !important;
     letter-spacing: normal !important;
     line-height: 1.2;
@@ -1310,14 +1312,14 @@ body::-webkit-scrollbar,
     font-size: 0.67rem !important;
     font-weight: 500;
     text-transform: uppercase;
-    color: #6b7280 !important;
+    color: var(--text-muted) !important;
     letter-spacing: 0.04em;
 }
 
 .admin-balance-modal-redesign .admin-balance-info-value {
     font-size: 0.96rem;
     font-weight: 500;
-    color: #334155 !important;
+    color: var(--text-main) !important;
 }
 
 .admin-balance-modal-redesign .admin-balance-telegram-link {
@@ -1325,16 +1327,16 @@ body::-webkit-scrollbar,
 }
 
 .admin-balance-modal-redesign .admin-balance-hint {
-    background: #eef4ff;
-    border: 1px solid #c5d7f6;
-    color: #334155;
+    background: var(--accent-soft);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
 }
 
 .admin-balance-modal-redesign .admin-balance-close-btn {
     font-weight: 500;
-    color: #334155;
-    border-color: #d0d8e4 !important;
-    background: #f4f7fb !important;
+    color: var(--text-main);
+    border-color: var(--border-color) !important;
+    background: var(--surface-color) !important;
 }
 
 .admin-balance-modal-redesign .admin-table thead th {
