@@ -1647,11 +1647,8 @@ function AdminDashboard() {
     if (!selectedAnalyticsLocation) return;
     const selectedKey = getAnalyticsLocationKey(selectedAnalyticsLocation);
     if (!selectedKey) return;
+    if (!showAnalyticsMapModal) return;
     const scrollOptions = { behavior: 'smooth', block: 'nearest', inline: 'nearest' };
-    const regularListTarget = analyticsListItemRefs.current.get(selectedKey);
-    if (regularListTarget) {
-      regularListTarget.scrollIntoView(scrollOptions);
-    }
     const fullscreenListTarget = analyticsFullscreenListItemRefs.current.get(selectedKey);
     if (fullscreenListTarget) {
       fullscreenListTarget.scrollIntoView(scrollOptions);
@@ -4850,7 +4847,11 @@ function AdminDashboard() {
               key={periodTab.key}
               type="button"
               className={`admin-analytics-period-btn${analyticsPeriod === periodTab.key ? ' is-active' : ''}`}
-              onClick={() => setAnalyticsPeriod(periodTab.key)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setAnalyticsPeriod(periodTab.key);
+              }}
             >
               {periodTab.label}
             </button>
@@ -5087,7 +5088,7 @@ function AdminDashboard() {
       <Row className="g-4 mb-4">
         <Col lg={12}>
           <Card className="border-0 shadow-sm admin-analytics-surface-card">
-            <Card.Body className="admin-analytics-chart-stack">
+            <Card.Body className="admin-analytics-chart-stack admin-analytics-chart-grid">
               <div className="admin-analytics-chart-box">
                 <div className="admin-analytics-chart-heading">
                   <span>{language === 'uz' ? 'Moliya' : 'Финансы'}</span>
@@ -7753,7 +7754,7 @@ function AdminDashboard() {
                               <Col md={4}>
                                 <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Bot Token</Form.Label>
-                                  <InputGroup>
+                                  <InputGroup className="admin-telegram-input-group">
                                     <Form.Control
                                       type={isRestaurantBotTokenVisible ? 'text' : 'password'}
                                       className="form-control-custom"
@@ -7768,7 +7769,7 @@ function AdminDashboard() {
                                     <Button
                                       type="button"
                                       variant="outline-secondary"
-                                      className="px-3"
+                                      className="px-3 admin-telegram-action-btn"
                                       onClick={handleRestaurantTokenPreview}
                                       disabled={!restaurantSettings.telegram_bot_token}
                                       title={isRestaurantBotTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
@@ -7807,7 +7808,7 @@ function AdminDashboard() {
                               <Col md={4}>
                                 <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Имя бота</Form.Label>
-                                  <InputGroup>
+                                  <InputGroup className="admin-telegram-input-group">
                                     <Form.Control
                                       type="text"
                                       readOnly
@@ -7817,7 +7818,7 @@ function AdminDashboard() {
                                     <Button
                                       type="button"
                                       variant="outline-secondary"
-                                      className="px-3"
+                                      className="px-3 admin-telegram-action-btn"
                                       onClick={() => copyTelegramMetaField(testedBotInfo?.first_name, 'bot_name')}
                                       disabled={!testedBotInfo?.first_name}
                                       title="Копировать имя бота"
@@ -7832,7 +7833,7 @@ function AdminDashboard() {
                               <Col md={4}>
                                 <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Юзернейм бота</Form.Label>
-                                  <InputGroup>
+                                  <InputGroup className="admin-telegram-input-group">
                                     <Form.Control
                                       type="text"
                                       readOnly
@@ -7842,7 +7843,7 @@ function AdminDashboard() {
                                     <Button
                                       type="button"
                                       variant="outline-secondary"
-                                      className="px-3"
+                                      className="px-3 admin-telegram-action-btn"
                                       onClick={() => copyTelegramMetaField(testedBotInfo?.username ? `@${testedBotInfo.username}` : '', 'bot_username')}
                                       disabled={!testedBotInfo?.username}
                                       title="Копировать юзернейм бота"
@@ -8422,6 +8423,8 @@ function AdminDashboard() {
                               const title = language === 'uz'
                                 ? (item.title_uz || item.title_ru || '—')
                                 : (item.title_ru || item.title_uz || '—');
+                              const rawUrl = String(item.youtube_url || '').trim();
+                              const hasReadableUrl = /^https?:\/\//i.test(rawUrl);
                               return (
                                 <button
                                   key={`admin-help-${item.id}`}
@@ -8433,7 +8436,7 @@ function AdminDashboard() {
                                     {title}
                                   </div>
                                   <div className="small text-muted admin-help-item-url">
-                                    {item.youtube_url || '—'}
+                                    {hasReadableUrl ? rawUrl : (language === 'uz' ? "Havola qo'shilmagan" : 'Ссылка не добавлена')}
                                   </div>
                                 </button>
                               );

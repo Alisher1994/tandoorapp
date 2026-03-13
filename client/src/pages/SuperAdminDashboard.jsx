@@ -3147,7 +3147,11 @@ function SuperAdminDashboard() {
                 key={`sa-analytics-period-${periodTab.key}`}
                 type="button"
                 className={`admin-analytics-period-btn${overviewAnalyticsPeriod === periodTab.key ? ' is-active' : ''}`}
-                onClick={() => setOverviewAnalyticsPeriod(periodTab.key)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setOverviewAnalyticsPeriod(periodTab.key);
+                }}
               >
                 {periodTab.label}
               </button>
@@ -3376,7 +3380,7 @@ function SuperAdminDashboard() {
             <Row className="g-4 mb-4">
               <Col lg={8}>
                 <Card className="border-0 shadow-sm admin-analytics-surface-card">
-                  <Card.Body className="admin-analytics-chart-stack">
+                  <Card.Body className="admin-analytics-chart-stack admin-analytics-chart-grid">
                     <div className="admin-analytics-chart-box">
                       <div className="admin-analytics-chart-heading">
                         <span>{language === 'uz' ? 'Moliya' : 'Финансы'}</span>

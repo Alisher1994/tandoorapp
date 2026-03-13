@@ -835,6 +835,17 @@ body::-webkit-scrollbar,
     transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
+.admin-panel .btn.admin-help-list-item {
+    height: auto;
+    min-height: 0;
+    display: block;
+    text-align: left;
+    white-space: normal;
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
 .admin-help-list-item::before {
     content: "";
     position: absolute;
@@ -877,6 +888,22 @@ body::-webkit-scrollbar,
     text-overflow: ellipsis;
     white-space: nowrap;
     margin-top: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.admin-telegram-input-group .form-control {
+    min-height: 42px;
+}
+
+.admin-telegram-input-group .admin-telegram-action-btn {
+    height: 42px !important;
+    min-height: 42px !important;
+    min-width: 50px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 .admin-help-preview-card {
@@ -1706,13 +1733,30 @@ body::-webkit-scrollbar,
     padding: 24px !important;
 }
 
+.admin-analytics-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
 .admin-analytics-chart-box {
     min-height: 240px;
+}
+
+.admin-analytics-chart-grid .admin-analytics-chart-box {
+    min-height: 220px;
 }
 
 .admin-analytics-chart-box-secondary {
     padding-top: 24px;
     border-top: 1px dashed #e2e8f0;
+}
+
+.admin-analytics-chart-grid .admin-analytics-chart-box-secondary {
+    padding-top: 0;
+    border-top: none;
+    border-left: 1px dashed #e2e8f0;
+    padding-left: 18px;
 }
 
 .admin-analytics-status-strip {
@@ -2335,6 +2379,17 @@ body::-webkit-scrollbar,
 @media (max-width: 991.98px) {
     .admin-analytics-kpi-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .admin-analytics-chart-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-analytics-chart-grid .admin-analytics-chart-box-secondary {
+        padding-left: 0;
+        border-left: none;
+        padding-top: 18px;
+        border-top: 1px dashed #e2e8f0;
     }
 
     .admin-daily-report-summary {
@@ -3788,7 +3843,7 @@ body::-webkit-scrollbar,
     box-shadow: none !important;
 }
 
-.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close) {
+.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item) {
     height: var(--admin-btn-height);
     min-height: var(--admin-btn-height);
     padding: 0 1rem;
