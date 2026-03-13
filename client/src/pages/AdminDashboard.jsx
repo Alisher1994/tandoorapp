@@ -1158,12 +1158,12 @@ function AdminDashboard() {
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const orderStatusPillItems = [
-    { value: 'all', label: t('allStatuses'), color: '#6b7280' },
-    { value: 'new', label: t('statusNew'), color: '#3b82f6' },
-    { value: 'preparing', label: t('statusPreparing'), color: '#f59e0b' },
-    { value: 'delivering', label: t('statusDelivering'), color: '#06b6d4' },
-    { value: 'delivered', label: t('statusDelivered'), color: '#16a34a' },
-    { value: 'cancelled', label: t('statusCancelled'), color: '#ef4444' },
+    { value: 'all', label: t('allStatuses'), color: '#6b7280', emoji: '📋' },
+    { value: 'new', label: t('statusNew'), color: '#3b82f6', emoji: '🆕' },
+    { value: 'preparing', label: t('statusPreparing'), color: '#f59e0b', emoji: '👨‍🍳' },
+    { value: 'delivering', label: t('statusDelivering'), color: '#06b6d4', emoji: '🚚' },
+    { value: 'delivered', label: t('statusDelivered'), color: '#16a34a', emoji: '✅' },
+    { value: 'cancelled', label: t('statusCancelled'), color: '#ef4444', emoji: '❌' },
   ];
   const orderViewModeItems = [
     { value: 'list', icon: 'bi-list-ul', label: language === 'uz' ? "Ro'yxat" : 'Список' },
@@ -2356,7 +2356,7 @@ function AdminDashboard() {
                 }}
               >
                 <span className="d-flex align-items-center gap-2">
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                  <span aria-hidden="true">{s.emoji}</span>
                   {s.label}
                 </span>
                 {count > 0 && (
@@ -6432,51 +6432,29 @@ function AdminDashboard() {
 
                 <div className="d-flex justify-content-between align-items-center mb-3 gap-2 admin-order-toolbar">
                   {/* Status pill tabs */}
-                  <div className="d-flex gap-1 admin-order-status-tabs">
+                  <div className="admin-order-status-tabs" role="tablist" aria-label={language === 'uz' ? 'Buyurtma statuslari' : 'Статусы заказов'}>
                     {orderStatusPillItems.map(s => {
                       const isActive = statusFilter === s.value;
                       const count = visibleOrderStatusCounts?.[s.value] || 0;
                       return (
                         <button
                           key={s.value}
+                          type="button"
+                          role="tab"
+                          aria-selected={isActive}
                           onClick={() => {
                             if (ordersViewMode === 'kanban') return;
                             setStatusFilter(s.value);
                           }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 14px',
-                            borderRadius: 20,
-                            border: isActive ? `1.5px solid ${s.color}` : '1.5px solid #d1d5db',
-                            background: isActive ? s.color : '#ffffff',
-                            color: isActive ? '#ffffff' : '#6b7280',
-                            fontSize: '13px',
-                            fontWeight: isActive ? 600 : 500,
-                            transition: 'all 0.2s ease',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            opacity: ordersViewMode === 'kanban' ? 0.75 : 1,
-                            cursor: ordersViewMode === 'kanban' ? 'not-allowed' : 'pointer'
-                          }}
+                          className={`admin-order-status-pill${isActive ? ' is-active' : ''}${ordersViewMode === 'kanban' ? ' is-disabled' : ''}`}
+                          style={{ '--order-status-color': s.color }}
                         >
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: isActive ? 'rgba(255,255,255,0.9)' : s.color, flexShrink: 0 }} />
-                          {s.label}
+                          <span className="admin-order-status-pill-label">
+                            <span className="admin-order-status-pill-emoji" aria-hidden="true">{s.emoji}</span>
+                            <span>{s.label}</span>
+                          </span>
                           {count > 0 && (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              minWidth: 20,
-                              height: 20,
-                              borderRadius: 10,
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              background: isActive ? 'rgba(255,255,255,0.25)' : `${s.color}15`,
-                              color: isActive ? '#fff' : s.color,
-                              padding: '0 5px',
-                            }}>
+                            <span className="admin-order-status-pill-count">
                               {count}
                             </span>
                           )}
@@ -6533,12 +6511,16 @@ function AdminDashboard() {
                         );
                       })}
                     </div>
-                    {ordersViewMode !== 'kanban' && (
-                      <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
-                        <span className="d-none d-md-inline">{t('downloadExcel')}</span>
-                        <span className="d-md-none">Экспорт</span>
-                      </Button>
-                    )}
+                    <div className="admin-order-download-slot d-none d-md-flex">
+                      {ordersViewMode !== 'kanban' ? (
+                        <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
+                          <span className="d-none d-md-inline">{t('downloadExcel')}</span>
+                          <span className="d-md-none">Экспорт</span>
+                        </Button>
+                      ) : (
+                        <span className="admin-order-download-placeholder" aria-hidden="true"></span>
+                      )}
+                    </div>
                   </div>
                 </div>
 

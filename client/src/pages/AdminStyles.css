@@ -79,9 +79,9 @@ body::-webkit-scrollbar,
 }
 
 .admin-navbar .admin-navbar-container.admin-navbar-container-kanban-focus.container-fluid {
-    max-width: none !important;
-    padding-left: clamp(8px, 1vw, 14px);
-    padding-right: clamp(8px, 1vw, 14px);
+    max-width: var(--admin-workspace-max-width) !important;
+    padding-left: clamp(10px, 1.2vw, 18px);
+    padding-right: clamp(10px, 1.2vw, 18px);
 }
 
 .admin-brand-icon {
@@ -459,10 +459,10 @@ body::-webkit-scrollbar,
 }
 
 .admin-panel.admin-panel-kanban-focus {
-    max-width: none !important;
+    max-width: var(--admin-workspace-max-width) !important;
     width: 100%;
-    padding-left: clamp(8px, 1vw, 14px);
-    padding-right: clamp(8px, 1vw, 14px);
+    padding-left: clamp(10px, 1.2vw, 18px);
+    padding-right: clamp(10px, 1.2vw, 18px);
 }
 
 .admin-custom-scrollbar {
@@ -1054,21 +1054,92 @@ body::-webkit-scrollbar,
 }
 
 .admin-order-status-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--admin-segment-gap);
+    padding: 4px;
+    border: 1px solid var(--admin-segment-border);
+    border-radius: var(--admin-segment-radius);
+    background: var(--admin-segment-bg);
     flex-wrap: nowrap !important;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
     max-width: 100%;
-    width: auto;
+    width: min(100%, max-content);
     flex: 1 1 auto;
     min-width: 0;
-    padding-bottom: 2px;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
 
 .admin-order-status-tabs::-webkit-scrollbar {
     display: none;
+}
+
+.admin-order-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: var(--admin-segment-item-height);
+    padding: 0 14px;
+    border-radius: var(--admin-segment-item-radius);
+    border: 1px solid transparent;
+    background: transparent;
+    color: #6b7280;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    transition: all 0.18s ease;
+}
+
+.admin-order-status-pill:hover {
+    background: rgba(255, 255, 255, 0.65);
+    color: #0f172a;
+}
+
+.admin-order-status-pill.is-active {
+    background: var(--admin-segment-active-bg);
+    color: var(--admin-segment-active-color);
+    box-shadow: var(--admin-segment-active-shadow);
+}
+
+.admin-order-status-pill.is-disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+}
+
+.admin-order-status-pill-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-order-status-pill-emoji {
+    font-size: 0.92rem;
+    line-height: 1;
+}
+
+.admin-order-status-pill-count {
+    min-width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--order-status-color, #64748b) 16%, #ffffff);
+    color: var(--order-status-color, #64748b);
+}
+
+.admin-order-status-pill.is-active .admin-order-status-pill-count {
+    background: color-mix(in srgb, var(--order-status-color, #64748b) 18%, #ffffff);
+    color: var(--order-status-color, #64748b);
 }
 
 .admin-order-toolbar {
@@ -1081,6 +1152,18 @@ body::-webkit-scrollbar,
     justify-content: flex-end;
     margin-left: auto;
     flex-shrink: 0;
+}
+
+.admin-order-download-slot {
+    width: 156px;
+    min-width: 156px;
+    justify-content: flex-end;
+}
+
+.admin-order-download-placeholder {
+    width: 100%;
+    height: var(--admin-btn-height);
+    display: inline-block;
 }
 
 .admin-order-view-switch {
@@ -1467,7 +1550,7 @@ body::-webkit-scrollbar,
         width: 100%;
     }
 
-    .admin-order-status-tabs>* {
+    .admin-order-status-pill {
         flex: 0 0 auto;
     }
 
@@ -1487,6 +1570,11 @@ body::-webkit-scrollbar,
 
     .admin-order-view-switch {
         margin-left: auto;
+    }
+
+    .admin-order-download-slot {
+        width: auto;
+        min-width: 0;
     }
 
     .admin-order-view-switch-btn {
