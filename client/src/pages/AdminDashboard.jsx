@@ -7513,11 +7513,11 @@ function AdminDashboard() {
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
-                      { key: 'general', label: language === 'uz' ? 'Umumiy' : 'Общие' },
-                      { key: 'telegram', label: 'Telegram' },
-                      { key: 'payments', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
-                      { key: 'delivery', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
-                      { key: 'operators', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
+                      { key: 'general', icon: '⚙️', label: language === 'uz' ? 'Umumiy' : 'Общие' },
+                      { key: 'telegram', icon: '✈️', label: 'Telegram' },
+                      { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
+                      { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
+                      { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
                     ].map((tab) => {
                       const isActive = settingsTab === tab.key;
                       return (
@@ -7529,7 +7529,7 @@ function AdminDashboard() {
                           className={`admin-settings-pill-btn ${isActive ? 'is-active' : ''}`}
                           onClick={() => setSettingsTab(tab.key)}
                         >
-                          {tab.label}
+                          <span>{tab.icon} {tab.label}</span>
                         </button>
                       );
                     })}
