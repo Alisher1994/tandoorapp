@@ -63,11 +63,25 @@ body::-webkit-scrollbar,
     background:
         radial-gradient(circle at 12% 30%, rgba(255, 255, 255, 0.14), transparent 34%),
         radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.09), transparent 32%),
-        linear-gradient(135deg, #64748b 0%, #475569 48%, #334155 100%);
+        linear-gradient(135deg, var(--primary-light, #64748b) 0%, var(--primary-color, #475569) 48%, var(--primary-dark, #334155) 100%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.22);
     position: relative;
     z-index: 1050;
     box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+}
+
+.admin-navbar .admin-navbar-container.container,
+.admin-navbar .admin-navbar-container.container-fluid {
+    width: 100%;
+    max-width: var(--admin-workspace-max-width) !important;
+    padding-left: clamp(10px, 1.2vw, 18px);
+    padding-right: clamp(10px, 1.2vw, 18px);
+}
+
+.admin-navbar .admin-navbar-container.admin-navbar-container-kanban-focus.container-fluid {
+    max-width: none !important;
+    padding-left: clamp(8px, 1vw, 14px);
+    padding-right: clamp(8px, 1vw, 14px);
 }
 
 .admin-brand-icon {

@@ -5137,7 +5137,10 @@ function AdminDashboard() {
     <>
       <div className={actionButtonsVisible ? '' : 'action-buttons-hidden'}>
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
-        <Container>
+        <Container
+          fluid={isOrdersKanbanMode}
+          className={`admin-navbar-container${isOrdersKanbanMode ? ' admin-navbar-container-kanban-focus' : ''}`}
+        >
           <Navbar.Brand
             as="div"
             className={`d-flex align-items-center gap-2 py-1 ${canSwitchRestaurants ? 'admin-brand-trigger' : ''}`}

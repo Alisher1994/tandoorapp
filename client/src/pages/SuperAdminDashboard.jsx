@@ -4377,7 +4377,7 @@ function SuperAdminDashboard() {
     <div className={`min-vh-100 bg-light ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
       {/* Header */}
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
-        <Container>
+        <Container className="admin-navbar-container">
           <Navbar.Brand className="d-flex align-items-center gap-2 py-1">
             <div className="admin-brand-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
