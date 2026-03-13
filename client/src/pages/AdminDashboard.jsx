@@ -1065,6 +1065,13 @@ function AdminDashboard() {
     ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
     : ['Категория 1', 'Категория 2', 'Категория 3'];
   const canEditStoreCurrency = isSuperAdmin();
+  const activeRestaurantLogoUrl = useMemo(() => {
+    const raw = String(user?.active_restaurant_logo || '').trim();
+    if (!raw) return '';
+    const normalizedRaw = raw.toLowerCase();
+    if (normalizedRaw === 'null' || normalizedRaw === 'undefined' || normalizedRaw === 'false') return '';
+    return toAbsoluteFileUrl(raw);
+  }, [user?.active_restaurant_logo]);
   const selectedRestaurantCurrencyOption = useMemo(() => {
     const nextCode = String(
       restaurantSettings?.currency_code
@@ -5149,9 +5156,9 @@ function AdminDashboard() {
             } : undefined}
             aria-label={canSwitchRestaurants ? 'Открыть выбор магазина' : undefined}
           >
-            {user?.active_restaurant_logo ? (
+            {activeRestaurantLogoUrl ? (
               <img
-                src={user.active_restaurant_logo.startsWith('http') ? user.active_restaurant_logo : `${API_URL.replace('/api', '')}${user.active_restaurant_logo}`}
+                src={activeRestaurantLogoUrl}
                 alt="Logo"
                 className="admin-brand-logo"
               />
@@ -10212,9 +10219,9 @@ function AdminDashboard() {
                     {/* Telegram Bubble */}
                     <div className="bg-white shadow-sm position-relative overflow-hidden" style={{ maxWidth: '90%', borderRadius: '12px 12px 12px 2px', paddingBottom: '4px' }}>
                       <div className="px-3 pt-2 pb-1 d-flex align-items-center gap-2 border-bottom mb-2 bg-light bg-opacity-50">
-                        {user?.active_restaurant_logo ? (
+                        {activeRestaurantLogoUrl ? (
                           <img
-                            src={user.active_restaurant_logo?.startsWith('http') ? user.active_restaurant_logo : window.location.origin + (user.active_restaurant_logo?.startsWith('/') ? '' : '/') + user.active_restaurant_logo}
+                            src={activeRestaurantLogoUrl}
                             alt="logo"
                             style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }}
                           />
