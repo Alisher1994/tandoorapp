@@ -6994,8 +6994,8 @@ function AdminDashboard() {
                               const isKanbanCardExpanded = Boolean(expandedKanbanCardIds[String(order.id)]);
                               const isUzbek = language === 'uz';
                               const expandCardLabel = isKanbanCardExpanded
-                                ? (isUzbek ? 'Yig‘ish' : 'Свернуть')
-                                : (isUzbek ? 'Batafsil' : 'Ещё');
+                                ? (isUzbek ? 'Yashirish' : 'Скрыть')
+                                : (isUzbek ? 'Yana' : 'Ещё');
 
                               return (
                                 <article
