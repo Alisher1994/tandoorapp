@@ -4064,6 +4064,9 @@ function AdminDashboard() {
     if (!order) return null;
     const targetStatus = normalizeOrderActionStatus(workflowStatus);
     if (!targetStatus) return null;
+    const createdAtMs = parseOrderTimestampMs(order?.created_at);
+    const updatedAtMs = parseOrderTimestampMs(order?.updated_at);
+    const processedAtMs = parseOrderTimestampMs(order?.processed_at);
     const actions = Array.isArray(order?.status_actions)
       ? order.status_actions
       : normalizeStatusActions(order?.status_actions);
@@ -4075,9 +4078,27 @@ function AdminDashboard() {
       if (actionMs) return actionMs;
     }
 
-    if (targetStatus === 'accepted') return parseOrderTimestampMs(order?.processed_at);
-    if (targetStatus === 'new') return parseOrderTimestampMs(order?.created_at);
-    return null;
+    if (targetStatus === 'new') return createdAtMs;
+
+    if (targetStatus === 'accepted') {
+      const acceptedFallback = processedAtMs || updatedAtMs;
+      if (acceptedFallback && (!createdAtMs || acceptedFallback > createdAtMs)) {
+        return acceptedFallback;
+      }
+    }
+
+    const genericFallback = updatedAtMs || processedAtMs;
+    if (genericFallback && (!createdAtMs || genericFallback > createdAtMs)) {
+      return genericFallback;
+    }
+
+    // Fallback: if status is already progressed but we do not have transition timestamps,
+    // place start slightly after creation so "current status" does not mirror total timer.
+    if (createdAtMs && targetStatus !== 'new') {
+      return Math.min(Date.now(), createdAtMs + 1000);
+    }
+
+    return createdAtMs || null;
   }
 
   function getOrderWorkflowTiming(order, workflowStatus) {

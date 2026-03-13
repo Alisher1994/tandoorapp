@@ -3112,49 +3112,36 @@ body::-webkit-scrollbar,
     font-size: 0.7rem !important;
     font-weight: 700 !important;
     letter-spacing: 0.01em;
-    border: 1px solid transparent;
+    border: none !important;
+    color: #ffffff !important;
 }
 
 .admin-order-status-badge.is-new {
-    background: #dbeafe !important;
-    border-color: #93c5fd !important;
-    color: #1d4ed8 !important;
+    background: #2563eb !important;
 }
 
 .admin-order-status-badge.is-accepted {
-    background: #d1fae5 !important;
-    border-color: #6ee7b7 !important;
-    color: #047857 !important;
+    background: #0891b2 !important;
 }
 
 .admin-order-status-badge.is-preparing {
-    background: #fef3c7 !important;
-    border-color: #fcd34d !important;
-    color: #b45309 !important;
+    background: #d97706 !important;
 }
 
 .admin-order-status-badge.is-delivering {
-    background: #cffafe !important;
-    border-color: #67e8f9 !important;
-    color: #0e7490 !important;
+    background: #0ea5e9 !important;
 }
 
 .admin-order-status-badge.is-delivered {
-    background: #dcfce7 !important;
-    border-color: #86efac !important;
-    color: #15803d !important;
+    background: #16a34a !important;
 }
 
 .admin-order-status-badge.is-cancelled {
-    background: #fee2e2 !important;
-    border-color: #fca5a5 !important;
-    color: #b91c1c !important;
+    background: #dc2626 !important;
 }
 
 .admin-order-status-badge.is-unknown {
-    background: #e2e8f0 !important;
-    border-color: #cbd5e1 !important;
-    color: #334155 !important;
+    background: #64748b !important;
 }
 
 .admin-order-kanban-card-overview {
