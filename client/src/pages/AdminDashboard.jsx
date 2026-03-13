@@ -3907,21 +3907,21 @@ function AdminDashboard() {
     return parts.join(', ') || 'Как можно быстрее';
   };
 
-  const parseOrderTimestampMs = (value) => {
+  function parseOrderTimestampMs(value) {
     if (!value) return null;
     const parsed = new Date(value).getTime();
     return Number.isFinite(parsed) ? parsed : null;
-  };
+  }
 
-  const isOrderWithinDateRange = (order, fromDate, toDate) => {
+  function isOrderWithinDateRange(order, fromDate, toDate) {
     const orderDateKey = toLocalDateKey(order?.created_at);
     if (!orderDateKey) return false;
     if (fromDate && orderDateKey < fromDate) return false;
     if (toDate && orderDateKey > toDate) return false;
     return true;
-  };
+  }
 
-  const formatElapsedMinutes = (minutes) => {
+  function formatElapsedMinutes(minutes) {
     const safeMinutes = Number(minutes);
     if (!Number.isFinite(safeMinutes) || safeMinutes < 0) return '—';
     if (safeMinutes < 60) return `${safeMinutes} мин`;
@@ -3932,9 +3932,9 @@ function AdminDashboard() {
     const restHours = hours % 24;
     if (restHours > 0) return `${days} д ${restHours} ч`;
     return `${days} д`;
-  };
+  }
 
-  const getOrderItemsCount = (order) => {
+  function getOrderItemsCount(order) {
     const items = Array.isArray(order?.items) ? order.items : [];
     if (items.length > 0) {
       return items.reduce((sum, item) => (
@@ -3943,9 +3943,9 @@ function AdminDashboard() {
     }
     const fallbackCount = Number(order?.items_count);
     return Number.isFinite(fallbackCount) && fallbackCount > 0 ? Math.floor(fallbackCount) : 0;
-  };
+  }
 
-  const getOrderStatusStartedAtMs = (order, workflowStatus) => {
+  function getOrderStatusStartedAtMs(order, workflowStatus) {
     if (!order) return null;
     const targetStatus = normalizeOrderActionStatus(workflowStatus);
     if (!targetStatus) return null;
@@ -3963,9 +3963,9 @@ function AdminDashboard() {
     if (targetStatus === 'accepted') return parseOrderTimestampMs(order?.processed_at);
     if (targetStatus === 'new') return parseOrderTimestampMs(order?.created_at);
     return null;
-  };
+  }
 
-  const getOrderWorkflowTiming = (order, workflowStatus) => {
+  function getOrderWorkflowTiming(order, workflowStatus) {
     const createdAtMs = parseOrderTimestampMs(order?.created_at);
     if (!createdAtMs) {
       return { totalMinutes: null, statusMinutes: null, isFinal: false };
@@ -3985,7 +3985,7 @@ function AdminDashboard() {
       statusMinutes,
       isFinal: isFinalStatus
     };
-  };
+  }
 
   const handleKanbanColumnScroll = useCallback((columnKey) => {
     if (!columnKey) return;
