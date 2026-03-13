@@ -28,6 +28,19 @@ body::-webkit-scrollbar,
     --card-shadow-lg: 0 22px 48px rgba(15, 23, 42, 0.14);
     --radius-md: 12px;
     --radius-lg: 16px;
+    --admin-btn-height: 38px;
+    --admin-btn-radius: 8px;
+    --admin-btn-font-size: 0.92rem;
+    --admin-workspace-max-width: min(1880px, calc(100vw - 20px));
+    --admin-segment-bg: #eef2f7;
+    --admin-segment-border: #d7dee8;
+    --admin-segment-radius: 10px;
+    --admin-segment-gap: 4px;
+    --admin-segment-item-height: 34px;
+    --admin-segment-item-radius: 8px;
+    --admin-segment-active-bg: #ffffff;
+    --admin-segment-active-color: #0f172a;
+    --admin-segment-active-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 
     --bs-primary: #475569;
     --bs-primary-rgb: 71, 85, 105;
@@ -193,18 +206,44 @@ body::-webkit-scrollbar,
 }
 
 .admin-lang-switch {
-    display: flex;
-    background: #eef2f7;
-    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    background: var(--admin-segment-bg);
+    border: 1px solid var(--admin-segment-border);
+    border-radius: var(--admin-segment-radius);
     padding: 4px;
+    min-height: 42px;
     width: 100%;
-    gap: 4px;
+    gap: var(--admin-segment-gap);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .admin-lang-item {
     cursor: pointer;
-    transition: all 0.2s;
-    font-size: 13px;
+    transition: all 0.2s ease;
+    font-size: 0.82rem;
+    min-height: var(--admin-segment-item-height);
+    border-radius: var(--admin-segment-item-radius) !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 600;
+    line-height: 1;
+    color: #64748b !important;
+    border: 0;
+    white-space: nowrap;
+}
+
+.admin-lang-item:hover {
+    color: #0f172a !important;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.admin-lang-item.bg-white {
+    background: var(--admin-segment-active-bg) !important;
+    color: var(--admin-segment-active-color) !important;
+    box-shadow: var(--admin-segment-active-shadow) !important;
 }
 
 .country-currency-dropdown {
@@ -397,11 +436,19 @@ body::-webkit-scrollbar,
     background: transparent;
 }
 
+.admin-panel.container,
+.admin-panel.container-fluid {
+    width: 100%;
+    max-width: var(--admin-workspace-max-width) !important;
+    padding-left: clamp(10px, 1.2vw, 18px);
+    padding-right: clamp(10px, 1.2vw, 18px);
+}
+
 .admin-panel.admin-panel-kanban-focus {
     max-width: none !important;
     width: 100%;
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: clamp(8px, 1vw, 14px);
+    padding-right: clamp(8px, 1vw, 14px);
 }
 
 .admin-custom-scrollbar {
@@ -502,11 +549,15 @@ body::-webkit-scrollbar,
 .admin-settings-pill-tabs {
     display: flex;
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: var(--admin-segment-gap);
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
-    padding: 0 0 12px;
+    padding: 4px;
+    border: 1px solid var(--admin-segment-border);
+    border-radius: var(--admin-segment-radius);
+    background: var(--admin-segment-bg);
+    margin-bottom: 12px;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -520,13 +571,14 @@ body::-webkit-scrollbar,
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1.5px solid #d1d5db;
-    background: #ffffff;
+    min-height: var(--admin-segment-item-height);
+    padding: 0 14px;
+    border-radius: var(--admin-segment-item-radius);
+    border: 1px solid transparent;
+    background: transparent;
     color: #6b7280;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 0.82rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
@@ -534,14 +586,16 @@ body::-webkit-scrollbar,
 }
 
 .admin-settings-pill-btn:hover {
-    border-color: rgba(71, 85, 105, 0.35);
-    color: var(--primary-color);
+    border-color: transparent;
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.65);
 }
 
 .admin-settings-pill-btn.is-active {
-    border-color: var(--primary-color);
-    background: var(--primary-color);
-    color: #ffffff;
+    border-color: transparent;
+    background: var(--admin-segment-active-bg);
+    color: var(--admin-segment-active-color);
+    box-shadow: var(--admin-segment-active-shadow);
     font-weight: 600;
 }
 
@@ -904,19 +958,22 @@ body::-webkit-scrollbar,
 .admin-order-view-switch {
     display: inline-flex;
     align-items: center;
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    background: #fff;
-    overflow: hidden;
+    border: 1px solid var(--admin-segment-border);
+    border-radius: var(--admin-segment-radius);
+    background: var(--admin-segment-bg);
+    padding: 4px;
+    gap: var(--admin-segment-gap);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .admin-order-view-switch-btn {
     width: 36px;
-    height: 34px;
+    height: var(--admin-segment-item-height);
     border: none;
     background: transparent;
     color: #64748b;
-    font-size: 0.95rem;
+    border-radius: var(--admin-segment-item-radius);
+    font-size: 0.9rem;
     font-weight: 600;
     line-height: 1;
     padding: 0;
@@ -927,13 +984,14 @@ body::-webkit-scrollbar,
 }
 
 .admin-order-view-switch-btn:hover {
-    background: #f8fafc;
+    background: rgba(255, 255, 255, 0.65);
     color: #0f172a;
 }
 
 .admin-order-view-switch-btn.is-active {
-    background: var(--primary-color);
-    color: #fff;
+    background: var(--admin-segment-active-bg);
+    color: var(--admin-segment-active-color);
+    box-shadow: var(--admin-segment-active-shadow);
 }
 
 .admin-order-date-range {
@@ -945,10 +1003,11 @@ body::-webkit-scrollbar,
 
 .admin-order-date-range .form-control {
     width: 142px;
-    border-radius: 8px;
+    border-radius: var(--admin-btn-radius);
     border: 1px solid #d1d5db;
     color: #334155;
     font-size: 0.8rem;
+    min-height: var(--admin-btn-height);
 }
 
 .admin-order-date-range-separator {
@@ -1277,7 +1336,7 @@ body::-webkit-scrollbar,
 
     .admin-order-view-switch-btn {
         width: 34px;
-        height: 34px;
+        height: var(--admin-segment-item-height);
     }
 
     .superadmin-stats-grid {
@@ -1454,29 +1513,31 @@ body::-webkit-scrollbar,
 .admin-analytics-period-tabs {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--admin-segment-gap);
     padding: 4px;
-    border-radius: 999px;
-    background: #e2e8f0;
-    box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.05);
+    border-radius: var(--admin-segment-radius);
+    border: 1px solid var(--admin-segment-border);
+    background: var(--admin-segment-bg);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .admin-analytics-period-btn {
     border: none;
     background: transparent;
     color: #64748b;
-    padding: 10px 28px;
-    border-radius: 999px;
-    font-size: 14px;
-    font-weight: 700;
+    padding: 0 20px;
+    min-height: var(--admin-segment-item-height);
+    border-radius: var(--admin-segment-item-radius);
+    font-size: 0.84rem;
+    font-weight: 600;
     line-height: 1;
     transition: all 0.2s ease;
 }
 
 .admin-analytics-period-btn.is-active {
-    background: #ffffff;
-    color: #111827;
-    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.1);
+    background: var(--admin-segment-active-bg);
+    color: var(--admin-segment-active-color);
+    box-shadow: var(--admin-segment-active-shadow);
 }
 
 .admin-analytics-filters-area {
@@ -2567,9 +2628,17 @@ body::-webkit-scrollbar,
     border: 1px solid var(--primary-color) !important;
     color: #ffffff !important;
     box-shadow: none !important;
-    padding: 0.6rem 1.25rem;
-    border-radius: 10px;
+    height: var(--admin-btn-height);
+    min-height: var(--admin-btn-height);
+    padding: 0 1rem !important;
+    border-radius: var(--admin-btn-radius) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: var(--admin-btn-font-size);
     font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
     transition: all 0.2s ease;
 }
 
@@ -2625,9 +2694,24 @@ body::-webkit-scrollbar,
 }
 
 .admin-panel-kanban-focus .admin-order-kanban-column {
-    min-width: clamp(220px, 19vw, 280px);
-    width: clamp(220px, 19vw, 280px);
-    flex-basis: clamp(220px, 19vw, 280px);
+    min-width: clamp(200px, 16vw, 248px);
+    width: clamp(200px, 16vw, 248px);
+    flex-basis: clamp(200px, 16vw, 248px);
+}
+
+@media (min-width: 1280px) {
+    .admin-panel-kanban-focus .admin-order-kanban-board {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        overflow-x: visible;
+    }
+
+    .admin-panel-kanban-focus .admin-order-kanban-column {
+        min-width: 0;
+        width: auto;
+        flex: initial;
+    }
 }
 
 .admin-order-kanban-column-header {
@@ -2818,10 +2902,12 @@ body::-webkit-scrollbar,
     width: 112px;
     min-width: 112px;
     max-width: 112px;
-    font-size: 0.75rem !important;
+    min-height: 32px !important;
+    font-size: 0.78rem !important;
     font-weight: 600 !important;
     padding-left: 0.35rem !important;
     padding-right: 0.35rem !important;
+    border-radius: var(--admin-btn-radius) !important;
     white-space: nowrap;
 }
 
@@ -3676,6 +3762,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-panel .btn-primary,
+.admin-panel .btn-secondary,
 .admin-panel .btn-success,
 .admin-panel .btn-info,
 .admin-panel .btn-warning,
@@ -3687,7 +3774,22 @@ body::-webkit-scrollbar,
     box-shadow: none !important;
 }
 
+.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close) {
+    height: var(--admin-btn-height);
+    min-height: var(--admin-btn-height);
+    padding: 0 1rem;
+    border-radius: var(--admin-btn-radius) !important;
+    font-size: var(--admin-btn-font-size);
+    font-weight: 600;
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
 .admin-panel .btn-primary:hover,
+.admin-panel .btn-secondary:hover,
 .admin-panel .btn-success:hover,
 .admin-panel .btn-info:hover,
 .admin-panel .btn-warning:hover,
@@ -3699,6 +3801,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-panel .btn-outline-primary,
+.admin-panel .btn-outline-secondary,
 .admin-panel .btn-outline-success,
 .admin-panel .btn-outline-info,
 .admin-panel .btn-outline-warning,
@@ -3710,6 +3813,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-panel .btn-outline-primary:hover,
+.admin-panel .btn-outline-secondary:hover,
 .admin-panel .btn-outline-success:hover,
 .admin-panel .btn-outline-info:hover,
 .admin-panel .btn-outline-warning:hover,
