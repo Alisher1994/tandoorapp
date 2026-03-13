@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const CLIENT_LAST_ROUTE_KEY = 'client_last_route';
-const CLIENT_ROUTES = new Set(['/', '/catalog', '/cart', '/orders', '/feedback', '/favorites']);
+const CLIENT_ROUTES = new Set(['/', '/catalog', '/cart', '/orders', '/feedback', '/favorites', '/reservations']);
 
 const isReloadNavigation = () => {
   if (typeof window === 'undefined') return false;

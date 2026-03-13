@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS restaurants (
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
   ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow')),
   currency_code VARCHAR(8) DEFAULT 'uz',
+  reservation_cost DECIMAL(12, 2) DEFAULT 0,
+  activity_type_id INTEGER,
   operator_registration_code VARCHAR(64),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -147,6 +149,8 @@ CREATE TABLE IF NOT EXISTS orders (
   processed_at TIMESTAMP,
   admin_message_id BIGINT,
   admin_chat_id TEXT,
+  source_type VARCHAR(20) DEFAULT 'order' CHECK (source_type IN ('order', 'reservation')),
+  reservation_id INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -168,6 +172,111 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE TABLE IF NOT EXISTS order_status_history (
   id SERIAL PRIMARY KEY,
   order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL,
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Настройки бронирования (по ресторану)
+CREATE TABLE IF NOT EXISTS restaurant_reservation_settings (
+  restaurant_id INTEGER PRIMARY KEY REFERENCES restaurants(id) ON DELETE CASCADE,
+  enabled BOOLEAN DEFAULT false,
+  reservation_fee DECIMAL(12, 2) DEFAULT 0,
+  reservation_service_cost DECIMAL(12, 2) DEFAULT 0,
+  max_duration_minutes INTEGER DEFAULT 180,
+  allow_multi_table BOOLEAN DEFAULT true,
+  prepay_mode VARCHAR(20) DEFAULT 'none' CHECK (prepay_mode IN ('none', 'fixed', 'percent')),
+  prepay_percent DECIMAL(5, 2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Этажи бронирования
+CREATE TABLE IF NOT EXISTS reservation_floors (
+  id SERIAL PRIMARY KEY,
+  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  name VARCHAR(120) NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  image_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Системные шаблоны столов
+CREATE TABLE IF NOT EXISTS reservation_table_templates (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(80) NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  shape VARCHAR(20) DEFAULT 'round' CHECK (shape IN ('round', 'square', 'rect', 'sofa', 'custom')),
+  seats_count INTEGER DEFAULT 2,
+  width DECIMAL(8, 2) DEFAULT 1,
+  height DECIMAL(8, 2) DEFAULT 1,
+  is_system BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Столы на этажах
+CREATE TABLE IF NOT EXISTS reservation_tables (
+  id SERIAL PRIMARY KEY,
+  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  floor_id INTEGER NOT NULL REFERENCES reservation_floors(id) ON DELETE CASCADE,
+  template_id INTEGER REFERENCES reservation_table_templates(id) ON DELETE SET NULL,
+  name VARCHAR(120) NOT NULL,
+  capacity INTEGER DEFAULT 1,
+  photo_url TEXT,
+  x DECIMAL(10, 3) DEFAULT 0,
+  y DECIMAL(10, 3) DEFAULT 0,
+  rotation DECIMAL(8, 2) DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Бронирования
+CREATE TABLE IF NOT EXISTS reservations (
+  id SERIAL PRIMARY KEY,
+  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reservation_number VARCHAR(50) UNIQUE NOT NULL,
+  status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show')),
+  booking_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  guests_count INTEGER DEFAULT 1,
+  booking_mode VARCHAR(24) DEFAULT 'reservation_only' CHECK (booking_mode IN ('reservation_only', 'with_items')),
+  reservation_fee DECIMAL(12, 2) DEFAULT 0,
+  items_prepay_amount DECIMAL(12, 2) DEFAULT 0,
+  service_fee DECIMAL(12, 2) DEFAULT 0,
+  total_prepay_amount DECIMAL(12, 2) DEFAULT 0,
+  payment_method VARCHAR(20) DEFAULT 'cash',
+  payment_status VARCHAR(20) DEFAULT 'unpaid',
+  is_paid BOOLEAN DEFAULT false,
+  paid_amount DECIMAL(12, 2) DEFAULT 0,
+  comment TEXT,
+  cancel_reason TEXT,
+  cancelled_at_status VARCHAR(20),
+  processed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  processed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Связь броней и столов (многие-ко-многим)
+CREATE TABLE IF NOT EXISTS reservation_tables_map (
+  id SERIAL PRIMARY KEY,
+  reservation_id INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+  table_id INTEGER NOT NULL REFERENCES reservation_tables(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(reservation_id, table_id)
+);
+
+-- История статусов брони
+CREATE TABLE IF NOT EXISTS reservation_status_history (
+  id SERIAL PRIMARY KEY,
+  reservation_id INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
   status VARCHAR(20) NOT NULL,
   changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   comment TEXT,
@@ -235,6 +344,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
 CREATE INDEX IF NOT EXISTS idx_orders_processed_by ON orders(processed_by);
+CREATE INDEX IF NOT EXISTS idx_orders_reservation_id ON orders(reservation_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_payme_login_unique ON restaurants(payme_api_login) WHERE payme_api_login IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payme_transactions_restaurant ON payme_transactions(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_payme_transactions_order ON payme_transactions(order_id);
@@ -248,6 +358,17 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_restaurant ON activity_logs(restaur
 CREATE INDEX IF NOT EXISTS idx_activity_logs_action ON activity_logs(action_type);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_table_templates_code ON reservation_table_templates (LOWER(code));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_tables_floor_name ON reservation_tables (floor_id, LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_reservation_floors_restaurant ON reservation_floors(restaurant_id, sort_order, id);
+CREATE INDEX IF NOT EXISTS idx_reservation_tables_restaurant_floor ON reservation_tables(restaurant_id, floor_id, is_active, id);
+CREATE INDEX IF NOT EXISTS idx_reservations_restaurant_date ON reservations(restaurant_id, booking_date, start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status);
+CREATE INDEX IF NOT EXISTS idx_reservations_user ON reservations(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reservation_tables_map_reservation ON reservation_tables_map(reservation_id);
+CREATE INDEX IF NOT EXISTS idx_reservation_tables_map_table ON reservation_tables_map(table_id);
+CREATE INDEX IF NOT EXISTS idx_reservation_status_history_reservation ON reservation_status_history(reservation_id, created_at);
 
 -- =====================================================
 -- КОММЕНТАРИИ К ТИПАМ ДЕЙСТВИЙ ДЛЯ ЛОГОВ

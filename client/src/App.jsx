@@ -18,7 +18,9 @@ const Cart = lazy(() => import('./pages/Cart'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Feedback = lazy(() => import('./pages/Feedback'));
 const Favorites = lazy(() => import('./pages/Favorites'));
+const Reservations = lazy(() => import('./pages/Reservations'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminReservations = lazy(() => import('./pages/AdminReservations'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 
 function App() {
@@ -77,10 +79,26 @@ function App() {
                   }
                 />
                 <Route
+                  path="/reservations"
+                  element={
+                    <PrivateRoute>
+                      <Reservations />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
                   path="/admin"
                   element={
                     <AdminRoute>
                       <AdminDashboard />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/reservations"
+                  element={
+                    <AdminRoute>
+                      <AdminReservations />
                     </AdminRoute>
                   }
                 />

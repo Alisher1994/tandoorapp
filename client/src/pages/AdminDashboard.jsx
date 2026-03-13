@@ -5502,6 +5502,13 @@ function AdminDashboard() {
                 <i className="bi bi-megaphone-fill me-1" aria-hidden="true"></i>
                 {t('broadcast')}
               </Nav.Link>
+              <Nav.Link
+                onClick={() => navigate('/admin/reservations')}
+                className="px-2 admin-nav-link"
+              >
+                <i className="bi bi-calendar2-week-fill me-1" aria-hidden="true"></i>
+                {t('reservations')}
+              </Nav.Link>
 
               {/* User + Language + Logout group */}
               <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
@@ -7136,6 +7143,26 @@ function AdminDashboard() {
                   </div>
                 )}
 
+              </Tab>
+
+              <Tab eventKey="reservations" title={t('reservations')}>
+                <Card className="border-0 shadow-sm mb-3">
+                  <Card.Body>
+                    <div className="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                      <div>
+                        <h5 className="mb-2">{language === 'uz' ? 'Bronlash moduli' : 'Модуль бронирования'}</h5>
+                        <div className="text-muted">
+                          {language === 'uz'
+                            ? 'Qavatlar, stol sig‘imi, stol rasmi va bron holatlarini boshqarish.'
+                            : 'Управление этажами, вместимостью столов, фото столов и статусами броней.'}
+                        </div>
+                      </div>
+                      <Button variant="primary" onClick={() => navigate('/admin/reservations')}>
+                        {language === 'uz' ? 'Modulni ochish' : 'Открыть модуль'}
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
               </Tab>
 
               <Tab eventKey="products" title={t('products')}>

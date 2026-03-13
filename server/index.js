@@ -8,7 +8,9 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
 const orderRoutes = require('./routes/orders');
+const reservationRoutes = require('./routes/reservations');
 const adminRoutes = require('./routes/admin');
+const adminReservationRoutes = require('./routes/adminReservations');
 const superadminRoutes = require('./routes/superadmin');
 const uploadRoutes = require('./routes/upload');
 const deliveryRoutes = require('./routes/delivery');
@@ -125,6 +127,8 @@ app.post('/api/telegram/webhook/:restaurantId', express.json(), (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/reservations', reservationRoutes);
+app.use('/api/admin/reservations', adminReservationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/upload', uploadRoutes);

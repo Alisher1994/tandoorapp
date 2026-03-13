@@ -25,6 +25,7 @@ function BottomNav() {
     { path: '/', icon: '🏠', label: t('menu') },
     { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
+    { path: '/reservations', icon: '🪑', label: t('reservations') || 'Бронь' },
     { path: '/orders', icon: '📋', label: t('orders') },
     { path: '/feedback', icon: '💬', label: t('feedback') || 'Жалобы' },
   ];

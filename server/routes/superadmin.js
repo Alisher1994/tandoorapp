@@ -49,6 +49,7 @@ let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
 
 const DEFAULT_ACTIVITY_TYPES = [
+  'Ресторан',
   'Одежда',
   'Хозяйственные товары',
   'Канцтовары',

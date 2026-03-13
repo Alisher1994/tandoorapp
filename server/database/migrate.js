@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const pool = require('./connection');
 const bcrypt = require('bcryptjs');
+const { ensureReservationSchema } = require('../services/reservationSchema');
 
 async function migrate() {
   const client = await pool.connect();
@@ -888,6 +889,12 @@ async function migrate() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_device_brand ON ad_banner_events(device_brand)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banner_events_geo ON ad_banner_events(country, region, city)');
     console.log('✅ Ad banners tables ready');
+
+    // =====================================================
+    // Step 12: Reservations (tables booking module)
+    // =====================================================
+    await ensureReservationSchema({ client });
+    console.log('✅ Reservations tables ready');
 
     // await client.query('COMMIT');
     console.log('✅ Migration completed successfully!');

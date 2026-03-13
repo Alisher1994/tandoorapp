@@ -92,6 +92,7 @@ const translations = {
     menu: 'Меню',
     favorites: 'Избранные',
     cart: 'Корзина',
+    reservations: 'Бронирование',
     orders: 'Заказы',
     feedback: 'Жалобы',
 
@@ -531,6 +532,7 @@ const translations = {
     menu: 'Menyu',
     favorites: 'Saralanganlar',
     cart: 'Savat',
+    reservations: 'Bron',
     orders: 'Buyurtmalar',
     feedback: 'Shikoyat',
 

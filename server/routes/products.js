@@ -3,6 +3,7 @@ const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
 const UAParser = require('ua-parser-js');
 const geoip = require('geoip-lite');
+const { ensureReservationSchema } = require('../services/reservationSchema');
 
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
@@ -473,8 +474,16 @@ router.get('/', async (req, res) => {
 router.get('/restaurant/:id', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
+    await ensureReservationSchema();
     const result = await pool.query(
-      `SELECT * FROM restaurants WHERE id = $1`,
+      `SELECT
+         r.*,
+         COALESCE(rs.enabled, false) AS reservation_enabled,
+         COALESCE(rs.reservation_fee, 0) AS reservation_fee,
+         COALESCE(rs.allow_multi_table, true) AS reservation_allow_multi_table
+       FROM restaurants r
+       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
+       WHERE r.id = $1`,
       [req.params.id]
     );
 
@@ -511,6 +520,9 @@ router.get('/restaurant/:id', async (req, res) => {
       payme_url: r.payme_url,
       uzum_url: r.uzum_url,
       xazna_url: r.xazna_url,
+      reservation_enabled: r.reservation_enabled === true || r.reservation_enabled === 'true',
+      reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
+      reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
       card_payment_enabled: cardPaymentEnabled,
       card_payment_title: cardPaymentEnabled ? cardTitle : '',
       card_payment_number: cardPaymentEnabled ? cardNumber : '',
@@ -707,10 +719,17 @@ router.get('/:id', async (req, res) => {
 router.get('/restaurants/list', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
+    await ensureReservationSchema();
     const result = await pool.query(`
-      SELECT * FROM restaurants 
+      SELECT
+        r.*,
+        COALESCE(rs.enabled, false) AS reservation_enabled,
+        COALESCE(rs.reservation_fee, 0) AS reservation_fee,
+        COALESCE(rs.allow_multi_table, true) AS reservation_allow_multi_table
+      FROM restaurants r
+      LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
       WHERE is_active = true 
-      ORDER BY name
+      ORDER BY r.name
     `);
     // Return only safe public fields
     const restaurants = result.rows.map(r => {
@@ -726,7 +745,10 @@ router.get('/restaurants/list', async (req, res) => {
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
-      is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled)
+      is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
+      reservation_enabled: r.reservation_enabled === true || r.reservation_enabled === 'true',
+      reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
+      reservation_allow_multi_table: r.reservation_allow_multi_table !== false
       });
     });
     res.json(restaurants);
