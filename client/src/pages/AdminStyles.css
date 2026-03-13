@@ -3057,6 +3057,47 @@ body::-webkit-scrollbar,
     font-weight: 700 !important;
 }
 
+.admin-order-kanban-column-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-order-kanban-column-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    transition: all 0.18s ease;
+}
+
+.admin-order-kanban-column-btn:hover {
+    border-color: #94a3b8;
+    color: #0f172a;
+    background: #f8fafc;
+}
+
+.admin-order-kanban-column-sort-btn i {
+    transition: transform 0.2s ease;
+}
+
+.admin-order-kanban-column-sort-btn.is-asc i {
+    transform: rotate(180deg);
+}
+
+.admin-order-kanban-column-filter-btn.is-active {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.95);
+}
+
 .admin-order-kanban-column-body {
     display: flex;
     flex-direction: column;

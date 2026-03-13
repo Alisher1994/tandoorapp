@@ -72,6 +72,12 @@ const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
 const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
 const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
+const KANBAN_COLUMN_FILTER_DEFAULT = Object.freeze({
+  sortDirection: 'desc',
+  fulfillment: 'all',
+  timing: 'all',
+  scheduleSort: 'none'
+});
 const ANALYTICS_PAYMENT_METHOD_META = {
   payme: { labelRu: 'Payme', labelUz: 'Payme', color: '#26c6da', iconType: 'image' },
   click: { labelRu: 'Click', labelUz: 'Click', color: '#2563eb', iconType: 'image' },
@@ -1043,6 +1049,10 @@ function AdminDashboard() {
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
   const [kanbanTimingNowMs, setKanbanTimingNowMs] = useState(() => Date.now());
+  const [kanbanColumnFilters, setKanbanColumnFilters] = useState({});
+  const [showKanbanColumnFilterModal, setShowKanbanColumnFilterModal] = useState(false);
+  const [activeKanbanFilterColumn, setActiveKanbanFilterColumn] = useState('');
+  const [kanbanFilterDraft, setKanbanFilterDraft] = useState(() => ({ ...KANBAN_COLUMN_FILTER_DEFAULT }));
 
   // Customers (operator-scoped)
   const [customers, setCustomers] = useState({ customers: [], total: 0, page: 1, limit: 20 });
@@ -1172,6 +1182,19 @@ function AdminDashboard() {
   ];
   const isOrdersKanbanMode = mainTab === 'orders' && ordersViewMode === 'kanban';
   const effectiveOrdersStatusFilter = ordersViewMode === 'kanban' ? 'all' : statusFilter;
+  const getKanbanColumnFilter = useCallback((columnKey) => ({
+    ...KANBAN_COLUMN_FILTER_DEFAULT,
+    ...(kanbanColumnFilters[columnKey] || {})
+  }), [kanbanColumnFilters]);
+  const isKanbanColumnFilterCustom = useCallback((filterConfig) => {
+    const normalized = {
+      ...KANBAN_COLUMN_FILTER_DEFAULT,
+      ...(filterConfig || {})
+    };
+    return normalized.fulfillment !== 'all'
+      || normalized.timing !== 'all'
+      || normalized.scheduleSort !== 'none';
+  }, []);
 
   // Excel export function
   const exportToExcel = (data, filename, columns) => {
@@ -2002,6 +2025,72 @@ function AdminDashboard() {
     orderStatusPillItems.filter((item) => item.value !== 'all')
   ), [orderStatusPillItems]);
 
+  const getOrderDeliveryTimingType = useCallback((order) => {
+    const normalizedTime = String(order?.delivery_time || '').trim().toLowerCase();
+    const hasScheduledTime = Boolean(normalizedTime && normalizedTime !== 'asap');
+    return hasScheduledTime ? 'scheduled' : 'asap';
+  }, []);
+
+  const getOrderScheduledDeliveryMs = useCallback((order) => {
+    const normalizedTime = String(order?.delivery_time || '').trim().toLowerCase();
+    if (!normalizedTime || normalizedTime === 'asap') return null;
+    const hhmm = normalizedTime.match(/^(\d{1,2}):(\d{2})/);
+    if (!hhmm) return null;
+    const hours = Number.parseInt(hhmm[1], 10);
+    const minutes = Number.parseInt(hhmm[2], 10);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+
+    const dateRaw = String(order?.delivery_date || '').trim();
+    let baseDate = null;
+    if (dateRaw) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
+        const [year, month, day] = dateRaw.split('-').map((part) => Number.parseInt(part, 10));
+        baseDate = new Date(year, (month || 1) - 1, day || 1);
+      } else {
+        const parsedDate = new Date(dateRaw);
+        if (!Number.isNaN(parsedDate.getTime())) baseDate = parsedDate;
+      }
+    }
+    if (!baseDate) {
+      const createdAt = new Date(order?.created_at || Date.now());
+      baseDate = Number.isNaN(createdAt.getTime()) ? new Date() : createdAt;
+    }
+
+    baseDate.setHours(hours, minutes, 0, 0);
+    const timestamp = baseDate.getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }, []);
+
+  const applyKanbanColumnFiltersAndSort = useCallback((ordersForColumn = [], columnValue = '') => {
+    const config = getKanbanColumnFilter(columnValue);
+    const filtered = ordersForColumn.filter((order) => {
+      const isPickup = isPickupOrderForAnalytics(order);
+      if (config.fulfillment === 'pickup' && !isPickup) return false;
+      if (config.fulfillment === 'delivery' && isPickup) return false;
+      if (config.timing !== 'all' && getOrderDeliveryTimingType(order) !== config.timing) return false;
+      return true;
+    });
+
+    filtered.sort((orderA, orderB) => {
+      if (config.scheduleSort !== 'none') {
+        const aMs = getOrderScheduledDeliveryMs(orderA);
+        const bMs = getOrderScheduledDeliveryMs(orderB);
+        if (aMs === null && bMs === null) return 0;
+        if (aMs === null) return 1;
+        if (bMs === null) return -1;
+        return config.scheduleSort === 'asc' ? aMs - bMs : bMs - aMs;
+      }
+
+      const statusA = getOrderDisplayWorkflowStatus(orderA);
+      const statusB = getOrderDisplayWorkflowStatus(orderB);
+      const aSeconds = Number(getOrderWorkflowTiming(orderA, statusA)?.statusSeconds || 0);
+      const bSeconds = Number(getOrderWorkflowTiming(orderB, statusB)?.statusSeconds || 0);
+      return config.sortDirection === 'asc' ? aSeconds - bSeconds : bSeconds - aSeconds;
+    });
+
+    return filtered;
+  }, [getKanbanColumnFilter, getOrderDeliveryTimingType, getOrderScheduledDeliveryMs]);
+
   const kanbanOrdersByStatus = useMemo(() => {
     const grouped = {};
     kanbanColumns.forEach((column) => {
@@ -2015,8 +2104,27 @@ function AdminDashboard() {
       }
     });
 
+    kanbanColumns.forEach((column) => {
+      grouped[column.value] = applyKanbanColumnFiltersAndSort(grouped[column.value], column.value);
+    });
+
     return grouped;
-  }, [dateFilteredOrders, kanbanColumns]);
+  }, [dateFilteredOrders, kanbanColumns, applyKanbanColumnFiltersAndSort, kanbanTimingNowMs]);
+
+  useEffect(() => {
+    if (!Array.isArray(kanbanColumns) || kanbanColumns.length === 0) return;
+    setKanbanColumnFilters((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      kanbanColumns.forEach((column) => {
+        if (!next[column.value]) {
+          next[column.value] = { ...KANBAN_COLUMN_FILTER_DEFAULT };
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [kanbanColumns]);
 
   const pagedProducts = useMemo(() => {
     const start = (productsPage - 1) * productsLimit;
@@ -4144,6 +4252,52 @@ function AdminDashboard() {
     }, 700);
   }, []);
 
+  const toggleKanbanColumnSort = useCallback((columnKey) => {
+    if (!columnKey) return;
+    setKanbanColumnFilters((prev) => {
+      const current = {
+        ...KANBAN_COLUMN_FILTER_DEFAULT,
+        ...(prev[columnKey] || {})
+      };
+      return {
+        ...prev,
+        [columnKey]: {
+          ...current,
+          sortDirection: current.sortDirection === 'desc' ? 'asc' : 'desc'
+        }
+      };
+    });
+  }, []);
+
+  const openKanbanColumnFilterModal = useCallback((columnKey) => {
+    if (!columnKey) return;
+    setActiveKanbanFilterColumn(columnKey);
+    setKanbanFilterDraft(getKanbanColumnFilter(columnKey));
+    setShowKanbanColumnFilterModal(true);
+  }, [getKanbanColumnFilter]);
+
+  const applyKanbanColumnFilterModal = useCallback(() => {
+    if (!activeKanbanFilterColumn) return;
+    setKanbanColumnFilters((prev) => ({
+      ...prev,
+      [activeKanbanFilterColumn]: {
+        ...KANBAN_COLUMN_FILTER_DEFAULT,
+        ...(kanbanFilterDraft || {})
+      }
+    }));
+    setShowKanbanColumnFilterModal(false);
+  }, [activeKanbanFilterColumn, kanbanFilterDraft]);
+
+  const resetKanbanColumnFilterModal = useCallback(() => {
+    if (!activeKanbanFilterColumn) return;
+    const nextDefault = { ...KANBAN_COLUMN_FILTER_DEFAULT };
+    setKanbanFilterDraft(nextDefault);
+    setKanbanColumnFilters((prev) => ({
+      ...prev,
+      [activeKanbanFilterColumn]: nextDefault
+    }));
+  }, [activeKanbanFilterColumn]);
+
   const openOrderModal = (order) => {
     const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
     const normalizedCancelledAtStatus = order.cancelled_at_status === 'in_progress'
@@ -5581,6 +5735,61 @@ function AdminDashboard() {
         </Modal.Footer>
       </Modal>
 
+      <Modal
+        show={showKanbanColumnFilterModal}
+        onHide={() => setShowKanbanColumnFilterModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title className="fs-6 fw-bold">
+            Фильтр колонки: {kanbanColumns.find((column) => column.value === activeKanbanFilterColumn)?.label || 'Статус'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="d-grid gap-3">
+            <Form.Group>
+              <Form.Label className="small text-muted mb-1">Тип подачи</Form.Label>
+              <Form.Select
+                value={kanbanFilterDraft.fulfillment}
+                onChange={(e) => setKanbanFilterDraft((prev) => ({ ...prev, fulfillment: e.target.value }))}
+              >
+                <option value="all">Все</option>
+                <option value="pickup">Только самовывоз</option>
+                <option value="delivery">Только доставка</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group>
+              <Form.Label className="small text-muted mb-1">Показывать по времени</Form.Label>
+              <Form.Select
+                value={kanbanFilterDraft.timing}
+                onChange={(e) => setKanbanFilterDraft((prev) => ({ ...prev, timing: e.target.value }))}
+              >
+                <option value="all">Все заказы</option>
+                <option value="asap">Только «Как можно быстрее»</option>
+                <option value="scheduled">Только «Ко времени»</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group>
+              <Form.Label className="small text-muted mb-1">Сортировка по «Ко времени»</Form.Label>
+              <Form.Select
+                value={kanbanFilterDraft.scheduleSort}
+                onChange={(e) => setKanbanFilterDraft((prev) => ({ ...prev, scheduleSort: e.target.value }))}
+              >
+                <option value="none">Отключено</option>
+                <option value="asc">Сначала ранние</option>
+                <option value="desc">Сначала поздние</option>
+              </Form.Select>
+            </Form.Group>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="light" onClick={resetKanbanColumnFilterModal}>Сбросить</Button>
+          <Button className="btn-primary-custom" onClick={applyKanbanColumnFilterModal}>Применить</Button>
+        </Modal.Footer>
+      </Modal>
+
       <Container fluid={isOrdersKanbanMode} className={`admin-panel${isOrdersKanbanMode ? ' admin-panel-kanban-focus' : ''}`}>
         {/* Alerts */}
         {alertMessage.text && (
@@ -6712,6 +6921,9 @@ function AdminDashboard() {
                 ) : (
                   <div className="admin-order-kanban-board">
                     {kanbanColumns.map((column) => {
+                      const columnFilter = getKanbanColumnFilter(column.value);
+                      const isSortAsc = columnFilter.sortDirection === 'asc';
+                      const hasCustomFilter = isKanbanColumnFilterCustom(columnFilter);
                       const columnOrders = kanbanOrdersByStatus[column.value] || [];
                       return (
                         <section className="admin-order-kanban-column" key={`kanban-column-${column.value}`}>
@@ -6724,9 +6936,27 @@ function AdminDashboard() {
                               />
                               <span className="admin-order-kanban-column-title">{column.label}</span>
                             </div>
-                            <Badge pill className="admin-order-kanban-column-count">
-                              {columnOrders.length}
-                            </Badge>
+                            <div className="admin-order-kanban-column-controls">
+                              <button
+                                type="button"
+                                className={`admin-order-kanban-column-btn admin-order-kanban-column-sort-btn${isSortAsc ? ' is-asc' : ''}`}
+                                onClick={() => toggleKanbanColumnSort(column.value)}
+                                title={isSortAsc ? 'Сначала более ранние' : 'Сначала более поздние'}
+                              >
+                                <i className="bi bi-arrow-down" aria-hidden="true"></i>
+                              </button>
+                              <button
+                                type="button"
+                                className={`admin-order-kanban-column-btn admin-order-kanban-column-filter-btn${hasCustomFilter ? ' is-active' : ''}`}
+                                onClick={() => openKanbanColumnFilterModal(column.value)}
+                                title="Фильтр колонки"
+                              >
+                                <i className="bi bi-funnel" aria-hidden="true"></i>
+                              </button>
+                              <Badge pill className="admin-order-kanban-column-count">
+                                {columnOrders.length}
+                              </Badge>
+                            </div>
                           </header>
 
                           <div
