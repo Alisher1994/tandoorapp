@@ -3142,6 +3142,37 @@ body::-webkit-scrollbar,
     gap: 8px;
 }
 
+.admin-order-kanban-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.admin-order-kanban-expand-btn {
+    display: none;
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1;
+    min-height: 28px;
+    padding: 5px 8px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.admin-order-kanban-expand-btn i {
+    transition: transform 0.2s ease;
+}
+
+.admin-order-kanban-expand-btn.is-expanded i {
+    transform: rotate(180deg);
+}
+
 .admin-order-kanban-card-head {
     display: flex;
     align-items: center;
@@ -3229,9 +3260,9 @@ body::-webkit-scrollbar,
 }
 
 .admin-order-kanban-card-info-item {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, max-content);
     align-items: flex-start;
-    justify-content: space-between;
     gap: 8px;
     font-size: 0.74rem;
     line-height: 1.2;
@@ -3239,14 +3270,15 @@ body::-webkit-scrollbar,
 
 .admin-order-kanban-card-info-label {
     color: #64748b;
-    flex-shrink: 0;
+    min-width: 0;
 }
 
 .admin-order-kanban-card-info-value {
     color: #0f172a;
     font-weight: 600;
     text-align: right;
-    word-break: break-word;
+    word-break: normal;
+    overflow-wrap: anywhere;
 }
 
 .admin-order-kanban-card-info-value.is-warning {
@@ -3345,6 +3377,57 @@ body::-webkit-scrollbar,
 
     .admin-order-kanban-column-body {
         max-height: calc(100vh - 245px);
+    }
+}
+
+@media (max-width: 680px) {
+    .admin-order-kanban-column {
+        min-width: min(78vw, 248px);
+        width: min(78vw, 248px);
+        flex-basis: min(78vw, 248px);
+    }
+
+    .admin-order-kanban-column-body {
+        gap: 7px;
+        padding: 8px;
+    }
+
+    .admin-order-kanban-card {
+        padding: 8px;
+        gap: 6px;
+    }
+
+    .admin-order-kanban-card-overview {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .admin-order-kanban-card-overview-meta {
+        text-align: left;
+        align-items: flex-start;
+        font-size: 0.74rem;
+    }
+
+    .admin-order-kanban-card-info-item {
+        grid-template-columns: minmax(0, 1fr) minmax(84px, max-content);
+        font-size: 0.72rem;
+    }
+
+    .admin-order-main-action-btn-kanban {
+        min-height: 30px !important;
+        font-size: 0.74rem !important;
+    }
+
+    .admin-order-kanban-expand-btn {
+        display: inline-flex;
+    }
+
+    .admin-order-kanban-card-details {
+        display: none;
+    }
+
+    .admin-order-kanban-card.is-expanded .admin-order-kanban-card-details {
+        display: flex;
     }
 }
 

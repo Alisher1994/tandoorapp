@@ -1053,6 +1053,7 @@ function AdminDashboard() {
   const [showKanbanColumnFilterModal, setShowKanbanColumnFilterModal] = useState(false);
   const [activeKanbanFilterColumn, setActiveKanbanFilterColumn] = useState('');
   const [kanbanFilterDraft, setKanbanFilterDraft] = useState(() => ({ ...KANBAN_COLUMN_FILTER_DEFAULT }));
+  const [expandedKanbanCardIds, setExpandedKanbanCardIds] = useState({});
 
   // Customers (operator-scoped)
   const [customers, setCustomers] = useState({ customers: [], total: 0, page: 1, limit: 20 });
@@ -4269,6 +4270,15 @@ function AdminDashboard() {
     });
   }, []);
 
+  const toggleKanbanCardExpanded = useCallback((orderId) => {
+    if (!orderId) return;
+    const key = String(orderId);
+    setExpandedKanbanCardIds((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }, []);
+
   const openKanbanColumnFilterModal = useCallback((columnKey) => {
     if (!columnKey) return;
     setActiveKanbanFilterColumn(columnKey);
@@ -6981,11 +6991,16 @@ function AdminDashboard() {
                               const fulfillmentTypeLabel = isPickup ? '🚶‍♂️ Самовывоз' : '🚕 Доставка';
                               const paymentMethodLabel = getPaymentMethodLabel(order.payment_method);
                               const itemsCount = getOrderItemsCount(order);
+                              const isKanbanCardExpanded = Boolean(expandedKanbanCardIds[String(order.id)]);
+                              const isUzbek = language === 'uz';
+                              const expandCardLabel = isKanbanCardExpanded
+                                ? (isUzbek ? 'Yig‘ish' : 'Свернуть')
+                                : (isUzbek ? 'Batafsil' : 'Ещё');
 
                               return (
                                 <article
                                   key={`kanban-order-${order.id}`}
-                                  className="admin-order-kanban-card"
+                                  className={`admin-order-kanban-card${isKanbanCardExpanded ? ' is-expanded' : ''}`}
                                   onDoubleClick={() => openOrderModal(order)}
                                   onTouchEnd={(e) => handleRowTouchOpen(e, `kanban-order-${order.id}`, () => openOrderModal(order))}
                                   title="Двойной клик / двойной тап: открыть заказ"
@@ -7011,85 +7026,100 @@ function AdminDashboard() {
                                     </div>
                                   </div>
 
-                                  <div className="admin-order-kanban-card-info-list">
-                                    <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">
-                                        {workflowTiming.isFinal
-                                          ? (orderStatus === 'cancelled' ? 'Отменен за:' : 'Выполнен за:')
-                                          : 'С момента заказа:'}
-                                      </span>
-                                      <strong className="admin-order-kanban-card-info-value">
-                                        {formatElapsedDuration(workflowTiming.totalSeconds)}
-                                      </strong>
-                                    </div>
-                                    <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">
-                                        {workflowTiming.isFinal ? 'На финальном статусе:' : 'В текущем статусе:'}
-                                      </span>
-                                      <strong className={`admin-order-kanban-card-info-value ${getElapsedSeverityClass(workflowTiming.statusSeconds)}`}>
-                                        {formatElapsedDuration(workflowTiming.statusSeconds)}
-                                      </strong>
-                                    </div>
-                                    <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">{deliveryTimingLabel}:</span>
-                                      <span className="admin-order-kanban-card-info-value text-end">{deliveryDeadline}</span>
-                                    </div>
-                                    <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">Оплата:</span>
-                                      <span className="admin-order-kanban-card-info-value d-inline-flex align-items-center gap-1">
-                                        {renderAnalyticsPaymentMethodIcon(paymentMethodKey, paymentMethodLabel)}
-                                        {shouldRenderAnalyticsPaymentMethodText(paymentMethodKey) && <span>{paymentMethodLabel}</span>}
-                                      </span>
-                                    </div>
-                                    <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">Подача:</span>
-                                      <span className="admin-order-kanban-card-info-value">{fulfillmentTypeLabel}</span>
-                                    </div>
-                                    <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">Товаров:</span>
-                                      <span className="admin-order-kanban-card-info-value">{itemsCount}</span>
-                                    </div>
-                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`admin-order-kanban-expand-btn${isKanbanCardExpanded ? ' is-expanded' : ''}`}
+                                    aria-expanded={isKanbanCardExpanded}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleKanbanCardExpanded(order.id);
+                                    }}
+                                  >
+                                    <span>{expandCardLabel}</span>
+                                    <i className="bi bi-chevron-down" aria-hidden="true"></i>
+                                  </button>
 
-                                  <div className="admin-order-kanban-card-badges">
-                                    {requiresPaymePayment && rawOrderStatus === 'new' && (
-                                      <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты (Payme)</Badge>
-                                    )}
-                                    {isPaymePaid && (
-                                      <Badge bg="success" style={{ fontSize: '0.65rem' }}>Payme оплачено</Badge>
-                                    )}
-                                    {needsBillingPayment && rawOrderStatus === 'new' && (
-                                      <Badge bg="secondary" style={{ fontSize: '0.65rem' }}>Требует списания чека</Badge>
-                                    )}
-                                  </div>
+                                  <div className="admin-order-kanban-card-details">
+                                    <div className="admin-order-kanban-card-info-list">
+                                      <div className="admin-order-kanban-card-info-item">
+                                        <span className="admin-order-kanban-card-info-label">
+                                          {workflowTiming.isFinal
+                                            ? (orderStatus === 'cancelled' ? 'Отменен за:' : 'Выполнен за:')
+                                            : 'С момента заказа:'}
+                                        </span>
+                                        <strong className="admin-order-kanban-card-info-value">
+                                          {formatElapsedDuration(workflowTiming.totalSeconds)}
+                                        </strong>
+                                      </div>
+                                      <div className="admin-order-kanban-card-info-item">
+                                        <span className="admin-order-kanban-card-info-label">
+                                          {workflowTiming.isFinal ? 'На финальном статусе:' : 'В текущем статусе:'}
+                                        </span>
+                                        <strong className={`admin-order-kanban-card-info-value ${getElapsedSeverityClass(workflowTiming.statusSeconds)}`}>
+                                          {formatElapsedDuration(workflowTiming.statusSeconds)}
+                                        </strong>
+                                      </div>
+                                      <div className="admin-order-kanban-card-info-item">
+                                        <span className="admin-order-kanban-card-info-label">{deliveryTimingLabel}:</span>
+                                        <span className="admin-order-kanban-card-info-value text-end">{deliveryDeadline}</span>
+                                      </div>
+                                      <div className="admin-order-kanban-card-info-item">
+                                        <span className="admin-order-kanban-card-info-label">Оплата:</span>
+                                        <span className="admin-order-kanban-card-info-value d-inline-flex align-items-center gap-1">
+                                          {renderAnalyticsPaymentMethodIcon(paymentMethodKey, paymentMethodLabel)}
+                                          {shouldRenderAnalyticsPaymentMethodText(paymentMethodKey) && <span>{paymentMethodLabel}</span>}
+                                        </span>
+                                      </div>
+                                      <div className="admin-order-kanban-card-info-item">
+                                        <span className="admin-order-kanban-card-info-label">Подача:</span>
+                                        <span className="admin-order-kanban-card-info-value">{fulfillmentTypeLabel}</span>
+                                      </div>
+                                      <div className="admin-order-kanban-card-info-item">
+                                        <span className="admin-order-kanban-card-info-label">Товаров:</span>
+                                        <span className="admin-order-kanban-card-info-value">{itemsCount}</span>
+                                      </div>
+                                    </div>
 
-                                  <div className="admin-order-kanban-card-actions">
-                                    <div className="admin-order-actions-slot admin-order-actions-slot-main">
-                                      {renderOrderMainActionButton(order, { buttonClassName: 'admin-order-main-action-btn admin-order-main-action-btn-kanban' })}
-                                    </div>
-                                    <div className="admin-order-actions-slot">
-                                      <Button
-                                        className="action-btn bg-primary bg-opacity-10 text-primary border-0"
-                                        size="sm"
-                                        onClick={() => openOrderModal(order)}
-                                        title={t('details')}
-                                      >
-                                        <ReceiptIcon />
-                                      </Button>
-                                    </div>
-                                    <div className="admin-order-actions-slot">
-                                      {canCancelCurrentOrder ? (
-                                        <Button
-                                          className="action-btn bg-danger bg-opacity-10 text-danger border-0"
-                                          size="sm"
-                                          onClick={() => openCancelModal(order.id)}
-                                          title={t('cancelOrder')}
-                                        >
-                                          <TrashIcon />
-                                        </Button>
-                                      ) : (
-                                        <span className="admin-order-action-placeholder admin-order-action-placeholder-icon" aria-hidden="true"></span>
+                                    <div className="admin-order-kanban-card-badges">
+                                      {requiresPaymePayment && rawOrderStatus === 'new' && (
+                                        <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }}>Требует оплаты (Payme)</Badge>
                                       )}
+                                      {isPaymePaid && (
+                                        <Badge bg="success" style={{ fontSize: '0.65rem' }}>Payme оплачено</Badge>
+                                      )}
+                                      {needsBillingPayment && rawOrderStatus === 'new' && (
+                                        <Badge bg="secondary" style={{ fontSize: '0.65rem' }}>Требует списания чека</Badge>
+                                      )}
+                                    </div>
+
+                                    <div className="admin-order-kanban-card-actions">
+                                      <div className="admin-order-actions-slot admin-order-actions-slot-main">
+                                        {renderOrderMainActionButton(order, { buttonClassName: 'admin-order-main-action-btn admin-order-main-action-btn-kanban' })}
+                                      </div>
+                                      <div className="admin-order-actions-slot">
+                                        <Button
+                                          className="action-btn bg-primary bg-opacity-10 text-primary border-0"
+                                          size="sm"
+                                          onClick={() => openOrderModal(order)}
+                                          title={t('details')}
+                                        >
+                                          <ReceiptIcon />
+                                        </Button>
+                                      </div>
+                                      <div className="admin-order-actions-slot">
+                                        {canCancelCurrentOrder ? (
+                                          <Button
+                                            className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                            size="sm"
+                                            onClick={() => openCancelModal(order.id)}
+                                            title={t('cancelOrder')}
+                                          >
+                                            <TrashIcon />
+                                          </Button>
+                                        ) : (
+                                          <span className="admin-order-action-placeholder admin-order-action-placeholder-icon" aria-hidden="true"></span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </article>
