@@ -397,6 +397,13 @@ body::-webkit-scrollbar,
     background: transparent;
 }
 
+.admin-panel.admin-panel-kanban-focus {
+    max-width: none !important;
+    width: 100%;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
 .admin-custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(100, 116, 139, 0.72) rgba(148, 163, 184, 0.14);
@@ -870,7 +877,9 @@ body::-webkit-scrollbar,
     overflow-y: hidden;
     white-space: nowrap;
     max-width: 100%;
-    width: 100%;
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
     padding-bottom: 2px;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -880,10 +889,16 @@ body::-webkit-scrollbar,
     display: none;
 }
 
+.admin-order-toolbar {
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+}
+
 .admin-order-toolbar-right {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     margin-left: auto;
+    flex-shrink: 0;
 }
 
 .admin-order-view-switch {
@@ -925,6 +940,7 @@ body::-webkit-scrollbar,
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
 }
 
 .admin-order-date-range .form-control {
@@ -1230,6 +1246,7 @@ body::-webkit-scrollbar,
 
     .admin-order-toolbar {
         align-items: flex-start !important;
+        flex-wrap: wrap !important;
     }
 
     .admin-order-status-tabs {
@@ -2601,6 +2618,16 @@ body::-webkit-scrollbar,
     background: #f8fafc;
     display: flex;
     flex-direction: column;
+}
+
+.admin-panel-kanban-focus .admin-order-kanban-board {
+    gap: 10px;
+}
+
+.admin-panel-kanban-focus .admin-order-kanban-column {
+    min-width: clamp(220px, 19vw, 280px);
+    width: clamp(220px, 19vw, 280px);
+    flex-basis: clamp(220px, 19vw, 280px);
 }
 
 .admin-order-kanban-column-header {

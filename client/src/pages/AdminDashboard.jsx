@@ -5430,7 +5430,7 @@ function AdminDashboard() {
         </Modal.Footer>
       </Modal>
 
-      <Container className="admin-panel">
+      <Container fluid={isOrdersKanbanMode} className={`admin-panel${isOrdersKanbanMode ? ' admin-panel-kanban-focus' : ''}`}>
         {/* Alerts */}
         {alertMessage.text && (
           <Alert
@@ -6342,7 +6342,7 @@ function AdminDashboard() {
 
               <Tab eventKey="orders" title={t('orders')}>
 
-                <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2 admin-order-toolbar">
+                <div className="d-flex justify-content-between align-items-center mb-3 gap-2 admin-order-toolbar">
                   {/* Status pill tabs */}
                   <div className="d-flex gap-1 admin-order-status-tabs">
                     {orderStatusPillItems.map(s => {
