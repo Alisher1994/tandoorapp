@@ -877,7 +877,7 @@ function AdminDashboard() {
   const [showAddOrderItemModal, setShowAddOrderItemModal] = useState(false);
   const [orderItemSearch, setOrderItemSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('delivered');
-  const [ordersViewMode, setOrdersViewMode] = useState('list');
+  const [ordersViewMode, setOrdersViewMode] = useState('kanban');
   const [ordersDateFrom, setOrdersDateFrom] = useState(() => getTodayDateKey());
   const [ordersDateTo, setOrdersDateTo] = useState(() => getTodayDateKey());
   const [showProductModal, setShowProductModal] = useState(false);
