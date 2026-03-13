@@ -883,6 +883,7 @@ body::-webkit-scrollbar,
 .admin-order-toolbar-right {
     flex-wrap: wrap;
     justify-content: flex-end;
+    margin-left: auto;
 }
 
 .admin-order-view-switch {
@@ -895,13 +896,18 @@ body::-webkit-scrollbar,
 }
 
 .admin-order-view-switch-btn {
+    width: 36px;
+    height: 34px;
     border: none;
     background: transparent;
     color: #64748b;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     font-weight: 600;
     line-height: 1;
-    padding: 0.48rem 0.75rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.18s ease;
 }
 
@@ -913,6 +919,25 @@ body::-webkit-scrollbar,
 .admin-order-view-switch-btn.is-active {
     background: var(--primary-color);
     color: #fff;
+}
+
+.admin-order-date-range {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-order-date-range .form-control {
+    width: 142px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    color: #334155;
+    font-size: 0.8rem;
+}
+
+.admin-order-date-range-separator {
+    color: #94a3b8;
+    font-size: 0.85rem;
 }
 
 .btn-mobile-filter {
@@ -1220,14 +1245,22 @@ body::-webkit-scrollbar,
         justify-content: space-between;
     }
 
+    .admin-order-date-range {
+        width: 100%;
+        order: 2;
+    }
+
+    .admin-order-date-range .form-control {
+        width: 100%;
+    }
+
     .admin-order-view-switch {
-        flex: 1 1 auto;
-        max-width: 240px;
+        margin-left: auto;
     }
 
     .admin-order-view-switch-btn {
-        flex: 1 1 50%;
-        text-align: center;
+        width: 34px;
+        height: 34px;
     }
 
     .superadmin-stats-grid {
@@ -1369,6 +1402,22 @@ body::-webkit-scrollbar,
 .admin-main-card .tab-content,
 .admin-main-card .tab-pane {
     overflow: visible !important;
+}
+
+.admin-main-card.admin-main-card-kanban-focus {
+    min-height: calc(100vh - 150px);
+}
+
+.admin-main-card.admin-main-card-kanban-focus>.card-body {
+    padding-top: 0.75rem;
+}
+
+.admin-tabs.admin-tabs-kanban-focus>.nav {
+    display: none !important;
+}
+
+.admin-tabs.admin-tabs-kanban-focus+.tab-content {
+    padding-top: 0 !important;
 }
 
 .admin-analytics-layout {
@@ -2598,8 +2647,32 @@ body::-webkit-scrollbar,
     gap: 10px;
     padding: 10px;
     min-height: 140px;
-    max-height: min(70vh, 640px);
+    max-height: calc(100vh - 275px);
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.admin-order-kanban-column-body::-webkit-scrollbar {
+    width: 5px;
+}
+
+.admin-order-kanban-column-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-order-kanban-column-body::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+    transition: background 0.22s ease;
+}
+
+.admin-order-kanban-column-body.is-scrolling {
+    scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+
+.admin-order-kanban-column-body.is-scrolling::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.45);
 }
 
 .admin-order-kanban-card {
@@ -2633,6 +2706,37 @@ body::-webkit-scrollbar,
 .admin-order-kanban-amount {
     font-weight: 700;
     color: #0f172a;
+}
+
+.admin-order-kanban-card-info-list {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 7px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.admin-order-kanban-card-info-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.74rem;
+    line-height: 1.2;
+}
+
+.admin-order-kanban-card-info-label {
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.admin-order-kanban-card-info-value {
+    color: #0f172a;
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
 }
 
 .admin-order-kanban-card-badges {
@@ -2717,6 +2821,10 @@ body::-webkit-scrollbar,
         min-width: min(86vw, 320px);
         width: min(86vw, 320px);
         flex-basis: min(86vw, 320px);
+    }
+
+    .admin-order-kanban-column-body {
+        max-height: calc(100vh - 245px);
     }
 }
 

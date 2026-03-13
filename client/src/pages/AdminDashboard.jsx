@@ -855,14 +855,6 @@ function AdminDashboard() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [allOrdersForAnalytics, setAllOrdersForAnalytics] = useState([]);
-  const [orderStatusCounts, setOrderStatusCounts] = useState({
-    all: 0,
-    new: 0,
-    preparing: 0,
-    delivering: 0,
-    delivered: 0,
-    cancelled: 0
-  });
   const [ordersPage, setOrdersPage] = useState(1);
   const [ordersLimit, setOrdersLimit] = useState(15);
   const [products, setProducts] = useState([]);
@@ -880,6 +872,8 @@ function AdminDashboard() {
   const [orderItemSearch, setOrderItemSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('delivered');
   const [ordersViewMode, setOrdersViewMode] = useState('list');
+  const [ordersDateFrom, setOrdersDateFrom] = useState(() => getTodayDateKey());
+  const [ordersDateTo, setOrdersDateTo] = useState(() => getTodayDateKey());
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productForm, setProductForm] = useState({
@@ -1037,6 +1031,8 @@ function AdminDashboard() {
   const [isRestaurantBotTokenVisible, setIsRestaurantBotTokenVisible] = useState(false);
   const tokenCountdownArmedRef = useRef(false);
   const rowDoubleTapRef = useRef({ key: '', at: 0 });
+  const kanbanScrollTimeoutsRef = useRef({});
+  const [kanbanScrollingColumns, setKanbanScrollingColumns] = useState({});
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
 
@@ -1156,9 +1152,11 @@ function AdminDashboard() {
     { value: 'cancelled', label: t('statusCancelled'), color: '#ef4444' },
   ];
   const orderViewModeItems = [
-    { value: 'list', label: language === 'uz' ? "Ro'yxat" : 'Список' },
-    { value: 'kanban', label: 'Kanban' }
+    { value: 'list', icon: 'bi-list-ul', label: language === 'uz' ? "Ro'yxat" : 'Список' },
+    { value: 'kanban', icon: 'bi-columns-gap', label: 'Kanban' }
   ];
+  const isOrdersKanbanMode = mainTab === 'orders' && ordersViewMode === 'kanban';
+  const effectiveOrdersStatusFilter = ordersViewMode === 'kanban' ? 'all' : statusFilter;
 
   // Excel export function
   const exportToExcel = (data, filename, columns) => {
@@ -1695,7 +1693,7 @@ function AdminDashboard() {
     }, refreshIntervalMs);
 
     return () => clearInterval(interval);
-  }, [statusFilter, user?.active_restaurant_id, user?.role, mainTab]);
+  }, [effectiveOrdersStatusFilter, user?.active_restaurant_id, user?.role, mainTab]);
 
   useEffect(() => {
     if (user?.active_restaurant_id) {
@@ -1709,8 +1707,19 @@ function AdminDashboard() {
   }, [mainTab, user?.active_restaurant_id, customerSearch, customerStatusFilter, customerPage, customerLimit]);
 
   useEffect(() => {
+    if (ordersViewMode === 'kanban' && statusFilter !== 'all') {
+      setStatusFilter('all');
+    }
+  }, [ordersViewMode, statusFilter]);
+
+  useEffect(() => {
     setOrdersPage(1);
-  }, [statusFilter]);
+  }, [statusFilter, ordersDateFrom, ordersDateTo, ordersViewMode]);
+
+  useEffect(() => () => {
+    Object.values(kanbanScrollTimeoutsRef.current).forEach((timerId) => clearTimeout(timerId));
+    kanbanScrollTimeoutsRef.current = {};
+  }, []);
 
   useEffect(() => {
     setProductsPage(1);
@@ -1895,16 +1904,26 @@ function AdminDashboard() {
     })
   ), [products, categoryHierarchyById, productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
+  const dateFilteredOrders = useMemo(() => (
+    orders.filter((order) => isOrderWithinDateRange(order, ordersDateFrom, ordersDateTo))
+  ), [orders, ordersDateFrom, ordersDateTo]);
+
+  const dateFilteredOrdersForStatusCounts = useMemo(() => (
+    allOrdersForAnalytics.filter((order) => isOrderWithinDateRange(order, ordersDateFrom, ordersDateTo))
+  ), [allOrdersForAnalytics, ordersDateFrom, ordersDateTo]);
+
+  const visibleOrderStatusCounts = useMemo(() => (
+    buildOrderStatusCounts(dateFilteredOrdersForStatusCounts)
+  ), [dateFilteredOrdersForStatusCounts]);
+
   const pagedOrders = useMemo(() => {
     const start = (ordersPage - 1) * ordersLimit;
-    return orders.slice(start, start + ordersLimit);
-  }, [orders, ordersPage, ordersLimit]);
+    return dateFilteredOrders.slice(start, start + ordersLimit);
+  }, [dateFilteredOrders, ordersPage, ordersLimit]);
 
-  const kanbanColumns = useMemo(() => {
-    const workflowColumns = orderStatusPillItems.filter((item) => item.value !== 'all');
-    if (statusFilter === 'all') return workflowColumns;
-    return workflowColumns.filter((item) => item.value === statusFilter);
-  }, [orderStatusPillItems, statusFilter]);
+  const kanbanColumns = useMemo(() => (
+    orderStatusPillItems.filter((item) => item.value !== 'all')
+  ), [orderStatusPillItems]);
 
   const kanbanOrdersByStatus = useMemo(() => {
     const grouped = {};
@@ -1912,7 +1931,7 @@ function AdminDashboard() {
       grouped[column.value] = [];
     });
 
-    orders.forEach((order) => {
+    dateFilteredOrders.forEach((order) => {
       const normalizedStatus = order?.status === 'in_progress' ? 'preparing' : order?.status;
       if (grouped[normalizedStatus]) {
         grouped[normalizedStatus].push(order);
@@ -1920,7 +1939,7 @@ function AdminDashboard() {
     });
 
     return grouped;
-  }, [orders, kanbanColumns]);
+  }, [dateFilteredOrders, kanbanColumns]);
 
   const pagedProducts = useMemo(() => {
     const start = (productsPage - 1) * productsLimit;
@@ -1928,9 +1947,9 @@ function AdminDashboard() {
   }, [filteredProductsForTable, productsPage, productsLimit]);
 
   useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(orders.length / ordersLimit));
+    const totalPages = Math.max(1, Math.ceil(dateFilteredOrders.length / ordersLimit));
     if (ordersPage > totalPages) setOrdersPage(totalPages);
-  }, [orders.length, ordersLimit, ordersPage]);
+  }, [dateFilteredOrders.length, ordersLimit, ordersPage]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(filteredProductsForTable.length / productsLimit));
@@ -2059,7 +2078,7 @@ function AdminDashboard() {
   const fetchData = async () => {
     try {
       const hasActiveRestaurant = Boolean(user?.active_restaurant_id);
-      const filteredOrdersUrl = `${API_URL}/admin/orders${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`;
+      const filteredOrdersUrl = `${API_URL}/admin/orders${effectiveOrdersStatusFilter !== 'all' ? `?status=${effectiveOrdersStatusFilter}` : ''}`;
       const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.allSettled([
         axios.get(filteredOrdersUrl),
         axios.get(`${API_URL}/admin/products`),
@@ -2078,11 +2097,7 @@ function AdminDashboard() {
         setOrders(normalizedFilteredOrders);
 
         const normalizedAllOrders = (allOrdersRes?.data || []).map(normalizeAdminOrderForUI);
-        const countsSource = statusFilter === 'all'
-          ? normalizedFilteredOrders
-          : normalizedAllOrders;
         setAllOrdersForAnalytics(normalizedAllOrders.length ? normalizedAllOrders : normalizedFilteredOrders);
-        setOrderStatusCounts(buildOrderStatusCounts(countsSource));
       } else {
         console.error('Orders fetch error:', ordersRes.reason);
       }
@@ -2200,6 +2215,8 @@ function AdminDashboard() {
   const resetActiveTabMobileFilters = () => {
     if (mainTab === 'orders') {
       setStatusFilter('all');
+      setOrdersDateFrom(getTodayDateKey());
+      setOrdersDateTo(getTodayDateKey());
       return;
     }
     if (mainTab === 'products') {
@@ -2221,21 +2238,54 @@ function AdminDashboard() {
     if (mainTab === 'orders') {
       return (
         <div className="d-grid gap-2">
+          <div className="small text-muted fw-semibold">Период</div>
+          <div className="d-flex align-items-center gap-2">
+            <Form.Control
+              type="date"
+              size="sm"
+              value={ordersDateFrom}
+              onChange={(e) => {
+                const nextFrom = e.target.value;
+                setOrdersDateFrom(nextFrom);
+                if (ordersDateTo && nextFrom && nextFrom > ordersDateTo) {
+                  setOrdersDateTo(nextFrom);
+                }
+              }}
+            />
+            <span className="text-muted small">—</span>
+            <Form.Control
+              type="date"
+              size="sm"
+              value={ordersDateTo}
+              onChange={(e) => {
+                const nextTo = e.target.value;
+                setOrdersDateTo(nextTo);
+                if (ordersDateFrom && nextTo && nextTo < ordersDateFrom) {
+                  setOrdersDateFrom(nextTo);
+                }
+              }}
+            />
+          </div>
           <div className="small text-muted fw-semibold">Статус заказов</div>
           {orderStatusPillItems.map((s) => {
             const isActive = statusFilter === s.value;
-            const count = orderStatusCounts?.[s.value] || 0;
+            const count = visibleOrderStatusCounts?.[s.value] || 0;
             return (
               <button
                 key={`mobile-order-status-${s.value}`}
                 type="button"
                 className="btn text-start d-flex align-items-center justify-content-between"
-                onClick={() => setStatusFilter(s.value)}
+                onClick={() => {
+                  if (ordersViewMode === 'kanban') return;
+                  setStatusFilter(s.value);
+                }}
                 style={{
                   borderRadius: 12,
                   border: `1px solid ${isActive ? s.color : '#d1d5db'}`,
                   background: isActive ? `${s.color}12` : '#fff',
-                  color: '#374151'
+                  color: '#374151',
+                  cursor: ordersViewMode === 'kanban' ? 'not-allowed' : 'pointer',
+                  opacity: ordersViewMode === 'kanban' ? 0.7 : 1
                 }}
               >
                 <span className="d-flex align-items-center gap-2">
@@ -2250,9 +2300,11 @@ function AdminDashboard() {
               </button>
             );
           })}
-          <Button variant="outline-secondary" onClick={exportOrders}>
-            Экспорт заказов
-          </Button>
+          {ordersViewMode !== 'kanban' && (
+            <Button variant="outline-secondary" onClick={exportOrders}>
+              Экспорт заказов
+            </Button>
+          )}
         </div>
       );
     }
@@ -3855,6 +3907,106 @@ function AdminDashboard() {
     return parts.join(', ') || 'Как можно быстрее';
   };
 
+  const parseOrderTimestampMs = (value) => {
+    if (!value) return null;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const isOrderWithinDateRange = (order, fromDate, toDate) => {
+    const orderDateKey = toLocalDateKey(order?.created_at);
+    if (!orderDateKey) return false;
+    if (fromDate && orderDateKey < fromDate) return false;
+    if (toDate && orderDateKey > toDate) return false;
+    return true;
+  };
+
+  const formatElapsedMinutes = (minutes) => {
+    const safeMinutes = Number(minutes);
+    if (!Number.isFinite(safeMinutes) || safeMinutes < 0) return '—';
+    if (safeMinutes < 60) return `${safeMinutes} мин`;
+    const hours = Math.floor(safeMinutes / 60);
+    const restMinutes = safeMinutes % 60;
+    if (hours < 24) return restMinutes > 0 ? `${hours} ч ${restMinutes} мин` : `${hours} ч`;
+    const days = Math.floor(hours / 24);
+    const restHours = hours % 24;
+    if (restHours > 0) return `${days} д ${restHours} ч`;
+    return `${days} д`;
+  };
+
+  const getOrderItemsCount = (order) => {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    if (items.length > 0) {
+      return items.reduce((sum, item) => (
+        sum + Math.max(0, Number(item?.quantity) || 0)
+      ), 0);
+    }
+    const fallbackCount = Number(order?.items_count);
+    return Number.isFinite(fallbackCount) && fallbackCount > 0 ? Math.floor(fallbackCount) : 0;
+  };
+
+  const getOrderStatusStartedAtMs = (order, workflowStatus) => {
+    if (!order) return null;
+    const targetStatus = normalizeOrderActionStatus(workflowStatus);
+    if (!targetStatus) return null;
+    const actions = Array.isArray(order?.status_actions)
+      ? order.status_actions
+      : normalizeStatusActions(order?.status_actions);
+
+    for (let index = actions.length - 1; index >= 0; index -= 1) {
+      const action = actions[index];
+      if (normalizeOrderActionStatus(action?.status) !== targetStatus) continue;
+      const actionMs = parseOrderTimestampMs(action?.created_at);
+      if (actionMs) return actionMs;
+    }
+
+    if (targetStatus === 'accepted') return parseOrderTimestampMs(order?.processed_at);
+    if (targetStatus === 'new') return parseOrderTimestampMs(order?.created_at);
+    return null;
+  };
+
+  const getOrderWorkflowTiming = (order, workflowStatus) => {
+    const createdAtMs = parseOrderTimestampMs(order?.created_at);
+    if (!createdAtMs) {
+      return { totalMinutes: null, statusMinutes: null, isFinal: false };
+    }
+
+    const rawStatusStartedAtMs = getOrderStatusStartedAtMs(order, workflowStatus);
+    const statusStartedAtMs = rawStatusStartedAtMs || createdAtMs;
+    const isFinalStatus = workflowStatus === 'delivered' || workflowStatus === 'cancelled';
+    const fallbackFinishedAtMs = parseOrderTimestampMs(order?.updated_at) || parseOrderTimestampMs(order?.processed_at);
+    const nowMs = Date.now();
+    const finishedAtMs = isFinalStatus ? (fallbackFinishedAtMs || rawStatusStartedAtMs || nowMs) : nowMs;
+    const totalMinutes = Math.max(0, Math.floor((finishedAtMs - createdAtMs) / 60000));
+    const statusMinutes = Math.max(0, Math.floor((finishedAtMs - statusStartedAtMs) / 60000));
+
+    return {
+      totalMinutes,
+      statusMinutes,
+      isFinal: isFinalStatus
+    };
+  };
+
+  const handleKanbanColumnScroll = useCallback((columnKey) => {
+    if (!columnKey) return;
+    setKanbanScrollingColumns((prev) => (
+      prev[columnKey] ? prev : { ...prev, [columnKey]: true }
+    ));
+
+    if (kanbanScrollTimeoutsRef.current[columnKey]) {
+      clearTimeout(kanbanScrollTimeoutsRef.current[columnKey]);
+    }
+    kanbanScrollTimeoutsRef.current[columnKey] = setTimeout(() => {
+      setKanbanScrollingColumns((prev) => {
+        if (!prev[columnKey]) return prev;
+        const next = { ...prev };
+        delete next[columnKey];
+        return next;
+      });
+      delete kanbanScrollTimeoutsRef.current[columnKey];
+    }, 700);
+  }, []);
+
   const openOrderModal = (order) => {
     const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
     const normalizedCancelledAtStatus = order.cancelled_at_status === 'in_progress'
@@ -5299,9 +5451,13 @@ function AdminDashboard() {
           </Alert>
         )}
 
-        <Card className="admin-card admin-main-card">
+        <Card className={`admin-card admin-main-card${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
           <Card.Body>
-            <Tabs activeKey={mainTab} onSelect={(k) => setMainTab(k || 'dashboard')} className="admin-tabs">
+            <Tabs
+              activeKey={mainTab}
+              onSelect={(k) => setMainTab(k || 'dashboard')}
+              className={`admin-tabs${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}`}
+            >
               {/* Dashboard Tab */}
               <Tab eventKey="dashboard" title={t('dashboard')}>
                 {renderAnalyticsDashboard()}
@@ -6191,11 +6347,14 @@ function AdminDashboard() {
                   <div className="d-flex gap-1 admin-order-status-tabs">
                     {orderStatusPillItems.map(s => {
                       const isActive = statusFilter === s.value;
-                      const count = orderStatusCounts?.[s.value] || 0;
+                      const count = visibleOrderStatusCounts?.[s.value] || 0;
                       return (
                         <button
                           key={s.value}
-                          onClick={() => setStatusFilter(s.value)}
+                          onClick={() => {
+                            if (ordersViewMode === 'kanban') return;
+                            setStatusFilter(s.value);
+                          }}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -6207,10 +6366,11 @@ function AdminDashboard() {
                             color: isActive ? '#ffffff' : '#6b7280',
                             fontSize: '13px',
                             fontWeight: isActive ? 600 : 500,
-                            cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
+                            opacity: ordersViewMode === 'kanban' ? 0.75 : 1,
+                            cursor: ordersViewMode === 'kanban' ? 'not-allowed' : 'pointer'
                           }}
                         >
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: isActive ? 'rgba(255,255,255,0.9)' : s.color, flexShrink: 0 }} />
@@ -6240,6 +6400,33 @@ function AdminDashboard() {
                     <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none" onClick={() => setShowMobileFiltersSheet(true)}>
                       <i className="bi bi-funnel"></i> Фильтр
                     </Button>
+                    <div className="admin-order-date-range d-none d-md-flex">
+                      <Form.Control
+                        type="date"
+                        size="sm"
+                        value={ordersDateFrom}
+                        onChange={(e) => {
+                          const nextFrom = e.target.value;
+                          setOrdersDateFrom(nextFrom);
+                          if (ordersDateTo && nextFrom && nextFrom > ordersDateTo) {
+                            setOrdersDateTo(nextFrom);
+                          }
+                        }}
+                      />
+                      <span className="admin-order-date-range-separator">—</span>
+                      <Form.Control
+                        type="date"
+                        size="sm"
+                        value={ordersDateTo}
+                        onChange={(e) => {
+                          const nextTo = e.target.value;
+                          setOrdersDateTo(nextTo);
+                          if (ordersDateFrom && nextTo && nextTo < ordersDateFrom) {
+                            setOrdersDateFrom(nextTo);
+                          }
+                        }}
+                      />
+                    </div>
                     <div className="admin-order-view-switch" role="tablist" aria-label={language === 'uz' ? "Buyurtmalar ko'rinishi" : 'Вид заказов'}>
                       {orderViewModeItems.map((modeItem) => {
                         const isActive = ordersViewMode === modeItem.value;
@@ -6250,16 +6437,20 @@ function AdminDashboard() {
                             className={`admin-order-view-switch-btn${isActive ? ' is-active' : ''}`}
                             onClick={() => setOrdersViewMode(modeItem.value)}
                             aria-pressed={isActive}
+                            title={modeItem.label}
                           >
-                            {modeItem.label}
+                            <i className={`bi ${modeItem.icon}`} aria-hidden="true" />
+                            <span className="visually-hidden">{modeItem.label}</span>
                           </button>
                         );
                       })}
                     </div>
-                    <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
-                      <span className="d-none d-md-inline">{t('downloadExcel')}</span>
-                      <span className="d-md-none">Экспорт</span>
-                    </Button>
+                    {ordersViewMode !== 'kanban' && (
+                      <Button variant="dark" className="btn-primary-custom" onClick={exportOrders}>
+                        <span className="d-none d-md-inline">{t('downloadExcel')}</span>
+                        <span className="d-md-none">Экспорт</span>
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -6369,7 +6560,7 @@ function AdminDashboard() {
 
                     <AdminListPagination
                       current={ordersPage}
-                      total={orders.length}
+                      total={dateFilteredOrders.length}
                       limit={ordersLimit}
                       onPageChange={setOrdersPage}
                       onLimitChange={(value) => {
@@ -6398,7 +6589,10 @@ function AdminDashboard() {
                             </Badge>
                           </header>
 
-                          <div className="admin-order-kanban-column-body">
+                          <div
+                            className={`admin-order-kanban-column-body${kanbanScrollingColumns[column.value] ? ' is-scrolling' : ''}`}
+                            onScroll={() => handleKanbanColumnScroll(column.value)}
+                          >
                             {columnOrders.length > 0 ? columnOrders.map((order) => {
                               const rawOrderStatus = order.status === 'in_progress' ? 'preparing' : order.status;
                               const orderStatus = getOrderDisplayWorkflowStatus(order);
@@ -6410,6 +6604,10 @@ function AdminDashboard() {
                               const isPaymePaid = isPaymeOrder && paymentStatusKey === 'paid';
                               const hideSensitive = isOrderSensitiveDataHidden(order);
                               const canCancelCurrentOrder = canCancelOrder(order);
+                              const workflowTiming = getOrderWorkflowTiming(order, orderStatus);
+                              const deliveryDeadline = formatDeliveryDateTime(order.delivery_date, order.delivery_time);
+                              const paymentMethodLabel = getPaymentMethodLabel(order.payment_method);
+                              const itemsCount = getOrderItemsCount(order);
 
                               return (
                                 <article
@@ -6437,6 +6635,39 @@ function AdminDashboard() {
                                   <div className="admin-order-kanban-card-meta">
                                     <span className="admin-order-kanban-amount">{formatPrice(order.total_amount)} {t('sum')}</span>
                                     <small className="text-muted">{new Date(order.created_at).toLocaleString('ru-RU')}</small>
+                                  </div>
+
+                                  <div className="admin-order-kanban-card-info-list">
+                                    <div className="admin-order-kanban-card-info-item">
+                                      <span className="admin-order-kanban-card-info-label">
+                                        {workflowTiming.isFinal
+                                          ? (orderStatus === 'cancelled' ? 'Отменен за:' : 'Выполнен за:')
+                                          : 'С момента заказа:'}
+                                      </span>
+                                      <strong className="admin-order-kanban-card-info-value">
+                                        {formatElapsedMinutes(workflowTiming.totalMinutes)}
+                                      </strong>
+                                    </div>
+                                    <div className="admin-order-kanban-card-info-item">
+                                      <span className="admin-order-kanban-card-info-label">
+                                        {workflowTiming.isFinal ? 'На финальном статусе:' : 'В текущем статусе:'}
+                                      </span>
+                                      <strong className="admin-order-kanban-card-info-value">
+                                        {formatElapsedMinutes(workflowTiming.statusMinutes)}
+                                      </strong>
+                                    </div>
+                                    <div className="admin-order-kanban-card-info-item">
+                                      <span className="admin-order-kanban-card-info-label">Доставка:</span>
+                                      <span className="admin-order-kanban-card-info-value text-end">{deliveryDeadline}</span>
+                                    </div>
+                                    <div className="admin-order-kanban-card-info-item">
+                                      <span className="admin-order-kanban-card-info-label">Оплата:</span>
+                                      <span className="admin-order-kanban-card-info-value">{paymentMethodLabel}</span>
+                                    </div>
+                                    <div className="admin-order-kanban-card-info-item">
+                                      <span className="admin-order-kanban-card-info-label">Товаров:</span>
+                                      <span className="admin-order-kanban-card-info-value">{itemsCount}</span>
+                                    </div>
                                   </div>
 
                                   <div className="admin-order-kanban-card-badges">
