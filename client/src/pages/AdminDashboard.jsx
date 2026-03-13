@@ -3905,7 +3905,7 @@ function AdminDashboard() {
     };
 
     const config = statusConfig[normalizedStatus] || { text: normalizedStatus || '—' };
-    return <Badge pill className={`admin-order-status-badge is-${normalizedStatus || 'unknown'}`}>{config.text}</Badge>;
+    return <span className={`admin-order-status-badge is-${normalizedStatus || 'unknown'}`}>{config.text}</span>;
   };
 
   const formatCustomerPhone = (rawPhone) => {
