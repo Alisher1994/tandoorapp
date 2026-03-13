@@ -1750,7 +1750,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-tabs.admin-tabs-kanban-focus+.tab-content {
-    padding-top: 0 !important;
+    padding-top: 12px !important;
 }
 
 .admin-analytics-layout {

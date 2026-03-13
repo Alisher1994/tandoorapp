@@ -4039,11 +4039,12 @@ function AdminDashboard() {
     }
 
     const rawStatusStartedAtMs = getOrderStatusStartedAtMs(order, workflowStatus);
-    const statusStartedAtMs = rawStatusStartedAtMs || createdAtMs;
+    const statusStartedAtMs = Math.max(createdAtMs, rawStatusStartedAtMs || createdAtMs);
     const isFinalStatus = workflowStatus === 'delivered' || workflowStatus === 'cancelled';
     const fallbackFinishedAtMs = parseOrderTimestampMs(order?.updated_at) || parseOrderTimestampMs(order?.processed_at);
     const nowMs = Date.now();
-    const finishedAtMs = isFinalStatus ? (fallbackFinishedAtMs || rawStatusStartedAtMs || nowMs) : nowMs;
+    const rawFinishedAtMs = isFinalStatus ? (fallbackFinishedAtMs || rawStatusStartedAtMs || nowMs) : nowMs;
+    const finishedAtMs = Math.max(rawFinishedAtMs, statusStartedAtMs, createdAtMs);
     const totalMinutes = Math.max(0, Math.floor((finishedAtMs - createdAtMs) / 60000));
     const statusMinutes = Math.max(0, Math.floor((finishedAtMs - statusStartedAtMs) / 60000));
 
