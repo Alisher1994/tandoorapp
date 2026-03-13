@@ -48,14 +48,14 @@ const UI_THEME_VALUES = new Set([
   'rainbow'
 ]);
 const UI_THEME_OPTIONS = [
-  { value: 'classic', label: 'Текущий (Classic)' },
-  { value: 'modern', label: 'Новый (Modern)' },
-  { value: 'talablar_blue', label: 'Talablar Blue (бело-синий)' },
-  { value: 'mint_fresh', label: 'Mint Fresh (мятный)' },
-  { value: 'sunset_pop', label: 'Sunset Pop (тёплый)' },
-  { value: 'berry_blast', label: 'Berry Blast (ягодный)' },
-  { value: 'violet_wave', label: 'Violet Wave (фиолетовый)' },
-  { value: 'rainbow', label: 'Rainbow (радужный)' }
+  { value: 'classic', label: 'Текущий (Classic)', preview: ['#64748b', '#475569', '#334155'] },
+  { value: 'modern', label: 'Новый (Modern)', preview: ['#14b8a6', '#0f766e', '#0b5f58'] },
+  { value: 'talablar_blue', label: 'Talablar Blue (бело-синий)', preview: ['#6366f1', '#4f46e5', '#4338ca'] },
+  { value: 'mint_fresh', label: 'Mint Fresh (мятный)', preview: ['#10b981', '#0f766e', '#22d3ee'] },
+  { value: 'sunset_pop', label: 'Sunset Pop (тёплый)', preview: ['#f97316', '#ea580c', '#f43f5e'] },
+  { value: 'berry_blast', label: 'Berry Blast (ягодный)', preview: ['#db2777', '#be185d', '#f97316'] },
+  { value: 'violet_wave', label: 'Violet Wave (фиолетовый)', preview: ['#8b5cf6', '#6d28d9', '#22d3ee'] },
+  { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] }
 ];
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -7689,17 +7689,31 @@ function AdminDashboard() {
                                           <Col md={6}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
-                                              <Form.Select
-                                                className="form-control-custom"
-                                                value={restaurantSettings.ui_theme || 'classic'}
-                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, ui_theme: e.target.value })}
-                                              >
-                                                {UI_THEME_OPTIONS.map((themeOption) => (
-                                                  <option key={themeOption.value} value={themeOption.value}>
-                                                    {themeOption.label}
-                                                  </option>
-                                                ))}
-                                              </Form.Select>
+                                              <div className="admin-theme-slots" role="radiogroup" aria-label="Стиль интерфейса магазина">
+                                                {UI_THEME_OPTIONS.map((themeOption) => {
+                                                  const isActive = normalizeUiTheme(restaurantSettings.ui_theme, 'classic') === themeOption.value;
+                                                  return (
+                                                    <button
+                                                      key={themeOption.value}
+                                                      type="button"
+                                                      role="radio"
+                                                      aria-checked={isActive}
+                                                      className={`admin-theme-slot${isActive ? ' is-active' : ''}`}
+                                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_theme: themeOption.value })}
+                                                    >
+                                                      <span
+                                                        className="admin-theme-slot-preview"
+                                                        style={{
+                                                          '--theme-slot-c1': themeOption.preview[0],
+                                                          '--theme-slot-c2': themeOption.preview[1],
+                                                          '--theme-slot-c3': themeOption.preview[2]
+                                                        }}
+                                                      />
+                                                      <span className="admin-theme-slot-title">{themeOption.label}</span>
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
                                               <Form.Text className="text-muted d-block mt-2">
                                                 Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
                                               </Form.Text>
