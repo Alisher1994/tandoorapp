@@ -527,6 +527,12 @@ const getAnalyticsPointIcon = (isActive = false) => L.divIcon({
   iconSize: [26, 26],
   iconAnchor: [13, 13]
 });
+const getAnalyticsShopIcon = () => L.divIcon({
+  className: 'analytics-map-shop-point',
+  html: `<span class="analytics-map-shop-badge"><span class="analytics-map-shop-emoji">🏪</span></span>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
 
 const AnalyticsMapAutoBounds = ({ points }) => {
   const map = useMap();
@@ -1628,6 +1634,62 @@ function AdminDashboard() {
       new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
     ));
   }, [analyticsPeriod, dailyOrderLocations, yearlyOrderLocations, monthlyAnalyticsLocationsList]);
+
+  const analyticsShopLocation = useMemo(() => {
+    const parseCoordinate = (value, min, max) => {
+      const numeric = Number.parseFloat(String(value ?? '').replace(',', '.'));
+      return Number.isFinite(numeric) && numeric >= min && numeric <= max ? numeric : null;
+    };
+
+    const lat = parseCoordinate(
+      restaurantSettings?.latitude
+      ?? billingInfo?.restaurant?.latitude
+      ?? user?.active_restaurant_latitude
+      ?? user?.active_restaurant_lat
+      ?? user?.restaurant_latitude
+      ?? user?.restaurant_lat,
+      -90,
+      90
+    );
+    const lng = parseCoordinate(
+      restaurantSettings?.longitude
+      ?? billingInfo?.restaurant?.longitude
+      ?? user?.active_restaurant_longitude
+      ?? user?.active_restaurant_lng
+      ?? user?.restaurant_longitude
+      ?? user?.restaurant_lng,
+      -180,
+      180
+    );
+
+    if (lat === null || lng === null) return null;
+    return { lat, lng };
+  }, [
+    restaurantSettings?.latitude,
+    restaurantSettings?.longitude,
+    billingInfo?.restaurant?.latitude,
+    billingInfo?.restaurant?.longitude,
+    user?.active_restaurant_latitude,
+    user?.active_restaurant_lat,
+    user?.active_restaurant_longitude,
+    user?.active_restaurant_lng,
+    user?.restaurant_latitude,
+    user?.restaurant_lat,
+    user?.restaurant_longitude,
+    user?.restaurant_lng
+  ]);
+
+  const activeAnalyticsMapPoints = useMemo(() => (
+    analyticsShopLocation
+      ? [...activeAnalyticsLocationsList, analyticsShopLocation]
+      : activeAnalyticsLocationsList
+  ), [activeAnalyticsLocationsList, analyticsShopLocation]);
+
+  const monthlyAnalyticsMapPoints = useMemo(() => (
+    analyticsShopLocation
+      ? [...(analytics.orderLocations || []), analyticsShopLocation]
+      : (analytics.orderLocations || [])
+  ), [analytics.orderLocations, analyticsShopLocation]);
 
   useEffect(() => {
     if (!activeAnalyticsLocationsList.length) {
@@ -4608,7 +4670,7 @@ function AdminDashboard() {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution='&copy; OpenStreetMap contributors'
                 />
-                <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
+                <AnalyticsMapAutoBounds points={activeAnalyticsMapPoints} />
                 <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
                 {activeAnalyticsLocationsList.map((location) => {
                   const isSelected = selectedAnalyticsLocation &&
@@ -4625,6 +4687,13 @@ function AdminDashboard() {
                     />
                   );
                 })}
+                {analyticsShopLocation && (
+                  <Marker
+                    position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
+                    icon={getAnalyticsShopIcon()}
+                    zIndexOffset={1300}
+                  />
+                )}
               </MapContainer>
             </div>
           </Col>
@@ -5810,7 +5879,7 @@ function AdminDashboard() {
                                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                   attribution='&copy; OpenStreetMap contributors'
                                 />
-                                <AnalyticsMapAutoBounds points={analytics.orderLocations} />
+                                <AnalyticsMapAutoBounds points={monthlyAnalyticsMapPoints} />
                                 <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
                                 {analytics.orderLocations.map((location) => {
                                   const isSelected = selectedAnalyticsLocation &&
@@ -5827,6 +5896,13 @@ function AdminDashboard() {
                                     />
                                   );
                                 })}
+                                {analyticsShopLocation && (
+                                  <Marker
+                                    position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
+                                    icon={getAnalyticsShopIcon()}
+                                    zIndexOffset={1300}
+                                  />
+                                )}
                               </MapContainer>
                             </div>
                           </Col>
