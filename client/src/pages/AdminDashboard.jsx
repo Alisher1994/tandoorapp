@@ -3457,19 +3457,19 @@ function AdminDashboard() {
     }
   };
 
-  const hasAcceptedStatusAction = (order) => {
+  function hasAcceptedStatusAction(order) {
     const actions = Array.isArray(order?.status_actions) ? order.status_actions : [];
     return actions.some((action) => normalizeOrderActionStatus(action?.status) === 'accepted');
-  };
+  }
 
-  const getOrderDisplayWorkflowStatus = (order) => {
+  function getOrderDisplayWorkflowStatus(order) {
     if (!order) return 'new';
     const normalizedStatus = order.status === 'in_progress' ? 'preparing' : order.status;
     if (normalizedStatus === 'new' && (Boolean(order.processed_at) || hasAcceptedStatusAction(order))) {
       return 'accepted';
     }
     return normalizedStatus;
-  };
+  }
 
   const isOrderSensitiveDataHidden = (order) => getOrderDisplayWorkflowStatus(order) === 'new';
 
