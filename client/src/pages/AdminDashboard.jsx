@@ -7868,8 +7868,8 @@ function AdminDashboard() {
                             <Row className="gy-4">
                               <Col md={12}>
                                 <div className="admin-store-profile-group">
-                                  <Row className="g-4 align-items-stretch">
-                                    <Col xl={4} lg={5}>
+                                  <Row className="g-4 align-items-stretch admin-store-profile-layout">
+                                    <Col xl={4} lg={5} className="admin-store-profile-layout-side">
                                       <div className="admin-store-profile-side h-100">
                                         <Form.Group className="mb-4">
                                           <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Логотип магазина</Form.Label>
@@ -7935,7 +7935,7 @@ function AdminDashboard() {
                                       </div>
                                     </Col>
 
-                                    <Col xl={8} lg={7}>
+                                    <Col xl={8} lg={7} className="admin-store-profile-layout-main">
                                       <div className="admin-store-profile-fields h-100">
                                         <Row className="gy-4">
                                           <Col md={6}>

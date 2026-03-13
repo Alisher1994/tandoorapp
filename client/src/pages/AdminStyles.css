@@ -4678,7 +4678,7 @@ body::-webkit-scrollbar,
 
 .admin-theme-slots {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
     gap: 0.6rem;
 }
 
@@ -4715,7 +4715,7 @@ body::-webkit-scrollbar,
 .admin-theme-slot-preview {
     display: block;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 5 / 4;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.45);
     background:
@@ -4728,7 +4728,7 @@ body::-webkit-scrollbar,
     font-weight: 600;
     line-height: 1.22;
     color: var(--text-main);
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 .admin-theme-slot.is-active .admin-theme-slot-title {
@@ -5000,7 +5000,7 @@ body::-webkit-scrollbar,
 @media (max-width: 991.98px) {
     .admin-store-profile-side,
     .admin-store-profile-fields {
-        padding: 0.85rem;
+        padding: 0.45rem;
     }
 
     .admin-store-logo-preview {
@@ -5031,6 +5031,84 @@ body::-webkit-scrollbar,
 
     .admin-product-image-slot-overlay {
         opacity: 1;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .admin-store-profile-layout>.admin-store-profile-layout-side,
+    .admin-store-profile-layout>.admin-store-profile-layout-main {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .admin-settings-content {
+        padding: 0.85rem !important;
+    }
+
+    .admin-settings-content .admin-settings-card>.card-body {
+        padding: 0.95rem !important;
+    }
+
+    .admin-store-profile-fields .row.gy-4 {
+        --bs-gutter-y: 0.85rem;
+    }
+
+    .admin-store-logo-slot {
+        padding: 0.55rem;
+    }
+
+    .admin-store-logo-preview {
+        min-height: 112px;
+    }
+
+    .admin-store-logo-slot-actions {
+        flex-direction: column;
+    }
+
+    .admin-store-logo-slot-actions .btn {
+        width: 100%;
+    }
+
+    .admin-theme-slots {
+        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+        gap: 0.45rem;
+    }
+
+    .admin-theme-slot {
+        padding: 0.4rem;
+        border-radius: 10px;
+        gap: 0.35rem;
+    }
+
+    .admin-theme-slot-preview {
+        aspect-ratio: 4 / 3;
+        border-radius: 8px;
+    }
+
+    .admin-theme-slot-title {
+        font-size: 0.67rem;
+        line-height: 1.15;
+    }
+
+    .admin-store-profile-fields .form-label.small {
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+    }
+}
+
+@media (max-width: 420px) {
+    .admin-settings-content {
+        padding: 0.7rem !important;
+    }
+
+    .admin-settings-content .admin-settings-card>.card-body {
+        padding: 0.8rem !important;
+    }
+
+    .admin-theme-slots {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
