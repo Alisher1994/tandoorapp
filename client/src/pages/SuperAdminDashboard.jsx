@@ -4704,52 +4704,54 @@ function SuperAdminDashboard() {
         </ToastContainer>
 
         {/* Stats */}
-        <Row className="mb-4 g-4 superadmin-stats-grid">
-          <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0 superadmin-stat-card">
-              <Card.Body className="p-4 d-flex align-items-center gap-3">
-                <div className="stat-icon bg-primary bg-opacity-10 text-primary mb-0">🏪</div>
-                <div>
-                  <h4 className="fw-bold mb-0 text-dark">{stats.restaurants_count || 0}</h4>
-                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saRestaurantsCount')}</small>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0 superadmin-stat-card">
-              <Card.Body className="p-4 d-flex align-items-center gap-3">
-                <div className="stat-icon bg-success bg-opacity-10 text-success mb-0">👥</div>
-                <div>
-                  <h4 className="fw-bold mb-0 text-dark">{stats.operators_count || 0}</h4>
-                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saOperatorsCount')}</small>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0 superadmin-stat-card">
-              <Card.Body className="p-4 d-flex align-items-center gap-3">
-                <div className="stat-icon bg-info bg-opacity-10 text-info mb-0">👤</div>
-                <div>
-                  <h4 className="fw-bold mb-0 text-dark">{stats.customers_count || 0}</h4>
-                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saCustomersCount')}</small>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col xs={6} md={3}>
-            <Card className="admin-card stat-card border-0 superadmin-stat-card">
-              <Card.Body className="p-4 d-flex align-items-center gap-3">
-                <div className="stat-icon bg-warning bg-opacity-10 text-warning mb-0">📦</div>
-                <div>
-                  <h4 className="fw-bold mb-0 text-dark">{stats.new_orders_count || 0}</h4>
-                  <small className="text-muted fw-semibold superadmin-stat-label">{t('saNewOrdersCount')}</small>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+        {activeTab === 'analytics' && (
+          <Row className="mb-4 g-4 superadmin-stats-grid">
+            <Col xs={6} md={3}>
+              <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                <Card.Body className="p-4 d-flex align-items-center gap-3">
+                  <div className="stat-icon bg-primary bg-opacity-10 text-primary mb-0">🏪</div>
+                  <div>
+                    <h4 className="fw-bold mb-0 text-dark">{stats.restaurants_count || 0}</h4>
+                    <small className="text-muted fw-semibold superadmin-stat-label">{t('saRestaurantsCount')}</small>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col xs={6} md={3}>
+              <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                <Card.Body className="p-4 d-flex align-items-center gap-3">
+                  <div className="stat-icon bg-success bg-opacity-10 text-success mb-0">👥</div>
+                  <div>
+                    <h4 className="fw-bold mb-0 text-dark">{stats.operators_count || 0}</h4>
+                    <small className="text-muted fw-semibold superadmin-stat-label">{t('saOperatorsCount')}</small>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col xs={6} md={3}>
+              <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                <Card.Body className="p-4 d-flex align-items-center gap-3">
+                  <div className="stat-icon bg-info bg-opacity-10 text-info mb-0">👤</div>
+                  <div>
+                    <h4 className="fw-bold mb-0 text-dark">{stats.customers_count || 0}</h4>
+                    <small className="text-muted fw-semibold superadmin-stat-label">{t('saCustomersCount')}</small>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+            <Col xs={6} md={3}>
+              <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                <Card.Body className="p-4 d-flex align-items-center gap-3">
+                  <div className="stat-icon bg-warning bg-opacity-10 text-warning mb-0">📦</div>
+                  <div>
+                    <h4 className="fw-bold mb-0 text-dark">{stats.new_orders_count || 0}</h4>
+                    <small className="text-muted fw-semibold superadmin-stat-label">{t('saNewOrdersCount')}</small>
+                  </div>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+        )}
 
         {/* Main Content */}
         <Card className="admin-card border-0 shadow-sm">
