@@ -931,6 +931,7 @@ function AdminDashboard() {
   const [productSubcategoryFilter, setProductSubcategoryFilter] = useState('all');
   const [productThirdCategoryFilter, setProductThirdCategoryFilter] = useState('all');
   const [productStatusFilter, setProductStatusFilter] = useState('all');
+  const [showProductsFilterPanel, setShowProductsFilterPanel] = useState(false);
 
   const resetProductFilters = () => {
     setProductSearch('');
@@ -6743,20 +6744,18 @@ function AdminDashboard() {
                 <div className="d-flex justify-content-between align-items-center mb-3 admin-product-toolbar">
                   <h5 className="mb-0 admin-mobile-section-title">{t('products')}</h5>
                   <div className="d-flex gap-2 admin-product-toolbar-actions">
-                    <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none" onClick={() => setShowMobileFiltersSheet(true)}>
-                      <i className="bi bi-funnel"></i> Фильтр
-                    </Button>
-                    <Button variant="outline-dark" className="btn-primary-custom" onClick={exportSystemCategories}>
-                      <span className="d-none d-md-inline">Категории системы</span>
-                      <span className="d-md-none">Категории</span>
-                    </Button>
-                    <Button variant="dark" className="btn-primary-custom" onClick={exportProducts}>
-                      <span className="d-none d-md-inline">{t('downloadExcel')}</span>
-                      <span className="d-md-none">Экспорт</span>
-                    </Button>
-                    <Button variant="dark" className="btn-primary-custom" onClick={() => setShowExcelModal(true)}>
-                      <span className="d-none d-md-inline">{t('importExcel')}</span>
-                      <span className="d-md-none">Импорт</span>
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showProductsFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowProductsFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showProductsFilterPanel}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
                     </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={() => openProductModal()}>
                       <span className="d-none d-md-inline">{t('addProduct')}</span>
@@ -6766,7 +6765,8 @@ function AdminDashboard() {
                 </div>
 
                 {/* Filters and Search */}
-                <Row className="mb-3 g-2 d-none d-lg-flex">
+                {showProductsFilterPanel && (
+                <Row className="mb-3 g-2 admin-products-filter-panel">
                   <Col lg={3}>
                     <InputGroup size="sm">
                       <InputGroup.Text>🔍</InputGroup.Text>
@@ -6909,7 +6909,24 @@ function AdminDashboard() {
                       Очистить
                     </Button>
                   </Col>
+                  <Col lg={12}>
+                    <div className="d-flex flex-wrap gap-2 admin-products-filter-actions">
+                      <Button variant="outline-dark" className="btn-primary-custom" onClick={exportSystemCategories}>
+                        <span className="d-none d-md-inline">Категории системы</span>
+                        <span className="d-md-none">Категории</span>
+                      </Button>
+                      <Button variant="dark" className="btn-primary-custom" onClick={exportProducts}>
+                        <span className="d-none d-md-inline">{t('downloadExcel')}</span>
+                        <span className="d-md-none">Экспорт</span>
+                      </Button>
+                      <Button variant="dark" className="btn-primary-custom" onClick={() => setShowExcelModal(true)}>
+                        <span className="d-none d-md-inline">{t('importExcel')}</span>
+                        <span className="d-md-none">Импорт</span>
+                      </Button>
+                    </div>
+                  </Col>
                 </Row>
+                )}
 
                 {/* Bulk actions bar */}
                 {selectedProducts.length > 0 && (

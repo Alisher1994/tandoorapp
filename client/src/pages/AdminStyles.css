@@ -778,6 +778,37 @@ body::-webkit-scrollbar,
     flex-wrap: wrap;
 }
 
+.admin-filter-icon-btn {
+    width: var(--admin-btn-height);
+    min-width: var(--admin-btn-height);
+    height: var(--admin-btn-height);
+    min-height: var(--admin-btn-height);
+    padding: 0 !important;
+    border-radius: var(--admin-btn-radius) !important;
+}
+
+.admin-filter-icon-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.admin-filter-icon-btn.is-active {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: #ffffff !important;
+}
+
+.admin-products-filter-panel {
+    padding: 12px;
+    border: 1px solid #dbe2ea;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.admin-products-filter-actions {
+    justify-content: flex-end;
+}
+
 .admin-help-shell {
     border: 1px solid rgba(148, 163, 184, 0.24) !important;
     background: #ffffff;
@@ -1444,6 +1475,20 @@ body::-webkit-scrollbar,
         min-height: 38px;
         padding-inline: 12px !important;
         white-space: nowrap;
+    }
+
+    .admin-products-filter-panel {
+        padding: 10px;
+    }
+
+    .admin-products-filter-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .admin-products-filter-actions .btn {
+        flex: 1 1 180px;
+        min-width: 0;
     }
 
     .mobile-bottom-sheet .modal-dialog {
