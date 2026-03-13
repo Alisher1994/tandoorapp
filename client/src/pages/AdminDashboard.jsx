@@ -9353,7 +9353,7 @@ function AdminDashboard() {
               )}
             </div>
 
-            <div className="p-3">
+            <div className="p-3 admin-balance-modal-content">
               {/* Navigation Tabs */}
               <div className="custom-modal-tabs admin-balance-tabs mb-3 p-1 bg-light rounded-3 d-flex overflow-hidden">
                 <div
@@ -9562,7 +9562,7 @@ function AdminDashboard() {
               )}
 
               {(balanceTab === 'incomes' || balanceTab === 'expenses') && (
-                <div className="admin-table-container rounded-4 border overflow-hidden shadow-sm animate-fade-in">
+                <div className="admin-table-container rounded-4 border shadow-sm animate-fade-in admin-balance-history-scroll">
                   <Table responsive hover className="admin-table mb-0">
                     <thead className="bg-light">
                       <tr>
@@ -9646,6 +9646,13 @@ function AdminDashboard() {
                       );
                     })()
                   ))}
+                  {analyticsShopLocation && (
+                    <Marker
+                      position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
+                      icon={getAnalyticsShopIcon()}
+                      zIndexOffset={1300}
+                    />
+                  )}
                 </MapContainer>
               </Col>
               <Col xs={5} sm={4} lg={3} className="h-100 border-start bg-white">
@@ -9668,17 +9675,15 @@ function AdminDashboard() {
                             else analyticsFullscreenListItemRefs.current.delete(locationKey);
                           }}
                           onClick={() => openAnalyticsLocationDetails(location)}
-                          className="btn text-start"
+                          className={`btn text-start admin-analytics-map-list-item${isSelected ? ' is-active' : ''}`}
                           style={{
                             border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`,
-                            background: isSelected ? '#eff6ff' : '#ffffff',
-                            borderRadius: 10,
-                            padding: '10px 11px'
+                            background: isSelected ? '#eff6ff' : '#ffffff'
                           }}
                         >
-                          <div className="fw-semibold text-truncate">{location.customerName || 'Клиент'}</div>
-                          <div className="small text-muted text-truncate">{location.customerPhone || '—'}</div>
-                          <div className="small mt-1 text-truncate">№{location.orderNumber} · {formatPrice(location.totalAmount)} {t('sum')}</div>
+                          <div className="fw-semibold">{location.customerName || 'Клиент'}</div>
+                          <div className="small text-muted">{location.customerPhone || '—'}</div>
+                          <div className="small mt-1">№{location.orderNumber} · {formatPrice(location.totalAmount)} {t('sum')}</div>
                         </button>
                       );
                     }) : (

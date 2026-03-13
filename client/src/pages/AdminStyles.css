@@ -1178,6 +1178,10 @@ body::-webkit-scrollbar,
     background: #f8fafc;
     color: #334155;
     font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    height: min(860px, calc(100vh - 28px));
+    max-height: calc(100vh - 28px);
 }
 
 .admin-balance-modal-redesign .modal-header.admin-balance-modal-header {
@@ -1204,6 +1208,27 @@ body::-webkit-scrollbar,
 
 .admin-balance-modal-redesign .modal-body {
     background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.admin-balance-modal-redesign .admin-balance-modal-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.admin-balance-modal-redesign .admin-balance-history-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.admin-balance-modal-redesign .admin-balance-history-scroll .admin-table {
+    min-width: 100%;
 }
 
 .admin-balance-modal-redesign .bg-light.p-3.border-bottom {
@@ -2403,9 +2428,12 @@ body::-webkit-scrollbar,
 }
 
 .admin-analytics-map-list-item {
+    display: block;
+    width: 100%;
     border-radius: 12px !important;
     padding: 12px !important;
     transition: all 0.2s ease;
+    line-height: 1.3;
 }
 
 .admin-panel .btn.admin-analytics-map-list-item {
@@ -3961,7 +3989,7 @@ body::-webkit-scrollbar,
     box-shadow: none !important;
 }
 
-.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item) {
+.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item):not(.admin-analytics-map-list-item) {
     height: var(--admin-btn-height);
     min-height: var(--admin-btn-height);
     padding: 0 1rem;
