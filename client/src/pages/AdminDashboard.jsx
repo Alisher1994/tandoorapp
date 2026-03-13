@@ -1042,6 +1042,7 @@ function AdminDashboard() {
   const [kanbanScrollingColumns, setKanbanScrollingColumns] = useState({});
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
+  const [kanbanTimingNowMs, setKanbanTimingNowMs] = useState(() => Date.now());
 
   // Customers (operator-scoped)
   const [customers, setCustomers] = useState({ customers: [], total: 0, page: 1, limit: 20 });
@@ -1778,6 +1779,15 @@ function AdminDashboard() {
       setStatusFilter('all');
     }
   }, [ordersViewMode, statusFilter]);
+
+  useEffect(() => {
+    if (mainTab !== 'orders' || ordersViewMode !== 'kanban') return;
+    setKanbanTimingNowMs(Date.now());
+    const intervalId = setInterval(() => {
+      setKanbanTimingNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [mainTab, ordersViewMode]);
 
   useEffect(() => {
     setOrdersPage(1);
@@ -3884,18 +3894,36 @@ function AdminDashboard() {
   };
 
   const getStatusBadge = (status) => {
+    const normalizedStatus = status === 'in_progress' ? 'preparing' : status;
     const statusConfig = {
-      'new': { variant: 'primary', text: 'Новый' },
-      'accepted': { variant: 'info', text: 'Принят' },
-      'in_progress': { variant: 'warning', text: 'Готовится' },
-      'preparing': { variant: 'warning', text: 'Готовится' },
-      'delivering': { variant: 'info', text: 'Доставляется' },
-      'delivered': { variant: 'success', text: 'Доставлен' },
-      'cancelled': { variant: 'danger', text: 'Отменен' }
+      'new': { text: 'Новый' },
+      'accepted': { text: 'Принят' },
+      'preparing': { text: 'Готовится' },
+      'delivering': { text: 'Доставляется' },
+      'delivered': { text: 'Доставлен' },
+      'cancelled': { text: 'Отменен' }
     };
 
-    const config = statusConfig[status] || { variant: 'secondary', text: status };
-    return <Badge bg={config.variant}>{config.text}</Badge>;
+    const config = statusConfig[normalizedStatus] || { text: normalizedStatus || '—' };
+    return <Badge pill className={`admin-order-status-badge is-${normalizedStatus || 'unknown'}`}>{config.text}</Badge>;
+  };
+
+  const formatCustomerPhone = (rawPhone) => {
+    const digits = String(rawPhone || '').replace(/\D/g, '');
+    if (!digits) return '-';
+
+    const normalizedDigits = digits.length === 9 ? `998${digits}` : digits;
+    if (normalizedDigits.length < 12) {
+      return `+${normalizedDigits}`;
+    }
+
+    const normalized12 = normalizedDigits.slice(0, 12);
+    const g1 = normalized12.slice(0, 3);
+    const g2 = normalized12.slice(3, 5);
+    const g3 = normalized12.slice(5, 8);
+    const g4 = normalized12.slice(8, 10);
+    const g5 = normalized12.slice(10, 12);
+    return `+${g1} ${g2} ${g3}-${g4}-${g5}`;
   };
 
   const getPaymentMethodLabel = (paymentMethod) => {
@@ -3974,6 +4002,13 @@ function AdminDashboard() {
     return parts.join(', ') || 'Как можно быстрее';
   };
 
+  const getDeliveryTimingLabel = (deliveryDate, deliveryTime) => {
+    const normalizedTime = String(deliveryTime || '').trim().toLowerCase();
+    const hasScheduledTime = Boolean(normalizedTime && normalizedTime !== 'asap');
+    if (hasScheduledTime || deliveryDate) return 'Ко времени';
+    return 'Как можно быстрее';
+  };
+
   function parseOrderTimestampMs(value) {
     if (!value) return null;
     const parsed = new Date(value).getTime();
@@ -3988,17 +4023,30 @@ function AdminDashboard() {
     return true;
   }
 
-  function formatElapsedMinutes(minutes) {
-    const safeMinutes = Number(minutes);
-    if (!Number.isFinite(safeMinutes) || safeMinutes < 0) return '—';
-    if (safeMinutes < 60) return `${safeMinutes} мин`;
-    const hours = Math.floor(safeMinutes / 60);
-    const restMinutes = safeMinutes % 60;
-    if (hours < 24) return restMinutes > 0 ? `${hours} ч ${restMinutes} мин` : `${hours} ч`;
+  function formatElapsedDuration(seconds) {
+    const safeSeconds = Math.floor(Number(seconds));
+    if (!Number.isFinite(safeSeconds) || safeSeconds < 0) return '—';
+    if (safeSeconds < 60) return `${safeSeconds} сек`;
+
+    const totalMinutes = Math.floor(safeSeconds / 60);
+    const restSeconds = safeSeconds % 60;
+    if (totalMinutes < 60) return `${totalMinutes} мин ${restSeconds} сек`;
+
+    const hours = Math.floor(totalMinutes / 60);
+    const restMinutes = totalMinutes % 60;
+    if (hours < 24) return `${hours} ч ${restMinutes} мин ${restSeconds} сек`;
+
     const days = Math.floor(hours / 24);
     const restHours = hours % 24;
-    if (restHours > 0) return `${days} д ${restHours} ч`;
-    return `${days} д`;
+    return `${days} д ${restHours} ч ${restMinutes} мин`;
+  }
+
+  function getElapsedSeverityClass(seconds) {
+    const safeSeconds = Number(seconds);
+    if (!Number.isFinite(safeSeconds) || safeSeconds < 0) return '';
+    if (safeSeconds >= 15 * 60) return 'is-danger';
+    if (safeSeconds >= 10 * 60) return 'is-warning';
+    return '';
   }
 
   function getOrderItemsCount(order) {
@@ -4035,22 +4083,22 @@ function AdminDashboard() {
   function getOrderWorkflowTiming(order, workflowStatus) {
     const createdAtMs = parseOrderTimestampMs(order?.created_at);
     if (!createdAtMs) {
-      return { totalMinutes: null, statusMinutes: null, isFinal: false };
+      return { totalSeconds: null, statusSeconds: null, isFinal: false };
     }
 
     const rawStatusStartedAtMs = getOrderStatusStartedAtMs(order, workflowStatus);
     const statusStartedAtMs = Math.max(createdAtMs, rawStatusStartedAtMs || createdAtMs);
     const isFinalStatus = workflowStatus === 'delivered' || workflowStatus === 'cancelled';
     const fallbackFinishedAtMs = parseOrderTimestampMs(order?.updated_at) || parseOrderTimestampMs(order?.processed_at);
-    const nowMs = Date.now();
+    const nowMs = kanbanTimingNowMs;
     const rawFinishedAtMs = isFinalStatus ? (fallbackFinishedAtMs || rawStatusStartedAtMs || nowMs) : nowMs;
     const finishedAtMs = Math.max(rawFinishedAtMs, statusStartedAtMs, createdAtMs);
-    const totalMinutes = Math.max(0, Math.floor((finishedAtMs - createdAtMs) / 60000));
-    const statusMinutes = Math.max(0, Math.floor((finishedAtMs - statusStartedAtMs) / 60000));
+    const totalSeconds = Math.max(0, Math.floor((finishedAtMs - createdAtMs) / 1000));
+    const statusSeconds = Math.max(0, Math.floor((finishedAtMs - statusStartedAtMs) / 1000));
 
     return {
-      totalMinutes,
-      statusMinutes,
+      totalSeconds,
+      statusSeconds,
       isFinal: isFinalStatus
     };
   }
@@ -6677,6 +6725,9 @@ function AdminDashboard() {
                               const canCancelCurrentOrder = canCancelOrder(order);
                               const workflowTiming = getOrderWorkflowTiming(order, orderStatus);
                               const deliveryDeadline = formatDeliveryDateTime(order.delivery_date, order.delivery_time);
+                              const deliveryTimingLabel = getDeliveryTimingLabel(order.delivery_date, order.delivery_time);
+                              const isPickup = isPickupOrderForAnalytics(order);
+                              const fulfillmentTypeLabel = isPickup ? '🚶‍♂️ Самовывоз' : '🚕 Доставка';
                               const paymentMethodLabel = getPaymentMethodLabel(order.payment_method);
                               const itemsCount = getOrderItemsCount(order);
 
@@ -6693,19 +6744,20 @@ function AdminDashboard() {
                                     {getStatusBadge(orderStatus)}
                                   </div>
 
-                                  <div className="admin-order-kanban-card-customer">
-                                    <div className="fw-semibold">{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</div>
-                                    <small className={needsBillingPayment ? "text-muted opacity-50" : "text-muted"}>
-                                      {hideSensitive ? 'Нажмите «Принять»' : order.customer_phone}
-                                      {needsBillingPayment && (
-                                        <span className="ms-1" title="Требуется оплата">🔒</span>
-                                      )}
-                                    </small>
-                                  </div>
-
-                                  <div className="admin-order-kanban-card-meta">
-                                    <span className="admin-order-kanban-amount">{formatPrice(order.total_amount)} {t('sum')}</span>
-                                    <small className="text-muted">{new Date(order.created_at).toLocaleString('ru-RU')}</small>
+                                  <div className="admin-order-kanban-card-overview">
+                                    <div className="admin-order-kanban-card-overview-main">
+                                      <div className="fw-semibold">{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</div>
+                                      <small className={needsBillingPayment ? "text-muted opacity-50" : "text-muted"}>
+                                        {hideSensitive ? 'Нажмите «Принять»' : formatCustomerPhone(order.customer_phone)}
+                                        {needsBillingPayment && (
+                                          <span className="ms-1" title="Требуется оплата">🔒</span>
+                                        )}
+                                      </small>
+                                    </div>
+                                    <div className="admin-order-kanban-card-overview-meta">
+                                      <span className="admin-order-kanban-amount">{formatPrice(order.total_amount)} {t('sum')}</span>
+                                      <small className="text-muted">{new Date(order.created_at).toLocaleString('ru-RU')}</small>
+                                    </div>
                                   </div>
 
                                   <div className="admin-order-kanban-card-info-list">
@@ -6716,24 +6768,31 @@ function AdminDashboard() {
                                           : 'С момента заказа:'}
                                       </span>
                                       <strong className="admin-order-kanban-card-info-value">
-                                        {formatElapsedMinutes(workflowTiming.totalMinutes)}
+                                        {formatElapsedDuration(workflowTiming.totalSeconds)}
                                       </strong>
                                     </div>
                                     <div className="admin-order-kanban-card-info-item">
                                       <span className="admin-order-kanban-card-info-label">
                                         {workflowTiming.isFinal ? 'На финальном статусе:' : 'В текущем статусе:'}
                                       </span>
-                                      <strong className="admin-order-kanban-card-info-value">
-                                        {formatElapsedMinutes(workflowTiming.statusMinutes)}
+                                      <strong className={`admin-order-kanban-card-info-value ${getElapsedSeverityClass(workflowTiming.statusSeconds)}`}>
+                                        {formatElapsedDuration(workflowTiming.statusSeconds)}
                                       </strong>
                                     </div>
                                     <div className="admin-order-kanban-card-info-item">
-                                      <span className="admin-order-kanban-card-info-label">Доставка:</span>
+                                      <span className="admin-order-kanban-card-info-label">{deliveryTimingLabel}:</span>
                                       <span className="admin-order-kanban-card-info-value text-end">{deliveryDeadline}</span>
                                     </div>
                                     <div className="admin-order-kanban-card-info-item">
                                       <span className="admin-order-kanban-card-info-label">Оплата:</span>
-                                      <span className="admin-order-kanban-card-info-value">{paymentMethodLabel}</span>
+                                      <span className="admin-order-kanban-card-info-value d-inline-flex align-items-center gap-1">
+                                        {renderAnalyticsPaymentMethodIcon(paymentMethodKey, paymentMethodLabel)}
+                                        {shouldRenderAnalyticsPaymentMethodText(paymentMethodKey) && <span>{paymentMethodLabel}</span>}
+                                      </span>
+                                    </div>
+                                    <div className="admin-order-kanban-card-info-item">
+                                      <span className="admin-order-kanban-card-info-label">Подача:</span>
+                                      <span className="admin-order-kanban-card-info-value">{fulfillmentTypeLabel}</span>
                                     </div>
                                     <div className="admin-order-kanban-card-info-item">
                                       <span className="admin-order-kanban-card-info-label">Товаров:</span>

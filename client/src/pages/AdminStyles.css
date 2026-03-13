@@ -3108,15 +3108,74 @@ body::-webkit-scrollbar,
     gap: 8px;
 }
 
-.admin-order-kanban-card-customer {
-    line-height: 1.25;
+.admin-order-status-badge {
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.01em;
+    border: 1px solid transparent;
 }
 
-.admin-order-kanban-card-meta {
+.admin-order-status-badge.is-new {
+    background: #dbeafe !important;
+    border-color: #93c5fd !important;
+    color: #1d4ed8 !important;
+}
+
+.admin-order-status-badge.is-accepted {
+    background: #d1fae5 !important;
+    border-color: #6ee7b7 !important;
+    color: #047857 !important;
+}
+
+.admin-order-status-badge.is-preparing {
+    background: #fef3c7 !important;
+    border-color: #fcd34d !important;
+    color: #b45309 !important;
+}
+
+.admin-order-status-badge.is-delivering {
+    background: #cffafe !important;
+    border-color: #67e8f9 !important;
+    color: #0e7490 !important;
+}
+
+.admin-order-status-badge.is-delivered {
+    background: #dcfce7 !important;
+    border-color: #86efac !important;
+    color: #15803d !important;
+}
+
+.admin-order-status-badge.is-cancelled {
+    background: #fee2e2 !important;
+    border-color: #fca5a5 !important;
+    color: #b91c1c !important;
+}
+
+.admin-order-status-badge.is-unknown {
+    background: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+}
+
+.admin-order-kanban-card-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px 10px;
+}
+
+.admin-order-kanban-card-overview-main {
+    line-height: 1.25;
+    min-width: 0;
+}
+
+.admin-order-kanban-card-overview-meta {
     display: flex;
     flex-direction: column;
     gap: 2px;
     font-size: 0.8rem;
+    text-align: right;
+    align-items: flex-end;
 }
 
 .admin-order-kanban-amount {
@@ -3153,6 +3212,14 @@ body::-webkit-scrollbar,
     font-weight: 600;
     text-align: right;
     word-break: break-word;
+}
+
+.admin-order-kanban-card-info-value.is-warning {
+    color: #d97706;
+}
+
+.admin-order-kanban-card-info-value.is-danger {
+    color: #dc2626;
 }
 
 .admin-order-kanban-card-badges {
