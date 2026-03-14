@@ -38,6 +38,22 @@ const createEmptyHelpInstructionForm = () => ({
   youtube_url: '',
   sort_order: ''
 });
+const RESERVATION_TEMPLATE_SHAPE_OPTIONS = [
+  { value: 'round', ru: 'Круглый', uz: 'Dumaloq' },
+  { value: 'square', ru: 'Квадратный', uz: 'Kvadrat' },
+  { value: 'rect', ru: 'Прямоугольный', uz: "To'g'ri to'rtburchak" },
+  { value: 'sofa', ru: 'Диванный', uz: 'Divanli' },
+  { value: 'custom', ru: 'Произвольный', uz: 'Maxsus' }
+];
+const createEmptyReservationTemplateForm = () => ({
+  id: null,
+  name: '',
+  shape: 'custom',
+  seats_count: 2,
+  width: 1,
+  height: 1,
+  image_url: ''
+});
 const getNextFreeSortOrderClient = (items = [], excludeId = null) => {
   const taken = new Set(
     (Array.isArray(items) ? items : [])
@@ -402,6 +418,12 @@ function SuperAdminDashboard() {
   const [showHelpInstructionModal, setShowHelpInstructionModal] = useState(false);
   const [savingHelpInstruction, setSavingHelpInstruction] = useState(false);
   const [deletingHelpInstructionId, setDeletingHelpInstructionId] = useState(null);
+  const [reservationTemplates, setReservationTemplates] = useState([]);
+  const [reservationTemplatesLoading, setReservationTemplatesLoading] = useState(false);
+  const [showReservationTemplateModal, setShowReservationTemplateModal] = useState(false);
+  const [reservationTemplateForm, setReservationTemplateForm] = useState(createEmptyReservationTemplateForm);
+  const [savingReservationTemplate, setSavingReservationTemplate] = useState(false);
+  const [deletingReservationTemplateId, setDeletingReservationTemplateId] = useState(null);
 
   // Categories
   const [categories, setCategories] = useState([]);
@@ -611,6 +633,7 @@ function SuperAdminDashboard() {
     if (activeTab === 'logs') loadLogs();
     if (activeTab === 'categories') loadCategories();
     if (activeTab === 'activity_types') loadActivityTypes();
+    if (activeTab === 'reservation_templates') loadReservationTemplates();
     if (activeTab === 'help_instructions') loadHelpInstructions();
     if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') loadBillingSettings();
@@ -952,6 +975,111 @@ function SuperAdminDashboard() {
       }
     } finally {
       setActivityTypesLoading(false);
+    }
+  };
+
+  const loadReservationTemplates = async () => {
+    setReservationTemplatesLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/reservation-table-templates`);
+      setReservationTemplates(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Load reservation templates error:', err);
+      if (activeTab === 'reservation_templates') {
+        setError(language === 'uz' ? "Mebel shablonlarini yuklab bo'lmadi" : 'Ошибка загрузки шаблонов мебели');
+      }
+    } finally {
+      setReservationTemplatesLoading(false);
+    }
+  };
+
+  const openReservationTemplateModal = (template = null) => {
+    if (!template) {
+      setReservationTemplateForm(createEmptyReservationTemplateForm());
+      setShowReservationTemplateModal(true);
+      return;
+    }
+    setReservationTemplateForm({
+      id: template.id,
+      name: String(template.name || '').trim(),
+      shape: String(template.shape || 'custom').trim().toLowerCase() || 'custom',
+      seats_count: Number.parseInt(template.seats_count, 10) || 2,
+      width: Number.parseFloat(template.width) || 1,
+      height: Number.parseFloat(template.height) || 1,
+      image_url: String(template.image_url || '').trim()
+    });
+    setShowReservationTemplateModal(true);
+  };
+
+  const closeReservationTemplateModal = () => {
+    setShowReservationTemplateModal(false);
+    setReservationTemplateForm(createEmptyReservationTemplateForm());
+  };
+
+  const handleReservationTemplateImageSelect = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const isPng = String(file.type || '').toLowerCase().includes('png') || String(file.name || '').toLowerCase().endsWith('.png');
+    if (!isPng) {
+      setError(language === 'uz' ? 'Faqat PNG fayl yuklang' : 'Загрузите PNG-файл');
+      return;
+    }
+    setError('');
+    await handleImageUpload(file, (url) => setReservationTemplateForm((prev) => ({ ...prev, image_url: url })));
+  };
+
+  const saveReservationTemplate = async () => {
+    const payload = {
+      name: String(reservationTemplateForm.name || '').trim(),
+      shape: String(reservationTemplateForm.shape || 'custom').trim().toLowerCase(),
+      seats_count: Math.max(1, Number.parseInt(reservationTemplateForm.seats_count, 10) || 1),
+      width: Math.max(0.2, Number.parseFloat(String(reservationTemplateForm.width).replace(',', '.')) || 1),
+      height: Math.max(0.2, Number.parseFloat(String(reservationTemplateForm.height).replace(',', '.')) || 1),
+      image_url: String(reservationTemplateForm.image_url || '').trim()
+    };
+    if (!payload.name) {
+      setError(language === 'uz' ? 'Mebel nomini kiriting' : 'Введите название мебели');
+      return;
+    }
+    if (!payload.image_url) {
+      setError(language === 'uz' ? 'PNG rasmni fayldan yuklang' : 'Загрузите PNG-изображение из файла');
+      return;
+    }
+
+    setSavingReservationTemplate(true);
+    try {
+      if (reservationTemplateForm.id) {
+        await axios.put(`${API_URL}/superadmin/reservation-table-templates/${reservationTemplateForm.id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/superadmin/reservation-table-templates`, payload);
+      }
+      setSuccess(language === 'uz' ? "Mebel shabloni saqlandi" : 'Шаблон мебели сохранен');
+      closeReservationTemplateModal();
+      await loadReservationTemplates();
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz' ? "Shablonni saqlab bo'lmadi" : 'Ошибка сохранения шаблона'));
+    } finally {
+      setSavingReservationTemplate(false);
+    }
+  };
+
+  const deleteReservationTemplate = async (template) => {
+    if (!template || !template.id) return;
+    const confirmText = language === 'uz'
+      ? `"${template.name}" shablonini o'chirasizmi?`
+      : `Удалить шаблон "${template.name}"?`;
+    if (!window.confirm(confirmText)) return;
+
+    setDeletingReservationTemplateId(template.id);
+    try {
+      await axios.delete(`${API_URL}/superadmin/reservation-table-templates/${template.id}`);
+      setSuccess(language === 'uz' ? "Shablon o'chirildi" : 'Шаблон удален');
+      await loadReservationTemplates();
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz' ? "Shablonni o'chirib bo'lmadi" : 'Ошибка удаления шаблона'));
+    } finally {
+      setDeletingReservationTemplateId(null);
     }
   };
 
@@ -5090,6 +5218,110 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
+              <Tab eventKey="reservation_templates" title={`🪑 ${language === 'uz' ? 'Bron mebellari' : 'Мебель брони'}`}>
+                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                  <div>
+                    <h5 className="fw-bold mb-0">{language === 'uz' ? "Bron uchun mebel shablonlari" : 'Шаблоны мебели для бронирования'}</h5>
+                    <small className="text-muted">
+                      {language === 'uz'
+                        ? "Mebel rasmini faqat PNG fayl orqali yuklang. URL kiritish talab qilinmaydi."
+                        : 'Загрузка только PNG-файлом. Вставка URL не требуется.'}
+                    </small>
+                  </div>
+                  <Button className="btn-primary-custom" onClick={() => openReservationTemplateModal()}>
+                    + {language === 'uz' ? "Mebel qo'shish" : 'Добавить мебель'}
+                  </Button>
+                </div>
+
+                {reservationTemplatesLoading ? (
+                  <TableSkeleton rows={6} columns={8} label={language === 'uz' ? "Mebel shablonlari yuklanmoqda" : 'Загрузка шаблонов мебели'} />
+                ) : (
+                  <div className="admin-table-container">
+                    <Table responsive hover className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>{language === 'uz' ? 'Rasm' : 'Фото'}</th>
+                          <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
+                          <th>{language === 'uz' ? "Sig'im" : 'Вместимость'}</th>
+                          <th>{language === 'uz' ? 'Shakl' : 'Форма'}</th>
+                          <th>{language === 'uz' ? "O'lcham" : 'Размер'}</th>
+                          <th>{language === 'uz' ? 'Turi' : 'Тип'}</th>
+                          <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reservationTemplates.map((template) => {
+                          const shapeLabel = RESERVATION_TEMPLATE_SHAPE_OPTIONS.find((item) => item.value === template.shape);
+                          const imageSrc = String(template.image_url || '').trim();
+                          const isSystem = template.is_system === true || template.is_system === 'true';
+                          return (
+                            <tr key={template.id}>
+                              <td><span className="text-muted small">#{template.id}</span></td>
+                              <td>
+                                {imageSrc ? (
+                                  <img
+                                    src={imageSrc.startsWith('http') ? imageSrc : `${API_URL.replace('/api', '')}${imageSrc}`}
+                                    alt={template.name}
+                                    style={{ width: 44, height: 34, objectFit: 'contain', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff' }}
+                                  />
+                                ) : '—'}
+                              </td>
+                              <td className="fw-semibold">{template.name}</td>
+                              <td>{template.seats_count || 0}</td>
+                              <td>{shapeLabel ? (language === 'uz' ? shapeLabel.uz : shapeLabel.ru) : (template.shape || '—')}</td>
+                              <td>{Number.parseFloat(template.width || 0).toFixed(1)} × {Number.parseFloat(template.height || 0).toFixed(1)}</td>
+                              <td>
+                                <Badge className={`badge-custom ${isSystem ? 'bg-secondary bg-opacity-10 text-muted' : 'bg-success bg-opacity-10 text-success'}`}>
+                                  {isSystem
+                                    ? (language === 'uz' ? 'Tizim' : 'Системный')
+                                    : (language === 'uz' ? 'Maxsus' : 'Пользовательский')}
+                                </Badge>
+                                {Number(template.tables_count || 0) > 0 && (
+                                  <div className="small text-muted mt-1">
+                                    {language === 'uz'
+                                      ? `Stollarda: ${template.tables_count}`
+                                      : `Используется в столах: ${template.tables_count}`}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="text-end">
+                                <div className="d-inline-flex gap-2">
+                                  {!isSystem && (
+                                    <>
+                                      <Button
+                                        variant="light"
+                                        className="action-btn text-primary"
+                                        onClick={() => openReservationTemplateModal(template)}
+                                        title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                      >
+                                        ✏️
+                                      </Button>
+                                      <Button
+                                        variant="light"
+                                        className="action-btn text-danger"
+                                        disabled={deletingReservationTemplateId === template.id}
+                                        onClick={() => deleteReservationTemplate(template)}
+                                        title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                      >
+                                        🗑️
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!reservationTemplates.length && (
+                          <tr><td colSpan="8" className="text-center py-5 text-muted">{language === 'uz' ? "Mebel shablonlari yo'q" : 'Шаблоны мебели пока не добавлены'}</td></tr>
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
+                )}
+              </Tab>
+
               <Tab eventKey="help_instructions" title={`🎬 ${language === 'uz' ? "Yo'riqnomalar" : 'Инструкции'}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="fw-bold mb-0">
@@ -8221,6 +8453,126 @@ function SuperAdminDashboard() {
           <Button variant="secondary" onClick={() => setShowMessagesModal(false)}>{t('saCancel')}</Button>
           <Button variant="primary" onClick={handleSaveMessages} disabled={savingMessages}>
             {savingMessages ? 'Сохранение...' : 'Сохранить'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Reservation Furniture Modal */}
+      <Modal show={showReservationTemplateModal} onHide={closeReservationTemplateModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {reservationTemplateForm.id
+              ? (language === 'uz' ? 'Mebelni tahrirlash' : 'Редактировать мебель')
+              : (language === 'uz' ? "Mebel qo'shish" : 'Добавить мебель')}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-3">
+            <Form.Label>{language === 'uz' ? 'Nomi' : 'Название'} *</Form.Label>
+            <Form.Control
+              type="text"
+              value={reservationTemplateForm.name}
+              onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder={language === 'uz' ? "Masalan: VIP stol 8 o'rin" : 'Например: VIP стол на 8 мест'}
+            />
+          </Form.Group>
+
+          <Row className="g-3 mb-3">
+            <Col md={4}>
+              <Form.Label>{language === 'uz' ? "Sig'im" : 'Вместимость'} *</Form.Label>
+              <Form.Control
+                type="number"
+                min={1}
+                value={reservationTemplateForm.seats_count}
+                onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, seats_count: e.target.value }))}
+              />
+            </Col>
+            <Col md={4}>
+              <Form.Label>{language === 'uz' ? 'Kenglik' : 'Ширина'} *</Form.Label>
+              <Form.Control
+                type="number"
+                min={0.2}
+                step={0.1}
+                value={reservationTemplateForm.width}
+                onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, width: e.target.value }))}
+              />
+            </Col>
+            <Col md={4}>
+              <Form.Label>{language === 'uz' ? 'Balandlik' : 'Высота'} *</Form.Label>
+              <Form.Control
+                type="number"
+                min={0.2}
+                step={0.1}
+                value={reservationTemplateForm.height}
+                onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, height: e.target.value }))}
+              />
+            </Col>
+          </Row>
+
+          <Form.Group className="mb-3">
+            <Form.Label>{language === 'uz' ? 'Shakl' : 'Форма'} *</Form.Label>
+            <Form.Select
+              value={reservationTemplateForm.shape}
+              onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, shape: e.target.value }))}
+            >
+              {RESERVATION_TEMPLATE_SHAPE_OPTIONS.map((shapeOption) => (
+                <option key={shapeOption.value} value={shapeOption.value}>
+                  {language === 'uz' ? shapeOption.uz : shapeOption.ru}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
+
+          <Form.Group className="mb-2">
+            <Form.Label>PNG *</Form.Label>
+            <Form.Control
+              type="file"
+              accept="image/png"
+              onChange={handleReservationTemplateImageSelect}
+              disabled={uploadingImage}
+            />
+            <Form.Text className="text-muted">
+              {language === 'uz'
+                ? 'Fayl tanlash orqali yuklanadi. URL qo‘lda kiritilmaydi.'
+                : 'Загружается только через выбор файла. Ручной ввод URL не используется.'}
+            </Form.Text>
+          </Form.Group>
+
+          {reservationTemplateForm.image_url && (
+            <div className="mt-3 text-center border rounded p-3 bg-light">
+              <img
+                src={reservationTemplateForm.image_url.startsWith('http')
+                  ? reservationTemplateForm.image_url
+                  : `${API_URL.replace('/api', '')}${reservationTemplateForm.image_url.startsWith('/') ? '' : '/'}${reservationTemplateForm.image_url}`}
+                alt={reservationTemplateForm.name || 'template'}
+                style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain' }}
+              />
+              <div className="mt-2">
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="text-danger text-decoration-none"
+                  onClick={() => setReservationTemplateForm((prev) => ({ ...prev, image_url: '' }))}
+                >
+                  {language === 'uz' ? "Rasmni o'chirish" : 'Удалить изображение'}
+                </Button>
+              </div>
+            </div>
+          )}
+          {uploadingImage && (
+            <div className="text-muted mt-2">
+              <small>{language === 'uz' ? 'Rasm yuklanmoqda...' : 'Загрузка изображения...'}</small>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeReservationTemplateModal}>
+            {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+          <Button variant="primary" onClick={saveReservationTemplate} disabled={savingReservationTemplate}>
+            {savingReservationTemplate
+              ? '...'
+              : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
           </Button>
         </Modal.Footer>
       </Modal>

@@ -513,6 +513,41 @@ const OPERATOR_PAYMENT_LABELS = {
   xazna: 'Xazna',
   uzum: 'Uzum'
 };
+const RESERVATION_TEMPLATE_SHAPES = new Set(['round', 'square', 'rect', 'sofa', 'custom']);
+const normalizeReservationTemplateShape = (value, fallback = 'custom') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return RESERVATION_TEMPLATE_SHAPES.has(normalized) ? normalized : fallback;
+};
+const normalizeReservationTemplateCode = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 72)
+);
+const generateReservationTemplateCode = (name) => {
+  const base = normalizeReservationTemplateCode(name) || 'template';
+  const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 36 * 36).toString(36).padStart(2, '0')}`;
+  return `${base}_${suffix}`.slice(0, 80);
+};
+const normalizeReservationTemplateImageUrl = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+  if (normalized.startsWith('/uploads/') || normalized.startsWith('/reservation-furniture/')) return normalized;
+  return '';
+};
+const parseReservationTemplateInt = (value, fallback = 0) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return parsed;
+};
+const parseReservationTemplateFloat = (value, fallback = 0) => {
+  const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
+  if (!Number.isFinite(parsed)) return fallback;
+  return parsed;
+};
 const ensureRestaurantCurrencySchema = async () => {
   if (restaurantCurrencySchemaReady) return;
   if (restaurantCurrencySchemaPromise) {
@@ -1080,6 +1115,192 @@ router.patch('/activity-types/:id/visibility', async (req, res) => {
 // =====================================================
 // БИЛЛИНГ И БАЛАНС (СУПЕРАДМИН)
 // =====================================================
+
+// =====================================================
+// ШАБЛОНЫ МЕБЕЛИ БРОНИРОВАНИЯ (СУПЕРАДМИН)
+// =====================================================
+
+router.get('/reservation-table-templates', async (req, res) => {
+  try {
+    await ensureReservationSchema();
+    const result = await pool.query(`
+      SELECT
+        tpl.*,
+        (
+          SELECT COUNT(*)
+          FROM reservation_tables t
+          WHERE t.template_id = tpl.id
+        ) AS tables_count
+      FROM reservation_table_templates tpl
+      ORDER BY tpl.is_system DESC, tpl.name ASC, tpl.id ASC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get reservation templates (superadmin) error:', error);
+    res.status(500).json({ error: 'Ошибка получения шаблонов мебели' });
+  }
+});
+
+router.post('/reservation-table-templates', async (req, res) => {
+  try {
+    await ensureReservationSchema();
+    const name = String(req.body?.name || '').trim();
+    const imageUrl = normalizeReservationTemplateImageUrl(req.body?.image_url);
+    const shape = normalizeReservationTemplateShape(req.body?.shape, 'custom');
+    const seatsCount = Math.max(1, parseReservationTemplateInt(req.body?.seats_count, 2));
+    const width = Math.max(0.2, parseReservationTemplateFloat(req.body?.width, 1));
+    const height = Math.max(0.2, parseReservationTemplateFloat(req.body?.height, 1));
+
+    if (!name) {
+      return res.status(400).json({ error: 'Название мебели обязательно' });
+    }
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'Изображение мебели обязательно' });
+    }
+
+    let code = normalizeReservationTemplateCode(req.body?.code || name);
+    if (!code) {
+      code = generateReservationTemplateCode(name);
+    }
+
+    const tryInsert = async (codeValue) => pool.query(
+      `INSERT INTO reservation_table_templates (
+         code, name, shape, image_url, seats_count, width, height, is_system
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
+       RETURNING *`,
+      [codeValue, name, shape, imageUrl, seatsCount, width, height]
+    );
+
+    try {
+      const result = await tryInsert(code);
+      return res.status(201).json(result.rows[0]);
+    } catch (error) {
+      if (error?.code !== '23505') throw error;
+      const result = await tryInsert(generateReservationTemplateCode(name));
+      return res.status(201).json(result.rows[0]);
+    }
+  } catch (error) {
+    console.error('Create reservation template (superadmin) error:', error);
+    res.status(500).json({ error: 'Ошибка создания шаблона мебели' });
+  }
+});
+
+router.put('/reservation-table-templates/:id', async (req, res) => {
+  try {
+    await ensureReservationSchema();
+    const templateId = parseReservationTemplateInt(req.params.id, 0);
+    if (!templateId) {
+      return res.status(400).json({ error: 'Некорректный ID шаблона' });
+    }
+
+    const existingResult = await pool.query(
+      'SELECT id, is_system FROM reservation_table_templates WHERE id = $1 LIMIT 1',
+      [templateId]
+    );
+    if (!existingResult.rows.length) {
+      return res.status(404).json({ error: 'Шаблон мебели не найден' });
+    }
+    if (existingResult.rows[0].is_system) {
+      return res.status(403).json({ error: 'Системный шаблон редактировать нельзя' });
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'name')) {
+      const name = String(req.body?.name || '').trim();
+      if (!name) {
+        return res.status(400).json({ error: 'Название мебели обязательно' });
+      }
+      params.push(name);
+      updates.push(`name = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'shape')) {
+      params.push(normalizeReservationTemplateShape(req.body?.shape, 'custom'));
+      updates.push(`shape = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'seats_count')) {
+      params.push(Math.max(1, parseReservationTemplateInt(req.body?.seats_count, 2)));
+      updates.push(`seats_count = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'width')) {
+      params.push(Math.max(0.2, parseReservationTemplateFloat(req.body?.width, 1)));
+      updates.push(`width = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'height')) {
+      params.push(Math.max(0.2, parseReservationTemplateFloat(req.body?.height, 1)));
+      updates.push(`height = $${params.length}`);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'image_url')) {
+      const imageUrl = normalizeReservationTemplateImageUrl(req.body?.image_url);
+      if (!imageUrl) {
+        return res.status(400).json({ error: 'Изображение мебели обязательно' });
+      }
+      params.push(imageUrl);
+      updates.push(`image_url = $${params.length}`);
+    }
+
+    if (!updates.length) {
+      return res.status(400).json({ error: 'Нет данных для обновления' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(templateId);
+    const result = await pool.query(
+      `UPDATE reservation_table_templates
+       SET ${updates.join(', ')}
+       WHERE id = $${params.length}
+       RETURNING *`,
+      params
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update reservation template (superadmin) error:', error);
+    res.status(500).json({ error: 'Ошибка обновления шаблона мебели' });
+  }
+});
+
+router.delete('/reservation-table-templates/:id', async (req, res) => {
+  try {
+    await ensureReservationSchema();
+    const templateId = parseReservationTemplateInt(req.params.id, 0);
+    if (!templateId) {
+      return res.status(400).json({ error: 'Некорректный ID шаблона' });
+    }
+
+    const existingResult = await pool.query(
+      'SELECT id, is_system, name FROM reservation_table_templates WHERE id = $1 LIMIT 1',
+      [templateId]
+    );
+    if (!existingResult.rows.length) {
+      return res.status(404).json({ error: 'Шаблон мебели не найден' });
+    }
+    if (existingResult.rows[0].is_system) {
+      return res.status(403).json({ error: 'Системный шаблон удалить нельзя' });
+    }
+
+    const usageResult = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM reservation_tables WHERE template_id = $1',
+      [templateId]
+    );
+    const usageCount = Number(usageResult.rows[0]?.total || 0);
+    if (usageCount > 0) {
+      return res.status(409).json({ error: 'Шаблон используется в столах. Сначала отвяжите его от столов.' });
+    }
+
+    await pool.query('DELETE FROM reservation_table_templates WHERE id = $1', [templateId]);
+    res.json({ message: 'Шаблон мебели удален' });
+  } catch (error) {
+    console.error('Delete reservation template (superadmin) error:', error);
+    res.status(500).json({ error: 'Ошибка удаления шаблона мебели' });
+  }
+});
 
 // Получить глобальные настройки биллинга (реквизиты)
 router.get('/billing-settings', async (req, res) => {

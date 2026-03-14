@@ -136,6 +136,10 @@ function AdminReservations() {
     () => toAbsoluteMediaUrl(selectedFloor?.image_url),
     [selectedFloor?.image_url]
   );
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => Number(template.id) === Number(tableForm.template_id)) || null,
+    [templates, tableForm.template_id]
+  );
   const pagedTables = useMemo(() => {
     const start = (tablesPage - 1) * tablesPageSize;
     return tables.slice(start, start + tablesPageSize);
@@ -553,6 +557,16 @@ function AdminReservations() {
     if (!dragState || dragState.tableId !== tableId) return;
     setDragState(null);
     loadTables(selectedFloorId);
+  };
+
+  const applyTemplateSelection = (templateId) => {
+    const normalizedId = templateId ? Number(templateId) : null;
+    const template = templates.find((item) => Number(item.id) === normalizedId) || null;
+    setTableForm((prev) => ({
+      ...prev,
+      template_id: normalizedId ? String(normalizedId) : '',
+      capacity: template?.seats_count ? Math.max(1, asInt(template.seats_count, asInt(prev.capacity, 2))) : prev.capacity
+    }));
   };
 
   const handlePlanPointerDown = (event) => {
@@ -1317,7 +1331,7 @@ function AdminReservations() {
               <Col xs={12}>
                 <Form.Select
                   value={tableForm.template_id}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, template_id: event.target.value }))}
+                  onChange={(event) => applyTemplateSelection(event.target.value)}
                 >
                   <option value="">{tx('Шаблон (необязательно)', 'Shablon (ixtiyoriy)')}</option>
                   {templates.map((template) => (
@@ -1326,6 +1340,68 @@ function AdminReservations() {
                     </option>
                   ))}
                 </Form.Select>
+              </Col>
+              <Col xs={12}>
+                <div className="small fw-semibold text-dark mb-2">
+                  {tx('Галерея мебели', 'Mebel galereyasi')}
+                </div>
+                <div className="d-flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={!tableForm.template_id ? 'primary' : 'outline-secondary'}
+                    onClick={() => applyTemplateSelection(null)}
+                  >
+                    {tx('Без шаблона', 'Shablonsiz')}
+                  </Button>
+                  {templates.map((template) => {
+                    const isActive = Number(tableForm.template_id) === Number(template.id);
+                    const imageUrl = toAbsoluteMediaUrl(template.image_url);
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        className={`btn p-2 border ${isActive ? 'border-primary bg-primary-subtle' : 'border-light-subtle bg-white'}`}
+                        onClick={() => applyTemplateSelection(template.id)}
+                        style={{
+                          width: 112,
+                          borderRadius: 10,
+                          boxShadow: isActive ? '0 0 0 1px rgba(59,130,246,0.35)' : 'none'
+                        }}
+                        title={`${template.name} • ${template.seats_count || 0}`}
+                      >
+                        <div className="d-flex flex-column align-items-center gap-1">
+                          <div
+                            style={{
+                              width: '100%',
+                              height: 52,
+                              borderRadius: 8,
+                              border: '1px solid #e5e7eb',
+                              background: '#f8fafc',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={template.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                            ) : (
+                              <span style={{ fontSize: 18 }}>🪑</span>
+                            )}
+                          </div>
+                          <div className="small text-truncate w-100" style={{ maxWidth: 96 }}>{template.name}</div>
+                          <div className="small text-muted">{template.seats_count || 0} {tx('мест', 'o\'rin')}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedTemplate && (
+                  <div className="small text-muted mt-2">
+                    {tx('Выбрано', 'Tanlandi')}: <strong>{selectedTemplate.name}</strong>
+                  </div>
+                )}
               </Col>
               <Col xs={12}>
                 <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
