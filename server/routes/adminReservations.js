@@ -502,7 +502,8 @@ router.get('/tables', async (req, res) => {
          f.name AS floor_name,
          tpl.code AS template_code,
          tpl.name AS template_name,
-         tpl.shape AS template_shape
+         tpl.shape AS template_shape,
+         tpl.image_url AS template_image_url
        FROM reservation_tables t
        INNER JOIN reservation_floors f ON f.id = t.floor_id
        LEFT JOIN reservation_table_templates tpl ON tpl.id = t.template_id

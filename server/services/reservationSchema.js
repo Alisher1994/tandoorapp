@@ -10,7 +10,8 @@ const SYSTEM_TABLE_TEMPLATES = [
     shape: 'round',
     seats_count: 2,
     width: 1.0,
-    height: 1.0
+    height: 1.0,
+    image_url: '/reservation-furniture/table_round_2.png'
   },
   {
     code: 'table_round_4',
@@ -18,7 +19,8 @@ const SYSTEM_TABLE_TEMPLATES = [
     shape: 'round',
     seats_count: 4,
     width: 1.2,
-    height: 1.2
+    height: 1.2,
+    image_url: '/reservation-furniture/table_round_4.png'
   },
   {
     code: 'table_square_4',
@@ -26,7 +28,8 @@ const SYSTEM_TABLE_TEMPLATES = [
     shape: 'square',
     seats_count: 4,
     width: 1.2,
-    height: 1.2
+    height: 1.2,
+    image_url: '/reservation-furniture/table_square_4.png'
   },
   {
     code: 'table_rect_6',
@@ -34,7 +37,8 @@ const SYSTEM_TABLE_TEMPLATES = [
     shape: 'rect',
     seats_count: 6,
     width: 1.8,
-    height: 1.1
+    height: 1.1,
+    image_url: '/reservation-furniture/table_rect_6.png'
   },
   {
     code: 'table_sofa_4',
@@ -42,7 +46,8 @@ const SYSTEM_TABLE_TEMPLATES = [
     shape: 'sofa',
     seats_count: 4,
     width: 2.0,
-    height: 1.1
+    height: 1.1,
+    image_url: '/reservation-furniture/table_sofa_4.png'
   }
 ];
 
@@ -103,6 +108,7 @@ async function createReservationSchema(executor) {
       code VARCHAR(80) NOT NULL,
       name VARCHAR(160) NOT NULL,
       shape VARCHAR(20) DEFAULT 'round',
+      image_url TEXT,
       seats_count INTEGER DEFAULT 2,
       width DECIMAL(8, 2) DEFAULT 1,
       height DECIMAL(8, 2) DEFAULT 1,
@@ -115,6 +121,10 @@ async function createReservationSchema(executor) {
     CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_table_templates_code
     ON reservation_table_templates (LOWER(code))
   `);
+  await run(executor, `
+    ALTER TABLE reservation_table_templates
+    ADD COLUMN IF NOT EXISTS image_url TEXT
+  `).catch(() => {});
   await run(executor, `
     ALTER TABLE reservation_table_templates
     ADD CONSTRAINT IF NOT EXISTS reservation_table_templates_shape_check
@@ -271,13 +281,14 @@ async function createReservationSchema(executor) {
   for (const template of SYSTEM_TABLE_TEMPLATES) {
     await run(executor, `
       INSERT INTO reservation_table_templates (
-        code, name, shape, seats_count, width, height, is_system
+        code, name, shape, image_url, seats_count, width, height, is_system
       )
-      VALUES ($1, $2, $3, $4, $5, $6, true)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, true)
       ON CONFLICT ((LOWER(code)))
       DO UPDATE SET
         name = EXCLUDED.name,
         shape = EXCLUDED.shape,
+        image_url = EXCLUDED.image_url,
         seats_count = EXCLUDED.seats_count,
         width = EXCLUDED.width,
         height = EXCLUDED.height,
@@ -287,6 +298,7 @@ async function createReservationSchema(executor) {
       template.code,
       template.name,
       template.shape,
+      template.image_url || null,
       template.seats_count,
       template.width,
       template.height

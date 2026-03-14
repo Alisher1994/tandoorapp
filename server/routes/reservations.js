@@ -203,6 +203,7 @@ router.get('/availability', async (req, res) => {
          tpl.code AS template_code,
          tpl.name AS template_name,
          tpl.shape AS template_shape,
+         tpl.image_url AS template_image_url,
          tpl.width AS template_width,
          tpl.height AS template_height,
          tpl.seats_count AS template_seats_count

@@ -1043,6 +1043,7 @@ function AdminReservations() {
                   const posX = normalizePlanCoordinate(table.x, 50);
                   const posY = normalizePlanCoordinate(table.y, 50);
                   const isDragging = dragState?.tableId === tableId;
+                  const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
 
                   return (
                     <button
@@ -1066,16 +1067,32 @@ function AdminReservations() {
                         borderRadius: 12,
                         border: `2px solid ${isDragging ? 'var(--primary-color)' : '#94a3b8'}`,
                         background: isDragging
-                          ? 'color-mix(in srgb, var(--primary-color) 14%, #fff)'
-                          : 'rgba(255,255,255,0.92)',
+                          ? 'color-mix(in srgb, var(--primary-color) 10%, #fff)'
+                          : 'rgba(255,255,255,0.76)',
                         boxShadow: '0 6px 16px rgba(15,23,42,0.14)',
-                        padding: '6px 8px',
+                        padding: templateImageUrl ? '2px 4px' : '6px 8px',
                         cursor: isDragging ? 'grabbing' : 'grab',
-                        userSelect: 'none'
+                        userSelect: 'none',
+                        display: 'inline-flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 2
                       }}
                     >
-                      <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
-                      <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
+                      {templateImageUrl ? (
+                        <img
+                          src={templateImageUrl}
+                          alt={table.template_name || table.name}
+                          style={{ width: 88, height: 62, objectFit: 'contain', pointerEvents: 'none' }}
+                        />
+                      ) : (
+                        <>
+                          <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
+                          <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
+                        </>
+                      )}
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', lineHeight: 1 }}>{table.name}</div>
                     </button>
                   );
                 })}

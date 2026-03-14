@@ -236,10 +236,16 @@ function Reservations() {
                 {tables.map((table) => {
                   const selected = selectedTableIds.includes(Number(table.id));
                   const available = Boolean(table.is_available);
+                  const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
                   return (
                     <Col key={table.id} xs={6} md={4} lg={3}>
                       <button type="button" onClick={() => toggleTableSelection(table)} disabled={!available} className="w-100 text-start" style={{ borderRadius: 14, border: `1px solid ${selected ? 'var(--primary-color)' : (available ? '#b9d7a8' : '#d5d5d5')}`, background: selected ? 'color-mix(in srgb, var(--primary-color) 15%, #fff)' : (available ? '#f4f8f1' : '#f1f1f1'), color: available ? '#1f2937' : '#8a8a8a', minHeight: 108, padding: '10px 12px', position: 'relative', cursor: available ? 'pointer' : 'not-allowed' }}>
                         {table.photo_url && <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || 'Стол')); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} style={{ position: 'absolute', top: 8, right: 8, width: 24, height: 24, borderRadius: '50%', border: '1px solid #d1d5db', background: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>📷</span>}
+                        {templateImageUrl && (
+                          <div className="mb-1 d-flex justify-content-center">
+                            <img src={templateImageUrl} alt={table.template_name || table.name} style={{ width: 76, height: 50, objectFit: 'contain', filter: available ? 'none' : 'grayscale(1)', opacity: available ? 1 : 0.8 }} />
+                          </div>
+                        )}
                         <div className="fw-bold">{table.name}</div>
                         <div className="small mt-1">{language === 'uz' ? 'Sig‘im' : 'Вместимость'}: {table.capacity || 0}</div>
                       </button>
@@ -257,8 +263,9 @@ function Reservations() {
                       const available = Boolean(table.is_available);
                       const x = normalizePlanCoordinate(table.x, 50);
                       const y = normalizePlanCoordinate(table.y, 50);
+                      const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
                       return (
-                        <button key={table.id} type="button" data-plan-table="1" onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)', minWidth: 62, minHeight: 46, borderRadius: 12, border: `2px solid ${selected ? 'var(--primary-color)' : (available ? '#22c55e' : '#9ca3af')}`, background: selected ? 'color-mix(in srgb, var(--primary-color) 15%, #fff)' : (available ? 'rgba(236,253,245,0.9)' : 'rgba(243,244,246,0.95)'), boxShadow: '0 6px 16px rgba(15,23,42,0.16)', padding: 6 }}>
+                        <button key={table.id} type="button" data-plan-table="1" onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)', minWidth: 62, minHeight: 46, borderRadius: 12, border: `2px solid ${selected ? 'var(--primary-color)' : (available ? '#22c55e' : '#9ca3af')}`, background: selected ? 'color-mix(in srgb, var(--primary-color) 15%, #fff)' : (available ? 'rgba(236,253,245,0.9)' : 'rgba(243,244,246,0.95)'), boxShadow: '0 6px 16px rgba(15,23,42,0.16)', padding: 6, display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                           {table.photo_url && (
                             <span
                               role="button"
@@ -274,6 +281,9 @@ function Reservations() {
                               📷
                             </span>
                           )}
+                          {templateImageUrl ? (
+                            <img src={templateImageUrl} alt={table.template_name || table.name} style={{ width: 82, height: 54, objectFit: 'contain', filter: available ? 'none' : 'grayscale(1)', opacity: available ? 1 : 0.75, pointerEvents: 'none' }} />
+                          ) : null}
                           <div style={{ fontSize: 11, fontWeight: 700 }}>{table.name}</div>
                           <div style={{ fontSize: 10 }}>{table.capacity || 0}</div>
                         </button>
