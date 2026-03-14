@@ -1421,9 +1421,11 @@ router.post('/restaurants', async (req, res) => {
     const settingsResult = await pool.query('SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1');
     const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
     const parsedServiceFee = parseFlexibleAmount(req.body.service_fee, 0);
+    const parsedReservationCost = parseFlexibleAmount(req.body.reservation_cost, 0);
     const parsedOrderCost = req.body.service_fee !== undefined
       ? parsedServiceFee
       : parseFlexibleAmount(settings.default_order_cost, 1000);
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS reservation_cost DECIMAL(12, 2) DEFAULT 0');
 
     const result = await pool.query(`
       INSERT INTO restaurants (
@@ -1467,7 +1469,15 @@ router.post('/restaurants', async (req, res) => {
     ]);
 
 
-    const restaurant = result.rows[0];
+    await pool.query(
+      'UPDATE restaurants SET reservation_cost = $1 WHERE id = $2',
+      [parsedReservationCost, result.rows[0].id]
+    );
+
+    const restaurant = {
+      ...result.rows[0],
+      reservation_cost: parsedReservationCost
+    };
 
     try {
       await reloadMultiBots();
@@ -1502,7 +1512,7 @@ router.put('/restaurants/:id', async (req, res) => {
     await ensureRestaurantCurrencySchema();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
-      operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee,
+      operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, reservation_cost,
       latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       currency_code
@@ -1551,6 +1561,10 @@ router.put('/restaurants/:id', async (req, res) => {
 
     console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
     const parsedServiceFee = parseFlexibleAmount(service_fee, 0);
+    const parsedReservationCost = parseFlexibleAmount(
+      reservation_cost,
+      oldValues.hasOwnProperty('reservation_cost') ? oldValues.reservation_cost : 0
+    );
 
     // Check if service_fee column exists, if not - create it
     const hasServiceFee = oldValues.hasOwnProperty('service_fee');
@@ -1560,6 +1574,16 @@ router.put('/restaurants/:id', async (req, res) => {
         console.log('✅ Added service_fee column to restaurants');
       } catch (e) {
         console.log('ℹ️ service_fee column:', e.message);
+      }
+    }
+
+    const hasReservationCost = oldValues.hasOwnProperty('reservation_cost');
+    if (!hasReservationCost) {
+      try {
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS reservation_cost DECIMAL(12, 2) DEFAULT 0');
+        console.log('✅ Added reservation_cost column to restaurants');
+      } catch (e) {
+        console.log('ℹ️ reservation_cost column:', e.message);
       }
     }
 
@@ -1685,7 +1709,15 @@ router.put('/restaurants/:id', async (req, res) => {
       req.params.id
     ]);
 
-    const restaurant = result.rows[0];
+    await pool.query(
+      'UPDATE restaurants SET reservation_cost = $1 WHERE id = $2',
+      [parsedReservationCost, req.params.id]
+    );
+
+    const restaurant = {
+      ...result.rows[0],
+      reservation_cost: parsedReservationCost
+    };
 
     try {
       await reloadMultiBots();

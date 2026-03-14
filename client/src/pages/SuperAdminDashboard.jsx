@@ -445,6 +445,7 @@ function SuperAdminDashboard() {
     currency_code: 'uz',
     support_username: '',
     service_fee: 1000,
+    reservation_cost: 0,
     latitude: '',
     longitude: '',
     delivery_base_radius: 3,
@@ -2569,6 +2570,7 @@ function SuperAdminDashboard() {
         currency_code: restaurant.currency_code || 'uz',
         support_username: restaurant.support_username || '',
         service_fee: restaurant.hasOwnProperty('service_fee') ? parseFloat(restaurant.service_fee) : 1000,
+        reservation_cost: restaurant.hasOwnProperty('reservation_cost') ? parseFloat(restaurant.reservation_cost) : 0,
         latitude: restaurant.latitude || '',
         longitude: restaurant.longitude || '',
         delivery_base_radius: restaurant.hasOwnProperty('delivery_base_radius') ? parseFloat(restaurant.delivery_base_radius) : 3,
@@ -2603,6 +2605,7 @@ function SuperAdminDashboard() {
         currency_code: 'uz',
         support_username: '',
         service_fee: 1000,
+        reservation_cost: 0,
         latitude: '',
         longitude: '',
         delivery_base_radius: 3,
@@ -7578,6 +7581,24 @@ function SuperAdminDashboard() {
                       className="mt-3"
                     />
                     <Form.Text className="text-muted mt-2 d-block">Укажите сумму, которая будет списываться с баланса заведения за каждый принятый заказ. Эта же сумма может отображаться клиенту в чеке как сбор за обслуживание.</Form.Text>
+                  </div>
+
+                  <div className="mb-4 bg-light p-3 rounded border border-light">
+                    <Form.Label className="fw-medium text-secondary m-0">
+                      🪑 {language === 'uz' ? 'Bron xizmati narxi' : 'Стоимость сервиса бронирования'} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})
+                    </Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={restaurantForm.reservation_cost}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, reservation_cost: parseDecimalInputOrZero(e.target.value) })}
+                      placeholder="0"
+                      className="mt-3"
+                    />
+                    <Form.Text className="text-muted mt-2 d-block">
+                      Эта сумма списывается с баланса магазина за подтвержденную бронь.
+                    </Form.Text>
                   </div>
                 </div>
               </Tab>

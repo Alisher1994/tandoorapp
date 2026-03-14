@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import './AdminStyles.css';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
@@ -12,7 +13,6 @@ import Badge from 'react-bootstrap/Badge';
 import Table from 'react-bootstrap/Table';
 import Spinner from 'react-bootstrap/Spinner';
 import Modal from 'react-bootstrap/Modal';
-import Nav from 'react-bootstrap/Nav';
 import { formatPrice } from '../context/CartContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -59,11 +59,13 @@ function AdminReservations() {
   const [success, setSuccess] = useState('');
 
   const [settings, setSettings] = useState({
-    enabled: false,
     reservation_fee: 0,
-    reservation_service_cost: 0,
     max_duration_minutes: 180,
     allow_multi_table: true
+  });
+  const [supportContact, setSupportContact] = useState({
+    support_username: '',
+    phone: ''
   });
 
   const [floors, setFloors] = useState([]);
@@ -171,10 +173,11 @@ function AdminReservations() {
     setLoading(true);
     setError('');
     try {
-      const [settingsRes, floorsRes, templatesRes] = await Promise.all([
+      const [settingsRes, floorsRes, templatesRes, billingRes] = await Promise.all([
         axios.get(`${API_URL}/admin/reservations/settings`),
         axios.get(`${API_URL}/admin/reservations/floors`),
-        axios.get(`${API_URL}/admin/reservations/table-templates`)
+        axios.get(`${API_URL}/admin/reservations/table-templates`),
+        axios.get(`${API_URL}/admin/billing/info`)
       ]);
 
       const nextSettings = settingsRes.data || {};
@@ -182,11 +185,13 @@ function AdminReservations() {
       const nextTemplates = Array.isArray(templatesRes.data) ? templatesRes.data : [];
 
       setSettings({
-        enabled: !!nextSettings.enabled,
         reservation_fee: asNumber(nextSettings.reservation_fee, 0),
-        reservation_service_cost: asNumber(nextSettings.reservation_service_cost, 0),
         max_duration_minutes: asInt(nextSettings.max_duration_minutes, 180),
         allow_multi_table: nextSettings.allow_multi_table !== false
+      });
+      setSupportContact({
+        support_username: String(billingRes.data?.requisites?.telegram_username || '').trim(),
+        phone: String(billingRes.data?.requisites?.phone_number || '').trim()
       });
       setFloors(nextFloors);
       setTemplates(nextTemplates);
@@ -224,9 +229,7 @@ function AdminReservations() {
     setSuccess('');
     try {
       const payload = {
-        enabled: !!settings.enabled,
         reservation_fee: Math.max(0, asNumber(settings.reservation_fee, 0)),
-        reservation_service_cost: Math.max(0, asNumber(settings.reservation_service_cost, 0)),
         max_duration_minutes: Math.max(30, asInt(settings.max_duration_minutes, 180)),
         allow_multi_table: !!settings.allow_multi_table
       };
@@ -511,8 +514,16 @@ function AdminReservations() {
         </div>
       </div>
 
-      {error && <Alert variant="danger" className="border-0">{error}</Alert>}
-      {success && <Alert variant="success" className="border-0">{success}</Alert>}
+      {error && (
+        <Alert variant="danger" dismissible onClose={() => setError('')} className="border-0">
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert variant="success" dismissible onClose={() => setSuccess('')} className="border-0">
+          {success}
+        </Alert>
+      )}
 
       <div className="d-flex flex-wrap gap-2 mb-3">
         <Badge bg="secondary">Этажей: {floors.length}</Badge>
@@ -523,13 +534,33 @@ function AdminReservations() {
 
       <Card className="border-0 shadow-sm mb-3">
         <Card.Body className="py-2">
-          <Nav variant="pills" activeKey={activeTab} onSelect={(key) => setActiveTab(key || 'settings')} className="gap-2 flex-wrap">
-            <Nav.Item><Nav.Link eventKey="settings">Настройки</Nav.Link></Nav.Item>
-            <Nav.Item><Nav.Link eventKey="floors">Этажи</Nav.Link></Nav.Item>
-            <Nav.Item><Nav.Link eventKey="tables">Столы</Nav.Link></Nav.Item>
-            <Nav.Item><Nav.Link eventKey="plan">Схема</Nav.Link></Nav.Item>
-            <Nav.Item><Nav.Link eventKey="requests">Заявки</Nav.Link></Nav.Item>
-          </Nav>
+          <div className="admin-order-status-tabs" role="tablist" aria-label="Вкладки бронирования">
+            {[
+              { key: 'settings', label: 'Настройки', emoji: '⚙️', color: '#0ea5e9' },
+              { key: 'floors', label: 'Этажи', emoji: '🏢', color: '#10b981' },
+              { key: 'tables', label: 'Столы', emoji: '🪑', color: '#22c55e' },
+              { key: 'plan', label: 'Схема', emoji: '🗺️', color: '#f59e0b' },
+              { key: 'requests', label: 'Заявки', emoji: '📋', color: '#6366f1' }
+            ].map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`admin-order-status-pill${isActive ? ' is-active' : ''}`}
+                  style={{ '--order-status-color': tab.color }}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <span className="admin-order-status-pill-label">
+                    <span className="admin-order-status-pill-emoji" aria-hidden="true">{tab.emoji}</span>
+                    <span>{tab.label}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </Card.Body>
       </Card>
 
@@ -538,15 +569,7 @@ function AdminReservations() {
         <Card.Header className="bg-white fw-semibold">Настройки сервиса брони</Card.Header>
         <Card.Body>
           <Row className="g-3">
-            <Col md={2}>
-              <Form.Check
-                type="switch"
-                label="Включить бронирование"
-                checked={!!settings.enabled}
-                onChange={(event) => setSettings((prev) => ({ ...prev, enabled: event.target.checked }))}
-              />
-            </Col>
-            <Col md={3}>
+            <Col md={6}>
               <Form.Label>Фиксированная цена брони (для клиента)</Form.Label>
               <Form.Control
                 type="number"
@@ -555,19 +578,22 @@ function AdminReservations() {
                 value={settings.reservation_fee}
                 onChange={(event) => setSettings((prev) => ({ ...prev, reservation_fee: event.target.value }))}
               />
+              <Form.Text className="text-muted">
+                Эта сумма берется с клиента при создании брони.
+              </Form.Text>
             </Col>
-            <Col md={3}>
-              <Form.Label>Списание сервиса с магазина</Form.Label>
-              <Form.Control
-                type="number"
-                min={0}
-                step="100"
-                value={settings.reservation_service_cost}
-                onChange={(event) => setSettings((prev) => ({ ...prev, reservation_service_cost: event.target.value }))}
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Label>Макс. длительность (мин.)</Form.Label>
+            <Col md={6}>
+              <Form.Label className="d-flex align-items-center gap-2">
+                <span>Макс. длительность (мин.)</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  title="Ограничение по длительности одной брони. Например, 180 означает максимум 3 часа."
+                  style={{ fontSize: 14, color: '#64748b', cursor: 'help' }}
+                >
+                  ⓘ
+                </span>
+              </Form.Label>
               <Form.Control
                 type="number"
                 min={30}
@@ -576,14 +602,29 @@ function AdminReservations() {
                 onChange={(event) => setSettings((prev) => ({ ...prev, max_duration_minutes: event.target.value }))}
               />
             </Col>
-            <Col md={2}>
+            <Col md={6} className="d-flex align-items-end">
               <Form.Check
-                className="mt-4"
                 type="switch"
                 label="Разрешить несколько столов"
                 checked={!!settings.allow_multi_table}
                 onChange={(event) => setSettings((prev) => ({ ...prev, allow_multi_table: event.target.checked }))}
               />
+            </Col>
+            <Col md={6}>
+              <Alert variant="light" className="mb-0 border">
+                <div className="small">
+                  Включение/выключение бронирования перенесено в раздел админки «Настройки → Общие/Часы работы».
+                </div>
+                <div className="small mt-2">
+                  Подключение сервиса и стоимость списания для магазина настраиваются супер-админом.
+                  {supportContact.support_username && (
+                    <> Связь: <strong>@{supportContact.support_username.replace(/^@/, '')}</strong>.</>
+                  )}
+                  {!supportContact.support_username && supportContact.phone && (
+                    <> Связь: <strong>{supportContact.phone}</strong>.</>
+                  )}
+                </div>
+              </Alert>
             </Col>
           </Row>
 
