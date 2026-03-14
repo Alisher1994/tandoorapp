@@ -63,11 +63,23 @@ const TrashIcon = () => (
   </svg>
 );
 
+const PLAN_TABLE_DRAFT_MIME = 'application/x-admin-reservation-table-draft';
+const createEmptyTableForm = () => ({
+  name: '',
+  capacity: 2,
+  template_id: '',
+  photo_url: '',
+  x: 50,
+  y: 50
+});
+
 function AdminReservations() {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const floorPlanRef = useRef(null);
   const draggedPositionRef = useRef(null);
+  const planDraggedDraftRef = useRef(null);
+  const planDragDepthRef = useRef(0);
   const isUz = language === 'uz';
   const tx = (ru, uz) => (isUz ? uz : ru);
 
@@ -99,14 +111,7 @@ function AdminReservations() {
 
   const [templates, setTemplates] = useState([]);
   const [tables, setTables] = useState([]);
-  const [tableForm, setTableForm] = useState({
-    name: '',
-    capacity: 2,
-    template_id: '',
-    photo_url: '',
-    x: 50,
-    y: 50
-  });
+  const [tableForm, setTableForm] = useState(createEmptyTableForm);
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [reservations, setReservations] = useState([]);
@@ -122,7 +127,8 @@ function AdminReservations() {
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
   const [planPanStart, setPlanPanStart] = useState(null);
-  const [savingTablePositionId, setSavingTablePositionId] = useState(null);
+  const [isCreatingPlanTable, setIsCreatingPlanTable] = useState(false);
+  const [isPlanDropActive, setIsPlanDropActive] = useState(false);
   const [tablesPage, setTablesPage] = useState(1);
   const [tablesPageSize, setTablesPageSize] = useState(10);
   const [reservationsPage, setReservationsPage] = useState(1);
@@ -150,6 +156,14 @@ function AdminReservations() {
     return reservations.slice(start, start + reservationsPageSize);
   }, [reservations, reservationsPage, reservationsPageSize]);
   const reservationsTotalPages = useMemo(() => Math.max(1, Math.ceil(reservations.length / reservationsPageSize)), [reservations.length, reservationsPageSize]);
+  const suggestedTableName = useMemo(() => {
+    const maxNumber = tables.reduce((max, table) => {
+      const parsed = Number.parseInt(String(table?.name || '').trim(), 10);
+      if (!Number.isInteger(parsed)) return max;
+      return Math.max(max, parsed);
+    }, 0);
+    return String(maxNumber + 1);
+  }, [tables]);
 
   const uploadImageWithCompression = async (file, preset = 'product') => {
     if (!file) {
@@ -283,6 +297,9 @@ function AdminReservations() {
   useEffect(() => {
     setDragState(null);
     draggedPositionRef.current = null;
+    planDragDepthRef.current = 0;
+    setIsPlanDropActive(false);
+    planDraggedDraftRef.current = null;
   }, [selectedFloorId]);
 
   useEffect(() => {
@@ -356,44 +373,59 @@ function AdminReservations() {
     }
   };
 
-  const addTable = async (event) => {
-    event.preventDefault();
-    if (!selectedFloorId) {
+  const createTableByPayload = async (draftPayload, options = {}) => {
+    const { showSuccessMessage = true } = options;
+    const floorId = asInt(draftPayload?.floor_id, selectedFloorId || 0);
+    if (!floorId) {
       setError(tx('Сначала выберите этаж', 'Avval qavatni tanlang'));
-      return;
+      return false;
     }
-    setError('');
-    setSuccess('');
+
+    const payload = {
+      floor_id: floorId,
+      name: String(draftPayload?.name || '').trim(),
+      capacity: Math.max(1, asInt(draftPayload?.capacity, 1)),
+      template_id: draftPayload?.template_id ? asInt(draftPayload.template_id, 0) : null,
+      photo_url: String(draftPayload?.photo_url || '').trim() || null,
+      x: clamp(asNumber(draftPayload?.x, 50), 2, 98),
+      y: clamp(asNumber(draftPayload?.y, 50), 2, 98),
+      is_active: true
+    };
+
+    if (!payload.name) {
+      setError(tx('Введите название стола', 'Stol nomini kiriting'));
+      return false;
+    }
+
     try {
-      const payload = {
-        floor_id: selectedFloorId,
-        name: String(tableForm.name || '').trim(),
-        capacity: Math.max(1, asInt(tableForm.capacity, 1)),
-        template_id: tableForm.template_id ? asInt(tableForm.template_id, 0) : null,
-        photo_url: String(tableForm.photo_url || '').trim() || null,
-        x: asNumber(tableForm.x, 0),
-        y: asNumber(tableForm.y, 0),
-        is_active: true
-      };
-      if (!payload.name) {
-        setError(tx('Введите название стола', 'Stol nomini kiriting'));
-        return;
-      }
       await axios.post(`${API_URL}/admin/reservations/tables`, payload);
-      setTableForm({
-        name: '',
-        capacity: 2,
-        template_id: '',
-        photo_url: '',
-        x: 50,
-        y: 50
-      });
-      setShowTableModal(false);
-      await loadTables(selectedFloorId);
-      setSuccess(tx('Стол добавлен', 'Stol qo\'shildi'));
+      await loadTables(floorId);
+      if (showSuccessMessage) {
+        setSuccess(tx('Стол добавлен', 'Stol qo\'shildi'));
+      }
+      return true;
     } catch (err) {
       setError(err.response?.data?.error || tx('Ошибка добавления стола', 'Stol qo\'shishda xatolik'));
+      return false;
     }
+  };
+
+  const addTable = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    const created = await createTableByPayload({
+      floor_id: selectedFloorId,
+      name: tableForm.name,
+      capacity: tableForm.capacity,
+      template_id: tableForm.template_id,
+      photo_url: tableForm.photo_url,
+      x: tableForm.x,
+      y: tableForm.y
+    });
+    if (!created) return;
+    setTableForm(createEmptyTableForm());
+    setShowTableModal(false);
   };
 
   const deleteTable = async (tableId) => {
@@ -491,7 +523,6 @@ function AdminReservations() {
   };
 
   const saveTablePosition = async (tableId, x, y) => {
-    setSavingTablePositionId(tableId);
     try {
       await axios.put(`${API_URL}/admin/reservations/tables/${tableId}`, {
         x: Number(x.toFixed(2)),
@@ -500,8 +531,6 @@ function AdminReservations() {
     } catch (err) {
       setError(err.response?.data?.error || tx('Ошибка сохранения позиции стола', 'Stol joylashuvini saqlashda xatolik'));
       await loadTables(selectedFloorId);
-    } finally {
-      setSavingTablePositionId(null);
     }
   };
 
@@ -567,6 +596,129 @@ function AdminReservations() {
       template_id: normalizedId ? String(normalizedId) : '',
       capacity: template?.seats_count ? Math.max(1, asInt(template.seats_count, asInt(prev.capacity, 2))) : prev.capacity
     }));
+  };
+
+  const getPlanCoordinatesFromClientPoint = (clientX, clientY) => {
+    const canvas = floorPlanRef.current;
+    if (!canvas) return { x: 50, y: 50 };
+
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    const pointerX = clientX - rect.left;
+    const pointerY = clientY - rect.top;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const scale = Math.max(0.1, asNumber(planScale, 1));
+    const normalizedX = ((pointerX - planOffset.x - centerX) / scale) + centerX;
+    const normalizedY = ((pointerY - planOffset.y - centerY) / scale) + centerY;
+
+    return {
+      x: clamp((normalizedX / width) * 100, 2, 98),
+      y: clamp((normalizedY / height) * 100, 2, 98)
+    };
+  };
+
+  const buildPlanTableDraftPayload = () => {
+    const normalizedName = String(tableForm.name || '').trim() || suggestedTableName;
+    return {
+      floor_id: selectedFloorId,
+      name: normalizedName,
+      capacity: Math.max(1, asInt(tableForm.capacity, selectedTemplate?.seats_count || 2)),
+      template_id: tableForm.template_id ? asInt(tableForm.template_id, 0) : null,
+      photo_url: String(tableForm.photo_url || '').trim() || null
+    };
+  };
+
+  const clearPlanDraftDragState = () => {
+    planDragDepthRef.current = 0;
+    setIsPlanDropActive(false);
+    planDraggedDraftRef.current = null;
+  };
+
+  const hasPlanDraftMimeType = (dataTransfer) => Array.from(dataTransfer?.types || []).includes(PLAN_TABLE_DRAFT_MIME);
+
+  const handlePlanDraftDragStart = (event) => {
+    if (!selectedFloorId) {
+      event.preventDefault();
+      setError(tx('Сначала выберите этаж', 'Avval qavatni tanlang'));
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    const payload = buildPlanTableDraftPayload();
+    planDraggedDraftRef.current = payload;
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData(PLAN_TABLE_DRAFT_MIME, JSON.stringify(payload));
+    event.dataTransfer.setData('text/plain', JSON.stringify(payload));
+  };
+
+  const handlePlanDraftDragEnd = () => {
+    clearPlanDraftDragState();
+  };
+
+  const handlePlanDragEnter = (event) => {
+    if (!hasPlanDraftMimeType(event.dataTransfer)) return;
+    event.preventDefault();
+    planDragDepthRef.current += 1;
+    setIsPlanDropActive(true);
+  };
+
+  const handlePlanDragOver = (event) => {
+    if (!hasPlanDraftMimeType(event.dataTransfer)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (!isPlanDropActive) {
+      setIsPlanDropActive(true);
+    }
+  };
+
+  const handlePlanDragLeave = () => {
+    if (planDragDepthRef.current > 0) {
+      planDragDepthRef.current -= 1;
+    }
+    if (planDragDepthRef.current <= 0) {
+      setIsPlanDropActive(false);
+    }
+  };
+
+  const handlePlanDrop = async (event) => {
+    event.preventDefault();
+    const raw = event.dataTransfer?.getData(PLAN_TABLE_DRAFT_MIME);
+    let payload = null;
+
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch (error) {
+        payload = null;
+      }
+    }
+    if (!payload && planDraggedDraftRef.current) {
+      payload = planDraggedDraftRef.current;
+    }
+
+    clearPlanDraftDragState();
+    if (!payload || !selectedFloorId || isCreatingPlanTable) return;
+
+    const { x, y } = getPlanCoordinatesFromClientPoint(event.clientX, event.clientY);
+    setIsCreatingPlanTable(true);
+    setError('');
+    setSuccess('');
+    const created = await createTableByPayload({
+      ...payload,
+      floor_id: selectedFloorId,
+      x,
+      y
+    });
+    setIsCreatingPlanTable(false);
+    if (created) {
+      setTableForm((prev) => ({
+        ...prev,
+        name: String(asInt(payload.name, asInt(suggestedTableName, 1)) + 1)
+      }));
+    }
   };
 
   const handlePlanPointerDown = (event) => {
@@ -863,14 +1015,7 @@ function AdminReservations() {
                   className="btn-primary-custom admin-reservation-control"
                   disabled={!selectedFloorId}
                   onClick={() => {
-                    setTableForm({
-                      name: '',
-                      capacity: 2,
-                      template_id: '',
-                      photo_url: '',
-                      x: 50,
-                      y: 50
-                    });
+                    setTableForm(createEmptyTableForm());
                     setShowTableModal(true);
                   }}
                 >
@@ -888,7 +1033,7 @@ function AdminReservations() {
               {!!selectedFloorId && (
                 <>
                   <div className="small text-muted mb-3">
-                    {tx('Добавьте стол через кнопку вверху, затем перетащите его на вкладке "Схема".', 'Yuqoridagi tugma orqali stol qo\'shing, keyin uni "Sxema" bo\'limida joylashtiring.')}
+                    {tx('Быстрое добавление и размещение столов теперь доступно на вкладке "Схема" через правую панель.', 'Stollarni tez qo\'shish va joylashtirish endi "Sxema" bo\'limida o\'ng panel orqali bajariladi.')}
                   </div>
 
                   {loadingTables ? (
@@ -996,9 +1141,7 @@ function AdminReservations() {
                   <option key={floor.id} value={floor.id}>{floor.name}</option>
                 ))}
               </Form.Select>
-              {savingTablePositionId && (
-                <span className="small text-muted">{tx('Сохраняем позицию стола...', 'Stol joylashuvi saqlanmoqda...')}</span>
-              )}
+              {isCreatingPlanTable && <span className="small text-muted">{tx('Добавляем стол...', 'Stol qo\'shilmoqda...')}</span>}
             </div>
           </Card.Header>
           <Card.Body>
@@ -1008,118 +1151,206 @@ function AdminReservations() {
               </Alert>
             )}
             {!!selectedFloorId && (
-            <>
-            <div className="small text-muted mb-2">
-              {tx('Схему можно двигать мышью/тачем, колесом менять масштаб. Столы перетаскиваются отдельно и сохраняются автоматически.', 'Sxemani sichqoncha/tach bilan surish mumkin, g\'ildirak bilan kattalashtirish ishlaydi. Stollar alohida sudraladi va avtomatik saqlanadi.')}
-            </div>
-            <div
-              ref={floorPlanRef}
-              onWheel={handlePlanWheel}
-              onPointerDown={handlePlanPointerDown}
-              onPointerMove={handlePlanPointerMove}
-              onPointerUp={handlePlanPointerUp}
-              onPointerCancel={handlePlanPointerUp}
-              style={{
-                position: 'relative',
-                width: '100%',
-                height: '58vh',
-                minHeight: 360,
-                border: '1px solid var(--border-color)',
-                borderRadius: 16,
-                overflow: 'hidden',
-                background: '#f8fafc',
-                cursor: planPanStart ? 'grabbing' : 'grab',
-                touchAction: 'none'
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})`,
-                  transformOrigin: 'center center'
-                }}
-              >
+            <div className="admin-reservation-plan-layout">
+              <div className="admin-reservation-plan-main">
+                <div className="small text-muted mb-2">
+                  {tx('Схему можно двигать мышью/тачем, колесом менять масштаб. Столы перетаскиваются отдельно и сохраняются автоматически.', 'Sxemani sichqoncha/tach bilan surish mumkin, g\'ildirak bilan kattalashtirish ishlaydi. Stollar alohida sudraladi va avtomatik saqlanadi.')}
+                </div>
                 <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    backgroundImage: selectedFloorImageUrl
-                      ? `url(${selectedFloorImageUrl})`
-                      : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
-                    backgroundSize: selectedFloorImageUrl ? 'contain' : 'cover',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center'
-                  }}
-                />
-                {tables.map((table) => {
-                  const tableId = Number(table.id);
-                  const posX = normalizePlanCoordinate(table.x, 50);
-                  const posY = normalizePlanCoordinate(table.y, 50);
-                  const isDragging = dragState?.tableId === tableId;
-                  const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
-
-                  return (
-                    <button
-                      key={`plan-table-${table.id}`}
-                      type="button"
-                      data-plan-table="1"
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        handleTablePlanPointerDown(event, table);
-                      }}
-                      onPointerMove={(event) => handleTablePlanPointerMove(event, tableId)}
-                      onPointerUp={(event) => handleTablePlanPointerUp(event, tableId)}
-                      onPointerCancel={() => handleTablePlanPointerCancel(tableId)}
+                  ref={floorPlanRef}
+                  className={`admin-reservation-plan-canvas ${isPlanDropActive ? 'is-drop-active' : ''}`}
+                  onWheel={handlePlanWheel}
+                  onPointerDown={handlePlanPointerDown}
+                  onPointerMove={handlePlanPointerMove}
+                  onPointerUp={handlePlanPointerUp}
+                  onPointerCancel={handlePlanPointerUp}
+                  onDragEnter={handlePlanDragEnter}
+                  onDragOver={handlePlanDragOver}
+                  onDragLeave={handlePlanDragLeave}
+                  onDrop={handlePlanDrop}
+                  style={{ cursor: planPanStart ? 'grabbing' : 'grab' }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})`,
+                      transformOrigin: 'center center'
+                    }}
+                  >
+                    <div
                       style={{
                         position: 'absolute',
-                        left: `${posX}%`,
-                        top: `${posY}%`,
-                        transform: 'translate(-50%, -50%)',
-                        minWidth: 76,
-                        minHeight: 50,
-                        borderRadius: 12,
-                        border: `2px solid ${isDragging ? 'var(--primary-color)' : '#94a3b8'}`,
-                        background: isDragging
-                          ? 'color-mix(in srgb, var(--primary-color) 10%, #fff)'
-                          : 'rgba(255,255,255,0.76)',
-                        boxShadow: '0 6px 16px rgba(15,23,42,0.14)',
-                        padding: templateImageUrl ? '2px 4px' : '6px 8px',
-                        cursor: isDragging ? 'grabbing' : 'grab',
-                        userSelect: 'none',
-                        display: 'inline-flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 2
+                        inset: 0,
+                        backgroundImage: selectedFloorImageUrl
+                          ? `url(${selectedFloorImageUrl})`
+                          : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                        backgroundSize: selectedFloorImageUrl ? 'contain' : 'cover',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'center'
                       }}
-                    >
-                      {templateImageUrl ? (
-                        <img
-                          src={templateImageUrl}
-                          alt={table.template_name || table.name}
-                          style={{ width: 88, height: 62, objectFit: 'contain', pointerEvents: 'none' }}
-                        />
+                    />
+                    {tables.map((table) => {
+                      const tableId = Number(table.id);
+                      const posX = normalizePlanCoordinate(table.x, 50);
+                      const posY = normalizePlanCoordinate(table.y, 50);
+                      const isDragging = dragState?.tableId === tableId;
+                      const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
+
+                      return (
+                        <button
+                          key={`plan-table-${table.id}`}
+                          type="button"
+                          data-plan-table="1"
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                            handleTablePlanPointerDown(event, table);
+                          }}
+                          onPointerMove={(event) => handleTablePlanPointerMove(event, tableId)}
+                          onPointerUp={(event) => handleTablePlanPointerUp(event, tableId)}
+                          onPointerCancel={() => handleTablePlanPointerCancel(tableId)}
+                          style={{
+                            position: 'absolute',
+                            left: `${posX}%`,
+                            top: `${posY}%`,
+                            transform: 'translate(-50%, -50%)',
+                            minWidth: 76,
+                            minHeight: 50,
+                            borderRadius: 12,
+                            border: `2px solid ${isDragging ? 'var(--primary-color)' : '#94a3b8'}`,
+                            background: isDragging
+                              ? 'color-mix(in srgb, var(--primary-color) 10%, #fff)'
+                              : 'rgba(255,255,255,0.76)',
+                            boxShadow: '0 6px 16px rgba(15,23,42,0.14)',
+                            padding: templateImageUrl ? '2px 4px' : '6px 8px',
+                            cursor: isDragging ? 'grabbing' : 'grab',
+                            userSelect: 'none',
+                            display: 'inline-flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 2
+                          }}
+                        >
+                          {templateImageUrl ? (
+                            <img
+                              src={templateImageUrl}
+                              alt={table.template_name || table.name}
+                              style={{ width: 88, height: 62, objectFit: 'contain', pointerEvents: 'none' }}
+                            />
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
+                              <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
+                            </>
+                          )}
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', lineHeight: 1 }}>{table.name}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isPlanDropActive && (
+                    <div className="admin-reservation-plan-drop-hint">
+                      {tx('Отпустите, чтобы добавить стол в эту точку', 'Stolni shu joyga qo\'shish uchun qo\'yib yuboring')}
+                    </div>
+                  )}
+                  <div className="admin-reservation-plan-tools">
+                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 2.4))}>+</Button>
+                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 2.4))}>−</Button>
+                    <Button size="sm" className="admin-reservation-control px-2" variant="outline-secondary" onClick={() => { setPlanScale(1); setPlanOffset({ x: 0, y: 0 }); }}>
+                      {tx('Сброс', 'Reset')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <aside className="admin-reservation-plan-sidebar">
+                <div className="small fw-semibold text-dark mb-2">{tx('Добавление стола', 'Stol qo\'shish')}</div>
+                <Form.Group className="mb-2">
+                  <Form.Control
+                    value={tableForm.name}
+                    placeholder={tx('Название стола', 'Stol nomi')}
+                    onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
+                  />
+                  <Form.Text className="text-muted">
+                    {tx('Если оставить пустым, подставится номер', 'Bo\'sh qoldirilsa, raqam qo\'yiladi')}: {suggestedTableName}
+                  </Form.Text>
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Control
+                    type="number"
+                    min={1}
+                    value={tableForm.capacity}
+                    onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: Math.max(1, asInt(event.target.value, 1)) }))}
+                  />
+                </Form.Group>
+                <div className="small text-muted mb-1">{tx('Мебель', 'Mebel')}</div>
+                <div className="admin-reservation-plan-template-grid mb-2">
+                  <button
+                    type="button"
+                    className={`admin-reservation-plan-template-item ${!tableForm.template_id ? 'is-active' : ''}`}
+                    onClick={() => applyTemplateSelection(null)}
+                  >
+                    <span className="small text-muted">{tx('Без шаблона', 'Shablonsiz')}</span>
+                  </button>
+                  {templates.map((template) => {
+                    const isActive = Number(tableForm.template_id) === Number(template.id);
+                    const imageUrl = toAbsoluteMediaUrl(template.image_url);
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        className={`admin-reservation-plan-template-item ${isActive ? 'is-active' : ''}`}
+                        onClick={() => applyTemplateSelection(template.id)}
+                        title={`${template.name} • ${template.seats_count || 0}`}
+                      >
+                        <div className="admin-reservation-plan-template-thumb">
+                          {imageUrl ? (
+                            <img src={imageUrl} alt={template.name} />
+                          ) : (
+                            <span style={{ fontSize: 18 }}>🪑</span>
+                          )}
+                        </div>
+                        <div className="small text-truncate w-100">{template.name}</div>
+                        <div className="small text-muted">{template.seats_count || 0} {tx('мест', 'o\'rin')}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <Form.Group className="mb-2">
+                  <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
+                  <Form.Text className="text-muted">
+                    {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото стола (из файла)', 'Stolning real rasmi (fayldan)')}
+                  </Form.Text>
+                </Form.Group>
+                {tableForm.photo_url && (
+                  <div className="admin-reservation-photo-slot mb-2">
+                    <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото стола', 'Stol rasmi')} className="admin-reservation-photo-slot-img" />
+                  </div>
+                )}
+                <div
+                  className={`admin-reservation-plan-draft ${(!selectedFloorId || isCreatingPlanTable) ? 'is-disabled' : ''}`}
+                  draggable={Boolean(selectedFloorId) && !isCreatingPlanTable}
+                  onDragStart={handlePlanDraftDragStart}
+                  onDragEnd={handlePlanDraftDragEnd}
+                >
+                  <div className="small fw-semibold text-dark mb-1">{tx('Потяните на схему', 'Sxemaga sudrang')}</div>
+                  <div className="d-flex align-items-center gap-2">
+                    <div className="admin-reservation-plan-draft-thumb">
+                      {selectedTemplate?.image_url ? (
+                        <img src={toAbsoluteMediaUrl(selectedTemplate.image_url)} alt={selectedTemplate.name || 'template'} />
                       ) : (
-                        <>
-                          <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
-                          <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
-                        </>
+                        <span>🪑</span>
                       )}
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', lineHeight: 1 }}>{table.name}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="admin-reservation-plan-tools">
-                <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 2.4))}>+</Button>
-                <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 2.4))}>−</Button>
-                <Button size="sm" className="admin-reservation-control px-2" variant="outline-secondary" onClick={() => { setPlanScale(1); setPlanOffset({ x: 0, y: 0 }); }}>
-                  {tx('Сброс', 'Reset')}
-                </Button>
-              </div>
+                    </div>
+                    <div className="small">
+                      <div className="fw-semibold text-truncate">{String(tableForm.name || '').trim() || suggestedTableName}</div>
+                      <div className="text-muted">{Math.max(1, asInt(tableForm.capacity, selectedTemplate?.seats_count || 2))} {tx('мест', 'o\'rin')}</div>
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </div>
-            </>
             )}
           </Card.Body>
         </Card>
