@@ -12,6 +12,7 @@ import Badge from 'react-bootstrap/Badge';
 import Table from 'react-bootstrap/Table';
 import Spinner from 'react-bootstrap/Spinner';
 import Modal from 'react-bootstrap/Modal';
+import Nav from 'react-bootstrap/Nav';
 import { formatPrice } from '../context/CartContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -91,6 +92,9 @@ function AdminReservations() {
   const [imageModalTitle, setImageModalTitle] = useState('');
   const [imageModalUrl, setImageModalUrl] = useState('');
   const [showImageModal, setShowImageModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('settings');
+  const [showFloorModal, setShowFloorModal] = useState(false);
+  const [showTableModal, setShowTableModal] = useState(false);
   const [dragState, setDragState] = useState(null);
   const [savingTablePositionId, setSavingTablePositionId] = useState(null);
 
@@ -255,6 +259,7 @@ function AdminReservations() {
       setFloors(nextFloors);
       setSelectedFloorId(created.id);
       setFloorForm({ name: '', sort_order: 0, image_url: '' });
+      setShowFloorModal(false);
       setSuccess('Этаж добавлен');
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка создания этажа');
@@ -312,6 +317,7 @@ function AdminReservations() {
         x: 50,
         y: 50
       });
+      setShowTableModal(false);
       await loadTables(selectedFloorId);
       setSuccess('Стол добавлен');
     } catch (err) {
@@ -508,6 +514,26 @@ function AdminReservations() {
       {error && <Alert variant="danger" className="border-0">{error}</Alert>}
       {success && <Alert variant="success" className="border-0">{success}</Alert>}
 
+      <div className="d-flex flex-wrap gap-2 mb-3">
+        <Badge bg="secondary">Этажей: {floors.length}</Badge>
+        <Badge bg="secondary">Столов: {tables.length}</Badge>
+        <Badge bg="secondary">Заявок: {reservations.length}</Badge>
+        {selectedFloor && <Badge bg="info" text="dark">Текущий этаж: {selectedFloor.name}</Badge>}
+      </div>
+
+      <Card className="border-0 shadow-sm mb-3">
+        <Card.Body className="py-2">
+          <Nav variant="pills" activeKey={activeTab} onSelect={(key) => setActiveTab(key || 'settings')} className="gap-2 flex-wrap">
+            <Nav.Item><Nav.Link eventKey="settings">Настройки</Nav.Link></Nav.Item>
+            <Nav.Item><Nav.Link eventKey="floors">Этажи</Nav.Link></Nav.Item>
+            <Nav.Item><Nav.Link eventKey="tables">Столы</Nav.Link></Nav.Item>
+            <Nav.Item><Nav.Link eventKey="plan">Схема</Nav.Link></Nav.Item>
+            <Nav.Item><Nav.Link eventKey="requests">Заявки</Nav.Link></Nav.Item>
+          </Nav>
+        </Card.Body>
+      </Card>
+
+      {activeTab === 'settings' && (
       <Card className="border-0 shadow-sm mb-3">
         <Card.Header className="bg-white fw-semibold">Настройки сервиса брони</Card.Header>
         <Card.Body>
@@ -568,58 +594,25 @@ function AdminReservations() {
           </div>
         </Card.Body>
       </Card>
+      )}
 
+      {(activeTab === 'floors' || activeTab === 'tables') && (
       <Row className="g-3">
-        <Col lg={4}>
+        {activeTab === 'floors' && (
+        <Col lg={12}>
           <Card className="border-0 shadow-sm h-100">
             <Card.Header className="bg-white fw-semibold">Этажи</Card.Header>
             <Card.Body>
-              <Form onSubmit={addFloor}>
-                <Row className="g-2">
-                  <Col xs={12}>
-                    <Form.Control
-                      placeholder="Название этажа"
-                      value={floorForm.name}
-                      onChange={(event) => setFloorForm((prev) => ({ ...prev, name: event.target.value }))}
-                    />
-                  </Col>
-                  <Col xs={4}>
-                    <Form.Control
-                      type="number"
-                      placeholder="Порядок"
-                      value={floorForm.sort_order}
-                      onChange={(event) => setFloorForm((prev) => ({ ...prev, sort_order: event.target.value }))}
-                    />
-                  </Col>
-                  <Col xs={8}>
-                    <Form.Control type="file" accept="image/*" onChange={handleFloorImageFileChange} disabled={uploadingFloorImage} />
-                    <Form.Text className="text-muted">
-                      {uploadingFloorImage ? 'Загрузка и сжатие...' : 'Фото/план этажа (загрузка из файла)'}
-                    </Form.Text>
-                  </Col>
-                  {floorForm.image_url && (
-                    <Col xs={12}>
-                      <div className="d-flex align-items-center gap-2 flex-wrap">
-                        <Button size="sm" variant="outline-info" onClick={() => openImagePreview('Новый этаж', floorForm.image_url)}>
-                          Просмотр
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-danger"
-                          onClick={() => setFloorForm((prev) => ({ ...prev, image_url: '' }))}
-                        >
-                          Удалить фото
-                        </Button>
-                      </div>
-                    </Col>
-                  )}
-                  <Col xs={12}>
-                    <Button type="submit" className="w-100">Добавить этаж</Button>
-                  </Col>
-                </Row>
-              </Form>
-
-              <hr />
+              <div className="d-flex justify-content-end mb-3">
+                <Button
+                  onClick={() => {
+                    setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
+                    setShowFloorModal(true);
+                  }}
+                >
+                  Добавить этаж
+                </Button>
+              </div>
 
               <div className="d-flex flex-column gap-2">
                 {floors.length === 0 && (
@@ -663,11 +656,43 @@ function AdminReservations() {
             </Card.Body>
           </Card>
         </Col>
+        )}
 
-        <Col lg={8}>
+        {activeTab === 'tables' && (
+        <Col lg={12}>
           <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white fw-semibold">
-              Столы {selectedFloor ? `(${selectedFloor.name})` : ''}
+            <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span>Столы {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
+              <div className="d-flex align-items-center gap-2">
+                <Form.Select
+                  size="sm"
+                  style={{ minWidth: 220 }}
+                  value={selectedFloorId || ''}
+                  onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
+                >
+                  <option value="">Выберите этаж</option>
+                  {floors.map((floor) => (
+                    <option key={floor.id} value={floor.id}>{floor.name}</option>
+                  ))}
+                </Form.Select>
+                <Button
+                  size="sm"
+                  disabled={!selectedFloorId}
+                  onClick={() => {
+                    setTableForm({
+                      name: '',
+                      capacity: 2,
+                      template_id: '',
+                      photo_url: '',
+                      x: 50,
+                      y: 50
+                    });
+                    setShowTableModal(true);
+                  }}
+                >
+                  Добавить стол
+                </Button>
+              </div>
             </Card.Header>
             <Card.Body>
               {!selectedFloorId && (
@@ -678,71 +703,9 @@ function AdminReservations() {
 
               {!!selectedFloorId && (
                 <>
-                  <Form onSubmit={addTable}>
-                    <Row className="g-2">
-                      <Col md={3}>
-                        <Form.Control
-                          placeholder="Название стола"
-                          value={tableForm.name}
-                          onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
-                        />
-                      </Col>
-                      <Col md={2}>
-                        <Form.Control
-                          type="number"
-                          min={1}
-                          placeholder="Вместимость"
-                          value={tableForm.capacity}
-                          onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: event.target.value }))}
-                        />
-                      </Col>
-                      <Col md={3}>
-                        <Form.Select
-                          value={tableForm.template_id}
-                          onChange={(event) => setTableForm((prev) => ({ ...prev, template_id: event.target.value }))}
-                        >
-                          <option value="">Шаблон (необязательно)</option>
-                          {templates.map((template) => (
-                            <option key={template.id} value={template.id}>
-                              {template.name}
-                            </option>
-                          ))}
-                        </Form.Select>
-                      </Col>
-                      <Col md={4}>
-                        <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
-                        <Form.Text className="text-muted">
-                          {uploadingTablePhoto ? 'Загрузка и сжатие...' : 'Реальное фото стола (из файла)'}
-                        </Form.Text>
-                      </Col>
-                      <Col md={2}>
-                        <Button type="submit" className="w-100">Добавить стол</Button>
-                      </Col>
-                      <Col xs={12}>
-                        <Form.Text className="text-muted">
-                          После добавления перетащите стол на схеме этажа в нужную точку
-                        </Form.Text>
-                      </Col>
-                      {tableForm.photo_url && (
-                        <Col xs={12}>
-                          <div className="d-flex align-items-center gap-2 flex-wrap">
-                            <Button size="sm" variant="outline-info" onClick={() => openImagePreview('Новый стол', tableForm.photo_url)}>
-                              Просмотр фото
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline-danger"
-                              onClick={() => setTableForm((prev) => ({ ...prev, photo_url: '' }))}
-                            >
-                              Удалить фото
-                            </Button>
-                          </div>
-                        </Col>
-                      )}
-                    </Row>
-                  </Form>
-
-                  <hr />
+                  <div className="small text-muted mb-3">
+                    Добавьте стол через кнопку вверху, затем перетащите его на вкладке "Схема".
+                  </div>
 
                   {loadingTables ? (
                     <div className="text-muted">Загрузка столов...</div>
@@ -803,17 +766,39 @@ function AdminReservations() {
             </Card.Body>
           </Card>
         </Col>
+        )}
       </Row>
+      )}
 
-      {!!selectedFloorId && (
+      {activeTab === 'plan' && (
         <Card className="border-0 shadow-sm mt-3">
           <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center">
             <span>Схема этажа: {selectedFloor?.name || '—'}</span>
-            {savingTablePositionId && (
-              <span className="small text-muted">Сохраняем позицию стола...</span>
-            )}
+            <div className="d-flex align-items-center gap-2">
+              <Form.Select
+                size="sm"
+                style={{ minWidth: 220 }}
+                value={selectedFloorId || ''}
+                onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
+              >
+                <option value="">Выберите этаж</option>
+                {floors.map((floor) => (
+                  <option key={floor.id} value={floor.id}>{floor.name}</option>
+                ))}
+              </Form.Select>
+              {savingTablePositionId && (
+                <span className="small text-muted">Сохраняем позицию стола...</span>
+              )}
+            </div>
           </Card.Header>
           <Card.Body>
+            {!selectedFloorId && (
+              <Alert variant="warning" className="border-0 mb-0">
+                Выберите этаж для работы со схемой
+              </Alert>
+            )}
+            {!!selectedFloorId && (
+            <>
             <div className="small text-muted mb-2">
               Перетащите стол в нужную точку. Позиция сохраняется автоматически после отпускания.
             </div>
@@ -873,10 +858,13 @@ function AdminReservations() {
                 );
               })}
             </div>
+            </>
+            )}
           </Card.Body>
         </Card>
       )}
 
+      {activeTab === 'requests' && (
       <Card className="border-0 shadow-sm mt-3">
         <Card.Header className="bg-white d-flex justify-content-between align-items-center">
           <span className="fw-semibold">Заявки на бронирование</span>
@@ -974,6 +962,136 @@ function AdminReservations() {
           </div>
         </Card.Body>
       </Card>
+      )}
+
+      <Modal show={showFloorModal} onHide={() => setShowFloorModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Добавить этаж</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form onSubmit={addFloor}>
+            <Row className="g-2">
+              <Col xs={12}>
+                <Form.Control
+                  placeholder="Название этажа"
+                  value={floorForm.name}
+                  onChange={(event) => setFloorForm((prev) => ({ ...prev, name: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Control
+                  type="number"
+                  placeholder="Порядок"
+                  value={floorForm.sort_order}
+                  onChange={(event) => setFloorForm((prev) => ({ ...prev, sort_order: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Control type="file" accept="image/*" onChange={handleFloorImageFileChange} disabled={uploadingFloorImage} />
+                <Form.Text className="text-muted">
+                  {uploadingFloorImage ? 'Загрузка и сжатие...' : 'Фото/план этажа (загрузка из файла)'}
+                </Form.Text>
+              </Col>
+              {floorForm.image_url && (
+                <Col xs={12}>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый этаж', floorForm.image_url)}>
+                      Просмотр
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      type="button"
+                      onClick={() => setFloorForm((prev) => ({ ...prev, image_url: '' }))}
+                    >
+                      Удалить фото
+                    </Button>
+                  </div>
+                </Col>
+              )}
+            </Row>
+            <div className="d-flex justify-content-end gap-2 mt-3">
+              <Button type="button" variant="outline-secondary" onClick={() => setShowFloorModal(false)}>
+                Отмена
+              </Button>
+              <Button type="submit">Добавить этаж</Button>
+            </div>
+          </Form>
+        </Modal.Body>
+      </Modal>
+
+      <Modal show={showTableModal} onHide={() => setShowTableModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Добавить стол {selectedFloor ? `(${selectedFloor.name})` : ''}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form onSubmit={addTable}>
+            <Row className="g-2">
+              <Col xs={12}>
+                <Form.Control
+                  placeholder="Название стола"
+                  value={tableForm.name}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Control
+                  type="number"
+                  min={1}
+                  placeholder="Вместимость"
+                  value={tableForm.capacity}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Select
+                  value={tableForm.template_id}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, template_id: event.target.value }))}
+                >
+                  <option value="">Шаблон (необязательно)</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Col>
+              <Col xs={12}>
+                <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
+                <Form.Text className="text-muted">
+                  {uploadingTablePhoto ? 'Загрузка и сжатие...' : 'Реальное фото стола (из файла)'}
+                </Form.Text>
+              </Col>
+              {tableForm.photo_url && (
+                <Col xs={12}>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый стол', tableForm.photo_url)}>
+                      Просмотр фото
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      type="button"
+                      onClick={() => setTableForm((prev) => ({ ...prev, photo_url: '' }))}
+                    >
+                      Удалить фото
+                    </Button>
+                  </div>
+                </Col>
+              )}
+            </Row>
+            <div className="small text-muted mt-2">
+              После добавления перетащите стол на вкладке "Схема" в нужную точку.
+            </div>
+            <div className="d-flex justify-content-end gap-2 mt-3">
+              <Button type="button" variant="outline-secondary" onClick={() => setShowTableModal(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={!selectedFloorId}>Добавить стол</Button>
+            </div>
+          </Form>
+        </Modal.Body>
+      </Modal>
 
       <Modal show={showImageModal} onHide={() => setShowImageModal(false)} centered>
         <Modal.Header closeButton>
