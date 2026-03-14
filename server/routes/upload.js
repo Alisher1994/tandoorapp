@@ -7,6 +7,7 @@ const { authenticate, requireOperator } = require('../middleware/auth');
 
 const router = express.Router();
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 // Настройка multer для сохранения файлов
 const uploadsDir = process.env.UPLOADS_DIR
@@ -26,12 +27,28 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+const videoFileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('video/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Только видеофайлы разрешены!'), false);
+  }
+};
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_UPLOAD_FILE_SIZE_BYTES // 12MB
   },
   fileFilter: fileFilter
+});
+
+const uploadVideo = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES
+  },
+  fileFilter: videoFileFilter
 });
 
 const PRODUCT_MAX_WIDTH = 1280;
@@ -42,13 +59,13 @@ const AD_MAX_HEIGHT = 900;
 const DEFAULT_MAX_WIDTH = 1280;
 const DEFAULT_MAX_HEIGHT = 1280;
 
-const buildFilename = (ext) => {
+const buildFilename = (ext, prefix = 'img') => {
   const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-  return `img-${uniqueSuffix}${ext}`;
+  return `${prefix}-${uniqueSuffix}${ext}`;
 };
 
-const saveBufferToUploads = async (buffer, ext) => {
-  const filename = buildFilename(ext);
+const saveBufferToUploads = async (buffer, ext, prefix = 'img') => {
+  const filename = buildFilename(ext, prefix);
   const filePath = path.join(uploadsDir, filename);
   await fs.promises.writeFile(filePath, buffer);
   return filename;
@@ -151,6 +168,21 @@ const optimizeAndSaveImage = async (file, preset) => {
   return makeUploadResult(filename);
 };
 
+const videoExtByMimeType = {
+  'video/mp4': '.mp4',
+  'video/quicktime': '.mov',
+  'video/webm': '.webm',
+  'video/x-matroska': '.mkv',
+  'video/mpeg': '.mpeg'
+};
+
+const saveUploadedVideo = async (file) => {
+  const extFromName = path.extname(String(file.originalname || '')).toLowerCase();
+  const ext = extFromName || videoExtByMimeType[file.mimetype] || '.mp4';
+  const filename = await saveBufferToUploads(file.buffer, ext, 'video');
+  return { filename };
+};
+
 const handleUpload = async (req, res) => {
   try {
     if (!req.file) {
@@ -174,11 +206,34 @@ const handleUpload = async (req, res) => {
   }
 };
 
+const handleVideoUpload = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не загружен' });
+    }
+
+    const { filename } = await saveUploadedVideo(req.file);
+    const fileUrl = `/uploads/${filename}`;
+
+    return res.json({
+      videoUrl: fileUrl,
+      url: fileUrl,
+      filename
+    });
+  } catch (error) {
+    console.error('Video upload error:', error);
+    return res.status(500).json({ error: 'Ошибка загрузки файла' });
+  }
+};
+
 // Загрузка изображения (для операторов и superadmin)
 // POST /api/upload - основной endpoint
 router.post('/', authenticate, requireOperator, upload.single('image'), handleUpload);
 
 // Также поддерживаем /api/upload/image для обратной совместимости
 router.post('/image', authenticate, requireOperator, upload.single('image'), handleUpload);
+
+// POST /api/upload/video - загрузка видео для рассылок
+router.post('/video', authenticate, requireOperator, uploadVideo.single('video'), handleVideoUpload);
 
 module.exports = router;

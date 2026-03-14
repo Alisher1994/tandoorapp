@@ -21,6 +21,7 @@ const {
 } = require('../services/helpInstructions');
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
+const { ensureBroadcastSchema } = require('../services/broadcastSchema');
 
 const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
@@ -2790,10 +2791,17 @@ SELECT
 // Schedule a broadcast or send immediately
 router.post('/broadcast', async (req, res) => {
   try {
-    const { message, image_url, scheduled_at, recurrence, repeat_days } = req.body;
+    await ensureBroadcastSchema();
+    const { message, image_url, video_url, scheduled_at, recurrence, repeat_days } = req.body;
+    const normalizedMessage = toOptionalTrimmedText(message);
+    const normalizedImageUrl = toOptionalTrimmedText(image_url) || null;
+    const normalizedVideoUrl = toOptionalTrimmedText(video_url) || null;
 
-    if (!message) {
+    if (!normalizedMessage) {
       return res.status(400).json({ error: 'Текст сообщения обязателен' });
+    }
+    if (normalizedImageUrl && normalizedVideoUrl) {
+      return res.status(400).json({ error: 'Можно выбрать только один тип медиа: фото или видео' });
     }
 
     const restaurantId = req.user.active_restaurant_id;
@@ -2804,10 +2812,10 @@ router.post('/broadcast', async (req, res) => {
     // IF SCHEDULED
     if (scheduled_at) {
       const result = await pool.query(`
-        INSERT INTO scheduled_broadcasts(restaurant_id, user_id, message, image_url, scheduled_at, recurrence, repeat_days)
-VALUES($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO scheduled_broadcasts(restaurant_id, user_id, message, image_url, video_url, scheduled_at, recurrence, repeat_days)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *
-  `, [restaurantId, req.user.id, message, image_url, scheduled_at, recurrence || 'none', repeat_days || null]);
+  `, [restaurantId, req.user.id, normalizedMessage, normalizedImageUrl, normalizedVideoUrl, scheduled_at, recurrence || 'none', repeat_days || null]);
 
       return res.json({
         message: 'Рассылка запланирована',
@@ -2858,24 +2866,29 @@ AND(
 
     // Create history record
     const historyResult = await pool.query(`
-      INSERT INTO broadcast_history(restaurant_id, user_id, message, image_url)
-VALUES($1, $2, $3, $4)
+      INSERT INTO broadcast_history(restaurant_id, user_id, message, image_url, video_url)
+VALUES($1, $2, $3, $4, $5)
       RETURNING id
-    `, [restaurantId, req.user.id, message, image_url]);
+    `, [restaurantId, req.user.id, normalizedMessage, normalizedImageUrl, normalizedVideoUrl]);
     const broadcastHistoryId = historyResult.rows[0].id;
 
     // Send messages
     let sent = 0;
     let failed = 0;
 
-    const broadcastMessage = `📢 <b>${restaurant.name}</b>\n\n${message} `;
+    const broadcastMessage = `📢 <b>${restaurant.name}</b>\n\n${normalizedMessage} `;
     const errors = [];
 
     for (const customer of customers) {
       try {
         let sentMsg;
-        if (image_url) {
-          sentMsg = await bot.sendPhoto(customer.telegram_id, image_url, {
+        if (normalizedVideoUrl) {
+          sentMsg = await bot.sendVideo(customer.telegram_id, normalizedVideoUrl, {
+            caption: broadcastMessage,
+            parse_mode: 'HTML'
+          });
+        } else if (normalizedImageUrl) {
+          sentMsg = await bot.sendPhoto(customer.telegram_id, normalizedImageUrl, {
             caption: broadcastMessage,
             parse_mode: 'HTML'
           });
@@ -2909,7 +2922,15 @@ VALUES($1, $2, $3)
       entityType: 'notification',
       entityId: null,
       entityName: 'Рассылка',
-      newValues: { message, sent, failed, total: customers.length, errors },
+      newValues: {
+        message: normalizedMessage,
+        image_url: normalizedImageUrl,
+        video_url: normalizedVideoUrl,
+        sent,
+        failed,
+        total: customers.length,
+        errors
+      },
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
@@ -2930,6 +2951,7 @@ VALUES($1, $2, $3)
 // GET scheduled broadcasts
 router.get('/scheduled-broadcasts', async (req, res) => {
   try {
+    await ensureBroadcastSchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) {
       return res.status(400).json({ error: 'Не выбран ресторан' });
@@ -2953,6 +2975,7 @@ router.get('/scheduled-broadcasts', async (req, res) => {
 // DELETE scheduled broadcast
 router.delete('/scheduled-broadcasts/:id', async (req, res) => {
   try {
+    await ensureBroadcastSchema();
     const restaurantId = req.user.active_restaurant_id;
     const result = await pool.query(
       'DELETE FROM scheduled_broadcasts WHERE id = $1 AND (restaurant_id = $2 OR $3 = true)',
@@ -2973,6 +2996,7 @@ router.delete('/scheduled-broadcasts/:id', async (req, res) => {
 // TOGGLE scheduled broadcast
 router.patch('/scheduled-broadcasts/:id/toggle', async (req, res) => {
   try {
+    await ensureBroadcastSchema();
     const restaurantId = req.user.active_restaurant_id;
     const result = await pool.query(`
       UPDATE scheduled_broadcasts 
@@ -2995,15 +3019,25 @@ RETURNING *
 // UPDATE scheduled broadcast
 router.put('/scheduled-broadcasts/:id', async (req, res) => {
   try {
-    const { message, image_url, scheduled_at, recurrence, repeat_days } = req.body;
+    await ensureBroadcastSchema();
+    const { message, image_url, video_url, scheduled_at, recurrence, repeat_days } = req.body;
+    const normalizedMessage = toOptionalTrimmedText(message);
+    const normalizedImageUrl = toOptionalTrimmedText(image_url) || null;
+    const normalizedVideoUrl = toOptionalTrimmedText(video_url) || null;
+    if (!normalizedMessage) {
+      return res.status(400).json({ error: 'Текст сообщения обязателен' });
+    }
+    if (normalizedImageUrl && normalizedVideoUrl) {
+      return res.status(400).json({ error: 'Можно выбрать только один тип медиа: фото или видео' });
+    }
     const restaurantId = req.user.active_restaurant_id;
 
     const result = await pool.query(`
       UPDATE scheduled_broadcasts 
-      SET message = $1, image_url = $2, scheduled_at = $3, recurrence = $4, repeat_days = $5, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6 AND(restaurant_id = $7 OR $8 = true)
+      SET message = $1, image_url = $2, video_url = $3, scheduled_at = $4, recurrence = $5, repeat_days = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7 AND(restaurant_id = $8 OR $9 = true)
 RETURNING *
-  `, [message, image_url, scheduled_at, recurrence, repeat_days, req.params.id, restaurantId, req.user.role === 'superadmin']);
+  `, [normalizedMessage, normalizedImageUrl, normalizedVideoUrl, scheduled_at, recurrence, repeat_days, req.params.id, restaurantId, req.user.role === 'superadmin']);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Расписание не найдено' });
@@ -3019,6 +3053,7 @@ RETURNING *
 // GET broadcast history
 router.get('/broadcast-history', async (req, res) => {
   try {
+    await ensureBroadcastSchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Не выбран ресторан' });
 
@@ -3042,6 +3077,7 @@ router.get('/broadcast-history', async (req, res) => {
 // DELETE broadcast history item and REMOVE messages from Telegram
 router.post('/broadcast-history/:id/delete-remote', async (req, res) => {
   try {
+    await ensureBroadcastSchema();
     const restaurantId = req.user.active_restaurant_id;
 
     // Check access and get history info

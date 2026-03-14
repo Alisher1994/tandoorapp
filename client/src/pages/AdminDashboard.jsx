@@ -913,9 +913,10 @@ function AdminDashboard() {
 
   // Broadcast state
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-  const [broadcastForm, setBroadcastForm] = useState({ message: '', image_url: '' });
+  const [broadcastForm, setBroadcastForm] = useState({ message: '', image_url: '', video_url: '' });
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [broadcastImageFile, setBroadcastImageFile] = useState(null);
+  const [broadcastVideoFile, setBroadcastVideoFile] = useState(null);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().split('T')[0]);
   const [scheduledTime, setScheduledTime] = useState(new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -3088,11 +3089,11 @@ function AdminDashboard() {
   };
 
   // Broadcast functions
-  const handleBroadcastImageUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleBroadcastImageUpload = async (file) => {
     if (!file) return;
 
     setBroadcastImageFile(file);
+    setBroadcastVideoFile(null);
 
     // Upload image
     const formData = new FormData();
@@ -3101,10 +3102,45 @@ function AdminDashboard() {
     try {
       const res = await axios.post(`${API_URL}/upload`, formData);
       const fullUrl = window.location.origin + res.data.imageUrl;
-      setBroadcastForm({ ...broadcastForm, image_url: fullUrl });
+      setBroadcastForm(prev => ({ ...prev, image_url: fullUrl, video_url: '' }));
     } catch (error) {
       alert('Ошибка загрузки изображения');
     }
+  };
+
+  const handleBroadcastVideoUpload = async (file) => {
+    if (!file) return;
+
+    setBroadcastVideoFile(file);
+    setBroadcastImageFile(null);
+
+    const formData = new FormData();
+    formData.append('video', file);
+
+    try {
+      const res = await axios.post(`${API_URL}/upload/video`, formData);
+      const videoUrl = String(res.data.videoUrl || res.data.url || '').trim();
+      if (!videoUrl) throw new Error('video url missing');
+      const fullUrl = videoUrl.startsWith('http') ? videoUrl : `${window.location.origin}${videoUrl}`;
+      setBroadcastForm(prev => ({ ...prev, video_url: fullUrl, image_url: '' }));
+    } catch (error) {
+      alert('Ошибка загрузки видео');
+    }
+  };
+
+  const handleBroadcastMediaInputChange = (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.type.startsWith('image/')) {
+      handleBroadcastImageUpload(file);
+      return;
+    }
+    if (file.type.startsWith('video/')) {
+      handleBroadcastVideoUpload(file);
+      return;
+    }
+    alert('Поддерживаются только фото и видео');
   };
 
   const sendBroadcast = async () => {
@@ -3184,6 +3220,7 @@ function AdminDashboard() {
       const res = await axios[method](url, {
         message: broadcastForm.message,
         image_url: broadcastForm.image_url ? broadcastForm.image_url : null,
+        video_url: broadcastForm.video_url ? broadcastForm.video_url : null,
         scheduled_at: finalScheduledAt,
         recurrence: isScheduled ? recurrence : 'none',
         repeat_days: isScheduled && recurrence === 'custom' ? repeatDays : null
@@ -3204,8 +3241,9 @@ function AdminDashboard() {
   };
 
   const resetBroadcastForm = () => {
-    setBroadcastForm({ message: '', image_url: '' });
+    setBroadcastForm({ message: '', image_url: '', video_url: '' });
     setBroadcastImageFile(null);
+    setBroadcastVideoFile(null);
     setIsScheduled(false);
     setScheduledDate(new Date().toISOString().split('T')[0]);
     setScheduledTime(new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -3255,7 +3293,7 @@ function AdminDashboard() {
 
   const startEditBroadcast = (sb) => {
     setEditingBroadcastId(sb.id);
-    setBroadcastForm({ message: sb.message, image_url: sb.image_url || '' });
+    setBroadcastForm({ message: sb.message, image_url: sb.image_url || '', video_url: sb.video_url || '' });
     setIsScheduled(true);
     setRecurrence(sb.recurrence);
     setRepeatDays(sb.repeat_days || []);
@@ -10529,7 +10567,7 @@ function AdminDashboard() {
                 {/* Left Column: Form */}
                 <Col md={7} className="p-4 border-end">
                   <Form.Group className="mb-3">
-                    <Form.Label className="fw-bold small">{t('photo') || 'Фото'} (необязательно)</Form.Label>
+                    <Form.Label className="fw-bold small">{t('broadcastMedia') || 'Фото/видео (необязательно)'}</Form.Label>
                     <div
                       className="border rounded p-3 mb-2 text-center"
                       style={{
@@ -10546,17 +10584,18 @@ function AdminDashboard() {
                       onMouseEnter={(e) => e.currentTarget.style.borderColor = '#475569'}
                       onMouseLeave={(e) => e.currentTarget.style.borderColor = '#d1d5db'}
                       tabIndex={0}
-                      onPaste={(e) => handlePaste(e, (url) => setBroadcastForm({ ...broadcastForm, image_url: url }))}
+                      onPaste={(e) => handlePaste(e, (url) => setBroadcastForm(prev => ({ ...prev, image_url: url, video_url: '' })))}
                       onDrop={(e) => {
                         e.preventDefault();
                         const file = e.dataTransfer.files[0];
                         if (file && file.type.startsWith('image/')) {
-                          const syntheticEvent = { target: { files: [file] } };
-                          handleBroadcastImageUpload(syntheticEvent);
+                          handleBroadcastImageUpload(file);
+                        } else if (file && file.type.startsWith('video/')) {
+                          handleBroadcastVideoUpload(file);
                         }
                       }}
                       onDragOver={(e) => e.preventDefault()}
-                      onClick={() => document.getElementById('broadcast-file-input').click()}
+                      onClick={() => document.getElementById('broadcast-media-input').click()}
                     >
                       {broadcastForm.image_url ? (
                         <div className="position-relative">
@@ -10567,23 +10606,37 @@ function AdminDashboard() {
                             className="rounded"
                           />
                         </div>
+                      ) : broadcastForm.video_url ? (
+                        <div className="position-relative w-100">
+                          <video
+                            src={broadcastForm.video_url}
+                            controls
+                            style={{ maxWidth: '100%', maxHeight: '160px' }}
+                            className="rounded"
+                          />
+                        </div>
                       ) : (
                         <>
-                          <div style={{ fontSize: '1.2rem' }}>📸</div>
-                          <div className="text-muted small">Вставьте (Ctrl+V) или нажмите для выбора</div>
+                          <div style={{ fontSize: '1.2rem' }}>📸🎬</div>
+                          <div className="text-muted small">{t('broadcastPasteOrSelectMedia') || 'Вставьте изображение (Ctrl+V), перетащите файл или нажмите для выбора'}</div>
                         </>
                       )}
                     </div>
                     <Form.Control
-                      id="broadcast-file-input"
+                      id="broadcast-media-input"
                       type="file"
-                      accept="image/*"
-                      onChange={handleBroadcastImageUpload}
+                      accept="image/*,video/*"
+                      onChange={handleBroadcastMediaInputChange}
                       className="d-none"
                     />
                     {broadcastForm.image_url && (
-                      <Button variant="link" size="sm" className="text-danger p-0" onClick={() => { setBroadcastForm({ ...broadcastForm, image_url: '' }); setBroadcastImageFile(null); }}>
-                        Удалить фото
+                      <Button variant="link" size="sm" className="text-danger p-0" onClick={() => { setBroadcastForm(prev => ({ ...prev, image_url: '' })); setBroadcastImageFile(null); }}>
+                        {t('deletePhoto') || 'Удалить фото'}
+                      </Button>
+                    )}
+                    {broadcastForm.video_url && (
+                      <Button variant="link" size="sm" className="text-danger p-0 ms-3" onClick={() => { setBroadcastForm(prev => ({ ...prev, video_url: '' })); setBroadcastVideoFile(null); }}>
+                        {t('deleteVideo') || 'Удалить видео'}
                       </Button>
                     )}
                   </Form.Group>
@@ -10706,6 +10759,11 @@ function AdminDashboard() {
                         <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>{user?.active_restaurant_name || 'Магазин'}</span>
                       </div>
                       {broadcastForm.image_url && <div className="px-2 pb-2"><img src={broadcastForm.image_url} alt="Preview" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px' }} /></div>}
+                      {broadcastForm.video_url && (
+                        <div className="px-2 pb-2">
+                          <video src={broadcastForm.video_url} controls style={{ width: '100%', maxHeight: '240px', borderRadius: '8px' }} />
+                        </div>
+                      )}
                       <div className="px-3 pb-2 pt-1">
                         <div
                           style={{
@@ -10735,7 +10793,7 @@ function AdminDashboard() {
                     <Table responsive hover className="admin-table mb-0">
                       <thead>
                         <tr>
-                          <th>ФОТО</th>
+                          <th>МЕДИА</th>
                           <th>ТЕКСТ</th>
                           <th>РАСПИСАНИЕ</th>
                           <th>СТАТУС</th>
@@ -10748,6 +10806,8 @@ function AdminDashboard() {
                             <td>
                               {sb.image_url ? (
                                 <img src={sb.image_url} style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} alt="thumb" />
+                              ) : sb.video_url ? (
+                                <span className="small fw-semibold">🎬 Видео</span>
                               ) : '-'}
                             </td>
                             <td style={{ maxWidth: '200px' }} className="text-truncate small">{sb.message}</td>
@@ -10790,7 +10850,7 @@ function AdminDashboard() {
                       <thead>
                         <tr>
                           <th>ДАТА ОТПРАВКИ</th>
-                          <th>ФОТО</th>
+                          <th>МЕДИА</th>
                           <th>СООБЩЕНИЕ</th>
                           <th>ПОЛУЧАТЕЛЕЙ</th>
                           <th className="text-end">ДЕЙСТВИЯ</th>
@@ -10803,6 +10863,8 @@ function AdminDashboard() {
                             <td>
                               {bh.image_url ? (
                                 <img src={bh.image_url} style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: '8px', border: '1px solid #eee' }} alt="thumb" />
+                              ) : bh.video_url ? (
+                                <span className="small fw-semibold">🎬 Видео</span>
                               ) : '-'}
                             </td>
                             <td style={{ maxWidth: '300px' }} className="text-truncate small">{bh.message}</td>

@@ -11,6 +11,7 @@ async function migrate() {
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         message TEXT NOT NULL,
         image_url TEXT,
+        video_url TEXT,
         scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
         recurrence VARCHAR(20) DEFAULT 'none', -- none, daily, weekly, custom
         repeat_days INTEGER[], -- 0-6 (Sunday-Saturday)
@@ -19,6 +20,8 @@ async function migrate() {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+        await pool.query('ALTER TABLE scheduled_broadcasts ADD COLUMN IF NOT EXISTS video_url TEXT');
 
         console.log('✅ Table "scheduled_broadcasts" created/verified.');
         process.exit(0);

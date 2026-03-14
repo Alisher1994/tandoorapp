@@ -1,5 +1,6 @@
 const pool = require('../database/connection');
 const TelegramBot = require('node-telegram-bot-api');
+const { ensureBroadcastSchema } = require('./broadcastSchema');
 let isProcessing = false;
 
 async function processScheduledBroadcasts() {
@@ -7,6 +8,7 @@ async function processScheduledBroadcasts() {
     isProcessing = true;
 
     try {
+        await ensureBroadcastSchema();
         // Get active broadcasts due now
         const result = await pool.query(`
       SELECT sb.*, r.telegram_bot_token, r.name as restaurant_name
@@ -24,10 +26,10 @@ async function processScheduledBroadcasts() {
 
             // Create history record
             const historyResult = await pool.query(`
-        INSERT INTO broadcast_history (restaurant_id, user_id, scheduled_broadcast_id, message, image_url)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO broadcast_history (restaurant_id, user_id, scheduled_broadcast_id, message, image_url, video_url)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
-      `, [sb.restaurant_id, sb.user_id, sb.id, sb.message, sb.image_url]);
+      `, [sb.restaurant_id, sb.user_id, sb.id, sb.message, sb.image_url, sb.video_url]);
             const broadcastHistoryId = historyResult.rows[0].id;
 
             const success = await sendBroadcastMessage(sb, broadcastHistoryId);
@@ -107,7 +109,12 @@ async function sendBroadcastMessage(sb, historyId) {
         for (const customer of customers) {
             try {
                 let sentMsg;
-                if (sb.image_url) {
+                if (sb.video_url) {
+                    sentMsg = await bot.sendVideo(customer.telegram_id, sb.video_url, {
+                        caption: broadcastMessage,
+                        parse_mode: 'HTML'
+                    });
+                } else if (sb.image_url) {
                     sentMsg = await bot.sendPhoto(customer.telegram_id, sb.image_url, {
                         caption: broadcastMessage,
                         parse_mode: 'HTML'

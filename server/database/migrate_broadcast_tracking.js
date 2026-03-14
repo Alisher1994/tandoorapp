@@ -13,6 +13,7 @@ async function migrate() {
         scheduled_broadcast_id INTEGER REFERENCES scheduled_broadcasts(id) ON DELETE SET NULL,
         message TEXT,
         image_url TEXT,
+        video_url TEXT,
         sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(20) DEFAULT 'completed'
       );
@@ -27,6 +28,8 @@ async function migrate() {
         message_id INTEGER NOT NULL
       );
     `);
+
+        await pool.query('ALTER TABLE broadcast_history ADD COLUMN IF NOT EXISTS video_url TEXT');
 
         console.log('✅ Migration completed.');
         process.exit(0);
