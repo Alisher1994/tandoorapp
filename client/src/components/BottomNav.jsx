@@ -1,17 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { useCart, formatQuantity } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const { cart } = useCart();
   const { favoriteCount } = useFavorites();
   const { t } = useLanguage();
   const [isCompact, setIsCompact] = useState(false);
   const [isIOSDevice, setIsIOSDevice] = useState(false);
+  const [isReservationMenuVisible, setIsReservationMenuVisible] = useState(false);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= 992 : false
   ));
@@ -20,12 +26,36 @@ function BottomNav() {
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   
   const isActive = (path) => location.pathname === path;
+
+  useEffect(() => {
+    let ignore = false;
+    const restaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+    if (!restaurantId) {
+      setIsReservationMenuVisible(false);
+      return () => { ignore = true; };
+    }
+
+    (async () => {
+      try {
+        const response = await axios.get(`${API_URL}/products/restaurant/${restaurantId}`);
+        if (ignore) return;
+        setIsReservationMenuVisible(response.data?.reservation_enabled === true);
+      } catch (error) {
+        if (ignore) return;
+        setIsReservationMenuVisible(false);
+      }
+    })();
+
+    return () => {
+      ignore = true;
+    };
+  }, [user?.active_restaurant_id]);
   
   const navItems = [
     { path: '/', icon: '🏠', label: t('menu') },
     { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
-    { path: '/reservations', icon: '🪑', label: t('reservations') || 'Бронь' },
+    ...(isReservationMenuVisible ? [{ path: '/reservations', icon: '🪑', label: t('reservations') || 'Бронь' }] : []),
     { path: '/orders', icon: '📋', label: t('orders') },
     { path: '/feedback', icon: '💬', label: t('feedback') || 'Жалобы' },
   ];
