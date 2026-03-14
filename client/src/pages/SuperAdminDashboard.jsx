@@ -446,6 +446,7 @@ function SuperAdminDashboard() {
     support_username: '',
     service_fee: 1000,
     reservation_cost: 0,
+    reservation_enabled: false,
     latitude: '',
     longitude: '',
     delivery_base_radius: 3,
@@ -2571,6 +2572,7 @@ function SuperAdminDashboard() {
         support_username: restaurant.support_username || '',
         service_fee: restaurant.hasOwnProperty('service_fee') ? parseFloat(restaurant.service_fee) : 1000,
         reservation_cost: restaurant.hasOwnProperty('reservation_cost') ? parseFloat(restaurant.reservation_cost) : 0,
+        reservation_enabled: restaurant.reservation_enabled === true,
         latitude: restaurant.latitude || '',
         longitude: restaurant.longitude || '',
         delivery_base_radius: restaurant.hasOwnProperty('delivery_base_radius') ? parseFloat(restaurant.delivery_base_radius) : 3,
@@ -2606,6 +2608,7 @@ function SuperAdminDashboard() {
         support_username: '',
         service_fee: 1000,
         reservation_cost: 0,
+        reservation_enabled: false,
         latitude: '',
         longitude: '',
         delivery_base_radius: 3,
@@ -7255,7 +7258,7 @@ function SuperAdminDashboard() {
         <Modal.Body className="p-0">
           <Form>
             <Tabs defaultActiveKey="main" className="custom-restaurant-tabs px-3 pt-3 border-bottom-0">
-              <Tab eventKey="main" title="📋 Основные">
+              <Tab eventKey="main" title={language === 'uz' ? '📋 Asosiy' : '📋 Основные'}>
                 <div className="p-4 pt-3">
                   {/* Logo Upload */}
                   <Form.Group className="mb-4">
@@ -7423,7 +7426,7 @@ function SuperAdminDashboard() {
                 </div>
               </Tab>
 
-              <Tab eventKey="working-hours" title="🕒 Часы работы">
+              <Tab eventKey="working-hours" title={language === 'uz' ? '🕒 Ish vaqti' : '🕒 Часы работы'}>
                 <div className="p-4 pt-3">
                   <h6 className="fw-bold text-dark mt-2 mb-3"><i className="bi bi-clock text-primary"></i> {t('saWorkingHours')}</h6>
                   <Row className="mb-2">
@@ -7448,11 +7451,26 @@ function SuperAdminDashboard() {
                       </Form.Group>
                     </Col>
                   </Row>
-                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> Если не указано, магазин считается открытым всегда.</Form.Text>
+                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> {language === 'uz' ? 'Agar ko\'rsatilmasa, do\'kon doim ochiq deb hisoblanadi.' : 'Если не указано, магазин считается открытым всегда.'}</Form.Text>
+
+                  <div className="mt-4 p-3 rounded border bg-light">
+                    <Form.Check
+                      type="switch"
+                      id="restaurant-reservation-enabled-switch"
+                      label={language === 'uz' ? 'Bronlashni yoqish' : 'Включить бронирование'}
+                      checked={Boolean(restaurantForm.reservation_enabled)}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, reservation_enabled: e.target.checked })}
+                    />
+                    <Form.Text className="text-muted d-block mt-2">
+                      {language === 'uz'
+                        ? 'Faqat super-admin bu xizmatni yoqadi/o\'chiradi.'
+                        : 'Только супер-админ включает/отключает этот сервис.'}
+                    </Form.Text>
+                  </div>
                 </div>
               </Tab>
 
-              <Tab eventKey="telegram" title="✈️ Телеграм">
+              <Tab eventKey="telegram" title={language === 'uz' ? '✈️ Telegram' : '✈️ Телеграм'}>
                 <div className="p-4 pt-3">
                   <h6 className="fw-bold text-dark mb-3">{t('saTgSettings')}</h6>
 
@@ -7497,7 +7515,7 @@ function SuperAdminDashboard() {
                 </div>
               </Tab>
 
-              <Tab eventKey="payment" title="💳 Оплата">
+              <Tab eventKey="payment" title={language === 'uz' ? '💳 To\'lov' : '💳 Оплата'}>
                 <div className="p-4 pt-3">
                   <h6 className="fw-bold text-dark mb-3">💰 {t('saPaymentMethods')}</h6>
 
@@ -7603,7 +7621,7 @@ function SuperAdminDashboard() {
                 </div>
               </Tab>
 
-              <Tab eventKey="delivery" title="🚕 Доставка">
+              <Tab eventKey="delivery" title={language === 'uz' ? '🚕 Yetkazib berish' : '🚕 Доставка'}>
                 <div className="p-4 pt-3">
                   <div className="d-flex align-items-center justify-content-between mb-4">
                     <h6 className="fw-bold text-dark m-0">🚕 {t('saDeliverySettings')}</h6>

@@ -25,6 +25,7 @@ const {
   deleteHelpInstruction
 } = require('../services/helpInstructions');
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
+const { ensureReservationSchema } = require('../services/reservationSchema');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -538,6 +539,23 @@ const ensureRestaurantCurrencySchema = async () => {
   }
 };
 
+const ensureRestaurantReservationSettingsRow = async (client, restaurantId) => {
+  await ensureReservationSchema({ client });
+  await client.query(
+    `INSERT INTO restaurant_reservation_settings (
+       restaurant_id,
+       enabled,
+       reservation_fee,
+       reservation_service_cost,
+       max_duration_minutes,
+       allow_multi_table
+     )
+     VALUES ($1, false, 0, 0, 180, true)
+     ON CONFLICT (restaurant_id) DO NOTHING`,
+    [restaurantId]
+  );
+};
+
 const padAnalyticsDatePart = (value) => String(value).padStart(2, '0');
 const formatAnalyticsDateKey = (year, month, day) => (
   `${year}-${padAnalyticsDatePart(month)}-${padAnalyticsDatePart(day)}`
@@ -894,15 +912,19 @@ router.get('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
+    await ensureReservationSchema();
     const result = await pool.query(`
       SELECT r.*, 
         bat.name AS activity_type_name,
         bat.is_visible AS activity_type_is_visible,
+        COALESCE(rs.enabled, false) AS reservation_enabled,
+        COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
         (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id) as orders_count,
         (SELECT COUNT(*) FROM products WHERE restaurant_id = r.id) as products_count
       FROM restaurants r
       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
+      LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
       ORDER BY r.created_at DESC
     `);
     const restaurants = await Promise.all(result.rows.map((row) => enrichRestaurantWithBotMeta(row)));
@@ -1348,13 +1370,17 @@ router.get('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
+    await ensureReservationSchema();
     const result = await pool.query(`
       SELECT r.*,
         bat.name AS activity_type_name,
         bat.is_visible AS activity_type_is_visible,
+        COALESCE(rs.enabled, false) AS reservation_enabled,
+        COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count
       FROM restaurants r
       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
+      LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
       WHERE r.id = $1
     `, [req.params.id]);
 
@@ -1388,7 +1414,8 @@ router.post('/restaurants', async (req, res) => {
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled,
-      payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
+      payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
+      reservation_enabled
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1474,9 +1501,22 @@ router.post('/restaurants', async (req, res) => {
       [parsedReservationCost, result.rows[0].id]
     );
 
+    const reservationEnabled = reservation_enabled === true || reservation_enabled === 'true';
+    await ensureRestaurantReservationSettingsRow(pool, result.rows[0].id);
+    await pool.query(
+      `UPDATE restaurant_reservation_settings
+       SET enabled = $1,
+           reservation_service_cost = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE restaurant_id = $3`,
+      [reservationEnabled, parsedReservationCost, result.rows[0].id]
+    );
+
     const restaurant = {
       ...result.rows[0],
-      reservation_cost: parsedReservationCost
+      reservation_cost: parsedReservationCost,
+      reservation_enabled: reservationEnabled,
+      reservation_service_cost: parsedReservationCost
     };
 
     try {
@@ -1515,7 +1555,7 @@ router.put('/restaurants/:id', async (req, res) => {
       operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, reservation_cost,
       latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km, is_delivery_enabled,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
-      currency_code
+      currency_code, reservation_enabled
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1714,9 +1754,22 @@ router.put('/restaurants/:id', async (req, res) => {
       [parsedReservationCost, req.params.id]
     );
 
+    const reservationEnabled = reservation_enabled === true || reservation_enabled === 'true';
+    await ensureRestaurantReservationSettingsRow(pool, req.params.id);
+    await pool.query(
+      `UPDATE restaurant_reservation_settings
+       SET enabled = $1,
+           reservation_service_cost = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE restaurant_id = $3`,
+      [reservationEnabled, parsedReservationCost, req.params.id]
+    );
+
     const restaurant = {
       ...result.rows[0],
-      reservation_cost: parsedReservationCost
+      reservation_cost: parsedReservationCost,
+      reservation_enabled: reservationEnabled,
+      reservation_service_cost: parsedReservationCost
     };
 
     try {

@@ -1030,7 +1030,6 @@ function AdminDashboard() {
   const [operatorForm, setOperatorForm] = useState({ username: '', password: '', full_name: '', phone: '', telegram_id: '' });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
-  const [reservationEnabledInHours, setReservationEnabledInHours] = useState(false);
   const [helpInstructions, setHelpInstructions] = useState([]);
   const [loadingHelpInstructions, setLoadingHelpInstructions] = useState(false);
   const [selectedHelpInstruction, setSelectedHelpInstruction] = useState(null);
@@ -2724,14 +2723,6 @@ function AdminDashboard() {
       setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
       setTokenSaveCountdown(0);
       tokenCountdownArmedRef.current = false;
-
-      try {
-        const reservationResponse = await axios.get(`${API_URL}/admin/reservations/settings`);
-        setReservationEnabledInHours(reservationResponse.data?.enabled === true);
-      } catch (reservationSettingsError) {
-        console.error('Fetch reservation settings error:', reservationSettingsError);
-        setReservationEnabledInHours(false);
-      }
     } catch (error) {
       console.error('Fetch restaurant settings error:', error);
     }
@@ -2744,17 +2735,6 @@ function AdminDashboard() {
     try {
       const response = await axios.put(`${API_URL}/admin/restaurant`, restaurantSettings);
       const savedSettings = response.data || {};
-      let reservationToggleWarning = '';
-
-      try {
-        await axios.put(`${API_URL}/admin/reservations/settings`, {
-          enabled: !!reservationEnabledInHours
-        });
-      } catch (reservationToggleError) {
-        console.error('Save reservation toggle error:', reservationToggleError);
-        reservationToggleWarning = 'Не удалось обновить переключатель бронирования. Повторите сохранение позже.';
-      }
-
       setRestaurantSettings((prev) => ({ ...prev, ...savedSettings }));
       if (savedSettings.currency_code) {
         setCountryCurrency(savedSettings.currency_code);
@@ -2775,12 +2755,8 @@ function AdminDashboard() {
         successLines.push(`Операторы уведомлены частично: ${operatorNotification.delivered}/${operatorNotification.total}`);
         successLines.push('Попросите операторов открыть новый бот и нажать /start.');
       }
-      if (reservationToggleWarning) {
-        successLines.push(reservationToggleWarning);
-      }
-
       setAlertMessage({
-        type: (operatorNotification && operatorNotification.failed > 0) || reservationToggleWarning ? 'warning' : 'success',
+        type: operatorNotification && operatorNotification.failed > 0 ? 'warning' : 'success',
         text: <div style={{ whiteSpace: 'pre-wrap' }}>{successLines.join('\n')}</div>
       });
       // Refresh user context if needed (logo/name in header)
@@ -8042,29 +8018,6 @@ function AdminDashboard() {
                                                 onChange={e => setRestaurantSettings({ ...restaurantSettings, end_time: e.target.value })}
                                               />
                                             </Form.Group>
-                                          </Col>
-                                          <Col md={12}>
-                                            <div className="admin-store-automation-panel">
-                                              <div className="fw-bold mb-1">Часы работы и бронирование</div>
-                                              <div className="small text-muted mb-3">
-                                                Включайте бронирование для клиентов прямо из админки. Тариф списания за бронь задаётся супер-админом.
-                                              </div>
-                                              <Form.Check
-                                                type="switch"
-                                                id="admin-reservation-enabled-switch"
-                                                className="fw-semibold mb-2"
-                                                label={reservationEnabledInHours ? 'Бронирование включено' : 'Бронирование выключено'}
-                                                checked={Boolean(reservationEnabledInHours)}
-                                                onChange={(e) => setReservationEnabledInHours(e.target.checked)}
-                                              />
-                                              <div className="small text-muted">
-                                                Для подключения/тарифа обратитесь к супер-админу:
-                                                {' '}
-                                                {billingInfo?.requisites?.telegram_username
-                                                  ? `@${String(billingInfo.requisites.telegram_username).replace(/^@/, '')}`
-                                                  : (billingInfo?.requisites?.phone_number || 'контакт не указан')}
-                                              </div>
-                                            </div>
                                           </Col>
                                           <Col md={6}>
                                             <Form.Group>

@@ -13,7 +13,9 @@ import Badge from 'react-bootstrap/Badge';
 import Table from 'react-bootstrap/Table';
 import Spinner from 'react-bootstrap/Spinner';
 import Modal from 'react-bootstrap/Modal';
+import Pagination from 'react-bootstrap/Pagination';
 import { formatPrice } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
@@ -47,8 +49,11 @@ const toAbsoluteMediaUrl = (url) => {
 
 function AdminReservations() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
   const floorPlanRef = useRef(null);
   const draggedPositionRef = useRef(null);
+  const isUz = language === 'uz';
+  const tx = (ru, uz) => (isUz ? uz : ru);
 
   const [loading, setLoading] = useState(true);
   const [loadingTables, setLoadingTables] = useState(false);
@@ -99,6 +104,10 @@ function AdminReservations() {
   const [showTableModal, setShowTableModal] = useState(false);
   const [dragState, setDragState] = useState(null);
   const [savingTablePositionId, setSavingTablePositionId] = useState(null);
+  const [tablesPage, setTablesPage] = useState(1);
+  const [tablesPageSize, setTablesPageSize] = useState(10);
+  const [reservationsPage, setReservationsPage] = useState(1);
+  const [reservationsPageSize, setReservationsPageSize] = useState(10);
 
   const selectedFloor = useMemo(
     () => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null,
@@ -108,6 +117,16 @@ function AdminReservations() {
     () => toAbsoluteMediaUrl(selectedFloor?.image_url),
     [selectedFloor?.image_url]
   );
+  const pagedTables = useMemo(() => {
+    const start = (tablesPage - 1) * tablesPageSize;
+    return tables.slice(start, start + tablesPageSize);
+  }, [tables, tablesPage, tablesPageSize]);
+  const tablesTotalPages = useMemo(() => Math.max(1, Math.ceil(tables.length / tablesPageSize)), [tables.length, tablesPageSize]);
+  const pagedReservations = useMemo(() => {
+    const start = (reservationsPage - 1) * reservationsPageSize;
+    return reservations.slice(start, start + reservationsPageSize);
+  }, [reservations, reservationsPage, reservationsPageSize]);
+  const reservationsTotalPages = useMemo(() => Math.max(1, Math.ceil(reservations.length / reservationsPageSize)), [reservations.length, reservationsPageSize]);
 
   const uploadImageWithCompression = async (file, preset = 'product') => {
     if (!file) {
@@ -204,7 +223,7 @@ function AdminReservations() {
         loadTables(firstFloorId)
       ]);
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка загрузки данных бронирования');
+      setError(err.response?.data?.error || tx('Ошибка загрузки данных бронирования', 'Bronlash ma\'lumotlarini yuklashda xatolik'));
     } finally {
       setLoading(false);
     }
@@ -217,6 +236,26 @@ function AdminReservations() {
   useEffect(() => {
     loadTables();
   }, [selectedFloorId]);
+
+  useEffect(() => {
+    setTablesPage(1);
+  }, [selectedFloorId, tablesPageSize]);
+
+  useEffect(() => {
+    if (tablesPage > tablesTotalPages) {
+      setTablesPage(tablesTotalPages);
+    }
+  }, [tablesPage, tablesTotalPages]);
+
+  useEffect(() => {
+    setReservationsPage(1);
+  }, [statusFilter, reservationsPageSize]);
+
+  useEffect(() => {
+    if (reservationsPage > reservationsTotalPages) {
+      setReservationsPage(reservationsTotalPages);
+    }
+  }, [reservationsPage, reservationsTotalPages]);
 
   useEffect(() => {
     setDragState(null);
@@ -234,9 +273,9 @@ function AdminReservations() {
         allow_multi_table: !!settings.allow_multi_table
       };
       await axios.put(`${API_URL}/admin/reservations/settings`, payload);
-      setSuccess('Настройки бронирования сохранены');
+      setSuccess(tx('Настройки бронирования сохранены', 'Bronlash sozlamalari saqlandi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка сохранения настроек');
+      setError(err.response?.data?.error || tx('Ошибка сохранения настроек', 'Sozlamalarni saqlashda xatolik'));
     } finally {
       setSavingSettings(false);
     }
@@ -253,7 +292,7 @@ function AdminReservations() {
         image_url: String(floorForm.image_url || '').trim() || null
       };
       if (!payload.name) {
-        setError('Введите название этажа');
+        setError(tx('Введите название этажа', 'Qavat nomini kiriting'));
         return;
       }
       const response = await axios.post(`${API_URL}/admin/reservations/floors`, payload);
@@ -263,16 +302,16 @@ function AdminReservations() {
       setSelectedFloorId(created.id);
       setFloorForm({ name: '', sort_order: 0, image_url: '' });
       setShowFloorModal(false);
-      setSuccess('Этаж добавлен');
+      setSuccess(tx('Этаж добавлен', 'Qavat qo\'shildi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка создания этажа');
+      setError(err.response?.data?.error || tx('Ошибка создания этажа', 'Qavat yaratishda xatolik'));
     }
   };
 
   const deleteFloor = async (floorId) => {
     const target = floors.find((item) => Number(item.id) === Number(floorId));
     if (!target) return;
-    if (!window.confirm(`Удалить этаж "${target.name}"?`)) return;
+    if (!window.confirm(tx(`Удалить этаж "${target.name}"?`, `"${target.name}" qavatini o'chirasizmi?`))) return;
 
     setError('');
     setSuccess('');
@@ -282,16 +321,16 @@ function AdminReservations() {
       setFloors(nextFloors);
       const nextSelected = nextFloors[0]?.id ? Number(nextFloors[0].id) : null;
       setSelectedFloorId(nextSelected);
-      setSuccess('Этаж удален');
+      setSuccess(tx('Этаж удален', 'Qavat o\'chirildi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка удаления этажа');
+      setError(err.response?.data?.error || tx('Ошибка удаления этажа', 'Qavatni o\'chirishda xatolik'));
     }
   };
 
   const addTable = async (event) => {
     event.preventDefault();
     if (!selectedFloorId) {
-      setError('Сначала выберите этаж');
+      setError(tx('Сначала выберите этаж', 'Avval qavatni tanlang'));
       return;
     }
     setError('');
@@ -308,7 +347,7 @@ function AdminReservations() {
         is_active: true
       };
       if (!payload.name) {
-        setError('Введите название стола');
+        setError(tx('Введите название стола', 'Stol nomini kiriting'));
         return;
       }
       await axios.post(`${API_URL}/admin/reservations/tables`, payload);
@@ -322,25 +361,25 @@ function AdminReservations() {
       });
       setShowTableModal(false);
       await loadTables(selectedFloorId);
-      setSuccess('Стол добавлен');
+      setSuccess(tx('Стол добавлен', 'Stol qo\'shildi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка добавления стола');
+      setError(err.response?.data?.error || tx('Ошибка добавления стола', 'Stol qo\'shishda xatolik'));
     }
   };
 
   const deleteTable = async (tableId) => {
     const target = tables.find((item) => Number(item.id) === Number(tableId));
     if (!target) return;
-    if (!window.confirm(`Удалить стол "${target.name}"?`)) return;
+    if (!window.confirm(tx(`Удалить стол "${target.name}"?`, `"${target.name}" stolini o'chirasizmi?`))) return;
 
     setError('');
     setSuccess('');
     try {
       await axios.delete(`${API_URL}/admin/reservations/tables/${tableId}`);
       await loadTables(selectedFloorId);
-      setSuccess('Стол удален');
+      setSuccess(tx('Стол удален', 'Stol o\'chirildi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка удаления стола');
+      setError(err.response?.data?.error || tx('Ошибка удаления стола', 'Stolni o\'chirishda xatolik'));
     }
   };
 
@@ -350,9 +389,9 @@ function AdminReservations() {
     try {
       await axios.post(`${API_URL}/admin/reservations/${reservationId}/accept-and-pay`);
       await loadReservations(statusFilter);
-      setSuccess('Бронирование подтверждено, списание выполнено');
+      setSuccess(tx('Бронирование подтверждено, списание выполнено', 'Bron tasdiqlandi, yechib olindi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка подтверждения бронирования');
+      setError(err.response?.data?.error || tx('Ошибка подтверждения бронирования', 'Bronni tasdiqlashda xatolik'));
     }
   };
 
@@ -370,16 +409,16 @@ function AdminReservations() {
     try {
       await axios.patch(`${API_URL}/admin/reservations/${reservationId}/status`, payload);
       await loadReservations(statusFilter);
-      setSuccess('Статус бронирования обновлен');
+      setSuccess(tx('Статус бронирования обновлен', 'Bron statusi yangilandi'));
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка обновления статуса');
+      setError(err.response?.data?.error || tx('Ошибка обновления статуса', 'Statusni yangilashda xatolik'));
     }
   };
 
   const openImagePreview = (title, url) => {
     const src = toAbsoluteMediaUrl(url);
     if (!src) return;
-    setImageModalTitle(title || 'Фото');
+    setImageModalTitle(title || tx('Фото', 'Rasm'));
     setImageModalUrl(src);
     setShowImageModal(true);
   };
@@ -394,9 +433,9 @@ function AdminReservations() {
     try {
       const imageUrl = await uploadImageWithCompression(file, 'product');
       setFloorForm((prev) => ({ ...prev, image_url: imageUrl }));
-      setSuccess('Фото этажа загружено');
+      setSuccess(tx('Фото этажа загружено', 'Qavat rasmi yuklandi'));
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Ошибка загрузки фото этажа');
+      setError(err.response?.data?.error || err.message || tx('Ошибка загрузки фото этажа', 'Qavat rasmini yuklashda xatolik'));
     } finally {
       setUploadingFloorImage(false);
       event.target.value = '';
@@ -413,9 +452,9 @@ function AdminReservations() {
     try {
       const imageUrl = await uploadImageWithCompression(file, 'product');
       setTableForm((prev) => ({ ...prev, photo_url: imageUrl }));
-      setSuccess('Фото стола загружено');
+      setSuccess(tx('Фото стола загружено', 'Stol rasmi yuklandi'));
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Ошибка загрузки фото стола');
+      setError(err.response?.data?.error || err.message || tx('Ошибка загрузки фото стола', 'Stol rasmini yuklashda xatolik'));
     } finally {
       setUploadingTablePhoto(false);
       event.target.value = '';
@@ -430,7 +469,7 @@ function AdminReservations() {
         y: Number(y.toFixed(2))
       });
     } catch (err) {
-      setError(err.response?.data?.error || 'Ошибка сохранения позиции стола');
+      setError(err.response?.data?.error || tx('Ошибка сохранения позиции стола', 'Stol joylashuvini saqlashda xatolik'));
       await loadTables(selectedFloorId);
     } finally {
       setSavingTablePositionId(null);
@@ -498,18 +537,18 @@ function AdminReservations() {
   }
 
   return (
-    <Container fluid className="py-3">
+    <Container fluid className="admin-panel py-3">
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
-          <h4 className="mb-1">Управление бронированием</h4>
-          <div className="text-muted small">Этажи, фото этажей, столы, вместимость и статусы броней</div>
+          <h4 className="mb-1">{tx('Управление бронированием', 'Bronlash boshqaruvi')}</h4>
+          <div className="text-muted small">{tx('Этажи, фото этажей, столы, вместимость и статусы броней', 'Qavatlar, qavat rasmi, stollar sig\'imi va bron holatlari')}</div>
         </div>
         <div className="d-flex gap-2">
           <Button variant="outline-secondary" onClick={() => navigate('/admin')}>
-            Назад в админку
+            {tx('Назад в админку', 'Admin panelga qaytish')}
           </Button>
           <Button variant="outline-primary" onClick={loadInitial}>
-            Обновить
+            {tx('Обновить', 'Yangilash')}
           </Button>
         </div>
       </div>
@@ -526,21 +565,21 @@ function AdminReservations() {
       )}
 
       <div className="d-flex flex-wrap gap-2 mb-3">
-        <Badge bg="secondary">Этажей: {floors.length}</Badge>
-        <Badge bg="secondary">Столов: {tables.length}</Badge>
-        <Badge bg="secondary">Заявок: {reservations.length}</Badge>
-        {selectedFloor && <Badge bg="info" text="dark">Текущий этаж: {selectedFloor.name}</Badge>}
+        <Badge bg="secondary">{tx('Этажей', 'Qavatlar')}: {floors.length}</Badge>
+        <Badge bg="secondary">{tx('Столов', 'Stollar')}: {tables.length}</Badge>
+        <Badge bg="secondary">{tx('Заявок', 'So\'rovlar')}: {reservations.length}</Badge>
+        {selectedFloor && <Badge bg="info" text="dark">{tx('Текущий этаж', 'Joriy qavat')}: {selectedFloor.name}</Badge>}
       </div>
 
       <Card className="border-0 shadow-sm mb-3">
         <Card.Body className="py-2">
-          <div className="admin-order-status-tabs" role="tablist" aria-label="Вкладки бронирования">
+          <div className="admin-settings-pill-tabs" role="tablist" aria-label={tx('Вкладки бронирования', 'Bronlash bo\'limlari')}>
             {[
-              { key: 'settings', label: 'Настройки', emoji: '⚙️', color: '#0ea5e9' },
-              { key: 'floors', label: 'Этажи', emoji: '🏢', color: '#10b981' },
-              { key: 'tables', label: 'Столы', emoji: '🪑', color: '#22c55e' },
-              { key: 'plan', label: 'Схема', emoji: '🗺️', color: '#f59e0b' },
-              { key: 'requests', label: 'Заявки', emoji: '📋', color: '#6366f1' }
+              { key: 'settings', label: tx('Настройки', 'Sozlamalar'), emoji: '⚙️' },
+              { key: 'floors', label: tx('Этажи', 'Qavatlar'), emoji: '🏢' },
+              { key: 'tables', label: tx('Столы', 'Stollar'), emoji: '🪑' },
+              { key: 'plan', label: tx('Схема', 'Sxema'), emoji: '🗺️' },
+              { key: 'requests', label: tx('Заявки', 'So\'rovlar'), emoji: '📋' }
             ].map((tab) => {
               const isActive = activeTab === tab.key;
               return (
@@ -549,12 +588,11 @@ function AdminReservations() {
                   type="button"
                   role="tab"
                   aria-selected={isActive}
-                  className={`admin-order-status-pill${isActive ? ' is-active' : ''}`}
-                  style={{ '--order-status-color': tab.color }}
+                  className={`admin-settings-pill-btn ${isActive ? 'is-active' : ''}`}
                   onClick={() => setActiveTab(tab.key)}
                 >
-                  <span className="admin-order-status-pill-label">
-                    <span className="admin-order-status-pill-emoji" aria-hidden="true">{tab.emoji}</span>
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <span aria-hidden="true">{tab.emoji}</span>
                     <span>{tab.label}</span>
                   </span>
                 </button>
@@ -564,13 +602,14 @@ function AdminReservations() {
         </Card.Body>
       </Card>
 
+      <div className="admin-settings-content p-3 rounded-4" style={{ minHeight: '60vh' }}>
       {activeTab === 'settings' && (
       <Card className="border-0 shadow-sm mb-3">
-        <Card.Header className="bg-white fw-semibold">Настройки сервиса брони</Card.Header>
+        <Card.Header className="bg-white fw-semibold">{tx('Настройки сервиса брони', 'Bron xizmati sozlamalari')}</Card.Header>
         <Card.Body>
           <Row className="g-3">
             <Col md={6}>
-              <Form.Label>Фиксированная цена брони (для клиента)</Form.Label>
+              <Form.Label>{tx('Фиксированная цена брони (для клиента)', 'Mijoz uchun bron narxi (qat\'iy)')}</Form.Label>
               <Form.Control
                 type="number"
                 min={0}
@@ -579,16 +618,16 @@ function AdminReservations() {
                 onChange={(event) => setSettings((prev) => ({ ...prev, reservation_fee: event.target.value }))}
               />
               <Form.Text className="text-muted">
-                Эта сумма берется с клиента при создании брони.
+                {tx('Эта сумма берется с клиента при создании брони.', 'Bu summa bron yaratishda mijozdan olinadi.')}
               </Form.Text>
             </Col>
             <Col md={6}>
               <Form.Label className="d-flex align-items-center gap-2">
-                <span>Макс. длительность (мин.)</span>
+                <span>{tx('Макс. длительность (мин.)', 'Maks. davomiylik (daq.)')}</span>
                 <span
                   role="button"
                   tabIndex={0}
-                  title="Ограничение по длительности одной брони. Например, 180 означает максимум 3 часа."
+                  title={tx('Ограничение по длительности одной брони. Например, 180 означает максимум 3 часа.', 'Bir bron uchun maksimal vaqt cheklovi. Masalan, 180 bu ko\'pi bilan 3 soat.')}
                   style={{ fontSize: 14, color: '#64748b', cursor: 'help' }}
                 >
                   ⓘ
@@ -605,7 +644,7 @@ function AdminReservations() {
             <Col md={6} className="d-flex align-items-end">
               <Form.Check
                 type="switch"
-                label="Разрешить несколько столов"
+                label={tx('Разрешить несколько столов', 'Bir nechta stolni ruxsat etish')}
                 checked={!!settings.allow_multi_table}
                 onChange={(event) => setSettings((prev) => ({ ...prev, allow_multi_table: event.target.checked }))}
               />
@@ -613,15 +652,15 @@ function AdminReservations() {
             <Col md={6}>
               <Alert variant="light" className="mb-0 border">
                 <div className="small">
-                  Включение/выключение бронирования перенесено в раздел админки «Настройки → Общие/Часы работы».
+                  {tx('Включение/выключение бронирования перенесено в раздел админки «Настройки → Общие/Часы работы».', 'Bronni yoqish/o\'chirish admin paneldagi «Sozlamalar → Umumiy / Ish vaqti» bo\'limiga ko\'chirildi.')}
                 </div>
                 <div className="small mt-2">
-                  Подключение сервиса и стоимость списания для магазина настраиваются супер-админом.
+                  {tx('Подключение сервиса и стоимость списания для магазина настраиваются супер-админом.', 'Xizmatni ulash va do\'kondan yechiladigan servis narxi super-admin tomonidan sozlanadi.')}
                   {supportContact.support_username && (
-                    <> Связь: <strong>@{supportContact.support_username.replace(/^@/, '')}</strong>.</>
+                    <> {tx('Связь', 'Bog\'lanish')}: <strong>@{supportContact.support_username.replace(/^@/, '')}</strong>.</>
                   )}
                   {!supportContact.support_username && supportContact.phone && (
-                    <> Связь: <strong>{supportContact.phone}</strong>.</>
+                    <> {tx('Связь', 'Bog\'lanish')}: <strong>{supportContact.phone}</strong>.</>
                   )}
                 </div>
               </Alert>
@@ -630,19 +669,20 @@ function AdminReservations() {
 
           <div className="mt-3">
             <Button variant="primary" onClick={saveSettings} disabled={savingSettings}>
-              {savingSettings ? 'Сохраняем...' : 'Сохранить настройки'}
+              {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
             </Button>
           </div>
         </Card.Body>
       </Card>
       )}
+      </div>
 
       {(activeTab === 'floors' || activeTab === 'tables') && (
       <Row className="g-3">
         {activeTab === 'floors' && (
         <Col lg={12}>
           <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white fw-semibold">Этажи</Card.Header>
+            <Card.Header className="bg-white fw-semibold">{tx('Этажи', 'Qavatlar')}</Card.Header>
             <Card.Body>
               <div className="d-flex justify-content-end mb-3">
                 <Button
@@ -651,13 +691,13 @@ function AdminReservations() {
                     setShowFloorModal(true);
                   }}
                 >
-                  Добавить этаж
+                  {tx('Добавить этаж', 'Qavat qo\'shish')}
                 </Button>
               </div>
 
               <div className="d-flex flex-column gap-2">
                 {floors.length === 0 && (
-                  <div className="text-muted small">Этажи пока не добавлены</div>
+                  <div className="text-muted small">{tx('Этажи пока не добавлены', 'Qavatlar hali qo\'shilmagan')}</div>
                 )}
                 {floors.map((floor) => (
                   <div
@@ -674,7 +714,7 @@ function AdminReservations() {
                     >
                       <span className="fw-semibold">{floor.name}</span>
                       {!!floor.image_url && (
-                        <Badge bg="info" text="dark">Фото</Badge>
+                        <Badge bg="info" text="dark">{tx('Фото', 'Rasm')}</Badge>
                       )}
                     </button>
                     <div className="d-flex gap-1">
@@ -688,7 +728,7 @@ function AdminReservations() {
                         </Button>
                       )}
                       <Button size="sm" variant="outline-danger" onClick={() => deleteFloor(floor.id)}>
-                        Удалить
+                        {tx('Удалить', 'O\'chirish')}
                       </Button>
                     </div>
                   </div>
@@ -703,7 +743,7 @@ function AdminReservations() {
         <Col lg={12}>
           <Card className="border-0 shadow-sm h-100">
             <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <span>Столы {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
+              <span>{tx('Столы', 'Stollar')} {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
               <div className="d-flex align-items-center gap-2">
                 <Form.Select
                   size="sm"
@@ -711,7 +751,7 @@ function AdminReservations() {
                   value={selectedFloorId || ''}
                   onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
                 >
-                  <option value="">Выберите этаж</option>
+                  <option value="">{tx('Выберите этаж', 'Qavatni tanlang')}</option>
                   {floors.map((floor) => (
                     <option key={floor.id} value={floor.id}>{floor.name}</option>
                   ))}
@@ -731,40 +771,40 @@ function AdminReservations() {
                     setShowTableModal(true);
                   }}
                 >
-                  Добавить стол
+                  {tx('Добавить стол', 'Stol qo\'shish')}
                 </Button>
               </div>
             </Card.Header>
             <Card.Body>
               {!selectedFloorId && (
                 <Alert variant="warning" className="border-0">
-                  Сначала выберите этаж
+                  {tx('Сначала выберите этаж', 'Avval qavatni tanlang')}
                 </Alert>
               )}
 
               {!!selectedFloorId && (
                 <>
                   <div className="small text-muted mb-3">
-                    Добавьте стол через кнопку вверху, затем перетащите его на вкладке "Схема".
+                    {tx('Добавьте стол через кнопку вверху, затем перетащите его на вкладке "Схема".', 'Yuqoridagi tugma orqali stol qo\'shing, keyin uni "Sxema" bo\'limida joylashtiring.')}
                   </div>
 
                   {loadingTables ? (
-                    <div className="text-muted">Загрузка столов...</div>
+                    <div className="text-muted">{tx('Загрузка столов...', 'Stollar yuklanmoqda...')}</div>
                   ) : (
-                    <div className="table-responsive">
-                      <Table size="sm" hover className="align-middle mb-0">
+                    <div className="admin-table-container">
+                      <Table size="sm" hover className="admin-table mb-0 align-middle">
                         <thead>
                           <tr>
-                            <th>Стол</th>
-                            <th>Вместимость</th>
-                            <th>Шаблон</th>
-                            <th>Позиция</th>
-                            <th>Фото</th>
+                            <th>{tx('Стол', 'Stol')}</th>
+                            <th>{tx('Вместимость', 'Sig\'im')}</th>
+                            <th>{tx('Шаблон', 'Shablon')}</th>
+                            <th>{tx('Позиция', 'Joylashuv')}</th>
+                            <th>{tx('Фото', 'Rasm')}</th>
                             <th />
                           </tr>
                         </thead>
                         <tbody>
-                          {tables.map((table) => (
+                          {pagedTables.map((table) => (
                             <tr key={table.id}>
                               <td>{table.name}</td>
                               <td>{table.capacity}</td>
@@ -780,7 +820,7 @@ function AdminReservations() {
                                     variant="outline-info"
                                     onClick={() => openImagePreview(`Стол: ${table.name}`, table.photo_url)}
                                   >
-                                    Открыть
+                                    {tx('Открыть', 'Ochish')}
                                   </Button>
                                 ) : (
                                   <span className="text-muted">—</span>
@@ -788,18 +828,37 @@ function AdminReservations() {
                               </td>
                               <td className="text-end">
                                 <Button size="sm" variant="outline-danger" onClick={() => deleteTable(table.id)}>
-                                  Удалить
+                                  {tx('Удалить', 'O\'chirish')}
                                 </Button>
                               </td>
                             </tr>
                           ))}
                           {tables.length === 0 && (
                             <tr>
-                              <td colSpan={6} className="text-muted text-center py-3">Столов пока нет</td>
+                              <td colSpan={6} className="text-muted text-center py-3">{tx('Столов пока нет', 'Stollar hali yo\'q')}</td>
                             </tr>
                           )}
                         </tbody>
                       </Table>
+                    </div>
+                  )}
+                  {tables.length > tablesPageSize && (
+                    <div className="d-flex justify-content-between align-items-center mt-3">
+                      <div className="small text-muted">
+                        {tx('Записей', 'Yozuvlar')}: {tables.length}
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <Form.Select size="sm" value={tablesPageSize} onChange={(e) => setTablesPageSize(Number(e.target.value) || 10)}>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                        </Form.Select>
+                        <Pagination className="mb-0">
+                          <Pagination.Prev disabled={tablesPage <= 1} onClick={() => setTablesPage((p) => Math.max(1, p - 1))} />
+                          <Pagination.Item active>{tablesPage}</Pagination.Item>
+                          <Pagination.Next disabled={tablesPage >= tablesTotalPages} onClick={() => setTablesPage((p) => Math.min(tablesTotalPages, p + 1))} />
+                        </Pagination>
+                      </div>
                     </div>
                   )}
                 </>
@@ -814,7 +873,7 @@ function AdminReservations() {
       {activeTab === 'plan' && (
         <Card className="border-0 shadow-sm mt-3">
           <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center">
-            <span>Схема этажа: {selectedFloor?.name || '—'}</span>
+            <span>{tx('Схема этажа', 'Qavat sxemasi')}: {selectedFloor?.name || '—'}</span>
             <div className="d-flex align-items-center gap-2">
               <Form.Select
                 size="sm"
@@ -822,26 +881,26 @@ function AdminReservations() {
                 value={selectedFloorId || ''}
                 onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
               >
-                <option value="">Выберите этаж</option>
+                <option value="">{tx('Выберите этаж', 'Qavatni tanlang')}</option>
                 {floors.map((floor) => (
                   <option key={floor.id} value={floor.id}>{floor.name}</option>
                 ))}
               </Form.Select>
               {savingTablePositionId && (
-                <span className="small text-muted">Сохраняем позицию стола...</span>
+                <span className="small text-muted">{tx('Сохраняем позицию стола...', 'Stol joylashuvi saqlanmoqda...')}</span>
               )}
             </div>
           </Card.Header>
           <Card.Body>
             {!selectedFloorId && (
               <Alert variant="warning" className="border-0 mb-0">
-                Выберите этаж для работы со схемой
+                {tx('Выберите этаж для работы со схемой', 'Sxema bilan ishlash uchun qavatni tanlang')}
               </Alert>
             )}
             {!!selectedFloorId && (
             <>
             <div className="small text-muted mb-2">
-              Перетащите стол в нужную точку. Позиция сохраняется автоматически после отпускания.
+              {tx('Перетащите стол в нужную точку. Позиция сохраняется автоматически после отпускания.', 'Stolni kerakli joyga sudrab qo\'ying. Joylashuv avtomatik saqlanadi.')}
             </div>
             <div
               ref={floorPlanRef}
@@ -893,11 +952,11 @@ function AdminReservations() {
                       userSelect: 'none'
                     }}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
-                    <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} мест</div>
-                  </button>
-                );
-              })}
+                          <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
+                          <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
+                        </button>
+                      );
+                    })}
             </div>
             </>
             )}
@@ -908,7 +967,7 @@ function AdminReservations() {
       {activeTab === 'requests' && (
       <Card className="border-0 shadow-sm mt-3">
         <Card.Header className="bg-white d-flex justify-content-between align-items-center">
-          <span className="fw-semibold">Заявки на бронирование</span>
+          <span className="fw-semibold">{tx('Заявки на бронирование', 'Bron so\'rovlari')}</span>
           <div className="d-flex gap-2">
             <Form.Select
               size="sm"
@@ -919,32 +978,32 @@ function AdminReservations() {
                 await loadReservations(next);
               }}
             >
-              <option value="all">Все статусы</option>
+              <option value="all">{tx('Все статусы', 'Barcha statuslar')}</option>
               {RESERVATION_STATUSES.map((status) => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </Form.Select>
             <Button size="sm" variant="outline-primary" onClick={() => loadReservations(statusFilter)}>
-              Обновить
+              {tx('Обновить', 'Yangilash')}
             </Button>
           </div>
         </Card.Header>
         <Card.Body className="p-0">
-          <div className="table-responsive">
-            <Table hover className="mb-0 align-middle">
+          <div className="admin-table-container">
+            <Table hover className="admin-table mb-0 align-middle">
               <thead className="table-light">
                 <tr>
-                  <th>Номер</th>
-                  <th>Дата/время</th>
-                  <th>Столы</th>
-                  <th>Гости</th>
-                  <th>Предоплата</th>
-                  <th>Статус</th>
-                  <th>Действия</th>
+                  <th>{tx('Номер', 'Raqam')}</th>
+                  <th>{tx('Дата/время', 'Sana/vaqt')}</th>
+                  <th>{tx('Столы', 'Stollar')}</th>
+                  <th>{tx('Гости', 'Mehmonlar')}</th>
+                  <th>{tx('Предоплата', 'Oldindan to\'lov')}</th>
+                  <th>{tx('Статус', 'Status')}</th>
+                  <th>{tx('Действия', 'Amallar')}</th>
                 </tr>
               </thead>
               <tbody>
-                {reservations.map((reservation) => (
+                {pagedReservations.map((reservation) => (
                   <tr key={reservation.id}>
                     <td>{reservation.reservation_number}</td>
                     <td>
@@ -962,13 +1021,13 @@ function AdminReservations() {
                       <Badge bg={reservation.status === 'cancelled' ? 'secondary' : reservation.status === 'completed' ? 'success' : 'primary'}>
                         {reservation.status}
                       </Badge>
-                      {reservation.is_paid && <Badge bg="info" text="dark" className="ms-1">Списание ОК</Badge>}
+                      {reservation.is_paid && <Badge bg="info" text="dark" className="ms-1">{tx('Списание ОК', 'Yechim OK')}</Badge>}
                     </td>
                     <td style={{ minWidth: 280 }}>
                       <div className="d-flex gap-2 flex-wrap">
                         {!reservation.is_paid && !['cancelled', 'completed', 'no_show'].includes(String(reservation.status || '').toLowerCase()) && (
                           <Button size="sm" variant="outline-success" onClick={() => acceptAndPay(reservation.id)}>
-                            Принять и списать
+                            {tx('Принять и списать', 'Qabul qilish va yechish')}
                           </Button>
                         )}
                         <Form.Select
@@ -985,7 +1044,7 @@ function AdminReservations() {
                           ))}
                         </Form.Select>
                         <Button size="sm" variant="outline-primary" onClick={() => updateReservationStatus(reservation.id)}>
-                          Обновить статус
+                          {tx('Обновить статус', 'Statusni yangilash')}
                         </Button>
                       </div>
                     </td>
@@ -994,27 +1053,46 @@ function AdminReservations() {
                 {reservations.length === 0 && (
                   <tr>
                     <td colSpan={7} className="text-center text-muted py-3">
-                      Бронирований пока нет
+                      {tx('Бронирований пока нет', 'Bronlar hali yo\'q')}
                     </td>
                   </tr>
                 )}
               </tbody>
             </Table>
           </div>
+          {reservations.length > reservationsPageSize && (
+            <div className="d-flex justify-content-between align-items-center p-3 border-top">
+              <div className="small text-muted">
+                {tx('Записей', 'Yozuvlar')}: {reservations.length}
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <Form.Select size="sm" value={reservationsPageSize} onChange={(e) => setReservationsPageSize(Number(e.target.value) || 10)}>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </Form.Select>
+                <Pagination className="mb-0">
+                  <Pagination.Prev disabled={reservationsPage <= 1} onClick={() => setReservationsPage((p) => Math.max(1, p - 1))} />
+                  <Pagination.Item active>{reservationsPage}</Pagination.Item>
+                  <Pagination.Next disabled={reservationsPage >= reservationsTotalPages} onClick={() => setReservationsPage((p) => Math.min(reservationsTotalPages, p + 1))} />
+                </Pagination>
+              </div>
+            </div>
+          )}
         </Card.Body>
       </Card>
       )}
 
       <Modal show={showFloorModal} onHide={() => setShowFloorModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Добавить этаж</Modal.Title>
+          <Modal.Title>{tx('Добавить этаж', 'Qavat qo\'shish')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form onSubmit={addFloor}>
             <Row className="g-2">
               <Col xs={12}>
                 <Form.Control
-                  placeholder="Название этажа"
+                  placeholder={tx('Название этажа', 'Qavat nomi')}
                   value={floorForm.name}
                   onChange={(event) => setFloorForm((prev) => ({ ...prev, name: event.target.value }))}
                 />
@@ -1022,7 +1100,7 @@ function AdminReservations() {
               <Col xs={12}>
                 <Form.Control
                   type="number"
-                  placeholder="Порядок"
+                  placeholder={tx('Порядок', 'Tartib')}
                   value={floorForm.sort_order}
                   onChange={(event) => setFloorForm((prev) => ({ ...prev, sort_order: event.target.value }))}
                 />
@@ -1030,14 +1108,14 @@ function AdminReservations() {
               <Col xs={12}>
                 <Form.Control type="file" accept="image/*" onChange={handleFloorImageFileChange} disabled={uploadingFloorImage} />
                 <Form.Text className="text-muted">
-                  {uploadingFloorImage ? 'Загрузка и сжатие...' : 'Фото/план этажа (загрузка из файла)'}
+                  {uploadingFloorImage ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Фото/план этажа (загрузка из файла)', 'Qavat rasmi/rejasi (fayldan yuklash)')}
                 </Form.Text>
               </Col>
               {floorForm.image_url && (
                 <Col xs={12}>
                   <div className="d-flex align-items-center gap-2 flex-wrap">
                     <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый этаж', floorForm.image_url)}>
-                      Просмотр
+                      {tx('Просмотр', 'Ko\'rish')}
                     </Button>
                     <Button
                       size="sm"
@@ -1045,7 +1123,7 @@ function AdminReservations() {
                       type="button"
                       onClick={() => setFloorForm((prev) => ({ ...prev, image_url: '' }))}
                     >
-                      Удалить фото
+                      {tx('Удалить фото', 'Rasmni o\'chirish')}
                     </Button>
                   </div>
                 </Col>
@@ -1053,9 +1131,9 @@ function AdminReservations() {
             </Row>
             <div className="d-flex justify-content-end gap-2 mt-3">
               <Button type="button" variant="outline-secondary" onClick={() => setShowFloorModal(false)}>
-                Отмена
+                {tx('Отмена', 'Bekor qilish')}
               </Button>
-              <Button type="submit">Добавить этаж</Button>
+              <Button type="submit">{tx('Добавить этаж', 'Qavat qo\'shish')}</Button>
             </div>
           </Form>
         </Modal.Body>
@@ -1063,14 +1141,14 @@ function AdminReservations() {
 
       <Modal show={showTableModal} onHide={() => setShowTableModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Добавить стол {selectedFloor ? `(${selectedFloor.name})` : ''}</Modal.Title>
+          <Modal.Title>{tx('Добавить стол', 'Stol qo\'shish')} {selectedFloor ? `(${selectedFloor.name})` : ''}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form onSubmit={addTable}>
             <Row className="g-2">
               <Col xs={12}>
                 <Form.Control
-                  placeholder="Название стола"
+                  placeholder={tx('Название стола', 'Stol nomi')}
                   value={tableForm.name}
                   onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
                 />
@@ -1079,7 +1157,7 @@ function AdminReservations() {
                 <Form.Control
                   type="number"
                   min={1}
-                  placeholder="Вместимость"
+                  placeholder={tx('Вместимость', 'Sig\'im')}
                   value={tableForm.capacity}
                   onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: event.target.value }))}
                 />
@@ -1089,7 +1167,7 @@ function AdminReservations() {
                   value={tableForm.template_id}
                   onChange={(event) => setTableForm((prev) => ({ ...prev, template_id: event.target.value }))}
                 >
-                  <option value="">Шаблон (необязательно)</option>
+                  <option value="">{tx('Шаблон (необязательно)', 'Shablon (ixtiyoriy)')}</option>
                   {templates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name}
@@ -1100,14 +1178,14 @@ function AdminReservations() {
               <Col xs={12}>
                 <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
                 <Form.Text className="text-muted">
-                  {uploadingTablePhoto ? 'Загрузка и сжатие...' : 'Реальное фото стола (из файла)'}
+                  {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото стола (из файла)', 'Stolning real rasmi (fayldan)')}
                 </Form.Text>
               </Col>
               {tableForm.photo_url && (
                 <Col xs={12}>
                   <div className="d-flex align-items-center gap-2 flex-wrap">
                     <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый стол', tableForm.photo_url)}>
-                      Просмотр фото
+                      {tx('Просмотр фото', 'Rasmni ko\'rish')}
                     </Button>
                     <Button
                       size="sm"
@@ -1115,20 +1193,20 @@ function AdminReservations() {
                       type="button"
                       onClick={() => setTableForm((prev) => ({ ...prev, photo_url: '' }))}
                     >
-                      Удалить фото
+                      {tx('Удалить фото', 'Rasmni o\'chirish')}
                     </Button>
                   </div>
                 </Col>
               )}
             </Row>
             <div className="small text-muted mt-2">
-              После добавления перетащите стол на вкладке "Схема" в нужную точку.
+              {tx('После добавления перетащите стол на вкладке "Схема" в нужную точку.', 'Qo\'shilgandan keyin stolni "Sxema" bo\'limida kerakli joyga olib boring.')}
             </div>
             <div className="d-flex justify-content-end gap-2 mt-3">
               <Button type="button" variant="outline-secondary" onClick={() => setShowTableModal(false)}>
-                Отмена
+                {tx('Отмена', 'Bekor qilish')}
               </Button>
-              <Button type="submit" disabled={!selectedFloorId}>Добавить стол</Button>
+              <Button type="submit" disabled={!selectedFloorId}>{tx('Добавить стол', 'Stol qo\'shish')}</Button>
             </div>
           </Form>
         </Modal.Body>
@@ -1136,17 +1214,17 @@ function AdminReservations() {
 
       <Modal show={showImageModal} onHide={() => setShowImageModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{imageModalTitle || 'Фото'}</Modal.Title>
+          <Modal.Title>{imageModalTitle || tx('Фото', 'Rasm')}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-2">
           {imageModalUrl ? (
             <img
               src={imageModalUrl}
-              alt={imageModalTitle || 'Фото'}
+              alt={imageModalTitle || tx('Фото', 'Rasm')}
               style={{ width: '100%', borderRadius: 10, maxHeight: '70vh', objectFit: 'contain' }}
             />
           ) : (
-            <div className="text-muted text-center p-3">Фото не найдено</div>
+            <div className="text-muted text-center p-3">{tx('Фото не найдено', 'Rasm topilmadi')}</div>
           )}
         </Modal.Body>
       </Modal>

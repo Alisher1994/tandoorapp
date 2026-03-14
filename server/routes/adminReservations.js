@@ -234,6 +234,10 @@ router.put('/settings', async (req, res) => {
     const params = [];
 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'enabled')) {
+      if (req.user?.role !== 'superadmin') {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Включение/выключение бронирования доступно только супер-админу' });
+      }
       params.push(!!req.body.enabled);
       updates.push(`enabled = $${params.length}`);
     }
@@ -242,6 +246,10 @@ router.put('/settings', async (req, res) => {
       updates.push(`reservation_fee = $${params.length}`);
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'reservation_service_cost')) {
+      if (req.user?.role !== 'superadmin') {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Стоимость сервиса бронирования задается только супер-админом' });
+      }
       params.push(Math.max(0, parseAmount(req.body.reservation_service_cost, 0)));
       updates.push(`reservation_service_cost = $${params.length}`);
     }
