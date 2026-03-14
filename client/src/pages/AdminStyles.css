@@ -719,6 +719,7 @@ body::-webkit-scrollbar,
     background: #f8fafc;
     cursor: grab;
     touch-action: none;
+    overscroll-behavior: contain;
 }
 
 .admin-reservation-plan-canvas:active {
@@ -765,11 +766,21 @@ body::-webkit-scrollbar,
     gap: 2px;
     font-size: 0.8rem;
     color: #0f172a;
+    cursor: grab;
 }
 
 .admin-reservation-plan-template-item.is-active {
     border-color: color-mix(in srgb, var(--primary-color) 50%, #ffffff);
     background: color-mix(in srgb, var(--primary-color) 10%, #ffffff);
+}
+
+.admin-reservation-plan-template-item:active {
+    cursor: grabbing;
+}
+
+.admin-reservation-plan-template-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .admin-reservation-plan-template-thumb {
@@ -785,43 +796,6 @@ body::-webkit-scrollbar,
 }
 
 .admin-reservation-plan-template-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.admin-reservation-plan-draft {
-    border: 1px dashed rgba(148, 163, 184, 0.6);
-    border-radius: 12px;
-    background: #f8fafc;
-    padding: 10px;
-    user-select: none;
-    cursor: grab;
-}
-
-.admin-reservation-plan-draft:active {
-    cursor: grabbing;
-}
-
-.admin-reservation-plan-draft.is-disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.admin-reservation-plan-draft-thumb {
-    width: 56px;
-    height: 42px;
-    border-radius: 8px;
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    background: #ffffff;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-}
-
-.admin-reservation-plan-draft-thumb img {
     width: 100%;
     height: 100%;
     object-fit: contain;
