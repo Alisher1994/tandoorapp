@@ -20,6 +20,7 @@ const {
   listHelpInstructions
 } = require('../services/helpInstructions');
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
+const { ensureReservationSchema } = require('../services/reservationSchema');
 
 const router = express.Router();
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
@@ -1029,13 +1030,26 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 router.get('/restaurant', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
+    await ensureReservationSchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
-    const result = await pool.query('SELECT * FROM restaurants WHERE id = $1', [restaurantId]);
+    const result = await pool.query(
+      `SELECT
+         r.*,
+         COALESCE(rs.enabled, false) AS reservation_enabled_setting
+       FROM restaurants r
+       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
+       WHERE r.id = $1
+       LIMIT 1`,
+      [restaurantId]
+    );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Ресторан не найден' });
-
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    res.json({
+      ...row,
+      reservation_enabled: row.reservation_enabled_setting === true || row.reservation_enabled_setting === 'true'
+    });
   } catch (error) {
     console.error('Get restaurant settings error:', error);
     res.status(500).json({ error: 'Ошибка получения настроек ресторана' });

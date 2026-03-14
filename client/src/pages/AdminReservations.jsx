@@ -602,9 +602,9 @@ function AdminReservations() {
         </Card.Body>
       </Card>
 
-      <div className="admin-settings-content p-3 rounded-4" style={{ minHeight: '60vh' }}>
       {activeTab === 'settings' && (
-      <Card className="border-0 shadow-sm mb-3">
+      <div className="admin-settings-content p-3 rounded-4">
+      <Card className="border-0 shadow-sm mb-0">
         <Card.Header className="bg-white fw-semibold">{tx('Настройки сервиса брони', 'Bron xizmati sozlamalari')}</Card.Header>
         <Card.Body>
           <Row className="g-3">
@@ -674,8 +674,8 @@ function AdminReservations() {
           </div>
         </Card.Body>
       </Card>
-      )}
       </div>
+      )}
 
       {(activeTab === 'floors' || activeTab === 'tables') && (
       <Row className="g-3">

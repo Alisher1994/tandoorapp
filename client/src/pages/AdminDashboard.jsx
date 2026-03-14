@@ -1084,6 +1084,7 @@ function AdminDashboard() {
     ? ['Kategoriya 1', 'Kategoriya 2', 'Kategoriya 3']
     : ['Категория 1', 'Категория 2', 'Категория 3'];
   const canEditStoreCurrency = isSuperAdmin();
+  const isReservationModuleEnabled = restaurantSettings?.reservation_enabled !== false;
   const activeRestaurantLogoUrl = useMemo(() => {
     const raw = String(user?.active_restaurant_logo || '').trim();
     if (!raw) return '';
@@ -1843,6 +1844,12 @@ function AdminDashboard() {
     if (mainTab !== 'help' || !user?.active_restaurant_id) return;
     fetchHelpInstructions();
   }, [mainTab, user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (!isReservationModuleEnabled && mainTab === 'reservations') {
+      setMainTab('dashboard');
+    }
+  }, [isReservationModuleEnabled, mainTab]);
 
   const categoryById = useMemo(() => {
     const map = new Map();
@@ -5501,13 +5508,15 @@ function AdminDashboard() {
                 <i className="bi bi-megaphone-fill me-1" aria-hidden="true"></i>
                 {t('broadcast')}
               </Nav.Link>
-              <Nav.Link
-                onClick={() => navigate('/admin/reservations')}
-                className="px-2 admin-nav-link"
-              >
-                <i className="bi bi-calendar2-week-fill me-1" aria-hidden="true"></i>
-                {t('reservations')}
-              </Nav.Link>
+              {isReservationModuleEnabled && (
+                <Nav.Link
+                  onClick={() => navigate('/admin/reservations')}
+                  className="px-2 admin-nav-link"
+                >
+                  <i className="bi bi-calendar2-week-fill me-1" aria-hidden="true"></i>
+                  {t('reservations')}
+                </Nav.Link>
+              )}
 
               {/* User + Language + Logout group */}
               <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
@@ -7144,6 +7153,7 @@ function AdminDashboard() {
 
               </Tab>
 
+              {isReservationModuleEnabled && (
               <Tab eventKey="reservations" title={t('reservations')}>
                 <Card className="border-0 shadow-sm mb-3">
                   <Card.Body>
@@ -7163,6 +7173,7 @@ function AdminDashboard() {
                   </Card.Body>
                 </Card>
               </Tab>
+              )}
 
               <Tab eventKey="products" title={t('products')}>
 

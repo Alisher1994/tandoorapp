@@ -478,7 +478,7 @@ router.get('/restaurant/:id', async (req, res) => {
     const result = await pool.query(
       `SELECT
          r.*,
-         COALESCE(rs.enabled, false) AS reservation_enabled,
+         COALESCE(rs.enabled, false) AS reservation_enabled_setting,
          COALESCE(rs.reservation_fee, 0) AS reservation_fee,
          COALESCE(rs.allow_multi_table, true) AS reservation_allow_multi_table
        FROM restaurants r
@@ -520,7 +520,7 @@ router.get('/restaurant/:id', async (req, res) => {
       payme_url: r.payme_url,
       uzum_url: r.uzum_url,
       xazna_url: r.xazna_url,
-      reservation_enabled: r.reservation_enabled === true || r.reservation_enabled === 'true',
+      reservation_enabled: r.reservation_enabled_setting === true || r.reservation_enabled_setting === 'true',
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
       card_payment_enabled: cardPaymentEnabled,
@@ -723,7 +723,7 @@ router.get('/restaurants/list', async (req, res) => {
     const result = await pool.query(`
       SELECT
         r.*,
-        COALESCE(rs.enabled, false) AS reservation_enabled,
+        COALESCE(rs.enabled, false) AS reservation_enabled_setting,
         COALESCE(rs.reservation_fee, 0) AS reservation_fee,
         COALESCE(rs.allow_multi_table, true) AS reservation_allow_multi_table
       FROM restaurants r
@@ -746,7 +746,7 @@ router.get('/restaurants/list', async (req, res) => {
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
-      reservation_enabled: r.reservation_enabled === true || r.reservation_enabled === 'true',
+      reservation_enabled: r.reservation_enabled_setting === true || r.reservation_enabled_setting === 'true',
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false
       });

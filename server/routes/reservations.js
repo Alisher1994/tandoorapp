@@ -24,6 +24,8 @@ const parseAmount = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const asBooleanFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+
 const normalizeDate = (value) => {
   const raw = String(value || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
@@ -123,6 +125,14 @@ router.get('/floors', async (req, res) => {
       return res.status(400).json({ error: 'Ресторан не указан' });
     }
 
+    const config = await getReservationConfig(pool, restaurantId);
+    if (!config) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+    if (!asBooleanFlag(config.enabled)) {
+      return res.status(403).json({ error: 'Бронирование отключено для этого магазина' });
+    }
+
     const result = await pool.query(
       `SELECT
          f.*,
@@ -170,6 +180,9 @@ router.get('/availability', async (req, res) => {
     const config = await getReservationConfig(pool, restaurantId);
     if (!config) {
       return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+    if (!asBooleanFlag(config.enabled)) {
+      return res.status(403).json({ error: 'Бронирование отключено для этого магазина' });
     }
 
     const tablesResult = await pool.query(
@@ -231,7 +244,7 @@ router.get('/availability', async (req, res) => {
       start_time: startTime,
       end_time: endTime,
       duration_minutes: durationMinutes,
-      reservation_enabled: Boolean(config.enabled),
+      reservation_enabled: asBooleanFlag(config.enabled),
       reservation_fee: parseAmount(config.reservation_fee, 0),
       allow_multi_table: Boolean(config.allow_multi_table),
       tables
@@ -309,7 +322,7 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
 
-    if (!config.enabled) {
+    if (!asBooleanFlag(config.enabled)) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Бронирование отключено для этого магазина' });
     }

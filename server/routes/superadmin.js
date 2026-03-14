@@ -917,7 +917,7 @@ router.get('/restaurants', async (req, res) => {
       SELECT r.*, 
         bat.name AS activity_type_name,
         bat.is_visible AS activity_type_is_visible,
-        COALESCE(rs.enabled, false) AS reservation_enabled,
+        COALESCE(rs.enabled, false) AS reservation_enabled_setting,
         COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
         (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id) as orders_count,
@@ -927,7 +927,10 @@ router.get('/restaurants', async (req, res) => {
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
       ORDER BY r.created_at DESC
     `);
-    const restaurants = await Promise.all(result.rows.map((row) => enrichRestaurantWithBotMeta(row)));
+    const restaurants = await Promise.all(result.rows.map((row) => enrichRestaurantWithBotMeta({
+      ...row,
+      reservation_enabled: row.reservation_enabled_setting === true || row.reservation_enabled_setting === 'true'
+    })));
     res.json(restaurants);
   } catch (error) {
     console.error('Get restaurants error:', error);
@@ -1375,7 +1378,7 @@ router.get('/restaurants/:id', async (req, res) => {
       SELECT r.*,
         bat.name AS activity_type_name,
         bat.is_visible AS activity_type_is_visible,
-        COALESCE(rs.enabled, false) AS reservation_enabled,
+        COALESCE(rs.enabled, false) AS reservation_enabled_setting,
         COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count
       FROM restaurants r
@@ -1396,7 +1399,10 @@ router.get('/restaurants/:id', async (req, res) => {
       WHERE opr.restaurant_id = $1
     `, [req.params.id]);
 
-    const restaurant = result.rows[0];
+    const restaurant = {
+      ...result.rows[0],
+      reservation_enabled: result.rows[0].reservation_enabled_setting === true || result.rows[0].reservation_enabled_setting === 'true'
+    };
     restaurant.operators = operatorsResult.rows;
 
     res.json(restaurant);

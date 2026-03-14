@@ -86,6 +86,10 @@ function Reservations() {
 
   const fetchAvailability = async (nextFloorId = selectedFloorId) => {
     if (!restaurantId || !nextFloorId || !bookingDate || !startTime) return;
+    if (restaurant?.reservation_enabled !== true) {
+      setTables([]);
+      return;
+    }
     setLoadingAvailability(true);
     setError('');
     try {
@@ -116,13 +120,20 @@ function Reservations() {
       if (!restaurantId) return setLoading(false);
       setLoading(true);
       try {
-        const [restaurantResponse, floorsResponse] = await Promise.all([
-          axios.get(`${API_URL}/products/restaurant/${restaurantId}`),
-          axios.get(`${API_URL}/reservations/floors`, { params: { restaurant_id: restaurantId } })
-        ]);
+        const restaurantResponse = await axios.get(`${API_URL}/products/restaurant/${restaurantId}`);
+        if (!isMounted) return;
+        const nextRestaurant = restaurantResponse.data || null;
+        setRestaurant(nextRestaurant);
+
+        if (nextRestaurant?.reservation_enabled !== true) {
+          setFloors([]);
+          setSelectedFloorId(null);
+          return;
+        }
+
+        const floorsResponse = await axios.get(`${API_URL}/reservations/floors`, { params: { restaurant_id: restaurantId } });
         if (!isMounted) return;
         const nextFloors = Array.isArray(floorsResponse.data) ? floorsResponse.data : [];
-        setRestaurant(restaurantResponse.data || null);
         setFloors(nextFloors);
         setSelectedFloorId(nextFloors[0]?.id ? Number(nextFloors[0].id) : null);
       } catch (err) {
@@ -158,6 +169,10 @@ function Reservations() {
 
   const submitReservation = async () => {
     if (!restaurantId) return;
+    if (restaurant?.reservation_enabled !== true) {
+      setError(language === 'uz' ? 'Ushbu do‘kon uchun band qilish xizmati o‘chirilgan' : 'Для этого магазина бронирование отключено');
+      return;
+    }
     if (!selectedTableIds.length) return setError(language === 'uz' ? 'Kamida bitta stol tanlang' : 'Выберите хотя бы один стол');
     if (!isCapacityEnough) return setError(language === 'uz' ? 'Tanlangan stollar sig‘imi mehmonlar sonidan kam' : 'Вместимость выбранных столов меньше количества гостей');
     setSubmitting(true);
@@ -188,7 +203,7 @@ function Reservations() {
   };
 
   const hasNoRestaurant = !restaurantId;
-  const reservationEnabled = restaurant?.reservation_enabled !== false;
+  const reservationEnabled = restaurant?.reservation_enabled === true;
   if (loading) return <PageSkeleton fullscreen label={language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'} cards={4} />;
 
   return (
