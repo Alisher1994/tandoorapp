@@ -47,6 +47,22 @@ const toAbsoluteMediaUrl = (url) => {
   return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
 };
 
+const EyeIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+    <path d="M4 7h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M10 4h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M7 7v11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M10 11v5M14 11v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
 function AdminReservations() {
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -103,6 +119,9 @@ function AdminReservations() {
   const [showFloorModal, setShowFloorModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [dragState, setDragState] = useState(null);
+  const [planScale, setPlanScale] = useState(1);
+  const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
+  const [planPanStart, setPlanPanStart] = useState(null);
   const [savingTablePositionId, setSavingTablePositionId] = useState(null);
   const [tablesPage, setTablesPage] = useState(1);
   const [tablesPageSize, setTablesPageSize] = useState(10);
@@ -260,6 +279,12 @@ function AdminReservations() {
   useEffect(() => {
     setDragState(null);
     draggedPositionRef.current = null;
+  }, [selectedFloorId]);
+
+  useEffect(() => {
+    setPlanScale(1);
+    setPlanOffset({ x: 0, y: 0 });
+    setPlanPanStart(null);
   }, [selectedFloorId]);
 
   const saveSettings = async () => {
@@ -491,6 +516,7 @@ function AdminReservations() {
       startClientY: event.clientY,
       startX,
       startY,
+      scale: planScale,
       width: rect.width || 1,
       height: rect.height || 1
     });
@@ -499,8 +525,9 @@ function AdminReservations() {
 
   const handleTablePlanPointerMove = (event, tableId) => {
     if (!dragState || dragState.tableId !== tableId) return;
-    const deltaXPercent = ((event.clientX - dragState.startClientX) / dragState.width) * 100;
-    const deltaYPercent = ((event.clientY - dragState.startClientY) / dragState.height) * 100;
+    const effectiveScale = Math.max(0.1, Number(dragState.scale) || 1);
+    const deltaXPercent = (((event.clientX - dragState.startClientX) / effectiveScale) / dragState.width) * 100;
+    const deltaYPercent = (((event.clientY - dragState.startClientY) / effectiveScale) / dragState.height) * 100;
     const nextX = clamp(dragState.startX + deltaXPercent, 2, 98);
     const nextY = clamp(dragState.startY + deltaYPercent, 2, 98);
     draggedPositionRef.current = { tableId, x: nextX, y: nextY };
@@ -526,6 +553,39 @@ function AdminReservations() {
     if (!dragState || dragState.tableId !== tableId) return;
     setDragState(null);
     loadTables(selectedFloorId);
+  };
+
+  const handlePlanPointerDown = (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.target.closest('[data-plan-table="1"]')) return;
+    setPlanPanStart({
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startOffsetX: planOffset.x,
+      startOffsetY: planOffset.y
+    });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handlePlanPointerMove = (event) => {
+    if (!planPanStart) return;
+    setPlanOffset({
+      x: planPanStart.startOffsetX + (event.clientX - planPanStart.startClientX),
+      y: planPanStart.startOffsetY + (event.clientY - planPanStart.startClientY)
+    });
+  };
+
+  const handlePlanPointerUp = (event) => {
+    if (!planPanStart) return;
+    event.currentTarget.releasePointerCapture?.(planPanStart.pointerId);
+    setPlanPanStart(null);
+  };
+
+  const handlePlanWheel = (event) => {
+    event.preventDefault();
+    const delta = event.deltaY < 0 ? 0.1 : -0.1;
+    setPlanScale((prev) => clamp(Number((prev + delta).toFixed(2)), 0.7, 2.4));
   };
 
   if (loading) {
@@ -571,8 +631,8 @@ function AdminReservations() {
         {selectedFloor && <Badge bg="info" text="dark">{tx('Текущий этаж', 'Joriy qavat')}: {selectedFloor.name}</Badge>}
       </div>
 
-      <Card className="border-0 shadow-sm mb-3">
-        <Card.Body className="py-2">
+      <Card className="border-0 shadow-sm mb-3 admin-reservation-tabs-card">
+        <Card.Body className="p-3">
           <div className="admin-settings-pill-tabs" role="tablist" aria-label={tx('Вкладки бронирования', 'Bronlash bo\'limlari')}>
             {[
               { key: 'settings', label: tx('Настройки', 'Sozlamalar'), emoji: '⚙️' },
@@ -603,9 +663,14 @@ function AdminReservations() {
       </Card>
 
       {activeTab === 'settings' && (
-      <div className="admin-settings-content p-3 rounded-4">
-      <Card className="border-0 shadow-sm mb-0">
-        <Card.Header className="bg-white fw-semibold">{tx('Настройки сервиса брони', 'Bron xizmati sozlamalari')}</Card.Header>
+      <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
+      <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+        <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
+          <span>{tx('Настройки сервиса брони', 'Bron xizmati sozlamalari')}</span>
+          <Button className="btn-primary-custom admin-reservation-header-btn" onClick={saveSettings} disabled={savingSettings}>
+            {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
+          </Button>
+        </Card.Header>
         <Card.Body>
           <Row className="g-3">
             <Col md={6}>
@@ -666,87 +731,110 @@ function AdminReservations() {
               </Alert>
             </Col>
           </Row>
-
-          <div className="mt-3">
-            <Button variant="primary" onClick={saveSettings} disabled={savingSettings}>
-              {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
-            </Button>
-          </div>
         </Card.Body>
       </Card>
       </div>
       )}
 
       {(activeTab === 'floors' || activeTab === 'tables') && (
-      <Row className="g-3">
+      <Row className="g-3 m-0">
         {activeTab === 'floors' && (
-        <Col lg={12}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white fw-semibold">{tx('Этажи', 'Qavatlar')}</Card.Header>
-            <Card.Body>
-              <div className="d-flex justify-content-end mb-3">
-                <Button
-                  onClick={() => {
-                    setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
-                    setShowFloorModal(true);
-                  }}
-                >
-                  {tx('Добавить этаж', 'Qavat qo\'shish')}
-                </Button>
-              </div>
-
-              <div className="d-flex flex-column gap-2">
-                {floors.length === 0 && (
-                  <div className="text-muted small">{tx('Этажи пока не добавлены', 'Qavatlar hali qo\'shilmagan')}</div>
-                )}
-                {floors.map((floor) => (
-                  <div
-                    key={floor.id}
-                    className="d-flex align-items-center justify-content-between p-2 rounded border"
-                    style={{
-                      background: Number(selectedFloorId) === Number(floor.id) ? '#f4f8ff' : '#fff'
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="btn btn-sm text-start p-0 d-flex align-items-center gap-2"
-                      onClick={() => setSelectedFloorId(Number(floor.id))}
-                    >
-                      <span className="fw-semibold">{floor.name}</span>
-                      {!!floor.image_url && (
-                        <Badge bg="info" text="dark">{tx('Фото', 'Rasm')}</Badge>
-                      )}
-                    </button>
-                    <div className="d-flex gap-1">
-                      {!!floor.image_url && (
-                        <Button
-                          size="sm"
-                          variant="outline-info"
-                          onClick={() => openImagePreview(`Этаж: ${floor.name}`, floor.image_url)}
+        <Col lg={12} className="px-0">
+          <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
+          <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+            <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
+              <span>{tx('Этажи', 'Qavatlar')}</span>
+              <Button
+                className="btn-primary-custom admin-reservation-header-btn"
+                onClick={() => {
+                  setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
+                  setShowFloorModal(true);
+                }}
+              >
+                {tx('Добавить этаж', 'Qavat qo\'shish')}
+              </Button>
+            </Card.Header>
+            <Card.Body className="p-0">
+              <div className="admin-table-container">
+                <Table size="sm" hover className="admin-table mb-0 align-middle">
+                  <thead>
+                    <tr>
+                      <th>{tx('Этаж', 'Qavat')}</th>
+                      <th>{tx('Порядок', 'Tartib')}</th>
+                      <th>{tx('Фото', 'Rasm')}</th>
+                      <th className="text-end">{tx('Действия', 'Amallar')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {floors.map((floor) => {
+                      const isActiveFloor = Number(selectedFloorId) === Number(floor.id);
+                      return (
+                        <tr
+                          key={floor.id}
+                          className={isActiveFloor ? 'table-active' : ''}
+                          onClick={() => setSelectedFloorId(Number(floor.id))}
+                          style={{ cursor: 'pointer' }}
                         >
-                          👁
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline-danger" onClick={() => deleteFloor(floor.id)}>
-                        {tx('Удалить', 'O\'chirish')}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                          <td className="fw-semibold">
+                            {floor.name}
+                            {isActiveFloor && <Badge bg="info" text="dark" className="ms-2">{tx('Выбран', 'Tanlangan')}</Badge>}
+                          </td>
+                          <td>{asInt(floor.sort_order, 0)}</td>
+                          <td>{floor.image_url ? <Badge bg="secondary">{tx('Есть', 'Bor')}</Badge> : '—'}</td>
+                          <td className="text-end">
+                            <div className="d-inline-flex gap-1">
+                              <Button
+                                className="action-btn admin-reservation-action-btn"
+                                variant="primary"
+                                title={tx('Просмотр', 'Ko\'rish')}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openImagePreview(`Этаж: ${floor.name}`, floor.image_url);
+                                }}
+                                disabled={!floor.image_url}
+                              >
+                                <EyeIcon />
+                              </Button>
+                              <Button
+                                className="action-btn admin-reservation-action-btn"
+                                variant="primary"
+                                title={tx('Удалить', 'O\'chirish')}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  deleteFloor(floor.id);
+                                }}
+                              >
+                                <TrashIcon />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {floors.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="text-muted text-center py-3">{tx('Этажи пока не добавлены', 'Qavatlar hali qo\'shilmagan')}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
               </div>
             </Card.Body>
           </Card>
+          </div>
         </Col>
         )}
 
         {activeTab === 'tables' && (
-        <Col lg={12}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <Col lg={12} className="px-0">
+          <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
+          <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+            <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
               <span>{tx('Столы', 'Stollar')} {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
-              <div className="d-flex align-items-center gap-2">
+              <div className="d-flex align-items-center gap-2 admin-reservation-header-controls">
                 <Form.Select
                   size="sm"
+                  className="admin-reservation-control"
                   style={{ minWidth: 220 }}
                   value={selectedFloorId || ''}
                   onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
@@ -758,6 +846,7 @@ function AdminReservations() {
                 </Form.Select>
                 <Button
                   size="sm"
+                  className="btn-primary-custom admin-reservation-control"
                   disabled={!selectedFloorId}
                   onClick={() => {
                     setTableForm({
@@ -800,7 +889,7 @@ function AdminReservations() {
                             <th>{tx('Шаблон', 'Shablon')}</th>
                             <th>{tx('Позиция', 'Joylashuv')}</th>
                             <th>{tx('Фото', 'Rasm')}</th>
-                            <th />
+                            <th className="text-end">{tx('Действия', 'Amallar')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -813,23 +902,27 @@ function AdminReservations() {
                                 x: {Number.parseFloat(table.x || 0).toFixed(1)}%<br />
                                 y: {Number.parseFloat(table.y || 0).toFixed(1)}%
                               </td>
-                              <td>
-                                {table.photo_url ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline-info"
-                                    onClick={() => openImagePreview(`Стол: ${table.name}`, table.photo_url)}
-                                  >
-                                    {tx('Открыть', 'Ochish')}
-                                  </Button>
-                                ) : (
-                                  <span className="text-muted">—</span>
-                                )}
-                              </td>
+                              <td>{table.photo_url ? <Badge bg="secondary">{tx('Есть', 'Bor')}</Badge> : '—'}</td>
                               <td className="text-end">
-                                <Button size="sm" variant="outline-danger" onClick={() => deleteTable(table.id)}>
-                                  {tx('Удалить', 'O\'chirish')}
-                                </Button>
+                                <div className="d-inline-flex gap-1">
+                                  <Button
+                                    className="action-btn admin-reservation-action-btn"
+                                    variant="primary"
+                                    title={tx('Просмотр', 'Ko\'rish')}
+                                    onClick={() => openImagePreview(`Стол: ${table.name}`, table.photo_url)}
+                                    disabled={!table.photo_url}
+                                  >
+                                    <EyeIcon />
+                                  </Button>
+                                  <Button
+                                    className="action-btn admin-reservation-action-btn"
+                                    variant="primary"
+                                    title={tx('Удалить', 'O\'chirish')}
+                                    onClick={() => deleteTable(table.id)}
+                                  >
+                                    <TrashIcon />
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -848,7 +941,7 @@ function AdminReservations() {
                         {tx('Записей', 'Yozuvlar')}: {tables.length}
                       </div>
                       <div className="d-flex align-items-center gap-2">
-                        <Form.Select size="sm" value={tablesPageSize} onChange={(e) => setTablesPageSize(Number(e.target.value) || 10)}>
+                        <Form.Select size="sm" className="admin-reservation-control" value={tablesPageSize} onChange={(e) => setTablesPageSize(Number(e.target.value) || 10)}>
                           <option value={10}>10</option>
                           <option value={20}>20</option>
                           <option value={50}>50</option>
@@ -865,18 +958,21 @@ function AdminReservations() {
               )}
             </Card.Body>
           </Card>
+          </div>
         </Col>
         )}
       </Row>
       )}
 
       {activeTab === 'plan' && (
-        <Card className="border-0 shadow-sm mt-3">
-          <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center">
+        <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
+        <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+          <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
             <span>{tx('Схема этажа', 'Qavat sxemasi')}: {selectedFloor?.name || '—'}</span>
-            <div className="d-flex align-items-center gap-2">
+            <div className="d-flex align-items-center gap-2 admin-reservation-header-controls">
               <Form.Select
                 size="sm"
+                className="admin-reservation-control"
                 style={{ minWidth: 220 }}
                 value={selectedFloorId || ''}
                 onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
@@ -900,10 +996,15 @@ function AdminReservations() {
             {!!selectedFloorId && (
             <>
             <div className="small text-muted mb-2">
-              {tx('Перетащите стол в нужную точку. Позиция сохраняется автоматически после отпускания.', 'Stolni kerakli joyga sudrab qo\'ying. Joylashuv avtomatik saqlanadi.')}
+              {tx('Схему можно двигать мышью/тачем, колесом менять масштаб. Столы перетаскиваются отдельно и сохраняются автоматически.', 'Sxemani sichqoncha/tach bilan surish mumkin, g\'ildirak bilan kattalashtirish ishlaydi. Stollar alohida sudraladi va avtomatik saqlanadi.')}
             </div>
             <div
               ref={floorPlanRef}
+              onWheel={handlePlanWheel}
+              onPointerDown={handlePlanPointerDown}
+              onPointerMove={handlePlanPointerMove}
+              onPointerUp={handlePlanPointerUp}
+              onPointerCancel={handlePlanPointerUp}
               style={{
                 position: 'relative',
                 width: '100%',
@@ -913,64 +1014,96 @@ function AdminReservations() {
                 borderRadius: 16,
                 overflow: 'hidden',
                 background: '#f8fafc',
-                backgroundImage: selectedFloorImageUrl
-                  ? `url(${selectedFloorImageUrl})`
-                  : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center'
+                cursor: planPanStart ? 'grabbing' : 'grab',
+                touchAction: 'none'
               }}
             >
-              {tables.map((table) => {
-                const tableId = Number(table.id);
-                const posX = normalizePlanCoordinate(table.x, 50);
-                const posY = normalizePlanCoordinate(table.y, 50);
-                const isDragging = dragState?.tableId === tableId;
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})`,
+                  transformOrigin: 'center center'
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: selectedFloorImageUrl
+                      ? `url(${selectedFloorImageUrl})`
+                      : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                    backgroundSize: selectedFloorImageUrl ? 'contain' : 'cover',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'center'
+                  }}
+                />
+                {tables.map((table) => {
+                  const tableId = Number(table.id);
+                  const posX = normalizePlanCoordinate(table.x, 50);
+                  const posY = normalizePlanCoordinate(table.y, 50);
+                  const isDragging = dragState?.tableId === tableId;
 
-                return (
-                  <button
-                    key={`plan-table-${table.id}`}
-                    type="button"
-                    onPointerDown={(event) => handleTablePlanPointerDown(event, table)}
-                    onPointerMove={(event) => handleTablePlanPointerMove(event, tableId)}
-                    onPointerUp={(event) => handleTablePlanPointerUp(event, tableId)}
-                    onPointerCancel={() => handleTablePlanPointerCancel(tableId)}
-                    style={{
-                      position: 'absolute',
-                      left: `${posX}%`,
-                      top: `${posY}%`,
-                      transform: 'translate(-50%, -50%)',
-                      minWidth: 76,
-                      minHeight: 50,
-                      borderRadius: 12,
-                      border: `2px solid ${isDragging ? 'var(--primary-color)' : '#94a3b8'}`,
-                      background: isDragging
-                        ? 'color-mix(in srgb, var(--primary-color) 14%, #fff)'
-                        : 'rgba(255,255,255,0.92)',
-                      boxShadow: '0 6px 16px rgba(15,23,42,0.14)',
-                      padding: '6px 8px',
-                      cursor: isDragging ? 'grabbing' : 'grab',
-                      userSelect: 'none'
-                    }}
-                  >
-                          <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
-                          <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
-                        </button>
-                      );
-                    })}
+                  return (
+                    <button
+                      key={`plan-table-${table.id}`}
+                      type="button"
+                      data-plan-table="1"
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        handleTablePlanPointerDown(event, table);
+                      }}
+                      onPointerMove={(event) => handleTablePlanPointerMove(event, tableId)}
+                      onPointerUp={(event) => handleTablePlanPointerUp(event, tableId)}
+                      onPointerCancel={() => handleTablePlanPointerCancel(tableId)}
+                      style={{
+                        position: 'absolute',
+                        left: `${posX}%`,
+                        top: `${posY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        minWidth: 76,
+                        minHeight: 50,
+                        borderRadius: 12,
+                        border: `2px solid ${isDragging ? 'var(--primary-color)' : '#94a3b8'}`,
+                        background: isDragging
+                          ? 'color-mix(in srgb, var(--primary-color) 14%, #fff)'
+                          : 'rgba(255,255,255,0.92)',
+                        boxShadow: '0 6px 16px rgba(15,23,42,0.14)',
+                        padding: '6px 8px',
+                        cursor: isDragging ? 'grabbing' : 'grab',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
+                      <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="admin-reservation-plan-tools">
+                <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 2.4))}>+</Button>
+                <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 2.4))}>−</Button>
+                <Button size="sm" className="admin-reservation-control px-2" variant="outline-secondary" onClick={() => { setPlanScale(1); setPlanOffset({ x: 0, y: 0 }); }}>
+                  {tx('Сброс', 'Reset')}
+                </Button>
+              </div>
             </div>
             </>
             )}
           </Card.Body>
         </Card>
+        </div>
       )}
 
       {activeTab === 'requests' && (
-      <Card className="border-0 shadow-sm mt-3">
-        <Card.Header className="bg-white d-flex justify-content-between align-items-center">
-          <span className="fw-semibold">{tx('Заявки на бронирование', 'Bron so\'rovlari')}</span>
-          <div className="d-flex gap-2">
+      <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
+      <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+        <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
+          <span>{tx('Заявки на бронирование', 'Bron so\'rovlari')}</span>
+          <div className="d-flex gap-2 admin-reservation-header-controls">
             <Form.Select
               size="sm"
+              className="admin-reservation-control"
               value={statusFilter}
               onChange={async (event) => {
                 const next = event.target.value;
@@ -983,7 +1116,7 @@ function AdminReservations() {
                 <option key={status} value={status}>{status}</option>
               ))}
             </Form.Select>
-            <Button size="sm" variant="outline-primary" onClick={() => loadReservations(statusFilter)}>
+            <Button size="sm" className="admin-reservation-control" variant="outline-primary" onClick={() => loadReservations(statusFilter)}>
               {tx('Обновить', 'Yangilash')}
             </Button>
           </div>
@@ -1026,12 +1159,13 @@ function AdminReservations() {
                     <td style={{ minWidth: 280 }}>
                       <div className="d-flex gap-2 flex-wrap">
                         {!reservation.is_paid && !['cancelled', 'completed', 'no_show'].includes(String(reservation.status || '').toLowerCase()) && (
-                          <Button size="sm" variant="outline-success" onClick={() => acceptAndPay(reservation.id)}>
+                          <Button size="sm" className="admin-reservation-control" variant="outline-success" onClick={() => acceptAndPay(reservation.id)}>
                             {tx('Принять и списать', 'Qabul qilish va yechish')}
                           </Button>
                         )}
                         <Form.Select
                           size="sm"
+                          className="admin-reservation-control"
                           style={{ width: 130 }}
                           value={reservationStatusDraft[reservation.id] || reservation.status || 'new'}
                           onChange={(event) => setReservationStatusDraft((prev) => ({
@@ -1043,7 +1177,7 @@ function AdminReservations() {
                             <option key={status} value={status}>{status}</option>
                           ))}
                         </Form.Select>
-                        <Button size="sm" variant="outline-primary" onClick={() => updateReservationStatus(reservation.id)}>
+                        <Button size="sm" className="admin-reservation-control" variant="outline-primary" onClick={() => updateReservationStatus(reservation.id)}>
                           {tx('Обновить статус', 'Statusni yangilash')}
                         </Button>
                       </div>
@@ -1066,7 +1200,7 @@ function AdminReservations() {
                 {tx('Записей', 'Yozuvlar')}: {reservations.length}
               </div>
               <div className="d-flex align-items-center gap-2">
-                <Form.Select size="sm" value={reservationsPageSize} onChange={(e) => setReservationsPageSize(Number(e.target.value) || 10)}>
+                <Form.Select size="sm" className="admin-reservation-control" value={reservationsPageSize} onChange={(e) => setReservationsPageSize(Number(e.target.value) || 10)}>
                   <option value={10}>10</option>
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -1081,6 +1215,7 @@ function AdminReservations() {
           )}
         </Card.Body>
       </Card>
+      </div>
       )}
 
       <Modal show={showFloorModal} onHide={() => setShowFloorModal(false)} centered>
@@ -1183,6 +1318,9 @@ function AdminReservations() {
               </Col>
               {tableForm.photo_url && (
                 <Col xs={12}>
+                  <div className="admin-reservation-photo-slot mb-2">
+                    <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото стола', 'Stol rasmi')} className="admin-reservation-photo-slot-img" />
+                  </div>
                   <div className="d-flex align-items-center gap-2 flex-wrap">
                     <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый стол', tableForm.photo_url)}>
                       {tx('Просмотр фото', 'Rasmni ko\'rish')}
