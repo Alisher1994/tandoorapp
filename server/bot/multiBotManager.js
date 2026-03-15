@@ -27,7 +27,7 @@ const BOT_TEXTS = {
   ru: {
     chooseLanguage: '🌐 Выберите язык системы:',
     languageSaved: '✅ Язык сохранен.',
-    openMenu: '🏪 Открыть магазин',
+    openMenu: 'Заказать',
     promoButton: '😍 Акция',
     myOrders: '📋 Мои заказы',
     contactButton: '☎️ Связь',
@@ -55,7 +55,7 @@ const BOT_TEXTS = {
   uz: {
     chooseLanguage: '🌐 Tizim tilini tanlang:',
     languageSaved: '✅ Til saqlandi.',
-    openMenu: "🏪 Do'konni ochish",
+    openMenu: 'Buyurtma berish',
     promoButton: '😍 Aksiya',
     myOrders: '📋 Buyurtmalarim',
     contactButton: "☎️ Bog'lanish",
@@ -699,13 +699,14 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   };
 
   const buildCustomerReplyKeyboard = (loginUrl, lang) => {
+    const orderButton = loginUrl
+      ? { text: t(lang, 'openMenu'), web_app: { url: loginUrl } }
+      : { text: t(lang, 'openMenu') };
     return {
       keyboard: [
+        [orderButton],
         [
-          loginUrl ? { text: t(lang, 'openMenu'), web_app: { url: loginUrl } } : { text: t(lang, 'openMenu') },
-          { text: t(lang, 'myOrders') }
-        ],
-        [
+          { text: t(lang, 'myOrders') },
           { text: t(lang, 'contactButton') },
           { text: t(lang, 'editProfile') }
         ]
