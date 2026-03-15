@@ -11,7 +11,8 @@
     "start": "node server/index.js",
     "migrate": "node server/database/migrate.js",
     "backfill:product-thumbs": "node scripts/backfill-product-thumbs.js",
-    "backfill:ad-events-analytics": "node scripts/backfill-ad-banner-events-analytics.js"
+    "backfill:ad-events-analytics": "node scripts/backfill-ad-banner-events-analytics.js",
+    "refresh:customer-keyboards": "node scripts/refresh-customer-keyboards.js"
   },
   "keywords": [
     "orders",
