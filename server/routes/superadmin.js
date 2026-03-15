@@ -3187,6 +3187,8 @@ router.get('/analytics/overview', async (req, res) => {
         o.delivery_cost,
         o.service_rating,
         o.delivery_rating,
+        o.service_rating_reason,
+        o.delivery_rating_reason,
         COALESCE(
           NULLIF(BTRIM(to_jsonb(o)->>'fulfillment_type'), ''),
           CASE

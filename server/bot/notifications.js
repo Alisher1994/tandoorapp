@@ -5,6 +5,7 @@ const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/
 const TELEGRAM_ITEMS_HARD_LIMIT = 20;
 const TELEGRAM_COMMENT_LIMIT = 360;
 const DEFAULT_BOT_TIME_ZONE = 'Asia/Tashkent';
+const LOW_RATING_THRESHOLD = 2;
 
 function resolveBotTimeZone() {
   const candidates = [
@@ -404,10 +405,22 @@ function buildOrderRatingsBlock(order) {
   const deliveryRating = normalizeOrderRating(order?.delivery_rating, 0);
   if (serviceRating <= 0 && deliveryRating <= 0) return '';
 
-  return [
+  const lines = [
     `Сервис: ${buildRatingStars(serviceRating)}`,
     `Доставка: ${buildRatingStars(deliveryRating)}`
-  ].join('\n');
+  ];
+
+  const serviceReason = String(order?.service_rating_reason || '').trim();
+  if (serviceRating > 0 && serviceRating <= LOW_RATING_THRESHOLD && serviceReason) {
+    lines.push(`Причина низкой оценки сервиса: ${escapeHtml(serviceReason)}`);
+  }
+
+  const deliveryReason = String(order?.delivery_rating_reason || '').trim();
+  if (deliveryRating > 0 && deliveryRating <= LOW_RATING_THRESHOLD && deliveryReason) {
+    lines.push(`Причина низкой оценки доставки: ${escapeHtml(deliveryReason)}`);
+  }
+
+  return lines.join('\n');
 }
 
 function getPendingOrderRatingField(order) {
@@ -418,25 +431,29 @@ function getPendingOrderRatingField(order) {
   return null;
 }
 
-function buildOrderRatingPrompt(order, fieldName) {
-  const orderNumber = order?.order_number || order?.id || '—';
+function buildOrderRatingPrompt(order, fieldName, language = 'ru') {
+  const lang = normalizeNoticeLanguage(language);
   if (fieldName === 'delivery_rating') {
+    if (lang === 'uz') {
+      return (
+        `🚕 Yetkazib berishni 1 dan 5 gacha baholang.\n` +
+        `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
+      );
+    }
     return (
-      `🚚 Заказ #${orderNumber}\n` +
-      `Оцените доставку от 1 до 5.\n` +
-      `Отправьте только число: 1, 2, 3, 4 или 5.\n\n` +
-      `🚚 Buyurtma #${orderNumber}\n` +
-      `Yetkazib berishni 1 dan 5 gacha baholang.\n` +
+      `🚕 Оцените доставку от 1 до 5.\n` +
+      `Отправьте только число: 1, 2, 3, 4 или 5.`
+    );
+  }
+  if (lang === 'uz') {
+    return (
+      `🛍 Servisni 1 dan 5 gacha baholang.\n` +
       `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
     );
   }
   return (
-    `🛎 Заказ #${orderNumber}\n` +
-    `Оцените сервис от 1 до 5.\n` +
-    `Отправьте только число: 1, 2, 3, 4 или 5.\n\n` +
-    `🛎 Buyurtma #${orderNumber}\n` +
-    `Servisni 1 dan 5 gacha baholang.\n` +
-    `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
+    `🛍 Оцените сервис от 1 до 5.\n` +
+    `Отправьте только число: 1, 2, 3, 4 или 5.`
   );
 }
 
@@ -1068,6 +1085,46 @@ function replacePlaceholders(template, order) {
     .replace(/{payment_method}/g, paymentMethods[order.payment_method] || order.payment_method || '');
 }
 
+async function resolveOrderPromptLanguage({ telegramId = null, userId = null, fallback = 'ru' } = {}) {
+  const normalizedFallback = normalizeNoticeLanguage(fallback);
+
+  const normalizedUserId = Number.parseInt(userId, 10);
+  if (Number.isFinite(normalizedUserId) && normalizedUserId > 0) {
+    try {
+      const byUserId = await pool.query(
+        `SELECT bot_language
+         FROM users
+         WHERE id = $1
+         LIMIT 1`,
+        [normalizedUserId]
+      );
+      if (byUserId.rows.length > 0) {
+        return normalizeNoticeLanguage(byUserId.rows[0].bot_language || normalizedFallback);
+      }
+    } catch (_) { }
+  }
+
+  const normalizedTelegramId = String(telegramId || '').trim();
+  const parsedTelegramId = Number.parseInt(normalizedTelegramId, 10);
+  if (Number.isFinite(parsedTelegramId) && parsedTelegramId > 0) {
+    try {
+      const byTelegramId = await pool.query(
+        `SELECT bot_language
+         FROM users
+         WHERE telegram_id = $1
+         ORDER BY id DESC
+         LIMIT 1`,
+        [parsedTelegramId]
+      );
+      if (byTelegramId.rows.length > 0) {
+        return normalizeNoticeLanguage(byTelegramId.rows[0].bot_language || normalizedFallback);
+      }
+    } catch (_) { }
+  }
+
+  return normalizedFallback;
+}
+
 /**
  * Send order status update to user
  * @param {Object} customMessages - Custom messages from restaurant settings { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled }
@@ -1256,6 +1313,12 @@ async function sendOrderUpdateToUser(
     if (status === 'delivered' && order?.id) {
       const pendingField = getPendingOrderRatingField(orderWithRatings);
       if (pendingField) {
+        const userPromptLanguage = await resolveOrderPromptLanguage({
+          telegramId,
+          userId: order?.user_id || null,
+          fallback: 'ru'
+        });
+
         await pool.query(
           `UPDATE orders
            SET rating_requested_at = COALESCE(rating_requested_at, CURRENT_TIMESTAMP),
@@ -1266,7 +1329,7 @@ async function sendOrderUpdateToUser(
 
         await bot.sendMessage(
           telegramId,
-          buildOrderRatingPrompt(orderWithRatings, pendingField),
+          buildOrderRatingPrompt(orderWithRatings, pendingField, userPromptLanguage),
           { disable_web_page_preview: true }
         );
       }

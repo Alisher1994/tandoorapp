@@ -9356,12 +9356,22 @@ function AdminDashboard() {
                             {buildOrderRatingStars(selectedOrder.service_rating || 0)}
                           </span>
                         </div>
+                        {Number(selectedOrder.service_rating || 0) > 0 && Number(selectedOrder.service_rating || 0) <= 2 && selectedOrder.service_rating_reason && (
+                          <div className="small text-muted mb-2">
+                            <strong>{language === 'uz' ? 'Sabab (servis):' : 'Причина (сервис):'}</strong> {selectedOrder.service_rating_reason}
+                          </div>
+                        )}
                         <div className="d-flex justify-content-between align-items-center">
                           <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
                           <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
                             {buildOrderRatingStars(selectedOrder.delivery_rating || 0)}
                           </span>
                         </div>
+                        {Number(selectedOrder.delivery_rating || 0) > 0 && Number(selectedOrder.delivery_rating || 0) <= 2 && selectedOrder.delivery_rating_reason && (
+                          <div className="small text-muted mt-2">
+                            <strong>{language === 'uz' ? 'Sabab (yetkazib berish):' : 'Причина (доставка):'}</strong> {selectedOrder.delivery_rating_reason}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

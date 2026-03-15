@@ -22,6 +22,9 @@ const ensureOrderRatingsSchema = async ({ client = null } = {}) => {
   const run = async (db) => {
     await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_rating INTEGER DEFAULT 0').catch(() => {});
     await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_rating INTEGER DEFAULT 0').catch(() => {});
+    await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_rating_reason TEXT').catch(() => {});
+    await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_rating_reason TEXT').catch(() => {});
+    await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS rating_reason_pending_field VARCHAR(32)').catch(() => {});
     await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS rating_requested_at TIMESTAMP').catch(() => {});
     await db.query('UPDATE orders SET service_rating = 0 WHERE service_rating IS NULL').catch(() => {});
     await db.query('UPDATE orders SET delivery_rating = 0 WHERE delivery_rating IS NULL').catch(() => {});
@@ -50,4 +53,3 @@ module.exports = {
   normalizeOrderRating,
   ensureOrderRatingsSchema
 };
-

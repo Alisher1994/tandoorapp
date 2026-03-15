@@ -24,6 +24,7 @@ const languageSelectionStates = new Map();
 const languagePreferences = new Map();
 
 const BOT_LANGUAGES = ['ru', 'uz'];
+const LOW_RATING_THRESHOLD = 2;
 const BOT_TEXTS = {
   ru: {
     chooseLanguage: '🌐 Выберите язык системы:',
@@ -123,25 +124,63 @@ function normalizeCardReceiptTarget(value, fallback = 'bot') {
   return String(value || '').trim().toLowerCase() === 'admin' ? 'admin' : fallback;
 }
 
-function buildRatingStars(ratingValue, max = 5) {
-  const rating = normalizeOrderRating(ratingValue, 0);
-  if (rating <= 0) return '☆'.repeat(max);
-  return `${'⭐️'.repeat(rating)}${'☆'.repeat(Math.max(0, max - rating))}`;
+function buildRatingSuccessMessage(lang) {
+  if (lang === 'uz') {
+    return 'Rahmat! Fikringiz biz uchun juda muhim ❤️!';
+  }
+  return 'Спасибо за ваш отзыв, мы это ценим ❤️!';
 }
 
-function buildRatingSuccessMessage(lang, orderNumber, serviceRating, deliveryRating) {
+function buildServiceRatingPrompt(lang) {
   if (lang === 'uz') {
     return (
-      `✅ Rahmat! Buyurtma #${orderNumber} bo'yicha baholar saqlandi.\n` +
-      `Servis: ${buildRatingStars(serviceRating)}\n` +
-      `Yetkazib berish: ${buildRatingStars(deliveryRating)}`
+      `🛍 Servisni 1 dan 5 gacha baholang.\n` +
+      `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
     );
   }
   return (
-    `✅ Спасибо! Оценки по заказу #${orderNumber} сохранены.\n` +
-    `Сервис: ${buildRatingStars(serviceRating)}\n` +
-    `Доставка: ${buildRatingStars(deliveryRating)}`
+    `🛍 Оцените сервис от 1 до 5.\n` +
+    `Отправьте только число: 1, 2, 3, 4 или 5.`
   );
+}
+
+function buildDeliveryRatingPrompt(lang) {
+  if (lang === 'uz') {
+    return (
+      `🚕 Yetkazib berishni 1 dan 5 gacha baholang.\n` +
+      `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
+    );
+  }
+  return (
+    `🚕 Оцените доставку от 1 до 5.\n` +
+    `Отправьте только число: 1, 2, 3, 4 или 5.`
+  );
+}
+
+function buildLowRatingReasonPrompt(lang, fieldName) {
+  const isService = fieldName === 'service_rating';
+  if (lang === 'uz') {
+    return isService
+      ? '🛍 Servisga nega past baho berdingiz? Qisqacha sababini yozing.'
+      : "🚕 Yetkazib berishga nega past baho berdingiz? Qisqacha sababini yozing.";
+  }
+  return isService
+    ? '🛍 Что именно не понравилось в сервисе? Напишите, пожалуйста, причину.'
+    : '🚕 Что именно не понравилось в доставке? Напишите, пожалуйста, причину.';
+}
+
+function buildInvalidRatingInputMessage(lang) {
+  if (lang === 'uz') {
+    return "Iltimos, 1 dan 5 gacha son yuboring.\nMasalan: 4";
+  }
+  return 'Пожалуйста, отправьте число от 1 до 5.\nНапример: 4';
+}
+
+function buildInvalidReasonInputMessage(lang) {
+  if (lang === 'uz') {
+    return 'Iltimos, sababni matn ko‘rinishida yozing (kamida 3 ta belgi).';
+  }
+  return 'Пожалуйста, напишите причину текстом (минимум 3 символа).';
 }
 
 function formatMoney(value) {
@@ -563,14 +602,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
          o.status,
          o.restaurant_id,
          COALESCE(o.service_rating, 0) AS service_rating,
-         COALESCE(o.delivery_rating, 0) AS delivery_rating
+         COALESCE(o.delivery_rating, 0) AS delivery_rating,
+         COALESCE(o.service_rating_reason, '') AS service_rating_reason,
+         COALESCE(o.delivery_rating_reason, '') AS delivery_rating_reason,
+         COALESCE(o.rating_reason_pending_field, '') AS rating_reason_pending_field
        FROM orders o
        JOIN users u ON u.id = o.user_id
        WHERE u.telegram_id = $1
          AND o.restaurant_id = $2
          AND o.status = 'delivered'
          AND o.rating_requested_at IS NOT NULL
-         AND (COALESCE(o.service_rating, 0) = 0 OR COALESCE(o.delivery_rating, 0) = 0)
+         AND (
+           COALESCE(o.service_rating, 0) = 0
+           OR COALESCE(o.delivery_rating, 0) = 0
+           OR NULLIF(BTRIM(COALESCE(o.rating_reason_pending_field, '')), '') IS NOT NULL
+         )
        ORDER BY COALESCE(o.rating_requested_at, o.updated_at, o.created_at) DESC, o.id DESC
        LIMIT 1`,
       [telegramUserId, restaurantId]
@@ -1524,17 +1570,97 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
         const currentServiceRating = normalizeOrderRating(pendingOrderRating.service_rating, 0);
         const currentDeliveryRating = normalizeOrderRating(pendingOrderRating.delivery_rating, 0);
-        const fieldToUpdate = currentServiceRating <= 0 ? 'service_rating' : 'delivery_rating';
+        const pendingReasonFieldRaw = String(pendingOrderRating.rating_reason_pending_field || '').trim();
+        const pendingReasonField = pendingReasonFieldRaw === 'service_rating' || pendingReasonFieldRaw === 'delivery_rating'
+          ? pendingReasonFieldRaw
+          : null;
         const menuAction = resolveTextMenuAction(normalizedText);
 
-        if (isNumericRating && parsedRatingValue >= 1 && parsedRatingValue <= 5) {
+        if (pendingReasonField) {
+          const reasonText = normalizedText;
+          if (menuAction || reasonText.length < 3) {
+            await bot.sendMessage(chatId, buildInvalidReasonInputMessage(userLang));
+            return;
+          }
+          const normalizedReason = reasonText.slice(0, 500);
+
+          const reasonColumn = pendingReasonField === 'service_rating'
+            ? 'service_rating_reason'
+            : 'delivery_rating_reason';
+
           await pool.query(
             `UPDATE orders
-             SET ${fieldToUpdate} = $1,
+             SET ${reasonColumn} = $1,
+                 rating_reason_pending_field = NULL,
                  rating_requested_at = CURRENT_TIMESTAMP,
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $2`,
-            [parsedRatingValue, pendingOrderRating.id]
+            [normalizedReason, pendingOrderRating.id]
+          );
+
+          const refreshedAfterReasonResult = await pool.query(
+            `SELECT
+               order_number,
+               COALESCE(service_rating, 0) AS service_rating,
+               COALESCE(delivery_rating, 0) AS delivery_rating
+             FROM orders
+             WHERE id = $1
+             LIMIT 1`,
+            [pendingOrderRating.id]
+          );
+          const refreshedAfterReason = refreshedAfterReasonResult.rows[0] || pendingOrderRating;
+          const refreshedServiceRating = normalizeOrderRating(refreshedAfterReason.service_rating, 0);
+          const refreshedDeliveryRating = normalizeOrderRating(refreshedAfterReason.delivery_rating, 0);
+
+          try {
+            await syncGroupOrderMessageAfterRating(pendingOrderRating.id);
+          } catch (syncError) {
+            console.error('Sync group message after rating reason error:', syncError.message);
+          }
+
+          if (refreshedServiceRating <= 0) {
+            await bot.sendMessage(chatId, buildServiceRatingPrompt(userLang));
+          } else if (refreshedDeliveryRating <= 0) {
+            await bot.sendMessage(chatId, buildDeliveryRatingPrompt(userLang));
+          } else {
+            await bot.sendMessage(
+              chatId,
+              buildRatingSuccessMessage(
+                userLang
+              )
+            );
+          }
+          return;
+        }
+
+        const fieldToUpdate = currentServiceRating <= 0
+          ? 'service_rating'
+          : (currentDeliveryRating <= 0 ? 'delivery_rating' : null);
+        if (!fieldToUpdate) {
+          await bot.sendMessage(
+            chatId,
+            buildRatingSuccessMessage(
+              userLang
+            )
+          );
+          return;
+        }
+
+        if (isNumericRating && parsedRatingValue >= 1 && parsedRatingValue <= 5) {
+          const reasonColumn = fieldToUpdate === 'service_rating'
+            ? 'service_rating_reason'
+            : 'delivery_rating_reason';
+          const shouldAskReason = parsedRatingValue <= LOW_RATING_THRESHOLD;
+
+          await pool.query(
+            `UPDATE orders
+             SET ${fieldToUpdate} = $1,
+                 ${reasonColumn} = CASE WHEN $1 <= ${LOW_RATING_THRESHOLD} THEN NULL ELSE ${reasonColumn} END,
+                 rating_reason_pending_field = $3,
+                 rating_requested_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [parsedRatingValue, pendingOrderRating.id, shouldAskReason ? fieldToUpdate : null]
           );
 
           const refreshedRatingResult = await pool.query(
@@ -1557,43 +1683,28 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             console.error('Sync group message after rating error:', syncError.message);
           }
 
+          if (shouldAskReason) {
+            await bot.sendMessage(chatId, buildLowRatingReasonPrompt(userLang, fieldToUpdate));
+            return;
+          }
+
           if (refreshedServiceRating <= 0) {
-            await bot.sendMessage(
-              chatId,
-              userLang === 'uz'
-                ? "Iltimos, servisni 1 dan 5 gacha baholang.\nFaqat son yuboring: 1, 2, 3, 4 yoki 5."
-                : 'Пожалуйста, оцените сервис от 1 до 5.\nОтправьте только число: 1, 2, 3, 4 или 5.'
-            );
+            await bot.sendMessage(chatId, buildServiceRatingPrompt(userLang));
           } else if (refreshedDeliveryRating <= 0) {
-            await bot.sendMessage(
-              chatId,
-              userLang === 'uz'
-                ? "Rahmat! Endi yetkazib berishni 1 dan 5 gacha baholang.\nFaqat son yuboring: 1, 2, 3, 4 yoki 5."
-                : 'Спасибо! Теперь оцените доставку от 1 до 5.\nОтправьте только число: 1, 2, 3, 4 или 5.'
-            );
+            await bot.sendMessage(chatId, buildDeliveryRatingPrompt(userLang));
           } else {
             await bot.sendMessage(
               chatId,
               buildRatingSuccessMessage(
-                userLang,
-                refreshedOrder.order_number || pendingOrderRating.order_number || pendingOrderRating.id,
-                refreshedServiceRating,
-                refreshedDeliveryRating
+                userLang
               )
             );
           }
           return;
         }
 
-        if (!menuAction) {
-          await bot.sendMessage(
-            chatId,
-            userLang === 'uz'
-              ? "Iltimos, 1 dan 5 gacha son yuboring.\nMasalan: 4"
-              : 'Пожалуйста, отправьте число от 1 до 5.\nНапример: 4'
-          );
-          return;
-        }
+        await bot.sendMessage(chatId, buildInvalidRatingInputMessage(userLang));
+        return;
       }
 
       const replyText = String(msg.reply_to_message?.text || '');
