@@ -77,6 +77,7 @@ async function migrate() {
       'msg_delivering TEXT',
       'msg_delivered TEXT',
       'msg_cancelled TEXT',
+      'admin_comment TEXT',
       'support_username VARCHAR(100)',
       'operator_registration_code VARCHAR(64)',
       'service_fee DECIMAL(10, 2) DEFAULT 0',

@@ -21,6 +21,7 @@ const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
 const CATALOG_ANIMATION_SEASON_OPTIONS = [
   { value: 'spring', label: 'Весна' },
   { value: 'summer', label: 'Лето' },
@@ -528,6 +529,10 @@ function SuperAdminDashboard() {
     msg_cancelled: ''
   });
   const [savingMessages, setSavingMessages] = useState(false);
+  const [showRestaurantCommentModal, setShowRestaurantCommentModal] = useState(false);
+  const [commentRestaurant, setCommentRestaurant] = useState(null);
+  const [restaurantCommentDraft, setRestaurantCommentDraft] = useState('');
+  const [savingRestaurantComment, setSavingRestaurantComment] = useState(false);
 
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
@@ -2846,6 +2851,74 @@ function SuperAdminDashboard() {
     }
   };
 
+  const updateRestaurantCommentInState = (restaurantId, adminComment) => {
+    const normalizedComment = adminComment ? String(adminComment) : null;
+    const targetId = String(restaurantId);
+    setRestaurants((prev) => {
+      const nextRestaurants = (Array.isArray(prev?.restaurants) ? prev.restaurants : []).map((restaurant) => (
+        String(restaurant.id) === targetId
+          ? { ...restaurant, admin_comment: normalizedComment }
+          : restaurant
+      ));
+      return {
+        ...(prev || {}),
+        restaurants: nextRestaurants
+      };
+    });
+    setAllRestaurants((prev) => (
+      Array.isArray(prev)
+        ? prev.map((restaurant) => (
+          String(restaurant.id) === targetId
+            ? { ...restaurant, admin_comment: normalizedComment }
+            : restaurant
+        ))
+        : prev
+    ));
+  };
+
+  const getRestaurantCommentTooltip = (commentValue) => {
+    const normalized = String(commentValue || '').trim();
+    if (!normalized) {
+      return language === 'uz' ? "Do'kon izohini qo'shish" : 'Добавить комментарий магазина';
+    }
+    const singleLine = normalized.replace(/\s+/g, ' ');
+    return singleLine.length > 220 ? `${singleLine.slice(0, 220)}...` : singleLine;
+  };
+
+  const openRestaurantCommentModal = (restaurant) => {
+    setCommentRestaurant(restaurant);
+    setRestaurantCommentDraft(String(restaurant?.admin_comment || ''));
+    setShowRestaurantCommentModal(true);
+  };
+
+  const closeRestaurantCommentModal = (force = false) => {
+    if (savingRestaurantComment && !force) return;
+    setShowRestaurantCommentModal(false);
+    setCommentRestaurant(null);
+    setRestaurantCommentDraft('');
+  };
+
+  const handleSaveRestaurantComment = async () => {
+    if (!commentRestaurant?.id) return;
+    setSavingRestaurantComment(true);
+    try {
+      const response = await axios.put(
+        `${API_URL}/superadmin/restaurants/${commentRestaurant.id}/admin-comment`,
+        { admin_comment: restaurantCommentDraft }
+      );
+      const savedComment = response.data?.admin_comment ? String(response.data.admin_comment) : null;
+      updateRestaurantCommentInState(commentRestaurant.id, savedComment);
+      setSuccess(language === 'uz' ? "Do'kon izohi saqlandi" : 'Комментарий магазина сохранен');
+      closeRestaurantCommentModal(true);
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Do'kon izohini saqlab bo'lmadi"
+        : 'Не удалось сохранить комментарий магазина'));
+    } finally {
+      setSavingRestaurantComment(false);
+    }
+  };
+
   // Message templates handlers
   const openMessagesModal = async (restaurant) => {
     setMessagesRestaurant(restaurant);
@@ -5072,6 +5145,17 @@ function SuperAdminDashboard() {
                                   <Button variant="light" className="action-btn text-primary" onClick={() => openRestaurantModal(r)} title="Редактировать">
                                     ✏️
                                   </Button>
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-secondary restaurant-comment-action-btn"
+                                    onClick={() => openRestaurantCommentModal(r)}
+                                    title={getRestaurantCommentTooltip(r.admin_comment)}
+                                  >
+                                    📝
+                                    {String(r.admin_comment || '').trim() && (
+                                      <span className="restaurant-comment-indicator" aria-hidden="true" />
+                                    )}
+                                  </Button>
                                   <Button variant="light" className="action-btn text-info" onClick={() => openMessagesModal(r)} title="Шаблоны сообщений">
                                     💬
                                   </Button>
@@ -5263,7 +5347,7 @@ function SuperAdminDashboard() {
                                   <img
                                     src={imageSrc.startsWith('http') ? imageSrc : `${API_URL.replace('/api', '')}${imageSrc}`}
                                     alt={template.name}
-                                    style={{ width: 44, height: 34, objectFit: 'contain', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff' }}
+                                    style={{ width: 44, height: 34, objectFit: 'contain', borderRadius: 8, background: '#fff' }}
                                   />
                                 ) : '—'}
                               </td>
@@ -8343,6 +8427,62 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowOrderDetailModal(false)}>{t('saClose')}</Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal show={showRestaurantCommentModal} onHide={() => closeRestaurantCommentModal()} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz' ? "Do'kon izohi" : 'Комментарий магазина'}
+            {commentRestaurant?.name ? `: ${commentRestaurant.name}` : ''}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group controlId="restaurant-admin-comment">
+            <Form.Label className="fw-semibold">
+              {language === 'uz'
+                ? "Ichki izoh (faqat superadmin ko'radi)"
+                : 'Внутренний комментарий (виден только супер-админу)'}
+            </Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={6}
+              maxLength={MAX_RESTAURANT_ADMIN_COMMENT_LENGTH}
+              value={restaurantCommentDraft}
+              onChange={(event) => setRestaurantCommentDraft(event.target.value)}
+              placeholder={language === 'uz'
+                ? "Masalan: dizayn yangilandi, to'lov sozlamasi o'zgartirildi..."
+                : 'Например: обновили дизайн, поменяли настройки оплаты...'}
+            />
+            <div className="d-flex justify-content-between align-items-center mt-2">
+              <Form.Text className="text-muted">
+                {language === 'uz'
+                  ? "Bo'sh qoldirsangiz, izoh o'chiriladi"
+                  : 'Если оставить пустым, комментарий будет удален'}
+              </Form.Text>
+              <small className="text-muted">
+                {restaurantCommentDraft.length}/{MAX_RESTAURANT_ADMIN_COMMENT_LENGTH}
+              </small>
+            </div>
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => closeRestaurantCommentModal()}
+            disabled={savingRestaurantComment}
+          >
+            {t('saCancel')}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSaveRestaurantComment}
+            disabled={savingRestaurantComment}
+          >
+            {savingRestaurantComment
+              ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+              : t('saSave')}
+          </Button>
         </Modal.Footer>
       </Modal>
 

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   reservation_cost DECIMAL(12, 2) DEFAULT 0,
   activity_type_id INTEGER,
   operator_registration_code VARCHAR(64),
+  admin_comment TEXT,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

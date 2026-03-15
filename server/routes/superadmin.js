@@ -48,6 +48,8 @@ let billingSettingsSchemaReady = false;
 let billingSettingsSchemaPromise = null;
 let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
+let restaurantAdminCommentSchemaReady = false;
+let restaurantAdminCommentSchemaPromise = null;
 
 const DEFAULT_ACTIVITY_TYPES = [
   'Ресторан',
@@ -201,6 +203,12 @@ const parseFlexibleAmount = (value, fallback = 0) => {
   const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
+const normalizeRestaurantAdminComment = (value) => {
+  const normalized = value === undefined || value === null ? '' : String(value).trim();
+  if (!normalized) return null;
+  return normalized.slice(0, MAX_RESTAURANT_ADMIN_COMMENT_LENGTH);
 };
 
 const normalizeInstructionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -571,6 +579,24 @@ const ensureRestaurantCurrencySchema = async () => {
     await restaurantCurrencySchemaPromise;
   } finally {
     restaurantCurrencySchemaPromise = null;
+  }
+};
+const ensureRestaurantAdminCommentSchema = async () => {
+  if (restaurantAdminCommentSchemaReady) return;
+  if (restaurantAdminCommentSchemaPromise) {
+    await restaurantAdminCommentSchemaPromise;
+    return;
+  }
+
+  restaurantAdminCommentSchemaPromise = (async () => {
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS admin_comment TEXT').catch(() => {});
+    restaurantAdminCommentSchemaReady = true;
+  })();
+
+  try {
+    await restaurantAdminCommentSchemaPromise;
+  } finally {
+    restaurantAdminCommentSchemaPromise = null;
   }
 };
 
@@ -947,6 +973,7 @@ router.get('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
+    await ensureRestaurantAdminCommentSchema();
     await ensureReservationSchema();
     const result = await pool.query(`
       SELECT r.*, 
@@ -2039,6 +2066,54 @@ router.put('/restaurants/:id', async (req, res) => {
   } catch (error) {
     console.error('Update restaurant error:', error);
     res.status(500).json({ error: 'Ошибка обновления ресторана' });
+  }
+});
+
+// Обновить внутренний комментарий магазина (для супер-админа)
+router.put('/restaurants/:id/admin-comment', async (req, res) => {
+  try {
+    await ensureRestaurantAdminCommentSchema();
+    const restaurantId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID ресторана' });
+    }
+
+    const oldResult = await pool.query(
+      'SELECT id, name, admin_comment FROM restaurants WHERE id = $1 LIMIT 1',
+      [restaurantId]
+    );
+    if (oldResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    const adminComment = normalizeRestaurantAdminComment(req.body?.admin_comment);
+    const updateResult = await pool.query(
+      `UPDATE restaurants
+       SET admin_comment = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, name, admin_comment`,
+      [adminComment, restaurantId]
+    );
+
+    const updatedRow = updateResult.rows[0];
+    await logActivity({
+      userId: req.user.id,
+      restaurantId,
+      actionType: ACTION_TYPES.UPDATE_RESTAURANT,
+      entityType: ENTITY_TYPES.RESTAURANT,
+      entityId: restaurantId,
+      entityName: updatedRow.name,
+      oldValues: { admin_comment: oldResult.rows[0].admin_comment || null },
+      newValues: { admin_comment: updatedRow.admin_comment || null },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    res.json(updatedRow);
+  } catch (error) {
+    console.error('Update restaurant admin comment error:', error);
+    res.status(500).json({ error: 'Ошибка сохранения комментария' });
   }
 });
 

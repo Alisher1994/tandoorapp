@@ -3231,6 +3231,21 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+.restaurant-comment-action-btn {
+    position: relative;
+}
+
+.restaurant-comment-indicator {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    top: 5px;
+    right: 5px;
+    border-radius: 999px;
+    background: #16a34a;
+    box-shadow: 0 0 0 1.5px #fff;
+}
+
 .admin-order-kanban-board {
     display: flex;
     align-items: flex-start;
