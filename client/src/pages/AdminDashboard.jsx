@@ -9699,6 +9699,7 @@ function AdminDashboard() {
           show={showBalanceModal}
           onHide={() => setShowBalanceModal(false)}
           centered
+          fullscreen="sm-down"
           dialogClassName="admin-balance-modal-compact"
           className="admin-modal admin-balance-modal-redesign"
         >

@@ -1518,7 +1518,9 @@ body::-webkit-scrollbar,
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .admin-balance-modal-redesign .admin-balance-modal-content {
@@ -1526,6 +1528,9 @@ body::-webkit-scrollbar,
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .admin-balance-modal-redesign .admin-balance-history-scroll {
@@ -1664,8 +1669,36 @@ body::-webkit-scrollbar,
 }
 
 @media (max-width: 767.98px) {
+    .admin-balance-modal-compact .modal-dialog {
+        max-width: 100vw;
+        margin: 0;
+        width: 100%;
+        height: 100dvh;
+    }
+
     .admin-balance-modal-redesign .modal-content {
         font-size: 13px;
+        border-radius: 0;
+        height: 100dvh;
+        max-height: 100dvh;
+    }
+
+    .admin-balance-modal-redesign .modal-header.admin-balance-modal-header,
+    .admin-balance-modal-redesign .modal-footer {
+        flex-shrink: 0;
+    }
+
+    .admin-balance-modal-redesign .admin-balance-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+    }
+
+    .admin-balance-modal-redesign .admin-balance-tabs > div {
+        flex: 0 0 auto !important;
+        min-width: 132px;
+        padding-inline: 10px !important;
     }
 
     .admin-balance-modal-redesign .admin-balance-metric-card {
