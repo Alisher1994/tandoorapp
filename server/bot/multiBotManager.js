@@ -12,6 +12,7 @@ const {
 } = require('./notifications');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 const { ensureBotFunnelSchema, trackBotFunnelEvent } = require('../services/botFunnel');
+const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
 
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
@@ -120,6 +121,27 @@ function normalizePhone(rawPhone) {
 
 function normalizeCardReceiptTarget(value, fallback = 'bot') {
   return String(value || '').trim().toLowerCase() === 'admin' ? 'admin' : fallback;
+}
+
+function buildRatingStars(ratingValue, max = 5) {
+  const rating = normalizeOrderRating(ratingValue, 0);
+  if (rating <= 0) return '☆'.repeat(max);
+  return `${'⭐️'.repeat(rating)}${'☆'.repeat(Math.max(0, max - rating))}`;
+}
+
+function buildRatingSuccessMessage(lang, orderNumber, serviceRating, deliveryRating) {
+  if (lang === 'uz') {
+    return (
+      `✅ Rahmat! Buyurtma #${orderNumber} bo'yicha baholar saqlandi.\n` +
+      `Servis: ${buildRatingStars(serviceRating)}\n` +
+      `Yetkazib berish: ${buildRatingStars(deliveryRating)}`
+    );
+  }
+  return (
+    `✅ Спасибо! Оценки по заказу #${orderNumber} сохранены.\n` +
+    `Сервис: ${buildRatingStars(serviceRating)}\n` +
+    `Доставка: ${buildRatingStars(deliveryRating)}`
+  );
 }
 
 function formatMoney(value) {
@@ -379,6 +401,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   const appUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
 
   console.log(`🤖 Setting up handlers for restaurant: ${restaurantName} (ID: ${restaurantId})`);
+  ensureOrderRatingsSchema().catch((error) => {
+    console.error(`Order ratings schema ensure warning for ${restaurantName}:`, error.message);
+  });
 
   // Helper to get state key - includes chatId for group handling
   const getStateKey = (userId, chatId) => `${botToken}_${chatId || ''}_${userId}`;
@@ -527,6 +552,81 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     } catch (_) {
       return null;
     }
+  };
+
+  const findPendingOrderRating = async (telegramUserId) => {
+    await ensureOrderRatingsSchema().catch(() => {});
+    const result = await pool.query(
+      `SELECT
+         o.id,
+         o.order_number,
+         o.status,
+         o.restaurant_id,
+         COALESCE(o.service_rating, 0) AS service_rating,
+         COALESCE(o.delivery_rating, 0) AS delivery_rating
+       FROM orders o
+       JOIN users u ON u.id = o.user_id
+       WHERE u.telegram_id = $1
+         AND o.restaurant_id = $2
+         AND o.status = 'delivered'
+         AND o.rating_requested_at IS NOT NULL
+         AND (COALESCE(o.service_rating, 0) = 0 OR COALESCE(o.delivery_rating, 0) = 0)
+       ORDER BY COALESCE(o.rating_requested_at, o.updated_at, o.created_at) DESC, o.id DESC
+       LIMIT 1`,
+      [telegramUserId, restaurantId]
+    );
+    return result.rows[0] || null;
+  };
+
+  const loadOrderForNotificationSync = async (orderId) => {
+    const normalizedOrderId = Number.parseInt(orderId, 10);
+    if (!Number.isFinite(normalizedOrderId) || normalizedOrderId <= 0) return null;
+
+    const orderResult = await pool.query(
+      `SELECT
+         o.*,
+         r.telegram_bot_token,
+         r.telegram_group_id,
+         pb.full_name AS processed_by_name
+       FROM orders o
+       LEFT JOIN restaurants r ON r.id = o.restaurant_id
+       LEFT JOIN users pb ON pb.id = o.processed_by
+       WHERE o.id = $1
+       LIMIT 1`,
+      [normalizedOrderId]
+    );
+    if (!orderResult.rows.length) return null;
+
+    const itemsResult = await pool.query(
+      `SELECT oi.*
+       FROM order_items oi
+       WHERE oi.order_id = $1
+       ORDER BY oi.id`,
+      [normalizedOrderId]
+    );
+
+    return {
+      order: orderResult.rows[0],
+      items: itemsResult.rows || []
+    };
+  };
+
+  const syncGroupOrderMessageAfterRating = async (orderId) => {
+    const payload = await loadOrderForNotificationSync(orderId);
+    if (!payload?.order) return false;
+
+    await updateOrderGroupNotification(
+      {
+        ...payload.order,
+        telegram_bot_token: payload.order.telegram_bot_token || botToken
+      },
+      payload.items,
+      {
+        status: payload.order.status,
+        operatorName: payload.order.processed_by_name || ''
+      }
+    );
+    return true;
   };
 
   const loadCustomerCardReceiptOrder = async ({ orderId, telegramUserId }) => {
@@ -1402,6 +1502,100 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
 
     if (!state) {
+      const normalizedText = String(text || '').trim();
+      let pendingOrderRating = null;
+      try {
+        pendingOrderRating = await findPendingOrderRating(userId);
+      } catch (pendingRatingError) {
+        console.error('Find pending order rating error:', pendingRatingError.message);
+      }
+
+      if (pendingOrderRating) {
+        const parsedRatingValue = Number.parseInt(normalizedText, 10);
+        const isNumericRating = /^\d+$/.test(normalizedText);
+        const fallbackLang = getTelegramPreferredLanguage(msg.from?.language_code);
+        let userLang = fallbackLang;
+        try {
+          const currentUser = await resolvePreferredTelegramUser(userId);
+          userLang = currentUser
+            ? resolveUserLanguage(currentUser, fallbackLang)
+            : fallbackLang;
+        } catch (_) { }
+
+        const currentServiceRating = normalizeOrderRating(pendingOrderRating.service_rating, 0);
+        const currentDeliveryRating = normalizeOrderRating(pendingOrderRating.delivery_rating, 0);
+        const fieldToUpdate = currentServiceRating <= 0 ? 'service_rating' : 'delivery_rating';
+        const menuAction = resolveTextMenuAction(normalizedText);
+
+        if (isNumericRating && parsedRatingValue >= 1 && parsedRatingValue <= 5) {
+          await pool.query(
+            `UPDATE orders
+             SET ${fieldToUpdate} = $1,
+                 rating_requested_at = CURRENT_TIMESTAMP,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [parsedRatingValue, pendingOrderRating.id]
+          );
+
+          const refreshedRatingResult = await pool.query(
+            `SELECT
+               order_number,
+               COALESCE(service_rating, 0) AS service_rating,
+               COALESCE(delivery_rating, 0) AS delivery_rating
+             FROM orders
+             WHERE id = $1
+             LIMIT 1`,
+            [pendingOrderRating.id]
+          );
+          const refreshedOrder = refreshedRatingResult.rows[0] || pendingOrderRating;
+          const refreshedServiceRating = normalizeOrderRating(refreshedOrder.service_rating, 0);
+          const refreshedDeliveryRating = normalizeOrderRating(refreshedOrder.delivery_rating, 0);
+
+          try {
+            await syncGroupOrderMessageAfterRating(pendingOrderRating.id);
+          } catch (syncError) {
+            console.error('Sync group message after rating error:', syncError.message);
+          }
+
+          if (refreshedServiceRating <= 0) {
+            await bot.sendMessage(
+              chatId,
+              userLang === 'uz'
+                ? "Iltimos, servisni 1 dan 5 gacha baholang.\nFaqat son yuboring: 1, 2, 3, 4 yoki 5."
+                : 'Пожалуйста, оцените сервис от 1 до 5.\nОтправьте только число: 1, 2, 3, 4 или 5.'
+            );
+          } else if (refreshedDeliveryRating <= 0) {
+            await bot.sendMessage(
+              chatId,
+              userLang === 'uz'
+                ? "Rahmat! Endi yetkazib berishni 1 dan 5 gacha baholang.\nFaqat son yuboring: 1, 2, 3, 4 yoki 5."
+                : 'Спасибо! Теперь оцените доставку от 1 до 5.\nОтправьте только число: 1, 2, 3, 4 или 5.'
+            );
+          } else {
+            await bot.sendMessage(
+              chatId,
+              buildRatingSuccessMessage(
+                userLang,
+                refreshedOrder.order_number || pendingOrderRating.order_number || pendingOrderRating.id,
+                refreshedServiceRating,
+                refreshedDeliveryRating
+              )
+            );
+          }
+          return;
+        }
+
+        if (!menuAction) {
+          await bot.sendMessage(
+            chatId,
+            userLang === 'uz'
+              ? "Iltimos, 1 dan 5 gacha son yuboring.\nMasalan: 4"
+              : 'Пожалуйста, отправьте число от 1 до 5.\nНапример: 4'
+          );
+          return;
+        }
+      }
+
       const replyText = String(msg.reply_to_message?.text || '');
       const replyOrderMatch = replyText.match(/причин[а-я\s]*отмены заказа\s*#(\d+)/i);
       const repliedToBot = Number(msg.reply_to_message?.from?.id || 0) === Number(bot?.id || 0);

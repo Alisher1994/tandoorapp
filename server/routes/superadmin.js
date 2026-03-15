@@ -26,6 +26,7 @@ const {
 } = require('../services/helpInstructions');
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
+const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -3145,6 +3146,7 @@ router.get('/stats', async (req, res) => {
 // Сводная аналитика (день/месяц/год) для суперадмина
 router.get('/analytics/overview', async (req, res) => {
   try {
+    await ensureOrderRatingsSchema();
     const analyticsRange = resolveAnalyticsRange(req.query || {});
     const startDateKey = analyticsRange.startDateKey;
     const endDateKeyExclusive = analyticsRange.endDateKeyExclusive;
@@ -3183,6 +3185,8 @@ router.get('/analytics/overview', async (req, res) => {
         o.processed_by,
         o.service_fee,
         o.delivery_cost,
+        o.service_rating,
+        o.delivery_rating,
         COALESCE(
           NULLIF(BTRIM(to_jsonb(o)->>'fulfillment_type'), ''),
           CASE
@@ -3412,6 +3416,10 @@ router.get('/analytics/overview', async (req, res) => {
     let deliveryRevenue = 0;
     let serviceRevenue = 0;
     let containersRevenue = 0;
+    let serviceRatingSum = 0;
+    let serviceRatingCount = 0;
+    let deliveryRatingSum = 0;
+    let deliveryRatingCount = 0;
     const buildEmptyOperatorPaymentBuckets = () => OPERATOR_PAYMENT_METHODS.reduce((acc, methodKey) => {
       acc[methodKey] = { count: 0, amount: 0, percent: 0 };
       return acc;
@@ -3454,6 +3462,16 @@ router.get('/analytics/overview', async (req, res) => {
       revenue += totalAmount;
       deliveredOrdersCount += 1;
       deliveryRevenue += Math.max(0, toNumeric(order.delivery_cost, 0));
+      const serviceRating = normalizeOrderRating(order.service_rating, 0);
+      const deliveryRating = normalizeOrderRating(order.delivery_rating, 0);
+      if (serviceRating > 0) {
+        serviceRatingSum += serviceRating;
+        serviceRatingCount += 1;
+      }
+      if (deliveryRating > 0) {
+        deliveryRatingSum += deliveryRating;
+        deliveryRatingCount += 1;
+      }
 
       if (timelineIndex >= 0 && timelineIndex < revenueTimeline.length) {
         revenueTimeline[timelineIndex].value += totalAmount;
@@ -3624,6 +3642,12 @@ router.get('/analytics/overview', async (req, res) => {
     }, {});
 
     const averageCheck = deliveredOrdersCount > 0 ? Math.round(revenue / deliveredOrdersCount) : 0;
+    const serviceRatingAvg = serviceRatingCount > 0
+      ? Math.round((serviceRatingSum / serviceRatingCount) * 100) / 100
+      : 0;
+    const deliveryRatingAvg = deliveryRatingCount > 0
+      ? Math.round((deliveryRatingSum / deliveryRatingCount) * 100) / 100
+      : 0;
 
     await ensureBotFunnelSchema().catch(() => {});
 
@@ -3739,7 +3763,11 @@ router.get('/analytics/overview', async (req, res) => {
         itemsRevenue,
         deliveryRevenue,
         serviceRevenue,
-        containersRevenue
+        containersRevenue,
+        serviceRatingAvg,
+        deliveryRatingAvg,
+        serviceRatingCount,
+        deliveryRatingCount
       },
       statusSummary,
       timelines: {

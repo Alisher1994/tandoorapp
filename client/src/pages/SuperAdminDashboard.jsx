@@ -22,6 +22,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
+const MAX_ORDER_RATING = 5;
 const CATALOG_ANIMATION_SEASON_OPTIONS = [
   { value: 'spring', label: 'Весна' },
   { value: 'summer', label: 'Лето' },
@@ -73,6 +74,17 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
+const normalizeOrderRatingValue = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 0;
+  if (parsed < 0) return 0;
+  if (parsed > MAX_ORDER_RATING) return MAX_ORDER_RATING;
+  return parsed;
+};
+const buildRatingStarsText = (value) => {
+  const normalized = normalizeOrderRatingValue(value);
+  return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, MAX_ORDER_RATING - normalized))}`;
+};
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -3567,6 +3579,32 @@ function SuperAdminDashboard() {
                   <div className="admin-analytics-kpi-row">
                     <span>{language === 'uz' ? 'Davr' : 'Период'}</span>
                     <strong>{periodCaption}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-analytics-kpi-card">
+                <div className="admin-analytics-kpi-header">
+                  <h6 className="mb-0 admin-analytics-card-title">
+                    <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>⭐</span>
+                    {language === 'uz' ? 'Mijoz baholari' : 'Оценки клиентов'}
+                  </h6>
+                </div>
+                <div className="admin-analytics-kpi-value">
+                  {Number(kpis.serviceRatingAvg || 0).toFixed(2)} / {MAX_ORDER_RATING}
+                </div>
+                <div className="admin-analytics-kpi-list">
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
+                    <strong>
+                      {buildRatingStarsText(Math.round(Number(kpis.serviceRatingAvg || 0)))} ({Number(kpis.serviceRatingCount || 0)})
+                    </strong>
+                  </div>
+                  <div className="admin-analytics-kpi-row">
+                    <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
+                    <strong>
+                      {buildRatingStarsText(Math.round(Number(kpis.deliveryRatingAvg || 0)))} ({Number(kpis.deliveryRatingCount || 0)})
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -8385,6 +8423,20 @@ function SuperAdminDashboard() {
                       <strong>💬 Комментарий:</strong> {selectedOrder.comment}
                     </Alert>
                   )}
+                  <div className="mt-3 p-2 rounded border" style={{ background: '#f8fafc' }}>
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <strong>{language === 'uz' ? 'Servis bahosi' : 'Оценка сервиса'}</strong>
+                      <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
+                        {buildRatingStarsText(selectedOrder.service_rating || 0)}
+                      </span>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center">
+                      <strong>{language === 'uz' ? 'Yetkazib berish bahosi' : 'Оценка доставки'}</strong>
+                      <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
+                        {buildRatingStarsText(selectedOrder.delivery_rating || 0)}
+                      </span>
+                    </div>
+                  </div>
                 </Card.Body>
               </Card>
 

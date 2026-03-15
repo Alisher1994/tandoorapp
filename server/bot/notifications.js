@@ -1,6 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
+const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
 const TELEGRAM_ITEMS_HARD_LIMIT = 20;
 const TELEGRAM_COMMENT_LIMIT = 360;
 const DEFAULT_BOT_TIME_ZONE = 'Asia/Tashkent';
@@ -380,12 +381,62 @@ function buildCustomerDeliverySummaryMessage(order, actions = []) {
     return `${statusLabels[status]}${timeText ? ` (${timeText})` : ''}`;
   });
 
+  const ratingsBlock = buildOrderRatingsBlock(order);
+
   return (
     `<b>ID: ${escapeHtml(order?.order_number || '')}</b> #доставлен\n\n` +
     `✅ Заказ доставлен.\n\n` +
     `<b>Этапы заказа</b>\n` +
     `${timelineLines.join('\n')}\n\n` +
-    `Сумма заказа: ${formatPrice(order?.total_amount)} сум`
+    `Сумма заказа: ${formatPrice(order?.total_amount)} сум` +
+    (ratingsBlock ? `\n\n${ratingsBlock}` : '')
+  );
+}
+
+function buildRatingStars(ratingValue, max = 5) {
+  const normalizedRating = normalizeOrderRating(ratingValue, 0);
+  if (normalizedRating <= 0) return '☆'.repeat(max);
+  return `${'⭐️'.repeat(normalizedRating)}${'☆'.repeat(Math.max(0, max - normalizedRating))}`;
+}
+
+function buildOrderRatingsBlock(order) {
+  const serviceRating = normalizeOrderRating(order?.service_rating, 0);
+  const deliveryRating = normalizeOrderRating(order?.delivery_rating, 0);
+  if (serviceRating <= 0 && deliveryRating <= 0) return '';
+
+  return [
+    `Сервис: ${buildRatingStars(serviceRating)}`,
+    `Доставка: ${buildRatingStars(deliveryRating)}`
+  ].join('\n');
+}
+
+function getPendingOrderRatingField(order) {
+  const serviceRating = normalizeOrderRating(order?.service_rating, 0);
+  const deliveryRating = normalizeOrderRating(order?.delivery_rating, 0);
+  if (serviceRating <= 0) return 'service_rating';
+  if (deliveryRating <= 0) return 'delivery_rating';
+  return null;
+}
+
+function buildOrderRatingPrompt(order, fieldName) {
+  const orderNumber = order?.order_number || order?.id || '—';
+  if (fieldName === 'delivery_rating') {
+    return (
+      `🚚 Заказ #${orderNumber}\n` +
+      `Оцените доставку от 1 до 5.\n` +
+      `Отправьте только число: 1, 2, 3, 4 или 5.\n\n` +
+      `🚚 Buyurtma #${orderNumber}\n` +
+      `Yetkazib berishni 1 dan 5 gacha baholang.\n` +
+      `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
+    );
+  }
+  return (
+    `🛎 Заказ #${orderNumber}\n` +
+    `Оцените сервис от 1 до 5.\n` +
+    `Отправьте только число: 1, 2, 3, 4 или 5.\n\n` +
+    `🛎 Buyurtma #${orderNumber}\n` +
+    `Servisni 1 dan 5 gacha baholang.\n` +
+    `Faqat son yuboring: 1, 2, 3, 4 yoki 5.`
   );
 }
 
@@ -603,6 +654,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     : '';
 
   const safeComment = truncateText(order.comment || '', TELEGRAM_COMMENT_LIMIT);
+  const ratingsBlock = buildOrderRatingsBlock(order);
 
   const message =
     `<b>ID: ${order.order_number}</b>\n` +
@@ -618,7 +670,8 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     `<b>Итого: ${formatPrice(orderTotal)} сум</b>` +
     `\n\n` +
     (safeComment ? `💬 Комментарий: ${escapeHtml(safeComment)}` : '💬 Комментарий: —') +
-    (statusActionsBlock ? `\n\n${statusActionsBlock}` : '');
+    (statusActionsBlock ? `\n\n${statusActionsBlock}` : '') +
+    (ratingsBlock ? `\n\n${ratingsBlock}` : '');
 
   return message;
 }
@@ -1042,7 +1095,32 @@ async function sendOrderUpdateToUser(
     return false;
   }
 
+  let orderWithRatings = order;
   try {
+    if (status === 'delivered' && order?.id) {
+      await ensureOrderRatingsSchema().catch(() => {});
+      try {
+        const ratingResult = await pool.query(
+          `SELECT
+             COALESCE(service_rating, 0) AS service_rating,
+             COALESCE(delivery_rating, 0) AS delivery_rating,
+             rating_requested_at
+           FROM orders
+           WHERE id = $1
+           LIMIT 1`,
+          [order.id]
+        );
+        if (ratingResult.rows.length > 0) {
+          orderWithRatings = {
+            ...order,
+            ...ratingResult.rows[0]
+          };
+        }
+      } catch (ratingFetchError) {
+        console.error('Fetch delivered ratings warning:', ratingFetchError.message);
+      }
+    }
+
     const statusTags = {
       'new': '#новый',
       'accepted': '#принят',
@@ -1144,7 +1222,7 @@ async function sendOrderUpdateToUser(
     let outgoingMessage = message;
     if (status === 'delivered' && order?.id) {
       const actions = await fetchOrderStatusActions(order.id);
-      outgoingMessage = buildCustomerDeliverySummaryMessage(order, actions);
+      outgoingMessage = buildCustomerDeliverySummaryMessage(orderWithRatings, actions);
     }
 
     const sent = await bot.sendMessage(telegramId, outgoingMessage, options);
@@ -1174,6 +1252,26 @@ async function sendOrderUpdateToUser(
         }
       }
     }
+
+    if (status === 'delivered' && order?.id) {
+      const pendingField = getPendingOrderRatingField(orderWithRatings);
+      if (pendingField) {
+        await pool.query(
+          `UPDATE orders
+           SET rating_requested_at = COALESCE(rating_requested_at, CURRENT_TIMESTAMP),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [order.id]
+        ).catch(() => {});
+
+        await bot.sendMessage(
+          telegramId,
+          buildOrderRatingPrompt(orderWithRatings, pendingField),
+          { disable_web_page_preview: true }
+        );
+      }
+    }
+
     console.log(`✅ Order update sent to user ${telegramId}`);
     return true;
   } catch (error) {

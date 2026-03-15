@@ -72,6 +72,7 @@ const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
 const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
 const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
+const MAX_ORDER_RATING = 5;
 const KANBAN_COLUMN_FILTER_DEFAULT = Object.freeze({
   sortDirection: 'desc',
   fulfillment: 'all',
@@ -118,6 +119,17 @@ const formatPercentLabel = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return '0%';
   return `${parsed.toFixed(1)}%`;
+};
+const normalizeOrderRatingValue = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 0;
+  if (parsed < 0) return 0;
+  if (parsed > MAX_ORDER_RATING) return MAX_ORDER_RATING;
+  return parsed;
+};
+const buildOrderRatingStars = (value) => {
+  const normalized = normalizeOrderRatingValue(value);
+  return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, MAX_ORDER_RATING - normalized))}`;
 };
 const buildMiniSparklinePoints = (values = []) => {
   const numericValues = (Array.isArray(values) ? values : [])
@@ -1510,6 +1522,33 @@ function AdminDashboard() {
         ? yearlyDeliveredOrders
         : monthlyDeliveredOrders
   ), [analyticsPeriod, dailyDeliveredOrders, yearlyDeliveredOrders, monthlyDeliveredOrders]);
+
+  const analyticsRatingSummary = useMemo(() => {
+    let serviceSum = 0;
+    let serviceCount = 0;
+    let deliverySum = 0;
+    let deliveryCount = 0;
+
+    for (const order of analyticsDeliveredPeriodOrders) {
+      const serviceRating = normalizeOrderRatingValue(order?.service_rating);
+      const deliveryRating = normalizeOrderRatingValue(order?.delivery_rating);
+      if (serviceRating > 0) {
+        serviceSum += serviceRating;
+        serviceCount += 1;
+      }
+      if (deliveryRating > 0) {
+        deliverySum += deliveryRating;
+        deliveryCount += 1;
+      }
+    }
+
+    return {
+      serviceAvg: serviceCount > 0 ? Number((serviceSum / serviceCount).toFixed(2)) : 0,
+      deliveryAvg: deliveryCount > 0 ? Number((deliverySum / deliveryCount).toFixed(2)) : 0,
+      serviceCount,
+      deliveryCount
+    };
+  }, [analyticsDeliveredPeriodOrders]);
 
   const analyticsPaymentMethodSummary = useMemo(() => {
     const buckets = ANALYTICS_PAYMENT_METHOD_ORDER.reduce((acc, methodKey) => {
@@ -9307,6 +9346,24 @@ function AdminDashboard() {
                         <div className="order-meta-note">{selectedOrder.comment}</div>
                       </div>
                     )}
+
+                    <div className="order-meta-item order-meta-item-wide">
+                      <span className="order-meta-label">{language === 'uz' ? 'Mijoz baholari' : 'Оценки клиента'}</span>
+                      <div className="order-meta-note" style={{ background: '#f8fafc' }}>
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
+                          <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
+                            {buildOrderRatingStars(selectedOrder.service_rating || 0)}
+                          </span>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
+                          <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
+                            {buildOrderRatingStars(selectedOrder.delivery_rating || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -9958,10 +10015,32 @@ function AdminDashboard() {
                               ) : (
                                 <span className="small text-muted">QR</span>
                               )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-analytics-kpi-card">
+            <div className="admin-analytics-kpi-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>⭐</span>
+                {language === 'uz' ? 'Mijoz baholari' : 'Оценки клиентов'}
+              </h6>
+            </div>
+            <div className="admin-analytics-kpi-value">
+              {analyticsRatingSummary.serviceAvg.toFixed(2)} / {MAX_ORDER_RATING}
+            </div>
+            <div className="admin-analytics-kpi-list">
+              <div className="admin-analytics-kpi-row">
+                <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
+                <strong>{buildOrderRatingStars(Math.round(analyticsRatingSummary.serviceAvg))} ({analyticsRatingSummary.serviceCount})</strong>
+              </div>
+              <div className="admin-analytics-kpi-row">
+                <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
+                <strong>{buildOrderRatingStars(Math.round(analyticsRatingSummary.deliveryAvg))} ({analyticsRatingSummary.deliveryCount})</strong>
+              </div>
+            </div>
+          </div>
+        </div>
                     </Col>
                   </Row>
 
