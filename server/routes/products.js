@@ -986,32 +986,82 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Отзыв можно оставить только в активном магазине' });
     }
 
-    const upsertResult = await pool.query(
-      `
-      INSERT INTO product_reviews (
-        product_id,
-        restaurant_id,
-        user_id,
-        rating,
-        comment,
-        is_deleted
-      )
-      VALUES ($1, $2, $3, $4, $5, false)
-      ON CONFLICT (product_id, user_id)
-      DO UPDATE SET
-        restaurant_id = EXCLUDED.restaurant_id,
-        rating = EXCLUDED.rating,
-        comment = EXCLUDED.comment,
-        is_deleted = false,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
-    `,
-      [productId, productRestaurantId || null, userId, rating, comment]
-    );
+    const dbClient = await pool.connect();
+    let savedReview = null;
+    try {
+      await dbClient.query('BEGIN');
+
+      const existingReviewResult = await dbClient.query(
+        `
+        SELECT id
+        FROM product_reviews
+        WHERE product_id = $1
+          AND user_id = $2
+        ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+        LIMIT 1
+      `,
+        [productId, userId]
+      );
+
+      if (existingReviewResult.rows.length > 0) {
+        const reviewId = Number.parseInt(existingReviewResult.rows[0].id, 10);
+
+        // Keep one latest review row and clean possible duplicates from old data.
+        await dbClient.query(
+          `
+          DELETE FROM product_reviews
+          WHERE product_id = $1
+            AND user_id = $2
+            AND id <> $3
+        `,
+          [productId, userId, reviewId]
+        );
+
+        const updateResult = await dbClient.query(
+          `
+          UPDATE product_reviews
+          SET
+            restaurant_id = $1,
+            rating = $2,
+            comment = $3,
+            is_deleted = false,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $4
+          RETURNING id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
+        `,
+          [productRestaurantId || null, rating, comment, reviewId]
+        );
+        savedReview = updateResult.rows[0] || null;
+      } else {
+        const insertResult = await dbClient.query(
+          `
+          INSERT INTO product_reviews (
+            product_id,
+            restaurant_id,
+            user_id,
+            rating,
+            comment,
+            is_deleted
+          )
+          VALUES ($1, $2, $3, $4, $5, false)
+          RETURNING id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
+        `,
+          [productId, productRestaurantId || null, userId, rating, comment]
+        );
+        savedReview = insertResult.rows[0] || null;
+      }
+
+      await dbClient.query('COMMIT');
+    } catch (dbError) {
+      await dbClient.query('ROLLBACK');
+      throw dbError;
+    } finally {
+      dbClient.release();
+    }
 
     res.status(201).json({
       message: 'Отзыв сохранен',
-      review: upsertResult.rows[0],
+      review: savedReview,
       product: {
         id: product.id,
         name_ru: product.name_ru,
