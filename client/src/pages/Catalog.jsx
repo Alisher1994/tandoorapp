@@ -1673,6 +1673,7 @@ function Catalog() {
                         height: 40,
                         fontSize: '22px',
                         fontWeight: 'bold',
+                        lineHeight: 1,
                         padding: 0,
                         touchAction: 'manipulation'
                       }}
@@ -1686,7 +1687,18 @@ function Catalog() {
                         }, 2000);
                       }}
                     >
-                      +
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '100%',
+                          height: '100%',
+                          transform: 'translateY(-1px)'
+                        }}
+                      >
+                        +
+                      </span>
                     </button>
                   ) : (
                     <span
@@ -2180,10 +2192,11 @@ function Catalog() {
                             border: '1px solid var(--primary-color)',
                             color: '#fff',
                             fontSize: '1.05rem',
+                            lineHeight: 1,
                             touchAction: 'manipulation'
                           }}
                         >
-                          +
+                          <span style={{ display: 'inline-block', transform: 'translateY(-1px)' }}>+</span>
                         </button>
                       )
                     ) : (
