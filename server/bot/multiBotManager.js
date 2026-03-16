@@ -565,13 +565,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     return isLinked ? user : null;
   };
 
+  const canUseRestaurantAdminKeyboard = (user) => (
+    Boolean(
+      user
+      && user.role === 'operator'
+      && user.is_operator_for_restaurant === true
+    )
+  );
+
   const resolveMainMenuReplyMarkup = async (telegramUserId, fallbackLang = 'ru') => {
     try {
       const user = await resolvePreferredTelegramUser(telegramUserId);
       if (!user) return null;
 
       const userLang = resolveUserLanguage(user, fallbackLang);
-      if (user.role === 'operator' || user.role === 'superadmin') {
+      if (canUseRestaurantAdminKeyboard(user)) {
         const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
           expiresIn: '1h',
           role: user.role
@@ -1093,7 +1101,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
 
     const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
-    const isAdmin = user.role === 'operator' || user.role === 'superadmin';
+    const isAdmin = canUseRestaurantAdminKeyboard(user);
     if (isAdmin) {
       const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
         expiresIn: '1h',
@@ -1222,7 +1230,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
       `, [user.id, restaurantId]);
 
-      if (user.role === 'operator' || user.role === 'superadmin') {
+      if (canUseRestaurantAdminKeyboard(user)) {
         const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
           expiresIn: '1h',
           role: user.role
@@ -1351,7 +1359,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         [restaurantId, user.id]
       );
 
-      if (user.role === 'operator' || user.role === 'superadmin') {
+      if (canUseRestaurantAdminKeyboard(user)) {
         const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
           expiresIn: '1h',
           role: user.role
@@ -2318,7 +2326,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             return;
           }
 
-          if (user.role === 'operator' || user.role === 'superadmin') {
+          if (canUseRestaurantAdminKeyboard(user)) {
             const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
               expiresIn: '1h',
               role: user.role
