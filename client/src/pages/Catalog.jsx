@@ -104,6 +104,9 @@ function Catalog() {
   const [productReviewRating, setProductReviewRating] = useState(5);
   const [productReviewComment, setProductReviewComment] = useState('');
   const [productReviewSubmitting, setProductReviewSubmitting] = useState(false);
+  const [productWeeklyBuyers, setProductWeeklyBuyers] = useState(0);
+  const [productWeeklyOrders, setProductWeeklyOrders] = useState(0);
+  const [productHeroIndex, setProductHeroIndex] = useState(0);
   const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
   const [catalogTabsLayout, setCatalogTabsLayout] = useState({
@@ -132,6 +135,8 @@ function Catalog() {
   const scrollProgressRafRef = useRef(null);
   const tabScrollLockTimeoutRef = useRef(null);
   const galleryTouchStartXRef = useRef(null);
+  const productHeroTouchStartXRef = useRef(null);
+  const productHeroSwipeTriggeredRef = useRef(false);
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
   const catalogHeaderBackground = '#f8fafc';
@@ -372,6 +377,39 @@ function Catalog() {
     }
   };
 
+  const showPrevProductHeroImage = (imagesCount) => {
+    if (!Number.isInteger(imagesCount) || imagesCount <= 1) return;
+    setProductHeroIndex((prev) => (prev <= 0 ? imagesCount - 1 : prev - 1));
+  };
+
+  const showNextProductHeroImage = (imagesCount) => {
+    if (!Number.isInteger(imagesCount) || imagesCount <= 1) return;
+    setProductHeroIndex((prev) => (prev >= imagesCount - 1 ? 0 : prev + 1));
+  };
+
+  const handleProductHeroTouchStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    productHeroTouchStartXRef.current = touch.clientX;
+    productHeroSwipeTriggeredRef.current = false;
+  };
+
+  const handleProductHeroTouchEnd = (event, imagesCount) => {
+    const startX = productHeroTouchStartXRef.current;
+    productHeroTouchStartXRef.current = null;
+    if (startX === null || startX === undefined) return;
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - startX;
+    if (Math.abs(deltaX) < 36) return;
+    productHeroSwipeTriggeredRef.current = true;
+    if (deltaX < 0) {
+      showNextProductHeroImage(imagesCount);
+    } else {
+      showPrevProductHeroImage(imagesCount);
+    }
+  };
+
   const getRestaurantLogoFrame = (logoDisplayMode) => {
     const mode = String(logoDisplayMode || '').toLowerCase() === 'horizontal' ? 'horizontal' : 'square';
     return mode === 'horizontal'
@@ -431,9 +469,24 @@ function Catalog() {
     return parsed;
   };
 
-  const buildRatingStars = (ratingValue, max = 5) => {
+  const renderRatingStars = (ratingValue, { size = 18, max = 5 } = {}) => {
     const normalized = Math.round(normalizeRatingValue(ratingValue, 0));
-    return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, max - normalized))}`;
+    return (
+      <span className="d-inline-flex align-items-center gap-1" aria-label={`rating-${normalized}-of-${max}`}>
+        {Array.from({ length: max }).map((_, index) => (
+          <span
+            key={`star-${ratingValue}-${index}`}
+            style={{
+              color: index < normalized ? '#f59e0b' : '#cbd5e1',
+              fontSize: `${size}px`,
+              lineHeight: 1
+            }}
+          >
+            ★
+          </span>
+        ))}
+      </span>
+    );
   };
 
   const formatReviewDate = (value) => {
@@ -2042,6 +2095,8 @@ function Catalog() {
     setProductReviewsTotal(0);
     setProductReviewsAverage(0);
     setProductReviewsHasMore(false);
+    setProductWeeklyBuyers(0);
+    setProductWeeklyOrders(0);
     setProductDetailsError('');
   };
 
@@ -2051,6 +2106,9 @@ function Catalog() {
     resetProductDetailsState();
     setProductReviewRating(5);
     setProductReviewComment('');
+    setProductHeroIndex(0);
+    productHeroSwipeTriggeredRef.current = false;
+    productHeroTouchStartXRef.current = null;
   };
 
   const loadProductDetails = async (productId, fallbackProduct = null) => {
@@ -2065,6 +2123,8 @@ function Catalog() {
       const ratingTotal = Number.parseInt(payload?.rating?.total, 10) || 0;
       const latestReviews = Array.isArray(payload?.latest_reviews) ? payload.latest_reviews : [];
       const hasMoreReviews = Boolean(payload?.has_more_reviews) && ratingTotal > latestReviews.length;
+      const weeklyBuyers = Number.parseInt(payload?.weekly_stats?.buyers_count, 10) || 0;
+      const weeklyOrders = Number.parseInt(payload?.weekly_stats?.orders_count, 10) || 0;
       const myReview = payload?.my_review || null;
 
       setSelectedProductDetails(detailsProduct);
@@ -2072,6 +2132,8 @@ function Catalog() {
       setProductReviewsTotal(ratingTotal);
       setProductReviews(latestReviews);
       setProductReviewsHasMore(hasMoreReviews);
+      setProductWeeklyBuyers(weeklyBuyers);
+      setProductWeeklyOrders(weeklyOrders);
       if (myReview) {
         setProductReviewRating(normalizeRatingValue(myReview.rating, 5));
         setProductReviewComment(String(myReview.comment || ''));
@@ -2090,6 +2152,8 @@ function Catalog() {
       setProductReviewsAverage(0);
       setProductReviewsTotal(0);
       setProductReviewsHasMore(false);
+      setProductWeeklyBuyers(0);
+      setProductWeeklyOrders(0);
     } finally {
       setProductDetailsLoading(false);
     }
@@ -2102,6 +2166,9 @@ function Catalog() {
     resetProductDetailsState();
     setProductReviewRating(5);
     setProductReviewComment('');
+    setProductHeroIndex(0);
+    productHeroSwipeTriggeredRef.current = false;
+    productHeroTouchStartXRef.current = null;
     loadProductDetails(product.id, product);
   };
 
@@ -2446,6 +2513,10 @@ function Catalog() {
   const activeProductDescription = getProductDescription(activeProduct);
   const activeProductCardImage = getProductCardImage(activeProduct);
   const activeProductGalleryImages = getProductGalleryImages(activeProduct);
+  const activeProductGalleryIndex = activeProductGalleryImages.length > 0
+    ? Math.max(0, Math.min(productHeroIndex, activeProductGalleryImages.length - 1))
+    : 0;
+  const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductCardImage;
   const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id) : null;
   const activeProductQty = activeProductCartItem?.quantity || 0;
   const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
@@ -3021,6 +3092,8 @@ function Catalog() {
         onHide={closeProductDetailsModal}
         className="product-details-modal-fullscreen"
         dialogClassName="product-details-modal-dialog"
+        backdropClassName="product-details-backdrop"
+        fullscreen
         backdrop
         keyboard
       >
@@ -3033,15 +3106,23 @@ function Catalog() {
             <div className="product-details-shell">
               <div className="product-details-scroll">
                 <section className="product-details-hero">
-                  {activeProductCardImage ? (
+                  {activeProductHeroImage ? (
                     <button
                       type="button"
                       className="product-details-hero-image-btn"
-                      onClick={() => openProductGallery(activeProduct, 0)}
+                      onClick={() => {
+                        if (productHeroSwipeTriggeredRef.current) {
+                          productHeroSwipeTriggeredRef.current = false;
+                          return;
+                        }
+                        openProductGallery(activeProduct, activeProductGalleryIndex);
+                      }}
+                      onTouchStart={handleProductHeroTouchStart}
+                      onTouchEnd={(event) => handleProductHeroTouchEnd(event, activeProductGalleryImages.length)}
                       aria-label={language === 'uz' ? 'Rasmni ochish' : 'Открыть фото'}
                     >
                       <img
-                        src={activeProductCardImage}
+                        src={activeProductHeroImage}
                         alt={activeProductName || 'Product'}
                         className="product-details-hero-image"
                       />
@@ -3057,7 +3138,7 @@ function Catalog() {
                       onClick={closeProductDetailsModal}
                       aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
                     >
-                      ←
+                      <span className="product-details-icon-glyph">←</span>
                     </button>
                     <div className="d-flex align-items-center gap-2">
                       <button
@@ -3074,14 +3155,14 @@ function Catalog() {
                         onClick={closeProductDetailsModal}
                         aria-label={language === 'uz' ? 'Yopish' : 'Закрыть'}
                       >
-                        ×
+                        <span className="product-details-icon-glyph">×</span>
                       </button>
                     </div>
                   </div>
 
                   {activeProductGalleryImages.length > 1 && (
                     <div className="product-details-hero-counter">
-                      {activeProductGalleryImages.length} {language === 'uz' ? 'ta rasm' : 'фото'}
+                      {activeProductGalleryIndex + 1} / {activeProductGalleryImages.length}
                     </div>
                   )}
                 </section>
@@ -3114,6 +3195,14 @@ function Catalog() {
                     {formatPrice(activeProduct?.price || 0)} {t('sum')}
                   </div>
 
+                  {(productWeeklyBuyers > 0 || productWeeklyOrders > 0) && (
+                    <div className="product-details-weekly-metric mb-3">
+                      {language === 'uz'
+                        ? `Bu haftada xarid qilganlar: ${productWeeklyBuyers} mijoz · ${productWeeklyOrders} buyurtma`
+                        : `Купили на этой неделе: ${productWeeklyBuyers} чел. · ${productWeeklyOrders} заказов`}
+                    </div>
+                  )}
+
                   <div className="product-details-block mb-3">
                     <div className="small text-muted mb-1">{language === 'uz' ? 'Tavsif' : 'Описание'}</div>
                     <div style={{ whiteSpace: 'pre-wrap' }}>
@@ -3124,8 +3213,11 @@ function Catalog() {
                   <div className="product-details-block">
                     <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
                       <div className="fw-semibold">{language === 'uz' ? 'Baholar va kommentlar' : 'Оценки и комментарии'}</div>
-                      <div className="small text-muted">
-                        {buildRatingStars(productReviewsAverage)} · {productReviewsAverage.toFixed(1)} ({productReviewsTotal})
+                      <div className="d-flex align-items-center gap-2 flex-wrap">
+                        {renderRatingStars(productReviewsAverage, { size: 18 })}
+                        <span className="small text-muted">
+                          {productReviewsAverage.toFixed(1)} ({productReviewsTotal})
+                        </span>
                       </div>
                     </div>
 
@@ -3141,7 +3233,7 @@ function Catalog() {
                               <strong style={{ fontSize: '0.9rem' }}>{review.author_name || (language === 'uz' ? 'Mijoz' : 'Клиент')}</strong>
                               <small className="text-muted">{formatReviewDate(review.created_at)}</small>
                             </div>
-                            <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{buildRatingStars(review.rating)}</div>
+                            <div>{renderRatingStars(review.rating, { size: 16 })}</div>
                             <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
                               {review.comment || (language === 'uz' ? 'Kommentsiz baho' : 'Оценка без комментария')}
                             </div>
@@ -3179,9 +3271,9 @@ function Catalog() {
                           onClick={() => setProductReviewRating(star)}
                           className="btn btn-sm p-0 border-0"
                           style={{
-                            width: 30,
-                            height: 30,
-                            fontSize: '1.2rem',
+                            width: 38,
+                            height: 38,
+                            fontSize: '1.72rem',
                             lineHeight: 1,
                             color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
                             background: 'transparent'

@@ -422,17 +422,33 @@ h6 {
   max-width: min(96vw, 760px);
 }
 
+.product-details-modal-fullscreen.modal {
+  z-index: 1200 !important;
+  padding-right: 0 !important;
+}
+
+.modal-backdrop.product-details-backdrop {
+  z-index: 1190 !important;
+  background: rgba(15, 23, 42, 0.46) !important;
+}
+
+.modal-backdrop.product-details-backdrop.show {
+  opacity: 1 !important;
+}
+
 .product-details-modal-fullscreen .modal-dialog,
 .product-details-modal-dialog {
-  width: 100vw;
-  max-width: 100vw;
-  height: 100vh;
-  margin: 0;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100dvh;
+  min-height: 100vh;
+  margin: 0 !important;
 }
 
 .product-details-modal-fullscreen .modal-content {
-  width: 100vw;
-  height: 100vh;
+  width: 100vw !important;
+  height: 100dvh;
+  min-height: 100vh;
   border-radius: 0;
   border: none;
   box-shadow: none;
@@ -474,6 +490,7 @@ h6 {
   background: #ffffff;
   padding: 0;
   cursor: zoom-in;
+  touch-action: pan-y;
 }
 
 .product-details-hero-image {
@@ -505,18 +522,27 @@ h6 {
 }
 
 .product-details-icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   color: #1f2937;
-  font-size: 20px;
+  font-size: 21px;
   line-height: 1;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
+}
+
+.product-details-icon-btn svg {
+  display: block;
+}
+
+.product-details-icon-glyph {
+  display: block;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 .product-details-hero-counter {
@@ -528,6 +554,16 @@ h6 {
   background: rgba(0, 0, 0, 0.62);
   color: #fff;
   font-size: 0.82rem;
+}
+
+.product-details-weekly-metric {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: rgba(59, 130, 246, 0.08);
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .product-details-sheet {

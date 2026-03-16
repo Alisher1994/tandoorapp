@@ -783,7 +783,7 @@ router.get('/:id/details', async (req, res) => {
 
     const product = productResult.rows[0];
 
-    const [summaryResult, latestReviewsResult] = await Promise.all([
+    const [summaryResult, latestReviewsResult, weeklyStatsResult] = await Promise.all([
       pool.query(
         `
         SELECT
@@ -813,11 +813,28 @@ router.get('/:id/details', async (req, res) => {
         LIMIT 3
       `,
         [productId]
+      ),
+      pool.query(
+        `
+        SELECT
+          COUNT(DISTINCT o.user_id)::int AS buyers_count,
+          COUNT(DISTINCT o.id)::int AS orders_count
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE oi.product_id = $1
+          AND o.status = 'delivered'
+          AND o.created_at IS NOT NULL
+          AND timezone($2, o.created_at)::date >= date_trunc('week', timezone($2, CURRENT_TIMESTAMP))::date
+          AND timezone($2, o.created_at)::date < (date_trunc('week', timezone($2, CURRENT_TIMESTAMP)) + interval '7 day')::date
+      `,
+        [productId, TASHKENT_TZ]
       )
     ]);
 
     const totalReviews = Number.parseInt(summaryResult.rows[0]?.total_reviews, 10) || 0;
     const averageRating = Number(summaryResult.rows[0]?.average_rating || 0);
+    const buyersCount = Number.parseInt(weeklyStatsResult.rows[0]?.buyers_count, 10) || 0;
+    const ordersCount = Number.parseInt(weeklyStatsResult.rows[0]?.orders_count, 10) || 0;
 
     const authUserId = getOptionalAuthUserId(req);
     let myReview = null;
@@ -845,6 +862,10 @@ router.get('/:id/details', async (req, res) => {
       },
       latest_reviews: latestReviewsResult.rows || [],
       has_more_reviews: totalReviews > (latestReviewsResult.rows || []).length,
+      weekly_stats: {
+        buyers_count: buyersCount,
+        orders_count: ordersCount
+      },
       my_review: myReview
     });
   } catch (error) {
