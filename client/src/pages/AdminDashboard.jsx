@@ -66,6 +66,7 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
 };
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
+const VARIANT_IMAGE_SLOTS_COUNT = 4;
 const DEFAULT_CLOTHING_SIZES = Object.freeze(['S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL']);
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
@@ -725,6 +726,10 @@ const createProductImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl 
   return slots;
 };
 const serializeProductImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, PRODUCT_IMAGE_SLOTS_COUNT);
+const createVariantImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl = '') => (
+  createProductImageSlots(value, fallbackImageUrl, fallbackThumbUrl).slice(0, VARIANT_IMAGE_SLOTS_COUNT)
+);
+const serializeVariantImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, VARIANT_IMAGE_SLOTS_COUNT);
 const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => {
   let source = value;
   if (typeof source === 'string') {
@@ -746,12 +751,23 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => 
     let descriptionRu = '';
     let descriptionUz = '';
     let priceRaw = fallbackPrice;
+    let barcode = '';
+    let imageUrl = '';
+    let thumbUrl = '';
+    let variantImages = [];
 
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       name = String(item.name || item.value || item.label || '').trim();
       descriptionRu = String(item.description_ru || item.descriptionRu || '').trim();
       descriptionUz = String(item.description_uz || item.descriptionUz || '').trim();
       priceRaw = item.price ?? fallbackPrice;
+      barcode = String(item.barcode || '').trim();
+      variantImages = serializeVariantImageSlots(
+        createVariantImageSlots(item.product_images, item.image_url, item.thumb_url)
+      );
+      const mainVariantImage = variantImages[0] || { url: '', thumb_url: '' };
+      imageUrl = String(mainVariantImage.url || '').trim();
+      thumbUrl = String(mainVariantImage.thumb_url || '').trim();
     } else {
       name = String(item ?? '').trim();
     }
@@ -765,7 +781,11 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => 
       name,
       description_ru: descriptionRu.slice(0, 1500),
       description_uz: descriptionUz.slice(0, 1500),
-      price: Number.isFinite(normalizedPrice) ? normalizedPrice : ''
+      price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
+      barcode: barcode.slice(0, 120),
+      image_url: imageUrl,
+      thumb_url: thumbUrl,
+      product_images: variantImages
     });
     if (normalized.length >= MAX_PRODUCT_SIZE_OPTIONS) break;
   }
@@ -781,7 +801,11 @@ const createProductVariantDraft = (name, fallbackPrice = NaN) => {
     name: normalizedName,
     description_ru: '',
     description_uz: '',
-    price: Number.isFinite(normalizedPrice) ? normalizedPrice : ''
+    price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
+    barcode: '',
+    image_url: '',
+    thumb_url: '',
+    product_images: []
   };
 };
 
@@ -998,6 +1022,7 @@ function AdminDashboard() {
     unit: 'шт',
     sort_order: 0,
     order_step: '',
+    barcode: '',
     in_stock: true,
     season_scope: 'all',
     is_hidden_catalog: false,
@@ -3560,6 +3585,7 @@ function AdminDashboard() {
         unit: product.unit || 'шт',
         sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
+        barcode: product.barcode || '',
         in_stock: product.in_stock !== false,
         season_scope: product.season_scope || 'all',
         is_hidden_catalog: !!product.is_hidden_catalog,
@@ -3588,6 +3614,7 @@ function AdminDashboard() {
         unit: 'шт',
         sort_order: 0,
         order_step: '',
+        barcode: '',
         in_stock: true,
         season_scope: 'all',
         is_hidden_catalog: false,
@@ -3720,6 +3747,12 @@ function AdminDashboard() {
             name: String(value || '').slice(0, 60)
           };
         }
+        if (field === 'barcode') {
+          return {
+            ...variant,
+            barcode: String(value || '').slice(0, 120)
+          };
+        }
         if (field === 'description_ru' || field === 'description_uz') {
           return {
             ...variant,
@@ -3727,6 +3760,80 @@ function AdminDashboard() {
           };
         }
         return variant;
+      });
+
+      const normalizedVariants = normalizeProductVariantOptions(nextVariants, { fallbackPrice: fallbackBasePrice });
+      return {
+        ...prev,
+        variant_options: normalizedVariants,
+        size_options: normalizedVariants.map((variant) => variant.name)
+      };
+    });
+  };
+  const updateProductVariantImageSlot = (variantIndex, slotIndex, nextUrl, nextThumbUrl = '') => {
+    setProductForm((prev) => {
+      const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
+      const variants = normalizeProductVariantOptions(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      if (variantIndex < 0 || variantIndex >= variants.length) return prev;
+
+      const nextVariants = variants.map((variant, currentVariantIndex) => {
+        if (currentVariantIndex !== variantIndex) return variant;
+        const slots = createVariantImageSlots(variant.product_images, variant.image_url, variant.thumb_url);
+        if (slotIndex < 0 || slotIndex >= VARIANT_IMAGE_SLOTS_COUNT) return variant;
+
+        const normalizedUrl = String(nextUrl || '').trim();
+        slots[slotIndex] = normalizedUrl
+          ? { url: normalizedUrl, thumb_url: String(nextThumbUrl || '').trim() }
+          : { url: '', thumb_url: '' };
+
+        if (!slots[0].url) {
+          const firstFilledSlotIndex = slots.findIndex((slot) => slot.url);
+          if (firstFilledSlotIndex > 0) {
+            [slots[0], slots[firstFilledSlotIndex]] = [slots[firstFilledSlotIndex], slots[0]];
+          }
+        }
+
+        const normalizedSlots = serializeVariantImageSlots(slots);
+        const mainSlot = normalizedSlots[0] || { url: '', thumb_url: '' };
+        return {
+          ...variant,
+          image_url: mainSlot.url || '',
+          thumb_url: mainSlot.thumb_url || '',
+          product_images: normalizedSlots
+        };
+      });
+
+      const normalizedVariants = normalizeProductVariantOptions(nextVariants, { fallbackPrice: fallbackBasePrice });
+      return {
+        ...prev,
+        variant_options: normalizedVariants,
+        size_options: normalizedVariants.map((variant) => variant.name)
+      };
+    });
+  };
+  const clearProductVariantImageSlot = (variantIndex, slotIndex) => {
+    updateProductVariantImageSlot(variantIndex, slotIndex, '', '');
+  };
+  const setMainProductVariantImageSlot = (variantIndex, slotIndex) => {
+    setProductForm((prev) => {
+      const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
+      const variants = normalizeProductVariantOptions(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      if (variantIndex < 0 || variantIndex >= variants.length) return prev;
+
+      const nextVariants = variants.map((variant, currentVariantIndex) => {
+        if (currentVariantIndex !== variantIndex) return variant;
+        const slots = createVariantImageSlots(variant.product_images, variant.image_url, variant.thumb_url);
+        if (slotIndex < 0 || slotIndex >= VARIANT_IMAGE_SLOTS_COUNT) return variant;
+        if (!slots[slotIndex]?.url || slotIndex === 0) return variant;
+
+        [slots[0], slots[slotIndex]] = [slots[slotIndex], slots[0]];
+        const normalizedSlots = serializeVariantImageSlots(slots);
+        return {
+          ...variant,
+          image_url: normalizedSlots[0]?.url || '',
+          thumb_url: normalizedSlots[0]?.thumb_url || '',
+          product_images: normalizedSlots
+        };
       });
 
       const normalizedVariants = normalizeProductVariantOptions(nextVariants, { fallbackPrice: fallbackBasePrice });
@@ -3778,6 +3885,11 @@ function AdminDashboard() {
         ));
         if (invalidVariant) {
           alert(`Укажите название и цену для варианта "${invalidVariant.name || 'без названия'}"`);
+          return;
+        }
+        const missingBarcodeVariant = normalizedVariantOptions.find((variant) => !String(variant.barcode || '').trim());
+        if (missingBarcodeVariant) {
+          alert(`Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"`);
           return;
         }
       }
@@ -4092,6 +4204,7 @@ function AdminDashboard() {
       unit: product.unit || 'шт',
       sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
       order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
+      barcode: '',
       in_stock: true,
       season_scope: product.season_scope || 'all',
       is_hidden_catalog: !!product.is_hidden_catalog,
@@ -10821,7 +10934,7 @@ function AdminDashboard() {
       </Modal>
 
         {/* Product Modal */}
-        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl">
+        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl" dialogClassName="admin-product-modal-dialog">
           <Modal.Header closeButton>
             <Modal.Title>
               {selectedProduct ? t('editProduct') : t('addProduct')}
@@ -10960,48 +11073,34 @@ function AdminDashboard() {
                 </Col>
               </Row>
 
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      value={productForm.description_ru}
-                      onChange={(e) => setProductForm({ ...productForm, description_ru: e.target.value })}
-                      placeholder={language === 'uz' ? 'Rus tilida tavsif kiriting' : 'Введите описание на русском'}
-                      disabled={Boolean(productForm.size_enabled)}
-                    />
-                    {productForm.size_enabled && (
-                      <Form.Text className="text-muted">
-                        {language === 'uz'
-                          ? "Tavsif tanlangan variantdan olinadi."
-                          : 'Описание берется из выбранного варианта.'}
-                      </Form.Text>
-                    )}
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{language === 'uz' ? 'Tavsif (UZ)' : 'Описание (UZ)'}</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      value={productForm.description_uz}
-                      onChange={(e) => setProductForm({ ...productForm, description_uz: e.target.value })}
-                      placeholder={language === 'uz' ? "O'zbek tilida tavsif kiriting" : 'Введите описание на узбекском'}
-                      disabled={Boolean(productForm.size_enabled)}
-                    />
-                    {productForm.size_enabled && (
-                      <Form.Text className="text-muted">
-                        {language === 'uz'
-                          ? "Tavsif tanlangan variantdan olinadi."
-                          : 'Описание берется из выбранного варианта.'}
-                      </Form.Text>
-                    )}
-                  </Form.Group>
-                </Col>
-              </Row>
+              {!productForm.size_enabled && (
+                <Row>
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={3}
+                        value={productForm.description_ru}
+                        onChange={(e) => setProductForm({ ...productForm, description_ru: e.target.value })}
+                        placeholder={language === 'uz' ? 'Rus tilida tavsif kiriting' : 'Введите описание на русском'}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{language === 'uz' ? 'Tavsif (UZ)' : 'Описание (UZ)'}</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={3}
+                        value={productForm.description_uz}
+                        onChange={(e) => setProductForm({ ...productForm, description_uz: e.target.value })}
+                        placeholder={language === 'uz' ? "O'zbek tilida tavsif kiriting" : 'Введите описание на узбекском'}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+              )}
 
               <Row>
                 <Col md={6}>
@@ -11171,61 +11270,188 @@ function AdminDashboard() {
                                   <div className="mt-3">
                                     <div className="small fw-semibold text-muted mb-2">
                                       {language === 'uz'
-                                        ? "Variant maydonlari: Nomi / Tavsif RU / Tavsif UZ / Narxi"
-                                        : 'Поля варианта: Название / Описание RU / Описание UZ / Цена'}
+                                        ? "Variant maydonlari: Nomi / Tavsif RU / Tavsif UZ / Narxi / Shtrix-kod"
+                                        : 'Поля варианта: Название / Описание RU / Описание UZ / Цена / Штрихкод'}
                                     </div>
+                                    <Form.Text className="text-muted d-block mb-2">
+                                      {language === 'uz'
+                                        ? "Asosiy tavsif va asosiy rasmlar yashiriladi, katalogda variant rasmi ko'rsatiladi."
+                                        : 'Базовое описание и базовые фото скрыты, в каталоге показывается фото выбранного варианта.'}
+                                    </Form.Text>
                                     <div className="d-flex flex-column gap-2">
-                                      {currentVariants.map((variant, index) => (
-                                        <div key={`variant-row-${index}-${variant.name || 'new'}`} className="p-2 rounded-2 border bg-white">
-                                          <Row className="g-2 align-items-start">
-                                            <Col md={3}>
-                                              <Form.Control
-                                                value={variant.name || ''}
-                                                onChange={(event) => updateProductVariantOption(index, 'name', event.target.value)}
-                                                placeholder={language === 'uz' ? 'Variant nomi' : 'Название варианта'}
-                                                maxLength={60}
-                                              />
-                                            </Col>
-                                            <Col md={3}>
-                                              <Form.Control
-                                                value={variant.description_ru || ''}
-                                                onChange={(event) => updateProductVariantOption(index, 'description_ru', event.target.value)}
-                                                placeholder="Описание RU"
-                                                maxLength={1500}
-                                              />
-                                            </Col>
-                                            <Col md={3}>
-                                              <Form.Control
-                                                value={variant.description_uz || ''}
-                                                onChange={(event) => updateProductVariantOption(index, 'description_uz', event.target.value)}
-                                                placeholder="Описание UZ"
-                                                maxLength={1500}
-                                              />
-                                            </Col>
-                                            <Col md={2}>
-                                              <Form.Control
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                value={variant.price}
-                                                onChange={(event) => updateProductVariantOption(index, 'price', event.target.value)}
-                                                placeholder={language === 'uz' ? 'Narxi' : 'Цена'}
-                                              />
-                                            </Col>
-                                            <Col md={1} className="d-flex justify-content-end">
-                                              <Button
-                                                type="button"
-                                                variant="light"
-                                                className="admin-variant-add-btn"
-                                                onClick={() => removeProductVariantOption(index)}
-                                                title={language === 'uz' ? "Variantni o'chirish" : 'Удалить вариант'}
-                                              >
-                                                ×
-                                              </Button>
-                                            </Col>
-                                          </Row>
-                                        </div>
-                                      ))}
+                                      {currentVariants.map((variant, index) => {
+                                        const variantImageSlots = createVariantImageSlots(
+                                          variant.product_images,
+                                          variant.image_url,
+                                          variant.thumb_url
+                                        );
+                                        return (
+                                          <div key={`variant-row-${index}-${variant.name || 'new'}`} className="p-2 rounded-2 border bg-white">
+                                            <Row className="g-2 align-items-start">
+                                              <Col xl={2} md={6}>
+                                                <Form.Control
+                                                  value={variant.name || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'name', event.target.value)}
+                                                  placeholder={language === 'uz' ? 'Variant nomi' : 'Название варианта'}
+                                                  maxLength={60}
+                                                />
+                                              </Col>
+                                              <Col xl={2} md={6}>
+                                                <Form.Control
+                                                  value={variant.description_ru || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'description_ru', event.target.value)}
+                                                  placeholder="Описание RU"
+                                                  maxLength={1500}
+                                                />
+                                              </Col>
+                                              <Col xl={2} md={6}>
+                                                <Form.Control
+                                                  value={variant.description_uz || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'description_uz', event.target.value)}
+                                                  placeholder="Описание UZ"
+                                                  maxLength={1500}
+                                                />
+                                              </Col>
+                                              <Col xl={2} md={4}>
+                                                <Form.Control
+                                                  type="number"
+                                                  min="0"
+                                                  step="1"
+                                                  value={variant.price}
+                                                  onChange={(event) => updateProductVariantOption(index, 'price', event.target.value)}
+                                                  placeholder={language === 'uz' ? 'Narxi' : 'Цена'}
+                                                />
+                                              </Col>
+                                              <Col xl={3} md={6}>
+                                                <Form.Control
+                                                  type="text"
+                                                  value={variant.barcode || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'barcode', event.target.value)}
+                                                  placeholder={language === 'uz' ? 'Shtrix-kod varianti *' : 'Штрихкод варианта *'}
+                                                  maxLength={120}
+                                                />
+                                              </Col>
+                                              <Col xl={1} md={2} className="d-flex justify-content-end">
+                                                <Button
+                                                  type="button"
+                                                  variant="light"
+                                                  className="admin-variant-add-btn"
+                                                  onClick={() => removeProductVariantOption(index)}
+                                                  title={language === 'uz' ? "Variantni o'chirish" : 'Удалить вариант'}
+                                                >
+                                                  ×
+                                                </Button>
+                                              </Col>
+                                            </Row>
+                                            <div className="admin-product-variant-images-shell mt-2">
+                                              <div className="admin-product-variant-images-row">
+                                                {variantImageSlots.map((slot, slotIndex) => (
+                                                  <div key={`variant-image-slot-${index}-${slotIndex}`} className="admin-product-variant-image-item">
+                                                    <div className={`admin-product-image-slot admin-product-image-slot-compact ${slotIndex === 0 ? 'is-main' : ''}`}>
+                                                      <div
+                                                        className={`admin-product-image-dropzone admin-product-image-dropzone-compact ${slot.url ? 'has-image' : ''}`}
+                                                        tabIndex={0}
+                                                        onPaste={(e) => handlePaste(
+                                                          e,
+                                                          (url, meta) => updateProductVariantImageSlot(
+                                                            index,
+                                                            slotIndex,
+                                                            url,
+                                                            meta?.thumbUrl || meta?.thumb_url || ''
+                                                          ),
+                                                          { preset: 'product' }
+                                                        )}
+                                                        onDrop={(e) => {
+                                                          e.preventDefault();
+                                                          const file = e.dataTransfer.files[0];
+                                                          if (file) {
+                                                            handleImageUpload(
+                                                              file,
+                                                              (url, meta) => updateProductVariantImageSlot(
+                                                                index,
+                                                                slotIndex,
+                                                                url,
+                                                                meta?.thumbUrl || meta?.thumb_url || ''
+                                                              ),
+                                                              { preset: 'product' }
+                                                            );
+                                                          }
+                                                        }}
+                                                        onDragOver={(e) => e.preventDefault()}
+                                                      >
+                                                        {slot.url ? (
+                                                          <img
+                                                            src={slot.url}
+                                                            alt={`Variant ${index + 1} ${slotIndex + 1}`}
+                                                            className="admin-product-image-preview"
+                                                          />
+                                                        ) : (
+                                                          <div className="admin-product-image-placeholder">
+                                                            <div className="admin-product-image-placeholder-icon">📷</div>
+                                                          </div>
+                                                        )}
+                                                        <div className="admin-product-image-slot-overlay">
+                                                          <Button
+                                                            type="button"
+                                                            variant="light"
+                                                            size="sm"
+                                                            className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''} admin-product-image-slot-btn-top-left`}
+                                                            title={slotIndex === 0 ? 'Главное фото варианта' : 'Сделать главным фото варианта'}
+                                                            onClick={() => setMainProductVariantImageSlot(index, slotIndex)}
+                                                            disabled={!slot.url}
+                                                          >
+                                                            ★
+                                                          </Button>
+                                                          <Button
+                                                            type="button"
+                                                            variant="light"
+                                                            size="sm"
+                                                            className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
+                                                            title="Удалить фото варианта"
+                                                            onClick={() => clearProductVariantImageSlot(index, slotIndex)}
+                                                            disabled={!slot.url}
+                                                          >
+                                                            ✕
+                                                          </Button>
+                                                          <label
+                                                            htmlFor={`product-variant-image-file-input-${index}-${slotIndex}`}
+                                                            className={`admin-product-image-select-btn ${uploadingImage ? 'is-disabled' : ''}`}
+                                                          >
+                                                            {language === 'uz' ? 'Tanlash' : 'Выбрать'}
+                                                          </label>
+                                                        </div>
+                                                      </div>
+                                                      <Form.Control
+                                                        className="admin-product-image-file-input"
+                                                        id={`product-variant-image-file-input-${index}-${slotIndex}`}
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                          const file = e.target.files[0];
+                                                          if (file) {
+                                                            handleImageUpload(
+                                                              file,
+                                                              (url, meta) => updateProductVariantImageSlot(
+                                                                index,
+                                                                slotIndex,
+                                                                url,
+                                                                meta?.thumbUrl || meta?.thumb_url || ''
+                                                              ),
+                                                              { preset: 'product' }
+                                                            );
+                                                            e.target.value = '';
+                                                          }
+                                                        }}
+                                                        disabled={uploadingImage}
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 )}
@@ -11259,6 +11485,18 @@ function AdminDashboard() {
                           : 'Цена берется из выбранного варианта.'}
                       </Form.Text>
                     )}
+                  </Form.Group>
+                </Col>
+                <Col md={3}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={productForm.barcode}
+                      onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
+                      placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
+                      maxLength={120}
+                    />
                   </Form.Group>
                 </Col>
                 <Col md={3}>
@@ -11416,15 +11654,16 @@ function AdminDashboard() {
                 )}
               </Row>
 
-              <Row>
-                <Col xs={12}>
-                  <Form.Group className="mb-3">
-                    <Form.Label className="mb-2">{t('image')} (до 5)</Form.Label>
-                    <div className="admin-product-images-shell">
-                      <div className="admin-product-images-row">
-                        {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
-                          <div key={`product-image-slot-${slotIndex}`} className="admin-product-image-item">
-                            <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
+              {!productForm.size_enabled && (
+                <Row>
+                  <Col xs={12}>
+                    <Form.Group className="mb-3">
+                      <Form.Label className="mb-2">{t('image')} (до 5)</Form.Label>
+                      <div className="admin-product-images-shell">
+                        <div className="admin-product-images-row">
+                          {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
+                            <div key={`product-image-slot-${slotIndex}`} className="admin-product-image-item">
+                              <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
                               <div
                                 className={`admin-product-image-dropzone ${slot.url ? 'has-image' : ''}`}
                                 tabIndex={0}
@@ -11515,22 +11754,23 @@ function AdminDashboard() {
                                 placeholder="https://example.com/image.jpg"
                                 inputMode="url"
                               />
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    {uploadingImage && (
-                      <div className="text-muted mt-2 admin-product-image-uploading">
-                        <small>⏳ {t('uploadingImage')}</small>
-                      </div>
-                    )}
-                    <Form.Text className="text-muted admin-product-image-help">
-                      ⭐ - главное фото, ✕ - удалить, кнопка "Выбрать" - загрузка файла.
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
-              </Row>
+                      {uploadingImage && (
+                        <div className="text-muted mt-2 admin-product-image-uploading">
+                          <small>⏳ {t('uploadingImage')}</small>
+                        </div>
+                      )}
+                      <Form.Text className="text-muted admin-product-image-help">
+                        ⭐ - главное фото, ✕ - удалить, кнопка "Выбрать" - загрузка файла.
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                </Row>
+              )}
 
             </Modal.Body>
             <Modal.Footer>

@@ -363,7 +363,7 @@ function Catalog() {
       })
       .filter(Boolean);
   };
-  const getProductGalleryImages = (product) => {
+  const getProductGalleryImages = (product, selectedVariant = null) => {
     const result = [];
     const seen = new Set();
     const addImage = (value) => {
@@ -373,13 +373,40 @@ function Catalog() {
       result.push(resolved);
     };
 
+    const selectedVariantDetails = getSelectedVariantDetails(product, selectedVariant);
+    if (selectedVariantDetails) {
+      addImage(selectedVariantDetails?.image_url);
+      getProductImageItems(selectedVariantDetails).forEach((item) => addImage(item.url));
+      if (!result.length) addImage(selectedVariantDetails?.thumb_url);
+      if (result.length) return result;
+    }
+
     addImage(product?.image_url);
     getProductImageItems(product).forEach((item) => addImage(item.url));
 
     if (!result.length) addImage(product?.thumb_url);
     return result;
   };
-  const getProductCardImage = (product) => {
+  const getProductCardImage = (product, selectedVariant = null) => {
+    const selectedVariantDetails = getSelectedVariantDetails(product, selectedVariant);
+    if (selectedVariantDetails) {
+      const variantImageItems = getProductImageItems(selectedVariantDetails);
+      const variantItemWithThumb = variantImageItems.find((item) => item.thumb_url);
+      if (variantItemWithThumb?.thumb_url) {
+        return resolveImageUrl(variantItemWithThumb.thumb_url);
+      }
+
+      const directVariantThumbUrl = resolveImageUrl(selectedVariantDetails?.thumb_url);
+      if (directVariantThumbUrl) return directVariantThumbUrl;
+
+      if (variantImageItems[0]?.url) {
+        return resolveImageUrl(variantImageItems[0].url);
+      }
+
+      const directVariantImageUrl = resolveImageUrl(selectedVariantDetails?.image_url);
+      if (directVariantImageUrl) return directVariantImageUrl;
+    }
+
     const imageItems = getProductImageItems(product);
     const itemWithThumb = imageItems.find((item) => item.thumb_url);
     if (itemWithThumb?.thumb_url) {
@@ -396,8 +423,8 @@ function Catalog() {
     return resolveImageUrl(product?.image_url);
   };
 
-  const openProductGallery = (product, startIndex = 0) => {
-    const images = getProductGalleryImages(product);
+  const openProductGallery = (product, startIndex = 0, selectedVariant = null) => {
+    const images = getProductGalleryImages(product, selectedVariant);
     if (!images.length) return;
     const safeIndex = Math.max(0, Math.min(startIndex, images.length - 1));
     setGalleryImages(images);
@@ -577,12 +604,21 @@ function Catalog() {
       let descriptionRu = '';
       let descriptionUz = '';
       let priceRaw = fallbackPrice;
+      let barcode = '';
+      let imageUrl = '';
+      let thumbUrl = '';
+      let variantImages = [];
 
       if (item && typeof item === 'object' && !Array.isArray(item)) {
         name = String(item.name || item.value || item.label || '').trim();
         descriptionRu = String(item.description_ru || item.descriptionRu || '').trim();
         descriptionUz = String(item.description_uz || item.descriptionUz || '').trim();
         priceRaw = item.price ?? fallbackPrice;
+        barcode = String(item.barcode || '').trim();
+        variantImages = getProductImageItems(item).slice(0, 4);
+        const mainVariantImage = variantImages[0] || null;
+        imageUrl = String(mainVariantImage?.url || item.image_url || item.imageUrl || '').trim();
+        thumbUrl = String(mainVariantImage?.thumb_url || item.thumb_url || item.thumbUrl || '').trim();
       } else {
         name = String(item ?? '').trim();
       }
@@ -597,7 +633,11 @@ function Catalog() {
         name,
         description_ru: descriptionRu.slice(0, 1500),
         description_uz: descriptionUz.slice(0, 1500),
-        price: Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : null
+        price: Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : null,
+        barcode: barcode.slice(0, 120),
+        image_url: imageUrl,
+        thumb_url: thumbUrl,
+        product_images: variantImages
       });
       if (normalized.length >= 20) break;
     }
@@ -794,15 +834,30 @@ function Catalog() {
 
   const handleAddToCart = (product) => {
     const selectedVariant = getSelectedVariantForProduct(product);
+    const selectedVariantDetails = getSelectedVariantDetails(product, selectedVariant);
     const variantPrice = getSelectedVariantPrice(product, selectedVariant);
     const selectedVariantDescription = getSelectedVariantDescription(product, selectedVariant);
+    const variantImageItems = getProductImageItems(selectedVariantDetails).slice(0, 4);
+    const variantMainImage = variantImageItems[0] || null;
+    const cartImageUrl = selectedVariantDetails
+      ? (selectedVariantDetails.image_url || variantMainImage?.url || product?.image_url || '')
+      : (product?.image_url || '');
+    const cartThumbUrl = selectedVariantDetails
+      ? (selectedVariantDetails.thumb_url || variantMainImage?.thumb_url || product?.thumb_url || '')
+      : (product?.thumb_url || '');
+    const cartProductImages = selectedVariantDetails && variantImageItems.length > 0
+      ? variantImageItems
+      : getProductImageItems(product);
     addToCart({
       ...product,
       restaurant_id: selectedRestaurant,
       price: variantPrice,
       description_ru: language === 'uz' ? (product?.description_ru || selectedVariantDescription) : selectedVariantDescription,
       description_uz: language === 'uz' ? selectedVariantDescription : (product?.description_uz || selectedVariantDescription),
-      selected_variant: selectedVariant || null
+      selected_variant: selectedVariant || null,
+      image_url: cartImageUrl,
+      thumb_url: cartThumbUrl,
+      product_images: cartProductImages
     });
   };
 
@@ -1896,7 +1951,7 @@ function Catalog() {
     const isOpen = catalogQtyOpen?.[overlayKey];
     const favoriteActive = isFavorite(product.id);
     const productName = getProductName(product);
-    const primaryImageUrl = getProductCardImage(product);
+    const primaryImageUrl = getProductCardImage(product, selectedVariant);
     const productSizeOptions = getProductSizeOptions(product);
     const productDisplayPrice = getSelectedVariantPrice(product, selectedVariant);
 
@@ -2443,6 +2498,18 @@ function Catalog() {
     loadProductDetails(product.id, product);
   };
 
+  useEffect(() => {
+    if (!showProductDetailsModal) return;
+    const activeProduct = selectedProductDetails || selectedProductSummary;
+    if (!activeProduct?.id) return;
+    const activeProductId = Number(activeProduct.id);
+    if (!activeProductId) return;
+    const selectedVariant = String(selectedProductVariants[activeProductId] || '').trim();
+    if (!selectedVariant) return;
+    setProductHeroIndex(0);
+    productHeroSwipeTriggeredRef.current = false;
+  }, [selectedProductVariants, selectedProductDetails, selectedProductSummary, showProductDetailsModal]);
+
   const loadMoreProductReviews = async () => {
     const product = selectedProductDetails || selectedProductSummary;
     if (!product?.id || productReviewsLoadingMore || !productReviewsHasMore) return;
@@ -2662,7 +2729,7 @@ function Catalog() {
           >
             {catalogSearchResults.map((product, index) => {
               const productName = getProductName(product);
-              const imageUrl = getProductCardImage(product);
+              const imageUrl = getProductCardImage(product, selectedVariant);
               const category = categoriesById.get(Number(product.category_id));
               const productSizeOptions = getProductSizeOptions(product);
               const hasSelectableVariants = productSizeOptions.length > 0;
@@ -2844,13 +2911,13 @@ function Catalog() {
   );
   const activeProduct = selectedProductDetails || selectedProductSummary;
   const activeProductName = getProductName(activeProduct);
-  const activeProductCardImage = getProductCardImage(activeProduct);
-  const activeProductGalleryImages = getProductGalleryImages(activeProduct);
+  const activeProductSelectedVariant = getSelectedVariantForProduct(activeProduct);
+  const activeProductCardImage = getProductCardImage(activeProduct, activeProductSelectedVariant);
+  const activeProductGalleryImages = getProductGalleryImages(activeProduct, activeProductSelectedVariant);
   const activeProductGalleryIndex = activeProductGalleryImages.length > 0
     ? Math.max(0, Math.min(productHeroIndex, activeProductGalleryImages.length - 1))
     : 0;
   const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductCardImage;
-  const activeProductSelectedVariant = getSelectedVariantForProduct(activeProduct);
   const activeProductDescription = getSelectedVariantDescription(activeProduct, activeProductSelectedVariant);
   const activeProductDisplayPrice = getSelectedVariantPrice(activeProduct, activeProductSelectedVariant);
   const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id, activeProductSelectedVariant) : null;
@@ -3568,7 +3635,7 @@ function Catalog() {
                           productHeroSwipeTriggeredRef.current = false;
                           return;
                         }
-                        openProductGallery(activeProduct, activeProductGalleryIndex);
+                        openProductGallery(activeProduct, activeProductGalleryIndex, activeProductSelectedVariant);
                       }}
                       onTouchStart={handleProductHeroTouchStart}
                       onTouchMove={(event) => handleProductHeroTouchMove(event, activeProductGalleryImages.length)}

@@ -28,6 +28,7 @@ const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' 
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
 const MAX_PRODUCT_IMAGES = 5;
+const MAX_PRODUCT_VARIANT_IMAGES = 4;
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
 const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -75,12 +76,31 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) =>
     let descriptionRu = '';
     let descriptionUz = '';
     let priceRaw = fallbackPrice;
+    let barcode = '';
+    let imageUrl = '';
+    let thumbUrl = '';
+    let variantImages = [];
 
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       name = toOptionalTrimmedText(item.name || item.value || item.label);
       descriptionRu = toOptionalTrimmedText(item.description_ru || item.descriptionRu);
       descriptionUz = toOptionalTrimmedText(item.description_uz || item.descriptionUz);
       priceRaw = item.price ?? fallbackPrice;
+      barcode = toOptionalTrimmedText(item.barcode).slice(0, 120);
+
+      const normalizedVariantImages = normalizeProductImages(item.product_images).slice(0, MAX_PRODUCT_VARIANT_IMAGES);
+      const fallbackVariantImageUrl = toOptionalTrimmedText(item.image_url || item.imageUrl);
+      const fallbackVariantThumbUrl = toOptionalTrimmedText(item.thumb_url || item.thumbUrl);
+      if (normalizedVariantImages.length === 0 && fallbackVariantImageUrl) {
+        normalizedVariantImages.push({
+          url: fallbackVariantImageUrl,
+          ...(fallbackVariantThumbUrl ? { thumb_url: fallbackVariantThumbUrl } : {})
+        });
+      }
+      const mainVariantImage = normalizedVariantImages[0] || null;
+      variantImages = normalizedVariantImages;
+      imageUrl = mainVariantImage?.url || fallbackVariantImageUrl || '';
+      thumbUrl = mainVariantImage?.thumb_url || fallbackVariantThumbUrl || '';
     } else {
       name = toOptionalTrimmedText(item);
     }
@@ -93,7 +113,11 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) =>
       name,
       description_ru: descriptionRu.slice(0, 1500),
       description_uz: descriptionUz.slice(0, 1500),
-      price: normalizeProductPrice(priceRaw, fallbackPrice)
+      price: normalizeProductPrice(priceRaw, fallbackPrice),
+      barcode,
+      image_url: imageUrl,
+      thumb_url: thumbUrl,
+      product_images: variantImages
     });
     if (normalized.length >= MAX_PRODUCT_SIZE_OPTIONS) break;
   }
@@ -2261,6 +2285,10 @@ router.post('/products', async (req, res) => {
       if (invalidVariant) {
         return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
       }
+      const missingBarcodeVariant = normalizedSizeOptions.find((variant) => !toOptionalTrimmedText(variant?.barcode));
+      if (missingBarcodeVariant) {
+        return res.status(400).json({ error: `Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"` });
+      }
     }
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
@@ -2351,6 +2379,10 @@ router.post('/products/upsert', async (req, res) => {
       const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
       if (invalidVariant) {
         return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
+      }
+      const missingBarcodeVariant = normalizedSizeOptions.find((variant) => !toOptionalTrimmedText(variant?.barcode));
+      if (missingBarcodeVariant) {
+        return res.status(400).json({ error: `Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"` });
       }
     }
     const normalizedPrice = normalizedBasePrice !== null
@@ -2564,6 +2596,12 @@ router.put('/products/:id', async (req, res) => {
       const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
       if (invalidVariant) {
         return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
+      }
+      if (hasSizeOptionsField || hasSizeEnabledField) {
+        const missingBarcodeVariant = normalizedSizeOptions.find((variant) => !toOptionalTrimmedText(variant?.barcode));
+        if (missingBarcodeVariant) {
+          return res.status(400).json({ error: `Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"` });
+        }
       }
     }
     const normalizedPrice = basePriceFallback !== null
