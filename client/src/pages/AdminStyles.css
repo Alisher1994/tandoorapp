@@ -3031,7 +3031,8 @@ body::-webkit-scrollbar,
     border: 1px solid #d7dee8 !important;
     background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
     color: #334155 !important;
-    font-weight: 700 !important;
+    font-weight: 500 !important;
+    font-size: 0.9rem !important;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
@@ -3045,6 +3046,8 @@ body::-webkit-scrollbar,
 .sa-operator-stores-btn-label {
     display: inline-flex;
     align-items: center;
+    font-weight: 500;
+    font-size: 0.9rem;
 }
 
 .sa-operator-stores-btn-count {
@@ -3133,6 +3136,62 @@ body::-webkit-scrollbar,
     font-weight: 600;
     line-height: 1.3;
     word-break: break-word;
+}
+
+.sa-role-badge {
+    border: 1px solid transparent;
+}
+
+.sa-role-badge-operator {
+    background: #e0f2fe !important;
+    border-color: #bae6fd !important;
+    color: #0c4a6e !important;
+}
+
+.sa-role-badge-superadmin {
+    background: #fee2e2 !important;
+    border-color: #fecaca !important;
+    color: #991b1b !important;
+}
+
+.sa-role-badge-customer {
+    background: #dcfce7 !important;
+    border-color: #bbf7d0 !important;
+    color: #166534 !important;
+}
+
+.sa-status-badge {
+    border: 1px solid transparent;
+}
+
+.sa-status-badge-active {
+    background: #dcfce7 !important;
+    border-color: #bbf7d0 !important;
+    color: #166534 !important;
+}
+
+.sa-status-badge-inactive {
+    background: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+}
+
+.sa-status-badge-blocked {
+    background: #fef3c7 !important;
+    border-color: #fde68a !important;
+    color: #92400e !important;
+}
+
+.sa-status-badge-global-ban {
+    background: #fee2e2 !important;
+    border-color: #fecaca !important;
+    color: #991b1b !important;
+}
+
+.sa-store-badge {
+    background: #ede9fe !important;
+    border: 1px solid #ddd6fe !important;
+    color: #5b21b6 !important;
 }
 
 .admin-product-table {

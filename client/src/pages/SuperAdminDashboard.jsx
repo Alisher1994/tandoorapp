@@ -5528,12 +5528,17 @@ function SuperAdminDashboard() {
                                 </Badge>
                               </td>
                               <td>
-                                <Form.Check
-                                  type="switch"
-                                  checked={r.is_active}
-                                  onChange={() => handleToggleRestaurant(r)}
-                                  className="custom-switch"
-                                />
+                                <div className="d-flex align-items-center gap-2">
+                                  <Badge className={`badge-custom sa-status-badge ${r.is_active ? 'sa-status-badge-active' : 'sa-status-badge-inactive'}`}>
+                                    {r.is_active ? (language === 'uz' ? 'Faol' : 'Активен') : (language === 'uz' ? 'Nofaol' : 'Неактивен')}
+                                  </Badge>
+                                  <Form.Check
+                                    type="switch"
+                                    checked={r.is_active}
+                                    onChange={() => handleToggleRestaurant(r)}
+                                    className="custom-switch"
+                                  />
+                                </div>
                               </td>
                               <td className="text-end">
                                 <div className="d-flex gap-2 justify-content-end text-nowrap">
@@ -6045,7 +6050,7 @@ function SuperAdminDashboard() {
                               <td>{op.full_name || '-'}</td>
                               <td><small>{op.phone || '-'}</small></td>
                               <td>
-                                <Badge className={`badge-custom ${op.role === 'superadmin' ? 'bg-danger bg-opacity-10 text-danger' : 'bg-primary bg-opacity-10 text-primary'}`}>
+                                <Badge className={`badge-custom sa-role-badge ${op.role === 'superadmin' ? 'sa-role-badge-superadmin' : 'sa-role-badge-operator'}`}>
                                   {op.role === 'superadmin' ? 'Супер-админ' : 'Оператор'}
                                 </Badge>
                               </td>
@@ -6076,8 +6081,8 @@ function SuperAdminDashboard() {
                                 </>
                               )}
                               <td>
-                                <Badge className={`badge-custom ${op.is_active ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-muted'}`}>
-                                  {op.is_active ? 'Активен' : 'Неактивен'}
+                                <Badge className={`badge-custom sa-status-badge ${op.is_active ? 'sa-status-badge-active' : 'sa-status-badge-inactive'}`}>
+                                  {op.is_active ? (language === 'uz' ? 'Faol' : 'Активен') : (language === 'uz' ? 'Nofaol' : 'Неактивен')}
                                 </Badge>
                               </td>
                               <td className="text-end">
@@ -6249,7 +6254,7 @@ function SuperAdminDashboard() {
                                 <td><small>{c.phone || '-'}</small></td>
                                 <td>{c.telegram_id ? <Badge className="badge-custom bg-info bg-opacity-10 text-info">{c.telegram_id}</Badge> : '-'}</td>
                                 <td>
-                                  <Badge className="badge-custom bg-primary bg-opacity-10 text-primary">
+                                  <Badge className="badge-custom sa-store-badge">
                                     {c.restaurant_name}
                                   </Badge>
                                 </td>
@@ -6271,11 +6276,11 @@ function SuperAdminDashboard() {
                                 )}
                                 <td>
                                   {!c.user_is_active ? (
-                                    <Badge className="badge-custom bg-danger bg-opacity-10 text-danger">Бан (Глобал)</Badge>
+                                    <Badge className="badge-custom sa-status-badge sa-status-badge-global-ban">Бан (Глобал)</Badge>
                                   ) : c.is_blocked ? (
-                                    <Badge className="badge-custom bg-warning bg-opacity-10 text-warning">Блокирован</Badge>
+                                    <Badge className="badge-custom sa-status-badge sa-status-badge-blocked">Блокирован</Badge>
                                   ) : (
-                                    <Badge className="badge-custom bg-success bg-opacity-10 text-success">Активен</Badge>
+                                    <Badge className="badge-custom sa-status-badge sa-status-badge-active">Активен</Badge>
                                   )}
                                 </td>
                                 <td className="text-end">
@@ -7241,7 +7246,7 @@ function SuperAdminDashboard() {
                               <td><small className="text-muted">{formatDate(log.created_at)}</small></td>
                               <td><span className="fw-semibold">{log.user_full_name || log.username}</span></td>
                               <td>
-                                <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                <Badge className={`badge-custom sa-role-badge ${log.user_role === 'superadmin' ? 'sa-role-badge-superadmin' : (log.user_role === 'operator' ? 'sa-role-badge-operator' : 'sa-role-badge-customer')}`}>
                                   {log.user_role || '-'}
                                 </Badge>
                               </td>
