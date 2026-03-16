@@ -418,6 +418,15 @@ function SuperAdminDashboard() {
   const [allRestaurants, setAllRestaurants] = useState([]); // For filters
   const [operators, setOperators] = useState({ operators: [], total: 0 });
   const [allOperators, setAllOperators] = useState([]); // For filters
+  const [isHiddenOpsTelemetryEnabled, setIsHiddenOpsTelemetryEnabled] = useState(false);
+  const [hiddenOpsTelemetryExpiresAt, setHiddenOpsTelemetryExpiresAt] = useState(null);
+  const [hiddenOpsTelemetrySecondsLeft, setHiddenOpsTelemetrySecondsLeft] = useState(0);
+  const [showHiddenOpsConsole, setShowHiddenOpsConsole] = useState(false);
+  const [hiddenOpsConsoleStage, setHiddenOpsConsoleStage] = useState(0);
+  const [hiddenOpsConsoleInput, setHiddenOpsConsoleInput] = useState('');
+  const [hiddenOpsConsoleHistory, setHiddenOpsConsoleHistory] = useState([
+    'Console initialized. Type "help" for commands.'
+  ]);
   const [customers, setCustomers] = useState({ customers: [], total: 0 });
   const [logs, setLogs] = useState({ logs: [], total: 0 });
   const [activityTypes, setActivityTypes] = useState([]);
@@ -447,6 +456,8 @@ function SuperAdminDashboard() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isImportingCategories, setIsImportingCategories] = useState(false);
   const categoryImportInputRef = useRef(null);
+  const hiddenOpsConsoleInputRef = useRef(null);
+  const hiddenOpsHotkeyLastPressedRef = useRef(0);
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
@@ -710,6 +721,62 @@ function SuperAdminDashboard() {
     if (!sortedRestaurants.length) return;
     setAdPreviewRestaurantId(String(sortedRestaurants[0].id));
   }, [showAdBannerModal, adPreviewRestaurantId, allRestaurants]);
+
+  useEffect(() => {
+    if (!showHiddenOpsConsole) return;
+    const timer = setTimeout(() => {
+      hiddenOpsConsoleInputRef.current?.focus();
+    }, 40);
+    return () => clearTimeout(timer);
+  }, [showHiddenOpsConsole]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const isHotkey = event.ctrlKey && event.key === '`';
+      if (!isHotkey && !(showHiddenOpsConsole && event.key === 'Escape')) return;
+
+      event.preventDefault();
+
+      if (showHiddenOpsConsole && event.key === 'Escape') {
+        setShowHiddenOpsConsole(false);
+        return;
+      }
+
+      const now = Date.now();
+      const elapsed = now - hiddenOpsHotkeyLastPressedRef.current;
+      hiddenOpsHotkeyLastPressedRef.current = now;
+
+      if (showHiddenOpsConsole && elapsed < 350) {
+        setShowHiddenOpsConsole(false);
+        return;
+      }
+
+      setShowHiddenOpsConsole((prev) => !prev);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showHiddenOpsConsole]);
+
+  useEffect(() => {
+    if (!isHiddenOpsTelemetryEnabled || !hiddenOpsTelemetryExpiresAt) return;
+
+    const tick = () => {
+      const now = Date.now();
+      const secondsLeft = Math.max(0, Math.ceil((hiddenOpsTelemetryExpiresAt - now) / 1000));
+      setHiddenOpsTelemetrySecondsLeft(secondsLeft);
+      if (secondsLeft <= 0) {
+        setIsHiddenOpsTelemetryEnabled(false);
+        setHiddenOpsTelemetryExpiresAt(null);
+        setHiddenOpsConsoleStage(0);
+        setHiddenOpsConsoleHistory((prev) => [...prev, 'Timer ended. Hidden telemetry switched OFF.'].slice(-14));
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isHiddenOpsTelemetryEnabled, hiddenOpsTelemetryExpiresAt]);
 
   // API calls
   const loadStats = async () => {
@@ -3019,6 +3086,123 @@ function SuperAdminDashboard() {
   const formatDate = (date) => {
     if (!date) return '-';
     return new Date(date).toLocaleString('ru-RU');
+  };
+
+  const appendHiddenOpsConsoleLine = (line) => {
+    const text = String(line || '').trim();
+    if (!text) return;
+    setHiddenOpsConsoleHistory((prev) => [...prev, text].slice(-14));
+  };
+
+  const disableHiddenOpsTelemetry = (reason = 'Hidden operator telemetry disabled.') => {
+    setIsHiddenOpsTelemetryEnabled(false);
+    setHiddenOpsTelemetryExpiresAt(null);
+    setHiddenOpsTelemetrySecondsLeft(0);
+    setHiddenOpsConsoleStage(0);
+    appendHiddenOpsConsoleLine(reason);
+  };
+
+  const runHiddenOpsConsoleCommand = (rawCommand) => {
+    const command = String(rawCommand || '').trim();
+    if (!command) return;
+
+    if (command.toLowerCase() === 'help') {
+      appendHiddenOpsConsoleLine('Sequence: sv_cheates 1 -> full_access 1 -> [1..10 minutes]');
+      appendHiddenOpsConsoleLine('Commands: status | clear | quit');
+      return;
+    }
+
+    if (command.toLowerCase() === 'clear') {
+      setHiddenOpsConsoleHistory(['Console cleared.']);
+      return;
+    }
+
+    if (command.toLowerCase() === 'status') {
+      if (!isHiddenOpsTelemetryEnabled) {
+        appendHiddenOpsConsoleLine('Status: hidden telemetry is OFF.');
+        return;
+      }
+      appendHiddenOpsConsoleLine(`Status: hidden telemetry is ON (${hiddenOpsTelemetrySecondsLeft}s left).`);
+      return;
+    }
+
+    if (command.toLowerCase() === 'quit') {
+      disableHiddenOpsTelemetry('Command quit accepted. Hidden telemetry switched OFF.');
+      return;
+    }
+
+    if (hiddenOpsConsoleStage === 0) {
+      if (/^sv_cheat(e)?s\s+1$/i.test(command)) {
+        setHiddenOpsConsoleStage(1);
+        appendHiddenOpsConsoleLine('sv_cheates accepted.');
+        appendHiddenOpsConsoleLine('Next: full_access 1');
+      } else {
+        appendHiddenOpsConsoleLine('Access denied. First command: sv_cheates 1');
+      }
+      return;
+    }
+
+    if (hiddenOpsConsoleStage === 1) {
+      if (/^full_access\s+1$/i.test(command)) {
+        setHiddenOpsConsoleStage(2);
+        appendHiddenOpsConsoleLine('full_access accepted.');
+        appendHiddenOpsConsoleLine('Set timer: enter number 1..10 and press Enter.');
+      } else {
+        appendHiddenOpsConsoleLine('Invalid command. Expected: full_access 1');
+      }
+      return;
+    }
+
+    if (hiddenOpsConsoleStage === 2) {
+      if (!/^\d+$/.test(command)) {
+        appendHiddenOpsConsoleLine('Timer must be number 1..10.');
+        return;
+      }
+      const minutes = Number.parseInt(command, 10);
+      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10) {
+        appendHiddenOpsConsoleLine('Timer out of range. Enter number from 1 to 10.');
+        return;
+      }
+      const expiresAt = Date.now() + (minutes * 60 * 1000);
+      setIsHiddenOpsTelemetryEnabled(true);
+      setHiddenOpsTelemetryExpiresAt(expiresAt);
+      setHiddenOpsTelemetrySecondsLeft(minutes * 60);
+      setHiddenOpsConsoleStage(0);
+      appendHiddenOpsConsoleLine(`Access granted for ${minutes} minute(s).`);
+    }
+  };
+
+  const formatHiddenOpsTimer = (secondsLeft) => {
+    const total = Math.max(0, Number(secondsLeft) || 0);
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const formatTelemetryDeviceLabel = (operator) => {
+    const parts = [
+      operator?.last_device_type,
+      operator?.last_os_name,
+      operator?.last_os_version
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' / ') : '-';
+  };
+
+  const formatTelemetryBrowserLabel = (operator) => {
+    const parts = [
+      operator?.last_browser_name,
+      operator?.last_browser_version
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : '-';
+  };
+
+  const formatTelemetryGeoLabel = (operator) => {
+    const parts = [
+      operator?.last_country,
+      operator?.last_region,
+      operator?.last_city
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : '-';
   };
 
   const formatAnalyticsMoney = (value) => {
@@ -5529,6 +5713,11 @@ function SuperAdminDashboard() {
               <Tab eventKey="operators" title={`👨‍💻 ${t('operators')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageOperators')}</h5>
+                  {isHiddenOpsTelemetryEnabled && (
+                    <Badge bg="dark" className="fw-medium">
+                      hidden telemetry: {formatHiddenOpsTimer(hiddenOpsTelemetrySecondsLeft)}
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
@@ -5602,6 +5791,15 @@ function SuperAdminDashboard() {
                             <th>{t('saTablePhone')}</th>
                             <th>{t('saTableRole')}</th>
                             <th>{t('saRestaurantsCount')}</th>
+                            {isHiddenOpsTelemetryEnabled && (
+                              <>
+                                <th>Last Activity</th>
+                                <th>Device / OS</th>
+                                <th>Browser</th>
+                                <th>IP</th>
+                                <th>Geo</th>
+                              </>
+                            )}
                             <th>{t('saTableStatus')}</th>
                             <th className="text-end">{t('saTableActions')}</th>
                           </tr>
@@ -5625,6 +5823,15 @@ function SuperAdminDashboard() {
                                   ))}
                                 </div>
                               </td>
+                              {isHiddenOpsTelemetryEnabled && (
+                                <>
+                                  <td><small className="text-muted">{formatDate(op.last_activity_at)}</small></td>
+                                  <td><small>{formatTelemetryDeviceLabel(op)}</small></td>
+                                  <td><small>{formatTelemetryBrowserLabel(op)}</small></td>
+                                  <td><small>{op.last_ip_address || '-'}</small></td>
+                                  <td><small>{formatTelemetryGeoLabel(op)}</small></td>
+                                </>
+                              )}
                               <td>
                                 <Badge className={`badge-custom ${op.is_active ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-muted'}`}>
                                   {op.is_active ? 'Активен' : 'Неактивен'}
@@ -5645,7 +5852,7 @@ function SuperAdminDashboard() {
                             </tr>
                           ))}
                           {operators.operators?.length === 0 && (
-                            <tr><td colSpan="8" className="text-center py-5 text-muted">{t('saEmptyOperators')}</td></tr>
+                            <tr><td colSpan={isHiddenOpsTelemetryEnabled ? 13 : 8} className="text-center py-5 text-muted">{t('saEmptyOperators')}</td></tr>
                           )}
                         </tbody>
                       </Table>
@@ -8875,6 +9082,82 @@ function SuperAdminDashboard() {
           </Modal.Footer>
         </Form>
       </Modal>
+
+      {showHiddenOpsConsole && (
+        <div
+          style={{
+            position: 'fixed',
+            left: 16,
+            right: 16,
+            bottom: 16,
+            zIndex: 2050,
+            background: '#0b1220',
+            color: '#dbeafe',
+            border: '1px solid #334155',
+            borderRadius: 10,
+            boxShadow: '0 12px 30px rgba(2, 6, 23, 0.45)',
+            padding: 12
+          }}
+        >
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <strong style={{ fontSize: 13 }}>system_console.exe</strong>
+            <small style={{ opacity: 0.8 }}>Ctrl + ` to toggle</small>
+          </div>
+          <div
+            style={{
+              background: '#020617',
+              border: '1px solid #1e293b',
+              borderRadius: 8,
+              padding: '8px 10px',
+              maxHeight: 140,
+              overflowY: 'auto',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              fontSize: 12,
+              marginBottom: 8
+            }}
+          >
+            {hiddenOpsConsoleHistory.map((line, index) => (
+              <div key={`${line}-${index}`}>{line}</div>
+            ))}
+          </div>
+          <div className="d-flex gap-2">
+            <Form.Control
+              ref={hiddenOpsConsoleInputRef}
+              value={hiddenOpsConsoleInput}
+              onChange={(e) => setHiddenOpsConsoleInput(e.target.value)}
+              placeholder="Type command and press Enter..."
+              className="form-control-custom"
+              style={{
+                background: '#0f172a',
+                color: '#e2e8f0',
+                borderColor: '#334155',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                const command = hiddenOpsConsoleInput;
+                setHiddenOpsConsoleInput('');
+                runHiddenOpsConsoleCommand(command);
+              }}
+            />
+            <Button
+              variant="outline-light"
+              onClick={() => {
+                const command = hiddenOpsConsoleInput;
+                setHiddenOpsConsoleInput('');
+                runHiddenOpsConsoleCommand(command);
+              }}
+            >
+              Enter
+            </Button>
+            <Button variant="secondary" onClick={() => setShowHiddenOpsConsole(false)}>
+              Hide
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Topup Modal */}
       <Modal show={showTopupModal} onHide={closeTopupModal} centered className="admin-modal">
         <Modal.Header closeButton>

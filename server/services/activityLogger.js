@@ -1,4 +1,234 @@
 const pool = require('../database/connection');
+const UAParser = require('ua-parser-js');
+const geoip = require('geoip-lite');
+
+let userTelemetrySchemaReady = false;
+let userTelemetrySchemaPromise = null;
+
+const ensureUserTelemetrySchema = async () => {
+  if (userTelemetrySchemaReady) return;
+  if (userTelemetrySchemaPromise) {
+    await userTelemetrySchemaPromise;
+    return;
+  }
+
+  userTelemetrySchemaPromise = (async () => {
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ip_address VARCHAR(64)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_user_agent TEXT').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_device_type VARCHAR(32)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_browser_name VARCHAR(80)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_browser_version VARCHAR(40)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_os_name VARCHAR(60)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_os_version VARCHAR(40)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_country VARCHAR(8)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_region VARCHAR(120)').catch(() => {});
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_city VARCHAR(120)').catch(() => {});
+    userTelemetrySchemaReady = true;
+  })();
+
+  try {
+    await userTelemetrySchemaPromise;
+  } finally {
+    userTelemetrySchemaPromise = null;
+  }
+};
+
+const sanitizeTextValue = (value, maxLength = 120) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+};
+
+const normalizeIpForGeoLookup = (value) => {
+  const raw = sanitizeTextValue(value, 128);
+  if (!raw) return null;
+  let ip = raw;
+  if (ip.includes(',')) ip = ip.split(',')[0].trim();
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  if (ip === '::1') return '127.0.0.1';
+  return ip;
+};
+
+const isPrivateIp = (ip) => {
+  if (!ip) return true;
+  if (ip === '127.0.0.1' || ip === '0.0.0.0') return true;
+  if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  if (ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80:')) return true;
+  return false;
+};
+
+const inferDeviceTypeFromUa = (userAgent) => {
+  const ua = String(userAgent || '');
+  if (!ua) return 'desktop';
+  if (/iPad|Tablet|Tab\b|SM-T|Lenovo Tab|Nexus 7|Nexus 10/i.test(ua)) return 'tablet';
+  if (/Mobile|Android|iPhone|Windows Phone/i.test(ua)) return 'mobile';
+  return 'desktop';
+};
+
+const parseUserAgentMeta = (userAgent) => {
+  const normalizedUserAgent = sanitizeTextValue(userAgent, 1024);
+  if (!normalizedUserAgent) {
+    return {
+      userAgent: null,
+      deviceType: null,
+      browserName: null,
+      browserVersion: null,
+      osName: null,
+      osVersion: null
+    };
+  }
+
+  const parser = new UAParser(normalizedUserAgent);
+  const result = parser.getResult();
+
+  return {
+    userAgent: normalizedUserAgent,
+    deviceType: sanitizeTextValue(result.device?.type, 24) || inferDeviceTypeFromUa(normalizedUserAgent),
+    browserName: sanitizeTextValue(result.browser?.name, 80),
+    browserVersion: sanitizeTextValue(result.browser?.version, 40),
+    osName: sanitizeTextValue(result.os?.name, 60),
+    osVersion: sanitizeTextValue(result.os?.version, 40)
+  };
+};
+
+const parseGeoMeta = (ipAddress) => {
+  const normalizedIp = normalizeIpForGeoLookup(ipAddress);
+  if (!normalizedIp || isPrivateIp(normalizedIp)) {
+    return {
+      ipAddress: normalizedIp,
+      country: null,
+      region: null,
+      city: null
+    };
+  }
+
+  try {
+    const geo = geoip.lookup(normalizedIp);
+    return {
+      ipAddress: normalizedIp,
+      country: sanitizeTextValue(geo?.country, 8),
+      region: sanitizeTextValue(geo?.region, 120),
+      city: sanitizeTextValue(geo?.city, 120)
+    };
+  } catch (_) {
+    return {
+      ipAddress: normalizedIp,
+      country: null,
+      region: null,
+      city: null
+    };
+  }
+};
+
+const updateUserTelemetrySnapshot = async ({
+  userId,
+  occurredAt = null,
+  ipAddress = null,
+  userAgent = null,
+  onlyMissing = false
+}) => {
+  const normalizedUserId = Number.parseInt(userId, 10);
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) return false;
+
+  await ensureUserTelemetrySchema().catch(() => {});
+
+  const uaMeta = parseUserAgentMeta(userAgent);
+  const geoMeta = parseGeoMeta(ipAddress);
+  const activityAt = occurredAt ? new Date(occurredAt) : new Date();
+
+  const updateQuery = `
+    UPDATE users
+    SET
+      last_activity_at = COALESCE($2, last_activity_at),
+      last_ip_address = COALESCE($3, last_ip_address),
+      last_user_agent = COALESCE($4, last_user_agent),
+      last_device_type = COALESCE($5, last_device_type),
+      last_browser_name = COALESCE($6, last_browser_name),
+      last_browser_version = COALESCE($7, last_browser_version),
+      last_os_name = COALESCE($8, last_os_name),
+      last_os_version = COALESCE($9, last_os_version),
+      last_country = COALESCE($10, last_country),
+      last_region = COALESCE($11, last_region),
+      last_city = COALESCE($12, last_city),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    ${onlyMissing ? `
+      AND (
+        last_activity_at IS NULL
+        OR last_ip_address IS NULL
+        OR last_user_agent IS NULL
+        OR last_device_type IS NULL
+        OR last_browser_name IS NULL
+        OR last_os_name IS NULL
+      )
+    ` : ''}
+  `;
+
+  const result = await pool.query(updateQuery, [
+    normalizedUserId,
+    Number.isNaN(activityAt.getTime()) ? null : activityAt,
+    geoMeta.ipAddress,
+    uaMeta.userAgent,
+    uaMeta.deviceType,
+    uaMeta.browserName,
+    uaMeta.browserVersion,
+    uaMeta.osName,
+    uaMeta.osVersion,
+    geoMeta.country,
+    geoMeta.region,
+    geoMeta.city
+  ]);
+
+  return Number(result.rowCount || 0) > 0;
+};
+
+const refreshUserTelemetryFromActivityLogs = async ({ userIds = [] } = {}) => {
+  const normalizedUserIds = [...new Set(
+    (Array.isArray(userIds) ? userIds : [])
+      .map((id) => Number.parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  )];
+
+  if (!normalizedUserIds.length) {
+    return { scanned: 0, updated: 0 };
+  }
+
+  await ensureUserTelemetrySchema().catch(() => {});
+
+  const latestLogsResult = await pool.query(
+    `SELECT DISTINCT ON (al.user_id)
+       al.user_id,
+       al.created_at,
+       al.ip_address,
+       al.user_agent
+     FROM activity_logs al
+     WHERE al.user_id = ANY($1::int[])
+     ORDER BY al.user_id, al.created_at DESC, al.id DESC`,
+    [normalizedUserIds]
+  );
+
+  let updated = 0;
+  for (const row of latestLogsResult.rows) {
+    try {
+      const wasUpdated = await updateUserTelemetrySnapshot({
+        userId: row.user_id,
+        occurredAt: row.created_at,
+        ipAddress: row.ip_address,
+        userAgent: row.user_agent,
+        onlyMissing: true
+      });
+      if (wasUpdated) updated += 1;
+    } catch (_) { }
+  }
+
+  return {
+    scanned: latestLogsResult.rows.length,
+    updated
+  };
+};
 
 /**
  * Типы действий для логирования
@@ -92,6 +322,16 @@ async function logActivity(params) {
       ipAddress,
       userAgent
     ]);
+
+    try {
+      await updateUserTelemetrySnapshot({
+        userId,
+        occurredAt: new Date(),
+        ipAddress,
+        userAgent,
+        onlyMissing: false
+      });
+    } catch (_) { }
 
     return true;
   } catch (error) {
@@ -272,9 +512,10 @@ module.exports = {
   logActivity,
   getActivityLogs,
   getActivityStats,
+  refreshUserTelemetryFromActivityLogs,
   getIpFromRequest,
   getUserAgentFromRequest,
   ACTION_TYPES,
-  ENTITY_TYPES
+  ENTITY_TYPES,
+  ensureUserTelemetrySchema
 };
-

@@ -8,6 +8,7 @@ const {
   logActivity,
   getActivityLogs,
   getActivityStats,
+  refreshUserTelemetryFromActivityLogs,
   getIpFromRequest,
   getUserAgentFromRequest,
   ACTION_TYPES,
@@ -2309,6 +2310,17 @@ router.get('/operators', async (req, res) => {
       SELECT 
         u.id, u.username, u.full_name, u.phone, u.role, u.is_active, u.created_at,
         u.active_restaurant_id, u.telegram_id,
+        u.last_activity_at,
+        u.last_ip_address,
+        u.last_user_agent,
+        u.last_device_type,
+        u.last_browser_name,
+        u.last_browser_version,
+        u.last_os_name,
+        u.last_os_version,
+        u.last_country,
+        u.last_region,
+        u.last_city,
         ar.name as active_restaurant_name,
         COALESCE(
           json_agg(
@@ -2327,6 +2339,51 @@ router.get('/operators', async (req, res) => {
       OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 
+    const rows = Array.isArray(result.rows) ? result.rows : [];
+    const missingTelemetryUserIds = rows
+      .filter((row) => (
+        !row?.last_activity_at
+        || !row?.last_ip_address
+        || !row?.last_user_agent
+        || !row?.last_device_type
+        || !row?.last_browser_name
+        || !row?.last_os_name
+      ))
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    let mergedRows = rows;
+    if (missingTelemetryUserIds.length > 0) {
+      await refreshUserTelemetryFromActivityLogs({ userIds: missingTelemetryUserIds }).catch(() => {});
+      const refreshedTelemetryResult = await pool.query(
+        `SELECT
+           id,
+           last_activity_at,
+           last_ip_address,
+           last_user_agent,
+           last_device_type,
+           last_browser_name,
+           last_browser_version,
+           last_os_name,
+           last_os_version,
+           last_country,
+           last_region,
+           last_city
+         FROM users
+         WHERE id = ANY($1::int[])`,
+        [missingTelemetryUserIds]
+      );
+      const telemetryMap = new Map(
+        (refreshedTelemetryResult.rows || []).map((item) => [Number(item.id), item])
+      );
+
+      mergedRows = rows.map((row) => {
+        const telemetry = telemetryMap.get(Number(row.id));
+        if (!telemetry) return row;
+        return { ...row, ...telemetry };
+      });
+    }
+
     const countResult = await pool.query(`
       SELECT COUNT(*) as total
       FROM users u
@@ -2334,7 +2391,7 @@ router.get('/operators', async (req, res) => {
     `, params);
 
     res.json({
-      operators: result.rows.map(normalizeUserIdentityForDisplay),
+      operators: mergedRows.map(normalizeUserIdentityForDisplay),
       total: parseInt(countResult.rows[0].total, 10),
       page,
       limit

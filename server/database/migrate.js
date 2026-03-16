@@ -198,7 +198,18 @@ async function migrate() {
       { name: 'bot_language', type: `VARCHAR(5) DEFAULT 'ru'` },
       { name: 'last_latitude', type: 'DECIMAL(10, 8)' },
       { name: 'last_longitude', type: 'DECIMAL(11, 8)' },
-      { name: 'last_address', type: 'TEXT' }
+      { name: 'last_address', type: 'TEXT' },
+      { name: 'last_activity_at', type: 'TIMESTAMP' },
+      { name: 'last_ip_address', type: 'VARCHAR(64)' },
+      { name: 'last_user_agent', type: 'TEXT' },
+      { name: 'last_device_type', type: 'VARCHAR(32)' },
+      { name: 'last_browser_name', type: 'VARCHAR(80)' },
+      { name: 'last_browser_version', type: 'VARCHAR(40)' },
+      { name: 'last_os_name', type: 'VARCHAR(60)' },
+      { name: 'last_os_version', type: 'VARCHAR(40)' },
+      { name: 'last_country', type: 'VARCHAR(8)' },
+      { name: 'last_region', type: 'VARCHAR(120)' },
+      { name: 'last_city', type: 'VARCHAR(120)' }
     ];
 
     for (const col of userColumns) {

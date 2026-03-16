@@ -49,6 +49,17 @@ CREATE TABLE IF NOT EXISTS users (
   role VARCHAR(20) DEFAULT 'customer' CHECK (role IN ('superadmin', 'operator', 'customer')),
   active_restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
+  last_activity_at TIMESTAMP,
+  last_ip_address VARCHAR(64),
+  last_user_agent TEXT,
+  last_device_type VARCHAR(32),
+  last_browser_name VARCHAR(80),
+  last_browser_version VARCHAR(40),
+  last_os_name VARCHAR(60),
+  last_os_version VARCHAR(40),
+  last_country VARCHAR(8),
+  last_region VARCHAR(120),
+  last_city VARCHAR(120),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
