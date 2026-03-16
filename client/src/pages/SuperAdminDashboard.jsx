@@ -5885,10 +5885,16 @@ function SuperAdminDashboard() {
                                   const isEmptyProducts = productsCount <= 0;
                                   return (
                                     <div className="d-flex flex-column gap-1">
-                                      <div className={`fw-bold ${isEmptyProducts ? 'text-danger' : 'text-success'}`}>
+                                      <div
+                                        className="fw-bold"
+                                        style={{ color: isEmptyProducts ? '#dc2626' : '#15803d' }}
+                                      >
                                         {productsCount.toLocaleString('ru-RU')}
                                       </div>
-                                      <small className={isEmptyProducts ? 'text-danger fw-medium' : 'text-muted'}>
+                                      <small
+                                        className={isEmptyProducts ? 'fw-medium' : 'text-muted'}
+                                        style={isEmptyProducts ? { color: '#dc2626' } : undefined}
+                                      >
                                         {isEmptyProducts
                                           ? (language === 'uz' ? "Mahsulot yo'q" : 'Товаров нет')
                                           : (language === 'uz' ? "Mahsulotlar qo'shilgan" : 'Товары добавлены')}
