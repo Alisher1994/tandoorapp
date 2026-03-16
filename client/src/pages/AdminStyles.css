@@ -5483,6 +5483,35 @@ body::-webkit-scrollbar,
     background: #f8fafc !important;
 }
 
+.admin-product-sort-hints {
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    padding: 0.5rem 0.65rem;
+    background: #f8fafc;
+}
+
+.admin-product-sort-hint-btn {
+    min-width: 40px;
+    border-color: rgba(148, 163, 184, 0.5) !important;
+    color: #334155 !important;
+    background: #ffffff !important;
+}
+
+.admin-product-sort-hint-btn:hover,
+.admin-product-sort-hint-btn:focus,
+.admin-product-sort-hint-btn:active {
+    border-color: rgba(148, 163, 184, 0.85) !important;
+    color: #1f2937 !important;
+    background: #f1f5f9 !important;
+    box-shadow: none !important;
+}
+
+.admin-product-sort-hint-btn.is-active {
+    border-color: var(--primary-color) !important;
+    color: #1f2937 !important;
+    background: rgba(236, 72, 153, 0.12) !important;
+}
+
 .admin-store-safety-alert .form-check {
     margin-bottom: 0;
 }

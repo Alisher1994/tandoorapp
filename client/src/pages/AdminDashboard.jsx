@@ -4575,6 +4575,69 @@ function AdminDashboard() {
       })
       .sort((left, right) => String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru'));
   }, [products, orderItemSearch]);
+  const productSortOrderHints = useMemo(() => {
+    const categoryId = Number.parseInt(productForm?.category_id, 10);
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return {
+        hasCategory: false,
+        isCurrentFree: true,
+        smallestFree: 0,
+        closestFree: 0,
+        suggestions: [0]
+      };
+    }
+
+    const editingProductId = Number.parseInt(selectedProduct?.id, 10);
+    const usedSortOrders = new Set(
+      (Array.isArray(products) ? products : [])
+        .filter((product) => Number.parseInt(product?.category_id, 10) === categoryId)
+        .filter((product) => !Number.isInteger(editingProductId) || Number.parseInt(product?.id, 10) !== editingProductId)
+        .map((product) => Number.parseInt(product?.sort_order, 10))
+        .filter((sortOrder) => Number.isInteger(sortOrder) && sortOrder >= 0)
+    );
+
+    const currentSortOrderRaw = Number.parseInt(productForm?.sort_order, 10);
+    const currentSortOrder = Number.isInteger(currentSortOrderRaw) && currentSortOrderRaw >= 0 ? currentSortOrderRaw : 0;
+
+    const findFirstFreeFrom = (startValue = 0) => {
+      let probe = Math.max(0, Number.parseInt(startValue, 10) || 0);
+      while (usedSortOrders.has(probe)) probe += 1;
+      return probe;
+    };
+
+    const findClosestFree = (targetValue = 0) => {
+      const safeTarget = Math.max(0, Number.parseInt(targetValue, 10) || 0);
+      if (!usedSortOrders.has(safeTarget)) return safeTarget;
+
+      for (let delta = 1; delta < 5000; delta += 1) {
+        const lower = safeTarget - delta;
+        if (lower >= 0 && !usedSortOrders.has(lower)) return lower;
+        const upper = safeTarget + delta;
+        if (!usedSortOrders.has(upper)) return upper;
+      }
+
+      return findFirstFreeFrom(safeTarget + 1);
+    };
+
+    const smallestFree = findFirstFreeFrom(0);
+    const closestFree = findClosestFree(currentSortOrder);
+
+    const suggestionSet = new Set([smallestFree, closestFree]);
+    let probe = 0;
+    while (suggestionSet.size < 6 && probe < 2000) {
+      if (!usedSortOrders.has(probe)) suggestionSet.add(probe);
+      probe += 1;
+    }
+
+    const suggestions = Array.from(suggestionSet).sort((left, right) => left - right);
+    return {
+      hasCategory: true,
+      isCurrentFree: !usedSortOrders.has(currentSortOrder),
+      smallestFree,
+      closestFree,
+      suggestions
+    };
+  }, [products, productForm?.category_id, productForm?.sort_order, selectedProduct?.id]);
   const paymentPlaceholders = useMemo(
     () => normalizePaymentPlaceholders(restaurantSettings?.payment_placeholders),
     [restaurantSettings?.payment_placeholders]
@@ -10669,6 +10732,45 @@ function AdminDashboard() {
                         sort_order: Number.parseInt(e.target.value, 10) || 0
                       })}
                     />
+                    {productSortOrderHints.hasCategory && (
+                      <div className="admin-product-sort-hints mt-2">
+                        <div className={`small ${productSortOrderHints.isCurrentFree ? 'text-success' : 'text-danger'}`}>
+                          {productSortOrderHints.isCurrentFree
+                            ? (
+                              language === 'uz'
+                                ? "Joriy raqam bo'sh."
+                                : 'Текущий номер свободен.'
+                            )
+                            : (
+                              language === 'uz'
+                                ? "Joriy raqam band. Erkin raqamni tanlang."
+                                : 'Текущий номер занят. Выберите свободный.'
+                            )}
+                        </div>
+                        <div className="small text-muted">
+                          {language === 'uz'
+                            ? `Eng kichik bo'sh: ${productSortOrderHints.smallestFree}, eng yaqin bo'sh: ${productSortOrderHints.closestFree}`
+                            : `Минимальный свободный: ${productSortOrderHints.smallestFree}, ближайший: ${productSortOrderHints.closestFree}`}
+                        </div>
+                        <div className="d-flex flex-wrap gap-2 mt-2">
+                          {productSortOrderHints.suggestions.map((value) => {
+                            const isActive = Number(productForm.sort_order || 0) === value;
+                            return (
+                              <Button
+                                key={`sort-order-hint-${value}`}
+                                type="button"
+                                size="sm"
+                                variant="light"
+                                className={`admin-product-sort-hint-btn ${isActive ? 'is-active' : ''}`}
+                                onClick={() => setProductForm((prev) => ({ ...prev, sort_order: value }))}
+                              >
+                                {value}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <Form.Text className="text-muted">
                       {language === 'uz'
                         ? "Bir xil kategoriyada kichik raqam birinchi ko'rsatiladi."
