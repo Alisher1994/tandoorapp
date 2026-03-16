@@ -5810,7 +5810,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {loading ? (
-                  <TableSkeleton rows={8} columns={9} label="Загрузка списка магазинов" />
+                  <TableSkeleton rows={8} columns={10} label="Загрузка списка магазинов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -5820,6 +5820,7 @@ function SuperAdminDashboard() {
                             <th>ID</th>
                             <th>{t('saTableLogo')}</th>
                             <th>{t('saTableName')}</th>
+                            <th>{t('saTableProducts') || (language === 'uz' ? 'Mahsulotlar' : 'Товары')}</th>
                             <th>{language === 'uz' ? "Ro'yxatdan o'tgan" : 'Дата регистрации'}</th>
                             <th>{t('saTableBalance') || 'Баланс'}</th>
                             <th>{t('saServiceFee') || 'Сбор за обслуживание'}</th>
@@ -5880,6 +5881,24 @@ function SuperAdminDashboard() {
                               </td>
                               <td>
                                 <small className="text-muted">{formatDate(r.created_at)}</small>
+                              </td>
+                              <td>
+                                {(() => {
+                                  const productsCount = Number(r.products_count || 0);
+                                  const isEmptyProducts = productsCount <= 0;
+                                  return (
+                                    <div className="d-flex flex-column gap-1">
+                                      <Badge className={`badge-custom ${isEmptyProducts ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success'}`}>
+                                        {productsCount.toLocaleString('ru-RU')}
+                                      </Badge>
+                                      <small className={isEmptyProducts ? 'text-danger fw-medium' : 'text-muted'}>
+                                        {isEmptyProducts
+                                          ? (language === 'uz' ? "Mahsulot yo'q" : 'Товаров нет')
+                                          : (language === 'uz' ? "Mahsulotlar qo'shilgan" : 'Товары добавлены')}
+                                      </small>
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td>
                                 {(() => {
@@ -5960,7 +5979,7 @@ function SuperAdminDashboard() {
                             </tr>
                           ))}
                           {filteredRestaurants?.length === 0 && (
-                            <tr><td colSpan="9" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
+                            <tr><td colSpan="10" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
                           )}
                         </tbody>
                       </Table>
