@@ -28,6 +28,7 @@ const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' 
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
 const MAX_PRODUCT_IMAGES = 5;
+const MAX_PRODUCT_SIZE_OPTIONS = 20;
 const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
   return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
@@ -53,6 +54,33 @@ const normalizeProductOrderStep = (value, unit, fallback = null) => {
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
+const normalizeProductSizeOptions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = source
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  const unique = new Set();
+  const normalized = [];
+  for (const item of source) {
+    const text = String(item ?? '').trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (unique.has(key)) continue;
+    unique.add(key);
+    normalized.push(text);
+    if (normalized.length >= MAX_PRODUCT_SIZE_OPTIONS) break;
+  }
+  return normalized;
+};
 const normalizeProductImages = (value) => {
   let source = value;
   if (typeof source === 'string') {
@@ -2137,7 +2165,7 @@ router.post('/products', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog
+      season_scope, is_hidden_catalog, size_enabled, size_options
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -2163,6 +2191,8 @@ router.post('/products', async (req, res) => {
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
     const normalizedOrderStep = normalizeProductOrderStep(order_step, unit || 'шт', null);
+    const normalizedSizeEnabled = normalizeOptionalBoolean(size_enabled) === true;
+    const normalizedSizeOptions = normalizeProductSizeOptions(size_options);
     const mediaPayload = resolveProductMediaPayload({
       productImages: product_images,
       imageUrl: image_url,
@@ -2172,14 +2202,15 @@ router.post('/products', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
+    size_enabled, size_options
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions)
     ]);
 
     const product = result.rows[0];
@@ -2210,7 +2241,7 @@ router.post('/products/upsert', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog
+      season_scope, is_hidden_catalog, size_enabled, size_options
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -2236,6 +2267,10 @@ router.post('/products/upsert', async (req, res) => {
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
     const normalizedOrderStep = normalizeProductOrderStep(order_step, unit || 'шт', null);
+    const hasSizeEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_enabled');
+    const hasSizeOptionsField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_options');
+    const normalizedSizeEnabled = normalizeOptionalBoolean(size_enabled) === true;
+    const normalizedSizeOptions = normalizeProductSizeOptions(size_options);
     const hasContainerNorm = container_norm !== undefined && container_norm !== null && String(container_norm).trim() !== '';
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = resolveProductMediaPayload({
@@ -2334,6 +2369,16 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(!!is_hidden_catalog);
         paramIndex++;
       }
+      if (hasSizeEnabledField) {
+        updateFields.push(`size_enabled = $${paramIndex} `);
+        updateValues.push(normalizedSizeEnabled);
+        paramIndex++;
+      }
+      if (hasSizeOptionsField) {
+        updateFields.push(`size_options = $${paramIndex}::jsonb`);
+        updateValues.push(JSON.stringify(normalizedSizeOptions));
+        paramIndex++;
+      }
 
       updateValues.push(existingProduct.rows[0].id);
 
@@ -2347,14 +2392,16 @@ RETURNING *
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
-    image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
+    size_enabled, size_options
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
         normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
-        container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog
+        container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
+        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions)
       ]);
     }
 
@@ -2386,7 +2433,7 @@ router.put('/products/:id', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog
+      season_scope, is_hidden_catalog, size_enabled, size_options
     } = req.body;
 
     // Get old values and check access
@@ -2411,6 +2458,14 @@ router.put('/products/:id', async (req, res) => {
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, oldProduct.season_scope || 'all');
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, normalizeContainerNorm(oldProduct.container_norm, 1));
+    const hasSizeEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_enabled');
+    const hasSizeOptionsField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_options');
+    const normalizedSizeEnabled = hasSizeEnabledField
+      ? normalizeOptionalBoolean(size_enabled) === true
+      : (oldProduct.size_enabled === true);
+    const normalizedSizeOptions = hasSizeOptionsField
+      ? normalizeProductSizeOptions(size_options)
+      : normalizeProductSizeOptions(oldProduct.size_options);
     const normalizedPrice = price === undefined
       ? normalizeProductPrice(oldProduct.price, null)
       : normalizeProductPrice(price, null);
@@ -2439,14 +2494,14 @@ router.put('/products/:id', async (req, res) => {
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
-  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $19
+  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $21
 RETURNING *
   `, [
       category_id, name_ru, name_uz, description_ru, description_uz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, req.params.id
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), req.params.id
     ]);
 
     const product = result.rows[0];

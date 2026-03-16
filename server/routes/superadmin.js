@@ -85,6 +85,14 @@ const normalizeActivityTypeId = (value) => {
   const parsed = parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
+const normalizeBooleanFlag = (value, fallback = false) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+};
 
 const ensureActivityTypesSchema = async () => {
   if (activityTypesSchemaReady) return;
@@ -1684,6 +1692,7 @@ router.post('/restaurants', async (req, res) => {
     const normalizedUiTheme = normalizeUiTheme(ui_theme, 'classic');
     const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(req.body?.currency_code, 'uz');
+    const normalizedSizeVariantsEnabled = normalizeBooleanFlag(req.body?.size_variants_enabled, false);
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
@@ -1718,9 +1727,10 @@ router.post('/restaurants', async (req, res) => {
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
         balance, order_cost, activity_type_id, currency_code,
-        payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms
+        payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
+        size_variants_enabled
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING *
     `, [
       name,
@@ -1749,7 +1759,8 @@ router.post('/restaurants', async (req, res) => {
       payme_api_password || null,
       payme_account_key || 'order_id',
       payme_test_mode === true || payme_test_mode === 'true',
-      Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000
+      Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000,
+      normalizedSizeVariantsEnabled
     ]);
 
 
@@ -1832,6 +1843,10 @@ router.put('/restaurants/:id', async (req, res) => {
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, oldValues.logo_display_mode || 'square');
     const normalizedUiTheme = normalizeUiTheme(ui_theme, oldValues.ui_theme || 'classic');
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, oldValues.currency_code || 'uz');
+    const normalizedSizeVariantsEnabled = normalizeBooleanFlag(
+      req.body?.size_variants_enabled,
+      oldValues.size_variants_enabled === true
+    );
     const previousBotToken = normalizeRestaurantTokenForCompare(oldValues.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -1966,8 +1981,9 @@ router.put('/restaurants/:id', async (req, res) => {
            payme_callback_timeout_ms = $31,
            currency_code = $32,
            ui_theme = $33,
+           size_variants_enabled = $34,
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $34
+      WHERE id = $35
       RETURNING *
     `, [
       name,
@@ -2003,6 +2019,7 @@ router.put('/restaurants/:id', async (req, res) => {
       Number.isInteger(Number(payme_callback_timeout_ms)) ? Number(payme_callback_timeout_ms) : 2000,
       normalizedCurrencyCode,
       normalizedUiTheme,
+      normalizedSizeVariantsEnabled,
       req.params.id
     ]);
 

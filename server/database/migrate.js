@@ -87,6 +87,7 @@ async function migrate() {
       'delivery_base_price DECIMAL(10, 2) DEFAULT 5000',
       'delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000',
       'is_delivery_enabled BOOLEAN DEFAULT true',
+      'size_variants_enabled BOOLEAN DEFAULT false',
       `currency_code VARCHAR(8) DEFAULT 'uz'`,
       'balance DECIMAL(12, 2) DEFAULT 100000.00',
       'is_free_tier BOOLEAN DEFAULT false',
@@ -139,6 +140,11 @@ async function migrate() {
       UPDATE restaurants
       SET send_daily_close_report = false
       WHERE send_daily_close_report IS NULL
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET size_variants_enabled = false
+      WHERE size_variants_enabled IS NULL
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
@@ -246,7 +252,9 @@ async function migrate() {
       { name: 'product_images', type: `JSONB DEFAULT '[]'::jsonb` },
       { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
       { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' },
-      { name: 'order_step', type: 'DECIMAL(10, 2)' }
+      { name: 'order_step', type: 'DECIMAL(10, 2)' },
+      { name: 'size_enabled', type: 'BOOLEAN DEFAULT false' },
+      { name: 'size_options', type: `JSONB DEFAULT '[]'::jsonb` }
     ];
 
     for (const col of productColumns) {
@@ -260,7 +268,10 @@ async function migrate() {
     await client.query(`UPDATE products SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
     await client.query(`UPDATE products SET season_scope = 'all' WHERE season_scope IS NULL OR season_scope = ''`).catch(() => {});
     await client.query(`UPDATE products SET order_step = NULL WHERE order_step IS NOT NULL AND (order_step <= 0 OR unit IS DISTINCT FROM 'кг')`).catch(() => {});
+    await client.query(`UPDATE products SET size_enabled = false WHERE size_enabled IS NULL`).catch(() => {});
+    await client.query(`UPDATE products SET size_options = '[]'::jsonb WHERE size_options IS NULL`).catch(() => {});
     await client.query(`ALTER TABLE products ALTER COLUMN product_images SET DEFAULT '[]'::jsonb`).catch(() => {});
+    await client.query(`ALTER TABLE products ALTER COLUMN size_options SET DEFAULT '[]'::jsonb`).catch(() => {});
     await client.query(`UPDATE products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
     await client.query(`
       ALTER TABLE products

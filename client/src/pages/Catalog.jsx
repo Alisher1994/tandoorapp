@@ -506,6 +506,38 @@ function Catalog() {
       ? product.description_uz
       : (product?.description_ru || '')
   );
+  const normalizeProductSizeOptions = (value) => {
+    let source = value;
+    if (typeof source === 'string') {
+      try {
+        source = JSON.parse(source);
+      } catch (error) {
+        source = source
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    }
+    if (!Array.isArray(source)) return [];
+
+    const unique = new Set();
+    const normalized = [];
+    for (const item of source) {
+      const text = String(item ?? '').trim();
+      if (!text) continue;
+      const key = text.toLowerCase();
+      if (unique.has(key)) continue;
+      unique.add(key);
+      normalized.push(text);
+      if (normalized.length >= 20) break;
+    }
+    return normalized;
+  };
+  const getProductSizeOptions = (product) => {
+    if (!product || product.size_enabled !== true) return [];
+    if (!currentRestaurant || currentRestaurant.size_variants_enabled !== true) return [];
+    return normalizeProductSizeOptions(product.size_options);
+  };
 
   const normalizeRatingValue = (value, fallback = 0) => {
     const parsed = Number.parseFloat(value);
@@ -1727,6 +1759,7 @@ function Catalog() {
     const favoriteActive = isFavorite(product.id);
     const productName = getProductName(product);
     const primaryImageUrl = getProductCardImage(product);
+    const productSizeOptions = getProductSizeOptions(product);
 
     return (
       <Card
@@ -1959,6 +1992,30 @@ function Catalog() {
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
             {language === 'uz' && product.unit_uz ? product.unit_uz : product.unit}
           </Card.Text>
+          {productSizeOptions.length > 0 && (
+            <div className="d-flex flex-wrap gap-1 mb-2">
+              {productSizeOptions.slice(0, 3).map((sizeValue) => (
+                <span
+                  key={`product-card-size-${product.id}-${sizeValue}`}
+                  className="badge"
+                  style={{
+                    background: 'rgba(22,163,74,0.12)',
+                    color: '#166534',
+                    border: '1px solid rgba(22,163,74,0.35)',
+                    fontWeight: 700,
+                    fontSize: '0.66rem'
+                  }}
+                >
+                  {sizeValue}
+                </span>
+              ))}
+              {productSizeOptions.length > 3 && (
+                <span className="badge bg-light text-secondary border" style={{ fontSize: '0.66rem' }}>
+                  +{productSizeOptions.length - 3}
+                </span>
+              )}
+            </div>
+          )}
           <div className="fw-bold mt-auto" style={{ fontSize: '0.9rem', color: 'var(--primary-color)' }}>
             {formatPrice(product.price)} {t('sum')}
           </div>
@@ -2576,6 +2633,7 @@ function Catalog() {
   const activeProductQty = activeProductCartItem?.quantity || 0;
   const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
   const activeProductFavorite = activeProduct?.id ? isFavorite(activeProduct.id) : false;
+  const activeProductSizeOptions = getProductSizeOptions(activeProduct);
 
   return (
     <>
@@ -3265,6 +3323,31 @@ function Catalog() {
                             : `${productWeeklyBuyers} чел. · ${productWeeklyOrders} заказов`}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {activeProductSizeOptions.length > 0 && (
+                    <div className="product-details-block mb-3">
+                      <div className="small text-muted mb-2">{language === 'uz' ? "O'lchamlar" : 'Размеры'}</div>
+                      <div className="d-flex flex-wrap gap-2">
+                        {activeProductSizeOptions.map((sizeValue) => (
+                          <span
+                            key={`details-size-${activeProduct?.id}-${sizeValue}`}
+                            className="badge"
+                            style={{
+                              borderRadius: 10,
+                              background: 'rgba(22,163,74,0.12)',
+                              border: '1px solid rgba(22,163,74,0.35)',
+                              color: '#166534',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              padding: '7px 10px'
+                            }}
+                          >
+                            {sizeValue}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 

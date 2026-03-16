@@ -506,6 +506,7 @@ function SuperAdminDashboard() {
     service_fee: 1000,
     reservation_cost: 0,
     reservation_enabled: false,
+    size_variants_enabled: false,
     latitude: '',
     longitude: '',
     delivery_base_radius: 3,
@@ -2889,6 +2890,7 @@ function SuperAdminDashboard() {
         service_fee: restaurant.hasOwnProperty('service_fee') ? parseFloat(restaurant.service_fee) : 1000,
         reservation_cost: restaurant.hasOwnProperty('reservation_cost') ? parseFloat(restaurant.reservation_cost) : 0,
         reservation_enabled: restaurant.reservation_enabled === true,
+        size_variants_enabled: restaurant.size_variants_enabled === true,
         latitude: restaurant.latitude || '',
         longitude: restaurant.longitude || '',
         delivery_base_radius: restaurant.hasOwnProperty('delivery_base_radius') ? parseFloat(restaurant.delivery_base_radius) : 3,
@@ -2925,6 +2927,7 @@ function SuperAdminDashboard() {
         service_fee: 1000,
         reservation_cost: 0,
         reservation_enabled: false,
+        size_variants_enabled: false,
         latitude: '',
         longitude: '',
         delivery_base_radius: 3,
@@ -8604,6 +8607,21 @@ function SuperAdminDashboard() {
                       {language === 'uz'
                         ? 'Faqat super-admin bu xizmatni yoqadi/o\'chiradi.'
                         : 'Только супер-админ включает/отключает этот сервис.'}
+                    </Form.Text>
+                  </div>
+
+                  <div className="mt-3 p-3 rounded border bg-light">
+                    <Form.Check
+                      type="switch"
+                      id="restaurant-size-variants-enabled-switch"
+                      label={language === 'uz' ? "Kiyim o'lchamlarini yoqish" : 'Включить размеры одежды'}
+                      checked={Boolean(restaurantForm.size_variants_enabled)}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, size_variants_enabled: e.target.checked })}
+                    />
+                    <Form.Text className="text-muted d-block mt-2">
+                      {language === 'uz'
+                        ? "Yoqilganda operator tovarlarda tayyor o'lchamlarni (S-5XL) yoki o'z variantlarini tanlay oladi."
+                        : 'При включении оператор сможет выбирать в товарах готовые размеры (S-5XL) и добавлять свои варианты.'}
                     </Form.Text>
                   </div>
                 </div>

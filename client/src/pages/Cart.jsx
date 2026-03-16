@@ -24,6 +24,12 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const toEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const deriveAddressTitle = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const parts = text.split(',').map((part) => part.trim()).filter(Boolean);
+  return parts[0] || text;
+};
 
 function Cart() {
   const { cart, cartTotal, productTotal, containerTotal, updateQuantity, removeFromCart, clearCart } = useCart();
@@ -71,6 +77,7 @@ function Cart() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showNewAddressModal, setShowNewAddressModal] = useState(false);
   const [newAddressForm, setNewAddressForm] = useState({ name: '', address: '' });
+  const [mapAddressMeta, setMapAddressMeta] = useState({ shortAddress: '', fullAddress: '' });
   const [showConfirmOrderModal, setShowConfirmOrderModal] = useState(false);
   const [cardCopyNotice, setCardCopyNotice] = useState(false);
   const [typedReceiptInstruction, setTypedReceiptInstruction] = useState('');
@@ -289,6 +296,11 @@ function Cart() {
     ));
   }, [formData.payment_method, availablePaymentMethods]);
 
+  useEffect(() => {
+    if (!showLocationModal) return;
+    setMapAddressMeta({ shortAddress: '', fullAddress: '' });
+  }, [showLocationModal]);
+
   // Выбор адреса из списка
   const selectAddress = (addr) => {
     setSelectedAddressId(addr.id);
@@ -302,7 +314,9 @@ function Cart() {
 
   // Сохранение нового адреса
   const saveNewAddress = async () => {
-    if (!newAddressForm.name || !formData.delivery_coordinates) {
+    const resolvedAddressName = String(newAddressForm.name || '').trim() || deriveAddressTitle(newAddressForm.address || formData.delivery_address);
+    const resolvedAddressText = String(newAddressForm.address || '').trim() || String(formData.delivery_address || '').trim() || resolvedAddressName;
+    if (!resolvedAddressName || !formData.delivery_coordinates) {
       setError(language === 'uz' ? 'Nom va koordinatalar kerak' : 'Укажите название и точку на карте');
       return;
     }
@@ -312,8 +326,8 @@ function Cart() {
       const [lat, lng] = formData.delivery_coordinates.split(',').map(Number);
 
       const res = await axios.post(`${API_URL}/addresses`, {
-        name: newAddressForm.name,
-        address: formData.delivery_address || newAddressForm.name,
+        name: resolvedAddressName,
+        address: resolvedAddressText,
         latitude: lat,
         longitude: lng,
         is_default: savedAddresses.length === 0
@@ -1127,10 +1141,10 @@ function Cart() {
                               <div className="d-flex align-items-center">
                                 <span className="me-2">📍</span>
                                 <div className="flex-grow-1">
-                                  <div className="fw-bold">{selectedSavedAddress.name}</div>
                                   <div className="small fw-semibold" style={{ color: '#16a34a' }}>
                                     {language === 'uz' ? 'Tanlandi' : 'Выбрано'}
                                   </div>
+                                  <div className="fw-bold">{selectedSavedAddress.name}</div>
                                   {hasDistinctAddressLine(selectedSavedAddress) && (
                                     <div className="small text-muted">{selectedSavedAddress.address}</div>
                                   )}
@@ -1499,10 +1513,16 @@ function Cart() {
                     delivery_coordinates: `${lat},${lng}`
                   }));
                 }}
-                onAddressChange={(addressText) => {
+                onAddressChange={(addressText, meta = {}) => {
+                  const fullAddress = String(meta?.fullAddress || addressText || '').trim();
+                  const shortAddress = String(meta?.shortAddress || deriveAddressTitle(fullAddress)).trim();
+                  setMapAddressMeta({
+                    shortAddress,
+                    fullAddress
+                  });
                   setFormData(prev => ({
                     ...prev,
-                    delivery_address: addressText || prev.delivery_address
+                    delivery_address: fullAddress || prev.delivery_address
                   }));
                 }}
               />
@@ -1527,7 +1547,10 @@ function Cart() {
                 className="w-100"
                 onClick={() => {
                   setShowLocationModal(false);
-                  setNewAddressForm({ name: '', address: '' });
+                  setNewAddressForm({
+                    name: String(mapAddressMeta.shortAddress || deriveAddressTitle(formData.delivery_address)).trim(),
+                    address: String(mapAddressMeta.fullAddress || formData.delivery_address || '').trim()
+                  });
                   if (formData.delivery_coordinates) {
                     setShowNewAddressModal(true);
                   }
@@ -1598,9 +1621,9 @@ function Cart() {
                       🗑️
                     </Button>
                     {selectedAddressId === addr.id && (
-                      <span className="d-inline-flex align-items-center gap-1 small fw-semibold" style={{ color: '#16a34a' }}>
-                        <span>✓</span>
+                      <span className="d-inline-flex flex-column align-items-end small fw-semibold" style={{ color: '#16a34a', lineHeight: 1.15 }}>
                         <span>{language === 'uz' ? 'Tanlandi' : 'Выбрано'}</span>
+                        <span>✓</span>
                       </span>
                     )}
                   </div>
@@ -1628,9 +1651,9 @@ function Cart() {
           <Modal.Header closeButton className="border-0">
           </Modal.Header>
           <Modal.Body>
-            {formData.delivery_address && (
+            {(newAddressForm.address || formData.delivery_address) && (
               <div className="small text-muted mb-3">
-                📍 {language === 'uz' ? 'Tanlangan manzil' : 'Выбранный адрес'}: {formData.delivery_address}
+                📍 {language === 'uz' ? 'Tanlangan manzil' : 'Выбранный адрес'}: {newAddressForm.address || formData.delivery_address}
               </div>
             )}
             <Form.Group className="mb-3">
@@ -1658,7 +1681,10 @@ function Cart() {
                 variant="primary"
                 className="flex-fill"
                 onClick={saveNewAddress}
-                disabled={!newAddressForm.name}
+                disabled={
+                  !String(newAddressForm.name || '').trim()
+                  && !String(newAddressForm.address || formData.delivery_address || '').trim()
+                }
               >
                 {language === 'uz' ? 'Saqlash' : 'Сохранить'}
               </Button>

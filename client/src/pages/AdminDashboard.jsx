@@ -65,6 +65,8 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
 };
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
+const DEFAULT_CLOTHING_SIZES = Object.freeze(['S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL']);
+const MAX_PRODUCT_SIZE_OPTIONS = 20;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
@@ -699,6 +701,33 @@ const createProductImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl 
   return slots;
 };
 const serializeProductImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, PRODUCT_IMAGE_SLOTS_COUNT);
+const normalizeProductSizeOptions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = source
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  const unique = new Set();
+  const normalized = [];
+  for (const item of source) {
+    const text = String(item ?? '').trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (unique.has(key)) continue;
+    unique.add(key);
+    normalized.push(text);
+    if (normalized.length >= MAX_PRODUCT_SIZE_OPTIONS) break;
+  }
+  return normalized;
+};
 
 // SVG Icons
 const EditIcon = () => (
@@ -915,9 +944,12 @@ function AdminDashboard() {
     in_stock: true,
     season_scope: 'all',
     is_hidden_catalog: false,
+    size_enabled: false,
+    size_options: [...DEFAULT_CLOTHING_SIZES],
     container_id: '',
     container_norm: 1
   });
+  const [productSizeCustomInput, setProductSizeCustomInput] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
@@ -3391,6 +3423,10 @@ function AdminDashboard() {
         in_stock: product.in_stock !== false,
         season_scope: product.season_scope || 'all',
         is_hidden_catalog: !!product.is_hidden_catalog,
+        size_enabled: product.size_enabled === true,
+        size_options: normalizeProductSizeOptions(product.size_options).length
+          ? normalizeProductSizeOptions(product.size_options)
+          : [...DEFAULT_CLOTHING_SIZES],
         container_id: product.container_id || '',
         container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
       });
@@ -3411,10 +3447,13 @@ function AdminDashboard() {
         in_stock: true,
         season_scope: 'all',
         is_hidden_catalog: false,
+        size_enabled: false,
+        size_options: [...DEFAULT_CLOTHING_SIZES],
         container_id: '',
         container_norm: 1
       });
     }
+    setProductSizeCustomInput('');
     setShowProductModal(true);
   };
 
@@ -3481,6 +3520,30 @@ function AdminDashboard() {
       };
     });
   };
+  const toggleProductSizeOption = (sizeValue) => {
+    const normalizedValue = String(sizeValue || '').trim();
+    if (!normalizedValue) return;
+    setProductForm((prev) => {
+      const current = normalizeProductSizeOptions(prev.size_options);
+      const exists = current.some((item) => item.toLowerCase() === normalizedValue.toLowerCase());
+      const next = exists
+        ? current.filter((item) => item.toLowerCase() !== normalizedValue.toLowerCase())
+        : [...current, normalizedValue];
+      return {
+        ...prev,
+        size_options: normalizeProductSizeOptions(next)
+      };
+    });
+  };
+  const addCustomProductSizeOption = () => {
+    const normalizedValue = String(productSizeCustomInput || '').trim();
+    if (!normalizedValue) return;
+    setProductForm((prev) => ({
+      ...prev,
+      size_options: normalizeProductSizeOptions([...(Array.isArray(prev.size_options) ? prev.size_options : []), normalizedValue])
+    }));
+    setProductSizeCustomInput('');
+  };
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
@@ -3510,7 +3573,9 @@ function AdminDashboard() {
             return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
           })()
           : null,
-        container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1)
+        container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1),
+        size_enabled: Boolean(productForm.size_enabled),
+        size_options: normalizeProductSizeOptions(productForm.size_options)
       };
 
       if (selectedProduct) {
@@ -3789,9 +3854,14 @@ function AdminDashboard() {
       in_stock: true,
       season_scope: product.season_scope || 'all',
       is_hidden_catalog: !!product.is_hidden_catalog,
+      size_enabled: product.size_enabled === true,
+      size_options: normalizeProductSizeOptions(product.size_options).length
+        ? normalizeProductSizeOptions(product.size_options)
+        : [...DEFAULT_CLOTHING_SIZES],
       container_id: product.container_id || '',
       container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
     });
+    setProductSizeCustomInput('');
     setShowProductModal(true);
   };
 
@@ -3823,7 +3893,9 @@ function AdminDashboard() {
         container_id: product.container_id || null,
         container_norm: Math.max(1, Number(product.container_norm) || 1),
         season_scope: product.season_scope || 'all',
-        is_hidden_catalog: !!product.is_hidden_catalog
+        is_hidden_catalog: !!product.is_hidden_catalog,
+        size_enabled: product.size_enabled === true,
+        size_options: normalizeProductSizeOptions(product.size_options)
       };
 
       const response = await axios.put(`${API_URL}/admin/products/${productId}`, productData);
@@ -10415,6 +10487,120 @@ function AdminDashboard() {
                   </div>
                 </Col>
               </Row>
+
+              {Boolean(restaurantSettings?.size_variants_enabled) && (
+                <Row>
+                  <Col xs={12}>
+                    <Form.Group className="mb-3">
+                      <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                        <Form.Label className="mb-0">
+                          {language === 'uz' ? "Mahsulot o'lchamlari" : 'Размеры товара'}
+                        </Form.Label>
+                        <Form.Check
+                          type="switch"
+                          id="product-size-enabled-switch"
+                          label={language === 'uz' ? 'Yoqish' : 'Включить'}
+                          checked={Boolean(productForm.size_enabled)}
+                          onChange={(e) => {
+                            const isEnabled = e.target.checked;
+                            setProductForm((prev) => ({
+                              ...prev,
+                              size_enabled: isEnabled,
+                              size_options: isEnabled && normalizeProductSizeOptions(prev.size_options).length === 0
+                                ? [...DEFAULT_CLOTHING_SIZES]
+                                : normalizeProductSizeOptions(prev.size_options)
+                            }));
+                          }}
+                        />
+                      </div>
+                      <Form.Text className="text-muted d-block mt-1">
+                        {language === 'uz'
+                          ? "Tayyor o'lchamlarni belgilang yoki + orqali o'zingizning variantlarni qo'shing."
+                          : 'Выберите готовые размеры или добавьте свои варианты через +.'}
+                      </Form.Text>
+
+                      {productForm.size_enabled && (
+                        <>
+                          <div className="d-flex flex-wrap gap-2 mt-3">
+                            {DEFAULT_CLOTHING_SIZES.map((sizeValue) => {
+                              const isSelected = normalizeProductSizeOptions(productForm.size_options)
+                                .some((item) => item.toLowerCase() === sizeValue.toLowerCase());
+                              return (
+                                <button
+                                  key={`default-size-${sizeValue}`}
+                                  type="button"
+                                  onClick={() => toggleProductSizeOption(sizeValue)}
+                                  className="btn btn-sm"
+                                  style={{
+                                    minWidth: 56,
+                                    borderRadius: 10,
+                                    border: isSelected ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                                    background: isSelected ? 'rgba(22,163,74,0.12)' : '#f8fafc',
+                                    color: '#0f172a',
+                                    fontWeight: 700
+                                  }}
+                                >
+                                  {sizeValue}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {normalizeProductSizeOptions(productForm.size_options)
+                            .filter((item) => !DEFAULT_CLOTHING_SIZES.some((base) => base.toLowerCase() === item.toLowerCase()))
+                            .length > 0 && (
+                            <div className="d-flex flex-wrap gap-2 mt-2">
+                              {normalizeProductSizeOptions(productForm.size_options)
+                                .filter((item) => !DEFAULT_CLOTHING_SIZES.some((base) => base.toLowerCase() === item.toLowerCase()))
+                                .map((customSize) => (
+                                  <button
+                                    key={`custom-size-${customSize}`}
+                                    type="button"
+                                    className="btn btn-sm"
+                                    onClick={() => toggleProductSizeOption(customSize)}
+                                    style={{
+                                      borderRadius: 10,
+                                      border: '2px solid #16a34a',
+                                      background: 'rgba(22,163,74,0.12)',
+                                      color: '#065f46',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    {customSize} ×
+                                  </button>
+                                ))}
+                            </div>
+                              )}
+
+                          <div className="d-flex align-items-center gap-2 mt-3">
+                            <Form.Control
+                              type="text"
+                              value={productSizeCustomInput}
+                              onChange={(e) => setProductSizeCustomInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addCustomProductSizeOption();
+                                }
+                              }}
+                              placeholder={language === 'uz' ? "Masalan: 39, 40, Model 1" : 'Например: 39, 40, Модель 1'}
+                              maxLength={40}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline-primary"
+                              onClick={addCustomProductSizeOption}
+                              disabled={!String(productSizeCustomInput || '').trim()}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </Form.Group>
+                  </Col>
+                </Row>
+              )}
 
               <Row>
                 <Col md={3}>

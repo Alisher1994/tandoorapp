@@ -5,12 +5,17 @@ import { ListSkeleton } from './SkeletonUI';
 const YANDEX_API_KEY = import.meta.env.VITE_YANDEX_MAPS_KEY || '';
 
 const resolveGeoAddress = (geoObject) => {
-  if (!geoObject) return '';
+  if (!geoObject) {
+    return { shortAddress: '', fullAddress: '' };
+  }
   const thoroughfare = typeof geoObject.getThoroughfare === 'function' ? geoObject.getThoroughfare() : '';
   const premise = typeof geoObject.getPremiseNumber === 'function' ? geoObject.getPremiseNumber() : '';
   const shortAddress = [thoroughfare, premise].filter(Boolean).join(', ').trim();
-  if (shortAddress) return shortAddress;
-  return geoObject.getAddressLine?.() || '';
+  const fullAddress = String(geoObject.getAddressLine?.() || '').trim() || shortAddress;
+  return {
+    shortAddress: shortAddress || fullAddress,
+    fullAddress: fullAddress || shortAddress
+  };
 };
 
 function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddressChange = () => {} }) {
@@ -92,9 +97,15 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
         window.ymaps.geocode(coords).then((res) => {
           const firstGeoObject = res.geoObjects.get(0);
           if (firstGeoObject) {
-            const addr = resolveGeoAddress(firstGeoObject);
-            setAddress(addr);
-            onAddressChange(addr);
+            const resolved = resolveGeoAddress(firstGeoObject);
+            setAddress(resolved.fullAddress || resolved.shortAddress || '');
+            onAddressChange(
+              resolved.fullAddress || resolved.shortAddress || '',
+              {
+                shortAddress: resolved.shortAddress || '',
+                fullAddress: resolved.fullAddress || resolved.shortAddress || ''
+              }
+            );
           }
         }).catch(() => {});
       };
@@ -140,9 +151,15 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
         window.ymaps.geocode(coords).then((res) => {
           const firstGeoObject = res.geoObjects.get(0);
           if (firstGeoObject) {
-            const addr = resolveGeoAddress(firstGeoObject);
-            setAddress(addr);
-            onAddressChange(addr);
+            const resolved = resolveGeoAddress(firstGeoObject);
+            setAddress(resolved.fullAddress || resolved.shortAddress || '');
+            onAddressChange(
+              resolved.fullAddress || resolved.shortAddress || '',
+              {
+                shortAddress: resolved.shortAddress || '',
+                fullAddress: resolved.fullAddress || resolved.shortAddress || ''
+              }
+            );
           }
         }).catch(() => {});
       }
