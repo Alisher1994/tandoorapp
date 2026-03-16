@@ -4698,7 +4698,7 @@ function AdminDashboard() {
 
     const suggestionSet = new Set([smallestFree, closestFree]);
     let probe = 0;
-    while (suggestionSet.size < 6 && probe < 2000) {
+    while (suggestionSet.size < 5 && probe < 2000) {
       if (!usedSortOrders.has(probe)) suggestionSet.add(probe);
       probe += 1;
     }

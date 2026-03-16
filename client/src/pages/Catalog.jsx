@@ -105,6 +105,17 @@ function Catalog() {
   const [productReviewComment, setProductReviewComment] = useState('');
   const [productReviewSubmitting, setProductReviewSubmitting] = useState(false);
   const [showProductReviewComposer, setShowProductReviewComposer] = useState(false);
+  const [productReviewPermissions, setProductReviewPermissions] = useState({
+    is_authenticated: false,
+    has_successful_order: false,
+    can_review: false
+  });
+  const [pendingProductReviewItems, setPendingProductReviewItems] = useState([]);
+  const [showPendingProductReviewModal, setShowPendingProductReviewModal] = useState(false);
+  const [pendingProductReviewRating, setPendingProductReviewRating] = useState(5);
+  const [pendingProductReviewComment, setPendingProductReviewComment] = useState('');
+  const [pendingProductReviewSubmitting, setPendingProductReviewSubmitting] = useState(false);
+  const [pendingProductReviewError, setPendingProductReviewError] = useState('');
   const [productWeeklyBuyers, setProductWeeklyBuyers] = useState(0);
   const [productWeeklyOrders, setProductWeeklyOrders] = useState(0);
   const [productWeeklySoldCount, setProductWeeklySoldCount] = useState(0);
@@ -143,6 +154,7 @@ function Catalog() {
   const productHeroTouchStartXRef = useRef(null);
   const productHeroTouchStartYRef = useRef(null);
   const productHeroSwipeTriggeredRef = useRef(false);
+  const pendingProductReviewsLoadedRef = useRef(false);
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
   const catalogHeaderBackground = '#f8fafc';
@@ -196,6 +208,43 @@ function Catalog() {
       setPrevRestaurant(selectedRestaurant);
     }
   }, [selectedRestaurant]);
+
+  useEffect(() => {
+    pendingProductReviewsLoadedRef.current = false;
+    setPendingProductReviewItems([]);
+    setShowPendingProductReviewModal(false);
+    setPendingProductReviewRating(5);
+    setPendingProductReviewComment('');
+    setPendingProductReviewError('');
+  }, [user?.id, selectedRestaurant]);
+
+  useEffect(() => {
+    if (!user?.id || user?.role !== 'customer' || !selectedRestaurant) return;
+    if (pendingProductReviewsLoadedRef.current) return;
+
+    pendingProductReviewsLoadedRef.current = true;
+    let cancelled = false;
+
+    const loadPendingProductReviews = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/products/reviews/pending`, {
+          params: { limit: 5 }
+        });
+        if (cancelled) return;
+        const items = Array.isArray(response.data?.items) ? response.data.items : [];
+        setPendingProductReviewItems(items);
+        setShowPendingProductReviewModal(items.length > 0);
+      } catch (error) {
+        if (cancelled) return;
+        setPendingProductReviewItems([]);
+      }
+    };
+
+    loadPendingProductReviews();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role, selectedRestaurant]);
 
   const getScrollContainer = () => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -2228,6 +2277,11 @@ function Catalog() {
     setProductReviewsAverage(0);
     setProductReviewsHasMore(false);
     setShowProductReviewComposer(false);
+    setProductReviewPermissions({
+      is_authenticated: false,
+      has_successful_order: false,
+      can_review: false
+    });
     setProductWeeklyBuyers(0);
     setProductWeeklyOrders(0);
     setProductWeeklySoldCount(0);
@@ -2263,12 +2317,19 @@ function Catalog() {
       const weeklyOrders = Number.parseInt(payload?.weekly_stats?.orders_count, 10) || 0;
       const weeklySoldCount = Number.parseFloat(payload?.weekly_stats?.sold_count) || 0;
       const myReview = payload?.my_review || null;
+      const reviewPermissions = payload?.review_permissions || {};
+      const canReview = Boolean(reviewPermissions?.can_review);
 
       setSelectedProductDetails(detailsProduct);
       setProductReviewsAverage(ratingAverage);
       setProductReviewsTotal(ratingTotal);
       setProductReviews(latestReviews);
       setProductReviewsHasMore(hasMoreReviews);
+      setProductReviewPermissions({
+        is_authenticated: Boolean(reviewPermissions?.is_authenticated),
+        has_successful_order: Boolean(reviewPermissions?.has_successful_order),
+        can_review: canReview
+      });
       setProductWeeklyBuyers(weeklyBuyers);
       setProductWeeklyOrders(weeklyOrders);
       setProductWeeklySoldCount(weeklySoldCount);
@@ -2278,6 +2339,9 @@ function Catalog() {
       } else {
         setProductReviewRating(5);
         setProductReviewComment('');
+      }
+      if (!canReview) {
+        setShowProductReviewComposer(false);
       }
     } catch (error) {
       setProductDetailsError(
@@ -2290,6 +2354,11 @@ function Catalog() {
       setProductReviewsAverage(0);
       setProductReviewsTotal(0);
       setProductReviewsHasMore(false);
+      setProductReviewPermissions({
+        is_authenticated: false,
+        has_successful_order: false,
+        can_review: false
+      });
       setProductWeeklyBuyers(0);
       setProductWeeklyOrders(0);
       setProductWeeklySoldCount(0);
@@ -2356,6 +2425,14 @@ function Catalog() {
   const submitProductReview = async () => {
     const product = selectedProductDetails || selectedProductSummary;
     if (!product?.id || productReviewSubmitting) return;
+    if (!productReviewPermissions.can_review) {
+      setProductDetailsError(
+        language === 'uz'
+          ? "Baholash faqat muvaffaqiyatli yetkazilgan buyurtmadan keyin ochiladi"
+          : 'Оценка доступна только после успешно доставленного заказа'
+      );
+      return;
+    }
     const rating = Math.round(normalizeRatingValue(productReviewRating, 0));
     if (rating < 1 || rating > 5) {
       setProductDetailsError(
@@ -2381,6 +2458,53 @@ function Catalog() {
       );
     } finally {
       setProductReviewSubmitting(false);
+    }
+  };
+
+  const activePendingProductReviewItem = pendingProductReviewItems[0] || null;
+
+  const closePendingProductReviewModal = () => {
+    setShowPendingProductReviewModal(false);
+    setPendingProductReviewError('');
+  };
+
+  const submitPendingProductReview = async () => {
+    if (!activePendingProductReviewItem?.product_id || pendingProductReviewSubmitting) return;
+    const rating = Math.round(normalizeRatingValue(pendingProductReviewRating, 0));
+    if (rating < 1 || rating > 5) {
+      setPendingProductReviewError(
+        language === 'uz'
+          ? "Bahoni 1 dan 5 gacha tanlang"
+          : 'Выберите оценку от 1 до 5'
+      );
+      return;
+    }
+
+    setPendingProductReviewSubmitting(true);
+    setPendingProductReviewError('');
+    try {
+      await axios.post(`${API_URL}/products/${activePendingProductReviewItem.product_id}/reviews`, {
+        rating,
+        comment: String(pendingProductReviewComment || '').trim()
+      });
+
+      const remainingItems = pendingProductReviewItems.slice(1);
+      setPendingProductReviewItems(remainingItems);
+      setPendingProductReviewRating(5);
+      setPendingProductReviewComment('');
+      setShowPendingProductReviewModal(remainingItems.length > 0);
+
+      const openProductId = Number((selectedProductDetails || selectedProductSummary)?.id || 0);
+      if (openProductId > 0 && openProductId === Number(activePendingProductReviewItem.product_id)) {
+        await loadProductDetails(openProductId, selectedProductDetails || selectedProductSummary);
+      }
+    } catch (error) {
+      setPendingProductReviewError(
+        error?.response?.data?.error
+        || (language === 'uz' ? "Kommentni saqlab bo'lmadi" : 'Не удалось сохранить комментарий')
+      );
+    } finally {
+      setPendingProductReviewSubmitting(false);
     }
   };
 
@@ -3238,6 +3362,122 @@ function Catalog() {
       </Modal>
 
       <Modal
+        show={showPendingProductReviewModal && Boolean(activePendingProductReviewItem)}
+        onHide={closePendingProductReviewModal}
+        centered
+        backdrop="static"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1rem' }}>
+            {language === 'uz' ? 'Buyurtma bahosi' : 'Оценка заказа'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {activePendingProductReviewItem && (
+            <>
+              <div className="d-flex align-items-center gap-3 mb-3">
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    background: '#f1f5f9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  {getProductCardImage(activePendingProductReviewItem) ? (
+                    <img
+                      src={getProductCardImage(activePendingProductReviewItem)}
+                      alt={getProductName(activePendingProductReviewItem) || 'Product'}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <span style={{ opacity: 0.5 }}>📦</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="fw-semibold text-truncate">
+                    {getProductName(activePendingProductReviewItem) || (language === 'uz' ? 'Mahsulot' : 'Товар')}
+                  </div>
+                  <div className="small text-muted">
+                    {language === 'uz'
+                      ? 'Muvaffaqiyatli buyurtmadan keyin baho qoldiring'
+                      : 'Оставьте оценку после успешно выполненного заказа'}
+                  </div>
+                </div>
+              </div>
+
+              {pendingProductReviewError && (
+                <div className="alert alert-warning py-2 small">{pendingProductReviewError}</div>
+              )}
+
+              <div className="d-flex gap-1 mb-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={`pending-review-star-${star}`}
+                    type="button"
+                    onClick={() => setPendingProductReviewRating(star)}
+                    className="btn btn-sm p-0 border-0"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      fontSize: '1.72rem',
+                      lineHeight: 1,
+                      color: star <= Math.round(normalizeRatingValue(pendingProductReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
+                      background: 'transparent'
+                    }}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                value={pendingProductReviewComment}
+                onChange={(e) => setPendingProductReviewComment(e.target.value)}
+                rows={3}
+                maxLength={1500}
+                className="form-control"
+                placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
+              />
+
+              <div className="d-flex justify-content-between align-items-center mt-2">
+                <small className="text-muted">
+                  {String(pendingProductReviewComment || '').length}/1500
+                </small>
+                <small className="text-muted">
+                  {language === 'uz'
+                    ? `Qolgan: ${pendingProductReviewItems.length}`
+                    : `Осталось: ${pendingProductReviewItems.length}`}
+                </small>
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="light"
+            onClick={closePendingProductReviewModal}
+            disabled={pendingProductReviewSubmitting}
+          >
+            {language === 'uz' ? 'Keyinroq' : 'Позже'}
+          </Button>
+          <Button
+            onClick={submitPendingProductReview}
+            disabled={!activePendingProductReviewItem || pendingProductReviewSubmitting}
+          >
+            {pendingProductReviewSubmitting
+              ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+              : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
         show={showProductDetailsModal}
         onHide={closeProductDetailsModal}
         className="product-details-modal-fullscreen"
@@ -3456,74 +3696,86 @@ function Catalog() {
 
                     <hr className="my-3" />
 
-                    {!showProductReviewComposer ? (
-                      <Button
-                        type="button"
-                        variant="outline-secondary"
-                        size="sm"
-                        onClick={() => setShowProductReviewComposer(true)}
-                      >
-                        {language === 'uz' ? 'Komment qoldirish' : 'Оставить комментарий'}
-                      </Button>
-                    ) : (
-                      <>
-                        <div className="small text-muted mb-2">
-                          {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
-                        </div>
-                        <div className="d-flex gap-1 mb-2">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={`review-star-${star}`}
-                              type="button"
-                              onClick={() => setProductReviewRating(star)}
-                              className="btn btn-sm p-0 border-0"
-                              style={{
-                                width: 38,
-                                height: 38,
-                                fontSize: '1.72rem',
-                                lineHeight: 1,
-                                color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
-                                background: 'transparent'
-                              }}
-                            >
-                              ★
-                            </button>
-                          ))}
-                        </div>
-                        <textarea
-                          value={productReviewComment}
-                          onChange={(e) => setProductReviewComment(e.target.value)}
-                          rows={3}
-                          maxLength={1500}
-                          className="form-control"
-                          placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
-                        />
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                          <small className="text-muted">
-                            {String(productReviewComment || '').length}/1500
-                          </small>
-                          <div className="d-flex align-items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="light"
-                              size="sm"
-                              onClick={() => setShowProductReviewComposer(false)}
-                            >
-                              {language === 'uz' ? 'Bekor qilish' : 'Скрыть'}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={submitProductReview}
-                              disabled={productReviewSubmitting}
-                            >
-                              {productReviewSubmitting
-                                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
-                                : (language === 'uz' ? 'Yuborish' : 'Отправить')}
-                            </Button>
+                    {productReviewPermissions.can_review ? (
+                      !showProductReviewComposer ? (
+                        <Button
+                          type="button"
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => setShowProductReviewComposer(true)}
+                        >
+                          {language === 'uz' ? 'Komment qoldirish' : 'Оставить комментарий'}
+                        </Button>
+                      ) : (
+                        <>
+                          <div className="small text-muted mb-2">
+                            {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
                           </div>
-                        </div>
-                      </>
+                          <div className="d-flex gap-1 mb-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={`review-star-${star}`}
+                                type="button"
+                                onClick={() => setProductReviewRating(star)}
+                                className="btn btn-sm p-0 border-0"
+                                style={{
+                                  width: 38,
+                                  height: 38,
+                                  fontSize: '1.72rem',
+                                  lineHeight: 1,
+                                  color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
+                                  background: 'transparent'
+                                }}
+                              >
+                                ★
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            value={productReviewComment}
+                            onChange={(e) => setProductReviewComment(e.target.value)}
+                            rows={3}
+                            maxLength={1500}
+                            className="form-control"
+                            placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
+                          />
+                          <div className="d-flex justify-content-between align-items-center mt-2">
+                            <small className="text-muted">
+                              {String(productReviewComment || '').length}/1500
+                            </small>
+                            <div className="d-flex align-items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="light"
+                                size="sm"
+                                onClick={() => setShowProductReviewComposer(false)}
+                              >
+                                {language === 'uz' ? 'Bekor qilish' : 'Скрыть'}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={submitProductReview}
+                                disabled={productReviewSubmitting}
+                              >
+                                {productReviewSubmitting
+                                  ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                                  : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      )
+                    ) : (
+                      <div className="small text-muted">
+                        {productReviewPermissions.is_authenticated
+                          ? (language === 'uz'
+                            ? "Komment va baho faqat muvaffaqiyatli yetkazilgan buyurtmadan keyin ochiladi."
+                            : 'Оценка и комментарий доступны только после успешно доставленного заказа.')
+                          : (language === 'uz'
+                            ? "Komment qoldirish uchun tizimga kiring."
+                            : 'Войдите в аккаунт, чтобы оставить комментарий.')}
+                      </div>
                     )}
                   </div>
                 </section>

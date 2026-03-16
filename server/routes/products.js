@@ -224,10 +224,29 @@ const ensureProductReviewsSchema = async () => {
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
         comment TEXT,
+        is_verified_purchase BOOLEAN DEFAULT false,
         is_deleted BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `).catch(() => {});
+
+    await pool.query('ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS is_verified_purchase BOOLEAN DEFAULT false').catch(() => {});
+    await pool.query('UPDATE product_reviews SET is_verified_purchase = false WHERE is_verified_purchase IS NULL').catch(() => {});
+    await pool.query(`
+      UPDATE product_reviews pr
+      SET is_verified_purchase = true
+      WHERE COALESCE(pr.is_verified_purchase, false) = false
+        AND pr.user_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM order_items oi
+          INNER JOIN orders o ON o.id = oi.order_id
+          WHERE oi.product_id = pr.product_id
+            AND o.user_id = pr.user_id
+            AND o.status = 'delivered'
+            AND (pr.restaurant_id IS NULL OR o.restaurant_id = pr.restaurant_id)
+        )
     `).catch(() => {});
 
     await pool.query(`
@@ -239,6 +258,10 @@ const ensureProductReviewsSchema = async () => {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_product_reviews_product_created
       ON product_reviews(product_id, created_at DESC)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_product_reviews_verified_created
+      ON product_reviews(product_id, is_verified_purchase, created_at DESC)
     `).catch(() => {});
 
     productReviewsSchemaReady = true;
@@ -280,6 +303,36 @@ const normalizeReviewRating = (value) => {
 const normalizeReviewComment = (value, maxLength = 1500) => {
   if (value === undefined || value === null) return '';
   return String(value).trim().slice(0, maxLength);
+};
+
+const hasDeliveredPurchaseForProduct = async ({ productId, userId, restaurantId = null, db = pool }) => {
+  const normalizedProductId = Number.parseInt(productId, 10);
+  const normalizedUserId = Number.parseInt(userId, 10);
+  const normalizedRestaurantId = Number.parseInt(restaurantId, 10);
+
+  if (!Number.isInteger(normalizedProductId) || normalizedProductId <= 0) return false;
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) return false;
+
+  const result = await db.query(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM order_items oi
+      INNER JOIN orders o ON o.id = oi.order_id
+      WHERE oi.product_id = $1
+        AND o.user_id = $2
+        AND o.status = 'delivered'
+        AND ($3::int IS NULL OR o.restaurant_id = $3)
+    ) AS has_purchase
+  `,
+    [
+      normalizedProductId,
+      normalizedUserId,
+      Number.isInteger(normalizedRestaurantId) && normalizedRestaurantId > 0 ? normalizedRestaurantId : null
+    ]
+  );
+
+  return Boolean(result.rows[0]?.has_purchase);
 };
 
 const normalizeIpForGeoLookup = (value) => {
@@ -753,6 +806,80 @@ router.get('/catalog-animation-season', async (req, res) => {
   }
 });
 
+router.get('/reviews/pending', authenticate, async (req, res) => {
+  try {
+    await ensureProductReviewsSchema();
+
+    const userId = Number.parseInt(req.user?.id, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ error: 'Пользователь не авторизован' });
+    }
+
+    const userRole = String(req.user?.role || '').trim().toLowerCase();
+    if (userRole !== 'customer') {
+      return res.json({ items: [], total: 0 });
+    }
+
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(20, Math.max(1, requestedLimit)) : 5;
+
+    const activeRestaurantIdRaw = Number.parseInt(req.user?.active_restaurant_id, 10);
+    const activeRestaurantId = Number.isInteger(activeRestaurantIdRaw) && activeRestaurantIdRaw > 0
+      ? activeRestaurantIdRaw
+      : null;
+
+    const result = await pool.query(
+      `
+      WITH delivered_items AS (
+        SELECT
+          oi.product_id,
+          MAX(o.created_at) AS last_delivered_at,
+          COUNT(DISTINCT o.id)::int AS delivered_orders_count
+        FROM order_items oi
+        INNER JOIN orders o ON o.id = oi.order_id
+        WHERE o.user_id = $1
+          AND o.status = 'delivered'
+          AND oi.product_id IS NOT NULL
+          AND ($2::int IS NULL OR o.restaurant_id = $2)
+        GROUP BY oi.product_id
+      )
+      SELECT
+        di.product_id,
+        di.last_delivered_at,
+        di.delivered_orders_count,
+        p.restaurant_id,
+        p.name_ru,
+        p.name_uz,
+        p.image_url,
+        p.thumb_url,
+        p.product_images,
+        r.name AS restaurant_name
+      FROM delivered_items di
+      INNER JOIN products p ON p.id = di.product_id
+      LEFT JOIN restaurants r ON r.id = p.restaurant_id
+      LEFT JOIN product_reviews pr
+        ON pr.product_id = di.product_id
+        AND pr.user_id = $1
+        AND pr.is_deleted = false
+        AND pr.is_verified_purchase = true
+      WHERE pr.id IS NULL
+      ORDER BY di.last_delivered_at DESC NULLS LAST, di.product_id DESC
+      LIMIT $3
+    `,
+      [userId, activeRestaurantId, limit]
+    );
+
+    const items = result.rows || [];
+    res.json({
+      items,
+      total: items.length
+    });
+  } catch (error) {
+    console.error('Pending product reviews error:', error);
+    res.status(500).json({ error: 'Ошибка получения списка товаров для оценки' });
+  }
+});
+
 router.get('/:id/details', async (req, res) => {
   try {
     await ensureProductReviewsSchema();
@@ -790,9 +917,10 @@ router.get('/:id/details', async (req, res) => {
         SELECT
           COUNT(*)::int AS total_reviews,
           ROUND(COALESCE(AVG(rating)::numeric, 0), 2)::float AS average_rating
-        FROM product_reviews
-        WHERE product_id = $1
-          AND is_deleted = false
+        FROM product_reviews pr
+        WHERE pr.product_id = $1
+          AND pr.is_deleted = false
+          AND pr.is_verified_purchase = true
       `,
         [productId]
       ),
@@ -810,6 +938,7 @@ router.get('/:id/details', async (req, res) => {
         LEFT JOIN users u ON u.id = pr.user_id
         WHERE pr.product_id = $1
           AND pr.is_deleted = false
+          AND pr.is_verified_purchase = true
         ORDER BY pr.created_at DESC, pr.id DESC
         LIMIT 3
       `,
@@ -839,9 +968,21 @@ router.get('/:id/details', async (req, res) => {
     const ordersCount = Number.parseInt(weeklyStatsResult.rows[0]?.orders_count, 10) || 0;
     const soldCount = Number(weeklyStatsResult.rows[0]?.sold_count || 0) || 0;
 
-    const authUserId = getOptionalAuthUserId(req);
+    const authUserIdRaw = getOptionalAuthUserId(req);
+    const authUserId = Number.parseInt(authUserIdRaw, 10);
+    const productRestaurantId = Number.parseInt(product.restaurant_id, 10);
+    const normalizedProductRestaurantId = Number.isInteger(productRestaurantId) && productRestaurantId > 0
+      ? productRestaurantId
+      : null;
     let myReview = null;
-    if (Number.isInteger(Number(authUserId)) && Number(authUserId) > 0) {
+    let hasSuccessfulOrder = false;
+    if (Number.isInteger(authUserId) && authUserId > 0) {
+      hasSuccessfulOrder = await hasDeliveredPurchaseForProduct({
+        productId,
+        userId: authUserId,
+        restaurantId: normalizedProductRestaurantId
+      });
+
       const myReviewResult = await pool.query(
         `
         SELECT id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
@@ -849,6 +990,7 @@ router.get('/:id/details', async (req, res) => {
         WHERE product_id = $1
           AND user_id = $2
           AND is_deleted = false
+          AND is_verified_purchase = true
         ORDER BY updated_at DESC, id DESC
         LIMIT 1
       `,
@@ -869,6 +1011,11 @@ router.get('/:id/details', async (req, res) => {
         buyers_count: buyersCount,
         orders_count: ordersCount,
         sold_count: soldCount
+      },
+      review_permissions: {
+        is_authenticated: Number.isInteger(authUserId) && authUserId > 0,
+        has_successful_order: hasSuccessfulOrder,
+        can_review: hasSuccessfulOrder
       },
       my_review: myReview
     });
@@ -903,9 +1050,10 @@ router.get('/:id/reviews', async (req, res) => {
         SELECT
           COUNT(*)::int AS total_reviews,
           ROUND(COALESCE(AVG(rating)::numeric, 0), 2)::float AS average_rating
-        FROM product_reviews
-        WHERE product_id = $1
-          AND is_deleted = false
+        FROM product_reviews pr
+        WHERE pr.product_id = $1
+          AND pr.is_deleted = false
+          AND pr.is_verified_purchase = true
       `,
         [productId]
       ),
@@ -923,6 +1071,7 @@ router.get('/:id/reviews', async (req, res) => {
         LEFT JOIN users u ON u.id = pr.user_id
         WHERE pr.product_id = $1
           AND pr.is_deleted = false
+          AND pr.is_verified_purchase = true
         ORDER BY pr.created_at DESC, pr.id DESC
         LIMIT $2 OFFSET $3
       `,
@@ -986,6 +1135,15 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Отзыв можно оставить только в активном магазине' });
     }
 
+    const hasSuccessfulOrder = await hasDeliveredPurchaseForProduct({
+      productId,
+      userId,
+      restaurantId: Number.isInteger(productRestaurantId) && productRestaurantId > 0 ? productRestaurantId : null
+    });
+    if (!hasSuccessfulOrder) {
+      return res.status(403).json({ error: 'Оценка и комментарий доступны только после успешно доставленного заказа' });
+    }
+
     const dbClient = await pool.connect();
     let savedReview = null;
     try {
@@ -1024,10 +1182,11 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
             restaurant_id = $1,
             rating = $2,
             comment = $3,
+            is_verified_purchase = true,
             is_deleted = false,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = $4
-          RETURNING id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
+          RETURNING id, product_id, restaurant_id, user_id, rating, comment, is_verified_purchase, created_at, updated_at
         `,
           [productRestaurantId || null, rating, comment, reviewId]
         );
@@ -1041,10 +1200,11 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
             user_id,
             rating,
             comment,
+            is_verified_purchase,
             is_deleted
           )
-          VALUES ($1, $2, $3, $4, $5, false)
-          RETURNING id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
+          VALUES ($1, $2, $3, $4, $5, true, false)
+          RETURNING id, product_id, restaurant_id, user_id, rating, comment, is_verified_purchase, created_at, updated_at
         `,
           [productId, productRestaurantId || null, userId, rating, comment]
         );
