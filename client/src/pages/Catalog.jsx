@@ -556,7 +556,7 @@ function Catalog() {
       ? product.description_uz
       : (product?.description_ru || '')
   );
-  const normalizeProductSizeOptions = (value) => {
+  const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => {
     let source = value;
     if (typeof source === 'string') {
       try {
@@ -573,24 +573,54 @@ function Catalog() {
     const unique = new Set();
     const normalized = [];
     for (const item of source) {
-      const text = String(item ?? '').trim();
-      if (!text) continue;
-      const key = text.toLowerCase();
+      let name = '';
+      let descriptionRu = '';
+      let descriptionUz = '';
+      let priceRaw = fallbackPrice;
+
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        name = String(item.name || item.value || item.label || '').trim();
+        descriptionRu = String(item.description_ru || item.descriptionRu || '').trim();
+        descriptionUz = String(item.description_uz || item.descriptionUz || '').trim();
+        priceRaw = item.price ?? fallbackPrice;
+      } else {
+        name = String(item ?? '').trim();
+      }
+
+      if (!name) continue;
+      const key = name.toLowerCase();
       if (unique.has(key)) continue;
       unique.add(key);
-      normalized.push(text);
+
+      const normalizedPrice = parseFloat(String(priceRaw ?? '').replace(',', '.'));
+      normalized.push({
+        name,
+        description_ru: descriptionRu.slice(0, 1500),
+        description_uz: descriptionUz.slice(0, 1500),
+        price: Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : null
+      });
       if (normalized.length >= 20) break;
     }
     return normalized;
   };
-  const getProductSizeOptions = (product) => {
+  const normalizeProductSizeOptions = (value) => (
+    normalizeProductVariantOptions(value).map((variant) => variant.name)
+  );
+  const getProductVariantOptions = (product) => {
     if (!product || product.size_enabled !== true) return [];
     if (!currentRestaurant || currentRestaurant.size_variants_enabled !== true) return [];
-    return normalizeProductSizeOptions(product.size_options);
+    const fallbackPrice = Number(product?.price);
+    return normalizeProductVariantOptions(product.size_options, {
+      fallbackPrice: Number.isFinite(fallbackPrice) && fallbackPrice > 0 ? fallbackPrice : NaN
+    });
+  };
+  const getProductSizeOptions = (product) => {
+    return getProductVariantOptions(product).map((variant) => variant.name);
   };
   const getSelectedVariantForProduct = (product) => {
-    const options = getProductSizeOptions(product);
-    if (!options.length) return '';
+    const variants = getProductVariantOptions(product);
+    const options = variants.map((variant) => variant.name);
+    if (!options.length) return null;
     const productId = Number(product?.id);
     const selectedRaw = selectedProductVariants[productId];
     const selected = String(selectedRaw || '').trim();
@@ -598,6 +628,31 @@ function Catalog() {
       return options.find((item) => item.toLowerCase() === selected.toLowerCase()) || selected;
     }
     return options[0];
+  };
+  const getSelectedVariantDetails = (product, selectedVariant = null) => {
+    const variants = getProductVariantOptions(product);
+    if (!variants.length) return null;
+    const selectedName = String(selectedVariant || getSelectedVariantForProduct(product) || '').trim().toLowerCase();
+    if (!selectedName) return variants[0];
+    return variants.find((variant) => String(variant.name || '').trim().toLowerCase() === selectedName) || variants[0];
+  };
+  const getSelectedVariantPrice = (product, selectedVariant = null) => {
+    const variant = getSelectedVariantDetails(product, selectedVariant);
+    if (variant && Number.isFinite(Number(variant.price)) && Number(variant.price) > 0) {
+      return Number(variant.price);
+    }
+    const fallbackPrice = Number(product?.price);
+    return Number.isFinite(fallbackPrice) ? fallbackPrice : 0;
+  };
+  const getSelectedVariantDescription = (product, selectedVariant = null) => {
+    const variant = getSelectedVariantDetails(product, selectedVariant);
+    if (variant) {
+      const localized = language === 'uz'
+        ? String(variant.description_uz || '').trim()
+        : String(variant.description_ru || '').trim();
+      if (localized) return localized;
+    }
+    return getProductDescription(product);
   };
   const selectVariantForProduct = (product, variantValue) => {
     const productId = Number(product?.id);
@@ -739,9 +794,14 @@ function Catalog() {
 
   const handleAddToCart = (product) => {
     const selectedVariant = getSelectedVariantForProduct(product);
+    const variantPrice = getSelectedVariantPrice(product, selectedVariant);
+    const selectedVariantDescription = getSelectedVariantDescription(product, selectedVariant);
     addToCart({
       ...product,
       restaurant_id: selectedRestaurant,
+      price: variantPrice,
+      description_ru: language === 'uz' ? (product?.description_ru || selectedVariantDescription) : selectedVariantDescription,
+      description_uz: language === 'uz' ? selectedVariantDescription : (product?.description_uz || selectedVariantDescription),
       selected_variant: selectedVariant || null
     });
   };
@@ -1838,6 +1898,7 @@ function Catalog() {
     const productName = getProductName(product);
     const primaryImageUrl = getProductCardImage(product);
     const productSizeOptions = getProductSizeOptions(product);
+    const productDisplayPrice = getSelectedVariantPrice(product, selectedVariant);
 
     return (
       <Card
@@ -2095,7 +2156,7 @@ function Catalog() {
             </div>
           )}
           <div className="fw-bold mt-auto" style={{ fontSize: '0.9rem', color: 'var(--primary-color)' }}>
-            {formatPrice(product.price)} {t('sum')}
+            {formatPrice(productDisplayPrice)} {t('sum')}
           </div>
         </Card.Body>
       </Card>
@@ -2610,6 +2671,7 @@ function Catalog() {
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
               const isAvailable = product.in_stock !== false;
+              const displayPrice = getSelectedVariantPrice(product, selectedVariant);
               return (
                 <div
                   key={`search-result-${product.id}`}
@@ -2757,7 +2819,7 @@ function Catalog() {
                       className="text-end mt-1"
                       style={{ color: 'var(--primary-color)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.83rem' }}
                     >
-                      {formatPrice(product.price)} {t('sum')}
+                      {formatPrice(displayPrice)} {t('sum')}
                     </div>
                   </div>
                 </div>
@@ -2782,7 +2844,6 @@ function Catalog() {
   );
   const activeProduct = selectedProductDetails || selectedProductSummary;
   const activeProductName = getProductName(activeProduct);
-  const activeProductDescription = getProductDescription(activeProduct);
   const activeProductCardImage = getProductCardImage(activeProduct);
   const activeProductGalleryImages = getProductGalleryImages(activeProduct);
   const activeProductGalleryIndex = activeProductGalleryImages.length > 0
@@ -2790,6 +2851,8 @@ function Catalog() {
     : 0;
   const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductCardImage;
   const activeProductSelectedVariant = getSelectedVariantForProduct(activeProduct);
+  const activeProductDescription = getSelectedVariantDescription(activeProduct, activeProductSelectedVariant);
+  const activeProductDisplayPrice = getSelectedVariantPrice(activeProduct, activeProductSelectedVariant);
   const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id, activeProductSelectedVariant) : null;
   const activeProductQty = activeProductCartItem?.quantity || 0;
   const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
@@ -3583,7 +3646,7 @@ function Catalog() {
                   </div>
 
                   <div className="fw-bold mb-3" style={{ color: 'var(--primary-color)', fontSize: '2rem', lineHeight: 1.05 }}>
-                    {formatPrice(activeProduct?.price || 0)} {t('sum')}
+                    {formatPrice(activeProductDisplayPrice)} {t('sum')}
                   </div>
 
                   {(productWeeklyBuyers > 0 || productWeeklyOrders > 0 || productWeeklySoldCount > 0) && (

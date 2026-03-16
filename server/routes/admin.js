@@ -54,7 +54,7 @@ const normalizeProductOrderStep = (value, unit, fallback = null) => {
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
-const normalizeProductSizeOptions = (value) => {
+const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) => {
   let source = value;
   if (typeof source === 'string') {
     try {
@@ -71,12 +71,30 @@ const normalizeProductSizeOptions = (value) => {
   const unique = new Set();
   const normalized = [];
   for (const item of source) {
-    const text = String(item ?? '').trim();
-    if (!text) continue;
-    const key = text.toLowerCase();
+    let name = '';
+    let descriptionRu = '';
+    let descriptionUz = '';
+    let priceRaw = fallbackPrice;
+
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      name = toOptionalTrimmedText(item.name || item.value || item.label);
+      descriptionRu = toOptionalTrimmedText(item.description_ru || item.descriptionRu);
+      descriptionUz = toOptionalTrimmedText(item.description_uz || item.descriptionUz);
+      priceRaw = item.price ?? fallbackPrice;
+    } else {
+      name = toOptionalTrimmedText(item);
+    }
+
+    if (!name) continue;
+    const key = name.toLowerCase();
     if (unique.has(key)) continue;
     unique.add(key);
-    normalized.push(text);
+    normalized.push({
+      name,
+      description_ru: descriptionRu.slice(0, 1500),
+      description_uz: descriptionUz.slice(0, 1500),
+      price: normalizeProductPrice(priceRaw, fallbackPrice)
+    });
     if (normalized.length >= MAX_PRODUCT_SIZE_OPTIONS) break;
   }
   return normalized;
@@ -2219,11 +2237,6 @@ router.post('/products', async (req, res) => {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
 
-    const normalizedPrice = normalizeProductPrice(price, null);
-    if (!name_ru || normalizedPrice === null) {
-      return res.status(400).json({ error: 'Название и цена обязательны' });
-    }
-
     const categoryValidation = await validateProductCategorySelection({
       categoryId: normalizedCategoryId,
       restaurantId
@@ -2236,7 +2249,25 @@ router.post('/products', async (req, res) => {
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
     const normalizedOrderStep = normalizeProductOrderStep(order_step, unit || 'шт', null);
     const normalizedSizeEnabled = normalizeOptionalBoolean(size_enabled) === true;
-    const normalizedSizeOptions = normalizeProductSizeOptions(size_options);
+    const normalizedBasePrice = normalizeProductPrice(price, null);
+    const normalizedSizeOptions = normalizeProductVariantOptions(size_options, {
+      fallbackPrice: normalizedBasePrice
+    });
+    if (normalizedSizeEnabled) {
+      if (normalizedSizeOptions.length === 0) {
+        return res.status(400).json({ error: 'Добавьте минимум один вариант товара' });
+      }
+      const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
+      if (invalidVariant) {
+        return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
+      }
+    }
+    const normalizedPrice = normalizedBasePrice !== null
+      ? normalizedBasePrice
+      : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
+    if (!name_ru || normalizedPrice === null) {
+      return res.status(400).json({ error: 'Название и цена обязательны' });
+    }
     const mediaPayload = resolveProductMediaPayload({
       productImages: product_images,
       imageUrl: image_url,
@@ -2295,11 +2326,6 @@ router.post('/products/upsert', async (req, res) => {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
 
-    const normalizedPrice = normalizeProductPrice(price, null);
-    if (!name_ru || normalizedPrice === null) {
-      return res.status(400).json({ error: 'Название и цена обязательны' });
-    }
-
     const categoryValidation = await validateProductCategorySelection({
       categoryId: normalizedCategoryId,
       restaurantId
@@ -2314,7 +2340,25 @@ router.post('/products/upsert', async (req, res) => {
     const hasSizeEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_enabled');
     const hasSizeOptionsField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_options');
     const normalizedSizeEnabled = normalizeOptionalBoolean(size_enabled) === true;
-    const normalizedSizeOptions = normalizeProductSizeOptions(size_options);
+    const normalizedBasePrice = normalizeProductPrice(price, null);
+    const normalizedSizeOptions = normalizeProductVariantOptions(size_options, {
+      fallbackPrice: normalizedBasePrice
+    });
+    if (normalizedSizeEnabled) {
+      if (normalizedSizeOptions.length === 0) {
+        return res.status(400).json({ error: 'Добавьте минимум один вариант товара' });
+      }
+      const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
+      if (invalidVariant) {
+        return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
+      }
+    }
+    const normalizedPrice = normalizedBasePrice !== null
+      ? normalizedBasePrice
+      : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
+    if (!name_ru || normalizedPrice === null) {
+      return res.status(400).json({ error: 'Название и цена обязательны' });
+    }
     const hasContainerNorm = container_norm !== undefined && container_norm !== null && String(container_norm).trim() !== '';
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = resolveProductMediaPayload({
@@ -2507,12 +2551,24 @@ router.put('/products/:id', async (req, res) => {
     const normalizedSizeEnabled = hasSizeEnabledField
       ? normalizeOptionalBoolean(size_enabled) === true
       : (oldProduct.size_enabled === true);
-    const normalizedSizeOptions = hasSizeOptionsField
-      ? normalizeProductSizeOptions(size_options)
-      : normalizeProductSizeOptions(oldProduct.size_options);
-    const normalizedPrice = price === undefined
+    const basePriceFallback = price === undefined
       ? normalizeProductPrice(oldProduct.price, null)
       : normalizeProductPrice(price, null);
+    const normalizedSizeOptions = hasSizeOptionsField
+      ? normalizeProductVariantOptions(size_options, { fallbackPrice: basePriceFallback })
+      : normalizeProductVariantOptions(oldProduct.size_options, { fallbackPrice: basePriceFallback });
+    if (normalizedSizeEnabled) {
+      if (normalizedSizeOptions.length === 0) {
+        return res.status(400).json({ error: 'Добавьте минимум один вариант товара' });
+      }
+      const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
+      if (invalidVariant) {
+        return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
+      }
+    }
+    const normalizedPrice = basePriceFallback !== null
+      ? basePriceFallback
+      : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
     if (normalizedPrice === null) {
       return res.status(400).json({ error: 'Цена должна быть больше 0' });
     }
