@@ -1044,7 +1044,7 @@ function Cart() {
                       <Button
                         variant="link"
                         className="p-1 px-2 text-dark text-decoration-none"
-                        onClick={() => updateQuantity(item.id, item.quantity - quantityStep)}
+                        onClick={() => updateQuantity(item.id, item.quantity - quantityStep, item.selected_variant)}
                       >
                         −
                       </Button>
@@ -1054,7 +1054,7 @@ function Cart() {
                       <Button
                         variant="link"
                         className="p-1 px-2 text-dark text-decoration-none"
-                        onClick={() => updateQuantity(item.id, item.quantity + quantityStep)}
+                        onClick={() => updateQuantity(item.id, item.quantity + quantityStep, item.selected_variant)}
                       >
                         +
                       </Button>
@@ -1062,7 +1062,7 @@ function Cart() {
                     <Button
                       variant="link"
                       className="text-danger p-1 ms-2"
-                      onClick={() => removeFromCart(item.id)}
+                      onClick={() => removeFromCart(item.id, item.selected_variant)}
                     >
                       🗑️
                     </Button>

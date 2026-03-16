@@ -709,7 +709,12 @@ function Catalog() {
     });
   };
 
-  const getCartItem = (productId) => cart.find(item => item.id === productId);
+  const normalizeVariantKey = (value) => String(value || '').trim().toLowerCase();
+  const getCartItem = (productId, selectedVariant = undefined) => cart.find((item) => {
+    if (Number(item?.id) !== Number(productId)) return false;
+    if (selectedVariant === undefined) return true;
+    return normalizeVariantKey(item?.selected_variant) === normalizeVariantKey(selectedVariant);
+  });
 
   const categoriesById = useMemo(() => {
     const map = new Map();
@@ -1778,11 +1783,12 @@ function Catalog() {
 
   // Product card component
   const renderProductCard = (product) => {
-    const cartItem = getCartItem(product.id);
+    const selectedVariant = getSelectedVariantForProduct(product);
+    const cartItem = getCartItem(product.id, selectedVariant);
     const hasQty = !!cartItem;
     const qty = cartItem?.quantity || 0;
     const quantityStep = resolveQuantityStep(cartItem || product);
-    const overlayKey = `qty_open_${product.id}`;
+    const overlayKey = `qty_open_${product.id}_${normalizeVariantKey(selectedVariant || 'base')}`;
     const isOpen = catalogQtyOpen?.[overlayKey];
     const favoriteActive = isFavorite(product.id);
     const productName = getProductName(product);
@@ -1989,24 +1995,24 @@ function Catalog() {
                     type="button"
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
                     style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateQuantity(product.id, qty - quantityStep);
-                    }}
-                  >
-                    −
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateQuantity(product.id, qty - quantityStep, selectedVariant);
+                      }}
+                    >
+                      −
                   </button>
                   <span className="fw-bold px-2" style={{ fontSize: '15px' }}>{formatQuantity(qty)}</span>
                   <button
                     type="button"
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
                     style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateQuantity(product.id, qty + quantityStep);
-                    }}
-                  >
-                    +
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateQuantity(product.id, qty + quantityStep, selectedVariant);
+                      }}
+                    >
+                      +
                   </button>
                 </div>
               )}
@@ -2478,7 +2484,8 @@ function Catalog() {
               const productName = getProductName(product);
               const imageUrl = getProductCardImage(product);
               const category = categoriesById.get(Number(product.category_id));
-              const cartItem = getCartItem(product.id);
+              const selectedVariant = getSelectedVariantForProduct(product);
+              const cartItem = getCartItem(product.id, selectedVariant);
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
               const isAvailable = product.in_stock !== false;
@@ -2572,7 +2579,7 @@ function Catalog() {
                             style={{ width: 32, height: 32, color: '#4b5563', fontSize: '18px', touchAction: 'manipulation' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateQuantity(product.id, qty - quantityStep);
+                              updateQuantity(product.id, qty - quantityStep, selectedVariant);
                             }}
                             aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                           >
@@ -2587,7 +2594,7 @@ function Catalog() {
                             style={{ width: 32, height: 32, color: 'var(--primary-color)', fontSize: '18px', touchAction: 'manipulation' }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateQuantity(product.id, qty + quantityStep);
+                              updateQuantity(product.id, qty + quantityStep, selectedVariant);
                             }}
                             aria-label={language === 'uz' ? 'Ko‘paytirish' : 'Увеличить'}
                           >
@@ -2657,7 +2664,8 @@ function Catalog() {
     ? Math.max(0, Math.min(productHeroIndex, activeProductGalleryImages.length - 1))
     : 0;
   const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductCardImage;
-  const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id) : null;
+  const activeProductSelectedVariant = getSelectedVariantForProduct(activeProduct);
+  const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id, activeProductSelectedVariant) : null;
   const activeProductQty = activeProductCartItem?.quantity || 0;
   const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
   const activeProductFavorite = activeProduct?.id ? isFavorite(activeProduct.id) : false;
@@ -3358,13 +3366,14 @@ function Catalog() {
                     <div className="product-details-block mb-3">
                       <div className="small text-muted mb-2">{language === 'uz' ? 'Variantlar' : 'Варианты'}</div>
                       <div
-                        className="d-flex align-items-center gap-2"
+                        className="product-details-variants-scroll d-flex align-items-center gap-2"
                         style={{
                           overflowX: 'auto',
                           overflowY: 'hidden',
                           flexWrap: 'nowrap',
                           WebkitOverflowScrolling: 'touch',
-                          scrollbarWidth: 'thin',
+                          scrollbarWidth: 'none',
+                          msOverflowStyle: 'none',
                           paddingBottom: 2
                         }}
                       >
@@ -3535,7 +3544,7 @@ function Catalog() {
                           <button
                             type="button"
                             className="btn btn-sm p-0 border-0 bg-transparent"
-                            onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep)}
+                            onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant)}
                             aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                           >
                             −
@@ -3544,7 +3553,7 @@ function Catalog() {
                           <button
                             type="button"
                             className="btn btn-sm p-0 border-0 bg-transparent"
-                            onClick={() => updateQuantity(activeProduct.id, activeProductQty + activeProductQuantityStep)}
+                            onClick={() => updateQuantity(activeProduct.id, activeProductQty + activeProductQuantityStep, activeProductSelectedVariant)}
                             aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
                           >
                             +

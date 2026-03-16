@@ -31,8 +31,16 @@ function normalizeCartItem(item) {
   };
 }
 
-function isSameProductInRestaurant(item, productId, restaurantId) {
-  return Number(item?.id) === Number(productId) && parseRestaurantId(item?.restaurant_id) === restaurantId;
+function normalizeVariantKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isSameProductInRestaurant(item, productId, restaurantId, selectedVariant = null) {
+  return (
+    Number(item?.id) === Number(productId)
+    && parseRestaurantId(item?.restaurant_id) === restaurantId
+    && normalizeVariantKey(item?.selected_variant) === normalizeVariantKey(selectedVariant)
+  );
 }
 
 function filterCartByRestaurant(allItems, restaurantId) {
@@ -151,16 +159,17 @@ export function CartProvider({ children }) {
       : quantityToAdd;
     const safeQty = normalizeQuantity(requestedQty, productOrderStep || 1);
     const productRestaurantId = parseRestaurantId(product?.restaurant_id) || activeRestaurantId;
+    const selectedVariant = String(product?.selected_variant || '').trim() || null;
     setAllCartItems((prevCart) => {
-      const existingItem = prevCart.find((item) => isSameProductInRestaurant(item, product.id, productRestaurantId));
+      const existingItem = prevCart.find((item) => isSameProductInRestaurant(item, product.id, productRestaurantId, selectedVariant));
       
       if (existingItem) {
         return prevCart.map((item) =>
-          isSameProductInRestaurant(item, product.id, productRestaurantId)
+          isSameProductInRestaurant(item, product.id, productRestaurantId, selectedVariant)
             ? {
               ...item,
               order_step: productOrderStep,
-              selected_variant: String(product?.selected_variant || '').trim() || item.selected_variant || null,
+              selected_variant: selectedVariant,
               quantity: normalizeQuantity(item.quantity + safeQty, safeQty)
             }
             : item
@@ -170,33 +179,34 @@ export function CartProvider({ children }) {
       return [...prevCart, normalizeCartItem({
         ...product,
         restaurant_id: productRestaurantId,
+        selected_variant: selectedVariant,
         quantity: safeQty,
         order_step: productOrderStep
       })];
     });
   };
 
-  const updateQuantity = (productId, quantity) => {
+  const updateQuantity = (productId, quantity, selectedVariant = null) => {
     const normalizedQty = normalizeQuantity(quantity, 0);
     if (normalizedQty <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, selectedVariant);
       return;
     }
     if (!activeRestaurantId) return;
     
     setAllCartItems((prevCart) =>
       prevCart.map((item) =>
-        isSameProductInRestaurant(item, productId, activeRestaurantId)
+        isSameProductInRestaurant(item, productId, activeRestaurantId, selectedVariant)
           ? { ...item, quantity: normalizedQty }
           : item
       )
     );
   };
 
-  const removeFromCart = (productId) => {
+  const removeFromCart = (productId, selectedVariant = null) => {
     if (!activeRestaurantId) return;
     setAllCartItems((prevCart) => prevCart.filter((item) => {
-      const inActiveRestaurant = isSameProductInRestaurant(item, productId, activeRestaurantId);
+      const inActiveRestaurant = isSameProductInRestaurant(item, productId, activeRestaurantId, selectedVariant);
       return !inActiveRestaurant;
     }));
   };

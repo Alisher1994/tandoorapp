@@ -10397,7 +10397,7 @@ function AdminDashboard() {
                 </Alert>
               )}
 
-              <Row>
+              <Row className="g-3">
                 <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('nameRu')}</Form.Label>
@@ -10470,12 +10470,14 @@ function AdminDashboard() {
                 <Col md={6}>
                   <div className="p-3 rounded-3 border bg-light d-flex flex-column gap-2 h-100">
                     <Form.Check
+                      className="admin-product-switch"
                       type="switch"
                       label="Показывать как нет в наличии"
                       checked={!productForm.in_stock}
                       onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
                     />
                     <Form.Check
+                      className="admin-product-switch"
                       type="switch"
                       label="Полностью скрыть из каталога"
                       checked={!!productForm.is_hidden_catalog}
@@ -10489,7 +10491,7 @@ function AdminDashboard() {
               </Row>
 
               {Boolean(restaurantSettings?.size_variants_enabled) && (
-                <Row>
+                <Row className="g-3 mt-1">
                   <Col xs={12}>
                     <Form.Group className="mb-3 p-3 rounded-3 border bg-light">
                       <Form.Label className="mb-2">
@@ -10497,6 +10499,7 @@ function AdminDashboard() {
                       </Form.Label>
                       <div>
                         <Form.Check
+                          className="admin-product-switch"
                           type="switch"
                           id="product-size-enabled-switch"
                           label={language === 'uz' ? 'Variantlarni yoqish' : 'Включить варианты'}

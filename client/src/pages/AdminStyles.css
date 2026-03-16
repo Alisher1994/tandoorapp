@@ -5435,6 +5435,28 @@ body::-webkit-scrollbar,
     color: #4b5563 !important;
 }
 
+.admin-product-switch {
+    margin-bottom: 0;
+}
+
+.admin-product-switch .form-check-input {
+    cursor: pointer;
+}
+
+.admin-product-switch .form-check-input:checked {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.admin-product-switch .form-check-input:focus {
+    border-color: rgba(236, 72, 153, 0.55) !important;
+    box-shadow: 0 0 0 0.2rem rgba(236, 72, 153, 0.18) !important;
+}
+
+.admin-product-switch .form-check-label {
+    color: #1f2937;
+}
+
 .admin-store-safety-alert .form-check {
     margin-bottom: 0;
 }

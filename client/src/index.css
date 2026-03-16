@@ -584,6 +584,17 @@ h6 {
   background: #ffffff;
 }
 
+.product-details-variants-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.product-details-variants-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 .product-details-review-item {
   border: 1px solid rgba(71, 85, 105, 0.14);
   border-radius: 10px;
