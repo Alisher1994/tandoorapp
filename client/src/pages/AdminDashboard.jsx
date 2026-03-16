@@ -10352,6 +10352,33 @@ function AdminDashboard() {
               <Row>
                 <Col md={6}>
                   <Form.Group className="mb-3">
+                    <Form.Label>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      value={productForm.description_ru}
+                      onChange={(e) => setProductForm({ ...productForm, description_ru: e.target.value })}
+                      placeholder={language === 'uz' ? 'Rus tilida tavsif kiriting' : 'Введите описание на русском'}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{language === 'uz' ? 'Tavsif (UZ)' : 'Описание (UZ)'}</Form.Label>
+                    <Form.Control
+                      as="textarea"
+                      rows={3}
+                      value={productForm.description_uz}
+                      onChange={(e) => setProductForm({ ...productForm, description_uz: e.target.value })}
+                      placeholder={language === 'uz' ? "O'zbek tilida tavsif kiriting" : 'Введите описание на узбекском'}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
                     <Form.Label>Сезонность товара</Form.Label>
                     <Form.Select
                       value={productForm.season_scope || 'all'}

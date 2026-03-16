@@ -104,8 +104,10 @@ function Catalog() {
   const [productReviewRating, setProductReviewRating] = useState(5);
   const [productReviewComment, setProductReviewComment] = useState('');
   const [productReviewSubmitting, setProductReviewSubmitting] = useState(false);
+  const [showProductReviewComposer, setShowProductReviewComposer] = useState(false);
   const [productWeeklyBuyers, setProductWeeklyBuyers] = useState(0);
   const [productWeeklyOrders, setProductWeeklyOrders] = useState(0);
+  const [productWeeklySoldCount, setProductWeeklySoldCount] = useState(0);
   const [productHeroIndex, setProductHeroIndex] = useState(0);
   const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
@@ -2139,8 +2141,10 @@ function Catalog() {
     setProductReviewsTotal(0);
     setProductReviewsAverage(0);
     setProductReviewsHasMore(false);
+    setShowProductReviewComposer(false);
     setProductWeeklyBuyers(0);
     setProductWeeklyOrders(0);
+    setProductWeeklySoldCount(0);
     setProductDetailsError('');
   };
 
@@ -2150,9 +2154,11 @@ function Catalog() {
     resetProductDetailsState();
     setProductReviewRating(5);
     setProductReviewComment('');
+    setShowProductReviewComposer(false);
     setProductHeroIndex(0);
     productHeroSwipeTriggeredRef.current = false;
     productHeroTouchStartXRef.current = null;
+    productHeroTouchStartYRef.current = null;
   };
 
   const loadProductDetails = async (productId, fallbackProduct = null) => {
@@ -2169,6 +2175,7 @@ function Catalog() {
       const hasMoreReviews = Boolean(payload?.has_more_reviews) && ratingTotal > latestReviews.length;
       const weeklyBuyers = Number.parseInt(payload?.weekly_stats?.buyers_count, 10) || 0;
       const weeklyOrders = Number.parseInt(payload?.weekly_stats?.orders_count, 10) || 0;
+      const weeklySoldCount = Number.parseFloat(payload?.weekly_stats?.sold_count) || 0;
       const myReview = payload?.my_review || null;
 
       setSelectedProductDetails(detailsProduct);
@@ -2178,6 +2185,7 @@ function Catalog() {
       setProductReviewsHasMore(hasMoreReviews);
       setProductWeeklyBuyers(weeklyBuyers);
       setProductWeeklyOrders(weeklyOrders);
+      setProductWeeklySoldCount(weeklySoldCount);
       if (myReview) {
         setProductReviewRating(normalizeRatingValue(myReview.rating, 5));
         setProductReviewComment(String(myReview.comment || ''));
@@ -2198,6 +2206,7 @@ function Catalog() {
       setProductReviewsHasMore(false);
       setProductWeeklyBuyers(0);
       setProductWeeklyOrders(0);
+      setProductWeeklySoldCount(0);
     } finally {
       setProductDetailsLoading(false);
     }
@@ -2210,9 +2219,11 @@ function Catalog() {
     resetProductDetailsState();
     setProductReviewRating(5);
     setProductReviewComment('');
+    setShowProductReviewComposer(false);
     setProductHeroIndex(0);
     productHeroSwipeTriggeredRef.current = false;
     productHeroTouchStartXRef.current = null;
+    productHeroTouchStartYRef.current = null;
     loadProductDetails(product.id, product);
   };
 
@@ -3240,11 +3251,20 @@ function Catalog() {
                     {formatPrice(activeProduct?.price || 0)} {t('sum')}
                   </div>
 
-                  {(productWeeklyBuyers > 0 || productWeeklyOrders > 0) && (
+                  {(productWeeklyBuyers > 0 || productWeeklyOrders > 0 || productWeeklySoldCount > 0) && (
                     <div className="product-details-weekly-metric mb-3">
-                      {language === 'uz'
-                        ? `Bu haftada xarid qilganlar: ${productWeeklyBuyers} mijoz · ${productWeeklyOrders} buyurtma`
-                        : `Купили на этой неделе: ${productWeeklyBuyers} чел. · ${productWeeklyOrders} заказов`}
+                      <div>
+                        {language === 'uz'
+                          ? `Bu haftada sotildi: ${formatQuantity(productWeeklySoldCount)}`
+                          : `Продано за эту неделю: ${formatQuantity(productWeeklySoldCount)}`}
+                      </div>
+                      {(productWeeklyBuyers > 0 || productWeeklyOrders > 0) && (
+                        <div className="small" style={{ opacity: 0.82 }}>
+                          {language === 'uz'
+                            ? `${productWeeklyBuyers} mijoz · ${productWeeklyOrders} buyurtma`
+                            : `${productWeeklyBuyers} чел. · ${productWeeklyOrders} заказов`}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -3305,52 +3325,75 @@ function Catalog() {
 
                     <hr className="my-3" />
 
-                    <div className="small text-muted mb-2">
-                      {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
-                    </div>
-                    <div className="d-flex gap-1 mb-2">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={`review-star-${star}`}
-                          type="button"
-                          onClick={() => setProductReviewRating(star)}
-                          className="btn btn-sm p-0 border-0"
-                          style={{
-                            width: 38,
-                            height: 38,
-                            fontSize: '1.72rem',
-                            lineHeight: 1,
-                            color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
-                            background: 'transparent'
-                          }}
-                        >
-                          ★
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      value={productReviewComment}
-                      onChange={(e) => setProductReviewComment(e.target.value)}
-                      rows={3}
-                      maxLength={1500}
-                      className="form-control"
-                      placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
-                    />
-                    <div className="d-flex justify-content-between align-items-center mt-2">
-                      <small className="text-muted">
-                        {String(productReviewComment || '').length}/1500
-                      </small>
+                    {!showProductReviewComposer ? (
                       <Button
                         type="button"
+                        variant="outline-secondary"
                         size="sm"
-                        onClick={submitProductReview}
-                        disabled={productReviewSubmitting}
+                        onClick={() => setShowProductReviewComposer(true)}
                       >
-                        {productReviewSubmitting
-                          ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
-                          : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+                        {language === 'uz' ? 'Komment qoldirish' : 'Оставить комментарий'}
                       </Button>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="small text-muted mb-2">
+                          {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
+                        </div>
+                        <div className="d-flex gap-1 mb-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={`review-star-${star}`}
+                              type="button"
+                              onClick={() => setProductReviewRating(star)}
+                              className="btn btn-sm p-0 border-0"
+                              style={{
+                                width: 38,
+                                height: 38,
+                                fontSize: '1.72rem',
+                                lineHeight: 1,
+                                color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
+                                background: 'transparent'
+                              }}
+                            >
+                              ★
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={productReviewComment}
+                          onChange={(e) => setProductReviewComment(e.target.value)}
+                          rows={3}
+                          maxLength={1500}
+                          className="form-control"
+                          placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
+                        />
+                        <div className="d-flex justify-content-between align-items-center mt-2">
+                          <small className="text-muted">
+                            {String(productReviewComment || '').length}/1500
+                          </small>
+                          <div className="d-flex align-items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="light"
+                              size="sm"
+                              onClick={() => setShowProductReviewComposer(false)}
+                            >
+                              {language === 'uz' ? 'Bekor qilish' : 'Скрыть'}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={submitProductReview}
+                              disabled={productReviewSubmitting}
+                            >
+                              {productReviewSubmitting
+                                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                                : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </section>
               </div>

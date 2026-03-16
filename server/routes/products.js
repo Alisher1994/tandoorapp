@@ -818,7 +818,8 @@ router.get('/:id/details', async (req, res) => {
         `
         SELECT
           COUNT(DISTINCT o.user_id)::int AS buyers_count,
-          COUNT(DISTINCT o.id)::int AS orders_count
+          COUNT(DISTINCT o.id)::int AS orders_count,
+          COALESCE(SUM(oi.quantity), 0)::numeric AS sold_count
         FROM order_items oi
         JOIN orders o ON o.id = oi.order_id
         WHERE oi.product_id = $1
@@ -835,6 +836,7 @@ router.get('/:id/details', async (req, res) => {
     const averageRating = Number(summaryResult.rows[0]?.average_rating || 0);
     const buyersCount = Number.parseInt(weeklyStatsResult.rows[0]?.buyers_count, 10) || 0;
     const ordersCount = Number.parseInt(weeklyStatsResult.rows[0]?.orders_count, 10) || 0;
+    const soldCount = Number(weeklyStatsResult.rows[0]?.sold_count || 0) || 0;
 
     const authUserId = getOptionalAuthUserId(req);
     let myReview = null;
@@ -864,7 +866,8 @@ router.get('/:id/details', async (req, res) => {
       has_more_reviews: totalReviews > (latestReviewsResult.rows || []).length,
       weekly_stats: {
         buyers_count: buyersCount,
-        orders_count: ordersCount
+        orders_count: ordersCount,
+        sold_count: soldCount
       },
       my_review: myReview
     });

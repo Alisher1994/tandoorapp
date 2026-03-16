@@ -1128,6 +1128,9 @@ function Cart() {
                                 <span className="me-2">📍</span>
                                 <div className="flex-grow-1">
                                   <div className="fw-bold">{selectedSavedAddress.name}</div>
+                                  <div className="small fw-semibold" style={{ color: '#16a34a' }}>
+                                    {language === 'uz' ? 'Tanlandi' : 'Выбрано'}
+                                  </div>
                                   {hasDistinctAddressLine(selectedSavedAddress) && (
                                     <div className="small text-muted">{selectedSavedAddress.address}</div>
                                   )}
@@ -1595,7 +1598,10 @@ function Cart() {
                       🗑️
                     </Button>
                     {selectedAddressId === addr.id && (
-                      <span className="text-success">✓</span>
+                      <span className="d-inline-flex align-items-center gap-1 small fw-semibold" style={{ color: '#16a34a' }}>
+                        <span>✓</span>
+                        <span>{language === 'uz' ? 'Tanlandi' : 'Выбрано'}</span>
+                      </span>
                     )}
                   </div>
                 </ListGroup.Item>
