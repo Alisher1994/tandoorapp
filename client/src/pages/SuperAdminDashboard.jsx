@@ -5967,10 +5967,14 @@ function SuperAdminDashboard() {
                                 {Array.isArray(op.restaurants) && op.restaurants.length > 0 ? (
                                   <Button
                                     size="sm"
-                                    variant="outline-secondary"
+                                    variant="light"
+                                    className="sa-operator-stores-btn"
                                     onClick={() => openOperatorStoresModal(op)}
                                   >
-                                    {language === 'uz' ? "Do'konlar" : 'Магазины'} ({op.restaurants.length})
+                                    <span className="sa-operator-stores-btn-label">
+                                      {language === 'uz' ? "Do'konlar" : 'Магазины'}
+                                    </span>
+                                    <span className="sa-operator-stores-btn-count">{op.restaurants.length}</span>
                                   </Button>
                                 ) : (
                                   <small className="text-muted">-</small>
@@ -9312,21 +9316,25 @@ function SuperAdminDashboard() {
         show={showOperatorStoresModal}
         onHide={() => setShowOperatorStoresModal(false)}
         centered
+        dialogClassName="sa-operator-stores-modal"
       >
-        <Modal.Header closeButton>
+        <Modal.Header closeButton className="sa-operator-stores-modal-header">
           <Modal.Title>
             {language === 'uz' ? "Biriktirilgan do'konlar" : 'Закреплённые магазины'}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <div className="fw-semibold mb-3">{operatorStoresModalPayload.operatorName || '-'}</div>
+        <Modal.Body className="sa-operator-stores-modal-body">
+          <div className="sa-operator-stores-modal-operator">{operatorStoresModalPayload.operatorName || '-'}</div>
           {Array.isArray(operatorStoresModalPayload.restaurants) && operatorStoresModalPayload.restaurants.length > 0 ? (
-            <div className="d-flex flex-wrap gap-2">
-              {operatorStoresModalPayload.restaurants.map((restaurant) => (
-                <Badge key={restaurant.id} className="badge-custom bg-secondary bg-opacity-10 text-muted">
-                  {restaurant.name}
-                </Badge>
-              ))}
+            <div className="sa-operator-stores-scroll">
+              <div className="sa-operator-stores-list">
+                {operatorStoresModalPayload.restaurants.map((restaurant, index) => (
+                  <div key={restaurant.id} className="sa-operator-stores-list-item">
+                    <span className="sa-operator-stores-list-index">{index + 1}</span>
+                    <span className="sa-operator-stores-list-name">{restaurant.name}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="text-muted small">

@@ -3023,6 +3023,118 @@ body::-webkit-scrollbar,
     background-color: #f8fafc !important;
 }
 
+.sa-operator-stores-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px !important;
+    border: 1px solid #d7dee8 !important;
+    background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
+    color: #334155 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.sa-operator-stores-btn:hover,
+.sa-operator-stores-btn:focus-visible {
+    border-color: #94a3b8 !important;
+    background: #eef2f7 !important;
+    color: #1f2937 !important;
+}
+
+.sa-operator-stores-btn-label {
+    display: inline-flex;
+    align-items: center;
+}
+
+.sa-operator-stores-btn-count {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.sa-operator-stores-modal {
+    max-width: min(560px, calc(100vw - 24px));
+}
+
+.sa-operator-stores-modal-header {
+    padding-bottom: 14px !important;
+}
+
+.sa-operator-stores-modal-body {
+    padding-top: 10px !important;
+}
+
+.sa-operator-stores-modal-operator {
+    font-weight: 700;
+    color: #111827;
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.sa-operator-stores-scroll {
+    max-height: min(52vh, 430px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.sa-operator-stores-scroll::-webkit-scrollbar {
+    width: 7px;
+}
+
+.sa-operator-stores-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+.sa-operator-stores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sa-operator-stores-list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.sa-operator-stores-list-index {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.sa-operator-stores-list-name {
+    color: #334155;
+    font-weight: 600;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
 .admin-product-table {
     table-layout: fixed;
     width: 100%;
