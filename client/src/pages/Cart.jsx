@@ -1611,6 +1611,15 @@ function Cart() {
                     )}
                   </div>
                   <div className="d-flex align-items-center gap-2 ms-2">
+                    {selectedAddressId === addr.id && (
+                      <span
+                        className="d-inline-flex align-items-center gap-1 small fw-semibold"
+                        style={{ color: '#16a34a', lineHeight: 1.15 }}
+                      >
+                        <span>✓</span>
+                        <span>{language === 'uz' ? 'Tanlandi' : 'Выбрано'}</span>
+                      </span>
+                    )}
                     <Button
                       type="button"
                       variant="link"
@@ -1625,12 +1634,6 @@ function Cart() {
                     >
                       🗑️
                     </Button>
-                    {selectedAddressId === addr.id && (
-                      <span className="d-inline-flex flex-column align-items-end small fw-semibold" style={{ color: '#16a34a', lineHeight: 1.15 }}>
-                        <span>{language === 'uz' ? 'Tanlandi' : 'Выбрано'}</span>
-                        <span>✓</span>
-                      </span>
-                    )}
                   </div>
                 </ListGroup.Item>
               ))}

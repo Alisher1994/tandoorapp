@@ -940,6 +940,7 @@ function AdminDashboard() {
     product_images: createProductImageSlots([]),
     price: '',
     unit: 'шт',
+    sort_order: 0,
     order_step: '',
     in_stock: true,
     season_scope: 'all',
@@ -2063,25 +2064,53 @@ function AdminDashboard() {
   };
 
   const filteredProductsForTable = useMemo(() => (
-    products.filter((product) => {
-      if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
-      const hierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
-      if (productCategoryFilter !== 'all') {
-        const rootId = parseInt(productCategoryFilter, 10);
-        if (Number.isNaN(rootId) || hierarchy[0]?.id !== rootId) return false;
-      }
-      if (productSubcategoryFilter !== 'all') {
-        const level2Id = parseInt(productSubcategoryFilter, 10);
-        if (Number.isNaN(level2Id) || hierarchy[1]?.id !== level2Id) return false;
-      }
-      if (productThirdCategoryFilter !== 'all') {
-        const level3Id = parseInt(productThirdCategoryFilter, 10);
-        if (Number.isNaN(level3Id) || hierarchy[2]?.id !== level3Id) return false;
-      }
-      if (productStatusFilter === 'active' && !product.in_stock) return false;
-      if (productStatusFilter === 'hidden' && product.in_stock) return false;
-      return true;
-    })
+    products
+      .filter((product) => {
+        if (productSearch && !product.name_ru.toLowerCase().includes(productSearch.toLowerCase())) return false;
+        const hierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
+        if (productCategoryFilter !== 'all') {
+          const rootId = parseInt(productCategoryFilter, 10);
+          if (Number.isNaN(rootId) || hierarchy[0]?.id !== rootId) return false;
+        }
+        if (productSubcategoryFilter !== 'all') {
+          const level2Id = parseInt(productSubcategoryFilter, 10);
+          if (Number.isNaN(level2Id) || hierarchy[1]?.id !== level2Id) return false;
+        }
+        if (productThirdCategoryFilter !== 'all') {
+          const level3Id = parseInt(productThirdCategoryFilter, 10);
+          if (Number.isNaN(level3Id) || hierarchy[2]?.id !== level3Id) return false;
+        }
+        if (productStatusFilter === 'active' && !product.in_stock) return false;
+        if (productStatusFilter === 'hidden' && product.in_stock) return false;
+        return true;
+      })
+      .sort((left, right) => {
+        const leftHierarchy = categoryHierarchyById.get(Number(left.category_id)) || [];
+        const rightHierarchy = categoryHierarchyById.get(Number(right.category_id)) || [];
+
+        for (let levelIndex = 0; levelIndex < 3; levelIndex += 1) {
+          const leftCategory = leftHierarchy[levelIndex] || null;
+          const rightCategory = rightHierarchy[levelIndex] || null;
+          const leftOrder = leftCategory && Number.isFinite(Number(leftCategory.sort_order))
+            ? Number(leftCategory.sort_order)
+            : Number.MAX_SAFE_INTEGER;
+          const rightOrder = rightCategory && Number.isFinite(Number(rightCategory.sort_order))
+            ? Number(rightCategory.sort_order)
+            : Number.MAX_SAFE_INTEGER;
+          if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+
+          const leftName = String(leftCategory?.name_ru || '');
+          const rightName = String(rightCategory?.name_ru || '');
+          const nameDiff = leftName.localeCompare(rightName, 'ru');
+          if (nameDiff !== 0) return nameDiff;
+        }
+
+        const leftSort = Number.isFinite(Number(left.sort_order)) ? Number(left.sort_order) : Number.MAX_SAFE_INTEGER;
+        const rightSort = Number.isFinite(Number(right.sort_order)) ? Number(right.sort_order) : Number.MAX_SAFE_INTEGER;
+        if (leftSort !== rightSort) return leftSort - rightSort;
+
+        return String(left.name_ru || '').localeCompare(String(right.name_ru || ''), 'ru');
+      })
   ), [products, categoryHierarchyById, productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
   const dateFilteredOrders = useMemo(() => (
@@ -3419,6 +3448,7 @@ function AdminDashboard() {
         product_images: imageSlots,
         price: Number.isFinite(normalizeProductPriceValue(product.price)) ? normalizeProductPriceValue(product.price) : '',
         unit: product.unit || 'шт',
+        sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
         in_stock: product.in_stock !== false,
         season_scope: product.season_scope || 'all',
@@ -3443,6 +3473,7 @@ function AdminDashboard() {
         product_images: createProductImageSlots([]),
         price: '',
         unit: 'шт',
+        sort_order: 0,
         order_step: '',
         in_stock: true,
         season_scope: 'all',
@@ -3850,6 +3881,7 @@ function AdminDashboard() {
       product_images: duplicateImageSlots,
       price: '', // Empty - admin fills manually
       unit: product.unit || 'шт',
+      sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
       order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
       in_stock: true,
       season_scope: product.season_scope || 'all',
@@ -7547,6 +7579,7 @@ function AdminDashboard() {
                         <th className="admin-product-col-index">№</th>
                         <th className="admin-product-col-photo">{t('photo')}</th>
                         <th className="admin-product-col-name">{t('productName')}</th>
+                        <th className="admin-product-col-sort">{t('sortOrder')}</th>
                         <th className="admin-product-col-category">{t('category')}</th>
                         <th className="admin-product-col-price">{t('price')}</th>
                         <th className="admin-product-col-unit">Ед.изм</th>
@@ -7606,6 +7639,9 @@ function AdminDashboard() {
                               )}
                             </td>
                             <td className="admin-product-col-name">{product.name_ru}</td>
+                            <td className="admin-product-col-sort">
+                              <span className="admin-product-nowrap">{Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0}</span>
+                            </td>
                             <td className="admin-product-category-cell admin-product-col-category">
                               <div className="admin-product-category-lines" title={categoryTooltip || (product.category_name || '-')}>
                                 {[0, 1, 2].map((levelIndex) => {
@@ -10618,6 +10654,26 @@ function AdminDashboard() {
                       value={productForm.price}
                       onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
                     />
+                  </Form.Group>
+                </Col>
+                <Col md={3}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('sortOrderLabel')}</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={productForm.sort_order}
+                      onChange={(e) => setProductForm({
+                        ...productForm,
+                        sort_order: Number.parseInt(e.target.value, 10) || 0
+                      })}
+                    />
+                    <Form.Text className="text-muted">
+                      {language === 'uz'
+                        ? "Bir xil kategoriyada kichik raqam birinchi ko'rsatiladi."
+                        : 'Внутри категории сначала показываются меньшие номера.'}
+                    </Form.Text>
                   </Form.Group>
                 </Col>
                 <Col md={3}>

@@ -2149,7 +2149,7 @@ router.get('/products', async (req, res) => {
       params.push(restaurantId);
     }
 
-    query += ' ORDER BY p.name_ru';
+    query += ' ORDER BY p.category_id ASC NULLS LAST, COALESCE(p.sort_order, 0) ASC, p.name_ru ASC';
 
     const result = await pool.query(query, params);
     res.json(result.rows);

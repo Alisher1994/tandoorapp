@@ -3221,6 +3221,10 @@ body::-webkit-scrollbar,
     width: 140px;
 }
 
+.admin-product-col-sort {
+    width: 86px;
+}
+
 .admin-product-col-category {
     width: 280px;
 }
