@@ -135,7 +135,10 @@ function Catalog() {
   const scrollProgressRafRef = useRef(null);
   const tabScrollLockTimeoutRef = useRef(null);
   const galleryTouchStartXRef = useRef(null);
+  const galleryTouchStartYRef = useRef(null);
+  const gallerySwipeLockedRef = useRef(false);
   const productHeroTouchStartXRef = useRef(null);
+  const productHeroTouchStartYRef = useRef(null);
   const productHeroSwipeTriggeredRef = useRef(false);
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
@@ -361,15 +364,36 @@ function Catalog() {
     const touch = event.touches?.[0];
     if (!touch) return;
     galleryTouchStartXRef.current = touch.clientX;
+    galleryTouchStartYRef.current = touch.clientY;
+    gallerySwipeLockedRef.current = false;
+  };
+  const handleGalleryTouchMove = (event) => {
+    const startX = galleryTouchStartXRef.current;
+    const startY = galleryTouchStartYRef.current;
+    if (startX === null || startX === undefined || startY === null || startY === undefined) return;
+    if (gallerySwipeLockedRef.current) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    if (Math.abs(deltaX) > Math.abs(deltaY) + 8) {
+      gallerySwipeLockedRef.current = true;
+      event.preventDefault();
+    }
   };
   const handleGalleryTouchEnd = (event) => {
     const startX = galleryTouchStartXRef.current;
+    const startY = galleryTouchStartYRef.current;
     galleryTouchStartXRef.current = null;
-    if (startX === null || startX === undefined) return;
+    galleryTouchStartYRef.current = null;
+    gallerySwipeLockedRef.current = false;
+    if (startX === null || startX === undefined || startY === null || startY === undefined) return;
     const touch = event.changedTouches?.[0];
     if (!touch) return;
     const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
     if (Math.abs(deltaX) < 44) return;
+    if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
     if (deltaX < 0) {
       showNextGalleryImage();
     } else {
@@ -391,17 +415,37 @@ function Catalog() {
     const touch = event.touches?.[0];
     if (!touch) return;
     productHeroTouchStartXRef.current = touch.clientX;
+    productHeroTouchStartYRef.current = touch.clientY;
     productHeroSwipeTriggeredRef.current = false;
+  };
+
+  const handleProductHeroTouchMove = (event, imagesCount) => {
+    if (!Number.isInteger(imagesCount) || imagesCount <= 1) return;
+    const startX = productHeroTouchStartXRef.current;
+    const startY = productHeroTouchStartYRef.current;
+    if (startX === null || startX === undefined || startY === null || startY === undefined) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    if (Math.abs(deltaX) > Math.abs(deltaY) + 8) {
+      event.preventDefault();
+      productHeroSwipeTriggeredRef.current = true;
+    }
   };
 
   const handleProductHeroTouchEnd = (event, imagesCount) => {
     const startX = productHeroTouchStartXRef.current;
+    const startY = productHeroTouchStartYRef.current;
     productHeroTouchStartXRef.current = null;
-    if (startX === null || startX === undefined) return;
+    productHeroTouchStartYRef.current = null;
+    if (startX === null || startX === undefined || startY === null || startY === undefined) return;
     const touch = event.changedTouches?.[0];
     if (!touch) return;
     const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
     if (Math.abs(deltaX) < 36) return;
+    if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
     productHeroSwipeTriggeredRef.current = true;
     if (deltaX < 0) {
       showNextProductHeroImage(imagesCount);
@@ -3118,6 +3162,7 @@ function Catalog() {
                         openProductGallery(activeProduct, activeProductGalleryIndex);
                       }}
                       onTouchStart={handleProductHeroTouchStart}
+                      onTouchMove={(event) => handleProductHeroTouchMove(event, activeProductGalleryImages.length)}
                       onTouchEnd={(event) => handleProductHeroTouchEnd(event, activeProductGalleryImages.length)}
                       aria-label={language === 'uz' ? 'Rasmni ochish' : 'Открыть фото'}
                     >
@@ -3365,17 +3410,30 @@ function Catalog() {
         </Modal.Body>
       </Modal>
 
-      <Modal show={showGalleryModal} onHide={closeProductGallery} centered size="lg" className="product-gallery-modal">
-        <Modal.Header closeButton>
-          <Modal.Title className="fs-6 text-truncate">
-            {galleryProductName || (language === 'uz' ? 'Mahsulot galereyasi' : 'Галерея товара')}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="product-gallery-modal-body">
+      <Modal
+        show={showGalleryModal}
+        onHide={closeProductGallery}
+        className="product-gallery-modal"
+        dialogClassName="product-gallery-dialog"
+        backdropClassName="product-gallery-backdrop"
+        backdrop
+        keyboard
+        fullscreen
+      >
+        <Modal.Body className="product-gallery-modal-body p-0">
+          <button
+            type="button"
+            className="product-gallery-close-btn"
+            onClick={closeProductGallery}
+            aria-label={language === 'uz' ? 'Yopish' : 'Закрыть'}
+          >
+            <span className="product-gallery-close-glyph">×</span>
+          </button>
           {galleryImages.length > 0 && (
             <div
               className="product-gallery-frame"
               onTouchStart={handleGalleryTouchStart}
+              onTouchMove={handleGalleryTouchMove}
               onTouchEnd={handleGalleryTouchEnd}
             >
               <img
@@ -3391,7 +3449,7 @@ function Catalog() {
                     aria-label={language === 'uz' ? 'Oldingi rasm' : 'Предыдущее фото'}
                     className="product-gallery-nav-btn product-gallery-nav-btn-prev"
                   >
-                    ‹
+                    <span className="product-gallery-nav-glyph">‹</span>
                   </button>
                   <button
                     type="button"
@@ -3399,7 +3457,7 @@ function Catalog() {
                     aria-label={language === 'uz' ? 'Keyingi rasm' : 'Следующее фото'}
                     className="product-gallery-nav-btn product-gallery-nav-btn-next"
                   >
-                    ›
+                    <span className="product-gallery-nav-glyph">›</span>
                   </button>
                   <div className="product-gallery-counter">
                     {galleryIndex + 1} / {galleryImages.length}
