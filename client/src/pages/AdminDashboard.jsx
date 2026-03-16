@@ -3844,6 +3844,25 @@ function AdminDashboard() {
       };
     });
   };
+  const handlePasteToVariantImageSlot = (variantIndex, e) => {
+    const fallbackBasePrice = normalizeProductPriceValue(productForm.price, NaN);
+    const variants = normalizeProductVariantOptions(productForm.variant_options, { fallbackPrice: fallbackBasePrice });
+    const variant = variants[variantIndex];
+    if (!variant) return;
+    const variantSlots = createVariantImageSlots(variant.product_images, variant.image_url, variant.thumb_url);
+    const firstEmptySlotIndex = variantSlots.findIndex((slot) => !String(slot?.url || '').trim());
+    const targetSlotIndex = firstEmptySlotIndex >= 0 ? firstEmptySlotIndex : 0;
+    handlePaste(
+      e,
+      (url, meta) => updateProductVariantImageSlot(
+        variantIndex,
+        targetSlotIndex,
+        url,
+        meta?.thumbUrl || meta?.thumb_url || ''
+      ),
+      { preset: 'product' }
+    );
+  };
   const removeProductVariantOption = (index) => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
@@ -11343,7 +11362,15 @@ function AdminDashboard() {
                                                 </Button>
                                               </Col>
                                             </Row>
-                                            <div className="admin-product-variant-images-shell mt-2">
+                                            <div
+                                              className="admin-product-variant-images-shell mt-2"
+                                              tabIndex={0}
+                                              onClick={(e) => e.currentTarget.focus()}
+                                              onPaste={(e) => handlePasteToVariantImageSlot(index, e)}
+                                              title={language === 'uz'
+                                                ? "Ctrl+V bilan birinchi bo'sh slotga rasm qo'ying"
+                                                : 'Нажмите Ctrl+V, чтобы вставить фото в первый свободный слот'}
+                                            >
                                               <div className="admin-product-variant-images-row">
                                                 {variantImageSlots.map((slot, slotIndex) => (
                                                   <div key={`variant-image-slot-${index}-${slotIndex}`} className="admin-product-variant-image-item">
@@ -11487,18 +11514,20 @@ function AdminDashboard() {
                     )}
                   </Form.Group>
                 </Col>
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={productForm.barcode}
-                      onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
-                      placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
-                      maxLength={120}
-                    />
-                  </Form.Group>
-                </Col>
+                {!productForm.size_enabled && (
+                  <Col md={3}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
+                      <Form.Control
+                        type="text"
+                        value={productForm.barcode}
+                        onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
+                        placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
+                        maxLength={120}
+                      />
+                    </Form.Group>
+                  </Col>
+                )}
                 <Col md={3}>
                   <Form.Group className="mb-3">
                     <Form.Label>{t('sortOrderLabel')}</Form.Label>

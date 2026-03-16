@@ -5449,6 +5449,12 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     padding: 0.45rem;
     overflow-x: auto;
+    outline: none;
+}
+
+.admin-product-variant-images-shell:focus-visible {
+    border-color: rgba(71, 85, 105, 0.42);
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.24);
 }
 
 .admin-product-variant-images-row {
