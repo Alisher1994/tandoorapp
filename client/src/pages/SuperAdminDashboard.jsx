@@ -98,7 +98,14 @@ const createEmptyProductReviewAnalytics = () => ({
     totalReviews: 0,
     commentsCount: 0,
     lowRatingCount: 0,
-    averageRating: 0
+    averageRating: 0,
+    ratingBreakdown: {
+      1: 0,
+      2: 0,
+      3: 0,
+      4: 0,
+      5: 0
+    }
   },
   latestComments: [],
   topProducts: []
@@ -3749,6 +3756,71 @@ function SuperAdminDashboard() {
       ? productReviewPayload.topProducts
       : [];
     const productReviewLocale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
+    const productReviewTotal = Number(productReviewSummary.totalReviews || 0);
+    const productReviewCommentsCount = Number(productReviewSummary.commentsCount || 0);
+    const productReviewLowCount = Number(productReviewSummary.lowRatingCount || 0);
+    const productReviewAverage = Number(productReviewSummary.averageRating || 0);
+    const productReviewCommentRate = productReviewTotal > 0 ? ((productReviewCommentsCount * 100) / productReviewTotal) : 0;
+    const productReviewLowRate = productReviewTotal > 0 ? ((productReviewLowCount * 100) / productReviewTotal) : 0;
+    const productReviewBreakdown = productReviewSummary?.ratingBreakdown && typeof productReviewSummary.ratingBreakdown === 'object'
+      ? productReviewSummary.ratingBreakdown
+      : {};
+    const productReviewRatingRows = [5, 4, 3, 2, 1].map((star) => {
+      const count = Number(productReviewBreakdown[star] || 0);
+      const percent = productReviewTotal > 0 ? (count * 100) / productReviewTotal : 0;
+      return {
+        star,
+        count,
+        percent,
+        barClass: star >= 4 ? 'bg-success' : star === 3 ? 'bg-warning' : 'bg-danger'
+      };
+    });
+    const productReviewQualityState = (() => {
+      if (productReviewAverage >= 4.5 && productReviewLowRate <= 10) {
+        return {
+          title: language === 'uz' ? 'Sifat: yaxshi' : 'Качество: хорошее',
+          advice: language === 'uz'
+            ? 'Natija yaxshi. 4★ fikrlarni 5★ ga olib chiqish uchun servisni mayda yaxshilang.'
+            : 'Результат хороший. Работайте с 4★ отзывами, чтобы переводить их в 5★.',
+          className: 'alert-success'
+        };
+      }
+      if (productReviewAverage >= 4.0 && productReviewLowRate <= 20) {
+        return {
+          title: language === 'uz' ? "Sifat: o'rtacha barqaror" : 'Качество: умеренно стабильное',
+          advice: language === 'uz'
+            ? '1-2★ baholar sabablarini tekshiring: tezlik, operator yoki sifat bo‘yicha.'
+            : 'Проверьте причины 1-2★: скорость, оператор, качество товара.',
+          className: 'alert-warning'
+        };
+      }
+      return {
+        title: language === 'uz' ? 'Sifat: xavf zonasi' : 'Качество: зона риска',
+        advice: language === 'uz'
+          ? 'Past baholi sharhlarni zudlik bilan ko‘rib chiqib, do‘kon bo‘yicha choralar belgilang.'
+          : 'Разберите низкие оценки в приоритете и поставьте конкретные задачи по магазину.',
+        className: 'alert-danger'
+      };
+    })();
+    const getProductReviewBadge = (ratingValue) => {
+      const normalized = Number(ratingValue || 0);
+      if (normalized >= 4) {
+        return {
+          className: 'bg-success-subtle text-success-emphasis border border-success-subtle',
+          label: language === 'uz' ? 'Yaxshi' : 'Хорошо'
+        };
+      }
+      if (normalized === 3) {
+        return {
+          className: 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+          label: language === 'uz' ? "O'rtacha" : 'Средне'
+        };
+      }
+      return {
+        className: 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+        label: language === 'uz' ? 'Muammo' : 'Проблема'
+      };
+    };
 
     const statusCards = [
       { key: 'new', label: language === 'uz' ? 'Yangi' : 'Новые' },
@@ -4099,23 +4171,55 @@ function SuperAdminDashboard() {
                     </h6>
                   </Card.Header>
                   <Card.Body>
-                    <div className="admin-analytics-kpi-list">
-                      <div className="admin-analytics-kpi-row">
-                        <span>{language === 'uz' ? 'Jami baholar' : 'Всего оценок'}</span>
-                        <strong>{Number(productReviewSummary.totalReviews || 0).toLocaleString('ru-RU')}</strong>
+                    <Row className="g-2 mb-3">
+                      <Col xs={6}>
+                        <div className="rounded-3 border p-2 bg-light">
+                          <div className="small text-muted">{language === 'uz' ? "O'rtacha" : 'Средняя'}</div>
+                          <div className="fw-bold">{productReviewAverage.toFixed(2)} / {MAX_ORDER_RATING}</div>
+                        </div>
+                      </Col>
+                      <Col xs={6}>
+                        <div className="rounded-3 border p-2 bg-light">
+                          <div className="small text-muted">{language === 'uz' ? 'Jami baho' : 'Всего оценок'}</div>
+                          <div className="fw-bold">{productReviewTotal.toLocaleString('ru-RU')}</div>
+                        </div>
+                      </Col>
+                      <Col xs={6}>
+                        <div className="rounded-3 border p-2 bg-light">
+                          <div className="small text-muted">{language === 'uz' ? 'Izoh ulushi' : 'Доля комментариев'}</div>
+                          <div className="fw-bold">{productReviewCommentRate.toFixed(1)}%</div>
+                        </div>
+                      </Col>
+                      <Col xs={6}>
+                        <div className="rounded-3 border p-2 bg-light">
+                          <div className="small text-muted">{language === 'uz' ? '1-2★ ulushi' : 'Доля 1-2★'}</div>
+                          <div className="fw-bold">{productReviewLowRate.toFixed(1)}%</div>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    <div className={`alert py-2 px-3 mb-3 ${productReviewQualityState.className}`} role="alert">
+                      <div className="fw-semibold">{productReviewQualityState.title}</div>
+                      <div className="small">{productReviewQualityState.advice}</div>
+                    </div>
+
+                    <div className="mb-3">
+                      <div className="small text-uppercase text-muted fw-semibold mb-2">
+                        {language === 'uz' ? 'Baholar taqsimoti' : 'Распределение оценок'}
                       </div>
-                      <div className="admin-analytics-kpi-row">
-                        <span>{language === 'uz' ? 'Izoh bilan' : 'С комментарием'}</span>
-                        <strong>{Number(productReviewSummary.commentsCount || 0).toLocaleString('ru-RU')}</strong>
-                      </div>
-                      <div className="admin-analytics-kpi-row">
-                        <span>{language === 'uz' ? 'Past baho (1-2)' : 'Низкие оценки (1-2)'}</span>
-                        <strong>{Number(productReviewSummary.lowRatingCount || 0).toLocaleString('ru-RU')}</strong>
-                      </div>
-                      <div className="admin-analytics-kpi-row">
-                        <span>{language === 'uz' ? "O'rtacha baho" : 'Средняя оценка'}</span>
-                        <strong>{Number(productReviewSummary.averageRating || 0).toFixed(2)} / {MAX_ORDER_RATING}</strong>
-                      </div>
+                      {productReviewRatingRows.map((row) => (
+                        <div key={`sa-rating-row-${row.star}`} className="d-flex align-items-center gap-2 mb-1">
+                          <span className="small text-muted" style={{ width: '52px' }}>
+                            {`${row.star}★`}
+                          </span>
+                          <div className="progress flex-grow-1" style={{ height: '8px' }}>
+                            <div className={`progress-bar ${row.barClass}`} style={{ width: `${row.percent}%` }} />
+                          </div>
+                          <span className="small fw-semibold text-end" style={{ width: '34px' }}>
+                            {row.count}
+                          </span>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="mt-3 pt-3 border-top">
@@ -4126,8 +4230,13 @@ function SuperAdminDashboard() {
                         <div className="d-flex flex-column gap-2">
                           {productReviewTopProducts.slice(0, 5).map((item, index) => (
                             <div key={`sa-review-top-product-${item.productId || index}`} className="d-flex justify-content-between gap-2">
-                              <span className="text-truncate" title={item.productName || ''}>{item.productName || 'Товар'}</span>
-                              <strong className="text-nowrap">{Number(item.commentsCount || 0)}</strong>
+                              <span className="text-truncate" title={item.productName || ''}>
+                                {item.productName || 'Товар'}
+                              </span>
+                              <div className="d-flex align-items-center gap-2 text-nowrap">
+                                <Badge bg="light" text="dark">{Number(item.commentsCount || 0)}</Badge>
+                                <span className="small text-muted">{Number(item.averageRating || 0).toFixed(2)}★</span>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -4162,25 +4271,38 @@ function SuperAdminDashboard() {
                               <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
                               <th>{language === 'uz' ? 'Tovar' : 'Товар'}</th>
                               <th>{language === 'uz' ? 'Baho' : 'Оценка'}</th>
+                              <th>{language === 'uz' ? 'Holat' : 'Статус'}</th>
                               <th>{language === 'uz' ? 'Izoh' : 'Комментарий'}</th>
                               <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
                               <th className="text-end">{t('date')}</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {productReviewComments.map((item, idx) => (
-                              <tr key={`sa-review-comment-${item.id || idx}`}>
-                                <td>{idx + 1}</td>
-                                <td>{item.restaurantName || '—'}</td>
-                                <td>{item.productName || 'Товар'}</td>
-                                <td>{buildRatingStarsText(Number(item.rating || 0))}</td>
-                                <td style={{ minWidth: '220px' }}>{String(item.comment || '').trim() || '—'}</td>
-                                <td>{item.authorName || 'Клиент'}</td>
-                                <td className="text-end">
-                                  {item.createdAt ? new Date(item.createdAt).toLocaleString(productReviewLocale) : '—'}
-                                </td>
-                              </tr>
-                            ))}
+                            {productReviewComments.map((item, idx) => {
+                              const rating = Number(item.rating || 0);
+                              const badge = getProductReviewBadge(rating);
+                              const rowClass = rating <= 2 ? 'table-warning' : '';
+                              return (
+                                <tr key={`sa-review-comment-${item.id || idx}`} className={rowClass}>
+                                  <td>{idx + 1}</td>
+                                  <td>{item.restaurantName || '—'}</td>
+                                  <td>{item.productName || 'Товар'}</td>
+                                  <td>{buildRatingStarsText(rating)}</td>
+                                  <td>
+                                    <span className={`badge rounded-pill ${badge.className}`}>
+                                      {badge.label}
+                                    </span>
+                                  </td>
+                                  <td style={{ minWidth: '220px' }} title={String(item.comment || '').trim()}>
+                                    {String(item.comment || '').trim() || '—'}
+                                  </td>
+                                  <td>{item.authorName || 'Клиент'}</td>
+                                  <td className="text-end">
+                                    {item.createdAt ? new Date(item.createdAt).toLocaleString(productReviewLocale) : '—'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </Table>
                       </div>

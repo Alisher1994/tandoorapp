@@ -3550,7 +3550,12 @@ router.get('/analytics/product-reviews', async (req, res) => {
       total_reviews: 0,
       comments_count: 0,
       low_rating_count: 0,
-      average_rating: 0
+      average_rating: 0,
+      rating_1_count: 0,
+      rating_2_count: 0,
+      rating_3_count: 0,
+      rating_4_count: 0,
+      rating_5_count: 0
     };
     let latestComments = [];
     let topProducts = [];
@@ -3563,7 +3568,12 @@ router.get('/analytics/product-reviews', async (req, res) => {
             COUNT(*)::int AS total_reviews,
             COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE(pr.comment, '')), '') IS NOT NULL)::int AS comments_count,
             COUNT(*) FILTER (WHERE pr.rating <= 2)::int AS low_rating_count,
-            ROUND(COALESCE(AVG(pr.rating)::numeric, 0), 2)::float AS average_rating
+            ROUND(COALESCE(AVG(pr.rating)::numeric, 0), 2)::float AS average_rating,
+            COUNT(*) FILTER (WHERE pr.rating = 1)::int AS rating_1_count,
+            COUNT(*) FILTER (WHERE pr.rating = 2)::int AS rating_2_count,
+            COUNT(*) FILTER (WHERE pr.rating = 3)::int AS rating_3_count,
+            COUNT(*) FILTER (WHERE pr.rating = 4)::int AS rating_4_count,
+            COUNT(*) FILTER (WHERE pr.rating = 5)::int AS rating_5_count
           FROM product_reviews pr
           JOIN products p ON p.id = pr.product_id
           WHERE p.restaurant_id = $1
@@ -3638,7 +3648,14 @@ router.get('/analytics/product-reviews', async (req, res) => {
         totalReviews: Number.parseInt(summaryRow.total_reviews, 10) || 0,
         commentsCount: Number.parseInt(summaryRow.comments_count, 10) || 0,
         lowRatingCount: Number.parseInt(summaryRow.low_rating_count, 10) || 0,
-        averageRating: Number(summaryRow.average_rating || 0)
+        averageRating: Number(summaryRow.average_rating || 0),
+        ratingBreakdown: {
+          1: Number.parseInt(summaryRow.rating_1_count, 10) || 0,
+          2: Number.parseInt(summaryRow.rating_2_count, 10) || 0,
+          3: Number.parseInt(summaryRow.rating_3_count, 10) || 0,
+          4: Number.parseInt(summaryRow.rating_4_count, 10) || 0,
+          5: Number.parseInt(summaryRow.rating_5_count, 10) || 0
+        }
       },
       latestComments: latestComments.map((row) => ({
         id: Number.parseInt(row.id, 10) || 0,
