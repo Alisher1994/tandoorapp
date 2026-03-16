@@ -514,6 +514,11 @@ function SuperAdminDashboard() {
   const [globalProductsStatusFilter, setGlobalProductsStatusFilter] = useState('active');
   const [showGlobalProductModal, setShowGlobalProductModal] = useState(false);
   const [globalProductForm, setGlobalProductForm] = useState(createEmptyGlobalProductForm);
+  const [globalProductCategorySearch, setGlobalProductCategorySearch] = useState({
+    level1: '',
+    level2: '',
+    level3: ''
+  });
   const [editingGlobalProduct, setEditingGlobalProduct] = useState(null);
   const [savingGlobalProduct, setSavingGlobalProduct] = useState(false);
   const categoryImportInputRef = useRef(null);
@@ -719,28 +724,34 @@ function SuperAdminDashboard() {
     });
     return map;
   }, [categories]);
-  const globalProductCategoryOptions = useMemo(() => {
-    const buildPath = (category) => {
-      const chain = [];
-      const visited = new Set();
-      let current = category;
-      while (current && !visited.has(current.id)) {
-        chain.unshift(current.name_ru || '');
-        visited.add(current.id);
-        if (!current.parent_id) break;
-        current = categoryLookupById.get(Number(current.parent_id));
-      }
-      return chain.filter(Boolean).join(' > ');
-    };
+  const getGlobalProductCategoryPathIds = React.useCallback((categoryId) => {
+    const normalizedId = Number.parseInt(categoryId, 10);
+    if (!Number.isFinite(normalizedId)) return [];
 
-    return (categories || [])
-      .map((category) => ({
-        id: category.id,
-        name_ru: category.name_ru || '',
-        path: buildPath(category)
-      }))
-      .sort((left, right) => left.path.localeCompare(right.path, 'ru'));
-  }, [categories, categoryLookupById]);
+    const path = [];
+    const visited = new Set();
+    let current = categoryLookupById.get(normalizedId);
+    while (current && !visited.has(current.id)) {
+      path.unshift(Number(current.id));
+      visited.add(current.id);
+      if (!current.parent_id) break;
+      current = categoryLookupById.get(Number(current.parent_id));
+    }
+    return path;
+  }, [categoryLookupById]);
+
+  const sortCategoryOptions = React.useCallback((source = []) => (
+    [...source].sort((left, right) => {
+      const leftOrder = Number.isFinite(Number(left?.sort_order))
+        ? Number(left.sort_order)
+        : Number.MAX_SAFE_INTEGER;
+      const rightOrder = Number.isFinite(Number(right?.sort_order))
+        ? Number(right.sort_order)
+        : Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru');
+    })
+  ), []);
   const dismissScamPrankModal = () => setShowScamPrankModal(false);
   const handleScamPrankButtonsShuffle = () => {
     setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
@@ -1677,6 +1688,7 @@ function SuperAdminDashboard() {
     if (savingGlobalProduct) return;
     setShowGlobalProductModal(false);
     setEditingGlobalProduct(null);
+    setGlobalProductCategorySearch({ level1: '', level2: '', level3: '' });
     setGlobalProductForm(createEmptyGlobalProductForm());
   };
 
@@ -1684,6 +1696,7 @@ function SuperAdminDashboard() {
     if (!categories.length) {
       loadCategories();
     }
+    setGlobalProductCategorySearch({ level1: '', level2: '', level3: '' });
 
     if (product) {
       setEditingGlobalProduct(product);
@@ -9180,23 +9193,6 @@ function SuperAdminDashboard() {
             </Col>
             <Col md={6}>
               <Form.Group>
-                <Form.Label>{language === 'uz' ? 'Tavsiya kategoriya' : 'Рекомендуемая категория'}</Form.Label>
-                <Form.Select
-                  value={globalProductForm.recommended_category_id}
-                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, recommended_category_id: e.target.value }))}
-                >
-                  <option value="">{language === 'uz' ? 'Tanlanmagan' : 'Не выбрана'}</option>
-                  {globalProductCategoryOptions.map((category) => (
-                    <option key={`global-product-category-option-${category.id}`} value={String(category.id)}>
-                      {category.path}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-
-            <Col md={6}>
-              <Form.Group>
                 <Form.Label>{language === 'uz' ? "O'lchov birligi" : 'Единица измерения'}</Form.Label>
                 <Form.Control
                   value={globalProductForm.unit}
@@ -9215,6 +9211,133 @@ function SuperAdminDashboard() {
                   inputMode="decimal"
                 />
               </Form.Group>
+            </Col>
+            <Col md={12}>
+              {(() => {
+                const selectedPathIds = getGlobalProductCategoryPathIds(globalProductForm.recommended_category_id);
+                const level1SelectedId = selectedPathIds[0] ? String(selectedPathIds[0]) : '';
+                const level2SelectedId = selectedPathIds[1] ? String(selectedPathIds[1]) : '';
+                const level3SelectedId = selectedPathIds[2] ? String(selectedPathIds[2]) : '';
+
+                const level1Raw = sortCategoryOptions((categories || []).filter((cat) => !cat.parent_id));
+                const level2Raw = level1SelectedId
+                  ? sortCategoryOptions((categories || []).filter((cat) => String(cat.parent_id) === String(level1SelectedId)))
+                  : [];
+                const level3Raw = level2SelectedId
+                  ? sortCategoryOptions((categories || []).filter((cat) => String(cat.parent_id) === String(level2SelectedId)))
+                  : [];
+
+                const filterBySearch = (source, keyword) => {
+                  const normalized = String(keyword || '').trim().toLowerCase();
+                  if (!normalized) return source;
+                  return source.filter((item) => (
+                    String(item?.name_ru || '').toLowerCase().includes(normalized)
+                    || String(item?.name_uz || '').toLowerCase().includes(normalized)
+                  ));
+                };
+
+                const level1Options = filterBySearch(level1Raw, globalProductCategorySearch.level1);
+                const level2Options = filterBySearch(level2Raw, globalProductCategorySearch.level2);
+                const level3Options = filterBySearch(level3Raw, globalProductCategorySearch.level3);
+
+                const handleLevelSelect = (levelIndex, nextValue) => {
+                  const normalized = String(nextValue || '').trim();
+                  if (levelIndex === 0) {
+                    setGlobalProductForm((prev) => ({
+                      ...prev,
+                      recommended_category_id: normalized
+                    }));
+                    setGlobalProductCategorySearch((prev) => ({ ...prev, level2: '', level3: '' }));
+                    return;
+                  }
+                  if (levelIndex === 1) {
+                    const fallback = normalized || (level1SelectedId || '');
+                    setGlobalProductForm((prev) => ({
+                      ...prev,
+                      recommended_category_id: fallback
+                    }));
+                    setGlobalProductCategorySearch((prev) => ({ ...prev, level3: '' }));
+                    return;
+                  }
+                  const fallback = normalized || (level2SelectedId || level1SelectedId || '');
+                  setGlobalProductForm((prev) => ({
+                    ...prev,
+                    recommended_category_id: fallback
+                  }));
+                };
+
+                return (
+                  <Form.Group>
+                    <Form.Label>{language === 'uz' ? 'Tavsiya kategoriya' : 'Рекомендуемая категория'}</Form.Label>
+                    <Row className="g-2">
+                      <Col md={4}>
+                        <Form.Control
+                          type="search"
+                          value={globalProductCategorySearch.level1}
+                          onChange={(e) => setGlobalProductCategorySearch((prev) => ({ ...prev, level1: e.target.value }))}
+                          placeholder={language === 'uz' ? "Asosiy kategoriyani qidirish" : 'Поиск основной категории'}
+                        />
+                        <Form.Select
+                          className="mt-2"
+                          value={level1SelectedId}
+                          onChange={(e) => handleLevelSelect(0, e.target.value)}
+                        >
+                          <option value="">{language === 'uz' ? 'Категория 1 tanlanmagan' : 'Категория 1 не выбрана'}</option>
+                          {level1Options.map((category) => (
+                            <option key={`global-cat-level1-${category.id}`} value={String(category.id)}>
+                              [{category.sort_order ?? '-'}] {category.name_ru}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                      <Col md={4}>
+                        <Form.Control
+                          type="search"
+                          value={globalProductCategorySearch.level2}
+                          onChange={(e) => setGlobalProductCategorySearch((prev) => ({ ...prev, level2: e.target.value }))}
+                          placeholder={language === 'uz' ? 'Subkategoriya qidirish' : 'Поиск субкатегории'}
+                          disabled={!level1SelectedId}
+                        />
+                        <Form.Select
+                          className="mt-2"
+                          value={level2SelectedId}
+                          onChange={(e) => handleLevelSelect(1, e.target.value)}
+                          disabled={!level1SelectedId}
+                        >
+                          <option value="">{language === 'uz' ? 'Категория 2 tanlanmagan' : 'Категория 2 не выбрана'}</option>
+                          {level2Options.map((category) => (
+                            <option key={`global-cat-level2-${category.id}`} value={String(category.id)}>
+                              [{category.sort_order ?? '-'}] {category.name_ru}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                      <Col md={4}>
+                        <Form.Control
+                          type="search"
+                          value={globalProductCategorySearch.level3}
+                          onChange={(e) => setGlobalProductCategorySearch((prev) => ({ ...prev, level3: e.target.value }))}
+                          placeholder={language === 'uz' ? '3-daraja qidirish' : 'Поиск категории 3 уровня'}
+                          disabled={!level2SelectedId}
+                        />
+                        <Form.Select
+                          className="mt-2"
+                          value={level3SelectedId}
+                          onChange={(e) => handleLevelSelect(2, e.target.value)}
+                          disabled={!level2SelectedId}
+                        >
+                          <option value="">{language === 'uz' ? 'Категория 3 tanlanmagan' : 'Категория 3 не выбрана'}</option>
+                          {level3Options.map((category) => (
+                            <option key={`global-cat-level3-${category.id}`} value={String(category.id)}>
+                              [{category.sort_order ?? '-'}] {category.name_ru}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Col>
+                    </Row>
+                  </Form.Group>
+                );
+              })()}
             </Col>
 
             <Col md={12}>
@@ -9258,11 +9381,6 @@ function SuperAdminDashboard() {
                           {language === 'uz' ? "O'chirish" : 'Удалить'}
                         </Button>
                       </div>
-                      <Form.Control
-                        value={globalProductForm.image_url}
-                        onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, image_url: e.target.value }))}
-                        placeholder={language === 'uz' ? 'https://example.com/image.jpg' : 'https://example.com/image.jpg'}
-                      />
                       <Form.Text className="text-muted">
                         {language === 'uz'
                           ? 'Ctrl+V orqali ham rasm qo‘yish mumkin.'

@@ -11226,20 +11226,24 @@ function AdminDashboard() {
                     <strong>{language === 'uz' ? "Global mahsulotlar" : 'Глобальные товары'}</strong>
                     <span className="small text-muted">{globalCatalogProducts.length}</span>
                   </div>
-                  <div className="d-grid gap-2 mb-3">
-                    <Form.Control
-                      type="search"
-                      value={globalImportSearch}
-                      onChange={(e) => setGlobalImportSearch(e.target.value)}
-                      placeholder={language === 'uz' ? "Nomi bo'yicha qidirish" : 'Поиск по названию'}
-                    />
-                    <Form.Control
-                      value={globalImportBarcodeSearch}
-                      onChange={(e) => setGlobalImportBarcodeSearch(String(e.target.value || '').replace(/\D/g, '').slice(0, 120))}
-                      placeholder={language === 'uz' ? 'Shtrix-kod bo‘yicha qidirish' : 'Поиск по штрихкоду'}
-                      inputMode="numeric"
-                    />
-                  </div>
+                  <Row className="g-2 mb-3 admin-global-import-search-row">
+                    <Col xs={12} md={7}>
+                      <Form.Control
+                        type="search"
+                        value={globalImportSearch}
+                        onChange={(e) => setGlobalImportSearch(e.target.value)}
+                        placeholder={language === 'uz' ? "Nomi bo'yicha qidirish" : 'Поиск по названию'}
+                      />
+                    </Col>
+                    <Col xs={12} md={5}>
+                      <Form.Control
+                        value={globalImportBarcodeSearch}
+                        onChange={(e) => setGlobalImportBarcodeSearch(String(e.target.value || '').replace(/\D/g, '').slice(0, 120))}
+                        placeholder={language === 'uz' ? 'Shtrix-kod bo‘yicha qidirish' : 'Поиск по штрихкоду'}
+                        inputMode="numeric"
+                      />
+                    </Col>
+                  </Row>
                   <div className="admin-global-import-list">
                     {globalCatalogLoading ? (
                       <div className="text-muted small py-4 text-center">
