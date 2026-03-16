@@ -5880,17 +5880,14 @@ function SuperAdminDashboard() {
                                 </div>
                               </td>
                               <td>
-                                <small className="text-muted">{formatDate(r.created_at)}</small>
-                              </td>
-                              <td>
                                 {(() => {
                                   const productsCount = Number(r.products_count || 0);
                                   const isEmptyProducts = productsCount <= 0;
                                   return (
                                     <div className="d-flex flex-column gap-1">
-                                      <Badge className={`badge-custom ${isEmptyProducts ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success'}`}>
+                                      <div className={`fw-bold ${isEmptyProducts ? 'text-danger' : 'text-success'}`}>
                                         {productsCount.toLocaleString('ru-RU')}
-                                      </Badge>
+                                      </div>
                                       <small className={isEmptyProducts ? 'text-danger fw-medium' : 'text-muted'}>
                                         {isEmptyProducts
                                           ? (language === 'uz' ? "Mahsulot yo'q" : 'Товаров нет')
@@ -5899,6 +5896,9 @@ function SuperAdminDashboard() {
                                     </div>
                                   );
                                 })()}
+                              </td>
+                              <td>
+                                <small className="text-muted">{formatDate(r.created_at)}</small>
                               </td>
                               <td>
                                 {(() => {
