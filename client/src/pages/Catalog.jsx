@@ -1889,7 +1889,7 @@ function Catalog() {
           </button>
 
           {/* Quantity controls on image */}
-          {product.in_stock && (
+          {product.in_stock && productSizeOptions.length === 0 && (
             <>
               {/* Plus button or Quantity circle */}
               {!isOpen && (
@@ -2479,6 +2479,8 @@ function Catalog() {
               const productName = getProductName(product);
               const imageUrl = getProductCardImage(product);
               const category = categoriesById.get(Number(product.category_id));
+              const productSizeOptions = getProductSizeOptions(product);
+              const hasSelectableVariants = productSizeOptions.length > 0;
               const selectedVariant = getSelectedVariantForProduct(product);
               const cartItem = getCartItem(product.id, selectedVariant);
               const qty = cartItem?.quantity || 0;
@@ -2558,7 +2560,11 @@ function Catalog() {
                   </button>
                   <div className="d-flex flex-column align-items-end" style={{ minWidth: 94 }}>
                     {isAvailable ? (
-                      qty > 0 ? (
+                      hasSelectableVariants ? (
+                        <span className="badge bg-light text-secondary border" style={{ fontSize: '0.72rem' }}>
+                          {language === 'uz' ? 'Variant' : 'Вариант'}
+                        </span>
+                      ) : qty > 0 ? (
                         <div
                           className="d-flex align-items-center justify-content-between rounded-pill px-1"
                           style={{
