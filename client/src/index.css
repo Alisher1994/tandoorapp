@@ -422,6 +422,192 @@ h6 {
   max-width: min(96vw, 760px);
 }
 
+.product-details-modal-fullscreen .modal-dialog,
+.product-details-modal-dialog {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  margin: 0;
+}
+
+.product-details-modal-fullscreen .modal-content {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.product-details-modal-body {
+  height: 100%;
+  padding: 0 !important;
+}
+
+.product-details-shell {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-details-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.product-details-hero {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: clamp(280px, 46vh, 420px);
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.product-details-hero-image-btn {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ffffff;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+.product-details-hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.product-details-hero-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 3rem;
+}
+
+.product-details-top-actions {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 3;
+}
+
+.product-details-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-details-hero-counter {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.product-details-sheet {
+  position: relative;
+  z-index: 2;
+  margin-top: -18px;
+  border-radius: 20px 20px 0 0;
+  padding: 14px 14px calc(108px + env(safe-area-inset-bottom, 0px));
+  background: #f3f4f6;
+  box-shadow: 0 -10px 26px rgba(15, 23, 42, 0.08);
+}
+
+.product-details-block {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(71, 85, 105, 0.14);
+  background: #ffffff;
+}
+
+.product-details-review-item {
+  border: 1px solid rgba(71, 85, 105, 0.14);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.product-details-bottom-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(243, 244, 246, 0), rgba(243, 244, 246, 0.95) 26%, #f3f4f6 62%);
+}
+
+.product-details-bottom-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.product-details-bottom-stepper {
+  min-width: 122px;
+  height: 46px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, 0.2);
+  background: rgba(71, 85, 105, 0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.product-details-bottom-stepper button {
+  width: 32px;
+  height: 32px;
+  font-size: 22px;
+  color: #334155;
+  line-height: 1;
+}
+
+.product-details-bottom-stepper span {
+  min-width: 22px;
+  text-align: center;
+  color: #111827;
+  font-weight: 700;
+}
+
+.product-details-bottom-cta {
+  flex: 1 1 auto;
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid var(--primary-color);
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 1.03rem;
+  font-weight: 700;
+}
+
 .product-gallery-modal .modal-content {
   overflow: hidden;
 }
@@ -490,6 +676,15 @@ h6 {
 
   .product-gallery-frame {
     height: clamp(260px, 52vh, 480px);
+  }
+
+  .product-details-hero {
+    height: clamp(250px, 42vh, 360px);
+  }
+
+  .product-details-sheet {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }
 

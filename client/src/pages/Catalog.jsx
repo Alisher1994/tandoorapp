@@ -3019,322 +3019,256 @@ function Catalog() {
       <Modal
         show={showProductDetailsModal}
         onHide={closeProductDetailsModal}
-        centered
-        size="lg"
+        className="product-details-modal-fullscreen"
+        dialogClassName="product-details-modal-dialog"
+        backdrop
+        keyboard
       >
-        <Modal.Header closeButton>
-          <div className="d-flex align-items-center gap-2 w-100 me-4">
-            <Button
-              type="button"
-              variant="light"
-              size="sm"
-              onClick={closeProductDetailsModal}
-              style={{ borderRadius: 999, border: '1px solid #d1d5db', minWidth: 84 }}
-            >
-              {language === 'uz' ? '← Orqaga' : '← Назад'}
-            </Button>
-            <Modal.Title className="fs-6 text-truncate mb-0">
-              {activeProductName || (language === 'uz' ? 'Mahsulot' : 'Товар')}
-            </Modal.Title>
-          </div>
-        </Modal.Header>
-        <Modal.Body style={{ maxHeight: '74vh', overflowY: 'auto' }}>
-          {productDetailsError && (
-            <div className="alert alert-warning py-2 small mb-3">{productDetailsError}</div>
-          )}
-
+        <Modal.Body className="product-details-modal-body p-0">
           {productDetailsLoading && !activeProduct ? (
-            <ListSkeleton rows={4} />
+            <div className="p-3">
+              <ListSkeleton rows={4} />
+            </div>
           ) : activeProduct ? (
-            <div className="d-flex flex-column gap-3">
-              <div
-                style={{
-                  border: '1px solid rgba(71, 85, 105, 0.16)',
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  background: '#fff',
-                  position: 'relative'
-                }}
-              >
-                {activeProductCardImage ? (
-                  <button
-                    type="button"
-                    className="border-0 p-0 w-100"
-                    onClick={() => openProductGallery(activeProduct, 0)}
-                    style={{ background: '#fff', cursor: 'zoom-in' }}
-                  >
-                    <img
-                      src={activeProductCardImage}
-                      alt={activeProductName || 'Product'}
-                      style={{
-                        width: '100%',
-                        maxHeight: '340px',
-                        objectFit: 'cover',
-                        display: 'block'
-                      }}
-                    />
-                  </button>
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      minHeight: 220,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#94a3b8',
-                      background: '#f8fafc'
-                    }}
-                  >
-                    📦
-                  </div>
-                )}
-
-                {activeProductGalleryImages.length > 1 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 10,
-                      bottom: 10,
-                      padding: '4px 10px',
-                      borderRadius: 999,
-                      background: 'rgba(0,0,0,0.62)',
-                      color: '#fff',
-                      fontSize: '0.82rem'
-                    }}
-                  >
-                    {activeProductGalleryImages.length} {language === 'uz' ? 'ta rasm' : 'фото'}
-                  </div>
-                )}
-              </div>
-
-              <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap">
-                <div className="min-w-0">
-                  <h5 className="mb-1 text-truncate">{activeProductName}</h5>
-                  <div className="small text-muted">{activeProduct?.unit || (language === 'uz' ? 'dona' : 'шт')}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleFavorite(activeProduct)}
-                  className="border-0"
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 999,
-                    background: activeProductFavorite ? 'rgba(255, 95, 125, 0.94)' : 'rgba(241, 245, 249, 0.95)',
-                    color: activeProductFavorite ? '#fff' : '#475569',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  aria-label={language === 'uz' ? "Saralanganlarga qo'shish" : 'Добавить в избранное'}
-                >
-                  <HeartIcon size={16} filled={activeProductFavorite} color={activeProductFavorite ? '#ffffff' : '#475569'} />
-                </button>
-              </div>
-
-              <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                <div className="fw-bold" style={{ color: 'var(--primary-color)', fontSize: '1.45rem' }}>
-                  {formatPrice(activeProduct?.price || 0)} {t('sum')}
-                </div>
-                <span
-                  className="badge"
-                  style={{
-                    background: activeProduct?.in_stock !== false ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
-                    color: activeProduct?.in_stock !== false ? '#166534' : '#475569',
-                    border: '1px solid rgba(15,23,42,0.08)'
-                  }}
-                >
-                  {activeProduct?.in_stock !== false
-                    ? (language === 'uz' ? 'Mavjud' : 'В наличии')
-                    : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
-                </span>
-              </div>
-
-              <div>
-                <div className="small text-muted mb-1">{language === 'uz' ? 'Tavsif' : 'Описание'}</div>
-                <div
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: 12,
-                    border: '1px solid rgba(71, 85, 105, 0.14)',
-                    background: '#f8fafc',
-                    whiteSpace: 'pre-wrap'
-                  }}
-                >
-                  {activeProductDescription || (language === 'uz' ? "Tavsif kiritilmagan" : 'Описание не указано')}
-                </div>
-              </div>
-
-              <div
-                className="d-flex align-items-center justify-content-between gap-2 flex-wrap"
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '1px solid rgba(71, 85, 105, 0.14)',
-                  background: '#ffffff'
-                }}
-              >
-                {activeProductQty > 0 ? (
-                  <div
-                    className="d-flex align-items-center justify-content-between rounded-pill px-1"
-                    style={{
-                      background: 'rgba(71, 85, 105,0.10)',
-                      border: '1px solid rgba(71, 85, 105,0.2)',
-                      minWidth: 120,
-                      height: 42
-                    }}
-                  >
+            <div className="product-details-shell">
+              <div className="product-details-scroll">
+                <section className="product-details-hero">
+                  {activeProductCardImage ? (
                     <button
                       type="button"
-                      className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                      style={{ width: 34, height: 34, color: '#4b5563', fontSize: '20px' }}
-                      onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep)}
-                      aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                      className="product-details-hero-image-btn"
+                      onClick={() => openProductGallery(activeProduct, 0)}
+                      aria-label={language === 'uz' ? 'Rasmni ochish' : 'Открыть фото'}
                     >
-                      −
+                      <img
+                        src={activeProductCardImage}
+                        alt={activeProductName || 'Product'}
+                        className="product-details-hero-image"
+                      />
                     </button>
-                    <span style={{ fontWeight: 700, color: '#111827', fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>
-                      {formatQuantity(activeProductQty)}
-                    </span>
+                  ) : (
+                    <div className="product-details-hero-empty">📦</div>
+                  )}
+
+                  <div className="product-details-top-actions">
                     <button
                       type="button"
-                      className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                      style={{ width: 34, height: 34, color: 'var(--primary-color)', fontSize: '20px' }}
-                      onClick={() => updateQuantity(activeProduct.id, activeProductQty + activeProductQuantityStep)}
-                      aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
+                      className="product-details-icon-btn"
+                      onClick={closeProductDetailsModal}
+                      aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
                     >
-                      +
+                      ←
                     </button>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={() => handleAddToCart(activeProduct)}
-                    style={{
-                      minWidth: 132,
-                      borderRadius: 999,
-                      minHeight: 42,
-                      fontWeight: 700
-                    }}
-                  >
-                    {language === 'uz' ? "Savatga qo'shish +" : 'В корзину +'}
-                  </Button>
-                )}
-              </div>
-
-              <div
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '1px solid rgba(71, 85, 105, 0.14)',
-                  background: '#ffffff'
-                }}
-              >
-                <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
-                  <div className="fw-semibold">{language === 'uz' ? 'Baholar va kommentlar' : 'Оценки и комментарии'}</div>
-                  <div className="small text-muted">
-                    {buildRatingStars(productReviewsAverage)} · {productReviewsAverage.toFixed(1)} ({productReviewsTotal})
-                  </div>
-                </div>
-
-                {productReviews.length === 0 ? (
-                  <div className="small text-muted">
-                    {language === 'uz' ? "Hali kommentlar yo'q" : 'Комментариев пока нет'}
-                  </div>
-                ) : (
-                  <div className="d-flex flex-column gap-2">
-                    {productReviews.map((review) => (
-                      <div
-                        key={review.id}
-                        style={{
-                          border: '1px solid rgba(71, 85, 105, 0.14)',
-                          borderRadius: 10,
-                          padding: '8px 10px',
-                          background: '#f8fafc'
-                        }}
+                    <div className="d-flex align-items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavorite(activeProduct)}
+                        className="product-details-icon-btn"
+                        aria-label={language === 'uz' ? "Saralanganlarga qo'shish" : 'Добавить в избранное'}
                       >
-                        <div className="d-flex justify-content-between align-items-center gap-2">
-                          <strong style={{ fontSize: '0.9rem' }}>{review.author_name || (language === 'uz' ? 'Mijoz' : 'Клиент')}</strong>
-                          <small className="text-muted">{formatReviewDate(review.created_at)}</small>
-                        </div>
-                        <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{buildRatingStars(review.rating)}</div>
-                        <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
-                          {review.comment || (language === 'uz' ? 'Kommentsiz baho' : 'Оценка без комментария')}
-                        </div>
-                      </div>
-                    ))}
+                        <HeartIcon size={18} filled={activeProductFavorite} color={activeProductFavorite ? '#e11d48' : '#334155'} />
+                      </button>
+                      <button
+                        type="button"
+                        className="product-details-icon-btn"
+                        onClick={closeProductDetailsModal}
+                        aria-label={language === 'uz' ? 'Yopish' : 'Закрыть'}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                {productReviewsHasMore && (
-                  <div className="mt-2">
-                    <Button
-                      type="button"
-                      variant="outline-secondary"
-                      size="sm"
-                      onClick={loadMoreProductReviews}
-                      disabled={productReviewsLoadingMore}
-                    >
-                      {productReviewsLoadingMore
-                        ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
-                        : (language === 'uz' ? "Yana ko'rsatish" : 'Ещё')}
-                    </Button>
-                  </div>
-                )}
+                  {activeProductGalleryImages.length > 1 && (
+                    <div className="product-details-hero-counter">
+                      {activeProductGalleryImages.length} {language === 'uz' ? 'ta rasm' : 'фото'}
+                    </div>
+                  )}
+                </section>
 
-                <hr className="my-3" />
+                <section className="product-details-sheet">
+                  {productDetailsError && (
+                    <div className="alert alert-warning py-2 small mb-3">{productDetailsError}</div>
+                  )}
 
-                <div className="small text-muted mb-2">
-                  {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
-                </div>
-                <div className="d-flex gap-1 mb-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={`review-star-${star}`}
-                      type="button"
-                      onClick={() => setProductReviewRating(star)}
-                      className="btn btn-sm p-0 border-0"
+                  <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-2">
+                    <div className="min-w-0">
+                      <h4 className="mb-1 text-truncate">{activeProductName}</h4>
+                      <div className="small text-muted">{activeProduct?.unit || (language === 'uz' ? 'dona' : 'шт')}</div>
+                    </div>
+                    <span
+                      className="badge"
                       style={{
-                        width: 30,
-                        height: 30,
-                        fontSize: '1.2rem',
-                        lineHeight: 1,
-                        color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
-                        background: 'transparent'
+                        background: activeProduct?.in_stock !== false ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
+                        color: activeProduct?.in_stock !== false ? '#166534' : '#475569',
+                        border: '1px solid rgba(15,23,42,0.08)'
                       }}
                     >
-                      ★
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  value={productReviewComment}
-                  onChange={(e) => setProductReviewComment(e.target.value)}
-                  rows={3}
-                  maxLength={1500}
-                  className="form-control"
-                  placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
-                />
-                <div className="d-flex justify-content-between align-items-center mt-2">
-                  <small className="text-muted">
-                    {String(productReviewComment || '').length}/1500
-                  </small>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={submitProductReview}
-                    disabled={productReviewSubmitting}
-                  >
-                    {productReviewSubmitting
-                      ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
-                      : (language === 'uz' ? 'Yuborish' : 'Отправить')}
-                  </Button>
+                      {activeProduct?.in_stock !== false
+                        ? (language === 'uz' ? 'Mavjud' : 'В наличии')
+                        : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
+                    </span>
+                  </div>
+
+                  <div className="fw-bold mb-3" style={{ color: 'var(--primary-color)', fontSize: '2rem', lineHeight: 1.05 }}>
+                    {formatPrice(activeProduct?.price || 0)} {t('sum')}
+                  </div>
+
+                  <div className="product-details-block mb-3">
+                    <div className="small text-muted mb-1">{language === 'uz' ? 'Tavsif' : 'Описание'}</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>
+                      {activeProductDescription || (language === 'uz' ? "Tavsif kiritilmagan" : 'Описание не указано')}
+                    </div>
+                  </div>
+
+                  <div className="product-details-block">
+                    <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+                      <div className="fw-semibold">{language === 'uz' ? 'Baholar va kommentlar' : 'Оценки и комментарии'}</div>
+                      <div className="small text-muted">
+                        {buildRatingStars(productReviewsAverage)} · {productReviewsAverage.toFixed(1)} ({productReviewsTotal})
+                      </div>
+                    </div>
+
+                    {productReviews.length === 0 ? (
+                      <div className="small text-muted">
+                        {language === 'uz' ? "Hali kommentlar yo'q" : 'Комментариев пока нет'}
+                      </div>
+                    ) : (
+                      <div className="d-flex flex-column gap-2">
+                        {productReviews.map((review) => (
+                          <div key={review.id} className="product-details-review-item">
+                            <div className="d-flex justify-content-between align-items-center gap-2">
+                              <strong style={{ fontSize: '0.9rem' }}>{review.author_name || (language === 'uz' ? 'Mijoz' : 'Клиент')}</strong>
+                              <small className="text-muted">{formatReviewDate(review.created_at)}</small>
+                            </div>
+                            <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{buildRatingStars(review.rating)}</div>
+                            <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                              {review.comment || (language === 'uz' ? 'Kommentsiz baho' : 'Оценка без комментария')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {productReviewsHasMore && (
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={loadMoreProductReviews}
+                          disabled={productReviewsLoadingMore}
+                        >
+                          {productReviewsLoadingMore
+                            ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                            : (language === 'uz' ? "Yana ko'rsatish" : 'Ещё')}
+                        </Button>
+                      </div>
+                    )}
+
+                    <hr className="my-3" />
+
+                    <div className="small text-muted mb-2">
+                      {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
+                    </div>
+                    <div className="d-flex gap-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={`review-star-${star}`}
+                          type="button"
+                          onClick={() => setProductReviewRating(star)}
+                          className="btn btn-sm p-0 border-0"
+                          style={{
+                            width: 30,
+                            height: 30,
+                            fontSize: '1.2rem',
+                            lineHeight: 1,
+                            color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
+                            background: 'transparent'
+                          }}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={productReviewComment}
+                      onChange={(e) => setProductReviewComment(e.target.value)}
+                      rows={3}
+                      maxLength={1500}
+                      className="form-control"
+                      placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
+                    />
+                    <div className="d-flex justify-content-between align-items-center mt-2">
+                      <small className="text-muted">
+                        {String(productReviewComment || '').length}/1500
+                      </small>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={submitProductReview}
+                        disabled={productReviewSubmitting}
+                      >
+                        {productReviewSubmitting
+                          ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                          : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div className="product-details-bottom-bar">
+                <div className="product-details-bottom-inner">
+                  {activeProduct?.in_stock !== false ? (
+                    activeProductQty > 0 ? (
+                      <>
+                        <div className="product-details-bottom-stepper">
+                          <button
+                            type="button"
+                            className="btn btn-sm p-0 border-0 bg-transparent"
+                            onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep)}
+                            aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                          >
+                            −
+                          </button>
+                          <span>{formatQuantity(activeProductQty)}</span>
+                          <button
+                            type="button"
+                            className="btn btn-sm p-0 border-0 bg-transparent"
+                            onClick={() => updateQuantity(activeProduct.id, activeProductQty + activeProductQuantityStep)}
+                            aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
+                          >
+                            +
+                          </button>
+                        </div>
+                        <Button
+                          type="button"
+                          className="product-details-bottom-cta"
+                          onClick={() => navigate('/cart')}
+                        >
+                          {language === 'uz' ? "Savatga o'tish" : 'В корзину'}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        className="product-details-bottom-cta"
+                        onClick={() => handleAddToCart(activeProduct)}
+                      >
+                        {language === 'uz' ? "Savatga qo'shish" : 'В корзину'}
+                      </Button>
+                    )
+                  ) : (
+                    <Button type="button" className="product-details-bottom-cta" disabled>
+                      {language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-muted">{language === 'uz' ? "Mahsulot topilmadi" : 'Товар не найден'}</div>
+            <div className="p-3 text-muted">{language === 'uz' ? "Mahsulot topilmadi" : 'Товар не найден'}</div>
           )}
         </Modal.Body>
       </Modal>
