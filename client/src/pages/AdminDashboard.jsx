@@ -1009,6 +1009,15 @@ function AdminDashboard() {
   const [ordersDateTo, setOrdersDateTo] = useState(() => getTodayDateKey());
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showGlobalImportModal, setShowGlobalImportModal] = useState(false);
+  const [globalCatalogProducts, setGlobalCatalogProducts] = useState([]);
+  const [globalCatalogLoading, setGlobalCatalogLoading] = useState(false);
+  const [globalImportSaving, setGlobalImportSaving] = useState(false);
+  const [globalImportSearch, setGlobalImportSearch] = useState('');
+  const [globalImportBarcodeSearch, setGlobalImportBarcodeSearch] = useState('');
+  const [globalImportLeftSelectedIds, setGlobalImportLeftSelectedIds] = useState([]);
+  const [globalImportRightSelectedIds, setGlobalImportRightSelectedIds] = useState([]);
+  const [globalImportItems, setGlobalImportItems] = useState([]);
   const [productForm, setProductForm] = useState({
     category_id: '',
     name_ru: '',
@@ -2149,6 +2158,18 @@ function AdminDashboard() {
     return uniqueMap;
   }, [importAssignableCategories]);
 
+  const globalImportCatalogById = useMemo(() => {
+    const map = new Map();
+    (globalCatalogProducts || []).forEach((item) => {
+      map.set(Number(item.id), item);
+    });
+    return map;
+  }, [globalCatalogProducts]);
+
+  const globalImportItemIdsSet = useMemo(() => (
+    new Set((globalImportItems || []).map((item) => Number(item.global_product_id)))
+  ), [globalImportItems]);
+
   const productSubcategoryOptions = useMemo(() => {
     const rootId = parseInt(productCategoryFilter, 10);
     const source = categories.filter((cat) => {
@@ -2554,6 +2575,235 @@ function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  const resetGlobalImportModalState = () => {
+    setGlobalCatalogProducts([]);
+    setGlobalImportSearch('');
+    setGlobalImportBarcodeSearch('');
+    setGlobalImportLeftSelectedIds([]);
+    setGlobalImportRightSelectedIds([]);
+    setGlobalImportItems([]);
+    setGlobalCatalogLoading(false);
+    setGlobalImportSaving(false);
+  };
+
+  const closeGlobalImportModal = () => {
+    if (globalImportSaving) return;
+    setShowGlobalImportModal(false);
+    resetGlobalImportModalState();
+  };
+
+  const createGlobalImportItemDraft = (product) => {
+    const productId = Number.parseInt(product?.id, 10);
+    if (!Number.isFinite(productId) || productId <= 0) return null;
+
+    const recommendedCategoryIdRaw = Number.parseInt(product?.recommended_category_id, 10);
+    const recommendedCategoryId = (
+      Number.isFinite(recommendedCategoryIdRaw) && importCategoryById.has(String(recommendedCategoryIdRaw))
+    )
+      ? String(recommendedCategoryIdRaw)
+      : '';
+
+    return {
+      global_product_id: productId,
+      category_id: recommendedCategoryId,
+      price: '',
+      name_ru: String(product?.name_ru || '').trim(),
+      name_uz: String(product?.name_uz || '').trim(),
+      barcode: String(product?.barcode || '').trim(),
+      image_url: String(product?.thumb_url || product?.image_url || '').trim(),
+      recommended_category_name_ru: String(product?.recommended_category_name_ru || '').trim(),
+      recommended_category_name_uz: String(product?.recommended_category_name_uz || '').trim()
+    };
+  };
+
+  const loadGlobalCatalogProducts = async () => {
+    setGlobalCatalogLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/global-products`, {
+        params: {
+          limit: 200,
+          search: globalImportSearch.trim(),
+          barcode: String(globalImportBarcodeSearch || '').replace(/\D/g, '')
+        }
+      });
+      setGlobalCatalogProducts(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Global catalog load error:', error);
+      setAlertMessage({
+        type: 'danger',
+        text: error.response?.data?.error || (language === 'uz'
+          ? "Global mahsulotlar ro'yxatini yuklab bo'lmadi"
+          : 'Не удалось загрузить список глобальных товаров')
+      });
+    } finally {
+      setGlobalCatalogLoading(false);
+    }
+  };
+
+  const openGlobalImportModal = () => {
+    resetGlobalImportModalState();
+    setShowGlobalImportModal(true);
+  };
+
+  const toggleGlobalImportLeftSelection = (productId) => {
+    const normalizedId = Number.parseInt(productId, 10);
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+    setGlobalImportLeftSelectedIds((prev) => (
+      prev.includes(normalizedId)
+        ? prev.filter((id) => id !== normalizedId)
+        : [...prev, normalizedId]
+    ));
+  };
+
+  const toggleGlobalImportRightSelection = (productId) => {
+    const normalizedId = Number.parseInt(productId, 10);
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+    setGlobalImportRightSelectedIds((prev) => (
+      prev.includes(normalizedId)
+        ? prev.filter((id) => id !== normalizedId)
+        : [...prev, normalizedId]
+    ));
+  };
+
+  const moveSelectedGlobalProductsToRight = () => {
+    if (!globalImportLeftSelectedIds.length) {
+      setAlertMessage({
+        type: 'warning',
+        text: language === 'uz'
+          ? "Chap ro'yxatdan kamida bitta global mahsulotni tanlang"
+          : 'Выберите минимум один глобальный товар слева'
+      });
+      return;
+    }
+
+    const nextItems = [];
+    for (const id of globalImportLeftSelectedIds) {
+      if (globalImportItemIdsSet.has(Number(id))) continue;
+      const source = globalImportCatalogById.get(Number(id));
+      if (!source) continue;
+      const draft = createGlobalImportItemDraft(source);
+      if (draft) nextItems.push(draft);
+    }
+
+    if (!nextItems.length) {
+      setGlobalImportLeftSelectedIds([]);
+      return;
+    }
+
+    setGlobalImportItems((prev) => [...prev, ...nextItems]);
+    setGlobalImportLeftSelectedIds([]);
+  };
+
+  const moveSelectedGlobalProductsToLeft = () => {
+    if (!globalImportRightSelectedIds.length) {
+      setAlertMessage({
+        type: 'warning',
+        text: language === 'uz'
+          ? "O'ng ro'yxatdan olib tashlanadigan mahsulotlarni tanlang"
+          : 'Выберите товары справа для удаления из добавления'
+      });
+      return;
+    }
+
+    const removeSet = new Set(globalImportRightSelectedIds.map((id) => Number(id)));
+    setGlobalImportItems((prev) => prev.filter((item) => !removeSet.has(Number(item.global_product_id))));
+    setGlobalImportRightSelectedIds([]);
+  };
+
+  const updateGlobalImportItem = (productId, field, value) => {
+    const normalizedId = Number.parseInt(productId, 10);
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+    setGlobalImportItems((prev) => prev.map((item) => {
+      if (Number(item.global_product_id) !== normalizedId) return item;
+      return {
+        ...item,
+        [field]: value
+      };
+    }));
+  };
+
+  const submitGlobalProductImport = async () => {
+    if (!globalImportItems.length) {
+      setAlertMessage({
+        type: 'warning',
+        text: language === 'uz'
+          ? "Qo'shish uchun kamida bitta global mahsulot tanlang"
+          : 'Выберите минимум один глобальный товар для добавления'
+      });
+      return;
+    }
+
+    const payloadItems = [];
+    for (const item of globalImportItems) {
+      const normalizedPrice = normalizeProductPriceValue(item.price, NaN);
+      if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+        setAlertMessage({
+          type: 'warning',
+          text: `${language === 'uz' ? "Narxni kiriting:" : 'Укажите корректную цену:'} ${item.name_ru || `#${item.global_product_id}`}`
+        });
+        return;
+      }
+
+      const categoryIdRaw = Number.parseInt(item.category_id, 10);
+      const categoryId = Number.isFinite(categoryIdRaw) && categoryIdRaw > 0 ? categoryIdRaw : null;
+
+      payloadItems.push({
+        global_product_id: Number(item.global_product_id),
+        price: Math.round(normalizedPrice),
+        category_id: categoryId
+      });
+    }
+
+    setGlobalImportSaving(true);
+    try {
+      const response = await axios.post(`${API_URL}/admin/global-products/import`, {
+        items: payloadItems
+      });
+      const createdCount = Number(response.data?.created_count || payloadItems.length || 0);
+      setAlertMessage({
+        type: 'success',
+        text: language === 'uz'
+          ? `Global mahsulotlar qo'shildi: ${createdCount}`
+          : `Глобальные товары добавлены: ${createdCount}`
+      });
+      setShowGlobalImportModal(false);
+      resetGlobalImportModalState();
+      fetchData();
+    } catch (error) {
+      console.error('Import global products error:', error);
+      setAlertMessage({
+        type: 'danger',
+        text: error.response?.data?.error || (language === 'uz'
+          ? "Global mahsulotlarni qo'shib bo'lmadi"
+          : 'Не удалось добавить глобальные товары')
+      });
+    } finally {
+      setGlobalImportSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showGlobalImportModal) return;
+    const timer = setTimeout(() => {
+      loadGlobalCatalogProducts();
+    }, 260);
+    return () => clearTimeout(timer);
+  }, [showGlobalImportModal, globalImportSearch, globalImportBarcodeSearch]);
+
+  useEffect(() => {
+    if (!showGlobalImportModal) return;
+    setGlobalImportLeftSelectedIds((prev) => (
+      prev.filter((id) => globalImportCatalogById.has(Number(id)))
+    ));
+  }, [showGlobalImportModal, globalImportCatalogById]);
+
+  useEffect(() => {
+    if (!showGlobalImportModal) return;
+    setGlobalImportRightSelectedIds((prev) => (
+      prev.filter((id) => globalImportItemIdsSet.has(Number(id)))
+    ));
+  }, [showGlobalImportModal, globalImportItemIdsSet]);
 
   const fetchFeedback = async () => {
     try {
@@ -8004,6 +8254,16 @@ function AdminDashboard() {
                         <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </Button>
+                    <Button
+                      variant="outline-primary"
+                      className="admin-global-import-open-btn"
+                      onClick={openGlobalImportModal}
+                    >
+                      <span className="d-none d-md-inline">
+                        {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
+                      </span>
+                      <span className="d-md-none">Global</span>
+                    </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={() => openProductModal()}>
                       <span className="d-none d-md-inline">{t('addProduct')}</span>
                       <span className="d-md-none">Добавить</span>
@@ -10946,6 +11206,242 @@ function AdminDashboard() {
           </div>
         </Modal.Body>
       </Modal>
+
+        <Modal
+          show={showGlobalImportModal}
+          onHide={closeGlobalImportModal}
+          size="xl"
+          dialogClassName="admin-global-import-modal-dialog"
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {language === 'uz' ? "Global mahsulotni do'konga qo'shish" : 'Добавить глобальный товар в магазин'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Row className="g-3">
+              <Col lg={5}>
+                <div className="admin-global-import-panel">
+                  <div className="admin-global-import-panel-head">
+                    <strong>{language === 'uz' ? "Global mahsulotlar" : 'Глобальные товары'}</strong>
+                    <span className="small text-muted">{globalCatalogProducts.length}</span>
+                  </div>
+                  <div className="d-grid gap-2 mb-3">
+                    <Form.Control
+                      type="search"
+                      value={globalImportSearch}
+                      onChange={(e) => setGlobalImportSearch(e.target.value)}
+                      placeholder={language === 'uz' ? "Nomi bo'yicha qidirish" : 'Поиск по названию'}
+                    />
+                    <Form.Control
+                      value={globalImportBarcodeSearch}
+                      onChange={(e) => setGlobalImportBarcodeSearch(String(e.target.value || '').replace(/\D/g, '').slice(0, 120))}
+                      placeholder={language === 'uz' ? 'Shtrix-kod bo‘yicha qidirish' : 'Поиск по штрихкоду'}
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div className="admin-global-import-list">
+                    {globalCatalogLoading ? (
+                      <div className="text-muted small py-4 text-center">
+                        {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                      </div>
+                    ) : globalCatalogProducts.length === 0 ? (
+                      <div className="text-muted small py-4 text-center">
+                        {language === 'uz' ? "Global mahsulotlar topilmadi" : 'Глобальные товары не найдены'}
+                      </div>
+                    ) : (
+                      globalCatalogProducts.map((item) => {
+                        const itemId = Number(item.id);
+                        const isSelected = globalImportLeftSelectedIds.includes(itemId);
+                        const isAlreadyAdded = globalImportItemIdsSet.has(itemId);
+                        const imageUrl = item.thumb_url || item.image_url
+                          ? toAbsoluteFileUrl(item.thumb_url || item.image_url)
+                          : PRODUCT_PLACEHOLDER_IMAGE;
+                        return (
+                          <div
+                            key={`global-catalog-item-${itemId}`}
+                            className={`admin-global-import-list-item${isSelected ? ' is-selected' : ''}${isAlreadyAdded ? ' is-added' : ''}`}
+                            onClick={() => {
+                              if (isAlreadyAdded) return;
+                              toggleGlobalImportLeftSelection(itemId);
+                            }}
+                          >
+                            <Form.Check
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={isAlreadyAdded}
+                              onChange={() => {
+                                if (isAlreadyAdded) return;
+                                toggleGlobalImportLeftSelection(itemId);
+                              }}
+                              onClick={(event) => event.stopPropagation()}
+                            />
+                            <img
+                              src={imageUrl}
+                              alt={item.name_ru || 'product'}
+                              className="admin-global-import-thumb"
+                              onError={(event) => {
+                                if (event.currentTarget.src !== PRODUCT_PLACEHOLDER_IMAGE) {
+                                  event.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
+                                }
+                              }}
+                            />
+                            <div className="admin-global-import-list-content">
+                              <div className="fw-semibold text-truncate">
+                                {language === 'uz'
+                                  ? (item.name_uz || item.name_ru || '-')
+                                  : (item.name_ru || item.name_uz || '-')}
+                              </div>
+                              <div className="small text-muted">
+                                {language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}: {item.barcode || '—'}
+                              </div>
+                              <div className="small text-muted text-truncate">
+                                {language === 'uz' ? 'Tavsiya etilgan kategoriya' : 'Рекомендуемая категория'}:{' '}
+                                {(language === 'uz'
+                                  ? (item.recommended_category_name_uz || item.recommended_category_name_ru)
+                                  : (item.recommended_category_name_ru || item.recommended_category_name_uz)) || '—'}
+                              </div>
+                            </div>
+                            {isAlreadyAdded && (
+                              <Badge bg="success" className="ms-2">
+                                {language === 'uz' ? "Qo'shilgan" : 'Добавлен'}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </Col>
+
+              <Col lg={2} className="d-flex align-items-center justify-content-center">
+                <div className="admin-global-import-arrows">
+                  <Button
+                    type="button"
+                    variant="outline-primary"
+                    onClick={moveSelectedGlobalProductsToRight}
+                    disabled={!globalImportLeftSelectedIds.length}
+                  >
+                    →
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline-secondary"
+                    onClick={moveSelectedGlobalProductsToLeft}
+                    disabled={!globalImportRightSelectedIds.length}
+                  >
+                    ←
+                  </Button>
+                </div>
+              </Col>
+
+              <Col lg={5}>
+                <div className="admin-global-import-panel">
+                  <div className="admin-global-import-panel-head">
+                    <strong>{language === 'uz' ? "Qo'shiladiganlar" : 'К добавлению'}</strong>
+                    <span className="small text-muted">{globalImportItems.length}</span>
+                  </div>
+                  <div className="admin-global-import-list admin-global-import-list-right">
+                    {globalImportItems.length === 0 ? (
+                      <div className="text-muted small py-4 text-center">
+                        {language === 'uz'
+                          ? "Hozircha tanlangan mahsulotlar yo'q"
+                          : 'Пока нет выбранных товаров'}
+                      </div>
+                    ) : (
+                      globalImportItems.map((item) => {
+                        const itemId = Number(item.global_product_id);
+                        const selectedOnRight = globalImportRightSelectedIds.includes(itemId);
+                        const sourceImage = item.image_url ? toAbsoluteFileUrl(item.image_url) : PRODUCT_PLACEHOLDER_IMAGE;
+                        const suggestedCategoryId = String(item.category_id || '');
+                        const suggestedCategory = importCategoryById.get(suggestedCategoryId);
+                        return (
+                          <div
+                            key={`global-import-item-${itemId}`}
+                            className={`admin-global-import-card${selectedOnRight ? ' is-selected' : ''}`}
+                          >
+                            <div className="admin-global-import-card-head">
+                              <Form.Check
+                                type="checkbox"
+                                checked={selectedOnRight}
+                                onChange={() => toggleGlobalImportRightSelection(itemId)}
+                              />
+                              <img
+                                src={sourceImage}
+                                alt={item.name_ru || 'selected-product'}
+                                className="admin-global-import-thumb"
+                                onError={(event) => {
+                                  if (event.currentTarget.src !== PRODUCT_PLACEHOLDER_IMAGE) {
+                                    event.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
+                                  }
+                                }}
+                              />
+                              <div className="min-w-0">
+                                <div className="fw-semibold text-truncate">
+                                  {language === 'uz'
+                                    ? (item.name_uz || item.name_ru || '-')
+                                    : (item.name_ru || item.name_uz || '-')}
+                                </div>
+                                <div className="small text-muted">
+                                  {language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}: {item.barcode || '—'}
+                                </div>
+                              </div>
+                            </div>
+                            <Row className="g-2 mt-1">
+                              <Col md={5}>
+                                <Form.Control
+                                  value={item.price}
+                                  onChange={(e) => updateGlobalImportItem(itemId, 'price', String(e.target.value || '').replace(/[^\d.,]/g, '').slice(0, 20))}
+                                  placeholder={language === 'uz' ? 'Narx *' : 'Цена *'}
+                                  inputMode="decimal"
+                                />
+                              </Col>
+                              <Col md={7}>
+                                <Form.Select
+                                  value={item.category_id || ''}
+                                  onChange={(e) => updateGlobalImportItem(itemId, 'category_id', e.target.value)}
+                                >
+                                  <option value="">{language === 'uz' ? 'Kategoriya tanlanmagan' : 'Категория не выбрана'}</option>
+                                  {importAssignableCategories.map((categoryOption) => (
+                                    <option key={`global-import-category-${categoryOption.id}`} value={String(categoryOption.id)}>
+                                      {categoryOption.path}
+                                    </option>
+                                  ))}
+                                </Form.Select>
+                              </Col>
+                            </Row>
+                            <div className="small text-muted mt-2">
+                              {language === 'uz' ? 'Tavsiya:' : 'Рекомендация:'}{' '}
+                              {suggestedCategory?.path || (language === 'uz'
+                                ? (item.recommended_category_name_uz || item.recommended_category_name_ru || '—')
+                                : (item.recommended_category_name_ru || item.recommended_category_name_uz || '—'))}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </Col>
+            </Row>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closeGlobalImportModal} disabled={globalImportSaving}>
+              {t('cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              className="btn-primary-custom"
+              onClick={submitGlobalProductImport}
+              disabled={globalImportSaving || globalImportItems.length === 0}
+            >
+              {globalImportSaving
+                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                : (language === 'uz' ? "Do'konga qo'shish" : 'Добавить в магазин')}
+            </Button>
+          </Modal.Footer>
+        </Modal>
 
         {/* Product Modal */}
         <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl" dialogClassName="admin-product-modal-dialog">

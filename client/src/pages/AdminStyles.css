@@ -5443,6 +5443,118 @@ body::-webkit-scrollbar,
     max-width: min(97vw, 1360px) !important;
 }
 
+.admin-global-import-open-btn {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+}
+
+.admin-global-import-modal-dialog {
+    max-width: min(98vw, 1440px) !important;
+}
+
+.admin-global-import-panel {
+    border: 1px solid rgba(71, 85, 105, 0.18);
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 0.75rem;
+}
+
+.admin-global-import-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+}
+
+.admin-global-import-list {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.5rem;
+    max-height: 460px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.admin-global-import-list-right {
+    padding: 0.55rem;
+}
+
+.admin-global-import-list-item {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+    cursor: pointer;
+}
+
+.admin-global-import-list-item:hover {
+    border-color: rgba(148, 163, 184, 0.52);
+}
+
+.admin-global-import-list-item.is-selected {
+    border-color: rgba(59, 130, 246, 0.6);
+    background: rgba(239, 246, 255, 0.9);
+}
+
+.admin-global-import-list-item.is-added {
+    border-style: dashed;
+    cursor: default;
+    background: #f9fafb;
+}
+
+.admin-global-import-list-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-global-import-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.admin-global-import-arrows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.admin-global-import-arrows .btn {
+    min-width: 46px;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.admin-global-import-card {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.55rem;
+}
+
+.admin-global-import-card.is-selected {
+    border-color: rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.admin-global-import-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
 .admin-product-variant-images-shell {
     border: 1px solid rgba(71, 85, 105, 0.14);
     background: rgba(248, 250, 252, 0.88);
@@ -5656,6 +5768,11 @@ body::-webkit-scrollbar,
     .admin-product-image-dropzone-compact {
         height: 58px;
         min-height: 58px;
+    }
+
+    .admin-global-import-arrows {
+        flex-direction: row;
+        justify-content: center;
     }
 }
 

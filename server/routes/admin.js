@@ -30,6 +30,8 @@ const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'win
 const MAX_PRODUCT_IMAGES = 5;
 const MAX_PRODUCT_VARIANT_IMAGES = 4;
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
+let globalProductsSchemaReady = false;
+let globalProductsSchemaPromise = null;
 const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
   return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
@@ -241,6 +243,67 @@ const ensureRestaurantCurrencySchema = async () => {
     await restaurantCurrencySchemaPromise;
   } finally {
     restaurantCurrencySchemaPromise = null;
+  }
+};
+const ensureGlobalProductsSchema = async () => {
+  if (globalProductsSchemaReady) return;
+  if (globalProductsSchemaPromise) {
+    await globalProductsSchemaPromise;
+    return;
+  }
+
+  globalProductsSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS global_products (
+        id SERIAL PRIMARY KEY,
+        name_ru VARCHAR(255) NOT NULL,
+        name_uz VARCHAR(255),
+        description_ru TEXT,
+        description_uz TEXT,
+        image_url TEXT,
+        thumb_url TEXT,
+        product_images JSONB DEFAULT '[]'::jsonb,
+        barcode VARCHAR(120),
+        recommended_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        unit VARCHAR(32) DEFAULT 'шт',
+        order_step NUMERIC(10,2),
+        size_enabled BOOLEAN DEFAULT false,
+        size_options JSONB DEFAULT '[]'::jsonb,
+        is_active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS name_uz VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS description_ru TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS description_uz TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS image_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS thumb_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS product_images JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS recommended_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS unit VARCHAR(32) DEFAULT 'шт'`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS order_step NUMERIC(10,2)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS size_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`UPDATE global_products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
+    await pool.query(`UPDATE global_products SET size_options = '[]'::jsonb WHERE size_options IS NULL`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_active_name ON global_products(is_active, LOWER(name_ru))`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_barcode ON global_products(barcode)`).catch(() => {});
+    globalProductsSchemaReady = true;
+  })();
+
+  try {
+    await globalProductsSchemaPromise;
+  } finally {
+    globalProductsSchemaPromise = null;
   }
 };
 const normalizeCardReceiptTarget = (value, fallback = 'bot') => {
@@ -2206,6 +2269,200 @@ router.put('/orders/:id/items', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Update order items error:', error);
     res.status(500).json({ error: 'Ошибка обновления товаров' });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
+// ГЛОБАЛЬНЫЕ ТОВАРЫ (шаблоны)
+// =====================================================
+
+router.get('/global-products', async (req, res) => {
+  try {
+    await ensureGlobalProductsSchema();
+    const search = toOptionalTrimmedText(req.query.search);
+    const barcode = String(req.query.barcode || '').replace(/\D/g, '').slice(0, 120);
+    const limit = Math.max(1, Math.min(200, Number.parseInt(req.query.limit, 10) || 120));
+
+    const where = ['gp.is_active = true'];
+    const params = [];
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(gp.name_ru ILIKE $${params.length} OR gp.name_uz ILIKE $${params.length})`);
+    }
+    if (barcode) {
+      params.push(`%${barcode}%`);
+      where.push(`REGEXP_REPLACE(COALESCE(gp.barcode, ''), '\\D', '', 'g') LIKE $${params.length}`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const result = await pool.query(
+      `
+        SELECT
+          gp.*,
+          c.name_ru AS recommended_category_name_ru,
+          c.name_uz AS recommended_category_name_uz
+        FROM global_products gp
+        LEFT JOIN categories c ON c.id = gp.recommended_category_id
+        ${whereSql}
+        ORDER BY gp.name_ru ASC, gp.id DESC
+        LIMIT $${params.length + 1}
+      `,
+      [...params, limit]
+    );
+
+    res.json(result.rows || []);
+  } catch (error) {
+    console.error('Admin global products error:', error);
+    res.status(500).json({ error: 'Ошибка получения глобальных товаров' });
+  }
+});
+
+router.post('/global-products/import', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureGlobalProductsSchema();
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) {
+      return res.status(400).json({ error: 'Список товаров пуст' });
+    }
+
+    const normalizedItems = [];
+    for (const item of items) {
+      const globalProductId = Number.parseInt(item?.global_product_id, 10);
+      const normalizedPrice = normalizeProductPrice(item?.price, null);
+      if (!Number.isFinite(globalProductId) || globalProductId <= 0) continue;
+      if (normalizedPrice === null) {
+        return res.status(400).json({ error: `Укажите корректную цену для товара #${globalProductId}` });
+      }
+      const categoryIdParsed = Number.parseInt(item?.category_id, 10);
+      normalizedItems.push({
+        global_product_id: globalProductId,
+        price: normalizedPrice,
+        category_id: Number.isFinite(categoryIdParsed) && categoryIdParsed > 0 ? categoryIdParsed : null
+      });
+    }
+    if (!normalizedItems.length) {
+      return res.status(400).json({ error: 'Нет корректных товаров для импорта' });
+    }
+
+    const globalIds = [...new Set(normalizedItems.map((item) => item.global_product_id))];
+    const globalResult = await client.query(
+      `
+        SELECT *
+        FROM global_products
+        WHERE id = ANY($1::int[])
+          AND is_active = true
+      `,
+      [globalIds]
+    );
+    const globalMap = new Map((globalResult.rows || []).map((row) => [Number(row.id), row]));
+
+    for (const item of normalizedItems) {
+      if (!globalMap.has(item.global_product_id)) {
+        return res.status(400).json({ error: `Глобальный товар #${item.global_product_id} не найден или отключен` });
+      }
+    }
+
+    await client.query('BEGIN');
+    const createdProducts = [];
+    for (const item of normalizedItems) {
+      const globalProduct = globalMap.get(item.global_product_id);
+
+      const preferredCategoryId = item.category_id || Number.parseInt(globalProduct?.recommended_category_id, 10) || null;
+      let validatedCategoryId = preferredCategoryId;
+      if (preferredCategoryId) {
+        const categoryValidation = await validateProductCategorySelection({ categoryId: preferredCategoryId });
+        const categoryValidationWithRestaurant = await validateProductCategorySelection({
+          categoryId: preferredCategoryId,
+          restaurantId
+        });
+        if (categoryValidation.ok && categoryValidationWithRestaurant.ok) {
+          validatedCategoryId = preferredCategoryId;
+        } else if (item.category_id) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: `${categoryValidationWithRestaurant.error || categoryValidation.error} (товар: ${globalProduct.name_ru || globalProduct.id})`
+          });
+        } else {
+          validatedCategoryId = null;
+        }
+      }
+
+      const normalizedImages = normalizeProductImages(globalProduct.product_images);
+      const fallbackImageUrl = toOptionalTrimmedText(globalProduct.image_url);
+      const fallbackThumbUrl = toOptionalTrimmedText(globalProduct.thumb_url);
+      if (normalizedImages.length === 0 && fallbackImageUrl) {
+        normalizedImages.push({
+          url: fallbackImageUrl,
+          ...(fallbackThumbUrl ? { thumb_url: fallbackThumbUrl } : {})
+        });
+      }
+      const mainImage = normalizedImages[0] || null;
+      const mediaImageUrl = mainImage?.url || fallbackImageUrl || null;
+      const mediaThumbUrl = mainImage?.thumb_url || fallbackThumbUrl || null;
+
+      const globalVariants = normalizeProductVariantOptions(globalProduct.size_options, { fallbackPrice: item.price });
+      const sizeEnabled = globalProduct.size_enabled === true && globalVariants.length > 0;
+      const normalizedVariants = sizeEnabled
+        ? globalVariants.map((variant) => ({
+          ...variant,
+          price: item.price
+        }))
+        : [];
+      const unit = toOptionalTrimmedText(globalProduct.unit) || 'шт';
+      const normalizedOrderStep = normalizeProductOrderStep(globalProduct.order_step, unit, null);
+
+      const insertResult = await client.query(
+        `
+          INSERT INTO products(
+            restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
+            image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order,
+            container_id, container_norm, season_scope, is_hidden_catalog, size_enabled, size_options
+          ) VALUES(
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9::jsonb, $10, $11, $12, $13, true, 0,
+            NULL, 1, 'all', false, $14, $15::jsonb
+          )
+          RETURNING id, name_ru
+        `,
+        [
+          restaurantId,
+          validatedCategoryId,
+          toOptionalTrimmedText(globalProduct.name_ru) || `Глобальный товар #${globalProduct.id}`,
+          toOptionalTrimmedText(globalProduct.name_uz) || null,
+          toOptionalTrimmedText(globalProduct.description_ru) || null,
+          toOptionalTrimmedText(globalProduct.description_uz) || null,
+          mediaImageUrl,
+          mediaThumbUrl,
+          JSON.stringify(normalizedImages),
+          item.price,
+          unit,
+          normalizedOrderStep,
+          toOptionalTrimmedText(globalProduct.barcode) || null,
+          sizeEnabled,
+          JSON.stringify(normalizedVariants)
+        ]
+      );
+      createdProducts.push(insertResult.rows[0]);
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({
+      message: 'Глобальные товары добавлены в магазин',
+      created_count: createdProducts.length,
+      items: createdProducts
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Import global products error:', error);
+    res.status(500).json({ error: 'Ошибка добавления глобальных товаров' });
   } finally {
     client.release();
   }

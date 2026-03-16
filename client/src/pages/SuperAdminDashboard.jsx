@@ -57,6 +57,19 @@ const createEmptyReservationTemplateForm = () => ({
   height: 1,
   image_url: ''
 });
+const createEmptyGlobalProductForm = () => ({
+  id: null,
+  name_ru: '',
+  name_uz: '',
+  description_ru: '',
+  description_uz: '',
+  barcode: '',
+  image_url: '',
+  recommended_category_id: '',
+  unit: 'шт',
+  order_step: '',
+  is_active: true
+});
 const getNextFreeSortOrderClient = (items = [], excludeId = null) => {
   const taken = new Set(
     (Array.isArray(items) ? items : [])
@@ -492,7 +505,19 @@ function SuperAdminDashboard() {
   const [editingLevel, setEditingLevel] = useState(0);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isImportingCategories, setIsImportingCategories] = useState(false);
+  const [globalProducts, setGlobalProducts] = useState({ items: [], total: 0, page: 1, limit: 15 });
+  const [globalProductsLoading, setGlobalProductsLoading] = useState(false);
+  const [globalProductsPage, setGlobalProductsPage] = useState(1);
+  const [globalProductsLimit, setGlobalProductsLimit] = useState(15);
+  const [globalProductsSearch, setGlobalProductsSearch] = useState('');
+  const [globalProductsBarcodeFilter, setGlobalProductsBarcodeFilter] = useState('');
+  const [globalProductsStatusFilter, setGlobalProductsStatusFilter] = useState('active');
+  const [showGlobalProductModal, setShowGlobalProductModal] = useState(false);
+  const [globalProductForm, setGlobalProductForm] = useState(createEmptyGlobalProductForm);
+  const [editingGlobalProduct, setEditingGlobalProduct] = useState(null);
+  const [savingGlobalProduct, setSavingGlobalProduct] = useState(false);
   const categoryImportInputRef = useRef(null);
+  const globalProductImageInputRef = useRef(null);
   const hiddenOpsConsoleInputRef = useRef(null);
   const hiddenOpsHotkeyLastPressedRef = useRef(0);
 
@@ -687,6 +712,35 @@ function SuperAdminDashboard() {
   const isDavronSuperadmin = useMemo(() => (
     user?.role === 'superadmin' && String(user?.username || '').trim().toLowerCase() === 'davron'
   ), [user?.role, user?.username]);
+  const categoryLookupById = useMemo(() => {
+    const map = new Map();
+    (categories || []).forEach((item) => {
+      map.set(Number(item.id), item);
+    });
+    return map;
+  }, [categories]);
+  const globalProductCategoryOptions = useMemo(() => {
+    const buildPath = (category) => {
+      const chain = [];
+      const visited = new Set();
+      let current = category;
+      while (current && !visited.has(current.id)) {
+        chain.unshift(current.name_ru || '');
+        visited.add(current.id);
+        if (!current.parent_id) break;
+        current = categoryLookupById.get(Number(current.parent_id));
+      }
+      return chain.filter(Boolean).join(' > ');
+    };
+
+    return (categories || [])
+      .map((category) => ({
+        id: category.id,
+        name_ru: category.name_ru || '',
+        path: buildPath(category)
+      }))
+      .sort((left, right) => left.path.localeCompare(right.path, 'ru'));
+  }, [categories, categoryLookupById]);
   const dismissScamPrankModal = () => setShowScamPrankModal(false);
   const handleScamPrankButtonsShuffle = () => {
     setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
@@ -765,6 +819,9 @@ function SuperAdminDashboard() {
     if (activeTab === 'help_instructions') loadHelpInstructions();
     if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') loadBillingSettings();
+    if (activeTab === 'global_products') {
+      if (!categories.length) loadCategories();
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -814,6 +871,25 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'ads') loadAdBanners();
   }, [activeTab, adBannerStatusFilter]);
+
+  useEffect(() => {
+    if (activeTab !== 'global_products') return;
+    const timer = setTimeout(() => {
+      loadGlobalProducts();
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [
+    activeTab,
+    globalProductsPage,
+    globalProductsLimit,
+    globalProductsSearch,
+    globalProductsBarcodeFilter,
+    globalProductsStatusFilter
+  ]);
+
+  useEffect(() => {
+    setGlobalProductsPage(1);
+  }, [globalProductsSearch, globalProductsBarcodeFilter, globalProductsStatusFilter]);
 
   useEffect(() => {
     if (!showAdAnalyticsModal || !analyticsAdBanner?.id) return;
@@ -1565,6 +1641,174 @@ function SuperAdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadGlobalProducts = async () => {
+    setGlobalProductsLoading(true);
+    try {
+      const includeInactive = globalProductsStatusFilter === 'all';
+      const response = await axios.get(`${API_URL}/superadmin/global-products`, {
+        params: {
+          page: globalProductsPage,
+          limit: globalProductsLimit,
+          search: String(globalProductsSearch || '').trim(),
+          barcode: String(globalProductsBarcodeFilter || '').replace(/\D/g, ''),
+          include_inactive: includeInactive ? 'true' : 'false'
+        }
+      });
+
+      const payload = response.data || {};
+      setGlobalProducts({
+        items: Array.isArray(payload.items) ? payload.items : [],
+        total: Number(payload.total || 0),
+        page: Number(payload.page || globalProductsPage),
+        limit: Number(payload.limit || globalProductsLimit)
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Global mahsulotlar ro'yxatini yuklashda xato"
+        : 'Ошибка загрузки глобальных товаров'));
+    } finally {
+      setGlobalProductsLoading(false);
+    }
+  };
+
+  const closeGlobalProductModal = () => {
+    if (savingGlobalProduct) return;
+    setShowGlobalProductModal(false);
+    setEditingGlobalProduct(null);
+    setGlobalProductForm(createEmptyGlobalProductForm());
+  };
+
+  const openGlobalProductModal = (product = null) => {
+    if (!categories.length) {
+      loadCategories();
+    }
+
+    if (product) {
+      setEditingGlobalProduct(product);
+      setGlobalProductForm({
+        id: product.id,
+        name_ru: product.name_ru || '',
+        name_uz: product.name_uz || '',
+        description_ru: product.description_ru || '',
+        description_uz: product.description_uz || '',
+        barcode: product.barcode || '',
+        image_url: product.image_url || '',
+        recommended_category_id: product.recommended_category_id ? String(product.recommended_category_id) : '',
+        unit: product.unit || 'шт',
+        order_step: Number.parseFloat(product.order_step) > 0 ? String(product.order_step) : '',
+        is_active: product.is_active !== false
+      });
+    } else {
+      setEditingGlobalProduct(null);
+      setGlobalProductForm(createEmptyGlobalProductForm());
+    }
+
+    setShowGlobalProductModal(true);
+  };
+
+  const handleSaveGlobalProduct = async () => {
+    const nameRu = String(globalProductForm.name_ru || '').trim();
+    if (!nameRu) {
+      setError(language === 'uz' ? 'RU nomini kiriting' : 'Введите название (RU)');
+      return;
+    }
+
+    const recommendedCategoryIdRaw = Number.parseInt(globalProductForm.recommended_category_id, 10);
+    const recommendedCategoryId = Number.isFinite(recommendedCategoryIdRaw) && recommendedCategoryIdRaw > 0
+      ? recommendedCategoryIdRaw
+      : null;
+    const parsedStep = Number.parseFloat(String(globalProductForm.order_step || '').replace(',', '.'));
+    const normalizedOrderStep = Number.isFinite(parsedStep) && parsedStep > 0
+      ? Math.round((parsedStep + Number.EPSILON) * 100) / 100
+      : null;
+    const imageUrl = String(globalProductForm.image_url || '').trim();
+
+    const payload = {
+      name_ru: nameRu,
+      name_uz: String(globalProductForm.name_uz || '').trim(),
+      description_ru: String(globalProductForm.description_ru || '').trim(),
+      description_uz: String(globalProductForm.description_uz || '').trim(),
+      barcode: String(globalProductForm.barcode || '').trim(),
+      image_url: imageUrl || null,
+      thumb_url: null,
+      product_images: imageUrl ? [{ url: imageUrl }] : [],
+      recommended_category_id: recommendedCategoryId,
+      unit: String(globalProductForm.unit || '').trim() || 'шт',
+      order_step: normalizedOrderStep,
+      size_enabled: false,
+      size_options: [],
+      is_active: globalProductForm.is_active !== false
+    };
+
+    setSavingGlobalProduct(true);
+    try {
+      if (editingGlobalProduct?.id) {
+        await axios.put(`${API_URL}/superadmin/global-products/${editingGlobalProduct.id}`, payload);
+        setSuccess(language === 'uz'
+          ? 'Global mahsulot yangilandi'
+          : 'Глобальный товар обновлен');
+      } else {
+        await axios.post(`${API_URL}/superadmin/global-products`, payload);
+        setSuccess(language === 'uz'
+          ? "Global mahsulot qo'shildi"
+          : 'Глобальный товар добавлен');
+      }
+
+      closeGlobalProductModal();
+      loadGlobalProducts();
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Global mahsulotni saqlashda xato"
+        : 'Ошибка сохранения глобального товара'));
+    } finally {
+      setSavingGlobalProduct(false);
+    }
+  };
+
+  const handleToggleGlobalProductActive = async (item) => {
+    const productId = Number.parseInt(item?.id, 10);
+    if (!Number.isFinite(productId) || productId <= 0) return;
+
+    const normalizedImageUrl = String(item?.image_url || '').trim();
+    const payload = {
+      name_ru: String(item?.name_ru || '').trim(),
+      name_uz: String(item?.name_uz || '').trim(),
+      description_ru: String(item?.description_ru || '').trim(),
+      description_uz: String(item?.description_uz || '').trim(),
+      barcode: String(item?.barcode || '').trim(),
+      image_url: normalizedImageUrl || null,
+      thumb_url: null,
+      product_images: normalizedImageUrl ? [{ url: normalizedImageUrl }] : [],
+      recommended_category_id: item?.recommended_category_id || null,
+      unit: String(item?.unit || '').trim() || 'шт',
+      order_step: Number.parseFloat(item?.order_step) > 0 ? Number.parseFloat(item.order_step) : null,
+      size_enabled: item?.size_enabled === true,
+      size_options: Array.isArray(item?.size_options) ? item.size_options : [],
+      is_active: item?.is_active === false
+    };
+
+    try {
+      await axios.put(`${API_URL}/superadmin/global-products/${productId}`, payload);
+      setSuccess(item?.is_active === false
+        ? (language === 'uz' ? 'Global mahsulot yoqildi' : 'Глобальный товар включен')
+        : (language === 'uz' ? 'Global mahsulot o‘chirildi' : 'Глобальный товар отключен'));
+      loadGlobalProducts();
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? 'Holatni o‘zgartirib bo‘lmadi'
+        : 'Не удалось изменить статус'));
+    }
+  };
+
+  const handleGlobalProductImageUpload = (event) => {
+    const file = event.target?.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    handleImageUpload(file, (url) => {
+      setGlobalProductForm((prev) => ({ ...prev, image_url: url }));
+    });
   };
 
   const handleCategorySelect = (levelIndex, category) => {
@@ -6003,6 +6247,173 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
+              <Tab eventKey="global_products" title={`🌐 ${language === 'uz' ? 'Global mahsulotlar' : 'Глобальные товары'}`}>
+                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? 'Global mahsulotlar katalogi' : 'Каталог глобальных товаров'}
+                  </h5>
+                  <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
+                    {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
+                  </Button>
+                </div>
+
+                <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+                  <Form.Control
+                    className="form-control-custom"
+                    style={{ width: '250px' }}
+                    type="search"
+                    placeholder={language === 'uz' ? "Nomi bo'yicha qidirish" : 'Поиск по названию'}
+                    value={globalProductsSearch}
+                    onChange={(e) => setGlobalProductsSearch(e.target.value)}
+                  />
+                  <Form.Control
+                    className="form-control-custom"
+                    style={{ width: '220px' }}
+                    placeholder={language === 'uz' ? 'Shtrix-kod bo‘yicha qidirish' : 'Поиск по штрихкоду'}
+                    value={globalProductsBarcodeFilter}
+                    onChange={(e) => setGlobalProductsBarcodeFilter(String(e.target.value || '').replace(/\D/g, '').slice(0, 120))}
+                    inputMode="numeric"
+                  />
+                  <Form.Select
+                    className="form-control-custom"
+                    style={{ width: '220px' }}
+                    value={globalProductsStatusFilter}
+                    onChange={(e) => setGlobalProductsStatusFilter(e.target.value)}
+                  >
+                    <option value="active">{language === 'uz' ? 'Faqat faol' : 'Только активные'}</option>
+                    <option value="all">{language === 'uz' ? 'Faol + o‘chirilgan' : 'Активные + отключенные'}</option>
+                  </Form.Select>
+                </div>
+
+                {globalProductsLoading ? (
+                  <TableSkeleton
+                    rows={8}
+                    columns={8}
+                    label={language === 'uz' ? "Global mahsulotlar yuklanmoqda" : 'Загрузка глобальных товаров'}
+                  />
+                ) : (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table align-middle">
+                        <thead>
+                          <tr>
+                            <th>ID</th>
+                            <th>{language === 'uz' ? 'Rasm' : 'Фото'}</th>
+                            <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
+                            <th>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</th>
+                            <th>{language === 'uz' ? 'Tavsiya kategoriya' : 'Рекоменд. категория'}</th>
+                            <th>{language === 'uz' ? 'Birlik' : 'Ед. изм.'}</th>
+                            <th>{language === 'uz' ? 'Holat' : 'Статус'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Array.isArray(globalProducts.items) && globalProducts.items.length > 0 ? (
+                            globalProducts.items.map((item) => {
+                              const imageUrl = item?.image_url
+                                ? (String(item.image_url).startsWith('http')
+                                  ? String(item.image_url)
+                                  : `${API_URL.replace('/api', '')}${item.image_url}`)
+                                : '';
+                              const recommendedCategory = language === 'uz'
+                                ? (item.recommended_category_name_uz || item.recommended_category_name_ru)
+                                : (item.recommended_category_name_ru || item.recommended_category_name_uz);
+                              return (
+                                <tr key={`global-product-row-${item.id}`}>
+                                  <td><span className="text-muted small">#{item.id}</span></td>
+                                  <td>
+                                    {imageUrl ? (
+                                      <img
+                                        src={imageUrl}
+                                        alt={item.name_ru || 'global-product'}
+                                        style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                      />
+                                    ) : (
+                                      <div
+                                        style={{
+                                          width: '42px',
+                                          height: '42px',
+                                          borderRadius: '8px',
+                                          border: '1px solid #e2e8f0',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#94a3b8',
+                                          background: '#f8fafc'
+                                        }}
+                                      >
+                                        📦
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div className="fw-semibold">{item.name_ru || '-'}</div>
+                                    <div className="small text-muted">{item.name_uz || '—'}</div>
+                                  </td>
+                                  <td>{item.barcode || '—'}</td>
+                                  <td>{recommendedCategory || '—'}</td>
+                                  <td>
+                                    <div>{item.unit || 'шт'}</div>
+                                    <div className="small text-muted">
+                                      {Number.parseFloat(item.order_step) > 0 ? `${item.order_step}` : '—'}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <Badge className={`badge-custom ${item.is_active === false ? 'bg-secondary bg-opacity-10 text-muted' : 'bg-success bg-opacity-10 text-success'}`}>
+                                        {item.is_active === false
+                                          ? (language === 'uz' ? "O'chirilgan" : 'Отключен')
+                                          : (language === 'uz' ? 'Faol' : 'Активен')}
+                                      </Badge>
+                                      <Form.Check
+                                        type="switch"
+                                        checked={item.is_active !== false}
+                                        onChange={() => handleToggleGlobalProductActive(item)}
+                                        className="custom-switch"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="text-end">
+                                    <Button
+                                      variant="light"
+                                      className="action-btn text-primary"
+                                      onClick={() => openGlobalProductModal(item)}
+                                      title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                    >
+                                      ✏️
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan="8" className="text-center py-5 text-muted">
+                                {language === 'uz'
+                                  ? "Global mahsulotlar hozircha yo'q"
+                                  : 'Глобальные товары пока не добавлены'}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+
+                    <DataPagination
+                      current={globalProductsPage}
+                      total={globalProducts.total || 0}
+                      limit={globalProductsLimit}
+                      onPageChange={setGlobalProductsPage}
+                      limitOptions={[15, 20, 30, 50]}
+                      onLimitChange={(value) => {
+                        setGlobalProductsLimit(value);
+                        setGlobalProductsPage(1);
+                      }}
+                    />
+                  </>
+                )}
+              </Tab>
+
               {/* Activity Types Tab */}
               <Tab eventKey="activity_types" title="🧩 Виды деятельности">
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -8691,6 +9102,205 @@ function SuperAdminDashboard() {
           >
             {savingHelpInstruction
               ? '...'
+              : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showGlobalProductModal}
+        onHide={closeGlobalProductModal}
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {editingGlobalProduct
+              ? (language === 'uz' ? 'Global mahsulotni tahrirlash' : 'Редактировать глобальный товар')
+              : (language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар')}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Nomi (RU) *' : 'Название (RU) *'}</Form.Label>
+                <Form.Control
+                  value={globalProductForm.name_ru}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, name_ru: e.target.value }))}
+                  placeholder={language === 'uz' ? 'RU nomini kiriting' : 'Введите название на русском'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</Form.Label>
+                <Form.Control
+                  value={globalProductForm.name_uz}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, name_uz: e.target.value }))}
+                  placeholder={language === 'uz' ? "UZ nomini kiriting" : 'Введите название на узбекском'}
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={globalProductForm.description_ru}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, description_ru: e.target.value }))}
+                  placeholder={language === 'uz' ? 'RU tavsif' : 'Описание на русском'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Tavsif (UZ)' : 'Описание (UZ)'}</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={globalProductForm.description_uz}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, description_uz: e.target.value }))}
+                  placeholder={language === 'uz' ? 'UZ tavsif' : 'Описание на узбекском'}
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</Form.Label>
+                <Form.Control
+                  value={globalProductForm.barcode}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, barcode: String(e.target.value || '').replace(/\s+/g, '').slice(0, 120) }))}
+                  placeholder={language === 'uz' ? 'Masalan: 1234567890123' : 'Например: 1234567890123'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Tavsiya kategoriya' : 'Рекомендуемая категория'}</Form.Label>
+                <Form.Select
+                  value={globalProductForm.recommended_category_id}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, recommended_category_id: e.target.value }))}
+                >
+                  <option value="">{language === 'uz' ? 'Tanlanmagan' : 'Не выбрана'}</option>
+                  {globalProductCategoryOptions.map((category) => (
+                    <option key={`global-product-category-option-${category.id}`} value={String(category.id)}>
+                      {category.path}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? "O'lchov birligi" : 'Единица измерения'}</Form.Label>
+                <Form.Control
+                  value={globalProductForm.unit}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, unit: e.target.value }))}
+                  placeholder={language === 'uz' ? "Masalan: шт, кг, л" : 'Например: шт, кг, л'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Шаг (для кг)' : 'Шаг (для кг)'}</Form.Label>
+                <Form.Control
+                  value={globalProductForm.order_step}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, order_step: String(e.target.value || '').replace(/[^\d.,]/g, '').slice(0, 12) }))}
+                  placeholder={language === 'uz' ? "Masalan: 0.1" : 'Например: 0.1'}
+                  inputMode="decimal"
+                />
+              </Form.Group>
+            </Col>
+
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Rasm' : 'Фото'}</Form.Label>
+                <div
+                  className="rounded border p-3 bg-light"
+                  onPaste={(e) => handlePaste(e, (url) => setGlobalProductForm((prev) => ({ ...prev, image_url: url })))}
+                >
+                  <div className="d-flex flex-wrap align-items-center gap-3">
+                    {globalProductForm.image_url ? (
+                      <img
+                        src={globalProductForm.image_url.startsWith('http')
+                          ? globalProductForm.image_url
+                          : `${API_URL.replace('/api', '')}${globalProductForm.image_url}`}
+                        alt="global-product-preview"
+                        style={{ width: '96px', height: '96px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #dbe4ee' }}
+                      />
+                    ) : (
+                      <div
+                        className="d-flex align-items-center justify-content-center text-muted"
+                        style={{ width: '96px', height: '96px', borderRadius: '10px', border: '1px dashed #cbd5e1', background: '#fff' }}
+                      >
+                        📷
+                      </div>
+                    )}
+                    <div className="d-flex flex-column gap-2 flex-grow-1">
+                      <div className="d-flex flex-wrap gap-2">
+                        <Button
+                          variant="outline-secondary"
+                          onClick={() => globalProductImageInputRef.current?.click()}
+                          disabled={uploadingImage}
+                        >
+                          {language === 'uz' ? 'Fayl tanlash' : 'Выбрать файл'}
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          onClick={() => setGlobalProductForm((prev) => ({ ...prev, image_url: '' }))}
+                          disabled={!globalProductForm.image_url}
+                        >
+                          {language === 'uz' ? "O'chirish" : 'Удалить'}
+                        </Button>
+                      </div>
+                      <Form.Control
+                        value={globalProductForm.image_url}
+                        onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, image_url: e.target.value }))}
+                        placeholder={language === 'uz' ? 'https://example.com/image.jpg' : 'https://example.com/image.jpg'}
+                      />
+                      <Form.Text className="text-muted">
+                        {language === 'uz'
+                          ? 'Ctrl+V orqali ham rasm qo‘yish mumkin.'
+                          : 'Можно вставить фото через Ctrl+V.'}
+                      </Form.Text>
+                    </div>
+                  </div>
+                </div>
+                <Form.Control
+                  ref={globalProductImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="d-none"
+                  onChange={handleGlobalProductImageUpload}
+                />
+              </Form.Group>
+            </Col>
+
+            {editingGlobalProduct && (
+              <Col md={12}>
+                <Form.Check
+                  type="switch"
+                  className="custom-switch"
+                  label={language === 'uz' ? 'Faol' : 'Активен'}
+                  checked={globalProductForm.is_active !== false}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+                />
+              </Col>
+            )}
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeGlobalProductModal} disabled={savingGlobalProduct}>
+            {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+          <Button className="btn-primary-custom" onClick={handleSaveGlobalProduct} disabled={savingGlobalProduct}>
+            {savingGlobalProduct
+              ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
               : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
           </Button>
         </Modal.Footer>

@@ -53,6 +53,9 @@ let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
 let restaurantAdminCommentSchemaReady = false;
 let restaurantAdminCommentSchemaPromise = null;
+let globalProductsSchemaReady = false;
+let globalProductsSchemaPromise = null;
+const GLOBAL_PRODUCT_MAX_IMAGES = 5;
 
 const DEFAULT_ACTIVITY_TYPES = [
   'Ресторан',
@@ -180,6 +183,67 @@ const ensureBillingSettingsSchema = async () => {
     billingSettingsSchemaPromise = null;
   }
 };
+const ensureGlobalProductsSchema = async () => {
+  if (globalProductsSchemaReady) return;
+  if (globalProductsSchemaPromise) {
+    await globalProductsSchemaPromise;
+    return;
+  }
+
+  globalProductsSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS global_products (
+        id SERIAL PRIMARY KEY,
+        name_ru VARCHAR(255) NOT NULL,
+        name_uz VARCHAR(255),
+        description_ru TEXT,
+        description_uz TEXT,
+        image_url TEXT,
+        thumb_url TEXT,
+        product_images JSONB DEFAULT '[]'::jsonb,
+        barcode VARCHAR(120),
+        recommended_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        unit VARCHAR(32) DEFAULT 'шт',
+        order_step NUMERIC(10,2),
+        size_enabled BOOLEAN DEFAULT false,
+        size_options JSONB DEFAULT '[]'::jsonb,
+        is_active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS name_uz VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS description_ru TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS description_uz TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS image_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS thumb_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS product_images JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS recommended_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS unit VARCHAR(32) DEFAULT 'шт'`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS order_step NUMERIC(10,2)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS size_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`UPDATE global_products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
+    await pool.query(`UPDATE global_products SET size_options = '[]'::jsonb WHERE size_options IS NULL`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_active_name ON global_products(is_active, LOWER(name_ru))`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_barcode ON global_products(barcode)`).catch(() => {});
+    globalProductsSchemaReady = true;
+  })();
+
+  try {
+    await globalProductsSchemaPromise;
+  } finally {
+    globalProductsSchemaPromise = null;
+  }
+};
 const normalizeLogoDisplayMode = (value, fallback = 'square') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'horizontal' ? 'horizontal' : fallback;
@@ -220,6 +284,112 @@ const normalizeRestaurantAdminComment = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   if (!normalized) return null;
   return normalized.slice(0, MAX_RESTAURANT_ADMIN_COMMENT_LENGTH);
+};
+const toOptionalTrimmedText = (value) => (
+  value === undefined || value === null ? '' : String(value).trim()
+);
+const normalizePositivePrice = (value, fallback = null) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.round(parsed);
+};
+const normalizeGlobalProductImages = (value, maxCount = GLOBAL_PRODUCT_MAX_IMAGES) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = [];
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  const normalized = [];
+  for (const entry of source) {
+    let imageUrl = '';
+    let thumbUrl = '';
+    if (typeof entry === 'string') {
+      imageUrl = entry.trim();
+    } else if (entry && typeof entry === 'object') {
+      imageUrl = toOptionalTrimmedText(entry.url || entry.image_url);
+      thumbUrl = toOptionalTrimmedText(entry.thumb_url || entry.thumbUrl);
+    }
+    if (!imageUrl) continue;
+    normalized.push({
+      url: imageUrl,
+      ...(thumbUrl ? { thumb_url: thumbUrl } : {})
+    });
+    if (normalized.length >= maxCount) break;
+  }
+  return normalized;
+};
+const normalizeGlobalProductVariantOptions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = source
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  const unique = new Set();
+  const normalized = [];
+  for (const item of source) {
+    let name = '';
+    let descriptionRu = '';
+    let descriptionUz = '';
+    let price = null;
+    let barcode = '';
+    let imageUrl = '';
+    let thumbUrl = '';
+    let variantImages = [];
+
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      name = toOptionalTrimmedText(item.name || item.value || item.label);
+      descriptionRu = toOptionalTrimmedText(item.description_ru || item.descriptionRu).slice(0, 1500);
+      descriptionUz = toOptionalTrimmedText(item.description_uz || item.descriptionUz).slice(0, 1500);
+      price = normalizePositivePrice(item.price, null);
+      barcode = toOptionalTrimmedText(item.barcode).slice(0, 120);
+      variantImages = normalizeGlobalProductImages(item.product_images, 4);
+      const fallbackImageUrl = toOptionalTrimmedText(item.image_url || item.imageUrl);
+      const fallbackThumbUrl = toOptionalTrimmedText(item.thumb_url || item.thumbUrl);
+      if (variantImages.length === 0 && fallbackImageUrl) {
+        variantImages.push({
+          url: fallbackImageUrl,
+          ...(fallbackThumbUrl ? { thumb_url: fallbackThumbUrl } : {})
+        });
+      }
+      imageUrl = variantImages[0]?.url || fallbackImageUrl;
+      thumbUrl = variantImages[0]?.thumb_url || fallbackThumbUrl;
+    } else {
+      name = toOptionalTrimmedText(item);
+    }
+
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (unique.has(key)) continue;
+    unique.add(key);
+
+    normalized.push({
+      name,
+      description_ru: descriptionRu,
+      description_uz: descriptionUz,
+      price,
+      barcode,
+      image_url: imageUrl || '',
+      thumb_url: thumbUrl || '',
+      product_images: variantImages
+    });
+    if (normalized.length >= 20) break;
+  }
+  return normalized;
 };
 
 const normalizeInstructionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -2461,6 +2631,266 @@ router.get('/operators', async (req, res) => {
   } catch (error) {
     console.error('Get operators error:', error);
     res.status(500).json({ error: 'Ошибка получения операторов' });
+  }
+});
+
+// =====================================================
+// ГЛОБАЛЬНЫЕ ТОВАРЫ (шаблоны для магазинов)
+// =====================================================
+
+router.get('/global-products', async (req, res) => {
+  try {
+    await ensureGlobalProductsSchema();
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 20));
+    const offset = (page - 1) * limit;
+    const search = String(req.query.search || '').trim();
+    const barcode = String(req.query.barcode || '').replace(/\D/g, '').slice(0, 120);
+    const includeInactive = ['1', 'true', 'yes'].includes(String(req.query.include_inactive || '').toLowerCase());
+
+    const where = [];
+    const params = [];
+
+    if (!includeInactive) {
+      where.push('gp.is_active = true');
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(gp.name_ru ILIKE $${params.length} OR gp.name_uz ILIKE $${params.length})`);
+    }
+    if (barcode) {
+      params.push(`%${barcode}%`);
+      where.push(`REGEXP_REPLACE(COALESCE(gp.barcode, ''), '\\D', '', 'g') LIKE $${params.length}`);
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const rowsResult = await pool.query(
+      `
+        SELECT
+          gp.*,
+          c.name_ru AS recommended_category_name_ru,
+          c.name_uz AS recommended_category_name_uz
+        FROM global_products gp
+        LEFT JOIN categories c ON c.id = gp.recommended_category_id
+        ${whereSql}
+        ORDER BY gp.updated_at DESC, gp.id DESC
+        LIMIT $${params.length + 1}
+        OFFSET $${params.length + 2}
+      `,
+      [...params, limit, offset]
+    );
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM global_products gp ${whereSql}`,
+      params
+    );
+
+    res.json({
+      items: rowsResult.rows || [],
+      total: Number(countResult.rows?.[0]?.total || 0),
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Get global products error:', error);
+    res.status(500).json({ error: 'Ошибка получения глобальных товаров' });
+  }
+});
+
+router.post('/global-products', async (req, res) => {
+  try {
+    await ensureGlobalProductsSchema();
+    const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
+    if (!nameRu) {
+      return res.status(400).json({ error: 'Название (RU) обязательно' });
+    }
+
+    const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+    const descriptionRu = toOptionalTrimmedText(req.body?.description_ru).slice(0, 3000);
+    const descriptionUz = toOptionalTrimmedText(req.body?.description_uz).slice(0, 3000);
+    const barcode = toOptionalTrimmedText(req.body?.barcode).slice(0, 120);
+    const recommendedCategoryIdRaw = Number.parseInt(req.body?.recommended_category_id, 10);
+    const recommendedCategoryId = Number.isFinite(recommendedCategoryIdRaw) && recommendedCategoryIdRaw > 0
+      ? recommendedCategoryIdRaw
+      : null;
+    const unit = toOptionalTrimmedText(req.body?.unit).slice(0, 32) || 'шт';
+    const normalizedOrderStep = Number.parseFloat(String(req.body?.order_step ?? '').replace(',', '.'));
+    const orderStep = Number.isFinite(normalizedOrderStep) && normalizedOrderStep > 0
+      ? Math.round((normalizedOrderStep + Number.EPSILON) * 100) / 100
+      : null;
+    const sizeEnabled = req.body?.size_enabled === true || req.body?.size_enabled === 'true';
+    const sizeOptions = normalizeGlobalProductVariantOptions(req.body?.size_options);
+    const normalizedImages = normalizeGlobalProductImages(req.body?.product_images, GLOBAL_PRODUCT_MAX_IMAGES);
+    const fallbackImageUrl = toOptionalTrimmedText(req.body?.image_url);
+    const fallbackThumbUrl = toOptionalTrimmedText(req.body?.thumb_url);
+    if (normalizedImages.length === 0 && fallbackImageUrl) {
+      normalizedImages.push({
+        url: fallbackImageUrl,
+        ...(fallbackThumbUrl ? { thumb_url: fallbackThumbUrl } : {})
+      });
+    }
+    const mainImage = normalizedImages[0] || null;
+    const imageUrl = mainImage?.url || fallbackImageUrl || null;
+    const thumbUrl = mainImage?.thumb_url || fallbackThumbUrl || null;
+
+    if (recommendedCategoryId) {
+      const categoryExistsResult = await pool.query('SELECT id FROM categories WHERE id = $1 LIMIT 1', [recommendedCategoryId]);
+      if (!categoryExistsResult.rows.length) {
+        return res.status(400).json({ error: 'Рекомендуемая категория не найдена' });
+      }
+    }
+
+    const result = await pool.query(
+      `
+        INSERT INTO global_products (
+          name_ru, name_uz, description_ru, description_uz,
+          image_url, thumb_url, product_images, barcode,
+          recommended_category_id, unit, order_step,
+          size_enabled, size_options, is_active,
+          created_by, updated_by
+        ) VALUES (
+          $1, $2, $3, $4,
+          $5, $6, $7::jsonb, $8,
+          $9, $10, $11,
+          $12, $13::jsonb, true,
+          $14, $14
+        )
+        RETURNING *
+      `,
+      [
+        nameRu, nameUz || null, descriptionRu || null, descriptionUz || null,
+        imageUrl, thumbUrl, JSON.stringify(normalizedImages), barcode || null,
+        recommendedCategoryId, unit, orderStep,
+        sizeEnabled, JSON.stringify(sizeOptions), req.user.id
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create global product error:', error);
+    res.status(500).json({ error: 'Ошибка создания глобального товара' });
+  }
+});
+
+router.put('/global-products/:id', async (req, res) => {
+  try {
+    await ensureGlobalProductsSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+
+    const oldResult = await pool.query('SELECT * FROM global_products WHERE id = $1 LIMIT 1', [id]);
+    if (!oldResult.rows.length) {
+      return res.status(404).json({ error: 'Глобальный товар не найден' });
+    }
+    const oldProduct = oldResult.rows[0];
+
+    const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
+    if (!nameRu) {
+      return res.status(400).json({ error: 'Название (RU) обязательно' });
+    }
+
+    const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+    const descriptionRu = toOptionalTrimmedText(req.body?.description_ru).slice(0, 3000);
+    const descriptionUz = toOptionalTrimmedText(req.body?.description_uz).slice(0, 3000);
+    const barcode = toOptionalTrimmedText(req.body?.barcode).slice(0, 120);
+    const recommendedCategoryIdRaw = Number.parseInt(req.body?.recommended_category_id, 10);
+    const recommendedCategoryId = Number.isFinite(recommendedCategoryIdRaw) && recommendedCategoryIdRaw > 0
+      ? recommendedCategoryIdRaw
+      : null;
+    const unit = toOptionalTrimmedText(req.body?.unit).slice(0, 32) || 'шт';
+    const normalizedOrderStep = Number.parseFloat(String(req.body?.order_step ?? '').replace(',', '.'));
+    const orderStep = Number.isFinite(normalizedOrderStep) && normalizedOrderStep > 0
+      ? Math.round((normalizedOrderStep + Number.EPSILON) * 100) / 100
+      : null;
+    const sizeEnabled = req.body?.size_enabled === true || req.body?.size_enabled === 'true';
+    const sizeOptions = normalizeGlobalProductVariantOptions(req.body?.size_options);
+    const normalizedImages = normalizeGlobalProductImages(req.body?.product_images, GLOBAL_PRODUCT_MAX_IMAGES);
+    const fallbackImageUrl = toOptionalTrimmedText(req.body?.image_url);
+    const fallbackThumbUrl = toOptionalTrimmedText(req.body?.thumb_url);
+    if (normalizedImages.length === 0 && fallbackImageUrl) {
+      normalizedImages.push({
+        url: fallbackImageUrl,
+        ...(fallbackThumbUrl ? { thumb_url: fallbackThumbUrl } : {})
+      });
+    }
+    const mainImage = normalizedImages[0] || null;
+    const imageUrl = mainImage?.url || fallbackImageUrl || null;
+    const thumbUrl = mainImage?.thumb_url || fallbackThumbUrl || null;
+    const isActive = req.body?.is_active === undefined
+      ? oldProduct.is_active !== false
+      : (req.body?.is_active === true || req.body?.is_active === 'true');
+
+    if (recommendedCategoryId) {
+      const categoryExistsResult = await pool.query('SELECT id FROM categories WHERE id = $1 LIMIT 1', [recommendedCategoryId]);
+      if (!categoryExistsResult.rows.length) {
+        return res.status(400).json({ error: 'Рекомендуемая категория не найдена' });
+      }
+    }
+
+    const result = await pool.query(
+      `
+        UPDATE global_products SET
+          name_ru = $1,
+          name_uz = $2,
+          description_ru = $3,
+          description_uz = $4,
+          image_url = $5,
+          thumb_url = $6,
+          product_images = $7::jsonb,
+          barcode = $8,
+          recommended_category_id = $9,
+          unit = $10,
+          order_step = $11,
+          size_enabled = $12,
+          size_options = $13::jsonb,
+          is_active = $14,
+          updated_by = $15,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $16
+        RETURNING *
+      `,
+      [
+        nameRu, nameUz || null, descriptionRu || null, descriptionUz || null,
+        imageUrl, thumbUrl, JSON.stringify(normalizedImages), barcode || null,
+        recommendedCategoryId, unit, orderStep, sizeEnabled, JSON.stringify(sizeOptions),
+        isActive, req.user.id, id
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update global product error:', error);
+    res.status(500).json({ error: 'Ошибка обновления глобального товара' });
+  }
+});
+
+router.delete('/global-products/:id', async (req, res) => {
+  try {
+    await ensureGlobalProductsSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+
+    const result = await pool.query(
+      `
+        UPDATE global_products
+        SET is_active = false, updated_at = CURRENT_TIMESTAMP, updated_by = $2
+        WHERE id = $1
+        RETURNING id
+      `,
+      [id, req.user.id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Глобальный товар не найден' });
+    }
+
+    res.json({ message: 'Глобальный товар отключен' });
+  } catch (error) {
+    console.error('Delete global product error:', error);
+    res.status(500).json({ error: 'Ошибка удаления глобального товара' });
   }
 });
 
