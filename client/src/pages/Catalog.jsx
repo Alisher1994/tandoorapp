@@ -91,6 +91,19 @@ function Catalog() {
   const [galleryImages, setGalleryImages] = useState([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [galleryProductName, setGalleryProductName] = useState('');
+  const [showProductDetailsModal, setShowProductDetailsModal] = useState(false);
+  const [productDetailsLoading, setProductDetailsLoading] = useState(false);
+  const [productDetailsError, setProductDetailsError] = useState('');
+  const [selectedProductSummary, setSelectedProductSummary] = useState(null);
+  const [selectedProductDetails, setSelectedProductDetails] = useState(null);
+  const [productReviews, setProductReviews] = useState([]);
+  const [productReviewsTotal, setProductReviewsTotal] = useState(0);
+  const [productReviewsAverage, setProductReviewsAverage] = useState(0);
+  const [productReviewsHasMore, setProductReviewsHasMore] = useState(false);
+  const [productReviewsLoadingMore, setProductReviewsLoadingMore] = useState(false);
+  const [productReviewRating, setProductReviewRating] = useState(5);
+  const [productReviewComment, setProductReviewComment] = useState('');
+  const [productReviewSubmitting, setProductReviewSubmitting] = useState(false);
   const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
   const [catalogTabsLayout, setCatalogTabsLayout] = useState({
@@ -118,6 +131,7 @@ function Catalog() {
   const tabScrollSpyRafRef = useRef(null);
   const scrollProgressRafRef = useRef(null);
   const tabScrollLockTimeoutRef = useRef(null);
+  const galleryTouchStartXRef = useRef(null);
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
   const catalogHeaderBackground = '#f8fafc';
@@ -338,6 +352,25 @@ function Catalog() {
   const showNextGalleryImage = () => {
     setGalleryIndex((prev) => (prev >= galleryImages.length - 1 ? 0 : prev + 1));
   };
+  const handleGalleryTouchStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    galleryTouchStartXRef.current = touch.clientX;
+  };
+  const handleGalleryTouchEnd = (event) => {
+    const startX = galleryTouchStartXRef.current;
+    galleryTouchStartXRef.current = null;
+    if (startX === null || startX === undefined) return;
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - startX;
+    if (Math.abs(deltaX) < 44) return;
+    if (deltaX < 0) {
+      showNextGalleryImage();
+    } else {
+      showPrevGalleryImage();
+    }
+  };
 
   const getRestaurantLogoFrame = (logoDisplayMode) => {
     const mode = String(logoDisplayMode || '').toLowerCase() === 'horizontal' ? 'horizontal' : 'square';
@@ -383,6 +416,38 @@ function Catalog() {
   const getProductName = (product) => (
     language === 'uz' && product?.name_uz ? product.name_uz : product?.name_ru
   );
+
+  const getProductDescription = (product) => (
+    language === 'uz' && product?.description_uz
+      ? product.description_uz
+      : (product?.description_ru || '')
+  );
+
+  const normalizeRatingValue = (value, fallback = 0) => {
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    if (parsed < 0) return 0;
+    if (parsed > 5) return 5;
+    return parsed;
+  };
+
+  const buildRatingStars = (ratingValue, max = 5) => {
+    const normalized = Math.round(normalizeRatingValue(ratingValue, 0));
+    return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, max - normalized))}`;
+  };
+
+  const formatReviewDate = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   const fetchRestaurants = async () => {
     try {
@@ -1565,7 +1630,18 @@ function Catalog() {
     const primaryImageUrl = getProductCardImage(product);
 
     return (
-      <Card className="h-100 shadow-sm border-0">
+      <Card
+        className="h-100 shadow-sm border-0"
+        role="button"
+        tabIndex={0}
+        onClick={() => openProductDetailsModal(product)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openProductDetailsModal(product);
+          }
+        }}
+      >
         <div style={{ position: 'relative' }}>
           {primaryImageUrl ? (
             <Card.Img
@@ -1960,14 +2036,148 @@ function Catalog() {
     );
   };
 
-  const openProductFromSearch = (product) => {
-    const level2CategoryId = getLevel2CategoryIdForProduct(product);
-    if (level2CategoryId) {
-      categoryListScrollOffsetRef.current = getCurrentScrollOffset();
-      setSelectedCategory(level2CategoryId);
-      setActiveSubcategoryTab(null);
-      scrollToTop();
+  const resetProductDetailsState = () => {
+    setSelectedProductDetails(null);
+    setProductReviews([]);
+    setProductReviewsTotal(0);
+    setProductReviewsAverage(0);
+    setProductReviewsHasMore(false);
+    setProductDetailsError('');
+  };
+
+  const closeProductDetailsModal = () => {
+    setShowProductDetailsModal(false);
+    setSelectedProductSummary(null);
+    resetProductDetailsState();
+    setProductReviewRating(5);
+    setProductReviewComment('');
+  };
+
+  const loadProductDetails = async (productId, fallbackProduct = null) => {
+    if (!productId) return;
+    setProductDetailsLoading(true);
+    setProductDetailsError('');
+    try {
+      const response = await axios.get(`${API_URL}/products/${productId}/details`);
+      const payload = response.data || {};
+      const detailsProduct = payload.product || fallbackProduct || null;
+      const ratingAverage = normalizeRatingValue(payload?.rating?.average, 0);
+      const ratingTotal = Number.parseInt(payload?.rating?.total, 10) || 0;
+      const latestReviews = Array.isArray(payload?.latest_reviews) ? payload.latest_reviews : [];
+      const hasMoreReviews = Boolean(payload?.has_more_reviews) && ratingTotal > latestReviews.length;
+      const myReview = payload?.my_review || null;
+
+      setSelectedProductDetails(detailsProduct);
+      setProductReviewsAverage(ratingAverage);
+      setProductReviewsTotal(ratingTotal);
+      setProductReviews(latestReviews);
+      setProductReviewsHasMore(hasMoreReviews);
+      if (myReview) {
+        setProductReviewRating(normalizeRatingValue(myReview.rating, 5));
+        setProductReviewComment(String(myReview.comment || ''));
+      } else {
+        setProductReviewRating(5);
+        setProductReviewComment('');
+      }
+    } catch (error) {
+      setProductDetailsError(
+        language === 'uz'
+          ? "Mahsulot tafsilotlarini yuklab bo'lmadi"
+          : 'Не удалось загрузить детали товара'
+      );
+      setSelectedProductDetails(fallbackProduct || null);
+      setProductReviews([]);
+      setProductReviewsAverage(0);
+      setProductReviewsTotal(0);
+      setProductReviewsHasMore(false);
+    } finally {
+      setProductDetailsLoading(false);
     }
+  };
+
+  const openProductDetailsModal = (product) => {
+    if (!product?.id) return;
+    setSelectedProductSummary(product);
+    setShowProductDetailsModal(true);
+    resetProductDetailsState();
+    setProductReviewRating(5);
+    setProductReviewComment('');
+    loadProductDetails(product.id, product);
+  };
+
+  const loadMoreProductReviews = async () => {
+    const product = selectedProductDetails || selectedProductSummary;
+    if (!product?.id || productReviewsLoadingMore || !productReviewsHasMore) return;
+    setProductReviewsLoadingMore(true);
+    try {
+      const response = await axios.get(`${API_URL}/products/${product.id}/reviews`, {
+        params: {
+          limit: 50,
+          offset: productReviews.length
+        }
+      });
+      const payload = response.data || {};
+      const nextReviews = Array.isArray(payload.reviews) ? payload.reviews : [];
+      setProductReviews((prev) => {
+        const knownIds = new Set(prev.map((item) => Number(item.id)));
+        const merged = [...prev];
+        nextReviews.forEach((item) => {
+          const id = Number(item.id);
+          if (!knownIds.has(id)) merged.push(item);
+        });
+        return merged;
+      });
+      if (Number.isFinite(Number(payload.average_rating))) {
+        setProductReviewsAverage(normalizeRatingValue(payload.average_rating, 0));
+      }
+      if (Number.isFinite(Number(payload.total))) {
+        setProductReviewsTotal(Number.parseInt(payload.total, 10) || 0);
+      }
+      setProductReviewsHasMore(Boolean(payload.has_more));
+    } catch (error) {
+      setProductDetailsError(
+        language === 'uz'
+          ? "Kommentlarni yuklab bo'lmadi"
+          : 'Не удалось загрузить комментарии'
+      );
+    } finally {
+      setProductReviewsLoadingMore(false);
+    }
+  };
+
+  const submitProductReview = async () => {
+    const product = selectedProductDetails || selectedProductSummary;
+    if (!product?.id || productReviewSubmitting) return;
+    const rating = Math.round(normalizeRatingValue(productReviewRating, 0));
+    if (rating < 1 || rating > 5) {
+      setProductDetailsError(
+        language === 'uz'
+          ? "Bahoni 1 dan 5 gacha tanlang"
+          : 'Выберите оценку от 1 до 5'
+      );
+      return;
+    }
+
+    setProductReviewSubmitting(true);
+    setProductDetailsError('');
+    try {
+      await axios.post(`${API_URL}/products/${product.id}/reviews`, {
+        rating,
+        comment: String(productReviewComment || '').trim()
+      });
+      await loadProductDetails(product.id, product);
+    } catch (error) {
+      setProductDetailsError(
+        error?.response?.data?.error
+        || (language === 'uz' ? "Kommentni saqlab bo'lmadi" : 'Не удалось сохранить комментарий')
+      );
+    } finally {
+      setProductReviewSubmitting(false);
+    }
+  };
+
+  const openProductFromSearch = (product) => {
+    openProductDetailsModal(product);
   };
 
   const renderCatalogSearch = ({ compact = false } = {}) => (
@@ -2231,6 +2441,15 @@ function Catalog() {
     && !normalizedCatalogSearch
     && activeCatalogTabs.length > 0
   );
+  const activeProduct = selectedProductDetails || selectedProductSummary;
+  const activeProductName = getProductName(activeProduct);
+  const activeProductDescription = getProductDescription(activeProduct);
+  const activeProductCardImage = getProductCardImage(activeProduct);
+  const activeProductGalleryImages = getProductGalleryImages(activeProduct);
+  const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id) : null;
+  const activeProductQty = activeProductCartItem?.quantity || 0;
+  const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
+  const activeProductFavorite = activeProduct?.id ? isFavorite(activeProduct.id) : false;
 
   return (
     <>
@@ -2797,6 +3016,329 @@ function Catalog() {
         </Modal.Body>
       </Modal>
 
+      <Modal
+        show={showProductDetailsModal}
+        onHide={closeProductDetailsModal}
+        centered
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <div className="d-flex align-items-center gap-2 w-100 me-4">
+            <Button
+              type="button"
+              variant="light"
+              size="sm"
+              onClick={closeProductDetailsModal}
+              style={{ borderRadius: 999, border: '1px solid #d1d5db', minWidth: 84 }}
+            >
+              {language === 'uz' ? '← Orqaga' : '← Назад'}
+            </Button>
+            <Modal.Title className="fs-6 text-truncate mb-0">
+              {activeProductName || (language === 'uz' ? 'Mahsulot' : 'Товар')}
+            </Modal.Title>
+          </div>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '74vh', overflowY: 'auto' }}>
+          {productDetailsError && (
+            <div className="alert alert-warning py-2 small mb-3">{productDetailsError}</div>
+          )}
+
+          {productDetailsLoading && !activeProduct ? (
+            <ListSkeleton rows={4} />
+          ) : activeProduct ? (
+            <div className="d-flex flex-column gap-3">
+              <div
+                style={{
+                  border: '1px solid rgba(71, 85, 105, 0.16)',
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  background: '#fff',
+                  position: 'relative'
+                }}
+              >
+                {activeProductCardImage ? (
+                  <button
+                    type="button"
+                    className="border-0 p-0 w-100"
+                    onClick={() => openProductGallery(activeProduct, 0)}
+                    style={{ background: '#fff', cursor: 'zoom-in' }}
+                  >
+                    <img
+                      src={activeProductCardImage}
+                      alt={activeProductName || 'Product'}
+                      style={{
+                        width: '100%',
+                        maxHeight: '340px',
+                        objectFit: 'cover',
+                        display: 'block'
+                      }}
+                    />
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      minHeight: 220,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#94a3b8',
+                      background: '#f8fafc'
+                    }}
+                  >
+                    📦
+                  </div>
+                )}
+
+                {activeProductGalleryImages.length > 1 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      bottom: 10,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      background: 'rgba(0,0,0,0.62)',
+                      color: '#fff',
+                      fontSize: '0.82rem'
+                    }}
+                  >
+                    {activeProductGalleryImages.length} {language === 'uz' ? 'ta rasm' : 'фото'}
+                  </div>
+                )}
+              </div>
+
+              <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+                <div className="min-w-0">
+                  <h5 className="mb-1 text-truncate">{activeProductName}</h5>
+                  <div className="small text-muted">{activeProduct?.unit || (language === 'uz' ? 'dona' : 'шт')}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleFavorite(activeProduct)}
+                  className="border-0"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 999,
+                    background: activeProductFavorite ? 'rgba(255, 95, 125, 0.94)' : 'rgba(241, 245, 249, 0.95)',
+                    color: activeProductFavorite ? '#fff' : '#475569',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  aria-label={language === 'uz' ? "Saralanganlarga qo'shish" : 'Добавить в избранное'}
+                >
+                  <HeartIcon size={16} filled={activeProductFavorite} color={activeProductFavorite ? '#ffffff' : '#475569'} />
+                </button>
+              </div>
+
+              <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                <div className="fw-bold" style={{ color: 'var(--primary-color)', fontSize: '1.45rem' }}>
+                  {formatPrice(activeProduct?.price || 0)} {t('sum')}
+                </div>
+                <span
+                  className="badge"
+                  style={{
+                    background: activeProduct?.in_stock !== false ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
+                    color: activeProduct?.in_stock !== false ? '#166534' : '#475569',
+                    border: '1px solid rgba(15,23,42,0.08)'
+                  }}
+                >
+                  {activeProduct?.in_stock !== false
+                    ? (language === 'uz' ? 'Mavjud' : 'В наличии')
+                    : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
+                </span>
+              </div>
+
+              <div>
+                <div className="small text-muted mb-1">{language === 'uz' ? 'Tavsif' : 'Описание'}</div>
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(71, 85, 105, 0.14)',
+                    background: '#f8fafc',
+                    whiteSpace: 'pre-wrap'
+                  }}
+                >
+                  {activeProductDescription || (language === 'uz' ? "Tavsif kiritilmagan" : 'Описание не указано')}
+                </div>
+              </div>
+
+              <div
+                className="d-flex align-items-center justify-content-between gap-2 flex-wrap"
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(71, 85, 105, 0.14)',
+                  background: '#ffffff'
+                }}
+              >
+                {activeProductQty > 0 ? (
+                  <div
+                    className="d-flex align-items-center justify-content-between rounded-pill px-1"
+                    style={{
+                      background: 'rgba(71, 85, 105,0.10)',
+                      border: '1px solid rgba(71, 85, 105,0.2)',
+                      minWidth: 120,
+                      height: 42
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
+                      style={{ width: 34, height: 34, color: '#4b5563', fontSize: '20px' }}
+                      onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep)}
+                      aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                    >
+                      −
+                    </button>
+                    <span style={{ fontWeight: 700, color: '#111827', fontSize: '1rem', minWidth: 20, textAlign: 'center' }}>
+                      {formatQuantity(activeProductQty)}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
+                      style={{ width: 34, height: 34, color: 'var(--primary-color)', fontSize: '20px' }}
+                      onClick={() => updateQuantity(activeProduct.id, activeProductQty + activeProductQuantityStep)}
+                      aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => handleAddToCart(activeProduct)}
+                    style={{
+                      minWidth: 132,
+                      borderRadius: 999,
+                      minHeight: 42,
+                      fontWeight: 700
+                    }}
+                  >
+                    {language === 'uz' ? "Savatga qo'shish +" : 'В корзину +'}
+                  </Button>
+                )}
+              </div>
+
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(71, 85, 105, 0.14)',
+                  background: '#ffffff'
+                }}
+              >
+                <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+                  <div className="fw-semibold">{language === 'uz' ? 'Baholar va kommentlar' : 'Оценки и комментарии'}</div>
+                  <div className="small text-muted">
+                    {buildRatingStars(productReviewsAverage)} · {productReviewsAverage.toFixed(1)} ({productReviewsTotal})
+                  </div>
+                </div>
+
+                {productReviews.length === 0 ? (
+                  <div className="small text-muted">
+                    {language === 'uz' ? "Hali kommentlar yo'q" : 'Комментариев пока нет'}
+                  </div>
+                ) : (
+                  <div className="d-flex flex-column gap-2">
+                    {productReviews.map((review) => (
+                      <div
+                        key={review.id}
+                        style={{
+                          border: '1px solid rgba(71, 85, 105, 0.14)',
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                          background: '#f8fafc'
+                        }}
+                      >
+                        <div className="d-flex justify-content-between align-items-center gap-2">
+                          <strong style={{ fontSize: '0.9rem' }}>{review.author_name || (language === 'uz' ? 'Mijoz' : 'Клиент')}</strong>
+                          <small className="text-muted">{formatReviewDate(review.created_at)}</small>
+                        </div>
+                        <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{buildRatingStars(review.rating)}</div>
+                        <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                          {review.comment || (language === 'uz' ? 'Kommentsiz baho' : 'Оценка без комментария')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {productReviewsHasMore && (
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={loadMoreProductReviews}
+                      disabled={productReviewsLoadingMore}
+                    >
+                      {productReviewsLoadingMore
+                        ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                        : (language === 'uz' ? "Yana ko'rsatish" : 'Ещё')}
+                    </Button>
+                  </div>
+                )}
+
+                <hr className="my-3" />
+
+                <div className="small text-muted mb-2">
+                  {language === 'uz' ? 'Baholang va komment qoldiring' : 'Оцените и оставьте комментарий'}
+                </div>
+                <div className="d-flex gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={`review-star-${star}`}
+                      type="button"
+                      onClick={() => setProductReviewRating(star)}
+                      className="btn btn-sm p-0 border-0"
+                      style={{
+                        width: 30,
+                        height: 30,
+                        fontSize: '1.2rem',
+                        lineHeight: 1,
+                        color: star <= Math.round(normalizeRatingValue(productReviewRating, 0)) ? '#f59e0b' : '#cbd5e1',
+                        background: 'transparent'
+                      }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={productReviewComment}
+                  onChange={(e) => setProductReviewComment(e.target.value)}
+                  rows={3}
+                  maxLength={1500}
+                  className="form-control"
+                  placeholder={language === 'uz' ? 'Komment yozing...' : 'Напишите комментарий...'}
+                />
+                <div className="d-flex justify-content-between align-items-center mt-2">
+                  <small className="text-muted">
+                    {String(productReviewComment || '').length}/1500
+                  </small>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={submitProductReview}
+                    disabled={productReviewSubmitting}
+                  >
+                    {productReviewSubmitting
+                      ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                      : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-muted">{language === 'uz' ? "Mahsulot topilmadi" : 'Товар не найден'}</div>
+          )}
+        </Modal.Body>
+      </Modal>
+
       <Modal show={showGalleryModal} onHide={closeProductGallery} centered size="lg" className="product-gallery-modal">
         <Modal.Header closeButton>
           <Modal.Title className="fs-6 text-truncate">
@@ -2805,7 +3347,11 @@ function Catalog() {
         </Modal.Header>
         <Modal.Body className="product-gallery-modal-body">
           {galleryImages.length > 0 && (
-            <div className="product-gallery-frame">
+            <div
+              className="product-gallery-frame"
+              onTouchStart={handleGalleryTouchStart}
+              onTouchEnd={handleGalleryTouchEnd}
+            >
               <img
                 src={galleryImages[galleryIndex]}
                 alt={galleryProductName || 'Product'}

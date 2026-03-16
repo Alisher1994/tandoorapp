@@ -3,6 +3,7 @@ const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
 const UAParser = require('ua-parser-js');
 const geoip = require('geoip-lite');
+const { authenticate } = require('../middleware/auth');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 
 const router = express.Router();
@@ -117,6 +118,8 @@ let catalogAnimationSettingsSchemaReady = false;
 let catalogAnimationSettingsSchemaPromise = null;
 let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
+let productReviewsSchemaReady = false;
+let productReviewsSchemaPromise = null;
 const ensureAdBannerTargetingSchema = async () => {
   if (adBannerTargetingSchemaReady) return;
   if (adBannerTargetingSchemaPromise) {
@@ -205,6 +208,49 @@ const ensureRestaurantCurrencySchema = async () => {
   }
 };
 
+const ensureProductReviewsSchema = async () => {
+  if (productReviewsSchemaReady) return;
+  if (productReviewsSchemaPromise) {
+    await productReviewsSchemaPromise;
+    return;
+  }
+
+  productReviewsSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS product_reviews (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+        comment TEXT,
+        is_deleted BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_product_reviews_product_user
+      ON product_reviews(product_id, user_id)
+      WHERE user_id IS NOT NULL
+    `).catch(() => {});
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_product_reviews_product_created
+      ON product_reviews(product_id, created_at DESC)
+    `).catch(() => {});
+
+    productReviewsSchemaReady = true;
+  })();
+
+  try {
+    await productReviewsSchemaPromise;
+  } finally {
+    productReviewsSchemaPromise = null;
+  }
+};
+
 const getOptionalAuthUserId = (req) => {
   try {
     const auth = req.headers.authorization || '';
@@ -222,6 +268,18 @@ const sanitizeTextValue = (value, maxLength = 120) => {
   const text = String(value).trim();
   if (!text) return null;
   return text.slice(0, maxLength);
+};
+
+const normalizeReviewRating = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 1 || parsed > 5) return null;
+  return parsed;
+};
+
+const normalizeReviewComment = (value, maxLength = 1500) => {
+  if (value === undefined || value === null) return '';
+  return String(value).trim().slice(0, maxLength);
 };
 
 const normalizeIpForGeoLookup = (value) => {
@@ -691,6 +749,253 @@ router.get('/catalog-animation-season', async (req, res) => {
   } catch (error) {
     console.error('Catalog animation season error:', error);
     res.status(500).json({ season: 'off' });
+  }
+});
+
+router.get('/:id/details', async (req, res) => {
+  try {
+    await ensureProductReviewsSchema();
+
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+
+    const productResult = await pool.query(
+      `
+      SELECT
+        p.*,
+        c.name_ru AS category_name_ru,
+        c.name_uz AS category_name_uz,
+        r.name AS restaurant_name
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN restaurants r ON r.id = p.restaurant_id
+      WHERE p.id = $1
+      LIMIT 1
+    `,
+      [productId]
+    );
+
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+
+    const product = productResult.rows[0];
+
+    const [summaryResult, latestReviewsResult] = await Promise.all([
+      pool.query(
+        `
+        SELECT
+          COUNT(*)::int AS total_reviews,
+          ROUND(COALESCE(AVG(rating)::numeric, 0), 2)::float AS average_rating
+        FROM product_reviews
+        WHERE product_id = $1
+          AND is_deleted = false
+      `,
+        [productId]
+      ),
+      pool.query(
+        `
+        SELECT
+          pr.id,
+          pr.user_id,
+          pr.rating,
+          pr.comment,
+          pr.created_at,
+          pr.updated_at,
+          COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Клиент') AS author_name
+        FROM product_reviews pr
+        LEFT JOIN users u ON u.id = pr.user_id
+        WHERE pr.product_id = $1
+          AND pr.is_deleted = false
+        ORDER BY pr.created_at DESC, pr.id DESC
+        LIMIT 3
+      `,
+        [productId]
+      )
+    ]);
+
+    const totalReviews = Number.parseInt(summaryResult.rows[0]?.total_reviews, 10) || 0;
+    const averageRating = Number(summaryResult.rows[0]?.average_rating || 0);
+
+    const authUserId = getOptionalAuthUserId(req);
+    let myReview = null;
+    if (Number.isInteger(Number(authUserId)) && Number(authUserId) > 0) {
+      const myReviewResult = await pool.query(
+        `
+        SELECT id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
+        FROM product_reviews
+        WHERE product_id = $1
+          AND user_id = $2
+          AND is_deleted = false
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+      `,
+        [productId, authUserId]
+      );
+      myReview = myReviewResult.rows[0] || null;
+    }
+
+    res.json({
+      product,
+      rating: {
+        average: averageRating,
+        total: totalReviews
+      },
+      latest_reviews: latestReviewsResult.rows || [],
+      has_more_reviews: totalReviews > (latestReviewsResult.rows || []).length,
+      my_review: myReview
+    });
+  } catch (error) {
+    console.error('Product details error:', error);
+    res.status(500).json({ error: 'Ошибка получения деталей товара' });
+  }
+});
+
+router.get('/:id/reviews', async (req, res) => {
+  try {
+    await ensureProductReviewsSchema();
+
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const requestedOffset = Number.parseInt(req.query.offset, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 20;
+    const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
+
+    const productResult = await pool.query('SELECT id FROM products WHERE id = $1 LIMIT 1', [productId]);
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+
+    const [summaryResult, reviewsResult] = await Promise.all([
+      pool.query(
+        `
+        SELECT
+          COUNT(*)::int AS total_reviews,
+          ROUND(COALESCE(AVG(rating)::numeric, 0), 2)::float AS average_rating
+        FROM product_reviews
+        WHERE product_id = $1
+          AND is_deleted = false
+      `,
+        [productId]
+      ),
+      pool.query(
+        `
+        SELECT
+          pr.id,
+          pr.user_id,
+          pr.rating,
+          pr.comment,
+          pr.created_at,
+          pr.updated_at,
+          COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Клиент') AS author_name
+        FROM product_reviews pr
+        LEFT JOIN users u ON u.id = pr.user_id
+        WHERE pr.product_id = $1
+          AND pr.is_deleted = false
+        ORDER BY pr.created_at DESC, pr.id DESC
+        LIMIT $2 OFFSET $3
+      `,
+        [productId, limit, offset]
+      )
+    ]);
+
+    const totalReviews = Number.parseInt(summaryResult.rows[0]?.total_reviews, 10) || 0;
+    const averageRating = Number(summaryResult.rows[0]?.average_rating || 0);
+    const reviews = reviewsResult.rows || [];
+
+    res.json({
+      total: totalReviews,
+      average_rating: averageRating,
+      has_more: (offset + reviews.length) < totalReviews,
+      reviews
+    });
+  } catch (error) {
+    console.error('Product reviews error:', error);
+    res.status(500).json({ error: 'Ошибка получения отзывов товара' });
+  }
+});
+
+router.post('/:id/reviews', authenticate, async (req, res) => {
+  try {
+    await ensureProductReviewsSchema();
+
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+
+    const rating = normalizeReviewRating(req.body?.rating);
+    if (!rating) {
+      return res.status(400).json({ error: 'Оценка должна быть от 1 до 5' });
+    }
+    const comment = normalizeReviewComment(req.body?.comment);
+    const userId = Number.parseInt(req.user?.id, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ error: 'Пользователь не авторизован' });
+    }
+
+    const productResult = await pool.query(
+      'SELECT id, restaurant_id, name_ru, name_uz FROM products WHERE id = $1 LIMIT 1',
+      [productId]
+    );
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+
+    const product = productResult.rows[0];
+    const productRestaurantId = Number.parseInt(product.restaurant_id, 10);
+    const activeRestaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+    if (
+      Number.isInteger(productRestaurantId)
+      && productRestaurantId > 0
+      && Number.isInteger(activeRestaurantId)
+      && activeRestaurantId > 0
+      && productRestaurantId !== activeRestaurantId
+    ) {
+      return res.status(403).json({ error: 'Отзыв можно оставить только в активном магазине' });
+    }
+
+    const upsertResult = await pool.query(
+      `
+      INSERT INTO product_reviews (
+        product_id,
+        restaurant_id,
+        user_id,
+        rating,
+        comment,
+        is_deleted
+      )
+      VALUES ($1, $2, $3, $4, $5, false)
+      ON CONFLICT (product_id, user_id)
+      DO UPDATE SET
+        restaurant_id = EXCLUDED.restaurant_id,
+        rating = EXCLUDED.rating,
+        comment = EXCLUDED.comment,
+        is_deleted = false,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id, product_id, restaurant_id, user_id, rating, comment, created_at, updated_at
+    `,
+      [productId, productRestaurantId || null, userId, rating, comment]
+    );
+
+    res.status(201).json({
+      message: 'Отзыв сохранен',
+      review: upsertResult.rows[0],
+      product: {
+        id: product.id,
+        name_ru: product.name_ru,
+        name_uz: product.name_uz
+      }
+    });
+  } catch (error) {
+    console.error('Create product review error:', error);
+    res.status(500).json({ error: 'Ошибка сохранения отзыва' });
   }
 });
 
