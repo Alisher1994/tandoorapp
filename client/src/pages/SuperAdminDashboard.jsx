@@ -23,6 +23,7 @@ const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
 const MAX_ORDER_RATING = 5;
+const DAVRON_SCAM_PRANK_SESSION_KEY = 'sa_davron_scam_prank_v1_shown';
 const CATALOG_ANIMATION_SEASON_OPTIONS = [
   { value: 'spring', label: 'Весна' },
   { value: 'summer', label: 'Лето' },
@@ -653,6 +654,25 @@ function SuperAdminDashboard() {
   });
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
+  const [showScamPrankModal, setShowScamPrankModal] = useState(false);
+  const [scamPrankSecondsLeft, setScamPrankSecondsLeft] = useState(60);
+  const [scamPrankButtonsOrder, setScamPrankButtonsOrder] = useState(['ha', 'yoq']);
+  const isDavronSuperadmin = useMemo(() => (
+    user?.role === 'superadmin' && String(user?.username || '').trim().toLowerCase() === 'davron'
+  ), [user?.role, user?.username]);
+  const dismissScamPrankModal = () => setShowScamPrankModal(false);
+  const handleScamPrankButtonsShuffle = () => {
+    setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
+  };
+  const handleScamPrankChoice = (choice) => {
+    const answer = String(choice || '').toLowerCase();
+    setShowScamPrankModal(false);
+    if (answer === 'ha') {
+      setSuccess(language === 'uz' ? 'Davron, Tesla keyinroq :)' : 'Davron, Tesla потом :)');
+      return;
+    }
+    setSuccess(language === 'uz' ? 'Yo‘q ham qabul qilinmadi :)' : 'Даже "нет" не сработало :)');
+  };
 
   // Load data on tab change
   // Auto-hide notifications
@@ -665,6 +685,41 @@ function SuperAdminDashboard() {
       return () => clearTimeout(timer);
     }
   }, [success, error]);
+
+  useEffect(() => {
+    if (!isDavronSuperadmin) return;
+    let alreadyShown = false;
+    try {
+      alreadyShown = sessionStorage.getItem(DAVRON_SCAM_PRANK_SESSION_KEY) === '1';
+    } catch (error) {
+      alreadyShown = false;
+    }
+    if (alreadyShown) return;
+
+    try {
+      sessionStorage.setItem(DAVRON_SCAM_PRANK_SESSION_KEY, '1');
+    } catch (error) {
+      // ignore session storage errors
+    }
+
+    setScamPrankSecondsLeft(60);
+    setScamPrankButtonsOrder(Math.random() > 0.5 ? ['ha', 'yoq'] : ['yoq', 'ha']);
+    setShowScamPrankModal(true);
+  }, [isDavronSuperadmin]);
+
+  useEffect(() => {
+    if (!showScamPrankModal) return;
+    const timer = setInterval(() => {
+      setScamPrankSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showScamPrankModal]);
+
+  useEffect(() => {
+    if (!showScamPrankModal || scamPrankSecondsLeft > 0) return;
+    setShowScamPrankModal(false);
+    setSuccess(language === 'uz' ? 'Anti-scam prank yakunlandi :)' : 'Анти-скам пранк завершён :)');
+  }, [showScamPrankModal, scamPrankSecondsLeft, language]);
 
   useEffect(() => {
     loadStats();
@@ -5076,6 +5131,54 @@ function SuperAdminDashboard() {
           </Navbar.Collapse>
         </Container>
       </Navbar>
+
+      <Modal
+        show={showScamPrankModal && isDavronSuperadmin}
+        onHide={dismissScamPrankModal}
+        centered
+        backdrop="static"
+        keyboard={false}
+        className="sa-scam-prank-modal"
+        dialogClassName="sa-scam-prank-dialog"
+        backdropClassName="sa-scam-prank-backdrop"
+      >
+        <Modal.Body className="sa-scam-prank-body">
+          <div className="sa-scam-prank-badge">SCAM TEST</div>
+          <h4 className="sa-scam-prank-title">Tesla olib berasanmi?</h4>
+          <p className="sa-scam-prank-text">
+            {language === 'uz'
+              ? "Bu hazil anti-scam trening. Shubhali xabarlarga hech qachon pul o'tkazmang."
+              : 'Это шутка-антискам тренинг. Никогда не переводите деньги по подозрительным сообщениям.'}
+          </p>
+          <div className="sa-scam-prank-timer">
+            00:{String(Math.max(0, scamPrankSecondsLeft)).padStart(2, '0')}
+          </div>
+
+          <div className="sa-scam-prank-actions">
+            {scamPrankButtonsOrder.map((key) => (
+              <button
+                key={`scam-prank-btn-${key}`}
+                type="button"
+                className={`sa-scam-prank-btn ${key === 'ha' ? 'is-yes' : 'is-no'}`}
+                onMouseEnter={handleScamPrankButtonsShuffle}
+                onFocus={handleScamPrankButtonsShuffle}
+                onTouchStart={handleScamPrankButtonsShuffle}
+                onClick={() => handleScamPrankChoice(key)}
+              >
+                {key === 'ha' ? 'Ha' : "Yo'q"}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="sa-scam-prank-skip"
+            onClick={dismissScamPrankModal}
+          >
+            {language === 'uz' ? 'Yopish' : 'Закрыть'}
+          </button>
+        </Modal.Body>
+      </Modal>
 
       <Modal
         show={showMobileAccountSheet}

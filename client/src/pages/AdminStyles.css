@@ -5672,3 +5672,121 @@ body::-webkit-scrollbar,
         opacity: 0;
     }
 }
+
+/* Davron-only anti-scam prank modal */
+.sa-scam-prank-backdrop {
+    background:
+        radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.2), transparent 40%),
+        radial-gradient(circle at 85% 10%, rgba(16, 185, 129, 0.16), transparent 34%),
+        linear-gradient(120deg, rgba(2, 6, 23, 0.96), rgba(3, 7, 18, 0.98));
+    opacity: 1 !important;
+}
+
+.sa-scam-prank-modal {
+    z-index: 2055 !important;
+}
+
+.sa-scam-prank-dialog {
+    max-width: min(92vw, 460px);
+}
+
+.sa-scam-prank-modal .modal-content {
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    border-radius: 16px;
+    overflow: hidden;
+    background:
+        repeating-linear-gradient(0deg,
+            rgba(16, 185, 129, 0.06) 0px,
+            rgba(16, 185, 129, 0.06) 1px,
+            transparent 1px,
+            transparent 9px),
+        linear-gradient(180deg, #03120e 0%, #050d14 100%);
+    box-shadow: 0 20px 60px rgba(2, 6, 23, 0.7);
+}
+
+.sa-scam-prank-body {
+    color: #ccfbf1;
+    padding: 24px 22px;
+    text-align: center;
+}
+
+.sa-scam-prank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    border: 1px solid rgba(45, 212, 191, 0.55);
+    background: rgba(13, 148, 136, 0.18);
+    color: #99f6e4;
+    margin-bottom: 14px;
+}
+
+.sa-scam-prank-title {
+    margin: 0;
+    font-weight: 700;
+    color: #f0fdfa;
+    font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+}
+
+.sa-scam-prank-text {
+    margin: 10px 0 0;
+    font-size: 0.95rem;
+    color: rgba(204, 251, 241, 0.88);
+}
+
+.sa-scam-prank-timer {
+    margin: 16px auto 0;
+    width: fit-content;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #6ee7b7;
+    border: 1px solid rgba(110, 231, 183, 0.35);
+    background: rgba(6, 78, 59, 0.25);
+}
+
+.sa-scam-prank-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.sa-scam-prank-btn {
+    min-width: 112px;
+    min-height: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(153, 246, 228, 0.35);
+    font-weight: 700;
+    color: #ecfeff;
+    transition: transform 0.18s ease, filter 0.18s ease, background-color 0.18s ease;
+}
+
+.sa-scam-prank-btn:hover,
+.sa-scam-prank-btn:focus-visible {
+    transform: translateY(-1px);
+    filter: brightness(1.07);
+}
+
+.sa-scam-prank-btn.is-yes {
+    background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+}
+
+.sa-scam-prank-btn.is-no {
+    background: linear-gradient(135deg, #334155 0%, #475569 100%);
+}
+
+.sa-scam-prank-skip {
+    margin-top: 14px;
+    border: 0;
+    background: transparent;
+    color: rgba(153, 246, 228, 0.84);
+    font-size: 0.88rem;
+    text-decoration: underline;
+}
