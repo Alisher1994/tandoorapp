@@ -5457,6 +5457,28 @@ body::-webkit-scrollbar,
     color: #1f2937;
 }
 
+.admin-variant-add-btn {
+    min-width: 42px;
+    border-color: rgba(148, 163, 184, 0.55) !important;
+    color: #334155 !important;
+    background: #ffffff !important;
+}
+
+.admin-variant-add-btn:hover,
+.admin-variant-add-btn:focus,
+.admin-variant-add-btn:active {
+    border-color: rgba(148, 163, 184, 0.85) !important;
+    color: #1f2937 !important;
+    background: #f8fafc !important;
+    box-shadow: none !important;
+}
+
+.admin-variant-add-btn:disabled {
+    color: #94a3b8 !important;
+    border-color: rgba(148, 163, 184, 0.4) !important;
+    background: #f8fafc !important;
+}
+
 .admin-store-safety-alert .form-check {
     margin-bottom: 0;
 }

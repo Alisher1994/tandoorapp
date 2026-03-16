@@ -543,11 +543,6 @@ function Catalog() {
     const options = getProductSizeOptions(product);
     if (!options.length) return '';
     const productId = Number(product?.id);
-    const cartVariantRaw = getCartItem(productId)?.selected_variant;
-    const cartVariant = String(cartVariantRaw || '').trim();
-    if (cartVariant && options.some((item) => item.toLowerCase() === cartVariant.toLowerCase())) {
-      return options.find((item) => item.toLowerCase() === cartVariant.toLowerCase()) || cartVariant;
-    }
     const selectedRaw = selectedProductVariants[productId];
     const selected = String(selectedRaw || '').trim();
     if (selected && options.some((item) => item.toLowerCase() === selected.toLowerCase())) {
@@ -2036,7 +2031,7 @@ function Catalog() {
                     background: 'rgba(22,163,74,0.12)',
                     color: '#166534',
                     border: '1px solid rgba(22,163,74,0.35)',
-                    fontWeight: 700,
+                    fontWeight: 500,
                     fontSize: '0.66rem'
                   }}
                 >
@@ -3388,13 +3383,13 @@ function Catalog() {
                               style={{
                                 flex: '0 0 auto',
                                 borderRadius: 10,
-                                background: isActiveVariant ? 'rgba(22,163,74,0.14)' : 'rgba(15,23,42,0.04)',
-                                border: isActiveVariant ? '2px solid #16a34a' : '1px solid rgba(15,23,42,0.15)',
-                                color: isActiveVariant ? '#166534' : '#334155',
-                                fontWeight: 700,
-                                fontSize: '0.78rem',
-                                padding: '7px 10px',
-                                whiteSpace: 'nowrap'
+                              background: isActiveVariant ? 'rgba(22,163,74,0.14)' : 'rgba(15,23,42,0.04)',
+                              border: isActiveVariant ? '2px solid #16a34a' : '1px solid rgba(15,23,42,0.15)',
+                              color: isActiveVariant ? '#166534' : '#334155',
+                              fontWeight: 500,
+                              fontSize: '0.78rem',
+                              padding: '7px 10px',
+                              whiteSpace: 'nowrap'
                               }}
                             >
                               {sizeValue}

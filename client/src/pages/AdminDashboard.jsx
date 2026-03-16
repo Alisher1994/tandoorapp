@@ -10540,7 +10540,7 @@ function AdminDashboard() {
                                     border: isSelected ? '2px solid #16a34a' : '1px solid #cbd5e1',
                                     background: isSelected ? 'rgba(22,163,74,0.12)' : '#f8fafc',
                                     color: '#0f172a',
-                                    fontWeight: 700
+                                    fontWeight: 500
                                   }}
                                 >
                                   {sizeValue}
@@ -10566,7 +10566,7 @@ function AdminDashboard() {
                                       border: '2px solid #16a34a',
                                       background: 'rgba(22,163,74,0.12)',
                                       color: '#065f46',
-                                      fontWeight: 600
+                                      fontWeight: 500
                                     }}
                                   >
                                     {customSize} ×
@@ -10591,7 +10591,8 @@ function AdminDashboard() {
                             />
                             <Button
                               type="button"
-                              variant="outline-primary"
+                              variant="light"
+                              className="admin-variant-add-btn"
                               onClick={addCustomProductSizeOption}
                               disabled={!String(productSizeCustomInput || '').trim()}
                             >
