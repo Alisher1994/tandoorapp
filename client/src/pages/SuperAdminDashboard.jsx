@@ -427,6 +427,18 @@ function SuperAdminDashboard() {
   const [hiddenOpsConsoleHistory, setHiddenOpsConsoleHistory] = useState([
     'Console initialized. Type "help" for commands.'
   ]);
+  const [operatorTelemetryFilter, setOperatorTelemetryFilter] = useState({
+    ip: '',
+    browser: '',
+    os: '',
+    device: ''
+  });
+  const [customerTelemetryFilter, setCustomerTelemetryFilter] = useState({
+    ip: '',
+    browser: '',
+    os: '',
+    device: ''
+  });
   const [customers, setCustomers] = useState({ customers: [], total: 0 });
   const [logs, setLogs] = useState({ logs: [], total: 0 });
   const [activityTypes, setActivityTypes] = useState([]);
@@ -505,6 +517,8 @@ function SuperAdminDashboard() {
   const [operatorForm, setOperatorForm] = useState({
     username: '', password: '', full_name: '', phone: '', restaurant_ids: []
   });
+  const [showOperatorStoresModal, setShowOperatorStoresModal] = useState(false);
+  const [operatorStoresModalPayload, setOperatorStoresModalPayload] = useState({ operatorName: '', restaurants: [] });
 
   // Filters
   const [restaurantsPage, setRestaurantsPage] = useState(1);
@@ -777,6 +791,12 @@ function SuperAdminDashboard() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [isHiddenOpsTelemetryEnabled, hiddenOpsTelemetryExpiresAt]);
+
+  useEffect(() => {
+    if (isHiddenOpsTelemetryEnabled) return;
+    setOperatorTelemetryFilter({ ip: '', browser: '', os: '', device: '' });
+    setCustomerTelemetryFilter({ ip: '', browser: '', os: '', device: '' });
+  }, [isHiddenOpsTelemetryEnabled]);
 
   // API calls
   const loadStats = async () => {
@@ -3203,6 +3223,81 @@ function SuperAdminDashboard() {
       operator?.last_city
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : '-';
+  };
+
+  const buildTelemetryFilterOptions = (rows = [], field) => {
+    const values = [...new Set(
+      (Array.isArray(rows) ? rows : [])
+        .map((row) => String(row?.[field] || '').trim())
+        .filter(Boolean)
+    )];
+    return values.sort((a, b) => a.localeCompare(b, 'ru'));
+  };
+
+  const applyTelemetryFilter = (rows = [], filter = {}) => {
+    if (!isHiddenOpsTelemetryEnabled) return Array.isArray(rows) ? rows : [];
+    const normalizedIp = String(filter?.ip || '').trim().toLowerCase();
+    const normalizedBrowser = String(filter?.browser || '').trim().toLowerCase();
+    const normalizedOs = String(filter?.os || '').trim().toLowerCase();
+    const normalizedDevice = String(filter?.device || '').trim().toLowerCase();
+
+    return (Array.isArray(rows) ? rows : []).filter((row) => {
+      const ipValue = String(row?.last_ip_address || '').toLowerCase();
+      const browserValue = String(row?.last_browser_name || '').toLowerCase();
+      const osValue = String(row?.last_os_name || '').toLowerCase();
+      const deviceValue = String(row?.last_device_type || '').toLowerCase();
+
+      if (normalizedIp && !ipValue.includes(normalizedIp)) return false;
+      if (normalizedBrowser && browserValue !== normalizedBrowser) return false;
+      if (normalizedOs && osValue !== normalizedOs) return false;
+      if (normalizedDevice && deviceValue !== normalizedDevice) return false;
+      return true;
+    });
+  };
+
+  const visibleOperatorsRows = useMemo(
+    () => applyTelemetryFilter(operators?.operators || [], operatorTelemetryFilter),
+    [operators?.operators, operatorTelemetryFilter, isHiddenOpsTelemetryEnabled]
+  );
+
+  const visibleCustomersRows = useMemo(
+    () => applyTelemetryFilter(customers?.customers || [], customerTelemetryFilter),
+    [customers?.customers, customerTelemetryFilter, isHiddenOpsTelemetryEnabled]
+  );
+
+  const operatorBrowserFilterOptions = useMemo(
+    () => buildTelemetryFilterOptions(operators?.operators || [], 'last_browser_name'),
+    [operators?.operators]
+  );
+  const operatorOsFilterOptions = useMemo(
+    () => buildTelemetryFilterOptions(operators?.operators || [], 'last_os_name'),
+    [operators?.operators]
+  );
+  const operatorDeviceFilterOptions = useMemo(
+    () => buildTelemetryFilterOptions(operators?.operators || [], 'last_device_type'),
+    [operators?.operators]
+  );
+
+  const customerBrowserFilterOptions = useMemo(
+    () => buildTelemetryFilterOptions(customers?.customers || [], 'last_browser_name'),
+    [customers?.customers]
+  );
+  const customerOsFilterOptions = useMemo(
+    () => buildTelemetryFilterOptions(customers?.customers || [], 'last_os_name'),
+    [customers?.customers]
+  );
+  const customerDeviceFilterOptions = useMemo(
+    () => buildTelemetryFilterOptions(customers?.customers || [], 'last_device_type'),
+    [customers?.customers]
+  );
+
+  const openOperatorStoresModal = (operator) => {
+    const restaurants = Array.isArray(operator?.restaurants) ? operator.restaurants : [];
+    setOperatorStoresModalPayload({
+      operatorName: operator?.full_name || operator?.username || 'Оператор',
+      restaurants
+    });
+    setShowOperatorStoresModal(true);
   };
 
   const formatAnalyticsMoney = (value) => {
@@ -5777,8 +5872,60 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
+                {isHiddenOpsTelemetryEnabled && (
+                  <div className="d-flex gap-2 flex-wrap align-items-center mb-3 p-2 rounded border bg-light">
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      placeholder="IP contains..."
+                      style={{ width: '180px' }}
+                      value={operatorTelemetryFilter.ip}
+                      onChange={(e) => setOperatorTelemetryFilter((prev) => ({ ...prev, ip: e.target.value }))}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={operatorTelemetryFilter.browser}
+                      onChange={(e) => setOperatorTelemetryFilter((prev) => ({ ...prev, browser: e.target.value }))}
+                    >
+                      <option value="">All browsers</option>
+                      {operatorBrowserFilterOptions.map((browser) => (
+                        <option key={browser} value={browser}>{browser}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={operatorTelemetryFilter.os}
+                      onChange={(e) => setOperatorTelemetryFilter((prev) => ({ ...prev, os: e.target.value }))}
+                    >
+                      <option value="">All OS</option>
+                      {operatorOsFilterOptions.map((osName) => (
+                        <option key={osName} value={osName}>{osName}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '160px' }}
+                      value={operatorTelemetryFilter.device}
+                      onChange={(e) => setOperatorTelemetryFilter((prev) => ({ ...prev, device: e.target.value }))}
+                    >
+                      <option value="">All devices</option>
+                      {operatorDeviceFilterOptions.map((deviceType) => (
+                        <option key={deviceType} value={deviceType}>{deviceType}</option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => setOperatorTelemetryFilter({ ip: '', browser: '', os: '', device: '' })}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                )}
+
                 {loading ? (
-                  <TableSkeleton rows={7} columns={8} label="Загрузка операторов" />
+                  <TableSkeleton rows={7} columns={isHiddenOpsTelemetryEnabled ? 13 : 8} label="Загрузка операторов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -5805,7 +5952,7 @@ function SuperAdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {operators.operators?.map(op => (
+                          {visibleOperatorsRows?.map(op => (
                             <tr key={op.id}>
                               <td><span className="text-muted small">#{op.id}</span></td>
                               <td><strong>{op.username}</strong></td>
@@ -5817,11 +5964,17 @@ function SuperAdminDashboard() {
                                 </Badge>
                               </td>
                               <td>
-                                <div className="d-flex flex-wrap gap-1">
-                                  {op.restaurants?.map(r => (
-                                    <Badge key={r.id} className="badge-custom bg-secondary bg-opacity-10 text-muted small">{r.name}</Badge>
-                                  ))}
-                                </div>
+                                {Array.isArray(op.restaurants) && op.restaurants.length > 0 ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline-secondary"
+                                    onClick={() => openOperatorStoresModal(op)}
+                                  >
+                                    {language === 'uz' ? "Do'konlar" : 'Магазины'} ({op.restaurants.length})
+                                  </Button>
+                                ) : (
+                                  <small className="text-muted">-</small>
+                                )}
                               </td>
                               {isHiddenOpsTelemetryEnabled && (
                                 <>
@@ -5851,7 +6004,7 @@ function SuperAdminDashboard() {
                               </td>
                             </tr>
                           ))}
-                          {operators.operators?.length === 0 && (
+                          {visibleOperatorsRows?.length === 0 && (
                             <tr><td colSpan={isHiddenOpsTelemetryEnabled ? 13 : 8} className="text-center py-5 text-muted">{t('saEmptyOperators')}</td></tr>
                           )}
                         </tbody>
@@ -5873,7 +6026,9 @@ function SuperAdminDashboard() {
               {/* Customers Tab */}
               <Tab eventKey="customers" title={`👤 ${t('clients')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saListCustomers')} ({customers.total})</h5>
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+                    {t('saListCustomers')} ({isHiddenOpsTelemetryEnabled ? visibleCustomersRows.length : customers.total})
+                  </h5>
                   <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
                     <i className="bi bi-funnel"></i> Фильтры
                   </Button>
@@ -5912,8 +6067,60 @@ function SuperAdminDashboard() {
                   </div>
                 </div>
 
+                {isHiddenOpsTelemetryEnabled && (
+                  <div className="d-flex gap-2 flex-wrap align-items-center mb-3 p-2 rounded border bg-light">
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      placeholder="IP contains..."
+                      style={{ width: '180px' }}
+                      value={customerTelemetryFilter.ip}
+                      onChange={(e) => setCustomerTelemetryFilter((prev) => ({ ...prev, ip: e.target.value }))}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={customerTelemetryFilter.browser}
+                      onChange={(e) => setCustomerTelemetryFilter((prev) => ({ ...prev, browser: e.target.value }))}
+                    >
+                      <option value="">All browsers</option>
+                      {customerBrowserFilterOptions.map((browser) => (
+                        <option key={browser} value={browser}>{browser}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={customerTelemetryFilter.os}
+                      onChange={(e) => setCustomerTelemetryFilter((prev) => ({ ...prev, os: e.target.value }))}
+                    >
+                      <option value="">All OS</option>
+                      {customerOsFilterOptions.map((osName) => (
+                        <option key={osName} value={osName}>{osName}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '160px' }}
+                      value={customerTelemetryFilter.device}
+                      onChange={(e) => setCustomerTelemetryFilter((prev) => ({ ...prev, device: e.target.value }))}
+                    >
+                      <option value="">All devices</option>
+                      {customerDeviceFilterOptions.map((deviceType) => (
+                        <option key={deviceType} value={deviceType}>{deviceType}</option>
+                      ))}
+                    </Form.Select>
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => setCustomerTelemetryFilter({ ip: '', browser: '', os: '', device: '' })}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                )}
+
                 {loading ? (
-                  <TableSkeleton rows={7} columns={9} label="Загрузка клиентов" />
+                  <TableSkeleton rows={7} columns={isHiddenOpsTelemetryEnabled ? 14 : 9} label="Загрузка клиентов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -5927,12 +6134,21 @@ function SuperAdminDashboard() {
                             <th>{t('saTableOrders')}</th>
                             <th>{t('saTableSum')}</th>
                             <th>{language === 'uz' ? "Ro'yxatdan o'tgan" : 'Дата регистрации'}</th>
+                            {isHiddenOpsTelemetryEnabled && (
+                              <>
+                                <th>Last Activity</th>
+                                <th>Device / OS</th>
+                                <th>Browser</th>
+                                <th>IP</th>
+                                <th>Geo</th>
+                              </>
+                            )}
                             <th>{t('saTableStatus')}</th>
                             <th className="text-end">{t('saTableActions')}</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {customers.customers?.map(c => {
+                          {visibleCustomersRows?.map(c => {
                             const isBlocked = c.is_blocked || !c.user_is_active;
                             return (
                               <tr key={c.association_id} className={isBlocked ? 'bg-light' : ''}>
@@ -5954,6 +6170,15 @@ function SuperAdminDashboard() {
                                 </td>
                                 <td><span className="fw-semibold">{parseFloat(c.total_spent || 0).toLocaleString()} {t('sum')}</span></td>
                                 <td><small className="text-muted">{formatDate(c.created_at)}</small></td>
+                                {isHiddenOpsTelemetryEnabled && (
+                                  <>
+                                    <td><small className="text-muted">{formatDate(c.last_activity_at)}</small></td>
+                                    <td><small>{formatTelemetryDeviceLabel(c)}</small></td>
+                                    <td><small>{formatTelemetryBrowserLabel(c)}</small></td>
+                                    <td><small>{c.last_ip_address || '-'}</small></td>
+                                    <td><small>{formatTelemetryGeoLabel(c)}</small></td>
+                                  </>
+                                )}
                                 <td>
                                   {!c.user_is_active ? (
                                     <Badge className="badge-custom bg-danger bg-opacity-10 text-danger">Бан (Глобал)</Badge>
@@ -5983,8 +6208,8 @@ function SuperAdminDashboard() {
                               </tr>
                             );
                           })}
-                          {customers.customers?.length === 0 && (
-                            <tr><td colSpan="9" className="text-center py-5 text-muted">{t('saEmptyCustomers')}</td></tr>
+                          {visibleCustomersRows?.length === 0 && (
+                            <tr><td colSpan={isHiddenOpsTelemetryEnabled ? 14 : 9} className="text-center py-5 text-muted">{t('saEmptyCustomers')}</td></tr>
                           )}
                         </tbody>
                       </Table>
@@ -9081,6 +9306,34 @@ function SuperAdminDashboard() {
             <Button variant="primary" type="submit">{t('saSave')}</Button>
           </Modal.Footer>
         </Form>
+      </Modal>
+
+      <Modal
+        show={showOperatorStoresModal}
+        onHide={() => setShowOperatorStoresModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz' ? "Biriktirilgan do'konlar" : 'Закреплённые магазины'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="fw-semibold mb-3">{operatorStoresModalPayload.operatorName || '-'}</div>
+          {Array.isArray(operatorStoresModalPayload.restaurants) && operatorStoresModalPayload.restaurants.length > 0 ? (
+            <div className="d-flex flex-wrap gap-2">
+              {operatorStoresModalPayload.restaurants.map((restaurant) => (
+                <Badge key={restaurant.id} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                  {restaurant.name}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <div className="text-muted small">
+              {language === 'uz' ? "Biriktirilgan do'konlar topilmadi" : 'Закреплённые магазины не найдены'}
+            </div>
+          )}
+        </Modal.Body>
       </Modal>
 
       {showHiddenOpsConsole && (
