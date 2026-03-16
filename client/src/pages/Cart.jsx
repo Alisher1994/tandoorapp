@@ -683,7 +683,7 @@ function Cart() {
       const orderData = {
         items: cart.map(item => ({
           product_id: item.id,
-          product_name: item.name_ru,
+          product_name: item.selected_variant ? `${item.name_ru} (${item.selected_variant})` : item.name_ru,
           quantity: item.quantity,
           unit: item.unit,
           price: item.price,
@@ -1030,6 +1030,11 @@ function Cart() {
                   )}
                   <div className="flex-grow-1 ms-3">
                     <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{language === 'uz' && item.name_uz ? item.name_uz : item.name_ru}</div>
+                    {item.selected_variant && (
+                      <div className="small fw-semibold" style={{ color: '#166534' }}>
+                        {language === 'uz' ? 'Variant' : 'Вариант'}: {item.selected_variant}
+                      </div>
+                    )}
                     <div className="fw-bold" style={themePrimaryTextStyle}>
                       {formatPrice(item.price)} {t('sum')}
                     </div>

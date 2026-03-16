@@ -10468,7 +10468,7 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
                 <Col md={6}>
-                  <div className="d-flex flex-column gap-3 pt-md-4">
+                  <div className="p-3 rounded-3 border bg-light d-flex flex-column gap-2 h-100">
                     <Form.Check
                       type="switch"
                       label="Показывать как нет в наличии"
@@ -10481,7 +10481,7 @@ function AdminDashboard() {
                       checked={!!productForm.is_hidden_catalog}
                       onChange={(e) => setProductForm({ ...productForm, is_hidden_catalog: e.target.checked })}
                     />
-                    <small className="text-muted">
+                    <small className="text-muted mt-1">
                       Этот режим скрывает товар из клиентского каталога полностью.
                     </small>
                   </div>
@@ -10491,15 +10491,15 @@ function AdminDashboard() {
               {Boolean(restaurantSettings?.size_variants_enabled) && (
                 <Row>
                   <Col xs={12}>
-                    <Form.Group className="mb-3">
-                      <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                        <Form.Label className="mb-0">
-                          {language === 'uz' ? "Mahsulot o'lchamlari" : 'Размеры товара'}
-                        </Form.Label>
+                    <Form.Group className="mb-3 p-3 rounded-3 border bg-light">
+                      <Form.Label className="mb-2">
+                        {language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
+                      </Form.Label>
+                      <div>
                         <Form.Check
                           type="switch"
                           id="product-size-enabled-switch"
-                          label={language === 'uz' ? 'Yoqish' : 'Включить'}
+                          label={language === 'uz' ? 'Variantlarni yoqish' : 'Включить варианты'}
                           checked={Boolean(productForm.size_enabled)}
                           onChange={(e) => {
                             const isEnabled = e.target.checked;

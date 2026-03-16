@@ -20,12 +20,14 @@ function getActiveRestaurantId() {
 
 function normalizeCartItem(item) {
   const unit = String(item?.unit || '').trim();
+  const selectedVariant = String(item?.selected_variant || '').trim();
   return {
     ...item,
     id: Number(item?.id),
     quantity: normalizeQuantity(item?.quantity, 1),
     order_step: normalizeOrderStep(item?.order_step, unit),
-    restaurant_id: parseRestaurantId(item?.restaurant_id)
+    restaurant_id: parseRestaurantId(item?.restaurant_id),
+    selected_variant: selectedVariant || null
   };
 }
 
@@ -158,6 +160,7 @@ export function CartProvider({ children }) {
             ? {
               ...item,
               order_step: productOrderStep,
+              selected_variant: String(product?.selected_variant || '').trim() || item.selected_variant || null,
               quantity: normalizeQuantity(item.quantity + safeQty, safeQty)
             }
             : item
