@@ -3353,13 +3353,6 @@ function Catalog() {
                           ? `Bu haftada sotildi: ${formatQuantity(productWeeklySoldCount)}`
                           : `Продано за эту неделю: ${formatQuantity(productWeeklySoldCount)}`}
                       </div>
-                      {(productWeeklyBuyers > 0 || productWeeklyOrders > 0) && (
-                        <div className="small" style={{ opacity: 0.82 }}>
-                          {language === 'uz'
-                            ? `${productWeeklyBuyers} mijoz · ${productWeeklyOrders} buyurtma`
-                            : `${productWeeklyBuyers} чел. · ${productWeeklyOrders} заказов`}
-                        </div>
-                      )}
                     </div>
                   )}
 
