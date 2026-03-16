@@ -1669,11 +1669,12 @@ function Catalog() {
                       type="button"
                       className="btn btn-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow"
                       style={{
-                        width: 32,
-                        height: 32,
-                        fontSize: '18px',
+                        width: 40,
+                        height: 40,
+                        fontSize: '22px',
                         fontWeight: 'bold',
-                        padding: 0
+                        padding: 0,
+                        touchAction: 'manipulation'
                       }}
                       onClick={(e) => {
                         e.preventDefault();
@@ -1691,13 +1692,14 @@ function Catalog() {
                     <span
                       className="rounded-circle d-inline-flex align-items-center justify-content-center shadow"
                       style={{
-                        width: 32,
-                        height: 32,
+                        width: 40,
+                        height: 40,
                         background: 'var(--accent-color, #FFD700)',
                         color: '#1a1a1a',
-                        fontSize: '13px',
+                        fontSize: '14px',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        touchAction: 'manipulation'
                       }}
                       onClick={(e) => {
                         e.preventDefault();
@@ -1724,7 +1726,8 @@ function Catalog() {
                     bottom: 8,
                     background: 'rgba(255,255,255,0.95)',
                     zIndex: 3,
-                    minWidth: '90px'
+                    minWidth: '108px',
+                    minHeight: '40px'
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1737,7 +1740,7 @@ function Catalog() {
                   <button
                     type="button"
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                    style={{ width: 28, height: 28, fontSize: '16px' }}
+                    style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
                     onClick={(e) => {
                       e.stopPropagation();
                       updateQuantity(product.id, qty - quantityStep);
@@ -1745,11 +1748,11 @@ function Catalog() {
                   >
                     −
                   </button>
-                  <span className="fw-bold px-2" style={{ fontSize: '14px' }}>{formatQuantity(qty)}</span>
+                  <span className="fw-bold px-2" style={{ fontSize: '15px' }}>{formatQuantity(qty)}</span>
                   <button
                     type="button"
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                    style={{ width: 28, height: 28, fontSize: '16px' }}
+                    style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
                     onClick={(e) => {
                       e.stopPropagation();
                       updateQuantity(product.id, qty + quantityStep);
@@ -2130,14 +2133,14 @@ function Catalog() {
                           style={{
                             background: 'rgba(71, 85, 105,0.10)',
                             border: '1px solid rgba(71, 85, 105,0.2)',
-                            minWidth: 90,
-                            height: 32
+                            minWidth: 102,
+                            height: 38
                           }}
                         >
                           <button
                             type="button"
                             className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                            style={{ width: 26, height: 26, color: '#4b5563', fontSize: '16px' }}
+                            style={{ width: 32, height: 32, color: '#4b5563', fontSize: '18px', touchAction: 'manipulation' }}
                             onClick={(e) => {
                               e.stopPropagation();
                               updateQuantity(product.id, qty - quantityStep);
@@ -2152,7 +2155,7 @@ function Catalog() {
                           <button
                             type="button"
                             className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                            style={{ width: 26, height: 26, color: 'var(--primary-color)', fontSize: '16px' }}
+                            style={{ width: 32, height: 32, color: 'var(--primary-color)', fontSize: '18px', touchAction: 'manipulation' }}
                             onClick={(e) => {
                               e.stopPropagation();
                               updateQuantity(product.id, qty + quantityStep);
@@ -2171,11 +2174,13 @@ function Catalog() {
                           }}
                           className="btn btn-sm rounded-pill"
                           style={{
-                            minWidth: 90,
-                            height: 32,
+                            minWidth: 102,
+                            height: 38,
                             background: 'var(--primary-color)',
                             border: '1px solid var(--primary-color)',
-                            color: '#fff'
+                            color: '#fff',
+                            fontSize: '1.05rem',
+                            touchAction: 'manipulation'
                           }}
                         >
                           +
