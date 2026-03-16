@@ -720,6 +720,50 @@ const resolveAnalyticsRange = (query = {}) => {
     month: baseMonth
   };
 };
+let productReviewsSchemaReady = false;
+let productReviewsSchemaPromise = null;
+const ensureProductReviewsSchema = async () => {
+  if (productReviewsSchemaReady) return;
+  if (productReviewsSchemaPromise) {
+    await productReviewsSchemaPromise;
+    return;
+  }
+
+  productReviewsSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS product_reviews (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        restaurant_id INTEGER REFERENCES restaurants(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+        comment TEXT,
+        is_deleted BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_product_reviews_product_user
+      ON product_reviews(product_id, user_id)
+      WHERE user_id IS NOT NULL
+    `).catch(() => {});
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_product_reviews_product_created
+      ON product_reviews(product_id, created_at DESC)
+    `).catch(() => {});
+
+    productReviewsSchemaReady = true;
+  })();
+
+  try {
+    await productReviewsSchemaPromise;
+  } finally {
+    productReviewsSchemaPromise = null;
+  }
+};
 const ratioPercent = (part, total) => {
   const denominator = Number(total || 0);
   const numerator = Number(part || 0);
@@ -4107,6 +4151,163 @@ router.get('/analytics/overview', async (req, res) => {
   } catch (error) {
     console.error('Superadmin analytics overview error:', error);
     res.status(500).json({ error: 'Ошибка получения аналитики' });
+  }
+});
+
+router.get('/analytics/product-reviews', async (req, res) => {
+  try {
+    const analyticsRange = resolveAnalyticsRange(req.query || {});
+    const requestedCommentsLimit = Number.parseInt(req.query.limit, 10);
+    const commentsLimit = Number.isFinite(requestedCommentsLimit)
+      ? Math.min(Math.max(requestedCommentsLimit, 1), 100)
+      : 30;
+    const requestedTopLimit = Number.parseInt(req.query.top_limit, 10);
+    const topLimit = Number.isFinite(requestedTopLimit)
+      ? Math.min(Math.max(requestedTopLimit, 1), 30)
+      : 10;
+
+    let restaurantId = null;
+    if (req.query.restaurant_id !== undefined && req.query.restaurant_id !== null && String(req.query.restaurant_id).trim() !== '') {
+      const parsedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
+      if (!Number.isFinite(parsedRestaurantId) || parsedRestaurantId <= 0) {
+        return res.status(400).json({ error: 'Некорректный restaurant_id' });
+      }
+      restaurantId = parsedRestaurantId;
+      const restaurantResult = await pool.query('SELECT id FROM restaurants WHERE id = $1 LIMIT 1', [restaurantId]);
+      if (!restaurantResult.rows.length) {
+        return res.status(404).json({ error: 'Магазин не найден' });
+      }
+    }
+
+    await ensureProductReviewsSchema().catch(() => {});
+
+    const baseParams = [restaurantId, analyticsRange.startDateKey, analyticsRange.endDateKeyExclusive];
+    let summaryRow = {
+      total_reviews: 0,
+      comments_count: 0,
+      low_rating_count: 0,
+      average_rating: 0
+    };
+    let latestComments = [];
+    let topProducts = [];
+
+    try {
+      const [summaryResult, latestCommentsResult, topProductsResult] = await Promise.all([
+        pool.query(
+          `
+          SELECT
+            COUNT(*)::int AS total_reviews,
+            COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE(pr.comment, '')), '') IS NOT NULL)::int AS comments_count,
+            COUNT(*) FILTER (WHERE pr.rating <= 2)::int AS low_rating_count,
+            ROUND(COALESCE(AVG(pr.rating)::numeric, 0), 2)::float AS average_rating
+          FROM product_reviews pr
+          JOIN products p ON p.id = pr.product_id
+          WHERE ($1::int IS NULL OR p.restaurant_id = $1)
+            AND pr.is_deleted = false
+            AND pr.created_at >= $2::date
+            AND pr.created_at < $3::date
+          `,
+          baseParams
+        ),
+        pool.query(
+          `
+          SELECT
+            pr.id,
+            pr.product_id,
+            COALESCE(NULLIF(BTRIM(p.name_ru), ''), NULLIF(BTRIM(p.name_uz), ''), CONCAT('#', p.id::text)) AS product_name,
+            p.restaurant_id,
+            COALESCE(NULLIF(BTRIM(r.name), ''), CONCAT('ID ', p.restaurant_id::text)) AS restaurant_name,
+            pr.rating,
+            pr.comment,
+            pr.created_at,
+            pr.user_id,
+            COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Клиент') AS author_name
+          FROM product_reviews pr
+          JOIN products p ON p.id = pr.product_id
+          LEFT JOIN restaurants r ON r.id = p.restaurant_id
+          LEFT JOIN users u ON u.id = pr.user_id
+          WHERE ($1::int IS NULL OR p.restaurant_id = $1)
+            AND pr.is_deleted = false
+            AND pr.created_at >= $2::date
+            AND pr.created_at < $3::date
+            AND NULLIF(BTRIM(COALESCE(pr.comment, '')), '') IS NOT NULL
+          ORDER BY pr.created_at DESC, pr.id DESC
+          LIMIT $4
+          `,
+          [...baseParams, commentsLimit]
+        ),
+        pool.query(
+          `
+          SELECT
+            pr.product_id,
+            COALESCE(NULLIF(BTRIM(p.name_ru), ''), NULLIF(BTRIM(p.name_uz), ''), CONCAT('#', p.id::text)) AS product_name,
+            p.restaurant_id,
+            COALESCE(NULLIF(BTRIM(r.name), ''), CONCAT('ID ', p.restaurant_id::text)) AS restaurant_name,
+            COUNT(*)::int AS total_reviews,
+            COUNT(*) FILTER (WHERE NULLIF(BTRIM(COALESCE(pr.comment, '')), '') IS NOT NULL)::int AS comments_count,
+            ROUND(COALESCE(AVG(pr.rating)::numeric, 0), 2)::float AS average_rating
+          FROM product_reviews pr
+          JOIN products p ON p.id = pr.product_id
+          LEFT JOIN restaurants r ON r.id = p.restaurant_id
+          WHERE ($1::int IS NULL OR p.restaurant_id = $1)
+            AND pr.is_deleted = false
+            AND pr.created_at >= $2::date
+            AND pr.created_at < $3::date
+          GROUP BY pr.product_id, p.id, p.name_ru, p.name_uz, p.restaurant_id, r.name
+          ORDER BY comments_count DESC, total_reviews DESC, average_rating DESC
+          LIMIT $4
+          `,
+          [...baseParams, topLimit]
+        )
+      ]);
+
+      summaryRow = summaryResult.rows?.[0] || summaryRow;
+      latestComments = latestCommentsResult.rows || [];
+      topProducts = topProductsResult.rows || [];
+    } catch (error) {
+      if (error.code !== '42P01') throw error;
+    }
+
+    res.json({
+      period: analyticsRange.period,
+      date: analyticsRange.dateKey,
+      startDate: analyticsRange.startDateKey,
+      endDateExclusive: analyticsRange.endDateKeyExclusive,
+      year: analyticsRange.year,
+      month: analyticsRange.month,
+      timezone: ANALYTICS_TIMEZONE,
+      restaurantId,
+      summary: {
+        totalReviews: Number.parseInt(summaryRow.total_reviews, 10) || 0,
+        commentsCount: Number.parseInt(summaryRow.comments_count, 10) || 0,
+        lowRatingCount: Number.parseInt(summaryRow.low_rating_count, 10) || 0,
+        averageRating: Number(summaryRow.average_rating || 0)
+      },
+      latestComments: latestComments.map((row) => ({
+        id: Number.parseInt(row.id, 10) || 0,
+        productId: Number.parseInt(row.product_id, 10) || 0,
+        productName: row.product_name || 'Товар',
+        restaurantId: Number.parseInt(row.restaurant_id, 10) || null,
+        restaurantName: row.restaurant_name || '—',
+        rating: Number.parseInt(row.rating, 10) || 0,
+        comment: row.comment || '',
+        createdAt: row.created_at || null,
+        userId: Number.parseInt(row.user_id, 10) || null,
+        authorName: row.author_name || 'Клиент'
+      })),
+      topProducts: topProducts.map((row) => ({
+        productId: Number.parseInt(row.product_id, 10) || 0,
+        productName: row.product_name || 'Товар',
+        restaurantId: Number.parseInt(row.restaurant_id, 10) || null,
+        restaurantName: row.restaurant_name || '—',
+        totalReviews: Number.parseInt(row.total_reviews, 10) || 0,
+        commentsCount: Number.parseInt(row.comments_count, 10) || 0,
+        averageRating: Number(row.average_rating || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('Superadmin product review analytics error:', error);
+    res.status(500).json({ error: 'Ошибка получения аналитики отзывов' });
   }
 });
 

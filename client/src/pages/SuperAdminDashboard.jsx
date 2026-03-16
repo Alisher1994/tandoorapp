@@ -86,6 +86,23 @@ const buildRatingStarsText = (value) => {
   const normalized = normalizeOrderRatingValue(value);
   return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, MAX_ORDER_RATING - normalized))}`;
 };
+const createEmptyProductReviewAnalytics = () => ({
+  period: 'daily',
+  date: '',
+  startDate: '',
+  endDateExclusive: '',
+  year: null,
+  month: null,
+  restaurantId: null,
+  summary: {
+    totalReviews: 0,
+    commentsCount: 0,
+    lowRatingCount: 0,
+    averageRating: 0
+  },
+  latestComments: [],
+  topProducts: []
+});
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -655,6 +672,8 @@ function SuperAdminDashboard() {
   });
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
+  const [overviewProductReviewAnalytics, setOverviewProductReviewAnalytics] = useState(() => createEmptyProductReviewAnalytics());
+  const [overviewProductReviewAnalyticsLoading, setOverviewProductReviewAnalyticsLoading] = useState(false);
   const [showScamPrankModal, setShowScamPrankModal] = useState(false);
   const [scamPrankSecondsLeft, setScamPrankSecondsLeft] = useState(60);
   const [scamPrankButtonsOrder, setScamPrankButtonsOrder] = useState(['ha', 'yoq']);
@@ -744,6 +763,7 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab !== 'analytics') return;
     loadOverviewAnalytics();
+    loadOverviewProductReviewAnalytics();
   }, [
     activeTab,
     overviewAnalyticsPeriod,
@@ -909,6 +929,31 @@ function SuperAdminDashboard() {
       setError(err.response?.data?.error || 'Ошибка загрузки аналитики');
     } finally {
       setOverviewAnalyticsLoading(false);
+    }
+  };
+
+  const loadOverviewProductReviewAnalytics = async () => {
+    setOverviewProductReviewAnalyticsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/analytics/product-reviews`, {
+        params: buildOverviewAnalyticsParams()
+      });
+      const payload = response.data || {};
+      setOverviewProductReviewAnalytics({
+        ...createEmptyProductReviewAnalytics(),
+        ...payload,
+        summary: {
+          ...createEmptyProductReviewAnalytics().summary,
+          ...(payload.summary || {})
+        },
+        latestComments: Array.isArray(payload.latestComments) ? payload.latestComments : [],
+        topProducts: Array.isArray(payload.topProducts) ? payload.topProducts : []
+      });
+    } catch (err) {
+      console.error('Load product review analytics error:', err);
+      setOverviewProductReviewAnalytics(createEmptyProductReviewAnalytics());
+    } finally {
+      setOverviewProductReviewAnalyticsLoading(false);
     }
   };
 
@@ -3695,6 +3740,15 @@ function SuperAdminDashboard() {
     const topShopsByOrders = Array.isArray(shopsAnalytics.topByOrders) ? shopsAnalytics.topByOrders : [];
     const topShopsByRevenue = Array.isArray(shopsAnalytics.topByRevenue) ? shopsAnalytics.topByRevenue : [];
     const effectiveTopLimit = Number(shopsAnalytics.topLimit || overviewAnalyticsTopLimit || 10);
+    const productReviewPayload = overviewProductReviewAnalytics || createEmptyProductReviewAnalytics();
+    const productReviewSummary = productReviewPayload?.summary || {};
+    const productReviewComments = Array.isArray(productReviewPayload?.latestComments)
+      ? productReviewPayload.latestComments
+      : [];
+    const productReviewTopProducts = Array.isArray(productReviewPayload?.topProducts)
+      ? productReviewPayload.topProducts
+      : [];
+    const productReviewLocale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
 
     const statusCards = [
       { key: 'new', label: language === 'uz' ? 'Yangi' : 'Новые' },
@@ -4034,6 +4088,109 @@ function SuperAdminDashboard() {
                 </div>
               ))}
             </div>
+
+            <Row className="g-4 mb-4">
+              <Col lg={4}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>💬</span>
+                      {language === 'uz' ? "Tovar sharhlari" : 'Комментарии к товарам'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body>
+                    <div className="admin-analytics-kpi-list">
+                      <div className="admin-analytics-kpi-row">
+                        <span>{language === 'uz' ? 'Jami baholar' : 'Всего оценок'}</span>
+                        <strong>{Number(productReviewSummary.totalReviews || 0).toLocaleString('ru-RU')}</strong>
+                      </div>
+                      <div className="admin-analytics-kpi-row">
+                        <span>{language === 'uz' ? 'Izoh bilan' : 'С комментарием'}</span>
+                        <strong>{Number(productReviewSummary.commentsCount || 0).toLocaleString('ru-RU')}</strong>
+                      </div>
+                      <div className="admin-analytics-kpi-row">
+                        <span>{language === 'uz' ? 'Past baho (1-2)' : 'Низкие оценки (1-2)'}</span>
+                        <strong>{Number(productReviewSummary.lowRatingCount || 0).toLocaleString('ru-RU')}</strong>
+                      </div>
+                      <div className="admin-analytics-kpi-row">
+                        <span>{language === 'uz' ? "O'rtacha baho" : 'Средняя оценка'}</span>
+                        <strong>{Number(productReviewSummary.averageRating || 0).toFixed(2)} / {MAX_ORDER_RATING}</strong>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-top">
+                      <div className="small text-uppercase text-muted fw-semibold mb-2">
+                        {language === 'uz' ? 'TOP mahsulotlar (izohlar)' : 'Топ товаров (комментарии)'}
+                      </div>
+                      {productReviewTopProducts.length > 0 ? (
+                        <div className="d-flex flex-column gap-2">
+                          {productReviewTopProducts.slice(0, 5).map((item, index) => (
+                            <div key={`sa-review-top-product-${item.productId || index}`} className="d-flex justify-content-between gap-2">
+                              <span className="text-truncate" title={item.productName || ''}>{item.productName || 'Товар'}</span>
+                              <strong className="text-nowrap">{Number(item.commentsCount || 0)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-muted small">{t('noDataForPeriod')}</div>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={8}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f766e', background: '#f0fdfa' }}>📝</span>
+                      {language === 'uz' ? 'So‘nggi izohlar' : 'Последние комментарии'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {overviewProductReviewAnalyticsLoading ? (
+                      <div className="py-4 text-center text-muted">
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                      </div>
+                    ) : productReviewComments.length > 0 ? (
+                      <div className="table-responsive">
+                        <Table hover className="mb-0 admin-analytics-table">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                              <th>{language === 'uz' ? 'Tovar' : 'Товар'}</th>
+                              <th>{language === 'uz' ? 'Baho' : 'Оценка'}</th>
+                              <th>{language === 'uz' ? 'Izoh' : 'Комментарий'}</th>
+                              <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
+                              <th className="text-end">{t('date')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {productReviewComments.map((item, idx) => (
+                              <tr key={`sa-review-comment-${item.id || idx}`}>
+                                <td>{idx + 1}</td>
+                                <td>{item.restaurantName || '—'}</td>
+                                <td>{item.productName || 'Товар'}</td>
+                                <td>{buildRatingStarsText(Number(item.rating || 0))}</td>
+                                <td style={{ minWidth: '220px' }}>{String(item.comment || '').trim() || '—'}</td>
+                                <td>{item.authorName || 'Клиент'}</td>
+                                <td className="text-end">
+                                  {item.createdAt ? new Date(item.createdAt).toLocaleString(productReviewLocale) : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
 
             <Row className="g-4 mb-4">
               <Col lg={8}>

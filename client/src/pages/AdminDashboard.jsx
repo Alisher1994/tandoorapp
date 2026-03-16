@@ -20,6 +20,7 @@ import Col from 'react-bootstrap/Col';
 import Alert from 'react-bootstrap/Alert';
 import InputGroup from 'react-bootstrap/InputGroup';
 import Pagination from 'react-bootstrap/Pagination';
+import Spinner from 'react-bootstrap/Spinner';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
@@ -75,6 +76,22 @@ const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
 const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
 const MAX_ORDER_RATING = 5;
+const createEmptyProductReviewAnalytics = () => ({
+  period: 'daily',
+  date: '',
+  startDate: '',
+  endDateExclusive: '',
+  year: null,
+  month: null,
+  summary: {
+    totalReviews: 0,
+    commentsCount: 0,
+    lowRatingCount: 0,
+    averageRating: 0
+  },
+  latestComments: [],
+  topProducts: []
+});
 const KANBAN_COLUMN_FILTER_DEFAULT = Object.freeze({
   sortDirection: 'desc',
   fulfillment: 'all',
@@ -1039,6 +1056,8 @@ function AdminDashboard() {
     topCustomers: [],
     orderLocations: []
   });
+  const [analyticsProductReviews, setAnalyticsProductReviews] = useState(() => createEmptyProductReviewAnalytics());
+  const [loadingAnalyticsProductReviews, setLoadingAnalyticsProductReviews] = useState(false);
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
   const analyticsListItemRefs = useRef(new Map());
@@ -1830,11 +1849,59 @@ function AdminDashboard() {
     }
   };
 
+  const buildProductReviewAnalyticsParams = useCallback(() => {
+    const params = {
+      period: analyticsPeriod,
+      year: dashboardYear
+    };
+    if (analyticsPeriod === 'daily') {
+      params.date = dashboardDailyDate;
+    } else if (analyticsPeriod === 'monthly') {
+      params.month = dashboardMonth;
+    }
+    return params;
+  }, [analyticsPeriod, dashboardYear, dashboardMonth, dashboardDailyDate]);
+
+  const fetchAnalyticsProductReviews = useCallback(async () => {
+    if (!user?.active_restaurant_id) {
+      setAnalyticsProductReviews(createEmptyProductReviewAnalytics());
+      return;
+    }
+
+    setLoadingAnalyticsProductReviews(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/analytics/product-reviews`, {
+        params: buildProductReviewAnalyticsParams()
+      });
+      const payload = response.data || {};
+      setAnalyticsProductReviews({
+        ...createEmptyProductReviewAnalytics(),
+        ...payload,
+        summary: {
+          ...createEmptyProductReviewAnalytics().summary,
+          ...(payload.summary || {})
+        },
+        latestComments: Array.isArray(payload.latestComments) ? payload.latestComments : [],
+        topProducts: Array.isArray(payload.topProducts) ? payload.topProducts : []
+      });
+    } catch (error) {
+      console.error('Error fetching product review analytics:', error);
+      setAnalyticsProductReviews(createEmptyProductReviewAnalytics());
+    } finally {
+      setLoadingAnalyticsProductReviews(false);
+    }
+  }, [user?.active_restaurant_id, buildProductReviewAnalyticsParams]);
+
   useEffect(() => {
     if (user?.active_restaurant_id) {
       fetchYearlyAnalytics(dashboardYear);
     }
   }, [dashboardYear, user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (mainTab !== 'dashboard') return;
+    fetchAnalyticsProductReviews();
+  }, [mainTab, fetchAnalyticsProductReviews]);
 
   useEffect(() => {
     if (!user?.active_restaurant_id) {
@@ -5317,6 +5384,120 @@ function AdminDashboard() {
     </Row>
   );
 
+  const renderAnalyticsProductReviews = () => {
+    const summary = analyticsProductReviews?.summary || {};
+    const latestComments = Array.isArray(analyticsProductReviews?.latestComments)
+      ? analyticsProductReviews.latestComments
+      : [];
+    const topProducts = Array.isArray(analyticsProductReviews?.topProducts)
+      ? analyticsProductReviews.topProducts
+      : [];
+    const locale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
+
+    return (
+      <Row className="g-4 mt-1">
+        <Col lg={4}>
+          <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+            <Card.Header className="bg-white border-0 admin-analytics-card-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>💬</span>
+                {language === 'uz' ? "Tovar sharhlari" : 'Комментарии к товарам'}
+              </h6>
+            </Card.Header>
+            <Card.Body>
+              <div className="admin-analytics-kpi-list">
+                <div className="admin-analytics-kpi-row">
+                  <span>{language === 'uz' ? 'Jami baholar' : 'Всего оценок'}</span>
+                  <strong>{Number(summary.totalReviews || 0).toLocaleString('ru-RU')}</strong>
+                </div>
+                <div className="admin-analytics-kpi-row">
+                  <span>{language === 'uz' ? 'Izoh bilan' : 'С комментарием'}</span>
+                  <strong>{Number(summary.commentsCount || 0).toLocaleString('ru-RU')}</strong>
+                </div>
+                <div className="admin-analytics-kpi-row">
+                  <span>{language === 'uz' ? 'Past baho (1-2)' : 'Низкие оценки (1-2)'}</span>
+                  <strong>{Number(summary.lowRatingCount || 0).toLocaleString('ru-RU')}</strong>
+                </div>
+                <div className="admin-analytics-kpi-row">
+                  <span>{language === 'uz' ? "O'rtacha baho" : 'Средняя оценка'}</span>
+                  <strong>{Number(summary.averageRating || 0).toFixed(2)} / {MAX_ORDER_RATING}</strong>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-top">
+                <div className="small text-uppercase text-muted fw-semibold mb-2">
+                  {language === 'uz' ? 'TOP mahsulotlar (izohlar)' : 'Топ товаров (комментарии)'}
+                </div>
+                {topProducts.length > 0 ? (
+                  <div className="d-flex flex-column gap-2">
+                    {topProducts.slice(0, 5).map((item, index) => (
+                      <div key={`admin-review-top-product-${item.productId || index}`} className="d-flex justify-content-between gap-2">
+                        <span className="text-truncate" title={item.productName || ''}>{item.productName || 'Товар'}</span>
+                        <strong className="text-nowrap">{Number(item.commentsCount || 0)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-muted small">{t('noDataForPeriod')}</div>
+                )}
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+
+        <Col lg={8}>
+          <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+            <Card.Header className="bg-white border-0 admin-analytics-card-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#0f766e', background: '#f0fdfa' }}>📝</span>
+                {language === 'uz' ? 'So‘nggi izohlar' : 'Последние комментарии'}
+              </h6>
+            </Card.Header>
+            <Card.Body className="p-0">
+              {loadingAnalyticsProductReviews ? (
+                <div className="py-4 text-center text-muted">
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                </div>
+              ) : latestComments.length > 0 ? (
+                <div className="table-responsive">
+                  <Table hover className="mb-0 admin-analytics-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>{language === 'uz' ? 'Tovar' : 'Товар'}</th>
+                        <th>{language === 'uz' ? 'Baho' : 'Оценка'}</th>
+                        <th>{language === 'uz' ? 'Izoh' : 'Комментарий'}</th>
+                        <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
+                        <th className="text-end">{t('date')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {latestComments.map((item, idx) => (
+                        <tr key={`admin-review-comment-${item.id || idx}`}>
+                          <td>{idx + 1}</td>
+                          <td>{item.productName || 'Товар'}</td>
+                          <td>{buildOrderRatingStars(Number(item.rating || 0))}</td>
+                          <td style={{ minWidth: '220px' }}>{String(item.comment || '').trim() || '—'}</td>
+                          <td>{item.authorName || 'Клиент'}</td>
+                          <td className="text-end">
+                            {item.createdAt ? new Date(item.createdAt).toLocaleString(locale) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+    );
+  };
+
   const renderAnalyticsDashboard = () => {
     const renderStatusIcon = (statusKey) => {
       switch (statusKey) {
@@ -5684,6 +5865,7 @@ function AdminDashboard() {
       </Row>
 
       {renderAnalyticsTopTables()}
+      {renderAnalyticsProductReviews()}
     </div>
     );
   };
