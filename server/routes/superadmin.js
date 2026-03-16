@@ -9,6 +9,7 @@ const {
   getActivityLogs,
   getActivityStats,
   refreshUserTelemetryFromActivityLogs,
+  ensureUserTelemetrySchema,
   getIpFromRequest,
   getUserAgentFromRequest,
   ACTION_TYPES,
@@ -3188,6 +3189,7 @@ router.get('/logs', async (req, res) => {
     const {
       restaurant_id,
       user_id,
+      user_role,
       action_type,
       entity_type,
       start_date,
@@ -3197,10 +3199,14 @@ router.get('/logs', async (req, res) => {
     } = req.query;
 
     const offset = (page - 1) * limit;
+    const normalizedUserRole = ['operator', 'customer', 'superadmin'].includes(String(user_role || '').toLowerCase())
+      ? String(user_role || '').toLowerCase()
+      : null;
 
     const result = await getActivityLogs({
       restaurantId: restaurant_id,
       userId: user_id,
+      userRole: normalizedUserRole,
       actionType: action_type,
       entityType: entity_type,
       startDate: start_date,
@@ -3230,6 +3236,140 @@ router.get('/logs/stats', async (req, res) => {
   } catch (error) {
     console.error('Get logs stats error:', error);
     res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
+router.get('/telemetry/analytics', async (req, res) => {
+  try {
+    await ensureUserTelemetrySchema().catch(() => {});
+
+    const requestedHours = Number.parseInt(req.query?.hours, 10);
+    const hours = Number.isFinite(requestedHours)
+      ? Math.min(168, Math.max(1, requestedHours))
+      : 24;
+
+    const getRoleTelemetryBuckets = async ({ role, field, fallbackLabel = 'unknown', limit = 12 }) => {
+      const result = await pool.query(
+        `
+        SELECT
+          COALESCE(NULLIF(BTRIM(${field}), ''), $2) AS label,
+          COUNT(*)::int AS count
+        FROM users
+        WHERE role = $1
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+        LIMIT $3
+      `,
+        [role, fallbackLabel, limit]
+      );
+      return result.rows.map((row) => ({
+        label: String(row.label || fallbackLabel),
+        count: Number.parseInt(row.count, 10) || 0
+      }));
+    };
+
+    const [
+      roleTotalsResult,
+      activeWindowResult,
+      hourlyActivityResult,
+      operatorDevices,
+      operatorOs,
+      operatorBrowsers,
+      customerDevices,
+      customerOs,
+      customerBrowsers
+    ] = await Promise.all([
+      pool.query(
+        `
+        SELECT role, COUNT(*)::int AS total
+        FROM users
+        WHERE role IN ('operator', 'customer')
+        GROUP BY role
+      `
+      ),
+      pool.query(
+        `
+        SELECT u.role, COUNT(DISTINCT al.user_id)::int AS active_users
+        FROM activity_logs al
+        INNER JOIN users u ON u.id = al.user_id
+        WHERE u.role IN ('operator', 'customer')
+          AND al.created_at >= NOW() - make_interval(hours => $1::int)
+        GROUP BY u.role
+      `,
+        [hours]
+      ),
+      pool.query(
+        `
+        WITH hour_series AS (
+          SELECT generate_series(
+            date_trunc('hour', NOW() - make_interval(hours => GREATEST($1::int - 1, 0))),
+            date_trunc('hour', NOW()),
+            INTERVAL '1 hour'
+          ) AS hour_bucket
+        ),
+        hourly_activity AS (
+          SELECT
+            date_trunc('hour', al.created_at) AS hour_bucket,
+            u.role,
+            COUNT(DISTINCT al.user_id)::int AS active_users
+          FROM activity_logs al
+          INNER JOIN users u ON u.id = al.user_id
+          WHERE u.role IN ('operator', 'customer')
+            AND al.created_at >= NOW() - make_interval(hours => $1::int)
+          GROUP BY date_trunc('hour', al.created_at), u.role
+        )
+        SELECT
+          hs.hour_bucket,
+          COALESCE(MAX(CASE WHEN ha.role = 'operator' THEN ha.active_users END), 0)::int AS operators,
+          COALESCE(MAX(CASE WHEN ha.role = 'customer' THEN ha.active_users END), 0)::int AS customers
+        FROM hour_series hs
+        LEFT JOIN hourly_activity ha ON ha.hour_bucket = hs.hour_bucket
+        GROUP BY hs.hour_bucket
+        ORDER BY hs.hour_bucket ASC
+      `,
+        [hours]
+      ),
+      getRoleTelemetryBuckets({ role: 'operator', field: 'last_device_type' }),
+      getRoleTelemetryBuckets({ role: 'operator', field: 'last_os_name' }),
+      getRoleTelemetryBuckets({ role: 'operator', field: 'last_browser_name' }),
+      getRoleTelemetryBuckets({ role: 'customer', field: 'last_device_type' }),
+      getRoleTelemetryBuckets({ role: 'customer', field: 'last_os_name' }),
+      getRoleTelemetryBuckets({ role: 'customer', field: 'last_browser_name' })
+    ]);
+
+    const totalsMap = new Map(
+      roleTotalsResult.rows.map((row) => [String(row.role), Number.parseInt(row.total, 10) || 0])
+    );
+    const activeMap = new Map(
+      activeWindowResult.rows.map((row) => [String(row.role), Number.parseInt(row.active_users, 10) || 0])
+    );
+
+    res.json({
+      generated_at: new Date().toISOString(),
+      window_hours: hours,
+      operators: {
+        total: totalsMap.get('operator') || 0,
+        active_in_window: activeMap.get('operator') || 0,
+        devices: operatorDevices,
+        os: operatorOs,
+        browsers: operatorBrowsers
+      },
+      customers: {
+        total: totalsMap.get('customer') || 0,
+        active_in_window: activeMap.get('customer') || 0,
+        devices: customerDevices,
+        os: customerOs,
+        browsers: customerBrowsers
+      },
+      hourly_activity: (hourlyActivityResult.rows || []).map((row) => ({
+        hour: row.hour_bucket,
+        operators: Number.parseInt(row.operators, 10) || 0,
+        customers: Number.parseInt(row.customers, 10) || 0
+      }))
+    });
+  } catch (error) {
+    console.error('Get telemetry analytics error:', error);
+    res.status(500).json({ error: 'Ошибка получения скрытой аналитики' });
   }
 });
 

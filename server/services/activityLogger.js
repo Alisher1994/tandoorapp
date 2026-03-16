@@ -263,7 +263,10 @@ const ACTION_TYPES = {
 
   // Auth
   LOGIN: 'login',
-  LOGOUT: 'logout'
+  LOGOUT: 'logout',
+
+  // Analytics / generic operator navigation
+  OPERATOR_VIEW: 'operator_view'
 };
 
 /**
@@ -274,7 +277,8 @@ const ENTITY_TYPES = {
   CATEGORY: 'category',
   ORDER: 'order',
   USER: 'user',
-  RESTAURANT: 'restaurant'
+  RESTAURANT: 'restaurant',
+  SYSTEM: 'system'
 };
 
 /**
@@ -358,6 +362,7 @@ async function getActivityLogs(filters = {}) {
     const {
       restaurantId = null,
       userId = null,
+      userRole = null,
       actionType = null,
       entityType = null,
       startDate = null,
@@ -367,7 +372,12 @@ async function getActivityLogs(filters = {}) {
     } = filters;
 
     // For total count
-    let countQuery = `SELECT COUNT(*) FROM activity_logs al WHERE 1=1`;
+    let countQuery = `
+      SELECT COUNT(*)
+      FROM activity_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE 1=1
+    `;
     const countParams = [];
     let countParamIndex = 1;
 
@@ -377,6 +387,7 @@ async function getActivityLogs(filters = {}) {
         al.*,
         u.username,
         u.full_name as user_full_name,
+        u.role as user_role,
         r.name as restaurant_name
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id = u.id
@@ -400,6 +411,14 @@ async function getActivityLogs(filters = {}) {
       filterBlocks.push(`al.user_id = $${dataParamIndex}`);
       dataParams.push(userId);
       countParams.push(userId);
+      dataParamIndex++;
+      countParamIndex++;
+    }
+
+    if (userRole) {
+      filterBlocks.push(`u.role = $${dataParamIndex}`);
+      dataParams.push(userRole);
+      countParams.push(userRole);
       dataParamIndex++;
       countParamIndex++;
     }

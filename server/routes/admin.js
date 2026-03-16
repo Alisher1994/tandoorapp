@@ -582,6 +582,79 @@ const validateProductCategorySelection = async ({ categoryId }) => {
 router.use(authenticate);
 router.use(requireOperator);
 
+const OPERATOR_VIEW_LOG_MIN_INTERVAL_MS = 45 * 1000;
+const recentOperatorViewLogMap = new Map();
+const OPERATOR_VIEW_LOG_ALLOWED_METHODS = new Set(['GET']);
+const OPERATOR_VIEW_LOG_DENYLIST_PREFIXES = [
+  '/profile-logs',
+  '/help-instructions'
+];
+
+const normalizePathForOperatorViewLog = (pathValue) => (
+  String(pathValue || '')
+    .split('?')[0]
+    .replace(/\/\d+(?=\/|$)/g, '/:id')
+    .replace(/\/[0-9a-f]{16,}(?=\/|$)/ig, '/:token')
+);
+
+const shouldSkipOperatorViewLog = (req) => {
+  if (!req?.user || req.user.role !== 'operator') return true;
+  if (!OPERATOR_VIEW_LOG_ALLOWED_METHODS.has(String(req.method || '').toUpperCase())) return true;
+  const normalizedPath = normalizePathForOperatorViewLog(req.path);
+  if (!normalizedPath.startsWith('/')) return true;
+  if (OPERATOR_VIEW_LOG_DENYLIST_PREFIXES.some((prefix) => normalizedPath.startsWith(prefix))) return true;
+  return false;
+};
+
+router.use((req, res, next) => {
+  if (shouldSkipOperatorViewLog(req)) {
+    next();
+    return;
+  }
+
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    try {
+      if (res.statusCode >= 400) return;
+      const normalizedPath = normalizePathForOperatorViewLog(req.path);
+      const userId = Number.parseInt(req.user?.id, 10);
+      const restaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+      if (!Number.isFinite(userId) || userId <= 0) return;
+
+      const cacheKey = `${userId}:${normalizedPath}`;
+      const now = Date.now();
+      const lastLoggedAt = recentOperatorViewLogMap.get(cacheKey) || 0;
+      if (now - lastLoggedAt < OPERATOR_VIEW_LOG_MIN_INTERVAL_MS) return;
+      recentOperatorViewLogMap.set(cacheKey, now);
+
+      if (recentOperatorViewLogMap.size > 4000) {
+        const cutoff = now - OPERATOR_VIEW_LOG_MIN_INTERVAL_MS;
+        for (const [key, value] of recentOperatorViewLogMap.entries()) {
+          if (value < cutoff) recentOperatorViewLogMap.delete(key);
+        }
+      }
+
+      logActivity({
+        userId,
+        restaurantId: Number.isFinite(restaurantId) && restaurantId > 0 ? restaurantId : null,
+        actionType: ACTION_TYPES.OPERATOR_VIEW,
+        entityType: ENTITY_TYPES.SYSTEM,
+        entityId: null,
+        entityName: `${String(req.method || '').toUpperCase()} ${normalizedPath}`,
+        oldValues: null,
+        newValues: {
+          status_code: res.statusCode,
+          duration_ms: Math.max(0, Date.now() - startedAt)
+        },
+        ipAddress: getIpFromRequest(req),
+        userAgent: getUserAgentFromRequest(req)
+      }).catch(() => {});
+    } catch (_) {}
+  });
+
+  next();
+});
+
 router.get('/help-instructions', async (req, res) => {
   try {
     await ensureHelpInstructionsSchema();

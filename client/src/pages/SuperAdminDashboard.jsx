@@ -541,8 +541,12 @@ function SuperAdminDashboard() {
   const [customerRestaurantFilter, setCustomerRestaurantFilter] = useState('');
   const [customerRestaurantSearch, setCustomerRestaurantSearch] = useState('');
   const [logsFilter, setLogsFilter] = useState({
-    action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15
+    action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15
   });
+  const [hiddenOpsInsights, setHiddenOpsInsights] = useState(null);
+  const [hiddenOpsInsightsLoading, setHiddenOpsInsightsLoading] = useState(false);
+  const [hiddenOpsInsightsError, setHiddenOpsInsightsError] = useState('');
+  const [hiddenOpsInsightsHours, setHiddenOpsInsightsHours] = useState(24);
 
   // Customer order history modal
   const [showOrderHistoryModal, setShowOrderHistoryModal] = useState(false);
@@ -719,6 +723,12 @@ function SuperAdminDashboard() {
   }, [logsFilter]);
 
   useEffect(() => {
+    if (!isHiddenOpsTelemetryEnabled) return;
+    if (activeTab !== 'logs') return;
+    loadHiddenOpsInsights();
+  }, [isHiddenOpsTelemetryEnabled, activeTab, hiddenOpsInsightsHours]);
+
+  useEffect(() => {
     if (activeTab === 'ads') loadAdBanners();
   }, [activeTab, adBannerStatusFilter]);
 
@@ -796,6 +806,8 @@ function SuperAdminDashboard() {
     if (isHiddenOpsTelemetryEnabled) return;
     setOperatorTelemetryFilter({ ip: '', browser: '', os: '', device: '' });
     setCustomerTelemetryFilter({ ip: '', browser: '', os: '', device: '' });
+    setHiddenOpsInsights(null);
+    setHiddenOpsInsightsError('');
   }, [isHiddenOpsTelemetryEnabled]);
 
   // API calls
@@ -1415,6 +1427,23 @@ function SuperAdminDashboard() {
       setError('Ошибка загрузки логов');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadHiddenOpsInsights = async (hoursOverride = null) => {
+    const requestedHours = Number.parseInt(hoursOverride ?? hiddenOpsInsightsHours, 10);
+    const normalizedHours = Number.isFinite(requestedHours) ? Math.min(168, Math.max(1, requestedHours)) : 24;
+    setHiddenOpsInsightsLoading(true);
+    setHiddenOpsInsightsError('');
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/telemetry/analytics`, {
+        params: { hours: normalizedHours }
+      });
+      setHiddenOpsInsights(response.data || null);
+    } catch (err) {
+      setHiddenOpsInsightsError(err?.response?.data?.error || 'Ошибка загрузки скрытой аналитики');
+    } finally {
+      setHiddenOpsInsightsLoading(false);
     }
   };
 
@@ -3128,7 +3157,7 @@ function SuperAdminDashboard() {
 
     if (command.toLowerCase() === 'help') {
       appendHiddenOpsConsoleLine('Sequence: sv_cheates 1 -> full_access 1 -> [1..10 minutes]');
-      appendHiddenOpsConsoleLine('Commands: status | clear | quit');
+      appendHiddenOpsConsoleLine('Commands: status | clear | quit | insights refresh | insights hours [1..168]');
       return;
     }
 
@@ -3143,6 +3172,34 @@ function SuperAdminDashboard() {
         return;
       }
       appendHiddenOpsConsoleLine(`Status: hidden telemetry is ON (${hiddenOpsTelemetrySecondsLeft}s left).`);
+      appendHiddenOpsConsoleLine(`Insights window: last ${hiddenOpsInsightsHours}h.`);
+      return;
+    }
+
+    if (/^insights\s+refresh$/i.test(command)) {
+      if (!isHiddenOpsTelemetryEnabled) {
+        appendHiddenOpsConsoleLine('Insights unavailable. Enable hidden telemetry first.');
+        return;
+      }
+      appendHiddenOpsConsoleLine('Insights refresh requested...');
+      loadHiddenOpsInsights().then(() => {
+        appendHiddenOpsConsoleLine('Insights refreshed.');
+      });
+      return;
+    }
+
+    if (/^insights\s+hours\s+\d+$/i.test(command)) {
+      if (!isHiddenOpsTelemetryEnabled) {
+        appendHiddenOpsConsoleLine('Insights unavailable. Enable hidden telemetry first.');
+        return;
+      }
+      const hoursValue = Number.parseInt(command.split(/\s+/).pop(), 10);
+      if (!Number.isFinite(hoursValue) || hoursValue < 1 || hoursValue > 168) {
+        appendHiddenOpsConsoleLine('Hours range is 1..168.');
+        return;
+      }
+      setHiddenOpsInsightsHours(hoursValue);
+      appendHiddenOpsConsoleLine(`Insights window changed to ${hoursValue}h.`);
       return;
     }
 
@@ -3189,6 +3246,7 @@ function SuperAdminDashboard() {
       setHiddenOpsTelemetrySecondsLeft(minutes * 60);
       setHiddenOpsConsoleStage(0);
       appendHiddenOpsConsoleLine(`Access granted for ${minutes} minute(s).`);
+      appendHiddenOpsConsoleLine('Hidden analytics unlocked in Logs tab.');
     }
   };
 
@@ -3223,6 +3281,24 @@ function SuperAdminDashboard() {
       operator?.last_city
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : '-';
+  };
+
+  const formatHiddenInsightsHourLabel = (hourValue) => {
+    if (!hourValue) return '-';
+    const date = new Date(hourValue);
+    if (Number.isNaN(date.getTime())) return String(hourValue);
+    return date.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatBucketPercent = (count, total) => {
+    if (!Number.isFinite(total) || total <= 0) return '0%';
+    const ratio = (Number(count) || 0) / total;
+    return `${Math.round(ratio * 100)}%`;
   };
 
   const buildTelemetryFilterOptions = (rows = [], field) => {
@@ -4463,30 +4539,30 @@ function SuperAdminDashboard() {
     );
   };
 
-  const getActionTypeLabel = (type) => {
-    const labels = {
-      'create_product': 'Создание товара',
-      'update_product': 'Изменение товара',
-      'delete_product': 'Удаление товара',
-      'create_category': 'Создание категории',
-      'update_category': 'Изменение категории',
-      'delete_category': 'Удаление категории',
-      'process_order': 'Обработка заказа',
-      'update_order_status': 'Изменение статуса заказа',
-      'cancel_order': 'Отмена заказа',
-      'create_user': 'Создание пользователя',
-      'update_user': 'Изменение пользователя',
-      'delete_user': 'Удаление пользователя',
-      'block_user': 'Блокировка пользователя',
-      'unblock_user': 'Разблокировка пользователя',
-      'create_restaurant': 'Создание магазина',
-      'update_restaurant': 'Изменение магазина',
-      'delete_restaurant': 'Удаление магазина',
-      'login': 'Вход в систему',
-      'logout': 'Выход из системы'
-    };
-    return labels[type] || type;
+  const actionTypeLabels = {
+    create_product: 'Создание товара',
+    update_product: 'Изменение товара',
+    delete_product: 'Удаление товара',
+    create_category: 'Создание категории',
+    update_category: 'Изменение категории',
+    delete_category: 'Удаление категории',
+    process_order: 'Обработка заказа',
+    update_order_status: 'Изменение статуса заказа',
+    cancel_order: 'Отмена заказа',
+    create_user: 'Создание пользователя',
+    update_user: 'Изменение пользователя',
+    delete_user: 'Удаление пользователя',
+    block_user: 'Блокировка пользователя',
+    unblock_user: 'Разблокировка пользователя',
+    create_restaurant: 'Создание магазина',
+    update_restaurant: 'Изменение магазина',
+    delete_restaurant: 'Удаление магазина',
+    login: 'Вход в систему',
+    logout: 'Выход из системы',
+    operator_view: 'Навигация оператора'
   };
+  const logActionFilterOptions = Object.entries(actionTypeLabels).map(([value, label]) => ({ value, label }));
+  const getActionTypeLabel = (type) => actionTypeLabels[type] || type;
 
   const handleLogout = () => {
     logout();
@@ -4528,7 +4604,7 @@ function SuperAdminDashboard() {
       return;
     }
     if (activeTab === 'logs') {
-      setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15 });
+      setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15 });
     }
   };
 
@@ -4874,6 +4950,16 @@ function SuperAdminDashboard() {
           </Form.Select>
           <Form.Select
             className="form-control-custom"
+            value={logsFilter.user_role}
+            onChange={(e) => setLogsFilter(prev => ({ ...prev, user_role: e.target.value, page: 1 }))}
+          >
+            <option value="">Все роли</option>
+            <option value="operator">Операторы</option>
+            <option value="customer">Клиенты</option>
+            <option value="superadmin">Суперадмины</option>
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
             value={logsFilter.restaurant_id}
             onChange={(e) => setLogsFilter(prev => ({ ...prev, restaurant_id: e.target.value, page: 1 }))}
           >
@@ -4888,11 +4974,11 @@ function SuperAdminDashboard() {
             onChange={(e) => setLogsFilter(prev => ({ ...prev, action_type: e.target.value, page: 1 }))}
           >
             <option value="">{t('saAllActions')}</option>
-            <option value="create_product">Создание товара</option>
-            <option value="update_product">Изменение товара</option>
-            <option value="delete_product">Удаление товара</option>
-            <option value="update_order_status">Изменение заказа</option>
-            <option value="login">Вход</option>
+            {logActionFilterOptions.map((item) => (
+              <option key={`mobile-log-action-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
           </Form.Select>
         </div>
       );
@@ -6955,6 +7041,17 @@ function SuperAdminDashboard() {
                     </Form.Select>
                     <Form.Select
                       className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={logsFilter.user_role}
+                      onChange={(e) => setLogsFilter(prev => ({ ...prev, user_role: e.target.value, page: 1 }))}
+                    >
+                      <option value="">Все роли</option>
+                      <option value="operator">Операторы</option>
+                      <option value="customer">Клиенты</option>
+                      <option value="superadmin">Суперадмины</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
                       style={{ width: '160px' }}
                       value={logsFilter.restaurant_id}
                       onChange={(e) => setLogsFilter(prev => ({ ...prev, restaurant_id: e.target.value, page: 1 }))}
@@ -6971,27 +7068,158 @@ function SuperAdminDashboard() {
                       onChange={(e) => setLogsFilter(prev => ({ ...prev, action_type: e.target.value, page: 1 }))}
                     >
                       <option value="">{t('saAllActions')}</option>
-                      <option value="create_product">Создание товара</option>
-                      <option value="update_product">Изменение товара</option>
-                      <option value="delete_product">Удаление товара</option>
-                      <option value="update_order_status">Изменение заказа</option>
-                      <option value="login">Вход</option>
+                      {logActionFilterOptions.map((item) => (
+                        <option key={`desktop-log-action-${item.value}`} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
                     </Form.Select>
                     <Button
                       variant="light"
                       className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
                       style={{ height: '38px', padding: '0 15px' }}
                       title="Сбросить фильтры"
-                      onClick={() => setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', start_date: '', end_date: '', page: 1, limit: 15 })}
-                      disabled={!logsFilter.action_type && !logsFilter.restaurant_id && !logsFilter.user_id && !logsFilter.start_date && !logsFilter.end_date}
+                      onClick={() => setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15 })}
+                      disabled={!logsFilter.action_type && !logsFilter.restaurant_id && !logsFilter.user_id && !logsFilter.user_role && !logsFilter.start_date && !logsFilter.end_date}
                     >
                       Сброс
                     </Button>
                   </div>
                 </div>
 
+                {isHiddenOpsTelemetryEnabled && (
+                  <Card className="admin-card mb-3 border-0">
+                    <Card.Body className="py-3">
+                      <div className="d-flex flex-column flex-lg-row gap-3 justify-content-between align-items-start align-items-lg-center mb-3">
+                        <div>
+                          <div className="fw-semibold">Скрытая аналитика устройств и активности</div>
+                          <small className="text-muted">
+                            Последние {hiddenOpsInsights?.window_hours || hiddenOpsInsightsHours} часов
+                          </small>
+                        </div>
+                        <div className="d-flex gap-2 flex-wrap">
+                          <Form.Select
+                            className="form-control-custom"
+                            style={{ width: '155px' }}
+                            value={String(hiddenOpsInsightsHours)}
+                            onChange={(e) => setHiddenOpsInsightsHours(Number.parseInt(e.target.value, 10) || 24)}
+                          >
+                            <option value="6">Последние 6ч</option>
+                            <option value="12">Последние 12ч</option>
+                            <option value="24">Последние 24ч</option>
+                            <option value="48">Последние 48ч</option>
+                            <option value="72">Последние 72ч</option>
+                            <option value="168">Последние 7 дней</option>
+                          </Form.Select>
+                          <Button
+                            variant="outline-secondary"
+                            className="form-control-custom px-3"
+                            onClick={() => loadHiddenOpsInsights()}
+                            disabled={hiddenOpsInsightsLoading}
+                          >
+                            {hiddenOpsInsightsLoading ? 'Загрузка...' : 'Обновить'}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {hiddenOpsInsightsError ? (
+                        <Alert variant="danger" className="py-2 mb-0">{hiddenOpsInsightsError}</Alert>
+                      ) : hiddenOpsInsightsLoading ? (
+                        <TableSkeleton rows={4} columns={4} label="Загрузка скрытой аналитики" />
+                      ) : hiddenOpsInsights ? (
+                        <>
+                          <Row className="g-3 mb-3">
+                            <Col lg={6}>
+                              <div className="p-3 border rounded-3 bg-white h-100">
+                                <div className="fw-semibold mb-2">
+                                  Операторы: активность {hiddenOpsInsights.operators?.active_in_window || 0} / {hiddenOpsInsights.operators?.total || 0}
+                                </div>
+                                <div className="small text-muted mb-2">Устройства</div>
+                                <div className="d-flex flex-wrap gap-2 mb-3">
+                                  {(hiddenOpsInsights.operators?.devices || []).slice(0, 6).map((item) => (
+                                    <Badge key={`op-device-${item.label}`} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                      {item.label}: {item.count} ({formatBucketPercent(item.count, hiddenOpsInsights.operators?.total || 0)})
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <div className="small text-muted mb-2">OS / Браузеры</div>
+                                <div className="d-flex flex-wrap gap-2">
+                                  {(hiddenOpsInsights.operators?.os || []).slice(0, 4).map((item) => (
+                                    <Badge key={`op-os-${item.label}`} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                      {item.label}: {item.count}
+                                    </Badge>
+                                  ))}
+                                  {(hiddenOpsInsights.operators?.browsers || []).slice(0, 4).map((item) => (
+                                    <Badge key={`op-browser-${item.label}`} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                      {item.label}: {item.count}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </Col>
+                            <Col lg={6}>
+                              <div className="p-3 border rounded-3 bg-white h-100">
+                                <div className="fw-semibold mb-2">
+                                  Клиенты: активность {hiddenOpsInsights.customers?.active_in_window || 0} / {hiddenOpsInsights.customers?.total || 0}
+                                </div>
+                                <div className="small text-muted mb-2">Устройства</div>
+                                <div className="d-flex flex-wrap gap-2 mb-3">
+                                  {(hiddenOpsInsights.customers?.devices || []).slice(0, 6).map((item) => (
+                                    <Badge key={`cust-device-${item.label}`} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                      {item.label}: {item.count} ({formatBucketPercent(item.count, hiddenOpsInsights.customers?.total || 0)})
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <div className="small text-muted mb-2">OS / Браузеры</div>
+                                <div className="d-flex flex-wrap gap-2">
+                                  {(hiddenOpsInsights.customers?.os || []).slice(0, 4).map((item) => (
+                                    <Badge key={`cust-os-${item.label}`} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                      {item.label}: {item.count}
+                                    </Badge>
+                                  ))}
+                                  {(hiddenOpsInsights.customers?.browsers || []).slice(0, 4).map((item) => (
+                                    <Badge key={`cust-browser-${item.label}`} className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                      {item.label}: {item.count}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </Col>
+                          </Row>
+
+                          <div className="admin-table-container">
+                            <Table responsive hover className="admin-table mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Время</th>
+                                  <th className="text-end">Операторы (уник.)</th>
+                                  <th className="text-end">Клиенты (уник.)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(hiddenOpsInsights.hourly_activity || []).map((point, index) => (
+                                  <tr key={`hourly-point-${index}`}>
+                                    <td><small className="text-muted">{formatHiddenInsightsHourLabel(point.hour)}</small></td>
+                                    <td className="text-end"><strong>{point.operators || 0}</strong></td>
+                                    <td className="text-end"><strong>{point.customers || 0}</strong></td>
+                                  </tr>
+                                ))}
+                                {(hiddenOpsInsights.hourly_activity || []).length === 0 && (
+                                  <tr>
+                                    <td colSpan="3" className="text-center py-4 text-muted">Нет данных активности за выбранный период</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </Table>
+                          </div>
+                        </>
+                      ) : null}
+                    </Card.Body>
+                  </Card>
+                )}
+
                 {loading ? (
-                  <TableSkeleton rows={8} columns={6} label="Загрузка журнала действий" />
+                  <TableSkeleton rows={8} columns={7} label="Загрузка журнала действий" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -7000,6 +7228,7 @@ function SuperAdminDashboard() {
                           <tr>
                             <th>{t('saTableDate')}</th>
                             <th>{t('saTableUser')}</th>
+                            <th>Роль</th>
                             <th>{t('saTableAction')}</th>
                             <th>{t('saTableObject')}</th>
                             <th>{t('saTableRestaurant')}</th>
@@ -7012,9 +7241,21 @@ function SuperAdminDashboard() {
                               <td><small className="text-muted">{formatDate(log.created_at)}</small></td>
                               <td><span className="fw-semibold">{log.user_full_name || log.username}</span></td>
                               <td>
+                                <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                  {log.user_role || '-'}
+                                </Badge>
+                              </td>
+                              <td>
                                 <Badge className="badge-custom bg-info bg-opacity-10 text-info">{getActionTypeLabel(log.action_type)}</Badge>
                               </td>
-                              <td><small>{log.entity_name || `${log.entity_type} #${log.entity_id}`}</small></td>
+                              <td>
+                                <small>{log.entity_name || `${log.entity_type} #${log.entity_id}`}</small>
+                                {log?.new_values?.duration_ms ? (
+                                  <div className="text-muted" style={{ fontSize: '0.74rem' }}>
+                                    {log?.new_values?.status_code || 200} · {log.new_values.duration_ms}ms
+                                  </div>
+                                ) : null}
+                              </td>
                               <td>
                                 <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">{log.restaurant_name || '-'}</Badge>
                               </td>
@@ -7022,7 +7263,7 @@ function SuperAdminDashboard() {
                             </tr>
                           ))}
                           {logs.logs?.length === 0 && (
-                            <tr><td colSpan="6" className="text-center py-5 text-muted">{t('saEmptyLogs')}</td></tr>
+                            <tr><td colSpan="7" className="text-center py-5 text-muted">{t('saEmptyLogs')}</td></tr>
                           )}
                         </tbody>
                       </Table>
