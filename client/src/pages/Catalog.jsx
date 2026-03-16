@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -19,6 +19,7 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
 const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
+const CATALOG_SEARCH_RESULTS_LIMIT = 80;
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
@@ -935,6 +936,7 @@ function Catalog() {
     () => String(catalogSearchQuery || '').trim().toLowerCase(),
     [catalogSearchQuery]
   );
+  const deferredCatalogSearch = useDeferredValue(normalizedCatalogSearch);
 
   const catalogSearchPlaceholderPhrases = useMemo(() => (
     language === 'uz'
@@ -974,22 +976,34 @@ function Catalog() {
   };
 
   const catalogSearchResults = useMemo(() => {
-    if (!normalizedCatalogSearch) return [];
-    return products
-      .filter((product) => {
-        const ru = String(product?.name_ru || '').toLowerCase();
-        const uz = String(product?.name_uz || '').toLowerCase();
-        return ru.includes(normalizedCatalogSearch) || uz.includes(normalizedCatalogSearch);
-      })
-      .sort((a, b) => {
-        const aName = String(getProductName(a) || '').toLowerCase();
-        const bName = String(getProductName(b) || '').toLowerCase();
-        const aStarts = aName.startsWith(normalizedCatalogSearch) ? 0 : 1;
-        const bStarts = bName.startsWith(normalizedCatalogSearch) ? 0 : 1;
-        if (aStarts !== bStarts) return aStarts - bStarts;
-        return aName.localeCompare(bName, language === 'uz' ? 'uz' : 'ru');
-      });
-  }, [products, normalizedCatalogSearch, language, categoriesById]);
+    if (!deferredCatalogSearch) return [];
+
+    const startsWithMatches = [];
+    const containsMatches = [];
+    const locale = language === 'uz' ? 'uz' : 'ru';
+
+    for (const product of products) {
+      const ru = String(product?.name_ru || '').toLowerCase();
+      const uz = String(product?.name_uz || '').toLowerCase();
+      if (!ru.includes(deferredCatalogSearch) && !uz.includes(deferredCatalogSearch)) continue;
+
+      const displayName = String(getProductName(product) || '').toLowerCase();
+      if (displayName.startsWith(deferredCatalogSearch)) {
+        startsWithMatches.push(product);
+      } else {
+        containsMatches.push(product);
+      }
+    }
+
+    const sortByName = (left, right) => (
+      String(getProductName(left) || '').localeCompare(String(getProductName(right) || ''), locale)
+    );
+
+    startsWithMatches.sort(sortByName);
+    containsMatches.sort(sortByName);
+
+    return [...startsWithMatches, ...containsMatches].slice(0, CATALOG_SEARCH_RESULTS_LIMIT);
+  }, [products, deferredCatalogSearch, language, categoriesById]);
 
   const inlineAdBanners = useMemo(
     () => (adBanners || []).filter((banner) => String(banner?.ad_type || 'banner').toLowerCase() !== 'entry_popup'),
@@ -2729,11 +2743,11 @@ function Catalog() {
           >
             {catalogSearchResults.map((product, index) => {
               const productName = getProductName(product);
+              const selectedVariant = getSelectedVariantForProduct(product);
               const imageUrl = getProductCardImage(product, selectedVariant);
               const category = categoriesById.get(Number(product.category_id));
               const productSizeOptions = getProductSizeOptions(product);
               const hasSelectableVariants = productSizeOptions.length > 0;
-              const selectedVariant = getSelectedVariantForProduct(product);
               const cartItem = getCartItem(product.id, selectedVariant);
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
