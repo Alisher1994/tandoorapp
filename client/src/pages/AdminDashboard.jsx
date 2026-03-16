@@ -3906,11 +3906,6 @@ function AdminDashboard() {
           alert(`Укажите название и цену для варианта "${invalidVariant.name || 'без названия'}"`);
           return;
         }
-        const missingBarcodeVariant = normalizedVariantOptions.find((variant) => !String(variant.barcode || '').trim());
-        if (missingBarcodeVariant) {
-          alert(`Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"`);
-          return;
-        }
       }
       const variantFallbackPrice = normalizeProductPriceValue(
         normalizedVariantOptions.find((variant) => Number.isFinite(normalizeProductPriceValue(variant.price)))?.price,
@@ -11346,7 +11341,7 @@ function AdminDashboard() {
                                                   type="text"
                                                   value={variant.barcode || ''}
                                                   onChange={(event) => updateProductVariantOption(index, 'barcode', event.target.value)}
-                                                  placeholder={language === 'uz' ? 'Shtrix-kod varianti *' : 'Штрихкод варианта *'}
+                                                  placeholder={language === 'uz' ? 'Shtrix-kod varianti' : 'Штрихкод варианта'}
                                                   maxLength={120}
                                                 />
                                               </Col>
@@ -11365,7 +11360,11 @@ function AdminDashboard() {
                                             <div
                                               className="admin-product-variant-images-shell mt-2"
                                               tabIndex={0}
-                                              onClick={(e) => e.currentTarget.focus()}
+                                              onClick={(e) => {
+                                                if (e.target === e.currentTarget) {
+                                                  e.currentTarget.focus();
+                                                }
+                                              }}
                                               onPaste={(e) => handlePasteToVariantImageSlot(index, e)}
                                               title={language === 'uz'
                                                 ? "Ctrl+V bilan birinchi bo'sh slotga rasm qo'ying"
@@ -11424,7 +11423,11 @@ function AdminDashboard() {
                                                             size="sm"
                                                             className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''} admin-product-image-slot-btn-top-left`}
                                                             title={slotIndex === 0 ? 'Главное фото варианта' : 'Сделать главным фото варианта'}
-                                                            onClick={() => setMainProductVariantImageSlot(index, slotIndex)}
+                                                            onClick={(e) => {
+                                                              e.preventDefault();
+                                                              e.stopPropagation();
+                                                              setMainProductVariantImageSlot(index, slotIndex);
+                                                            }}
                                                             disabled={!slot.url}
                                                           >
                                                             ★
@@ -11435,7 +11438,11 @@ function AdminDashboard() {
                                                             size="sm"
                                                             className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
                                                             title="Удалить фото варианта"
-                                                            onClick={() => clearProductVariantImageSlot(index, slotIndex)}
+                                                            onClick={(e) => {
+                                                              e.preventDefault();
+                                                              e.stopPropagation();
+                                                              clearProductVariantImageSlot(index, slotIndex);
+                                                            }}
                                                             disabled={!slot.url}
                                                           >
                                                             ✕

@@ -2285,10 +2285,6 @@ router.post('/products', async (req, res) => {
       if (invalidVariant) {
         return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
       }
-      const missingBarcodeVariant = normalizedSizeOptions.find((variant) => !toOptionalTrimmedText(variant?.barcode));
-      if (missingBarcodeVariant) {
-        return res.status(400).json({ error: `Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"` });
-      }
     }
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
@@ -2379,10 +2375,6 @@ router.post('/products/upsert', async (req, res) => {
       const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
       if (invalidVariant) {
         return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
-      }
-      const missingBarcodeVariant = normalizedSizeOptions.find((variant) => !toOptionalTrimmedText(variant?.barcode));
-      if (missingBarcodeVariant) {
-        return res.status(400).json({ error: `Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"` });
       }
     }
     const normalizedPrice = normalizedBasePrice !== null
@@ -2596,12 +2588,6 @@ router.put('/products/:id', async (req, res) => {
       const invalidVariant = normalizedSizeOptions.find((variant) => normalizeProductPrice(variant?.price, null) === null);
       if (invalidVariant) {
         return res.status(400).json({ error: `Укажите цену для варианта "${invalidVariant.name || 'без названия'}"` });
-      }
-      if (hasSizeOptionsField || hasSizeEnabledField) {
-        const missingBarcodeVariant = normalizedSizeOptions.find((variant) => !toOptionalTrimmedText(variant?.barcode));
-        if (missingBarcodeVariant) {
-          return res.status(400).json({ error: `Укажите штрихкод для варианта "${missingBarcodeVariant.name || 'без названия'}"` });
-        }
       }
     }
     const normalizedPrice = basePriceFallback !== null
