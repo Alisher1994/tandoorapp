@@ -238,6 +238,52 @@ const SuperAdminAnalyticsMapAutoBounds = ({ points = [], selectedPoint = null })
 
   return null;
 };
+const SuperAdminAnalyticsMapResizeFix = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    let rafId = null;
+    let resizeObserver = null;
+    const container = map.getContainer?.();
+
+    const invalidate = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        try {
+          map.invalidateSize({ pan: false, debounceMoveend: true });
+        } catch (_) {
+          // ignore
+        }
+      });
+    };
+
+    // Initial passes after mount/tab activation animation.
+    invalidate();
+    const t1 = setTimeout(invalidate, 80);
+    const t2 = setTimeout(invalidate, 260);
+
+    const onWindowResize = () => invalidate();
+    window.addEventListener('resize', onWindowResize);
+
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => invalidate());
+      resizeObserver.observe(container);
+      if (container.parentElement) resizeObserver.observe(container.parentElement);
+    }
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener('resize', onWindowResize);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [map]);
+
+  return null;
+};
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -5455,6 +5501,7 @@ function SuperAdminDashboard() {
                                 attribution={overviewMapTileLayerConfig.attribution}
                                 maxZoom={overviewMapTileLayerConfig.maxZoom}
                               />
+                              <SuperAdminAnalyticsMapResizeFix />
                               <SuperAdminAnalyticsMapAutoBounds
                                 points={overviewAnalyticsOrderLocations}
                                 selectedPoint={selectedOverviewOrderLocation}

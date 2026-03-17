@@ -698,6 +698,51 @@ const AnalyticsMapFocus = ({ selectedPoint }) => {
 
   return null;
 };
+const AnalyticsMapResizeFix = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    let rafId = null;
+    let resizeObserver = null;
+    const container = map.getContainer?.();
+
+    const invalidate = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        try {
+          map.invalidateSize({ pan: false, debounceMoveend: true });
+        } catch (_) {
+          // ignore
+        }
+      });
+    };
+
+    invalidate();
+    const t1 = setTimeout(invalidate, 80);
+    const t2 = setTimeout(invalidate, 260);
+
+    const onWindowResize = () => invalidate();
+    window.addEventListener('resize', onWindowResize);
+
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => invalidate());
+      resizeObserver.observe(container);
+      if (container.parentElement) resizeObserver.observe(container.parentElement);
+    }
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener('resize', onWindowResize);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [map]);
+
+  return null;
+};
 const buildTaxiUrlFromTemplate = (template, lat, lng) => String(template)
   .replace(/\{lat\}/gi, encodeURIComponent(String(lat)))
   .replace(/\{lng\}/gi, encodeURIComponent(String(lng)))
@@ -5885,6 +5930,7 @@ function AdminDashboard() {
                     attribution={mapTileLayerConfig.attribution}
                     maxZoom={mapTileLayerConfig.maxZoom}
                   />
+                  <AnalyticsMapResizeFix />
                   <AnalyticsMapAutoBounds points={activeAnalyticsMapPoints} />
                   <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
                   {activeAnalyticsLocationsList.map((location) => {
@@ -7409,6 +7455,7 @@ function AdminDashboard() {
                                     attribution={mapTileLayerConfig.attribution}
                                     maxZoom={mapTileLayerConfig.maxZoom}
                                   />
+                                  <AnalyticsMapResizeFix />
                                   <AnalyticsMapAutoBounds points={monthlyAnalyticsMapPoints} />
                                   <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
                                   {analytics.orderLocations.map((location) => {
@@ -11283,6 +11330,7 @@ function AdminDashboard() {
                       attribution={mapTileLayerConfig.attribution}
                       maxZoom={mapTileLayerConfig.maxZoom}
                     />
+                    <AnalyticsMapResizeFix />
                     <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
                     <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
                     {activeAnalyticsLocationsList.map((location) => (
