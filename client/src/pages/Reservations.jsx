@@ -119,11 +119,15 @@ const extractTableCenterLabel = (name, fallback = '') => {
 const formatDayLabel = (dateValue, language = 'ru') => {
   const parsed = new Date(`${dateValue}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toLocaleDateString(language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'long'
-  });
+  try {
+    return parsed.toLocaleDateString(language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'long'
+    });
+  } catch {
+    return String(dateValue || '');
+  }
 };
 const resolveWorkingWindow = (workStartTime, workEndTime) => {
   const startMinutes = parseTimeToMinutes(workStartTime, Number.NaN);
@@ -488,7 +492,11 @@ function Reservations() {
       timeRulerManualScrollTimeoutRef.current = null;
     }
     if (timeRulerSyncRafRef.current) {
-      window.cancelAnimationFrame(timeRulerSyncRafRef.current);
+      if (typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(timeRulerSyncRafRef.current);
+      } else {
+        window.clearTimeout(timeRulerSyncRafRef.current);
+      }
       timeRulerSyncRafRef.current = null;
     }
   }, []);
@@ -581,23 +589,52 @@ function Reservations() {
     planPinchRef.current = null;
     setPlanGestureMode('idle');
 
-    const animationFrame = window.requestAnimationFrame(() => {
-      fitPlanToViewport();
-    });
+    if (typeof window.requestAnimationFrame === 'function') {
+      const animationFrame = window.requestAnimationFrame(() => {
+        fitPlanToViewport();
+      });
+      return () => {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(animationFrame);
+        } else {
+          window.clearTimeout(animationFrame);
+        }
+      };
+    }
 
-    return () => window.cancelAnimationFrame(animationFrame);
+    const fallbackTimer = window.setTimeout(() => {
+      fitPlanToViewport();
+    }, 0);
+    return () => window.clearTimeout(fallbackTimer);
   }, [selectedFloorId, planWorldHeight, fitPlanToViewport]);
 
   useEffect(() => {
     if (bookingStep !== 'plan') return undefined;
-    const animationFrame = window.requestAnimationFrame(() => {
+    if (typeof window.requestAnimationFrame === 'function') {
+      const animationFrame = window.requestAnimationFrame(() => {
+        if (planManualTransformRef.current) {
+          setPlanTransform(planScaleRef.current, planOffsetRef.current);
+        } else {
+          fitPlanToViewport();
+        }
+      });
+      return () => {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(animationFrame);
+        } else {
+          window.clearTimeout(animationFrame);
+        }
+      };
+    }
+
+    const fallbackTimer = window.setTimeout(() => {
       if (planManualTransformRef.current) {
         setPlanTransform(planScaleRef.current, planOffsetRef.current);
       } else {
         fitPlanToViewport();
       }
-    });
-    return () => window.cancelAnimationFrame(animationFrame);
+    }, 0);
+    return () => window.clearTimeout(fallbackTimer);
   }, [bookingStep, setPlanTransform, fitPlanToViewport]);
 
   useEffect(() => {
@@ -639,7 +676,15 @@ function Reservations() {
     const nextLeft = clamp(rawLeft, 0, maxLeft);
 
     timeRulerAutoScrollRef.current = true;
-    ruler.scrollTo({ left: nextLeft, behavior });
+    if (typeof ruler.scrollTo === 'function') {
+      try {
+        ruler.scrollTo({ left: nextLeft, behavior });
+      } catch {
+        ruler.scrollLeft = nextLeft;
+      }
+    } else {
+      ruler.scrollLeft = nextLeft;
+    }
     window.setTimeout(() => {
       timeRulerAutoScrollRef.current = false;
     }, behavior === 'smooth' ? 240 : 40);
@@ -685,12 +730,23 @@ function Reservations() {
     }, 140);
 
     if (timeRulerSyncRafRef.current) {
-      window.cancelAnimationFrame(timeRulerSyncRafRef.current);
+      if (typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(timeRulerSyncRafRef.current);
+      } else {
+        window.clearTimeout(timeRulerSyncRafRef.current);
+      }
     }
-    timeRulerSyncRafRef.current = window.requestAnimationFrame(() => {
-      syncTimelineByCenter();
-      timeRulerSyncRafRef.current = null;
-    });
+    if (typeof window.requestAnimationFrame === 'function') {
+      timeRulerSyncRafRef.current = window.requestAnimationFrame(() => {
+        syncTimelineByCenter();
+        timeRulerSyncRafRef.current = null;
+      });
+    } else {
+      timeRulerSyncRafRef.current = window.setTimeout(() => {
+        syncTimelineByCenter();
+        timeRulerSyncRafRef.current = null;
+      }, 16);
+    }
   }, [centerTimeSlot, startTime, syncTimelineByCenter]);
 
   useEffect(() => {
@@ -788,7 +844,11 @@ function Reservations() {
   const endPointerSession = (event) => {
     const viewportEl = planViewportRef.current;
     if (viewportEl?.hasPointerCapture?.(event.pointerId)) {
-      viewportEl.releasePointerCapture(event.pointerId);
+      try {
+        viewportEl.releasePointerCapture(event.pointerId);
+      } catch {
+        // ignore pointer capture release errors in limited webviews
+      }
     }
 
     planPointersRef.current.delete(event.pointerId);

@@ -25,9 +25,19 @@ function ClientRoutePersistence() {
   const location = useLocation();
   const navigate = useNavigate();
   const restoredRef = useRef(false);
+  const resolveIsOperator = () => {
+    if (typeof isOperator === 'function') {
+      try {
+        return isOperator();
+      } catch {
+        return user?.role === 'operator' || user?.role === 'superadmin';
+      }
+    }
+    return user?.role === 'operator' || user?.role === 'superadmin';
+  };
 
   useEffect(() => {
-    if (loading || !user || isOperator()) return;
+    if (loading || !user || resolveIsOperator()) return;
     if (!CLIENT_ROUTES.has(location.pathname)) return;
 
     const fullPath = `${location.pathname}${location.search}${location.hash}`;
@@ -36,7 +46,7 @@ function ClientRoutePersistence() {
 
   useEffect(() => {
     if (restoredRef.current) return;
-    if (loading || !user || isOperator()) return;
+    if (loading || !user || resolveIsOperator()) return;
     if (!isReloadNavigation()) return;
 
     if (location.pathname !== '/' && location.pathname !== '/catalog') return;
