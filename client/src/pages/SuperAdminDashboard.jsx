@@ -2992,20 +2992,32 @@ function SuperAdminDashboard() {
       return {
         label: language === 'uz' ? "To'ldirish" : 'Пополнение',
         className: 'text-success',
-        sign: '+'
+        sign: '+',
+        badgeStyle: {
+          backgroundColor: '#dcfce7',
+          color: '#166534'
+        }
       };
     }
     if (normalized === 'refund') {
       return {
         label: language === 'uz' ? 'Qaytarish' : 'Возврат',
         className: 'text-danger',
-        sign: '-'
+        sign: '-',
+        badgeStyle: {
+          backgroundColor: '#fee2e2',
+          color: '#991b1b'
+        }
       };
     }
     return {
       label: normalized || '—',
       className: 'text-muted',
-      sign: ''
+      sign: '',
+      badgeStyle: {
+        backgroundColor: '#e2e8f0',
+        color: '#475569'
+      }
     };
   };
 
@@ -8420,7 +8432,7 @@ function SuperAdminDashboard() {
                                 <td><small className="text-muted">{formatBalanceOperationDate(row.created_at)}</small></td>
                                 <td><strong>{row.restaurant_name || '—'}</strong></td>
                                 <td>
-                                  <Badge className={`badge-custom bg-opacity-10 ${row.type === 'deposit' ? 'bg-success text-success' : 'bg-danger text-danger'}`}>
+                                  <Badge className="badge-custom" style={operationMeta.badgeStyle}>
                                     {operationMeta.label}
                                   </Badge>
                                 </td>
