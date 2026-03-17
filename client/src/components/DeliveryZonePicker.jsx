@@ -4,6 +4,12 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
+import {
+  getLeafletTileLayerConfig,
+  getSavedMapProvider,
+  normalizeMapProvider,
+  saveMapProvider
+} from '../utils/mapTileProviders';
 
 // Fix for default marker icons in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -141,16 +147,58 @@ function DrawLayer({ zone, onZoneChange }) {
   return <FeatureGroup ref={featureGroupRef} />;
 }
 
-const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTER }) => {
+const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTER, mapProvider = null, onMapProviderChange = null }) => {
   const zone = useMemo(() => normalizeZone(deliveryZone), [deliveryZone]);
   const safeCenter = useMemo(() => normalizeCenter(center), [center]);
+  const [selectedMapProvider, setSelectedMapProvider] = React.useState(() => normalizeMapProvider(mapProvider || getSavedMapProvider()));
+  const tileLayerConfig = useMemo(() => getLeafletTileLayerConfig(selectedMapProvider, {
+    yandexApiKey: import.meta.env.VITE_YANDEX_MAPS_KEY || ''
+  }), [selectedMapProvider]);
+
+  useEffect(() => {
+    if (!mapProvider) return;
+    setSelectedMapProvider(normalizeMapProvider(mapProvider));
+  }, [mapProvider]);
+
+  const handleMapProviderSelect = (event) => {
+    const nextProvider = normalizeMapProvider(event.target.value);
+    setSelectedMapProvider(nextProvider);
+    saveMapProvider(nextProvider);
+    if (typeof onMapProviderChange === 'function') {
+      onMapProviderChange(nextProvider);
+    }
+  };
 
   return (
     <div style={{ height: '500px', width: '100%', position: 'relative' }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          zIndex: 500,
+          background: 'rgba(255, 255, 255, 0.96)',
+          border: '1px solid #dbe3ee',
+          borderRadius: '8px',
+          padding: '6px 8px',
+          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)'
+        }}
+      >
+        <select
+          value={selectedMapProvider}
+          onChange={handleMapProviderSelect}
+          style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+          aria-label="Выбор карты"
+        >
+          <option value="osm">OpenStreetMap</option>
+          <option value="yandex">Yandex</option>
+        </select>
+      </div>
       <MapContainer center={safeCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url={tileLayerConfig.url}
+          attribution={tileLayerConfig.attribution}
+          maxZoom={tileLayerConfig.maxZoom}
         />
         <DrawLayer zone={zone} onZoneChange={onZoneChange} />
       </MapContainer>

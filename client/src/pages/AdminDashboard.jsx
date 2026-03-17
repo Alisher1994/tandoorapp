@@ -33,6 +33,12 @@ import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
 import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
+import {
+  getLeafletTileLayerConfig,
+  getSavedMapProvider,
+  normalizeMapProvider,
+  saveMapProvider
+} from '../utils/mapTileProviders';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
@@ -1175,6 +1181,7 @@ function AdminDashboard() {
   const [analyticsProductReviews, setAnalyticsProductReviews] = useState(() => createEmptyProductReviewAnalytics());
   const [loadingAnalyticsProductReviews, setLoadingAnalyticsProductReviews] = useState(false);
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
+  const [leafletMapProvider, setLeafletMapProvider] = useState(() => getSavedMapProvider());
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
   const analyticsListItemRefs = useRef(new Map());
   const analyticsFullscreenListItemRefs = useRef(new Map());
@@ -1258,6 +1265,18 @@ function AdminDashboard() {
     countryCurrencyOptions,
     setCountryCurrency
   } = useLanguage();
+  const mapProviderOptions = useMemo(() => ([
+    { value: 'osm', label: 'OpenStreetMap' },
+    { value: 'yandex', label: 'Yandex' }
+  ]), []);
+  const mapTileLayerConfig = useMemo(() => getLeafletTileLayerConfig(leafletMapProvider, {
+    yandexApiKey: import.meta.env.VITE_YANDEX_MAPS_KEY || ''
+  }), [leafletMapProvider]);
+  const handleLeafletMapProviderChange = useCallback((nextValue) => {
+    const normalizedProvider = normalizeMapProvider(nextValue);
+    setLeafletMapProvider(normalizedProvider);
+    saveMapProvider(normalizedProvider);
+  }, []);
   const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
   const allThirdCategoriesLabel = language === 'uz' ? 'Barcha 3-daraja kategoriyalari' : 'Все категории 3 уровня';
   const thirdCategoryLabel = language === 'uz' ? '3-daraja kategoriya' : 'Категория 3';
@@ -5795,16 +5814,31 @@ function AdminDashboard() {
           <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
           {t('orderGeography')}
         </h6>
-        <Button
-          size="sm"
-          variant="outline-secondary"
-          className="admin-analytics-fullscreen-btn"
-          onClick={() => setShowAnalyticsMapModal(true)}
-          title={t('fullscreen') || 'Во весь экран'}
-          aria-label={t('fullscreen') || 'Во весь экран'}
-        >
-          <i className="bi bi-arrows-fullscreen" />
-        </Button>
+        <div className="d-flex align-items-center gap-2">
+          <Form.Select
+            size="sm"
+            value={leafletMapProvider}
+            onChange={(e) => handleLeafletMapProviderChange(e.target.value)}
+            style={{ minWidth: '140px' }}
+            aria-label="Выбор карты"
+          >
+            {mapProviderOptions.map((item) => (
+              <option key={`analytics-map-provider-${item.value}`} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </Form.Select>
+          <Button
+            size="sm"
+            variant="outline-secondary"
+            className="admin-analytics-fullscreen-btn"
+            onClick={() => setShowAnalyticsMapModal(true)}
+            title={t('fullscreen') || 'Во весь экран'}
+            aria-label={t('fullscreen') || 'Во весь экран'}
+          >
+            <i className="bi bi-arrows-fullscreen" />
+          </Button>
+        </div>
       </Card.Header>
       <Card.Body className="p-0">
         <Row className="g-0">
@@ -5822,8 +5856,9 @@ function AdminDashboard() {
                 style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
               >
                 <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; OpenStreetMap contributors'
+                  url={mapTileLayerConfig.url}
+                  attribution={mapTileLayerConfig.attribution}
+                  maxZoom={mapTileLayerConfig.maxZoom}
                 />
                 <AnalyticsMapAutoBounds points={activeAnalyticsMapPoints} />
                 <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
@@ -7292,16 +7327,31 @@ function AdminDashboard() {
                           <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
                           {t('orderGeography')}
                         </h6>
-                        <Button
-                          size="sm"
-                          variant="outline-secondary"
-                          className="admin-analytics-fullscreen-btn"
-                          onClick={() => setShowAnalyticsMapModal(true)}
-                          title={t('fullscreen') || 'Во весь экран'}
-                          aria-label={t('fullscreen') || 'Во весь экран'}
-                        >
-                          <i className="bi bi-arrows-fullscreen" />
-                        </Button>
+                        <div className="d-flex align-items-center gap-2">
+                          <Form.Select
+                            size="sm"
+                            value={leafletMapProvider}
+                            onChange={(e) => handleLeafletMapProviderChange(e.target.value)}
+                            style={{ minWidth: '140px' }}
+                            aria-label="Выбор карты"
+                          >
+                            {mapProviderOptions.map((item) => (
+                              <option key={`analytics-monthly-map-provider-${item.value}`} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </Form.Select>
+                          <Button
+                            size="sm"
+                            variant="outline-secondary"
+                            className="admin-analytics-fullscreen-btn"
+                            onClick={() => setShowAnalyticsMapModal(true)}
+                            title={t('fullscreen') || 'Во весь экран'}
+                            aria-label={t('fullscreen') || 'Во весь экран'}
+                          >
+                            <i className="bi bi-arrows-fullscreen" />
+                          </Button>
+                        </div>
                       </Card.Header>
                       <Card.Body className="p-0">
                         <Row className="g-0">
@@ -7319,8 +7369,9 @@ function AdminDashboard() {
                                 style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
                               >
                                 <TileLayer
-                                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                  attribution='&copy; OpenStreetMap contributors'
+                                  url={mapTileLayerConfig.url}
+                                  attribution={mapTileLayerConfig.attribution}
+                                  maxZoom={mapTileLayerConfig.maxZoom}
                                 />
                                 <AnalyticsMapAutoBounds points={monthlyAnalyticsMapPoints} />
                                 <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
@@ -11181,8 +11232,9 @@ function AdminDashboard() {
                   style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
                 >
                   <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; OpenStreetMap contributors'
+                    url={mapTileLayerConfig.url}
+                    attribution={mapTileLayerConfig.attribution}
+                    maxZoom={mapTileLayerConfig.maxZoom}
                   />
                   <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
                   <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
