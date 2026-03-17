@@ -8,6 +8,24 @@ const { authenticate, requireOperator } = require('../middleware/auth');
 const router = express.Router();
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/x-matroska',
+  'video/mpeg',
+  'video/x-msvideo',
+  'video/avi'
+]);
+const VIDEO_EXTENSIONS = new Set([
+  '.mp4',
+  '.mov',
+  '.webm',
+  '.mkv',
+  '.mpeg',
+  '.mpg',
+  '.avi'
+]);
 
 // Настройка multer для сохранения файлов
 const uploadsDir = process.env.UPLOADS_DIR
@@ -28,10 +46,15 @@ const fileFilter = (req, file, cb) => {
 };
 
 const videoFileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('video/')) {
+  const mimeType = String(file.mimetype || '').toLowerCase();
+  const extFromName = path.extname(String(file.originalname || '')).toLowerCase();
+  const isAllowedMime = VIDEO_MIME_TYPES.has(mimeType);
+  const isAllowedExt = VIDEO_EXTENSIONS.has(extFromName);
+
+  if (isAllowedMime || isAllowedExt) {
     cb(null, true);
   } else {
-    cb(new Error('Только видеофайлы разрешены!'), false);
+    cb(new Error('Неподдерживаемый формат видеофайла'), false);
   }
 };
 
@@ -173,12 +196,86 @@ const videoExtByMimeType = {
   'video/quicktime': '.mov',
   'video/webm': '.webm',
   'video/x-matroska': '.mkv',
-  'video/mpeg': '.mpeg'
+  'video/mpeg': '.mpeg',
+  'video/x-msvideo': '.avi',
+  'video/avi': '.avi'
+};
+
+const hasIsoBaseMediaSignature = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return false;
+  return buffer.toString('ascii', 4, 8) === 'ftyp';
+};
+
+const hasEbmlSignature = (buffer) => (
+  Buffer.isBuffer(buffer)
+  && buffer.length >= 4
+  && buffer[0] === 0x1a
+  && buffer[1] === 0x45
+  && buffer[2] === 0xdf
+  && buffer[3] === 0xa3
+);
+
+const hasMpegProgramSignature = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
+  const startCode = buffer.readUInt32BE(0);
+  return startCode === 0x000001ba || startCode === 0x000001b3;
+};
+
+const hasAviSignature = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return false;
+  return buffer.toString('ascii', 0, 4) === 'RIFF'
+    && buffer.toString('ascii', 8, 12) === 'AVI ';
+};
+
+const hasSuspiciousTextSignature = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) return false;
+  const prefix = buffer.slice(0, 512).toString('utf8').trimStart().toLowerCase();
+  return prefix.startsWith('<!doctype html')
+    || prefix.startsWith('<html')
+    || prefix.startsWith('<script')
+    || prefix.startsWith('<?xml')
+    || prefix.startsWith('function(')
+    || prefix.startsWith('(()=>');
+};
+
+const assertVideoBufferIsValid = (buffer, ext) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 16) {
+    throw new Error('Некорректный видеофайл');
+  }
+
+  if (hasSuspiciousTextSignature(buffer)) {
+    throw new Error('Некорректный видеофайл');
+  }
+
+  const normalizedExt = String(ext || '').toLowerCase();
+  if (normalizedExt === '.webm' || normalizedExt === '.mkv') {
+    if (!hasEbmlSignature(buffer)) throw new Error('Некорректный формат видео');
+    return;
+  }
+
+  if (normalizedExt === '.mpeg' || normalizedExt === '.mpg') {
+    if (!hasMpegProgramSignature(buffer)) throw new Error('Некорректный формат видео');
+    return;
+  }
+
+  if (normalizedExt === '.avi') {
+    if (!hasAviSignature(buffer)) throw new Error('Некорректный формат видео');
+    return;
+  }
+
+  if (!hasIsoBaseMediaSignature(buffer)) {
+    throw new Error('Некорректный формат видео');
+  }
 };
 
 const saveUploadedVideo = async (file) => {
   const extFromName = path.extname(String(file.originalname || '')).toLowerCase();
-  const ext = extFromName || videoExtByMimeType[file.mimetype] || '.mp4';
+  const extFromMime = videoExtByMimeType[String(file.mimetype || '').toLowerCase()] || '';
+  const ext = VIDEO_EXTENSIONS.has(extFromName)
+    ? extFromName
+    : (VIDEO_EXTENSIONS.has(extFromMime) ? extFromMime : '.mp4');
+
+  assertVideoBufferIsValid(file.buffer, ext);
   const filename = await saveBufferToUploads(file.buffer, ext, 'video');
   return { filename };
 };
@@ -222,6 +319,9 @@ const handleVideoUpload = async (req, res) => {
     });
   } catch (error) {
     console.error('Video upload error:', error);
+    if (String(error.message || '').toLowerCase().includes('некоррект')) {
+      return res.status(400).json({ error: error.message });
+    }
     return res.status(500).json({ error: 'Ошибка загрузки файла' });
   }
 };

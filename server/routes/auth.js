@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
 const {
@@ -12,6 +13,14 @@ const {
 } = require('../services/activityLogger');
 
 const router = express.Router();
+const loginRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 20,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много неудачных попыток входа. Попробуйте через 10 минут.' }
+});
 const UI_THEME_VALUES = new Set([
   'classic',
   'modern',
@@ -138,7 +147,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimiter, async (req, res) => {
   try {
     const { username, password, portal, restaurant_id, account_user_id } = req.body;
     const identifier = String(username || '').trim();

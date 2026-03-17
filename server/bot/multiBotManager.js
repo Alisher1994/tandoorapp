@@ -23,6 +23,11 @@ const passwordResetCooldown = new Map();
 const languageSelectionStates = new Map();
 const languagePreferences = new Map();
 
+function getTelegramWebhookSecretToken() {
+  const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
+  return secret || null;
+}
+
 const BOT_LANGUAGES = ['ru', 'uz'];
 const LOW_RATING_THRESHOLD = 2;
 const BOT_TEXTS = {
@@ -3006,6 +3011,7 @@ async function initMultiBots() {
 
     const isProduction = process.env.NODE_ENV === 'production';
     const webhookBaseUrl = process.env.TELEGRAM_WEBHOOK_URL || process.env.BACKEND_URL || process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
+    const webhookSecretToken = getTelegramWebhookSecretToken();
 
     for (const restaurant of result.rows) {
       try {
@@ -3021,7 +3027,8 @@ async function initMultiBots() {
           bot = new TelegramBot(restaurant.telegram_bot_token);
 
           try {
-            await bot.setWebHook(webhookUrl);
+            const webhookOptions = webhookSecretToken ? { secret_token: webhookSecretToken } : undefined;
+            await bot.setWebHook(webhookUrl, webhookOptions);
             console.log(`✅ ${restaurant.name}: Webhook set to ${webhookUrl}`);
           } catch (webhookError) {
             console.error(`❌ Webhook error for ${restaurant.name}:`, webhookError.message);

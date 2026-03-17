@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import axios from 'axios';
+import DOMPurify from 'dompurify';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Table from 'react-bootstrap/Table';
@@ -1061,6 +1062,17 @@ function AdminDashboard() {
   const [scheduledBroadcasts, setScheduledBroadcasts] = useState([]);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [broadcastModalTab, setBroadcastModalTab] = useState('send');
+  const sanitizedBroadcastPreviewHtml = useMemo(() => {
+    const previewSource = String(broadcastForm.message || 'Текст сообщения...');
+    const normalizedMarkup = previewSource
+      .replace(/<b>(.*?)<\/b>/gi, '<strong>$1</strong>')
+      .replace(/<i>(.*?)<\/i>/gi, '<em>$1</em>');
+
+    return DOMPurify.sanitize(normalizedMarkup, {
+      ALLOWED_TAGS: ['strong', 'em', 'b', 'i', 'br'],
+      ALLOWED_ATTR: []
+    });
+  }, [broadcastForm.message]);
   const [broadcastHistory, setBroadcastHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [editingBroadcastId, setEditingBroadcastId] = useState(null);
@@ -12557,7 +12569,7 @@ function AdminDashboard() {
                             wordBreak: 'break-word',
                             color: '#222'
                           }}
-                          dangerouslySetInnerHTML={{ __html: (broadcastForm.message || 'Текст сообщения...').replace(/<b>(.*?)<\/b>/g, '<strong>$1</strong>').replace(/<i>(.*?)<\/i>/g, '<em>$1</em>') }}
+                          dangerouslySetInnerHTML={{ __html: sanitizedBroadcastPreviewHtml }}
                         />
                         <div className="text-end mt-1 me-1" style={{ fontSize: '0.65rem', color: '#999' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ✓✓</div>
                       </div>

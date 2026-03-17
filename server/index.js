@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 
 const authRoutes = require('./routes/auth');
@@ -22,6 +23,7 @@ const { initBroadcastWorker } = require('./services/broadcastWorker');
 const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorker');
 
 const app = express();
+app.set('trust proxy', 1);
 // Railway автоматически устанавливает PORT, используем его
 const PORT = process.env.PORT || 3000;
 const APP_BUILD_VERSION = process.env.RAILWAY_DEPLOYMENT_ID
@@ -33,13 +35,51 @@ const APP_BUILD_TIMESTAMP = new Date().toISOString();
 // Логируем какой порт используется
 console.log(`📌 PORT from environment: ${process.env.PORT || 'not set, using default 3000'}`);
 
+const LOG_REDACTED_VALUE = '[REDACTED]';
+const SENSITIVE_QUERY_KEYS = new Set(['token', 'access_token', 'authorization', 'auth']);
+const sanitizeUrlForLogs = (rawUrl) => {
+  const value = String(rawUrl || '');
+  if (!value.includes('?')) return value;
+  const [pathname, query = ''] = value.split('?');
+  const params = new URLSearchParams(query);
+  let hasMaskedParams = false;
+
+  for (const key of SENSITIVE_QUERY_KEYS) {
+    if (params.has(key)) {
+      params.set(key, LOG_REDACTED_VALUE);
+      hasMaskedParams = true;
+    }
+  }
+
+  if (!hasMaskedParams) return value;
+  const normalizedQuery = params.toString();
+  return normalizedQuery ? `${pathname}?${normalizedQuery}` : pathname;
+};
+
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 1200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов webhook' }
+});
+
+const TELEGRAM_SECRET_HEADER = 'x-telegram-bot-api-secret-token';
+const isTelegramWebhookSecretValid = (req) => {
+  const expectedSecret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
+  if (!expectedSecret) return true;
+  const providedSecret = String(req.headers[TELEGRAM_SECRET_HEADER] || '').trim();
+  return Boolean(providedSecret) && providedSecret === expectedSecret;
+};
+
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Allow inline scripts for React
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(morgan('combined'));
+morgan.token('safe-url', (req) => sanitizeUrlForLogs(req.originalUrl || req.url || ''));
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true
@@ -105,7 +145,11 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Telegram webhook route (must be before catch-all routes)
-app.post('/api/telegram/webhook', express.json(), (req, res) => {
+app.post('/api/telegram/webhook', webhookLimiter, express.json(), (req, res) => {
+  if (!isTelegramWebhookSecretValid(req)) {
+    console.warn('⚠️ Rejected Telegram webhook request: invalid secret');
+    return res.sendStatus(401);
+  }
   const bot = getBot();
   if (bot) {
     bot.processUpdate(req.body);
@@ -114,7 +158,11 @@ app.post('/api/telegram/webhook', express.json(), (req, res) => {
 });
 
 // Telegram webhook route for specific restaurant (multi-bot system)
-app.post('/api/telegram/webhook/:restaurantId', express.json(), (req, res) => {
+app.post('/api/telegram/webhook/:restaurantId', webhookLimiter, express.json(), (req, res) => {
+  if (!isTelegramWebhookSecretValid(req)) {
+    console.warn('⚠️ Rejected Telegram webhook request: invalid secret');
+    return res.sendStatus(401);
+  }
   const { restaurantId } = req.params;
   const processed = processWebhook(restaurantId, req.body);
   if (!processed) {

@@ -16,6 +16,11 @@ const {
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 
+function getTelegramWebhookSecretToken() {
+  const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
+  return secret || null;
+}
+
 // Generate login token for auto-login
 function generateLoginToken(userId, username, options = {}) {
   const { expiresIn = '30d', role = '', restaurantId = null } = options;
@@ -653,10 +658,12 @@ async function initBot() {
   if (isProduction && webhookBaseUrl) {
     const webhookPath = '/api/telegram/webhook';
     const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
+    const webhookSecretToken = getTelegramWebhookSecretToken();
     
     bot = new TelegramBot(token);
     
-    bot.setWebHook(webhookUrl).then(() => {
+    const webhookOptions = webhookSecretToken ? { secret_token: webhookSecretToken } : undefined;
+    bot.setWebHook(webhookUrl, webhookOptions).then(() => {
       console.log(`🤖 Telegram bot initialized with webhook: ${webhookUrl}`);
     }).catch((error) => {
       console.error('❌ Error setting webhook:', error);
