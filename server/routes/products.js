@@ -591,6 +591,7 @@ router.get('/restaurant/:id', async (req, res) => {
          r.*,
          COALESCE(rs.enabled, false) AS reservation_enabled_setting,
          COALESCE(rs.reservation_fee, 0) AS reservation_fee,
+         COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
          COALESCE(rs.allow_multi_table, true) AS reservation_allow_multi_table
        FROM restaurants r
        LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
@@ -634,7 +635,10 @@ router.get('/restaurant/:id', async (req, res) => {
       xazna_url: r.xazna_url,
       reservation_enabled: r.reservation_enabled_setting === true || r.reservation_enabled_setting === 'true',
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
+      reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
+      work_start_time: String(r.start_time || '').slice(0, 5),
+      work_end_time: String(r.end_time || '').slice(0, 5),
       card_payment_enabled: cardPaymentEnabled,
       card_payment_title: cardPaymentEnabled ? cardTitle : '',
       card_payment_number: cardPaymentEnabled ? cardNumber : '',
@@ -1265,6 +1269,7 @@ router.get('/restaurants/list', async (req, res) => {
         r.*,
         COALESCE(rs.enabled, false) AS reservation_enabled_setting,
         COALESCE(rs.reservation_fee, 0) AS reservation_fee,
+        COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
         COALESCE(rs.allow_multi_table, true) AS reservation_allow_multi_table
       FROM restaurants r
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
@@ -1289,6 +1294,7 @@ router.get('/restaurants/list', async (req, res) => {
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       reservation_enabled: r.reservation_enabled_setting === true || r.reservation_enabled_setting === 'true',
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
+      reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false
       });
     });

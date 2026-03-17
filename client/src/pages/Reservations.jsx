@@ -8,16 +8,18 @@ import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ClientTopBar from '../components/ClientTopBar';
-import BottomNav from '../components/BottomNav';
 import { PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const PLAN_MIN_SCALE = 0.55;
 const PLAN_MAX_SCALE = 3.4;
 const PLAN_WORLD_WIDTH = 1200;
+const DEFAULT_WORK_START_MINUTES = 9 * 60;
+const DEFAULT_WORK_END_MINUTES = 23 * 60;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const normalizeTimeSlotStep = (value, fallback = 30) => {
   const parsed = Number.parseInt(value, 10);
@@ -72,15 +74,31 @@ const addMinutesWithinDay = (timeValue, durationMinutes) => {
   if (target > (23 * 60) + 59) return '';
   return minutesToTime(target);
 };
-const buildTimeSlots = (startHour = 9, endHour = 23, stepMinutes = 30) => {
+const buildTimeSlots = (startMinutesRaw = DEFAULT_WORK_START_MINUTES, endMinutesRaw = DEFAULT_WORK_END_MINUTES, stepMinutes = 30) => {
+  const step = clamp(Number.parseInt(stepMinutes, 10) || 30, 5, 60);
+  const startMinutes = clamp(Number.parseInt(startMinutesRaw, 10) || DEFAULT_WORK_START_MINUTES, 0, (23 * 60) + 59);
+  const endMinutes = clamp(Number.parseInt(endMinutesRaw, 10) || DEFAULT_WORK_END_MINUTES, 0, (23 * 60) + 59);
+  if (endMinutes <= startMinutes) {
+    return [{
+      minutes: startMinutes,
+      value: minutesToTime(startMinutes),
+      hourLabel: `${String(Math.floor(startMinutes / 60)).padStart(2, '0')}:00`
+    }];
+  }
   const slots = [];
-  const start = startHour * 60;
-  const end = endHour * 60;
-  for (let value = start; value <= end; value += stepMinutes) {
+  for (let value = startMinutes; value <= endMinutes; value += step) {
     slots.push({
       minutes: value,
       value: minutesToTime(value),
       hourLabel: `${String(Math.floor(value / 60)).padStart(2, '0')}:00`
+    });
+  }
+  const lastSlotMinutes = slots[slots.length - 1]?.minutes;
+  if (Number.isFinite(lastSlotMinutes) && lastSlotMinutes < endMinutes) {
+    slots.push({
+      minutes: endMinutes,
+      value: minutesToTime(endMinutes),
+      hourLabel: `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:00`
     });
   }
   return slots;
@@ -100,8 +118,29 @@ const formatDayLabel = (dateValue, language = 'ru') => {
     month: 'long'
   });
 };
+const resolveWorkingWindow = (workStartTime, workEndTime) => {
+  const startMinutes = parseTimeToMinutes(workStartTime, Number.NaN);
+  const endMinutes = parseTimeToMinutes(workEndTime, Number.NaN);
+
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+    return {
+      startMinutes: DEFAULT_WORK_START_MINUTES,
+      endMinutes: DEFAULT_WORK_END_MINUTES,
+      startLabel: minutesToTime(DEFAULT_WORK_START_MINUTES),
+      endLabel: minutesToTime(DEFAULT_WORK_END_MINUTES)
+    };
+  }
+
+  return {
+    startMinutes,
+    endMinutes,
+    startLabel: minutesToTime(startMinutes),
+    endLabel: minutesToTime(endMinutes)
+  };
+};
 
 function Reservations() {
+  const navigate = useNavigate();
   const { user, isOperator } = useAuth();
   const { language, toggleLanguage } = useLanguage();
   const t = useCallback((ru, uz) => (language === 'uz' ? uz : ru), [language]);
@@ -121,6 +160,9 @@ function Reservations() {
   const [startTime, setStartTime] = useState(currentHourTime());
   const [durationMinutes, setDurationMinutes] = useState(120);
   const [timeSlotStepMinutes, setTimeSlotStepMinutes] = useState(30);
+  const [workingWindow, setWorkingWindow] = useState(() => resolveWorkingWindow('', ''));
+  const [reservationFee, setReservationFee] = useState(0);
+  const [reservationServiceCost, setReservationServiceCost] = useState(0);
   const [guestsCount, setGuestsCount] = useState(2);
   const [bookingMode, setBookingMode] = useState('reservation_only');
   const [comment, setComment] = useState('');
@@ -134,6 +176,8 @@ function Reservations() {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [photoTableName, setPhotoTableName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [reservationReceipt, setReservationReceipt] = useState(null);
   const [floorImageMeta, setFloorImageMeta] = useState({ width: 0, height: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
 
@@ -157,7 +201,10 @@ function Reservations() {
   const selectedTables = useMemo(() => tables.filter((table) => selectedTableIds.includes(Number(table.id))), [tables, selectedTableIds]);
   const totalSelectedCapacity = useMemo(() => selectedTables.reduce((sum, table) => sum + (Number.parseInt(table.capacity, 10) || 0), 0), [selectedTables]);
   const isCapacityEnough = totalSelectedCapacity >= guestsCount;
-  const timeSlots = useMemo(() => buildTimeSlots(9, 23, normalizeTimeSlotStep(timeSlotStepMinutes, 30)), [timeSlotStepMinutes]);
+  const timeSlots = useMemo(
+    () => buildTimeSlots(workingWindow.startMinutes, workingWindow.endMinutes, normalizeTimeSlotStep(timeSlotStepMinutes, 30)),
+    [workingWindow.startMinutes, workingWindow.endMinutes, timeSlotStepMinutes]
+  );
   const selectedDateLabel = useMemo(() => formatDayLabel(bookingDate, language), [bookingDate, language]);
   const floorAspectRatio = useMemo(() => {
     const width = Number(floorImageMeta.width || 0);
@@ -178,6 +225,29 @@ function Reservations() {
     [bookingDurationOptions, startTime]
   );
   const selectedEndTime = useMemo(() => addMinutesWithinDay(startTime, durationMinutes), [startTime, durationMinutes]);
+  const bookingTotalCost = useMemo(() => Math.max(0, reservationFee) + Math.max(0, reservationServiceCost), [reservationFee, reservationServiceCost]);
+  const moneyLabel = useMemo(() => {
+    const code = String(restaurant?.currency_code || '').toLowerCase();
+    if (code === 'kz') return '₸';
+    if (code === 'tm') return 'TMT';
+    if (code === 'tj') return 'сомони';
+    if (code === 'kg') return 'сом';
+    if (code === 'af') return 'AFN';
+    if (code === 'ru') return '₽';
+    return t('сум', 'so‘m');
+  }, [restaurant?.currency_code, t]);
+  const formatMoney = useCallback((value) => {
+    const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+    return new Intl.NumberFormat(language === 'uz' ? 'uz-UZ' : 'ru-RU').format(Math.round(amount));
+  }, [language]);
+  const handleBackClick = useCallback(() => {
+    const fallbackPath = isOperator() ? '/admin' : '/catalog';
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate(fallbackPath);
+  }, [isOperator, navigate]);
 
   const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
     const viewport = planViewportRef.current?.getBoundingClientRect();
@@ -307,6 +377,9 @@ function Reservations() {
 
   const fetchAvailability = async (nextFloorId = selectedFloorId) => {
     if (!restaurantId || !nextFloorId || !bookingDate || !startTime) return;
+    const optimisticEndTime = addMinutesWithinDay(startTime, durationMinutes);
+    if (!optimisticEndTime) return;
+    if (parseTimeToMinutes(optimisticEndTime, Number.NaN) > workingWindow.endMinutes) return;
     if (restaurant?.reservation_enabled !== true) {
       setTables([]);
       return;
@@ -322,6 +395,9 @@ function Reservations() {
       setTables(nextTables);
       setAllowMultiTable(payload.allow_multi_table !== false);
       setTimeSlotStepMinutes(normalizeTimeSlotStep(payload.time_slot_step_minutes, 30));
+      setReservationFee(Number.isFinite(Number(payload.reservation_fee)) ? Number(payload.reservation_fee) : 0);
+      setReservationServiceCost(Number.isFinite(Number(payload.reservation_service_cost)) ? Number(payload.reservation_service_cost) : 0);
+      setWorkingWindow(resolveWorkingWindow(payload.work_start_time, payload.work_end_time));
       setSelectedTableIds((prev) => {
         const availableIds = new Set(nextTables.filter((t) => t.is_available).map((t) => Number(t.id)));
         const filtered = prev.filter((id) => availableIds.has(Number(id)));
@@ -345,6 +421,17 @@ function Reservations() {
         if (!isMounted) return;
         const nextRestaurant = restaurantResponse.data || null;
         setRestaurant(nextRestaurant);
+        const nextWindow = resolveWorkingWindow(nextRestaurant?.work_start_time, nextRestaurant?.work_end_time);
+        setWorkingWindow(nextWindow);
+        setReservationFee(Number.isFinite(Number(nextRestaurant?.reservation_fee)) ? Number(nextRestaurant.reservation_fee) : 0);
+        setReservationServiceCost(Number.isFinite(Number(nextRestaurant?.reservation_service_cost)) ? Number(nextRestaurant.reservation_service_cost) : 0);
+        setStartTime((prev) => {
+          const prevMinutes = parseTimeToMinutes(prev, nextWindow.startMinutes);
+          if (prevMinutes >= nextWindow.startMinutes && prevMinutes <= nextWindow.endMinutes) {
+            return prev;
+          }
+          return minutesToTime(nextWindow.startMinutes);
+        });
 
         if (nextRestaurant?.reservation_enabled !== true) {
           setFloors([]);
@@ -771,18 +858,37 @@ function Reservations() {
         booking_mode: bookingMode,
         comment
       });
-      setSuccessMessage(response.data?.reservation?.reservation_number
-        ? `${t('Бронь создана', 'Band qilindi')}: ${response.data.reservation.reservation_number}`
+      const reservation = response.data?.reservation || null;
+      setSuccessMessage(reservation?.reservation_number
+        ? `${t('Бронь создана', 'Band qilindi')}: ${reservation.reservation_number}`
         : t('Бронирование успешно создано', 'Band qilish muvaffaqiyatli yaratildi'));
-      setSelectedTableIds([]);
-      setComment('');
-      setBookingStep('plan');
-      fetchAvailability();
+      setReservationReceipt({
+        reservationNumber: reservation?.reservation_number || '',
+        bookingDate,
+        startTime,
+        endTime: selectedEndTime || '',
+        floorName: selectedFloor?.name || '',
+        guestsCount,
+        tableNames: selectedTables.map((table) => String(table.name || '')),
+        reservationFee,
+        reservationServiceCost,
+        totalCost: bookingTotalCost
+      });
+      setShowReceiptModal(true);
     } catch (err) {
       setError(err.response?.data?.error || t('Ошибка создания бронирования', 'Band qilishda xatolik'));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCloseReceiptModal = () => {
+    setShowReceiptModal(false);
+    setReservationReceipt(null);
+    setSelectedTableIds([]);
+    setComment('');
+    setBookingStep('plan');
+    fetchAvailability();
   };
 
   const hasNoRestaurant = !restaurantId;
@@ -791,7 +897,18 @@ function Reservations() {
 
   return (
     <div className="client-page client-reservation-page">
-      <ClientTopBar logoUrl={restaurant?.logo_url} logoDisplayMode={restaurant?.logo_display_mode} restaurantName={restaurant?.name || 'Reservation'} language={language} onToggleLanguage={toggleLanguage} fallback="🪑" maxWidth="1260px" sticky />
+      <ClientTopBar
+        logoUrl={restaurant?.logo_url}
+        logoDisplayMode={restaurant?.logo_display_mode}
+        restaurantName={restaurant?.name || 'Reservation'}
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        onBack={handleBackClick}
+        showBackButton
+        fallback="🪑"
+        maxWidth="1260px"
+        sticky
+      />
       <Container fluid className="client-content client-reservation-content">
         {hasNoRestaurant && <Alert variant="warning" className="border-0 shadow-sm mt-3">{t('Сначала выберите магазин', 'Avval do‘kon tanlang')}</Alert>}
         {!hasNoRestaurant && !reservationEnabled && <Alert variant="info" className="border-0 shadow-sm mt-3">{t('Для этого магазина бронирование пока отключено', 'Ushbu do‘kon uchun band qilish xizmati yoqilmagan')}</Alert>}
@@ -807,7 +924,10 @@ function Reservations() {
                     <div className="client-res-controls-head">
                       <div>
                         <div className="client-res-top-title">{t('Бронирование', 'Band qilish')}</div>
-                        <div className="client-res-top-subtitle">{selectedFloor?.name || t('Этаж не выбран', 'Qavat tanlanmagan')}</div>
+                        <div className="client-res-top-subtitle">
+                          {selectedFloor?.name || t('Этаж не выбран', 'Qavat tanlanmagan')}
+                          {startTime ? ` · ${startTime}${selectedEndTime ? ` - ${selectedEndTime}` : ''}` : ''}
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -828,6 +948,7 @@ function Reservations() {
                               <span>{t('Время:', 'Vaqt:')}</span>
                               <strong>{startTime}</strong>
                               <small>{t(`Шаг ${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} мин`, `${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} daq qadam`)}</small>
+                              <small>{t(`Часы ${workingWindow.startLabel}-${workingWindow.endLabel}`, `${workingWindow.startLabel}-${workingWindow.endLabel}`)}</small>
                             </div>
                             <div ref={timeRulerRef} className="client-res-time-ruler" onScroll={handleTimeRulerScroll}>
                               {timeSlots.map((slot, index) => {
@@ -981,6 +1102,21 @@ function Reservations() {
                             <Form.Control as="textarea" rows={3} value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} />
                           </Form.Group>
 
+                          <div className="client-res-summary-card mb-3">
+                            <div className="client-res-summary-row">
+                              <span>{t('Сумма брони', 'Bron summasi')}</span>
+                              <strong>{formatMoney(reservationFee)} {moneyLabel}</strong>
+                            </div>
+                            <div className="client-res-summary-row">
+                              <span>{t('Сервис брони', 'Bron servisi')}</span>
+                              <strong>{formatMoney(reservationServiceCost)} {moneyLabel}</strong>
+                            </div>
+                            <div className="client-res-summary-row is-total">
+                              <span>{t('Итого', 'Jami')}</span>
+                              <strong>{formatMoney(bookingTotalCost)} {moneyLabel}</strong>
+                            </div>
+                          </div>
+
                           {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mb-3">{t('Выбранные столы не покрывают количество гостей', 'Tanlangan stollar mehmonlar soniga yetmaydi')}</Alert>}
 
                           <Button variant="primary" className="w-100 client-res-book-btn" disabled={submitting || !selectedTableIds.length || !selectedFloorId || !isCapacityEnough} onClick={submitReservation}>{submitting ? t('Отправляем...', 'Yuborilmoqda...') : t('Забронировать', 'Band qilish')}</Button>
@@ -1024,9 +1160,29 @@ function Reservations() {
           <Button variant="primary" onClick={handleApplyBookingDate}>{t('Применить', 'Qo‘llash')}</Button>
         </Modal.Footer>
       </Modal>
+      <Modal show={showReceiptModal} onHide={handleCloseReceiptModal} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{t('Бронь оформлена', 'Bron rasmiylashtirildi')}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="client-res-receipt">
+            <div className="client-res-receipt-row"><span>{t('Номер', 'Raqam')}</span><strong>{reservationReceipt?.reservationNumber || '-'}</strong></div>
+            <div className="client-res-receipt-row"><span>{t('Дата', 'Sana')}</span><strong>{reservationReceipt?.bookingDate || '-'}</strong></div>
+            <div className="client-res-receipt-row"><span>{t('Время', 'Vaqt')}</span><strong>{reservationReceipt?.startTime || '-'}{reservationReceipt?.endTime ? ` - ${reservationReceipt.endTime}` : ''}</strong></div>
+            <div className="client-res-receipt-row"><span>{t('Этаж', 'Qavat')}</span><strong>{reservationReceipt?.floorName || '-'}</strong></div>
+            <div className="client-res-receipt-row"><span>{t('Столы', 'Stollar')}</span><strong>{reservationReceipt?.tableNames?.filter(Boolean).join(', ') || '-'}</strong></div>
+            <div className="client-res-receipt-row"><span>{t('Гостей', 'Mehmonlar')}</span><strong>{reservationReceipt?.guestsCount || 0}</strong></div>
+            <hr className="my-2" />
+            <div className="client-res-receipt-row"><span>{t('Сумма брони', 'Bron summasi')}</span><strong>{formatMoney(reservationReceipt?.reservationFee || 0)} {moneyLabel}</strong></div>
+            <div className="client-res-receipt-row"><span>{t('Сервис брони', 'Bron servisi')}</span><strong>{formatMoney(reservationReceipt?.reservationServiceCost || 0)} {moneyLabel}</strong></div>
+            <div className="client-res-receipt-row is-total"><span>{t('Итого', 'Jami')}</span><strong>{formatMoney(reservationReceipt?.totalCost || 0)} {moneyLabel}</strong></div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="primary" onClick={handleCloseReceiptModal}>{t('Готово', 'Tayyor')}</Button>
+        </Modal.Footer>
+      </Modal>
       <Modal show={showPhotoModal} onHide={() => setShowPhotoModal(false)} centered><Modal.Header closeButton><Modal.Title>{t('Фото стола', 'Stol rasmi')}: {photoTableName}</Modal.Title></Modal.Header><Modal.Body className="p-2">{photoUrl ? <img src={photoUrl} alt={photoTableName} style={{ width: '100%', borderRadius: 10, maxHeight: '70vh', objectFit: 'contain' }} /> : <div className="text-muted p-3 text-center">{t('Фото не найдено', 'Rasm topilmadi')}</div>}</Modal.Body></Modal>
-      {!isOperator() && <BottomNav />}
-      {!isOperator() && <div style={{ height: 76 }} />}
     </div>
   );
 }

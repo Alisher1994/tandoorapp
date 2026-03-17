@@ -48,13 +48,51 @@ const timeToSeconds = (timeValue) => {
   const [hh, mm, ss] = normalized.split(':').map((part) => Number.parseInt(part, 10));
   return (hh * 3600) + (mm * 60) + ss;
 };
+const timeToMinutes = (timeValue) => {
+  const normalized = normalizeTime(timeValue);
+  if (!normalized) return null;
+  const [hh, mm] = normalized.split(':').map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return (hh * 60) + mm;
+};
+const toHHMM = (timeValue) => {
+  const normalized = normalizeTime(timeValue);
+  return normalized ? normalized.slice(0, 5) : '';
+};
+const isReservationInsideWorkHours = ({ startTime, endTime, workStartTime, workEndTime }) => {
+  if (!workStartTime || !workEndTime) return true;
+
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  const openMinutes = timeToMinutes(workStartTime);
+  const closeMinutes = timeToMinutes(workEndTime);
+
+  if (![startMinutes, endMinutes, openMinutes, closeMinutes].every((value) => Number.isFinite(value))) {
+    return true;
+  }
+
+  if (openMinutes === closeMinutes) return true;
+
+  if (openMinutes < closeMinutes) {
+    return startMinutes >= openMinutes && endMinutes <= closeMinutes;
+  }
+
+  const startInWindow = startMinutes >= openMinutes || startMinutes < closeMinutes;
+  if (!startInWindow) return false;
+
+  if (startMinutes >= openMinutes) {
+    return endMinutes > startMinutes;
+  }
+
+  return endMinutes <= closeMinutes;
+};
 
 const addMinutesToTime = (timeValue, minutesToAdd) => {
   const seconds = timeToSeconds(timeValue);
   if (!Number.isFinite(seconds)) return null;
   const delta = Math.max(0, Number(minutesToAdd || 0)) * 60;
   const total = seconds + delta;
-  if (total > 24 * 3600) return null;
+  if (total >= 24 * 3600) return null;
   const hh = String(Math.floor(total / 3600)).padStart(2, '0');
   const mm = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
   const ss = String(total % 60).padStart(2, '0');
@@ -83,6 +121,8 @@ const getReservationConfig = async (client, restaurantId) => {
     `SELECT
        r.id,
        r.activity_type_id,
+       r.start_time AS work_start_time,
+       r.end_time AS work_end_time,
        COALESCE(rs.enabled, false) AS enabled,
        COALESCE(rs.reservation_fee, 0) AS reservation_fee,
        COALESCE(rs.max_duration_minutes, 180) AS max_duration_minutes,
@@ -186,6 +226,17 @@ router.get('/availability', async (req, res) => {
       return res.status(403).json({ error: 'Бронирование отключено для этого магазина' });
     }
 
+    if (!isReservationInsideWorkHours({
+      startTime,
+      endTime,
+      workStartTime: config.work_start_time,
+      workEndTime: config.work_end_time
+    })) {
+      return res.status(400).json({
+        error: `Магазин работает с ${toHHMM(config.work_start_time)} по ${toHHMM(config.work_end_time)}`
+      });
+    }
+
     const tablesResult = await pool.query(
       `SELECT
          t.id,
@@ -248,6 +299,9 @@ router.get('/availability', async (req, res) => {
       duration_minutes: durationMinutes,
       reservation_enabled: asBooleanFlag(config.enabled),
       reservation_fee: parseAmount(config.reservation_fee, 0),
+      reservation_service_cost: parseAmount(config.reservation_service_cost, 0),
+      work_start_time: toHHMM(config.work_start_time),
+      work_end_time: toHHMM(config.work_end_time),
       time_slot_step_minutes: parsePositiveInt(config.time_slot_step_minutes, 30),
       allow_multi_table: Boolean(config.allow_multi_table),
       tables
@@ -349,6 +403,18 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Время окончания должно быть больше времени начала' });
     }
 
+    if (!isReservationInsideWorkHours({
+      startTime,
+      endTime,
+      workStartTime: config.work_start_time,
+      workEndTime: config.work_end_time
+    })) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: `Магазин работает с ${toHHMM(config.work_start_time)} по ${toHHMM(config.work_end_time)}`
+      });
+    }
+
     const tablesResult = await client.query(
       `SELECT id, capacity
        FROM reservation_tables
@@ -402,7 +468,7 @@ router.post('/', async (req, res) => {
     const itemsPrepayAmount = bookingMode === 'with_items'
       ? Math.max(0, parseAmount(req.body?.items_prepay_amount, 0))
       : 0;
-    const serviceFee = Math.max(0, parseAmount(req.body?.service_fee, 0));
+    const serviceFee = Math.max(0, parseAmount(config.reservation_service_cost, 0));
     const totalPrepayAmount = reservationFee + itemsPrepayAmount + serviceFee;
     const paymentMethod = normalizePaymentMethod(req.body?.payment_method, 'cash');
     const paymentStatus = PAYMENTS_PENDING_METHODS.has(paymentMethod) ? 'pending' : 'unpaid';

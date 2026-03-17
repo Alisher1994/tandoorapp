@@ -1309,23 +1309,28 @@ h6 {
 }
 
 .client-res-controls-card .card-body {
-  padding: 12px 14px;
+  padding: 8px 10px 9px;
 }
 
 .client-res-controls-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .client-res-controls-head .client-res-top-title {
   color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .client-res-controls-head .client-res-top-subtitle {
   color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.2;
 }
 
 .client-res-controls-card.is-collapsed .client-res-controls-head {
@@ -1349,8 +1354,8 @@ h6 {
 
 .client-res-controls-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 182px;
+  gap: 8px;
   align-items: end;
 }
 
@@ -1362,21 +1367,24 @@ h6 {
   margin-top: 0;
   display: inline-flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 7px;
   color: #475569;
+  flex-wrap: wrap;
 }
 
 .client-res-controls-card .client-res-time-readout strong {
   color: #0f172a;
+  font-size: 1.14rem;
+  line-height: 1;
 }
 
 .client-res-controls-card .client-res-time-readout small {
   color: #64748b;
-  font-size: 0.77rem;
+  font-size: 0.72rem;
 }
 
 .client-res-time-ruler {
-  margin-top: 10px;
+  margin-top: 6px;
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -1386,9 +1394,9 @@ h6 {
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   border: 1px solid #d8e0f0;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #f8faff;
-  padding: 8px 0 6px;
+  padding: 5px 0 4px;
 }
 
 .client-res-time-ruler::before,
@@ -1410,7 +1418,7 @@ h6 {
   border: 0;
   background: transparent;
   color: #64748b;
-  min-width: 42px;
+  min-width: 40px;
   padding: 0;
   margin: 0;
   display: inline-flex;
@@ -1447,8 +1455,8 @@ h6 {
 }
 
 .client-res-ruler-label {
-  margin-top: 4px;
-  font-size: 0.68rem;
+  margin-top: 3px;
+  font-size: 0.66rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1473,26 +1481,28 @@ h6 {
 
 .client-res-day-btn {
   width: 100%;
-  min-height: 70px;
-  border-radius: 12px;
+  min-height: 54px;
+  border-radius: 10px;
   border: 1px solid #d4deef;
   background: #f8fafc;
   color: #0f172a;
   text-align: left;
-  padding: 10px 12px;
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
 }
 
 .client-res-day-btn span {
   color: #64748b;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1.15;
 }
 
 .client-res-day-btn strong {
-  font-size: 0.96rem;
+  font-size: 0.9rem;
+  line-height: 1.18;
 }
 
 .client-res-map-shell {
@@ -1508,14 +1518,14 @@ h6 {
 }
 
 .client-res-map-shell .client-res-plan-stage {
-  height: calc(100vh - 192px);
+  height: calc(100vh - 174px);
   min-height: 500px;
   border: 0;
   border-radius: 0;
 }
 
 .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
-  height: calc(100vh - 126px);
+  height: calc(100vh - 116px);
 }
 
 .client-res-map-shell:fullscreen .client-res-plan-stage {
@@ -1736,22 +1746,8 @@ h6 {
   flex-direction: column;
   gap: 6px;
   z-index: 8;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-
-.client-res-map-shell:hover .client-res-plan-controls,
-.client-res-map-shell:focus-within .client-res-plan-controls {
   opacity: 1;
   pointer-events: auto;
-}
-
-@media (pointer: coarse) {
-  .client-res-plan-controls {
-    opacity: 1;
-    pointer-events: auto;
-  }
 }
 
 .client-res-map-control-btn {
@@ -1765,7 +1761,7 @@ h6 {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition: color 0.16s ease, transform 0.16s ease;
 }
 
 .client-res-map-control-btn svg {
@@ -1776,13 +1772,13 @@ h6 {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.45));
 }
 
 .client-res-map-control-btn:hover,
 .client-res-map-control-btn:focus-visible {
-  background: rgba(255, 255, 255, 0.92);
   color: #1e1b4b;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
+  transform: scale(1.06);
 }
 
 .client-res-plan-table {
@@ -1867,27 +1863,28 @@ h6 {
 }
 
 .client-res-floor-carousel {
-  margin-top: 10px;
-  margin-bottom: 8px;
+  margin-top: 6px;
+  margin-bottom: 4px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
 .client-res-floor-pill {
   border: 1px solid #d9deef;
   background: #ffffff;
-  border-radius: 12px;
-  min-width: 124px;
-  min-height: 46px;
+  border-radius: 10px;
+  min-width: 98px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 6px;
+  padding: 0 10px;
   color: #334155;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 0.95rem;
 }
 
 .client-res-floor-pill.is-active {
@@ -1897,7 +1894,7 @@ h6 {
 }
 
 .client-res-floor-pill small {
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   opacity: 0.78;
 }
 
@@ -1933,6 +1930,61 @@ h6 {
 .client-res-book-btn:hover,
 .client-res-book-btn:focus-visible {
   background: linear-gradient(135deg, #4338ca 0%, #5857ef 100%);
+}
+
+.client-res-summary-card {
+  border: 1px solid #d8deef;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.client-res-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.client-res-summary-row + .client-res-summary-row {
+  margin-top: 5px;
+}
+
+.client-res-summary-row strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.client-res-summary-row.is-total {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid #d4deef;
+  font-size: 0.94rem;
+}
+
+.client-res-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.client-res-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.client-res-receipt-row strong {
+  color: #0f172a;
+  text-align: right;
+}
+
+.client-res-receipt-row.is-total {
+  font-size: 0.97rem;
 }
 
 .client-res-details-head {
@@ -2005,12 +2057,12 @@ h6 {
   }
 
   .client-res-map-shell .client-res-plan-stage {
-    height: calc(100vh - 246px);
+    height: calc(100vh - 228px);
     min-height: 410px;
   }
 
   .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
-    height: calc(100vh - 180px);
+    height: calc(100vh - 172px);
   }
 
   .client-res-plan-stage {
@@ -2063,12 +2115,12 @@ h6 {
   }
 
   .client-res-map-shell .client-res-plan-stage {
-    height: calc(100vh - 300px);
+    height: calc(100vh - 268px);
     min-height: 350px;
   }
 
   .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
-    height: calc(100vh - 214px);
+    height: calc(100vh - 208px);
   }
 
   .client-res-top-card .card-body {
