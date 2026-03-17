@@ -12,16 +12,36 @@ import AppVersionWatcher from './components/AppVersionWatcher';
 import ClientRoutePersistence from './components/ClientRoutePersistence';
 import { PageSkeleton } from './components/SkeletonUI';
 
-const Login = lazy(() => import('./pages/Login'));
-const Catalog = lazy(() => import('./pages/Catalog'));
-const Cart = lazy(() => import('./pages/Cart'));
-const Orders = lazy(() => import('./pages/Orders'));
-const Feedback = lazy(() => import('./pages/Feedback'));
-const Favorites = lazy(() => import('./pages/Favorites'));
-const Reservations = lazy(() => import('./pages/Reservations'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const AdminReservations = lazy(() => import('./pages/AdminReservations'));
-const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const lazyWithRetry = (importer, chunkName) => lazy(async () => {
+  try {
+    return await importer();
+  } catch (error) {
+    const message = String(error?.message || '');
+    const isChunkLoadError = /ChunkLoadError|Loading CSS chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(message);
+
+    if (typeof window !== 'undefined' && isChunkLoadError) {
+      const reloadKey = `lazy-retry:${chunkName}`;
+      if (!window.sessionStorage.getItem(reloadKey)) {
+        window.sessionStorage.setItem(reloadKey, '1');
+        window.location.reload();
+        return new Promise(() => {});
+      }
+    }
+
+    throw error;
+  }
+});
+
+const Login = lazyWithRetry(() => import('./pages/Login'), 'login');
+const Catalog = lazyWithRetry(() => import('./pages/Catalog'), 'catalog');
+const Cart = lazyWithRetry(() => import('./pages/Cart'), 'cart');
+const Orders = lazyWithRetry(() => import('./pages/Orders'), 'orders');
+const Feedback = lazyWithRetry(() => import('./pages/Feedback'), 'feedback');
+const Favorites = lazyWithRetry(() => import('./pages/Favorites'), 'favorites');
+const Reservations = lazyWithRetry(() => import('./pages/Reservations'), 'reservations');
+const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard'), 'admin-dashboard');
+const AdminReservations = lazyWithRetry(() => import('./pages/AdminReservations'), 'admin-reservations');
+const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
 
 function App() {
   return (
