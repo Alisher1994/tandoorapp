@@ -90,6 +90,9 @@ function YandexAnalyticsMap({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const geoCollectionRef = useRef(null);
+  const customerMarkerLayoutRef = useRef(null);
+  const customerMarkerActiveLayoutRef = useRef(null);
+  const shopMarkerLayoutRef = useRef(null);
   const boundsSignatureRef = useRef('');
   const [loadError, setLoadError] = useState('');
 
@@ -114,6 +117,22 @@ function YandexAnalyticsMap({
           controls: ['zoomControl']
         });
         mapRef.current = map;
+
+        if (!customerMarkerLayoutRef.current) {
+          customerMarkerLayoutRef.current = ymaps.templateLayoutFactory.createClass(
+            '<div style="width:26px;height:26px;border-radius:999px;background:#ef4444;border:2px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(15,23,42,0.25);font-size:13px;line-height:1;">🙋🏻</div>'
+          );
+        }
+        if (!customerMarkerActiveLayoutRef.current) {
+          customerMarkerActiveLayoutRef.current = ymaps.templateLayoutFactory.createClass(
+            '<div style="width:28px;height:28px;border-radius:999px;background:#2563eb;border:2px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(37,99,235,0.35);font-size:14px;line-height:1;">🙋🏻</div>'
+          );
+        }
+        if (!shopMarkerLayoutRef.current) {
+          shopMarkerLayoutRef.current = ymaps.templateLayoutFactory.createClass(
+            '<div style="width:30px;height:30px;border-radius:999px;background:#16a34a;border:2px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(22,163,74,0.35);font-size:15px;line-height:1;">🏪</div>'
+          );
+        }
 
         const geoCollection = new ymaps.GeoObjectCollection({}, {});
         geoCollectionRef.current = geoCollection;
@@ -155,7 +174,13 @@ function YandexAnalyticsMap({
         [point.lat, point.lng],
         {},
         {
-          preset: isSelected ? 'islands#blueCircleDotIcon' : 'islands#redCircleDotIcon'
+          iconLayout: isSelected ? customerMarkerActiveLayoutRef.current : customerMarkerLayoutRef.current,
+          iconShape: {
+            type: 'Circle',
+            coordinates: [isSelected ? 14 : 13, isSelected ? 14 : 13],
+            radius: isSelected ? 14 : 13
+          },
+          iconOffset: [isSelected ? -14 : -13, isSelected ? -14 : -13]
         }
       );
       placemark.events.add('click', () => onSelectPoint(point));
@@ -166,7 +191,11 @@ function YandexAnalyticsMap({
       const shopPlacemark = new ymaps.Placemark(
         [normalizedShopPoint.lat, normalizedShopPoint.lng],
         {},
-        { preset: 'islands#greenCircleDotIcon' }
+        {
+          iconLayout: shopMarkerLayoutRef.current,
+          iconShape: { type: 'Circle', coordinates: [15, 15], radius: 15 },
+          iconOffset: [-15, -15]
+        }
       );
       geoCollection.add(shopPlacemark);
     }

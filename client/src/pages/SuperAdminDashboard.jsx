@@ -8,7 +8,8 @@ import {
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
   Toast, ToastContainer, Dropdown
 } from 'react-bootstrap';
-import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
@@ -212,6 +213,12 @@ const normalizeOverviewOrderLocation = (point) => {
 const getOverviewOrderLocationKey = (point) => (
   String(point?.orderId ?? point?.orderNumber ?? `${point?.lat}:${point?.lng}`)
 );
+const getOverviewAnalyticsPointIcon = (isActive = false) => L.divIcon({
+  className: `analytics-map-point${isActive ? ' is-active' : ''}`,
+  html: `<span class="analytics-map-point-badge"><span class="analytics-map-point-emoji">🙋🏻</span></span>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13]
+});
 const SuperAdminAnalyticsMapAutoBounds = ({ points = [], selectedPoint = null }) => {
   const map = useMap();
 
@@ -5457,16 +5464,10 @@ function SuperAdminDashboard() {
                                 const isSelected = selectedOverviewOrderLocation
                                   && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
                                 return (
-                                  <CircleMarker
+                                  <Marker
                                     key={`sa-overview-map-${locationKey}`}
                                     center={[location.lat, location.lng]}
-                                    radius={isSelected ? 9 : 7}
-                                    pathOptions={{
-                                      color: isSelected ? '#1d4ed8' : '#ef4444',
-                                      fillColor: isSelected ? '#1d4ed8' : '#f97316',
-                                      fillOpacity: 0.8,
-                                      weight: 2
-                                    }}
+                                    icon={getOverviewAnalyticsPointIcon(isSelected)}
                                     eventHandlers={{
                                       click: () => setSelectedOverviewOrderLocation(location)
                                     }}

@@ -563,10 +563,48 @@ function Cart() {
   };
 
   const fallbackToNavigatorGeolocation = (onSuccess) => {
+    const tryYandexGeolocation = async () => {
+      if (!window.ymaps?.geolocation?.get) return false;
+
+      try {
+        const browserGeo = await window.ymaps.geolocation.get({
+          provider: 'browser',
+          mapStateAutoApply: false
+        });
+        const browserCoords = browserGeo?.geoObjects?.position;
+        if (Array.isArray(browserCoords) && browserCoords.length === 2) {
+          onSuccess(browserCoords[0], browserCoords[1]);
+          return true;
+        }
+      } catch (_) {
+        // ignore and fallback to yandex provider
+      }
+
+      try {
+        const yandexGeo = await window.ymaps.geolocation.get({
+          provider: 'yandex',
+          mapStateAutoApply: false
+        });
+        const yandexCoords = yandexGeo?.geoObjects?.position;
+        if (Array.isArray(yandexCoords) && yandexCoords.length === 2) {
+          onSuccess(yandexCoords[0], yandexCoords[1]);
+          return true;
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      return false;
+    };
+
     if (!navigator.geolocation) {
-      setError('Геолокация не поддерживается');
-      setLocationLoading(false);
-      alert('Геолокация отключена или не поддерживается. Включите геолокацию в настройках устройства.');
+      tryYandexGeolocation().then((resolved) => {
+        if (!resolved) {
+          setError('Геолокация не поддерживается');
+          alert('Геолокация отключена или не поддерживается. Включите геолокацию в настройках устройства.');
+        }
+        setLocationLoading(false);
+      });
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -576,10 +614,13 @@ function Cart() {
         }
         setLocationLoading(false);
       },
-      (err) => {
+      async (err) => {
         console.error('Geolocation error:', err);
-        setError('Не удалось получить геолокацию. Разрешите доступ к местоположению.');
-        alert('Не удалось получить геолокацию. Включите геолокацию в настройках устройства и разрешите доступ.');
+        const fallbackResolved = await tryYandexGeolocation();
+        if (!fallbackResolved) {
+          setError('Не удалось получить геолокацию. Разрешите доступ к местоположению.');
+          alert('Не удалось получить геолокацию. Включите геолокацию в настройках устройства и разрешите доступ.');
+        }
         setLocationLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }

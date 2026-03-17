@@ -22,9 +22,19 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const placemarkRef = useRef(null);
+  const onLocationChangeRef = useRef(onLocationChange);
+  const onAddressChangeRef = useRef(onAddressChange);
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [address, setAddress] = useState('');
+
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  }, [onLocationChange]);
+
+  useEffect(() => {
+    onAddressChangeRef.current = onAddressChange;
+  }, [onAddressChange]);
 
   // Загрузка Yandex Maps API
   useEffect(() => {
@@ -128,7 +138,7 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
           if (firstGeoObject) {
             const resolved = resolveGeoAddress(firstGeoObject);
             setAddress(resolved.fullAddress || resolved.shortAddress || '');
-            onAddressChange(
+            onAddressChangeRef.current(
               resolved.fullAddress || resolved.shortAddress || '',
               {
                 shortAddress: resolved.shortAddress || '',
@@ -142,7 +152,7 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
       // Обработчик перетаскивания метки
       placemark.events.add('dragend', () => {
         const coords = placemark.geometry.getCoordinates();
-        onLocationChange(coords[0], coords[1]);
+        onLocationChangeRef.current(coords[0], coords[1]);
         getAddress(coords);
       });
 
@@ -151,7 +161,7 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
         const coords = e.get('coords');
         placemark.geometry.setCoordinates(coords);
         map.setCenter(coords, map.getZoom(), { duration: 300 });
-        onLocationChange(coords[0], coords[1]);
+        onLocationChangeRef.current(coords[0], coords[1]);
         getAddress(coords);
       });
 
@@ -170,7 +180,16 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
   // Обновляем позицию маркера при изменении координат извне
   useEffect(() => {
     if (placemarkRef.current && latitude && longitude) {
-      const coords = [latitude, longitude];
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const coords = [lat, lng];
+      const currentCoords = placemarkRef.current.geometry.getCoordinates?.() || [];
+      const isSamePoint = currentCoords.length === 2
+        && Math.abs(Number(currentCoords[0]) - lat) < 0.000001
+        && Math.abs(Number(currentCoords[1]) - lng) < 0.000001;
+      if (isSamePoint) return;
+
       placemarkRef.current.geometry.setCoordinates(coords);
       if (mapRef.current) {
         mapRef.current.setCenter(coords, 16, { duration: 300 });
@@ -182,7 +201,7 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
           if (firstGeoObject) {
             const resolved = resolveGeoAddress(firstGeoObject);
             setAddress(resolved.fullAddress || resolved.shortAddress || '');
-            onAddressChange(
+            onAddressChangeRef.current(
               resolved.fullAddress || resolved.shortAddress || '',
               {
                 shortAddress: resolved.shortAddress || '',
@@ -193,7 +212,7 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
         }).catch(() => {});
       }
     }
-  }, [latitude, longitude, onAddressChange]);
+  }, [latitude, longitude]);
 
   if (!isLoaded) {
     if (loadError) {
