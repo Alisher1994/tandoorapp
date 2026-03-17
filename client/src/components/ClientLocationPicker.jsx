@@ -23,24 +23,39 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
   const mapRef = useRef(null);
   const placemarkRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [address, setAddress] = useState('');
 
   // Загрузка Yandex Maps API
   useEffect(() => {
+    let checkYmapsInterval = null;
+    let loadTimeout = null;
+
     if (window.ymaps) {
       setIsLoaded(true);
+      setLoadError('');
       return;
     }
 
     const existingScript = document.querySelector('script[src*="api-maps.yandex.ru"]');
     if (existingScript) {
-      const checkYmaps = setInterval(() => {
+      checkYmapsInterval = setInterval(() => {
         if (window.ymaps) {
           setIsLoaded(true);
-          clearInterval(checkYmaps);
+          setLoadError('');
+          clearInterval(checkYmapsInterval);
         }
       }, 100);
-      return () => clearInterval(checkYmaps);
+      loadTimeout = setTimeout(() => {
+        if (!window.ymaps) {
+          if (checkYmapsInterval) clearInterval(checkYmapsInterval);
+          setLoadError('Карта временно недоступна. Попробуйте позже или используйте определение местоположения.');
+        }
+      }, 15000);
+      return () => {
+        if (checkYmapsInterval) clearInterval(checkYmapsInterval);
+        if (loadTimeout) clearTimeout(loadTimeout);
+      };
     }
 
     const script = document.createElement('script');
@@ -49,9 +64,23 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
     script.onload = () => {
       window.ymaps.ready(() => {
         setIsLoaded(true);
+        setLoadError('');
       });
     };
+    script.onerror = () => {
+      setLoadError('Ошибка загрузки карты. Попробуйте позже или используйте определение местоположения.');
+    };
     document.head.appendChild(script);
+
+    loadTimeout = setTimeout(() => {
+      if (!window.ymaps) {
+        setLoadError('Карта не ответила вовремя. Попробуйте позже или используйте определение местоположения.');
+      }
+    }, 15000);
+
+    return () => {
+      if (loadTimeout) clearTimeout(loadTimeout);
+    };
   }, []);
 
   // Инициализация карты
@@ -167,6 +196,15 @@ function ClientLocationPicker({ latitude, longitude, onLocationChange, onAddress
   }, [latitude, longitude, onAddressChange]);
 
   if (!isLoaded) {
+    if (loadError) {
+      return (
+        <div className="client-location-picker-loading">
+          <div className="text-center text-muted p-3">
+            {loadError}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="client-location-picker-loading">
         <ListSkeleton count={2} label="Загрузка карты" />

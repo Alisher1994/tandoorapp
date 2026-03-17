@@ -179,13 +179,13 @@ const cspReportOnlyValue = [
   "object-src 'none'",
   "form-action 'self'",
   "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://*.telegram.org",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://*.telegram.org https://api-maps.yandex.ru https://*.yandex.ru https://yastatic.net https://*.yastatic.net https://maps.googleapis.com https://maps.gstatic.com",
   "style-src 'self' 'unsafe-inline' https:",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https:",
   "connect-src 'self' https: wss:",
   "media-src 'self' blob: data: https:",
-  "frame-src 'self' https://web.telegram.org https://*.telegram.org"
+  "frame-src 'self' https://web.telegram.org https://*.telegram.org https://yandex.ru https://*.yandex.ru https://www.google.com https://maps.google.com"
 ].join('; ');
 const permissionsPolicyValue = [
   'accelerometer=()',
