@@ -512,6 +512,10 @@ function SuperAdminDashboard() {
   const [globalProductsSearch, setGlobalProductsSearch] = useState('');
   const [globalProductsBarcodeFilter, setGlobalProductsBarcodeFilter] = useState('');
   const [globalProductsStatusFilter, setGlobalProductsStatusFilter] = useState('active');
+  const [globalProductsCategoryLevel1Filter, setGlobalProductsCategoryLevel1Filter] = useState('all');
+  const [globalProductsCategoryLevel2Filter, setGlobalProductsCategoryLevel2Filter] = useState('all');
+  const [globalProductsCategoryLevel3Filter, setGlobalProductsCategoryLevel3Filter] = useState('all');
+  const [showGlobalProductsFilterPanel, setShowGlobalProductsFilterPanel] = useState(false);
   const [showGlobalProductModal, setShowGlobalProductModal] = useState(false);
   const [globalProductForm, setGlobalProductForm] = useState(createEmptyGlobalProductForm);
   const [globalProductCategorySearch, setGlobalProductCategorySearch] = useState({
@@ -752,6 +756,37 @@ function SuperAdminDashboard() {
       return String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru');
     })
   ), []);
+  const globalProductsRootCategoryOptions = useMemo(() => (
+    sortCategoryOptions((categories || []).filter((cat) => !cat.parent_id))
+  ), [categories, sortCategoryOptions]);
+  const globalProductsSubcategoryOptions = useMemo(() => {
+    const level1Id = Number.parseInt(globalProductsCategoryLevel1Filter, 10);
+    if (!Number.isInteger(level1Id) || level1Id <= 0) return [];
+    return sortCategoryOptions((categories || []).filter((cat) => Number(cat.parent_id) === level1Id));
+  }, [categories, globalProductsCategoryLevel1Filter, sortCategoryOptions]);
+  const globalProductsThirdCategoryOptions = useMemo(() => {
+    const level2Id = Number.parseInt(globalProductsCategoryLevel2Filter, 10);
+    if (!Number.isInteger(level2Id) || level2Id <= 0) return [];
+    return sortCategoryOptions((categories || []).filter((cat) => Number(cat.parent_id) === level2Id));
+  }, [categories, globalProductsCategoryLevel2Filter, sortCategoryOptions]);
+
+  const resetGlobalProductsFilters = () => {
+    setGlobalProductsSearch('');
+    setGlobalProductsBarcodeFilter('');
+    setGlobalProductsStatusFilter('active');
+    setGlobalProductsCategoryLevel1Filter('all');
+    setGlobalProductsCategoryLevel2Filter('all');
+    setGlobalProductsCategoryLevel3Filter('all');
+  };
+
+  const hasActiveGlobalProductsFilters = (
+    String(globalProductsSearch || '').trim() !== '' ||
+    String(globalProductsBarcodeFilter || '').trim() !== '' ||
+    globalProductsStatusFilter !== 'active' ||
+    globalProductsCategoryLevel1Filter !== 'all' ||
+    globalProductsCategoryLevel2Filter !== 'all' ||
+    globalProductsCategoryLevel3Filter !== 'all'
+  );
   const dismissScamPrankModal = () => setShowScamPrankModal(false);
   const handleScamPrankButtonsShuffle = () => {
     setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
@@ -895,12 +930,22 @@ function SuperAdminDashboard() {
     globalProductsLimit,
     globalProductsSearch,
     globalProductsBarcodeFilter,
-    globalProductsStatusFilter
+    globalProductsStatusFilter,
+    globalProductsCategoryLevel1Filter,
+    globalProductsCategoryLevel2Filter,
+    globalProductsCategoryLevel3Filter
   ]);
 
   useEffect(() => {
     setGlobalProductsPage(1);
-  }, [globalProductsSearch, globalProductsBarcodeFilter, globalProductsStatusFilter]);
+  }, [
+    globalProductsSearch,
+    globalProductsBarcodeFilter,
+    globalProductsStatusFilter,
+    globalProductsCategoryLevel1Filter,
+    globalProductsCategoryLevel2Filter,
+    globalProductsCategoryLevel3Filter
+  ]);
 
   useEffect(() => {
     if (!showAdAnalyticsModal || !analyticsAdBanner?.id) return;
@@ -1658,13 +1703,19 @@ function SuperAdminDashboard() {
     setGlobalProductsLoading(true);
     try {
       const includeInactive = globalProductsStatusFilter === 'all';
+      const level1CategoryId = Number.parseInt(globalProductsCategoryLevel1Filter, 10);
+      const level2CategoryId = Number.parseInt(globalProductsCategoryLevel2Filter, 10);
+      const level3CategoryId = Number.parseInt(globalProductsCategoryLevel3Filter, 10);
       const response = await axios.get(`${API_URL}/superadmin/global-products`, {
         params: {
           page: globalProductsPage,
           limit: globalProductsLimit,
           search: String(globalProductsSearch || '').trim(),
           barcode: String(globalProductsBarcodeFilter || '').replace(/\D/g, ''),
-          include_inactive: includeInactive ? 'true' : 'false'
+          include_inactive: includeInactive ? 'true' : 'false',
+          category_level1_id: Number.isInteger(level1CategoryId) && level1CategoryId > 0 ? level1CategoryId : undefined,
+          category_level2_id: Number.isInteger(level2CategoryId) && level2CategoryId > 0 ? level2CategoryId : undefined,
+          category_level3_id: Number.isInteger(level3CategoryId) && level3CategoryId > 0 ? level3CategoryId : undefined
         }
       });
 
@@ -6265,38 +6316,115 @@ function SuperAdminDashboard() {
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
                     {language === 'uz' ? 'Global mahsulotlar katalogi' : 'Каталог глобальных товаров'}
                   </h5>
-                  <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
-                    {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
-                  </Button>
+                  <div className="d-flex align-items-center gap-2 ms-auto">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showGlobalProductsFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowGlobalProductsFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showGlobalProductsFilterPanel}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </Button>
+                    <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
+                      {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-                  <Form.Control
-                    className="form-control-custom"
-                    style={{ width: '250px' }}
-                    type="search"
-                    placeholder={language === 'uz' ? "Nomi bo'yicha qidirish" : 'Поиск по названию'}
-                    value={globalProductsSearch}
-                    onChange={(e) => setGlobalProductsSearch(e.target.value)}
-                  />
-                  <Form.Control
-                    className="form-control-custom"
-                    style={{ width: '220px' }}
-                    placeholder={language === 'uz' ? 'Shtrix-kod bo‘yicha qidirish' : 'Поиск по штрихкоду'}
-                    value={globalProductsBarcodeFilter}
-                    onChange={(e) => setGlobalProductsBarcodeFilter(String(e.target.value || '').replace(/\D/g, '').slice(0, 120))}
-                    inputMode="numeric"
-                  />
-                  <Form.Select
-                    className="form-control-custom"
-                    style={{ width: '220px' }}
-                    value={globalProductsStatusFilter}
-                    onChange={(e) => setGlobalProductsStatusFilter(e.target.value)}
-                  >
-                    <option value="active">{language === 'uz' ? 'Faqat faol' : 'Только активные'}</option>
-                    <option value="all">{language === 'uz' ? 'Faol + o‘chirilgan' : 'Активные + отключенные'}</option>
-                  </Form.Select>
-                </div>
+                {showGlobalProductsFilterPanel && (
+                  <Row className="mb-3 g-2 admin-products-filter-panel">
+                    <Col lg={3}>
+                      <Form.Control
+                        type="search"
+                        placeholder={language === 'uz' ? "Nomi bo'yicha qidirish" : 'Поиск по названию'}
+                        value={globalProductsSearch}
+                        onChange={(e) => setGlobalProductsSearch(e.target.value)}
+                      />
+                    </Col>
+                    <Col lg={2}>
+                      <Form.Control
+                        placeholder={language === 'uz' ? 'Shtrix-kod bo‘yicha qidirish' : 'Поиск по штрихкоду'}
+                        value={globalProductsBarcodeFilter}
+                        onChange={(e) => setGlobalProductsBarcodeFilter(String(e.target.value || '').replace(/\D/g, '').slice(0, 120))}
+                        inputMode="numeric"
+                      />
+                    </Col>
+                    <Col lg={2}>
+                      <Form.Select
+                        value={globalProductsStatusFilter}
+                        onChange={(e) => setGlobalProductsStatusFilter(e.target.value)}
+                      >
+                        <option value="active">{language === 'uz' ? 'Faqat faol' : 'Только активные'}</option>
+                        <option value="all">{language === 'uz' ? 'Faol + o‘chirilgan' : 'Активные + отключенные'}</option>
+                      </Form.Select>
+                    </Col>
+                    <Col lg={2}>
+                      <Form.Select
+                        value={globalProductsCategoryLevel1Filter}
+                        onChange={(e) => {
+                          setGlobalProductsCategoryLevel1Filter(e.target.value);
+                          setGlobalProductsCategoryLevel2Filter('all');
+                          setGlobalProductsCategoryLevel3Filter('all');
+                        }}
+                      >
+                        <option value="all">{language === 'uz' ? 'Kategoriya' : 'Категория'}</option>
+                        {globalProductsRootCategoryOptions.map((category) => (
+                          <option key={`global-products-level1-filter-${category.id}`} value={String(category.id)}>
+                            {category.name_ru || category.name_uz || `#${category.id}`}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col lg={2}>
+                      <Form.Select
+                        value={globalProductsCategoryLevel2Filter}
+                        onChange={(e) => {
+                          setGlobalProductsCategoryLevel2Filter(e.target.value);
+                          setGlobalProductsCategoryLevel3Filter('all');
+                        }}
+                        disabled={globalProductsSubcategoryOptions.length === 0}
+                      >
+                        <option value="all">{language === 'uz' ? 'Subkategoriya' : 'Подкатегория'}</option>
+                        {globalProductsSubcategoryOptions.map((category) => (
+                          <option key={`global-products-level2-filter-${category.id}`} value={String(category.id)}>
+                            {category.name_ru || category.name_uz || `#${category.id}`}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col lg={1}>
+                      <Form.Select
+                        value={globalProductsCategoryLevel3Filter}
+                        onChange={(e) => setGlobalProductsCategoryLevel3Filter(e.target.value)}
+                        disabled={globalProductsThirdCategoryOptions.length === 0}
+                      >
+                        <option value="all">{language === 'uz' ? '3-daraja' : '3-я кат.'}</option>
+                        {globalProductsThirdCategoryOptions.map((category) => (
+                          <option key={`global-products-level3-filter-${category.id}`} value={String(category.id)}>
+                            {category.name_ru || category.name_uz || `#${category.id}`}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col lg={12}>
+                      <div className="d-flex justify-content-end">
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={resetGlobalProductsFilters}
+                          disabled={!hasActiveGlobalProductsFilters}
+                        >
+                          {language === 'uz' ? 'Tozalash' : 'Сбросить'}
+                        </Button>
+                      </div>
+                    </Col>
+                  </Row>
+                )}
 
                 {globalProductsLoading ? (
                   <TableSkeleton

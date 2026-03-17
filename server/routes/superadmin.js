@@ -2647,6 +2647,14 @@ router.get('/global-products', async (req, res) => {
     const search = String(req.query.search || '').trim();
     const barcode = String(req.query.barcode || '').replace(/\D/g, '').slice(0, 120);
     const includeInactive = ['1', 'true', 'yes'].includes(String(req.query.include_inactive || '').toLowerCase());
+    const categoryLevel1Id = Number.parseInt(req.query.category_level1_id, 10);
+    const categoryLevel2Id = Number.parseInt(req.query.category_level2_id, 10);
+    const categoryLevel3Id = Number.parseInt(req.query.category_level3_id, 10);
+    const effectiveCategoryId = Number.isInteger(categoryLevel3Id) && categoryLevel3Id > 0
+      ? categoryLevel3Id
+      : (Number.isInteger(categoryLevel2Id) && categoryLevel2Id > 0
+        ? categoryLevel2Id
+        : (Number.isInteger(categoryLevel1Id) && categoryLevel1Id > 0 ? categoryLevel1Id : null));
 
     const where = [];
     const params = [];
@@ -2661,6 +2669,23 @@ router.get('/global-products', async (req, res) => {
     if (barcode) {
       params.push(`%${barcode}%`);
       where.push(`REGEXP_REPLACE(COALESCE(gp.barcode, ''), '\\D', '', 'g') LIKE $${params.length}`);
+    }
+    if (effectiveCategoryId) {
+      params.push(effectiveCategoryId);
+      where.push(`
+        gp.recommended_category_id IN (
+          WITH RECURSIVE category_descendants AS (
+            SELECT id
+            FROM categories
+            WHERE id = $${params.length}
+            UNION ALL
+            SELECT c.id
+            FROM categories c
+            INNER JOIN category_descendants cd ON cd.id = c.parent_id
+          )
+          SELECT id FROM category_descendants
+        )
+      `);
     }
 
     const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
