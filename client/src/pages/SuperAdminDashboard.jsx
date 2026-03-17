@@ -732,6 +732,19 @@ function SuperAdminDashboard() {
   const [logsFilter, setLogsFilter] = useState({
     action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15
   });
+  const [billingOpsFilter, setBillingOpsFilter] = useState({
+    restaurant_id: '',
+    type: '',
+    search: '',
+    start_date: '',
+    end_date: '',
+    page: 1,
+    limit: 20
+  });
+  const [billingOpsData, setBillingOpsData] = useState({ transactions: [], total: 0 });
+  const [billingOpsLoading, setBillingOpsLoading] = useState(false);
+  const [showBillingOpsFilterPanel, setShowBillingOpsFilterPanel] = useState(false);
+  const [billingOpsRestaurantSearch, setBillingOpsRestaurantSearch] = useState('');
   const [hiddenOpsInsights, setHiddenOpsInsights] = useState(null);
   const [hiddenOpsInsightsLoading, setHiddenOpsInsightsLoading] = useState(false);
   const [hiddenOpsInsightsError, setHiddenOpsInsightsError] = useState('');
@@ -785,6 +798,7 @@ function SuperAdminDashboard() {
   const [isTestingCentralBot, setIsTestingCentralBot] = useState(false);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
+  const [topupRestaurantSearch, setTopupRestaurantSearch] = useState('');
   const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
   const [topupMode, setTopupMode] = useState('deposit');
   const [topupTransactions, setTopupTransactions] = useState([]);
@@ -1036,6 +1050,10 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'logs') loadLogs();
   }, [logsFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'billing_transactions') loadBillingTransactions();
+  }, [activeTab, billingOpsFilter]);
 
   useEffect(() => {
     if (!isHiddenOpsTelemetryEnabled) return;
@@ -1796,6 +1814,73 @@ function SuperAdminDashboard() {
       setError('Ошибка загрузки логов');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBillingTransactions = async () => {
+    setBillingOpsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/billing/transactions`, {
+        params: billingOpsFilter
+      });
+      const payload = response.data || {};
+      setBillingOpsData({
+        transactions: Array.isArray(payload.transactions) ? payload.transactions : [],
+        total: Number(payload.total || 0)
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "To'lovlar jurnalini yuklab bo'lmadi"
+        : 'Ошибка загрузки журнала оплат'));
+    } finally {
+      setBillingOpsLoading(false);
+    }
+  };
+
+  const exportBillingTransactionsXls = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/billing/transactions`, {
+        params: {
+          ...billingOpsFilter,
+          page: 1,
+          limit: 5000
+        }
+      });
+      const rows = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
+      if (!rows.length) {
+        setError(language === 'uz' ? "Eksport uchun ma'lumot yo'q" : 'Нет данных для экспорта');
+        return;
+      }
+
+      const localizedType = (rawType) => {
+        const normalized = String(rawType || '').toLowerCase();
+        if (normalized === 'deposit') return language === 'uz' ? "To'ldirish" : 'Пополнение';
+        if (normalized === 'refund') return language === 'uz' ? 'Qaytarish' : 'Возврат';
+        return normalized || '—';
+      };
+
+      const sheetRows = rows.map((item) => ({
+        ID: item.id,
+        Дата: formatBalanceOperationDate(item.created_at),
+        Магазин: item.restaurant_name || '—',
+        'Тип операции': localizedType(item.type),
+        Сумма: formatBalanceAmount(item.amount || 0),
+        Валюта: getCurrencyLabelByCode(item.restaurant_currency_code || countryCurrency?.code),
+        Описание: item.description || '',
+        Оператор: item.actor_name || item.actor_username || 'Система'
+      }));
+
+      const sheet = XLSX.utils.json_to_sheet(sheetRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'Оплаты');
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      XLSX.writeFile(wb, `billing_transactions_${stamp}.xls`, { bookType: 'biff8' });
+      setSuccess(language === 'uz'
+        ? `Eksport bajarildi: ${sheetRows.length} ta yozuv`
+        : `Экспорт выполнен: ${sheetRows.length} записей`);
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz' ? "Eksportda xatolik" : 'Ошибка экспорта'));
     }
   };
 
@@ -2631,6 +2716,34 @@ function SuperAdminDashboard() {
     return [selected, ...filtered];
   }, [allRestaurants, operatorRestaurantSearch, operatorRestaurantFilter]);
 
+  const billingOpsRestaurantOptions = useMemo(() => {
+    const term = billingOpsRestaurantSearch.trim().toLowerCase();
+    const filtered = allRestaurants.filter((restaurant) => (
+      !term || String(restaurant.name || '').toLowerCase().includes(term)
+    ));
+
+    if (!billingOpsFilter.restaurant_id) return filtered;
+
+    const selected = allRestaurants.find((restaurant) => String(restaurant.id) === String(billingOpsFilter.restaurant_id));
+    if (!selected || filtered.some((restaurant) => restaurant.id === selected.id)) return filtered;
+
+    return [selected, ...filtered];
+  }, [allRestaurants, billingOpsRestaurantSearch, billingOpsFilter.restaurant_id]);
+
+  const topupRestaurantOptions = useMemo(() => {
+    const term = topupRestaurantSearch.trim().toLowerCase();
+    const filtered = allRestaurants.filter((restaurant) => (
+      !term || String(restaurant.name || '').toLowerCase().includes(term)
+    ));
+
+    if (!topupRestaurant?.id) return filtered;
+
+    const selected = allRestaurants.find((restaurant) => String(restaurant.id) === String(topupRestaurant.id));
+    if (!selected || filtered.some((restaurant) => restaurant.id === selected.id)) return filtered;
+
+    return [selected, ...filtered];
+  }, [allRestaurants, topupRestaurantSearch, topupRestaurant?.id]);
+
   const restaurantsFilterOptions = useMemo(() => {
     const term = restaurantsSelectSearch.trim().toLowerCase();
     const source = restaurants?.restaurants || [];
@@ -2824,6 +2937,28 @@ function SuperAdminDashboard() {
     if (Number.isNaN(date.getTime())) return '—';
     return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
   };
+  const getBillingOperationMeta = (type) => {
+    const normalized = String(type || '').trim().toLowerCase();
+    if (normalized === 'deposit') {
+      return {
+        label: language === 'uz' ? "To'ldirish" : 'Пополнение',
+        className: 'text-success',
+        sign: '+'
+      };
+    }
+    if (normalized === 'refund') {
+      return {
+        label: language === 'uz' ? 'Qaytarish' : 'Возврат',
+        className: 'text-danger',
+        sign: '-'
+      };
+    }
+    return {
+      label: normalized || '—',
+      className: 'text-muted',
+      sign: ''
+    };
+  };
 
   const loadTopupTransactions = async (restaurantId) => {
     if (!restaurantId) {
@@ -2853,14 +2988,16 @@ function SuperAdminDashboard() {
     }
   };
 
-  const openTopupModal = (restaurant) => {
-    if (!restaurant) return;
-    setTopupRestaurant(restaurant);
+  const openTopupModal = (restaurant = null) => {
+    setTopupRestaurant(restaurant || null);
+    setTopupRestaurantSearch('');
     setTopupForm({ amount: '', description: '' });
     setTopupMode('deposit');
     setTopupTransactions([]);
     setShowTopupModal(true);
-    loadTopupTransactions(restaurant.id);
+    if (restaurant?.id) {
+      loadTopupTransactions(restaurant.id);
+    }
   };
 
   const closeTopupModal = () => {
@@ -2870,11 +3007,15 @@ function SuperAdminDashboard() {
     setTopupTransactions([]);
     setTopupTransactionsLoading(false);
     setTopupSubmitting(false);
+    setTopupRestaurantSearch('');
     setTopupRestaurant(null);
   };
 
   const handleTopup = async () => {
-    if (!topupRestaurant?.id) return;
+    if (!topupRestaurant?.id) {
+      setError(language === 'uz' ? "Do'konni tanlang" : 'Выберите магазин');
+      return;
+    }
     const amountValue = Number(String(topupForm.amount || '').replace(/\D/g, ''));
     if (!amountValue || Number.isNaN(amountValue) || amountValue <= 0) {
       setError(language === 'uz' ? "Noto'g'ri summa" : 'Некорректная сумма');
@@ -2884,9 +3025,9 @@ function SuperAdminDashboard() {
     const endpoint = isRefundMode ? 'refund' : 'topup';
     const successMessage = isRefundMode
       ? (language === 'uz'
-        ? `"${topupRestaurant.name}" do'koni uchun qaytarish bajarildi`
-        : `Для магазина "${topupRestaurant.name}" выполнен возврат`)
-      : `Баланс магазина "${topupRestaurant.name}" пополнен`;
+        ? `"${topupRestaurant.name || 'Do‘kon'}" do'koni uchun qaytarish bajarildi`
+        : `Для магазина "${topupRestaurant.name || 'Магазин'}" выполнен возврат`)
+      : `Баланс магазина "${topupRestaurant.name || 'Магазин'}" пополнен`;
     try {
       setTopupSubmitting(true);
       const response = await axios.post(`${API_URL}/superadmin/restaurants/${topupRestaurant.id}/${endpoint}`, {
@@ -2903,6 +3044,9 @@ function SuperAdminDashboard() {
         loadRestaurants(),
         loadTopupTransactions(topupRestaurant.id)
       ]);
+      if (activeTab === 'billing_transactions') {
+        await loadBillingTransactions();
+      }
     } catch (err) {
       setError(err.response?.data?.error || (isRefundMode
         ? (language === 'uz' ? "Qaytarishda xatolik" : 'Ошибка возврата средств')
@@ -5395,7 +5539,7 @@ function SuperAdminDashboard() {
     navigate('/login');
   };
 
-  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs'].includes(activeTab);
+  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs', 'billing_transactions'].includes(activeTab);
   const headerLanguageOptions = useMemo(() => ([
     {
       code: 'ru',
@@ -5452,6 +5596,19 @@ function SuperAdminDashboard() {
     }
     if (activeTab === 'logs') {
       setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15 });
+      return;
+    }
+    if (activeTab === 'billing_transactions') {
+      setBillingOpsFilter({
+        restaurant_id: '',
+        type: '',
+        search: '',
+        start_date: '',
+        end_date: '',
+        page: 1,
+        limit: 20
+      });
+      setBillingOpsRestaurantSearch('');
     }
   };
 
@@ -5827,6 +5984,53 @@ function SuperAdminDashboard() {
               </option>
             ))}
           </Form.Select>
+        </div>
+      );
+    }
+
+    if (activeTab === 'billing_transactions') {
+      return (
+        <div className="d-flex flex-column gap-3">
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder={language === 'uz' ? "Do'kon, izoh yoki operator bo'yicha qidirish" : 'Поиск по магазину, описанию или оператору'}
+            value={billingOpsFilter.search}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+          />
+          <SearchableRestaurantFilter
+            t={t}
+            width="100%"
+            value={billingOpsFilter.restaurant_id}
+            restaurants={billingOpsRestaurantOptions}
+            searchValue={billingOpsRestaurantSearch}
+            onSearchChange={setBillingOpsRestaurantSearch}
+            onChange={(nextValue) => {
+              setBillingOpsFilter((prev) => ({ ...prev, restaurant_id: nextValue, page: 1 }));
+              setBillingOpsRestaurantSearch('');
+            }}
+          />
+          <Form.Select
+            className="form-control-custom"
+            value={billingOpsFilter.type}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, type: e.target.value, page: 1 }))}
+          >
+            <option value="">{language === 'uz' ? 'Barcha operatsiyalar' : 'Все операции'}</option>
+            <option value="deposit">{language === 'uz' ? "To'ldirish" : 'Пополнение'}</option>
+            <option value="refund">{language === 'uz' ? 'Qaytarish' : 'Возврат'}</option>
+          </Form.Select>
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            value={billingOpsFilter.start_date}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, start_date: e.target.value, page: 1 }))}
+          />
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            value={billingOpsFilter.end_date}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
+          />
         </div>
       );
     }
@@ -7914,6 +8118,172 @@ function SuperAdminDashboard() {
                         setAdBannersLimit(val);
                         setAdBannersPage(1);
                       }}
+                      limitOptions={[15, 20, 30, 50]}
+                    />
+                  </>
+                )}
+              </Tab>
+
+              {/* Billing Transactions Tab */}
+              <Tab eventKey="billing_transactions" title={`💸 ${language === 'uz' ? "To'lovlar" : 'Поступления'}`}>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? "Do'konlardan to'lovlar jurnali" : 'Журнал оплат магазинов'}
+                  </h5>
+                  <div className="d-none d-lg-flex align-items-center gap-2 ms-auto">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showBillingOpsFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowBillingOpsFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showBillingOpsFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                    <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
+                      <i className="bi bi-file-earmark-spreadsheet me-2" />
+                      XLS
+                    </Button>
+                    <Button className="btn-primary-custom" onClick={() => openTopupModal()}>
+                      {language === 'uz' ? "To'lovni kiritish" : 'Зафиксировать оплату'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
+                  <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel" /> {language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                  </Button>
+                  <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
+                    XLS
+                  </Button>
+                  <Button className="btn-primary-custom ms-auto" onClick={() => openTopupModal()}>
+                    {language === 'uz' ? "Kiritish" : 'Оплата'}
+                  </Button>
+                </div>
+
+                {showBillingOpsFilterPanel && (
+                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap mb-3">
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      style={{ width: '280px' }}
+                      placeholder={language === 'uz' ? "Do'kon, izoh yoki operator bo'yicha qidirish" : 'Поиск по магазину, описанию или оператору'}
+                      value={billingOpsFilter.search}
+                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+                    />
+                    <SearchableRestaurantFilter
+                      t={t}
+                      width="230px"
+                      value={billingOpsFilter.restaurant_id}
+                      restaurants={billingOpsRestaurantOptions}
+                      searchValue={billingOpsRestaurantSearch}
+                      onSearchChange={setBillingOpsRestaurantSearch}
+                      onChange={(nextValue) => {
+                        setBillingOpsFilter((prev) => ({ ...prev, restaurant_id: nextValue, page: 1 }));
+                        setBillingOpsRestaurantSearch('');
+                      }}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={billingOpsFilter.type}
+                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, type: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{language === 'uz' ? 'Barcha operatsiyalar' : 'Все операции'}</option>
+                      <option value="deposit">{language === 'uz' ? "To'ldirish" : 'Пополнение'}</option>
+                      <option value="refund">{language === 'uz' ? 'Qaytarish' : 'Возврат'}</option>
+                    </Form.Select>
+                    <Form.Control
+                      type="date"
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={billingOpsFilter.start_date}
+                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, start_date: e.target.value, page: 1 }))}
+                    />
+                    <Form.Control
+                      type="date"
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={billingOpsFilter.end_date}
+                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
+                    />
+                    <Button
+                      variant="light"
+                      className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
+                      style={{ height: '38px', padding: '0 15px' }}
+                      title={language === 'uz' ? 'Filtrlarni tozalash' : 'Сбросить фильтры'}
+                      onClick={() => {
+                        setBillingOpsFilter({
+                          restaurant_id: '',
+                          type: '',
+                          search: '',
+                          start_date: '',
+                          end_date: '',
+                          page: 1,
+                          limit: billingOpsFilter.limit
+                        });
+                        setBillingOpsRestaurantSearch('');
+                      }}
+                      disabled={!billingOpsFilter.restaurant_id && !billingOpsFilter.type && !billingOpsFilter.search && !billingOpsFilter.start_date && !billingOpsFilter.end_date}
+                    >
+                      {language === 'uz' ? 'Tozalash' : 'Сброс'}
+                    </Button>
+                  </div>
+                )}
+
+                {billingOpsLoading ? (
+                  <TableSkeleton rows={8} columns={6} label={language === 'uz' ? "To'lovlar yuklanmoqda" : 'Загрузка журнала оплат'} />
+                ) : (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                            <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                            <th>{language === 'uz' ? 'Turi' : 'Тип операции'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                            <th>{language === 'uz' ? 'Operator' : 'Оператор'}</th>
+                            <th>{language === 'uz' ? 'Izoh' : 'Описание'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {billingOpsData.transactions.map((row) => {
+                            const operationMeta = getBillingOperationMeta(row.type);
+                            return (
+                              <tr key={row.id}>
+                                <td><small className="text-muted">{formatBalanceOperationDate(row.created_at)}</small></td>
+                                <td><strong>{row.restaurant_name || '—'}</strong></td>
+                                <td>
+                                  <Badge className={`badge-custom bg-opacity-10 ${row.type === 'deposit' ? 'bg-success text-success' : 'bg-danger text-danger'}`}>
+                                    {operationMeta.label}
+                                  </Badge>
+                                </td>
+                                <td className="text-end">
+                                  <span className={`fw-bold ${operationMeta.className}`}>
+                                    {operationMeta.sign}{formatBalanceAmount(row.amount || 0)} {getCurrencyLabelByCode(row.restaurant_currency_code || countryCurrency?.code)}
+                                  </span>
+                                </td>
+                                <td>{row.actor_name || row.actor_username || 'Система'}</td>
+                                <td><small>{row.description || '—'}</small></td>
+                              </tr>
+                            );
+                          })}
+                          {billingOpsData.transactions.length === 0 && (
+                            <tr><td colSpan="6" className="text-center py-5 text-muted">{language === 'uz' ? "Yozuvlar yo'q" : 'Записей пока нет'}</td></tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+                    <DataPagination
+                      current={billingOpsFilter.page}
+                      total={billingOpsData.total}
+                      limit={billingOpsFilter.limit}
+                      onPageChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, page: val }))}
+                      onLimitChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, limit: val, page: 1 }))}
                       limitOptions={[15, 20, 30, 50]}
                     />
                   </>
@@ -11263,6 +11633,31 @@ function SuperAdminDashboard() {
           <Modal.Title>{t('topupRestaurantBalance')}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-4">
+          {!topupRestaurant && (
+            <div className="mb-3">
+              <Form.Label className="small fw-bold text-muted text-uppercase">
+                {language === 'uz' ? "Do'kon" : 'Магазин'}
+              </Form.Label>
+              <SearchableRestaurantFilter
+                t={t}
+                width="100%"
+                value={topupRestaurant?.id ? String(topupRestaurant.id) : ''}
+                restaurants={topupRestaurantOptions}
+                searchValue={topupRestaurantSearch}
+                onSearchChange={setTopupRestaurantSearch}
+                onChange={(nextValue) => {
+                  const selected = allRestaurants.find((item) => String(item.id) === String(nextValue));
+                  setTopupRestaurant(selected || null);
+                  setTopupRestaurantSearch('');
+                  if (selected?.id) {
+                    loadTopupTransactions(selected.id);
+                  } else {
+                    setTopupTransactions([]);
+                  }
+                }}
+              />
+            </div>
+          )}
           {topupRestaurant && (
             <div className="mb-4 p-3 bg-light rounded-3 d-flex align-items-center gap-3">
               <div className="fs-1">💰</div>
@@ -11323,7 +11718,11 @@ function SuperAdminDashboard() {
               {language === 'uz' ? 'Operatsiyalar tarixi' : 'История операций'}
             </div>
             <div className="border rounded-3 p-2" style={{ maxHeight: '220px', overflowY: 'auto', background: '#f8fafc' }}>
-              {topupTransactionsLoading ? (
+              {!topupRestaurant?.id ? (
+                <div className="text-center py-3 text-muted small">
+                  {language === 'uz' ? "Do'kon tanlang" : 'Выберите магазин'}
+                </div>
+              ) : topupTransactionsLoading ? (
                 <div className="text-center py-3 text-muted">
                   <Spinner animation="border" size="sm" className="me-2" />
                   {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
@@ -11352,7 +11751,7 @@ function SuperAdminDashboard() {
                       </div>
                       <div className="text-end small">
                         <div className={`fw-bold ${isDeposit ? 'text-success' : 'text-danger'}`}>
-                          {isDeposit ? '+' : '-'}{formatBalanceAmount(transaction?.amount)} {getCurrencyLabelByCode(topupRestaurant?.currency_code || countryCurrency?.code)}
+                          {isDeposit ? '+' : '-'}{formatBalanceAmount(transaction?.amount)} {getCurrencyLabelByCode(transaction?.restaurant_currency_code || topupRestaurant?.currency_code || countryCurrency?.code)}
                         </div>
                         <div className="text-muted">{formatBalanceOperationDate(transaction?.created_at)}</div>
                       </div>

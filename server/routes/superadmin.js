@@ -1742,6 +1742,107 @@ router.get('/restaurants/:id/billing-transactions', async (req, res) => {
   }
 });
 
+// Общий журнал пополнений/возвратов по всем магазинам
+router.get('/billing/transactions', async (req, res) => {
+  try {
+    const parsedPage = Number.parseInt(req.query.page, 10);
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 500) : 20;
+    const offset = (page - 1) * limit;
+
+    const parsedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
+    const restaurantId = Number.isFinite(parsedRestaurantId) && parsedRestaurantId > 0
+      ? parsedRestaurantId
+      : null;
+    const typeFilterRaw = String(req.query.type || '').trim().toLowerCase();
+    const typeFilter = ['deposit', 'refund'].includes(typeFilterRaw) ? typeFilterRaw : null;
+    const search = String(req.query.search || '').trim();
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || '').trim();
+    const validDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+    const whereParts = [`bt.type IN ('deposit', 'refund')`];
+    const params = [];
+
+    if (restaurantId) {
+      params.push(restaurantId);
+      whereParts.push(`bt.restaurant_id = $${params.length}`);
+    }
+
+    if (typeFilter) {
+      params.push(typeFilter);
+      whereParts.push(`bt.type = $${params.length}`);
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      whereParts.push(`(
+        bt.description ILIKE $${params.length}
+        OR r.name ILIKE $${params.length}
+        OR u.username ILIKE $${params.length}
+        OR COALESCE(u.full_name, '') ILIKE $${params.length}
+      )`);
+    }
+
+    if (validDatePattern.test(startDate)) {
+      params.push(startDate);
+      whereParts.push(`bt.created_at::date >= $${params.length}`);
+    }
+
+    if (validDatePattern.test(endDate)) {
+      params.push(endDate);
+      whereParts.push(`bt.created_at::date <= $${params.length}`);
+    }
+
+    const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM billing_transactions bt
+      INNER JOIN restaurants r ON r.id = bt.restaurant_id
+      LEFT JOIN users u ON u.id = bt.user_id
+      ${whereSql}
+    `;
+    const totalResult = await pool.query(countQuery, params);
+    const total = Number(totalResult.rows?.[0]?.total || 0);
+
+    const listParams = [...params, limit, offset];
+    const rowsQuery = `
+      SELECT
+        bt.id,
+        bt.restaurant_id,
+        bt.user_id,
+        bt.amount,
+        bt.type,
+        bt.description,
+        bt.created_at,
+        r.name AS restaurant_name,
+        r.currency_code AS restaurant_currency_code,
+        u.username AS actor_username,
+        COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Система') AS actor_name
+      FROM billing_transactions bt
+      INNER JOIN restaurants r ON r.id = bt.restaurant_id
+      LEFT JOIN users u ON u.id = bt.user_id
+      ${whereSql}
+      ORDER BY bt.created_at DESC, bt.id DESC
+      LIMIT $${listParams.length - 1}
+      OFFSET $${listParams.length}
+    `;
+    const rowsResult = await pool.query(rowsQuery, listParams);
+
+    res.json({
+      transactions: rowsResult.rows || [],
+      total,
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Billing transactions list error:', error);
+    res.status(500).json({ error: 'Ошибка получения журнала операций' });
+  }
+});
+
 // Возврат средств с баланса ресторана
 router.post('/restaurants/:id/refund', async (req, res) => {
   const client = await pool.connect();
