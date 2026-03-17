@@ -194,6 +194,12 @@ const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onL
   );
 };
 
+const FilterIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const SearchableRestaurantFilter = ({
   t,
   value,
@@ -449,6 +455,13 @@ function SuperAdminDashboard() {
   const [success, setSuccess] = useState('');
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
+  const [showAnalyticsFilterPanel, setShowAnalyticsFilterPanel] = useState(false);
+  const [showRestaurantsFilterPanel, setShowRestaurantsFilterPanel] = useState(false);
+  const [showActivityTypesFilterPanel, setShowActivityTypesFilterPanel] = useState(false);
+  const [showOperatorsFilterPanel, setShowOperatorsFilterPanel] = useState(false);
+  const [showCustomersFilterPanel, setShowCustomersFilterPanel] = useState(false);
+  const [showAdsFilterPanel, setShowAdsFilterPanel] = useState(false);
+  const [showLogsFilterPanel, setShowLogsFilterPanel] = useState(false);
 
   // Data
   const [stats, setStats] = useState({});
@@ -482,6 +495,8 @@ function SuperAdminDashboard() {
   const [activityTypes, setActivityTypes] = useState([]);
   const [activityTypesLoading, setActivityTypesLoading] = useState(false);
   const [activityTypeForm, setActivityTypeForm] = useState({ name: '', sort_order: '', is_visible: true });
+  const [activityTypeSearchFilter, setActivityTypeSearchFilter] = useState('');
+  const [activityTypeVisibilityFilter, setActivityTypeVisibilityFilter] = useState('all');
   const [editingActivityType, setEditingActivityType] = useState(null);
   const [savingActivityType, setSavingActivityType] = useState(false);
   const [helpInstructions, setHelpInstructions] = useState([]);
@@ -2535,6 +2550,27 @@ function SuperAdminDashboard() {
     return [...hiddenSelected, ...visibleItems.filter((item) => !selectedIds.has(Number(item.id)) || item.is_visible !== false)];
   }, [activityTypes, adBannerForm.target_activity_type_ids]);
 
+  const filteredActivityTypes = useMemo(() => {
+    const normalizedSearch = String(activityTypeSearchFilter || '').trim().toLowerCase();
+    return (activityTypes || []).filter((item) => {
+      const nameMatch = !normalizedSearch || String(item?.name || '').toLowerCase().includes(normalizedSearch);
+      if (!nameMatch) return false;
+      if (activityTypeVisibilityFilter === 'visible') return item?.is_visible !== false;
+      if (activityTypeVisibilityFilter === 'hidden') return item?.is_visible === false;
+      return true;
+    });
+  }, [activityTypes, activityTypeSearchFilter, activityTypeVisibilityFilter]);
+
+  const resetActivityTypeFilters = () => {
+    setActivityTypeSearchFilter('');
+    setActivityTypeVisibilityFilter('all');
+  };
+
+  const hasActiveActivityTypeFilters = (
+    String(activityTypeSearchFilter || '').trim() !== '' ||
+    activityTypeVisibilityFilter !== 'all'
+  );
+
   const getActivityTypeNamesByIds = (ids = []) => {
     const mapById = new Map(activityTypes.map((item) => [Number(item.id), item]));
     const normalizedIds = (Array.isArray(ids) ? ids : []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
@@ -4223,108 +4259,122 @@ function SuperAdminDashboard() {
               </button>
             ))}
           </div>
-
-          <div className="admin-analytics-filters-area">
-            <div className="admin-analytics-filter-group">
-              <span className="admin-analytics-filter-label">{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
-              <button
-                type="button"
-                className="admin-analytics-filter-control admin-analytics-filter-button"
-                onClick={() => {
-                  setOverviewRestaurantSearch('');
-                  setShowOverviewRestaurantPickerModal(true);
-                }}
-              >
-                <span className="text-truncate">{overviewAnalyticsRestaurantButtonLabel}</span>
-                <i className="bi bi-search ms-2" />
-              </button>
-            </div>
-            <div className="admin-analytics-filter-group">
-              <span className="admin-analytics-filter-label">{language === 'uz' ? 'Taqqoslash' : 'Сравнение'}</span>
-              <button
-                type="button"
-                className="admin-analytics-filter-control admin-analytics-filter-button"
-                onClick={() => {
-                  setOverviewCompareRestaurantSearch('');
-                  setShowOverviewCompareModal(true);
-                }}
-              >
-                {language === 'uz'
-                  ? `Do'konlar: ${overviewComparisonRestaurantIds.length}/3`
-                  : `Магазины: ${overviewComparisonRestaurantIds.length}/3`}
-              </button>
-            </div>
-            <div className="admin-analytics-filter-group">
-              <span className="admin-analytics-filter-label">PDF</span>
-              <button
-                type="button"
-                className="admin-analytics-filter-control admin-analytics-filter-button"
-                disabled={overviewComparisonRestaurantIds.length < 2 || overviewComparisonPdfLoading}
-                onClick={handleExportOverviewComparisonPdf}
-              >
-                {overviewComparisonPdfLoading ? (
-                  <span className="d-inline-flex align-items-center gap-2">
-                    <Spinner animation="border" size="sm" />
-                    PDF...
-                  </span>
-                ) : (
-                  language === 'uz' ? 'PDF hisobot' : 'PDF отчёт'
-                )}
-              </button>
-            </div>
-            <div className="admin-analytics-filter-group">
-              <span className="admin-analytics-filter-label">{language === 'uz' ? 'TOP' : 'ТОП'}</span>
-              <Form.Select
-                value={overviewAnalyticsTopLimit}
-                onChange={(e) => setOverviewAnalyticsTopLimit(Number.parseInt(e.target.value, 10) || 10)}
-                className="admin-analytics-filter-control"
-              >
-                {[10, 50, 100].map((limitValue) => (
-                  <option key={`sa-analytics-top-limit-${limitValue}`} value={limitValue}>
-                    TOP {limitValue}
-                  </option>
-                ))}
-              </Form.Select>
-            </div>
-            {overviewAnalyticsPeriod === 'daily' ? (
-              <div className="admin-analytics-filter-group admin-analytics-filter-group-date">
-                <span className="admin-analytics-filter-label">{t('date')}</span>
-                <Form.Control
-                  type="date"
-                  value={overviewAnalyticsDate}
-                  onChange={(e) => setOverviewAnalyticsDate(String(e.target.value || ''))}
-                  className="admin-analytics-filter-control"
-                />
-              </div>
-            ) : (
-              <>
+          <div className="d-flex align-items-start gap-2 ms-auto">
+            <Button
+              type="button"
+              variant="outline-secondary"
+              className={`admin-filter-icon-btn${showAnalyticsFilterPanel ? ' is-active' : ''}`}
+              onClick={() => setShowAnalyticsFilterPanel((prev) => !prev)}
+              title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+              aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+              aria-expanded={showAnalyticsFilterPanel}
+            >
+              <FilterIcon />
+            </Button>
+            {showAnalyticsFilterPanel && (
+              <div className="admin-analytics-filters-area">
                 <div className="admin-analytics-filter-group">
-                  <span className="admin-analytics-filter-label">{t('year')}</span>
+                  <span className="admin-analytics-filter-label">{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
+                  <button
+                    type="button"
+                    className="admin-analytics-filter-control admin-analytics-filter-button"
+                    onClick={() => {
+                      setOverviewRestaurantSearch('');
+                      setShowOverviewRestaurantPickerModal(true);
+                    }}
+                  >
+                    <span className="text-truncate">{overviewAnalyticsRestaurantButtonLabel}</span>
+                    <i className="bi bi-search ms-2" />
+                  </button>
+                </div>
+                <div className="admin-analytics-filter-group">
+                  <span className="admin-analytics-filter-label">{language === 'uz' ? 'Taqqoslash' : 'Сравнение'}</span>
+                  <button
+                    type="button"
+                    className="admin-analytics-filter-control admin-analytics-filter-button"
+                    onClick={() => {
+                      setOverviewCompareRestaurantSearch('');
+                      setShowOverviewCompareModal(true);
+                    }}
+                  >
+                    {language === 'uz'
+                      ? `Do'konlar: ${overviewComparisonRestaurantIds.length}/3`
+                      : `Магазины: ${overviewComparisonRestaurantIds.length}/3`}
+                  </button>
+                </div>
+                <div className="admin-analytics-filter-group">
+                  <span className="admin-analytics-filter-label">PDF</span>
+                  <button
+                    type="button"
+                    className="admin-analytics-filter-control admin-analytics-filter-button"
+                    disabled={overviewComparisonRestaurantIds.length < 2 || overviewComparisonPdfLoading}
+                    onClick={handleExportOverviewComparisonPdf}
+                  >
+                    {overviewComparisonPdfLoading ? (
+                      <span className="d-inline-flex align-items-center gap-2">
+                        <Spinner animation="border" size="sm" />
+                        PDF...
+                      </span>
+                    ) : (
+                      language === 'uz' ? 'PDF hisobot' : 'PDF отчёт'
+                    )}
+                  </button>
+                </div>
+                <div className="admin-analytics-filter-group">
+                  <span className="admin-analytics-filter-label">{language === 'uz' ? 'TOP' : 'ТОП'}</span>
                   <Form.Select
-                    value={overviewAnalyticsYear}
-                    onChange={(e) => setOverviewAnalyticsYear(Number.parseInt(e.target.value, 10))}
+                    value={overviewAnalyticsTopLimit}
+                    onChange={(e) => setOverviewAnalyticsTopLimit(Number.parseInt(e.target.value, 10) || 10)}
                     className="admin-analytics-filter-control"
                   >
-                    {yearOptions.map((year) => (
-                      <option key={`sa-analytics-year-${year}`} value={year}>{year}</option>
+                    {[10, 50, 100].map((limitValue) => (
+                      <option key={`sa-analytics-top-limit-${limitValue}`} value={limitValue}>
+                        TOP {limitValue}
+                      </option>
                     ))}
                   </Form.Select>
                 </div>
-                {overviewAnalyticsPeriod === 'monthly' ? (
-                  <div className="admin-analytics-filter-group">
-                    <span className="admin-analytics-filter-label">{t('month')}</span>
-                    <Form.Select
-                      value={overviewAnalyticsMonth}
-                      onChange={(e) => setOverviewAnalyticsMonth(Number.parseInt(e.target.value, 10))}
+                {overviewAnalyticsPeriod === 'daily' ? (
+                  <div className="admin-analytics-filter-group admin-analytics-filter-group-date">
+                    <span className="admin-analytics-filter-label">{t('date')}</span>
+                    <Form.Control
+                      type="date"
+                      value={overviewAnalyticsDate}
+                      onChange={(e) => setOverviewAnalyticsDate(String(e.target.value || ''))}
                       className="admin-analytics-filter-control"
-                    >
-                      {monthLongLabels.map((monthLabel, index) => (
-                        <option key={`sa-analytics-month-${index + 1}`} value={index + 1}>{monthLabel}</option>
-                      ))}
-                    </Form.Select>
+                    />
                   </div>
-                ) : null}
-              </>
+                ) : (
+                  <>
+                    <div className="admin-analytics-filter-group">
+                      <span className="admin-analytics-filter-label">{t('year')}</span>
+                      <Form.Select
+                        value={overviewAnalyticsYear}
+                        onChange={(e) => setOverviewAnalyticsYear(Number.parseInt(e.target.value, 10))}
+                        className="admin-analytics-filter-control"
+                      >
+                        {yearOptions.map((year) => (
+                          <option key={`sa-analytics-year-${year}`} value={year}>{year}</option>
+                        ))}
+                      </Form.Select>
+                    </div>
+                    {overviewAnalyticsPeriod === 'monthly' ? (
+                      <div className="admin-analytics-filter-group">
+                        <span className="admin-analytics-filter-label">{t('month')}</span>
+                        <Form.Select
+                          value={overviewAnalyticsMonth}
+                          onChange={(e) => setOverviewAnalyticsMonth(Number.parseInt(e.target.value, 10))}
+                          className="admin-analytics-filter-control"
+                        >
+                          {monthLongLabels.map((monthLabel, index) => (
+                            <option key={`sa-analytics-month-${index + 1}`} value={index + 1}>{monthLabel}</option>
+                          ))}
+                        </Form.Select>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -6068,6 +6118,22 @@ function SuperAdminDashboard() {
               <Tab eventKey="restaurants" title={`🏪 ${t('restaurants')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageRestaurants')}</h5>
+                  <div className="d-none d-lg-flex align-items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showRestaurantsFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowRestaurantsFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showRestaurantsFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                    <Button className="btn-primary-custom" onClick={() => openRestaurantModal()}>
+                      {t('saAddRestaurant')}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
@@ -6080,42 +6146,41 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
-                <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
-                  <Form.Control
-                    className="form-control-custom"
-                    type="search"
-                    placeholder="Поиск по названию..."
-                    style={{ width: '220px' }}
-                    value={restaurantsNameFilter}
-                    onChange={(e) => { setRestaurantsNameFilter(e.target.value); setRestaurantsPage(1); }}
-                  />
-                  <SearchableRestaurantFilter
-                    t={t}
-                    width="220px"
-                    value={restaurantsSelectFilter}
-                    restaurants={restaurantsFilterOptions}
-                    searchValue={restaurantsSelectSearch}
-                    onSearchChange={setRestaurantsSelectSearch}
-                    onChange={(nextValue) => {
-                      setRestaurantsSelectFilter(nextValue);
-                      setRestaurantsSelectSearch('');
-                      setRestaurantsPage(1);
-                    }}
-                  />
-                  <Form.Select
-                    className="form-control-custom"
-                    style={{ width: '170px' }}
-                    value={restaurantsStatusFilter}
-                    onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
-                  >
-                    <option value="">Все статусы</option>
-                    <option value="active">Активные</option>
-                    <option value="inactive">Неактивные</option>
-                  </Form.Select>
-                  <Button className="btn-primary-custom ms-auto" onClick={() => openRestaurantModal()}>
-                    {t('saAddRestaurant')}
-                  </Button>
-                </div>
+                {showRestaurantsFilterPanel && (
+                  <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      placeholder="Поиск по названию..."
+                      style={{ width: '220px' }}
+                      value={restaurantsNameFilter}
+                      onChange={(e) => { setRestaurantsNameFilter(e.target.value); setRestaurantsPage(1); }}
+                    />
+                    <SearchableRestaurantFilter
+                      t={t}
+                      width="220px"
+                      value={restaurantsSelectFilter}
+                      restaurants={restaurantsFilterOptions}
+                      searchValue={restaurantsSelectSearch}
+                      onSearchChange={setRestaurantsSelectSearch}
+                      onChange={(nextValue) => {
+                        setRestaurantsSelectFilter(nextValue);
+                        setRestaurantsSelectSearch('');
+                        setRestaurantsPage(1);
+                      }}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={restaurantsStatusFilter}
+                      onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
+                    >
+                      <option value="">Все статусы</option>
+                      <option value="active">Активные</option>
+                      <option value="inactive">Неактивные</option>
+                    </Form.Select>
+                  </div>
+                )}
 
                 {loading ? (
                   <TableSkeleton rows={8} columns={10} label="Загрузка списка магазинов" />
@@ -6326,9 +6391,7 @@ function SuperAdminDashboard() {
                       aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
                       aria-expanded={showGlobalProductsFilterPanel}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                      <FilterIcon />
                     </Button>
                     <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
                       {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
@@ -6559,10 +6622,56 @@ function SuperAdminDashboard() {
               <Tab eventKey="activity_types" title="🧩 Виды деятельности">
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="fw-bold mb-0">Справочник видов деятельности</h5>
-                  <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
-                    Всего: {activityTypes.length}
-                  </Badge>
+                  <div className="d-flex align-items-center gap-2">
+                    <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                      Всего: {activityTypes.length}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showActivityTypesFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowActivityTypesFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showActivityTypesFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                  </div>
                 </div>
+
+                {showActivityTypesFilterPanel && (
+                  <Row className="mb-3 g-2 admin-products-filter-panel">
+                    <Col lg={5}>
+                      <Form.Control
+                        type="search"
+                        placeholder={language === 'uz' ? 'Nomi bo‘yicha qidirish' : 'Поиск по названию'}
+                        value={activityTypeSearchFilter}
+                        onChange={(e) => setActivityTypeSearchFilter(e.target.value)}
+                      />
+                    </Col>
+                    <Col lg={3}>
+                      <Form.Select
+                        value={activityTypeVisibilityFilter}
+                        onChange={(e) => setActivityTypeVisibilityFilter(e.target.value)}
+                      >
+                        <option value="all">{language === 'uz' ? 'Barcha statuslar' : 'Все статусы'}</option>
+                        <option value="visible">{language === 'uz' ? 'Ko‘rinadi' : 'Показывается'}</option>
+                        <option value="hidden">{language === 'uz' ? 'Yashirilgan' : 'Скрыт'}</option>
+                      </Form.Select>
+                    </Col>
+                    <Col lg={2}>
+                      <Button
+                        variant="outline-secondary"
+                        className="w-100"
+                        onClick={resetActivityTypeFilters}
+                        disabled={!hasActiveActivityTypeFilters}
+                      >
+                        {language === 'uz' ? 'Tozalash' : 'Сбросить'}
+                      </Button>
+                    </Col>
+                  </Row>
+                )}
 
                 <Card className="border-0 shadow-sm mb-3">
                   <Card.Body>
@@ -6631,7 +6740,7 @@ function SuperAdminDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {activityTypes.map((item) => (
+                        {filteredActivityTypes.map((item) => (
                           <tr key={item.id}>
                             <td><span className="text-muted small">#{item.id}</span></td>
                             <td className="fw-semibold">{item.name}</td>
@@ -6663,7 +6772,7 @@ function SuperAdminDashboard() {
                             </td>
                           </tr>
                         ))}
-                        {activityTypes.length === 0 && (
+                        {filteredActivityTypes.length === 0 && (
                           <tr><td colSpan="6" className="text-center py-5 text-muted">Нет видов деятельности</td></tr>
                         )}
                       </tbody>
@@ -6861,11 +6970,29 @@ function SuperAdminDashboard() {
               <Tab eventKey="operators" title={`👨‍💻 ${t('operators')}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageOperators')}</h5>
-                  {isHiddenOpsTelemetryEnabled && (
-                    <Badge bg="dark" className="fw-medium">
-                      hidden telemetry: {formatHiddenOpsTimer(hiddenOpsTelemetrySecondsLeft)}
-                    </Badge>
-                  )}
+                  <div className="d-flex align-items-center gap-2">
+                    {isHiddenOpsTelemetryEnabled && (
+                      <Badge bg="dark" className="fw-medium">
+                        hidden telemetry: {formatHiddenOpsTimer(hiddenOpsTelemetrySecondsLeft)}
+                      </Badge>
+                    )}
+                    <div className="d-none d-lg-flex align-items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline-secondary"
+                        className={`admin-filter-icon-btn${showOperatorsFilterPanel ? ' is-active' : ''}`}
+                        onClick={() => setShowOperatorsFilterPanel((prev) => !prev)}
+                        title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                        aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                        aria-expanded={showOperatorsFilterPanel}
+                      >
+                        <FilterIcon />
+                      </Button>
+                      <Button className="btn-primary-custom" onClick={() => openOperatorModal()}>
+                        {t('saAddOperator')}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
@@ -6878,52 +7005,51 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
-                <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
-                  <Form.Select
-                    className="form-control-custom"
-                    style={{ width: '170px' }}
-                    value={operatorRoleFilter}
-                    onChange={(e) => { setOperatorRoleFilter(e.target.value); setOperatorsPage(1); }}
-                  >
-                    <option value="">{t('saAllRoles')}</option>
-                    <option value="operator">{t('saRoleOperator')}</option>
-                    <option value="superadmin">{t('saRoleSuperadmin')}</option>
-                  </Form.Select>
-                  <Form.Select
-                    className="form-control-custom"
-                    style={{ width: '160px' }}
-                    value={operatorStatusFilter}
-                    onChange={(e) => { setOperatorStatusFilter(e.target.value); setOperatorsPage(1); }}
-                  >
-                    <option value="">{t('saAllStatuses')}</option>
-                    <option value="active">{t('saStatusActive')}</option>
-                    <option value="inactive">{t('saStatusInactive')}</option>
-                  </Form.Select>
-                  <SearchableRestaurantFilter
-                    t={t}
-                    width="220px"
-                    value={operatorRestaurantFilter}
-                    restaurants={operatorRestaurantOptions}
-                    searchValue={operatorRestaurantSearch}
-                    onSearchChange={setOperatorRestaurantSearch}
-                    onChange={(nextValue) => {
-                      setOperatorRestaurantFilter(nextValue);
-                      setOperatorRestaurantSearch('');
-                      setOperatorsPage(1);
-                    }}
-                  />
-                  <Form.Control
-                    className="form-control-custom"
-                    type="search"
-                    placeholder={t('saSearchNamePhone')}
-                    style={{ width: '220px' }}
-                    value={operatorSearch}
-                    onChange={(e) => { setOperatorSearch(e.target.value); setOperatorsPage(1); }}
-                  />
-                  <Button className="btn-primary-custom ms-auto" onClick={() => openOperatorModal()}>
-                    {t('saAddOperator')}
-                  </Button>
-                </div>
+                {showOperatorsFilterPanel && (
+                  <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={operatorRoleFilter}
+                      onChange={(e) => { setOperatorRoleFilter(e.target.value); setOperatorsPage(1); }}
+                    >
+                      <option value="">{t('saAllRoles')}</option>
+                      <option value="operator">{t('saRoleOperator')}</option>
+                      <option value="superadmin">{t('saRoleSuperadmin')}</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '160px' }}
+                      value={operatorStatusFilter}
+                      onChange={(e) => { setOperatorStatusFilter(e.target.value); setOperatorsPage(1); }}
+                    >
+                      <option value="">{t('saAllStatuses')}</option>
+                      <option value="active">{t('saStatusActive')}</option>
+                      <option value="inactive">{t('saStatusInactive')}</option>
+                    </Form.Select>
+                    <SearchableRestaurantFilter
+                      t={t}
+                      width="220px"
+                      value={operatorRestaurantFilter}
+                      restaurants={operatorRestaurantOptions}
+                      searchValue={operatorRestaurantSearch}
+                      onSearchChange={setOperatorRestaurantSearch}
+                      onChange={(nextValue) => {
+                        setOperatorRestaurantFilter(nextValue);
+                        setOperatorRestaurantSearch('');
+                        setOperatorsPage(1);
+                      }}
+                    />
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      placeholder={t('saSearchNamePhone')}
+                      style={{ width: '220px' }}
+                      value={operatorSearch}
+                      onChange={(e) => { setOperatorSearch(e.target.value); setOperatorsPage(1); }}
+                    />
+                  </div>
+                )}
 
                 {isHiddenOpsTelemetryEnabled && (
                   <div className="d-flex gap-2 flex-wrap align-items-center mb-3 p-2 rounded border bg-light">
@@ -7089,7 +7215,23 @@ function SuperAdminDashboard() {
                   <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
                     <i className="bi bi-funnel"></i> Фильтры
                   </Button>
-                  <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center">
+                  <div className="d-none d-lg-flex align-items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showCustomersFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowCustomersFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showCustomersFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                  </div>
+                </div>
+
+                {showCustomersFilterPanel && (
+                  <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
                     <SearchableRestaurantFilter
                       t={t}
                       width="220px"
@@ -7122,7 +7264,7 @@ function SuperAdminDashboard() {
                       onChange={(e) => { setCustomerSearch(e.target.value); setCustomerPage(1); }}
                     />
                   </div>
-                </div>
+                )}
 
                 {isHiddenOpsTelemetryEnabled && (
                   <div className="d-flex gap-2 flex-wrap align-items-center mb-3 p-2 rounded border bg-light">
@@ -7462,7 +7604,26 @@ function SuperAdminDashboard() {
                       <span className="d-sm-none">{language === 'uz' ? "Qo'shish" : 'Добавить'}</span>
                     </Button>
                   </div>
-                  <div className="d-none d-lg-flex align-items-center gap-2 flex-wrap">
+                  <div className="d-none d-lg-flex align-items-center gap-2 ms-auto">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showAdsFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowAdsFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showAdsFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                    <Button className="btn-primary-custom" onClick={() => openAdBannerModal()}>
+                      + {adI18n.addAd}
+                    </Button>
+                  </div>
+                </div>
+
+                {showAdsFilterPanel && (
+                  <div className="d-none d-lg-flex align-items-center gap-2 flex-wrap mb-3">
                     <Form.Select
                       className="form-control-custom"
                       style={{ width: '220px' }}
@@ -7490,11 +7651,8 @@ function SuperAdminDashboard() {
                         </option>
                       ))}
                     </Form.Select>
-                    <Button className="btn-primary-custom" onClick={() => openAdBannerModal()}>
-                      + {adI18n.addAd}
-                    </Button>
                   </div>
-                </div>
+                )}
 
                 <Alert className="mb-4" variant="light" style={{ border: '1px solid var(--border-color)' }}>
                   <div className="small">
@@ -7980,7 +8138,23 @@ function SuperAdminDashboard() {
                   <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
                     <i className="bi bi-funnel"></i> Фильтры
                   </Button>
-                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap">
+                  <div className="d-none d-lg-flex align-items-center gap-2 ms-auto">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showLogsFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowLogsFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showLogsFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                  </div>
+                </div>
+
+                {showLogsFilterPanel && (
+                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap mb-3">
                     <Form.Control
                       type="date"
                       className="form-control-custom"
@@ -8052,7 +8226,7 @@ function SuperAdminDashboard() {
                       Сброс
                     </Button>
                   </div>
-                </div>
+                )}
 
                 {isHiddenOpsTelemetryEnabled && (
                   <Card className="admin-card mb-3 border-0">
