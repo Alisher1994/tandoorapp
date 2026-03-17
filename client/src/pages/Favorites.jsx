@@ -2,7 +2,7 @@ import React from 'react';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import { useAuth } from '../context/AuthContext';
-import { formatPrice } from '../context/CartContext';
+import { formatPrice, useCart } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
@@ -15,6 +15,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 function Favorites() {
   const { user } = useAuth();
   const { t, language, toggleLanguage } = useLanguage();
+  const { addToCart } = useCart();
   const { favorites, removeFavorite, updateFavoriteQuantity } = useFavorites();
 
   const getProductName = (product) => (
@@ -36,6 +37,14 @@ function Favorites() {
     if (aActive !== bActive) return aActive ? -1 : 1;
     return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
   });
+
+  const handleAddFavoriteToCart = (item) => {
+    const quantity = Math.max(1, Number(item?.favorite_quantity) || 1);
+    addToCart({
+      ...item,
+      restaurant_id: item?.restaurant_id || user?.active_restaurant_id
+    }, quantity);
+  };
 
   return (
     <div className="client-page">
@@ -164,6 +173,26 @@ function Favorites() {
                           </button>
                         </div>
 
+                        <div className="d-flex justify-content-end mt-2">
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => handleAddFavoriteToCart(item)}
+                            disabled={!item?.in_stock}
+                            style={{
+                              background: 'var(--primary-color)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 10,
+                              minWidth: 108,
+                              fontWeight: 700
+                            }}
+                          >
+                            {item?.in_stock
+                              ? (language === 'uz' ? "Savatga qo'shish" : 'В корзину')
+                              : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </Card.Body>

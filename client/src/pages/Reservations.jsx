@@ -255,14 +255,17 @@ function Reservations() {
     const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
     return new Intl.NumberFormat(language === 'uz' ? 'uz-UZ' : 'ru-RU').format(Math.round(amount));
   }, [language]);
+  const mainMenuPath = useMemo(() => (isOperator() ? '/admin' : '/catalog'), [isOperator]);
   const handleBackClick = useCallback(() => {
-    const fallbackPath = isOperator() ? '/admin' : '/catalog';
-    if (window.history.length > 1) {
-      navigate(-1);
+    if (bookingStep !== 'plan') {
+      setBookingStep('plan');
       return;
     }
-    navigate(fallbackPath);
-  }, [isOperator, navigate]);
+    navigate(mainMenuPath);
+  }, [bookingStep, mainMenuPath, navigate]);
+  const handleBrandClick = useCallback(() => {
+    navigate(mainMenuPath);
+  }, [mainMenuPath, navigate]);
 
   const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
     const viewport = planViewportRef.current?.getBoundingClientRect();
@@ -919,6 +922,7 @@ function Reservations() {
         language={language}
         onToggleLanguage={toggleLanguage}
         onBack={handleBackClick}
+        onBrandClick={handleBrandClick}
         showBackButton
         fallback="🪑"
         maxWidth="1260px"
@@ -1065,7 +1069,6 @@ function Reservations() {
               <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card">
                 <Card.Body>
                   <div className="client-res-details-head">
-                    <Button variant="outline-secondary" onClick={() => setBookingStep('plan')}>{t('← Назад к схеме', '← Sxemaga qaytish')}</Button>
                     <div className="text-muted small">{selectedDateLabel || bookingDate} · {startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</div>
                   </div>
 
