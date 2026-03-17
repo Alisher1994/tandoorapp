@@ -206,7 +206,9 @@ const permissionsPolicyValue = [
 app.use(helmet({
   contentSecurityPolicy: false, // Allow inline scripts for React
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  // Keep referrer available for third-party map tiles (OpenStreetMap requires it).
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 morgan.token('request-id', (req) => req.requestId || '-');
 morgan.token('safe-url', (req) => sanitizeUrlForLogs(req.originalUrl || req.url || ''));
