@@ -31,6 +31,7 @@ import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsV
 import * as XLSX from 'xlsx';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
+import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
 import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import {
@@ -1277,6 +1278,14 @@ function AdminDashboard() {
     setLeafletMapProvider(normalizedProvider);
     saveMapProvider(normalizedProvider);
   }, []);
+  const isYandexMapProvider = leafletMapProvider === 'yandex';
+  const variantSupportContactName = String(billingInfo?.requisites?.card_holder || '').trim();
+  const variantSupportPhone = String(billingInfo?.requisites?.phone_number || '').trim();
+  const variantSupportTelegram = String(billingInfo?.requisites?.telegram_username || '').trim();
+  const variantSupportTelegramHandle = variantSupportTelegram.replace(/^@+/, '');
+  const variantSupportTelegramLink = variantSupportTelegramHandle
+    ? `https://t.me/${encodeURIComponent(variantSupportTelegramHandle)}`
+    : '';
   const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
   const allThirdCategoriesLabel = language === 'uz' ? 'Barcha 3-daraja kategoriyalari' : 'Все категории 3 уровня';
   const thirdCategoryLabel = language === 'uz' ? '3-daraja kategoriya' : 'Категория 3';
@@ -5850,41 +5859,51 @@ function AdminDashboard() {
                 background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
               }}
             >
-              <MapContainer
-                center={ANALYTICS_DEFAULT_MAP_CENTER}
-                zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-                style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
-              >
-                <TileLayer
-                  url={mapTileLayerConfig.url}
-                  attribution={mapTileLayerConfig.attribution}
-                  maxZoom={mapTileLayerConfig.maxZoom}
+              {isYandexMapProvider ? (
+                <YandexAnalyticsMap
+                  points={activeAnalyticsLocationsList}
+                  shopPoint={analyticsShopLocation}
+                  selectedPoint={selectedAnalyticsLocation}
+                  onSelectPoint={openAnalyticsLocationDetails}
+                  height="100%"
                 />
-                <AnalyticsMapAutoBounds points={activeAnalyticsMapPoints} />
-                <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
-                {activeAnalyticsLocationsList.map((location) => {
-                  const isSelected = selectedAnalyticsLocation &&
-                    (selectedAnalyticsLocation.orderId === location.orderId);
-                  return (
-                    <Marker
-                      key={`analytics-map-${location.orderId || location.orderNumber}`}
-                      position={[location.lat, location.lng]}
-                      icon={getAnalyticsPointIcon(isSelected)}
-                      zIndexOffset={isSelected ? 1000 : 0}
-                      eventHandlers={{
-                        click: () => openAnalyticsLocationDetails(location)
-                      }}
-                    />
-                  );
-                })}
-                {analyticsShopLocation && (
-                  <Marker
-                    position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
-                    icon={getAnalyticsShopIcon()}
-                    zIndexOffset={1300}
+              ) : (
+                <MapContainer
+                  center={ANALYTICS_DEFAULT_MAP_CENTER}
+                  zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                  style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+                >
+                  <TileLayer
+                    url={mapTileLayerConfig.url}
+                    attribution={mapTileLayerConfig.attribution}
+                    maxZoom={mapTileLayerConfig.maxZoom}
                   />
-                )}
-              </MapContainer>
+                  <AnalyticsMapAutoBounds points={activeAnalyticsMapPoints} />
+                  <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                  {activeAnalyticsLocationsList.map((location) => {
+                    const isSelected = selectedAnalyticsLocation &&
+                      (selectedAnalyticsLocation.orderId === location.orderId);
+                    return (
+                      <Marker
+                        key={`analytics-map-${location.orderId || location.orderNumber}`}
+                        position={[location.lat, location.lng]}
+                        icon={getAnalyticsPointIcon(isSelected)}
+                        zIndexOffset={isSelected ? 1000 : 0}
+                        eventHandlers={{
+                          click: () => openAnalyticsLocationDetails(location)
+                        }}
+                      />
+                    );
+                  })}
+                  {analyticsShopLocation && (
+                    <Marker
+                      position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
+                      icon={getAnalyticsShopIcon()}
+                      zIndexOffset={1300}
+                    />
+                  )}
+                </MapContainer>
+              )}
             </div>
           </Col>
           <Col lg={4} xl={3} className="border-start bg-white">
@@ -7363,41 +7382,51 @@ function AdminDashboard() {
                                 background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
                               }}
                             >
-                              <MapContainer
-                                center={ANALYTICS_DEFAULT_MAP_CENTER}
-                                zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-                                style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
-                              >
-                                <TileLayer
-                                  url={mapTileLayerConfig.url}
-                                  attribution={mapTileLayerConfig.attribution}
-                                  maxZoom={mapTileLayerConfig.maxZoom}
+                              {isYandexMapProvider ? (
+                                <YandexAnalyticsMap
+                                  points={analytics.orderLocations || []}
+                                  shopPoint={analyticsShopLocation}
+                                  selectedPoint={selectedAnalyticsLocation}
+                                  onSelectPoint={openAnalyticsLocationDetails}
+                                  height="100%"
                                 />
-                                <AnalyticsMapAutoBounds points={monthlyAnalyticsMapPoints} />
-                                <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
-                                {analytics.orderLocations.map((location) => {
-                                  const isSelected = selectedAnalyticsLocation &&
-                                    (selectedAnalyticsLocation.orderId === location.orderId);
-                                  return (
-                                    <Marker
-                                      key={`analytics-map-${location.orderId || location.orderNumber}`}
-                                      position={[location.lat, location.lng]}
-                                      icon={getAnalyticsPointIcon(isSelected)}
-                                      zIndexOffset={isSelected ? 1000 : 0}
-                                      eventHandlers={{
-                                        click: () => openAnalyticsLocationDetails(location)
-                                      }}
-                                    />
-                                  );
-                                })}
-                                {analyticsShopLocation && (
-                                  <Marker
-                                    position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
-                                    icon={getAnalyticsShopIcon()}
-                                    zIndexOffset={1300}
+                              ) : (
+                                <MapContainer
+                                  center={ANALYTICS_DEFAULT_MAP_CENTER}
+                                  zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                                  style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+                                >
+                                  <TileLayer
+                                    url={mapTileLayerConfig.url}
+                                    attribution={mapTileLayerConfig.attribution}
+                                    maxZoom={mapTileLayerConfig.maxZoom}
                                   />
-                                )}
-                              </MapContainer>
+                                  <AnalyticsMapAutoBounds points={monthlyAnalyticsMapPoints} />
+                                  <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                                  {analytics.orderLocations.map((location) => {
+                                    const isSelected = selectedAnalyticsLocation &&
+                                      (selectedAnalyticsLocation.orderId === location.orderId);
+                                    return (
+                                      <Marker
+                                        key={`analytics-map-${location.orderId || location.orderNumber}`}
+                                        position={[location.lat, location.lng]}
+                                        icon={getAnalyticsPointIcon(isSelected)}
+                                        zIndexOffset={isSelected ? 1000 : 0}
+                                        eventHandlers={{
+                                          click: () => openAnalyticsLocationDetails(location)
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                  {analyticsShopLocation && (
+                                    <Marker
+                                      position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
+                                      icon={getAnalyticsShopIcon()}
+                                      zIndexOffset={1300}
+                                    />
+                                  )}
+                                </MapContainer>
+                              )}
                             </div>
                           </Col>
                           <Col lg={4} xl={3} className="border-start bg-white">
@@ -11226,43 +11255,53 @@ function AdminDashboard() {
           <div style={{ width: '100%', height: 'calc(100vh - 64px)', background: '#f8fafc' }}>
             <Row className="g-0 h-100">
               <Col xs={7} sm={8} lg={9} className="h-100">
-                <MapContainer
-                  center={ANALYTICS_DEFAULT_MAP_CENTER}
-                  zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-                  style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
-                >
-                  <TileLayer
-                    url={mapTileLayerConfig.url}
-                    attribution={mapTileLayerConfig.attribution}
-                    maxZoom={mapTileLayerConfig.maxZoom}
+                {isYandexMapProvider ? (
+                  <YandexAnalyticsMap
+                    points={activeAnalyticsLocationsList}
+                    shopPoint={analyticsShopLocation}
+                    selectedPoint={selectedAnalyticsLocation}
+                    onSelectPoint={openAnalyticsLocationDetails}
+                    height="100%"
                   />
-                  <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
-                  <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
-                  {activeAnalyticsLocationsList.map((location) => (
-                    (() => {
-                      const isSelected = selectedAnalyticsLocation &&
-                        (selectedAnalyticsLocation.orderId === location.orderId);
-                      return (
-                        <Marker
-                          key={`analytics-map-full-${location.orderId || location.orderNumber}`}
-                          position={[location.lat, location.lng]}
-                          icon={getAnalyticsPointIcon(isSelected)}
-                          zIndexOffset={isSelected ? 1000 : 0}
-                          eventHandlers={{
-                            click: () => openAnalyticsLocationDetails(location)
-                          }}
-                        />
-                      );
-                    })()
-                  ))}
-                  {analyticsShopLocation && (
-                    <Marker
-                      position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
-                      icon={getAnalyticsShopIcon()}
-                      zIndexOffset={1300}
+                ) : (
+                  <MapContainer
+                    center={ANALYTICS_DEFAULT_MAP_CENTER}
+                    zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                    style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+                  >
+                    <TileLayer
+                      url={mapTileLayerConfig.url}
+                      attribution={mapTileLayerConfig.attribution}
+                      maxZoom={mapTileLayerConfig.maxZoom}
                     />
-                  )}
-                </MapContainer>
+                    <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
+                    <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                    {activeAnalyticsLocationsList.map((location) => (
+                      (() => {
+                        const isSelected = selectedAnalyticsLocation &&
+                          (selectedAnalyticsLocation.orderId === location.orderId);
+                        return (
+                          <Marker
+                            key={`analytics-map-full-${location.orderId || location.orderNumber}`}
+                            position={[location.lat, location.lng]}
+                            icon={getAnalyticsPointIcon(isSelected)}
+                            zIndexOffset={isSelected ? 1000 : 0}
+                            eventHandlers={{
+                              click: () => openAnalyticsLocationDetails(location)
+                            }}
+                          />
+                        );
+                      })()
+                    ))}
+                    {analyticsShopLocation && (
+                      <Marker
+                        position={[analyticsShopLocation.lat, analyticsShopLocation.lng]}
+                        icon={getAnalyticsShopIcon()}
+                        zIndexOffset={1300}
+                      />
+                    )}
+                  </MapContainer>
+                )}
               </Col>
               <Col xs={5} sm={4} lg={3} className="h-100 border-start bg-white">
                 <div className="p-2 p-sm-3 h-100 admin-custom-scrollbar" style={{ overflowY: 'auto' }}>
@@ -11766,6 +11805,48 @@ function AdminDashboard() {
                   </div>
                 </Col>
               </Row>
+
+              {!Boolean(restaurantSettings?.size_variants_enabled) && (
+                <Row className="g-3 mt-1">
+                  <Col xs={12}>
+                    <div className="p-3 rounded-3 border bg-light">
+                      <div className="d-flex align-items-start gap-2">
+                        <i className="bi bi-info-circle-fill text-primary mt-1" />
+                        <div className="small">
+                          <div className="fw-semibold mb-1">
+                            {language === 'uz'
+                              ? "Agar mahsulot variantlarini yoqmoqchi bo'lsangiz, dastur ta'minotchisiga murojaat qiling."
+                              : 'Если хотите включить варианты товаров, обратитесь к поставщику программы.'}
+                          </div>
+                          <div className="text-muted">
+                            {language === 'uz' ? "Aloqa (superadmin):" : 'Контакты (суперадмин):'}
+                          </div>
+                          <div className="d-flex flex-wrap gap-3 mt-1">
+                            <span>
+                              <strong>{language === 'uz' ? 'Ism' : 'Имя'}:</strong>{' '}
+                              {variantSupportContactName || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
+                            </span>
+                            <span>
+                              <strong>{language === 'uz' ? 'Telefon' : 'Телефон'}:</strong>{' '}
+                              {variantSupportPhone || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
+                            </span>
+                            <span>
+                              <strong>Telegram:</strong>{' '}
+                              {variantSupportTelegramLink ? (
+                                <a href={variantSupportTelegramLink} target="_blank" rel="noreferrer">
+                                  @{variantSupportTelegramHandle}
+                                </a>
+                              ) : (
+                                (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Col>
+                </Row>
+              )}
 
               {Boolean(restaurantSettings?.size_variants_enabled) && (
                 <Row className="g-3 mt-1">
