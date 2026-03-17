@@ -5466,7 +5466,7 @@ function SuperAdminDashboard() {
                                 return (
                                   <Marker
                                     key={`sa-overview-map-${locationKey}`}
-                                    center={[location.lat, location.lng]}
+                                    position={[location.lat, location.lng]}
                                     icon={getOverviewAnalyticsPointIcon(isSelected)}
                                     eventHandlers={{
                                       click: () => setSelectedOverviewOrderLocation(location)
