@@ -10911,16 +10911,16 @@ function AdminDashboard() {
 
             <div className="p-3 admin-balance-modal-content">
               {/* Navigation Tabs */}
-              <div className="custom-modal-tabs admin-balance-tabs mb-3 p-1 bg-light rounded-3 d-flex overflow-hidden">
+              <div className="custom-modal-tabs admin-balance-tabs mb-3 p-1 bg-light rounded-3 d-flex flex-nowrap overflow-auto">
                 <div
-                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'data' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
+                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 admin-balance-tab-item ${balanceTab === 'data' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
                   onClick={() => setBalanceTab('data')}
                   style={{ cursor: 'pointer' }}
                 >
                   {t('paymentInfo')}
                 </div>
                 <div
-                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'incomes' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
+                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 admin-balance-tab-item ${balanceTab === 'incomes' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
                   onClick={() => {
                     setBalanceTab('incomes');
                     fetchBillingHistory('deposit');
@@ -10930,7 +10930,7 @@ function AdminDashboard() {
                   {t('incomes')}
                 </div>
                 <div
-                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 ${balanceTab === 'expenses' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
+                  className={`flex-fill text-center py-2 px-3 cursor-pointer transition-all rounded-2 admin-balance-tab-item ${balanceTab === 'expenses' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`}
                   onClick={() => {
                     setBalanceTab('expenses');
                     fetchBillingHistory('withdrawal');
@@ -11105,27 +11105,6 @@ function AdminDashboard() {
             </div>
           </div>
 
-          <div className="admin-analytics-kpi-card">
-            <div className="admin-analytics-kpi-header">
-              <h6 className="mb-0 admin-analytics-card-title">
-                <span className="admin-analytics-card-title-icon" style={{ color: '#f59e0b', background: '#fffbeb' }}>⭐</span>
-                {language === 'uz' ? 'Mijoz baholari' : 'Оценки клиентов'}
-              </h6>
-            </div>
-            <div className="admin-analytics-kpi-value">
-              {analyticsRatingSummary.serviceAvg.toFixed(2)} / {MAX_ORDER_RATING}
-            </div>
-            <div className="admin-analytics-kpi-list">
-              <div className="admin-analytics-kpi-row">
-                <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
-                <strong>{buildOrderRatingStars(Math.round(analyticsRatingSummary.serviceAvg))} ({analyticsRatingSummary.serviceCount})</strong>
-              </div>
-              <div className="admin-analytics-kpi-row">
-                <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
-                <strong>{buildOrderRatingStars(Math.round(analyticsRatingSummary.deliveryAvg))} ({analyticsRatingSummary.deliveryCount})</strong>
-              </div>
-            </div>
-          </div>
         </div>
                     </Col>
                   </Row>

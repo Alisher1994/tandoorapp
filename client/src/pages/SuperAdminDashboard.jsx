@@ -549,7 +549,7 @@ function SuperAdminDashboard() {
   const { user, logout } = useAuth();
   const {
     language,
-    toggleLanguage,
+    setLanguage,
     t,
     countryCurrency,
     countryCurrencyOptions
@@ -5396,6 +5396,27 @@ function SuperAdminDashboard() {
   };
 
   const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs'].includes(activeTab);
+  const headerLanguageOptions = useMemo(() => ([
+    {
+      code: 'ru',
+      shortLabel: 'RU',
+      label: 'Русский',
+      flag: 'https://flagcdn.com/w20/ru.png'
+    },
+    {
+      code: 'uz',
+      shortLabel: 'UZ',
+      label: "O'zbekcha",
+      flag: 'https://flagcdn.com/w20/uz.png'
+    }
+  ]), []);
+  const activeHeaderLanguageOption = useMemo(() => (
+    headerLanguageOptions.find((option) => option.code === language) || headerLanguageOptions[0]
+  ), [headerLanguageOptions, language]);
+  const handleHeaderLanguageSelect = (nextLanguage) => {
+    if (!nextLanguage || nextLanguage === language) return;
+    setLanguage(nextLanguage);
+  };
 
   const resetActiveTabFilters = () => {
     if (activeTab === 'restaurants') {
@@ -5818,19 +5839,9 @@ function SuperAdminDashboard() {
       {/* Header */}
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container className="admin-navbar-container">
-          <Navbar.Brand className="d-flex align-items-center gap-2 py-1">
-            <div className="admin-brand-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" /><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" /><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" /><path d="M10 6h4" /><path d="M10 10h4" /><path d="M10 14h4" /><path d="M10 18h4" />
-              </svg>
-            </div>
-            <div className="d-flex flex-column admin-brand-meta">
-              <span className="admin-brand-title">
-                Супер-Админ
-              </span>
-              <span className="admin-brand-subtitle">
-                {t('saSubtitle')}
-              </span>
+          <Navbar.Brand className="d-flex align-items-center py-1">
+            <div className="admin-brand-logo-shell admin-brand-logo-shell-horizontal">
+              <img src="/talablar.svg" alt="Talablar" className="admin-brand-logo" />
             </div>
           </Navbar.Brand>
           <Navbar.Toggle className="admin-navbar-toggle">
@@ -5840,64 +5851,75 @@ function SuperAdminDashboard() {
           </Navbar.Toggle>
           <Navbar.Collapse className="justify-content-end">
             <Nav className="align-items-lg-center gap-lg-1">
-              <button
-                type="button"
-                onClick={() => setShowMobileAccountSheet(true)}
-                className="d-lg-none d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none border-0 custom-user-dropdown admin-user-toggle"
-                style={{ color: '#ffffff' }}
-              >
-                <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
-                  {user?.username?.charAt(0).toUpperCase() || 'A'}
-                </div>
-                <div className="text-start">
-                  <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Super Administrator'}</div>
-                  <div className="text-white-50 small admin-user-id">Administrator</div>
-                </div>
-              </button>
+              <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
+                <Dropdown align="end" className="admin-header-lang-dropdown">
+                  <Dropdown.Toggle
+                    variant="link"
+                    bsPrefix="p-0"
+                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none border-0 admin-header-pill admin-lang-pill"
+                  >
+                    <img src={activeHeaderLanguageOption?.flag} width="16" height="12" alt={activeHeaderLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+                    <span className="admin-lang-pill-label">{activeHeaderLanguageOption?.shortLabel || 'RU'}</span>
+                    <i className="bi bi-chevron-down admin-lang-pill-chevron" aria-hidden="true"></i>
+                  </Dropdown.Toggle>
+                  <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-lang-dropdown-menu">
+                    {headerLanguageOptions.map((option) => (
+                      <Dropdown.Item
+                        key={option.code}
+                        onClick={() => handleHeaderLanguageSelect(option.code)}
+                        className={`d-flex align-items-center justify-content-between gap-3 py-2 rounded-3 admin-lang-dropdown-item${language === option.code ? ' is-active' : ''}`}
+                      >
+                        <span className="d-inline-flex align-items-center gap-2">
+                          <img src={option.flag} width="18" height="13" alt={option.shortLabel} className="rounded-1" />
+                          <span>{option.label}</span>
+                        </span>
+                        {language === option.code && <i className="bi bi-check2 text-primary" aria-hidden="true"></i>}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown>
 
-              <Dropdown align="end" className="ms-lg-2 d-none d-lg-block">
-                <Dropdown.Toggle
-                  variant="link"
-                  bsPrefix="p-0"
-                  className="d-flex align-items-center gap-2 bg-white bg-opacity-10 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle"
+                <button
+                  type="button"
+                  onClick={() => setShowMobileAccountSheet(true)}
+                  className="d-flex d-lg-none align-items-center gap-2 py-2 px-3 rounded-pill text-decoration-none border-0 custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill"
+                  style={{ color: '#ffffff' }}
                 >
                   <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
                     {user?.username?.charAt(0).toUpperCase() || 'A'}
                   </div>
-                  <div className="d-none d-md-block text-start">
+                  <div className="text-start">
                     <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Super Administrator'}</div>
                     <div className="text-white-50 small admin-user-id">Administrator</div>
                   </div>
-                </Dropdown.Toggle>
+                </button>
 
-                <Dropdown.Menu className="shadow border-0 mt-2 rounded-3 admin-dropdown-menu">
-                  <Dropdown.Item onClick={() => navigate('/admin')} className="d-flex align-items-center gap-2 py-2">
-                    <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
-                  </Dropdown.Item>
-                  <div className="px-3 py-2">
-                    <div className="admin-lang-switch">
-                      <div
-                        onClick={language !== 'ru' ? toggleLanguage : undefined}
-                        className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
-                      >
-                        <img src="/ru.svg" alt="RU" className="admin-flag" />
-                        Рус
-                      </div>
-                      <div
-                        onClick={language !== 'uz' ? toggleLanguage : undefined}
-                        className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
-                      >
-                        <img src="/uz.svg" alt="UZ" className="admin-flag" />
-                        O'zb
-                      </div>
+                <Dropdown align="end" className="d-none d-lg-block">
+                  <Dropdown.Toggle
+                    variant="link"
+                    bsPrefix="p-0"
+                    className="d-flex align-items-center gap-2 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill"
+                  >
+                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
+                      {user?.username?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                  </div>
-                  <Dropdown.Divider />
-                  <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2">
-                    <i className="bi bi-box-arrow-right"></i> Выйти
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
+                    <div className="d-none d-md-block text-start">
+                      <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Super Administrator'}</div>
+                      <div className="text-white-50 small admin-user-id">Administrator</div>
+                    </div>
+                  </Dropdown.Toggle>
+
+                  <Dropdown.Menu className="shadow border-0 mt-2 rounded-3 admin-dropdown-menu">
+                    <Dropdown.Item onClick={() => navigate('/admin')} className="d-flex align-items-center gap-2 py-2">
+                      <i className="bi bi-grid-1x2"></i> {t('operatorPanel')}
+                    </Dropdown.Item>
+                    <Dropdown.Divider />
+                    <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2">
+                      <i className="bi bi-box-arrow-right"></i> Выйти
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown>
+              </div>
             </Nav>
           </Navbar.Collapse>
         </Container>
@@ -5971,26 +5993,6 @@ function SuperAdminDashboard() {
             <div className="rounded-3 border p-3 bg-light">
               <div className="fw-bold text-dark">{user?.full_name || user?.username || 'Super Administrator'}</div>
               <div className="small text-muted mt-1">Супер-админ</div>
-            </div>
-
-            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
-              <div className="small text-muted mb-2 fw-semibold">Язык интерфейса</div>
-              <div className="admin-lang-switch">
-                <div
-                  onClick={language !== 'ru' ? toggleLanguage : undefined}
-                  className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
-                >
-                  <img src="/ru.svg" alt="RU" className="admin-flag" />
-                  Рус
-                </div>
-                <div
-                  onClick={language !== 'uz' ? toggleLanguage : undefined}
-                  className={`flex-fill text-center rounded py-1 admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm text-primary fw-medium' : 'text-muted'}`}
-                >
-                  <img src="/uz.svg" alt="UZ" className="admin-flag" />
-                  O'zb
-                </div>
-              </div>
             </div>
 
             <Button

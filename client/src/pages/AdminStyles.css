@@ -1671,6 +1671,20 @@ body::-webkit-scrollbar,
     background: var(--secondary-bg) !important;
     border: 1px solid var(--border-color);
     gap: 4px;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+}
+
+.admin-balance-modal-redesign .admin-balance-tabs::-webkit-scrollbar {
+    height: 6px;
+}
+
+.admin-balance-modal-redesign .admin-balance-tabs::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.28);
+    border-radius: 999px;
 }
 
 .admin-balance-modal-redesign .admin-balance-tabs > div {
@@ -1682,6 +1696,11 @@ body::-webkit-scrollbar,
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.admin-balance-modal-redesign .admin-balance-tab-item {
+    flex: 1 1 0;
+    min-width: 132px;
 }
 
 .admin-balance-modal-redesign .admin-balance-tabs > div.bg-white {
