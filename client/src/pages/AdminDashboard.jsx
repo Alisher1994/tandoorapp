@@ -1252,7 +1252,7 @@ function AdminDashboard() {
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const {
     language,
-    toggleLanguage,
+    setLanguage,
     t,
     countryCurrency,
     countryCurrencyOptions,
@@ -1273,6 +1273,34 @@ function AdminDashboard() {
     if (normalizedRaw === 'null' || normalizedRaw === 'undefined' || normalizedRaw === 'false') return '';
     return toAbsoluteFileUrl(raw);
   }, [user?.active_restaurant_logo]);
+  const activeRestaurantLogoDisplayMode = useMemo(() => (
+    String(
+      restaurantSettings?.logo_display_mode
+      || user?.active_restaurant_logo_display_mode
+      || 'square'
+    ).trim().toLowerCase() === 'horizontal' ? 'horizontal' : 'square'
+  ), [restaurantSettings?.logo_display_mode, user?.active_restaurant_logo_display_mode]);
+  const languageOptions = useMemo(() => ([
+    {
+      code: 'ru',
+      shortLabel: 'RU',
+      label: 'Русский',
+      flag: 'https://flagcdn.com/w20/ru.png'
+    },
+    {
+      code: 'uz',
+      shortLabel: 'UZ',
+      label: "O'zbekcha",
+      flag: 'https://flagcdn.com/w20/uz.png'
+    }
+  ]), []);
+  const activeLanguageOption = useMemo(() => (
+    languageOptions.find((option) => option.code === language) || languageOptions[0]
+  ), [language, languageOptions]);
+  const handleLanguageSelect = useCallback((nextLanguage) => {
+    if (!nextLanguage || nextLanguage === language) return;
+    setLanguage(nextLanguage);
+  }, [language, setLanguage]);
   const selectedRestaurantCurrencyOption = useMemo(() => {
     const nextCode = String(
       restaurantSettings?.currency_code
@@ -6588,11 +6616,13 @@ function AdminDashboard() {
             aria-label={canSwitchRestaurants ? 'Открыть выбор магазина' : undefined}
           >
             {activeRestaurantLogoUrl ? (
-              <img
-                src={activeRestaurantLogoUrl}
-                alt="Logo"
-                className="admin-brand-logo"
-              />
+              <div className={`admin-brand-logo-shell admin-brand-logo-shell-${activeRestaurantLogoDisplayMode}`}>
+                <img
+                  src={activeRestaurantLogoUrl}
+                  alt="Logo"
+                  className="admin-brand-logo"
+                />
+              </div>
             ) : (
               <div className="admin-brand-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -6620,7 +6650,7 @@ function AdminDashboard() {
               {/* Broadcast */}
               <Nav.Link
                 onClick={() => setShowBroadcastModal(true)}
-                className="px-2 admin-nav-link"
+                className="admin-nav-link admin-header-pill admin-header-action-pill"
               >
                 <i className="bi bi-megaphone-fill me-1" aria-hidden="true"></i>
                 {t('broadcast')}
@@ -6628,7 +6658,7 @@ function AdminDashboard() {
               {isReservationModuleEnabled && (
                 <Nav.Link
                   onClick={() => navigate('/admin/reservations')}
-                  className="px-2 admin-nav-link"
+                  className="admin-nav-link admin-header-pill admin-header-action-pill"
                 >
                   <i className="bi bi-calendar2-week-fill me-1" aria-hidden="true"></i>
                   {t('reservations')}
@@ -6637,6 +6667,33 @@ function AdminDashboard() {
 
               {/* User + Language + Logout group */}
               <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
+                <Dropdown align="end" className="admin-header-lang-dropdown">
+                  <Dropdown.Toggle
+                    variant="link"
+                    bsPrefix="p-0"
+                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none border-0 admin-header-pill admin-lang-pill"
+                  >
+                    <img src={activeLanguageOption?.flag} width="16" height="12" alt={activeLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+                    <span className="admin-lang-pill-label">{activeLanguageOption?.shortLabel || 'RU'}</span>
+                    <i className="bi bi-chevron-down admin-lang-pill-chevron" aria-hidden="true"></i>
+                  </Dropdown.Toggle>
+                  <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-lang-dropdown-menu">
+                    {languageOptions.map((option) => (
+                      <Dropdown.Item
+                        key={option.code}
+                        onClick={() => handleLanguageSelect(option.code)}
+                        className={`d-flex align-items-center justify-content-between gap-3 py-2 rounded-3 admin-lang-dropdown-item${language === option.code ? ' is-active' : ''}`}
+                      >
+                        <span className="d-inline-flex align-items-center gap-2">
+                          <img src={option.flag} width="18" height="13" alt={option.shortLabel} className="rounded-1" />
+                          <span>{option.label}</span>
+                        </span>
+                        {language === option.code && <i className="bi bi-check2 text-primary" aria-hidden="true"></i>}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown>
+
                 {/* User Profile Dropdown (desktop) */}
                 <Dropdown align="end" className="d-none d-lg-block">
                   <Dropdown.Toggle
@@ -6664,23 +6721,6 @@ function AdminDashboard() {
                         <i className="bi bi-shield-lock text-primary"></i> <span>{t('superAdmin')}</span>
                       </Dropdown.Item>
                     )}
-
-                    <div className="px-2 py-2">
-                      <div className="admin-lang-switch">
-                        <div
-                          onClick={language !== 'ru' ? toggleLanguage : undefined}
-                          className={`flex-fill text-center rounded-2 py-1 px-2 transition-all admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
-                        >
-                          <img src="https://flagcdn.com/w20/ru.png" width="14" alt="RU" className="me-1" /> Рус
-                        </div>
-                        <div
-                          onClick={language !== 'uz' ? toggleLanguage : undefined}
-                          className={`flex-fill text-center rounded-2 py-1 px-2 transition-all admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
-                        >
-                          <img src="https://flagcdn.com/w20/uz.png" width="14" alt="UZ" className="me-1" /> O'zb
-                        </div>
-                      </div>
-                    </div>
 
                     <Dropdown.Divider className="mx-2" />
                     <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2 rounded-3">
@@ -6818,24 +6858,6 @@ function AdminDashboard() {
                 <i className="bi bi-shield-lock"></i> {t('superAdmin')}
               </Button>
             )}
-
-            <div className="p-2 rounded-3" style={{ background: '#eef2f7' }}>
-              <div className="small text-muted mb-2 fw-semibold">Язык</div>
-              <div className="admin-lang-switch">
-                <div
-                  onClick={language !== 'ru' ? toggleLanguage : undefined}
-                  className={`flex-fill text-center rounded-2 py-1 px-2 admin-lang-item ${language === 'ru' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
-                >
-                  <img src="https://flagcdn.com/w20/ru.png" width="14" alt="RU" className="me-1" /> Рус
-                </div>
-                <div
-                  onClick={language !== 'uz' ? toggleLanguage : undefined}
-                  className={`flex-fill text-center rounded-2 py-1 px-2 admin-lang-item ${language === 'uz' ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`}
-                >
-                  <img src="https://flagcdn.com/w20/uz.png" width="14" alt="UZ" className="me-1" /> O'zb
-                </div>
-              </div>
-            </div>
 
             <Button
               variant="light"

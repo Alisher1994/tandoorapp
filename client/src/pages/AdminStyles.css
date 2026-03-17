@@ -94,12 +94,33 @@ body::-webkit-scrollbar,
     justify-content: center;
 }
 
-.admin-brand-logo {
+.admin-brand-logo-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.admin-brand-logo-shell-square {
     width: 36px;
     height: 36px;
-    object-fit: cover;
     border-radius: 8px;
-    border: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+.admin-brand-logo-shell-horizontal {
+    width: 118px;
+    height: 36px;
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+.admin-brand-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .admin-brand-meta {
@@ -149,7 +170,76 @@ body::-webkit-scrollbar,
 
 .admin-nav-link {
     color: rgba(255, 255, 255, 0.92) !important;
-    font-size: 13px;
+    font-size: 0.82rem;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 0 14px !important;
+    border-radius: 999px;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.admin-nav-link i {
+    font-size: 0.82rem;
+}
+
+.admin-header-action-pill:hover,
+.admin-header-action-pill:focus-visible {
+    background: rgba(255, 255, 255, 0.18) !important;
+    border-color: rgba(255, 255, 255, 0.24) !important;
+    color: #ffffff !important;
+}
+
+.admin-header-lang-dropdown .dropdown-menu {
+    z-index: 2060;
+}
+
+.admin-lang-pill {
+    color: rgba(255, 255, 255, 0.95) !important;
+    min-width: 88px;
+    justify-content: center;
+}
+
+.admin-lang-pill:hover,
+.admin-lang-pill:focus-visible {
+    background: rgba(255, 255, 255, 0.18) !important;
+    border-color: rgba(255, 255, 255, 0.24) !important;
+    color: #ffffff !important;
+}
+
+.admin-lang-pill-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.admin-lang-pill-chevron {
+    font-size: 0.62rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.admin-lang-dropdown-menu {
+    min-width: 200px;
+    padding: 8px;
+}
+
+.admin-lang-dropdown-item {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.admin-lang-dropdown-item:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.admin-lang-dropdown-item.is-active,
+.admin-lang-dropdown-item.active {
+    background: #eef2ff;
+    color: #0f172a !important;
 }
 
 .admin-dropdown-title {
@@ -1746,8 +1836,9 @@ body::-webkit-scrollbar,
     }
 
     .admin-nav-link {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+        min-height: 42px;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
     }
 
     .admin-header-pill-group {
@@ -1759,6 +1850,11 @@ body::-webkit-scrollbar,
 
     .admin-header-pill {
         min-height: 44px;
+    }
+
+    .admin-brand-logo-shell-horizontal {
+        width: 94px;
+        padding: 2px 6px;
     }
 
     .admin-user-toggle {
