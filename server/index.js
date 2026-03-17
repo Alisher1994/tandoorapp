@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const path = require('path');
 
 const authRoutes = require('./routes/auth');
@@ -37,6 +38,46 @@ console.log(`📌 PORT from environment: ${process.env.PORT || 'not set, using d
 
 const LOG_REDACTED_VALUE = '[REDACTED]';
 const SENSITIVE_QUERY_KEYS = new Set(['token', 'access_token', 'authorization', 'auth']);
+const LOCAL_DEV_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:5173'
+];
+const normalizeOriginValue = (rawOrigin) => {
+  const raw = String(rawOrigin || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+  } catch (_) {
+    return '';
+  }
+};
+const buildAllowedOrigins = () => {
+  const rawOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.TELEGRAM_WEB_APP_URL,
+    process.env.BACKEND_URL
+  ];
+  const extraOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (process.env.NODE_ENV !== 'production') {
+    rawOrigins.push(...LOCAL_DEV_ALLOWED_ORIGINS);
+  }
+
+  const set = new Set();
+  for (const candidate of [...rawOrigins, ...extraOrigins]) {
+    const normalized = normalizeOriginValue(candidate);
+    if (normalized) set.add(normalized);
+  }
+  return set;
+};
+const allowedCorsOrigins = buildAllowedOrigins();
 const sanitizeUrlForLogs = (rawUrl) => {
   const value = String(rawUrl || '');
   if (!value.includes('?')) return value;
@@ -61,7 +102,15 @@ const webhookLimiter = rateLimit({
   limit: 1200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Слишком много запросов webhook' }
+  message: { error: 'Слишком много запросов webhook' },
+  handler: (req, res, _next, options) => {
+    console.warn('⚠️ Webhook rate limit exceeded', {
+      ip: req.ip,
+      path: req.originalUrl || req.url || '',
+      request_id: req.requestId || null
+    });
+    res.status(options.statusCode).json(options.message);
+  }
 });
 
 const TELEGRAM_SECRET_HEADER = 'x-telegram-bot-api-secret-token';
@@ -71,6 +120,21 @@ const isTelegramWebhookSecretValid = (req) => {
   const providedSecret = String(req.headers[TELEGRAM_SECRET_HEADER] || '').trim();
   return Boolean(providedSecret) && providedSecret === expectedSecret;
 };
+const cspReportOnlyEnabled = String(process.env.CSP_REPORT_ONLY || 'true').trim().toLowerCase() !== 'false';
+const cspReportOnlyValue = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://*.telegram.org",
+  "style-src 'self' 'unsafe-inline' https:",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https:",
+  "connect-src 'self' https: wss:",
+  "media-src 'self' blob: data: https:",
+  "frame-src 'self' https://web.telegram.org https://*.telegram.org"
+].join('; ');
 
 // Middleware
 app.use(helmet({
@@ -78,12 +142,37 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+morgan.token('request-id', (req) => req.requestId || '-');
 morgan.token('safe-url', (req) => sanitizeUrlForLogs(req.originalUrl || req.url || ''));
-app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
+app.use((req, res, next) => {
+  const incomingRequestId = String(req.headers['x-request-id'] || '').trim();
+  req.requestId = incomingRequestId || crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.requestId);
+  next();
+});
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" req_id=:request-id'));
+app.use(cors((req, callback) => {
+  const origin = String(req.headers.origin || '').trim();
+  if (!origin) {
+    return callback(null, { origin: true, credentials: true });
+  }
+  const normalizedOrigin = normalizeOriginValue(origin);
+  const isAllowed = allowedCorsOrigins.has(normalizedOrigin);
+  if (!isAllowed) {
+    console.warn('⚠️ CORS blocked origin', {
+      origin: normalizedOrigin || origin,
+      path: req.originalUrl || req.url || '',
+      request_id: req.requestId || null
+    });
+  }
+  return callback(null, { origin: isAllowed, credentials: true });
 }));
+if (cspReportOnlyEnabled) {
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy-Report-Only', cspReportOnlyValue);
+    next();
+  });
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -124,30 +213,42 @@ app.get('/version.json', (req, res) => {
 
 // Health check (before other routes)
 app.get('/api/health', async (req, res) => {
+  const isProduction = process.env.NODE_ENV === 'production';
   try {
     const pool = require('./database/connection');
-    const dbResult = await pool.query('SELECT NOW() as time, COUNT(*) as users FROM users');
-    res.json({
+    const dbResult = isProduction
+      ? await pool.query('SELECT NOW() as time')
+      : await pool.query('SELECT NOW() as time, COUNT(*) as users FROM users');
+    const response = {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      database: 'connected',
-      db_time: dbResult.rows[0]?.time,
-      users_count: dbResult.rows[0]?.users
-    });
+      database: 'connected'
+    };
+    if (!isProduction) {
+      response.db_time = dbResult.rows[0]?.time;
+      response.users_count = dbResult.rows[0]?.users;
+    }
+    res.json(response);
   } catch (error) {
-    res.json({
-      status: 'ok',
+    const response = {
+      status: isProduction ? 'degraded' : 'ok',
       timestamp: new Date().toISOString(),
-      database: 'error',
-      error: error.message
-    });
+      database: 'error'
+    };
+    if (!isProduction) {
+      response.error = error.message;
+    }
+    res.json(response);
   }
 });
 
 // Telegram webhook route (must be before catch-all routes)
 app.post('/api/telegram/webhook', webhookLimiter, express.json(), (req, res) => {
   if (!isTelegramWebhookSecretValid(req)) {
-    console.warn('⚠️ Rejected Telegram webhook request: invalid secret');
+    console.warn('⚠️ Rejected Telegram webhook request: invalid secret', {
+      ip: req.ip,
+      request_id: req.requestId || null
+    });
     return res.sendStatus(401);
   }
   const bot = getBot();
@@ -160,7 +261,10 @@ app.post('/api/telegram/webhook', webhookLimiter, express.json(), (req, res) => 
 // Telegram webhook route for specific restaurant (multi-bot system)
 app.post('/api/telegram/webhook/:restaurantId', webhookLimiter, express.json(), (req, res) => {
   if (!isTelegramWebhookSecretValid(req)) {
-    console.warn('⚠️ Rejected Telegram webhook request: invalid secret');
+    console.warn('⚠️ Rejected Telegram webhook request: invalid secret', {
+      ip: req.ip,
+      request_id: req.requestId || null
+    });
     return res.sendStatus(401);
   }
   const { restaurantId } = req.params;

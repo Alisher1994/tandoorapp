@@ -13,13 +13,26 @@ const {
 } = require('../services/activityLogger');
 
 const router = express.Router();
+const maskIdentifierForLogs = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length <= 4) return `${raw.slice(0, 1)}***`;
+  return `${raw.slice(0, 2)}***${raw.slice(-2)}`;
+};
 const loginRateLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 20,
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Слишком много неудачных попыток входа. Попробуйте через 10 минут.' }
+  message: { error: 'Слишком много неудачных попыток входа. Попробуйте через 10 минут.' },
+  handler: (req, res, _next, options) => {
+    console.warn('⚠️ Login rate limit exceeded', {
+      ip: getIpFromRequest(req),
+      request_id: req.requestId || null
+    });
+    res.status(options.statusCode).json(options.message);
+  }
 });
 const UI_THEME_VALUES = new Set([
   'classic',
@@ -200,6 +213,12 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     `, [usernameLower, usernameWithAt, phoneDigits, requestedRestaurantId]);
 
     if (result.rows.length === 0) {
+      console.warn('⚠️ Login failed: account not found', {
+        identifier: maskIdentifierForLogs(identifier),
+        portal: requestedPortal || 'any',
+        ip: getIpFromRequest(req),
+        request_id: req.requestId || null
+      });
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 
@@ -245,8 +264,20 @@ router.post('/login', loginRateLimiter, async (req, res) => {
 
     if (validCandidates.length === 0) {
       if (inactiveUserMatched) {
+        console.warn('⚠️ Login blocked: inactive account', {
+          identifier: maskIdentifierForLogs(identifier),
+          portal: requestedPortal || 'any',
+          ip: getIpFromRequest(req),
+          request_id: req.requestId || null
+        });
         return res.status(403).json({ error: 'Аккаунт деактивирован' });
       }
+      console.warn('⚠️ Login failed: invalid password', {
+        identifier: maskIdentifierForLogs(identifier),
+        portal: requestedPortal || 'any',
+        ip: getIpFromRequest(req),
+        request_id: req.requestId || null
+      });
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 
