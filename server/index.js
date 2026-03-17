@@ -165,7 +165,14 @@ const isTelegramWebhookSecretValid = (req) => {
   const providedSecret = String(req.headers[TELEGRAM_SECRET_HEADER] || '').trim();
   return Boolean(providedSecret) && providedSecret === expectedSecret;
 };
-const cspReportOnlyEnabled = String(process.env.CSP_REPORT_ONLY || 'true').trim().toLowerCase() !== 'false';
+const cspModeRaw = String(process.env.CSP_MODE || '').trim().toLowerCase();
+const legacyCspReportOnlyFlag = String(process.env.CSP_REPORT_ONLY || '').trim().toLowerCase();
+const cspMode = (() => {
+  if (['off', 'report-only', 'enforce'].includes(cspModeRaw)) return cspModeRaw;
+  if (legacyCspReportOnlyFlag === 'true') return 'report-only';
+  if (legacyCspReportOnlyFlag === 'false') return 'enforce';
+  return 'enforce';
+})();
 const cspReportOnlyValue = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -180,6 +187,20 @@ const cspReportOnlyValue = [
   "media-src 'self' blob: data: https:",
   "frame-src 'self' https://web.telegram.org https://*.telegram.org"
 ].join('; ');
+const permissionsPolicyValue = [
+  'accelerometer=()',
+  'autoplay=(self)',
+  'camera=(self)',
+  'fullscreen=(self)',
+  'geolocation=(self)',
+  'gyroscope=()',
+  'magnetometer=()',
+  'microphone=(self)',
+  'payment=(self)',
+  'picture-in-picture=(self)',
+  'usb=()',
+  'browsing-topics=()'
+].join(', ');
 
 // Middleware
 app.use(helmet({
@@ -221,9 +242,17 @@ app.use(cors((req, callback) => {
   }
   return callback(null, { origin: isAllowed, credentials: true });
 }));
-if (cspReportOnlyEnabled) {
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', permissionsPolicyValue);
+  next();
+});
+if (cspMode !== 'off') {
   app.use((req, res, next) => {
-    res.setHeader('Content-Security-Policy-Report-Only', cspReportOnlyValue);
+    if (cspMode === 'report-only') {
+      res.setHeader('Content-Security-Policy-Report-Only', cspReportOnlyValue);
+    } else {
+      res.setHeader('Content-Security-Policy', cspReportOnlyValue);
+    }
     next();
   });
 }
@@ -440,6 +469,7 @@ async function startServer() {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 Listening on 0.0.0.0:${PORT}`);
+    console.log(`🛡️ Security headers: CSP mode = ${cspMode}, Permissions-Policy = enabled`);
 
     // Always run migrations on Railway (DATABASE_URL is set)
     if (process.env.DATABASE_URL) {
