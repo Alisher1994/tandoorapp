@@ -8,7 +8,6 @@ import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
-import Spinner from 'react-bootstrap/Spinner';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ClientTopBar from '../components/ClientTopBar';
@@ -64,6 +63,14 @@ const minutesToTime = (minutesValue) => {
   const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
   const mm = String(minutes % 60).padStart(2, '0');
   return `${hh}:${mm}`;
+};
+const addMinutesWithinDay = (timeValue, durationMinutes) => {
+  const base = parseTimeToMinutes(timeValue, Number.NaN);
+  const delta = Number.parseInt(durationMinutes, 10);
+  if (!Number.isFinite(base) || !Number.isFinite(delta) || delta <= 0) return '';
+  const target = base + delta;
+  if (target > (23 * 60) + 59) return '';
+  return minutesToTime(target);
 };
 const buildTimeSlots = (startHour = 9, endHour = 23, stepMinutes = 30) => {
   const slots = [];
@@ -138,6 +145,11 @@ function Reservations() {
   const planScaleRef = useRef(1);
   const planOffsetRef = useRef({ x: 0, y: 0 });
   const planManualTransformRef = useRef(false);
+  const timeRulerRef = useRef(null);
+  const timeRulerAutoScrollRef = useRef(false);
+  const timeRulerManualScrollRef = useRef(false);
+  const timeRulerManualScrollTimeoutRef = useRef(null);
+  const timeRulerSyncRafRef = useRef(null);
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
   const selectedFloor = useMemo(() => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null, [floors, selectedFloorId]);
@@ -146,21 +158,6 @@ function Reservations() {
   const totalSelectedCapacity = useMemo(() => selectedTables.reduce((sum, table) => sum + (Number.parseInt(table.capacity, 10) || 0), 0), [selectedTables]);
   const isCapacityEnough = totalSelectedCapacity >= guestsCount;
   const timeSlots = useMemo(() => buildTimeSlots(9, 23, normalizeTimeSlotStep(timeSlotStepMinutes, 30)), [timeSlotStepMinutes]);
-  const selectedTimeSlotIndex = useMemo(() => {
-    const directIndex = timeSlots.findIndex((slot) => slot.value === startTime);
-    if (directIndex >= 0) return directIndex;
-    const startMinutes = parseTimeToMinutes(startTime, parseTimeToMinutes(currentHourTime(), 9 * 60));
-    let nearestIndex = 0;
-    let nearestDiff = Number.POSITIVE_INFINITY;
-    timeSlots.forEach((slot, index) => {
-      const diff = Math.abs(slot.minutes - startMinutes);
-      if (diff < nearestDiff) {
-        nearestDiff = diff;
-        nearestIndex = index;
-      }
-    });
-    return nearestIndex;
-  }, [startTime, timeSlots]);
   const selectedDateLabel = useMemo(() => formatDayLabel(bookingDate, language), [bookingDate, language]);
   const floorAspectRatio = useMemo(() => {
     const width = Number(floorImageMeta.width || 0);
@@ -170,6 +167,17 @@ function Reservations() {
   }, [floorImageMeta.width, floorImageMeta.height]);
   const planWorldHeight = useMemo(() => Math.max(560, Math.round(PLAN_WORLD_WIDTH / floorAspectRatio)), [floorAspectRatio]);
   const bookingDurationOptions = useMemo(() => [60, 90, 120, 150, 180, 210, 240], []);
+  const minDurationMinutes = useMemo(() => Math.min(...bookingDurationOptions), [bookingDurationOptions]);
+  const bookingEndOptions = useMemo(
+    () => bookingDurationOptions
+      .map((durationOption) => ({
+        duration: durationOption,
+        endTime: addMinutesWithinDay(startTime, durationOption)
+      }))
+      .filter((option) => Boolean(option.endTime)),
+    [bookingDurationOptions, startTime]
+  );
+  const selectedEndTime = useMemo(() => addMinutesWithinDay(startTime, durationMinutes), [startTime, durationMinutes]);
 
   const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
     const viewport = planViewportRef.current?.getBoundingClientRect();
@@ -364,6 +372,17 @@ function Reservations() {
     fetchAvailability();
   }, [selectedFloorId, bookingDate, startTime, durationMinutes, restaurantId]);
 
+  useEffect(() => () => {
+    if (timeRulerManualScrollTimeoutRef.current) {
+      window.clearTimeout(timeRulerManualScrollTimeoutRef.current);
+      timeRulerManualScrollTimeoutRef.current = null;
+    }
+    if (timeRulerSyncRafRef.current) {
+      window.cancelAnimationFrame(timeRulerSyncRafRef.current);
+      timeRulerSyncRafRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     setDraftBookingDate(bookingDate);
   }, [bookingDate]);
@@ -388,6 +407,22 @@ function Reservations() {
       setStartTime(nearest.value);
     }
   }, [startTime, timeSlots]);
+
+  useEffect(() => {
+    if (!bookingEndOptions.length) return;
+    const hasCurrent = bookingEndOptions.some((option) => Number(option.duration) === Number(durationMinutes));
+    if (hasCurrent) return;
+    setDurationMinutes(Number(bookingEndOptions[0]?.duration) || 60);
+  }, [bookingEndOptions, durationMinutes]);
+
+  useEffect(() => {
+    if (bookingEndOptions.length || !timeSlots.length) return;
+    const latestStartMinutes = ((23 * 60) + 59) - minDurationMinutes;
+    const fallbackSlot = [...timeSlots].reverse().find((slot) => slot.minutes <= latestStartMinutes);
+    if (fallbackSlot?.value && fallbackSlot.value !== startTime) {
+      setStartTime(fallbackSlot.value);
+    }
+  }, [bookingEndOptions, timeSlots, minDurationMinutes, startTime]);
 
   useEffect(() => {
     if (!selectedFloorImageUrl) {
@@ -483,11 +518,75 @@ function Reservations() {
     return () => window.removeEventListener('resize', onResize);
   }, [setPlanTransform, fitPlanToViewport]);
 
-  const handleTimelineChange = (nextIndexValue) => {
-    const index = clamp(Number.parseInt(nextIndexValue, 10) || 0, 0, timeSlots.length - 1);
-    const slot = timeSlots[index];
-    if (slot?.value) setStartTime(slot.value);
-  };
+  const centerTimeSlot = useCallback((slotValue, behavior = 'smooth') => {
+    const ruler = timeRulerRef.current;
+    if (!ruler || !slotValue) return;
+    const target = ruler.querySelector(`[data-slot-value="${slotValue}"]`);
+    if (!target) return;
+
+    const rawLeft = target.offsetLeft - ((ruler.clientWidth - target.offsetWidth) / 2);
+    const maxLeft = Math.max(0, ruler.scrollWidth - ruler.clientWidth);
+    const nextLeft = clamp(rawLeft, 0, maxLeft);
+
+    timeRulerAutoScrollRef.current = true;
+    ruler.scrollTo({ left: nextLeft, behavior });
+    window.setTimeout(() => {
+      timeRulerAutoScrollRef.current = false;
+    }, behavior === 'smooth' ? 240 : 40);
+  }, []);
+
+  const syncTimelineByCenter = useCallback(() => {
+    const ruler = timeRulerRef.current;
+    if (!ruler) return;
+
+    const ticks = Array.from(ruler.querySelectorAll('[data-slot-value]'));
+    if (!ticks.length) return;
+
+    const rulerRect = ruler.getBoundingClientRect();
+    const centerX = rulerRect.left + (rulerRect.width / 2);
+    let nearestValue = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    ticks.forEach((tick) => {
+      const tickRect = tick.getBoundingClientRect();
+      const tickCenter = tickRect.left + (tickRect.width / 2);
+      const distance = Math.abs(tickCenter - centerX);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestValue = tick.getAttribute('data-slot-value');
+      }
+    });
+
+    if (nearestValue && nearestValue !== startTime) {
+      setStartTime(nearestValue);
+    }
+  }, [startTime]);
+
+  const handleTimeRulerScroll = useCallback(() => {
+    if (timeRulerAutoScrollRef.current) return;
+
+    timeRulerManualScrollRef.current = true;
+    if (timeRulerManualScrollTimeoutRef.current) {
+      window.clearTimeout(timeRulerManualScrollTimeoutRef.current);
+    }
+    timeRulerManualScrollTimeoutRef.current = window.setTimeout(() => {
+      timeRulerManualScrollRef.current = false;
+      centerTimeSlot(startTime, 'smooth');
+    }, 140);
+
+    if (timeRulerSyncRafRef.current) {
+      window.cancelAnimationFrame(timeRulerSyncRafRef.current);
+    }
+    timeRulerSyncRafRef.current = window.requestAnimationFrame(() => {
+      syncTimelineByCenter();
+      timeRulerSyncRafRef.current = null;
+    });
+  }, [centerTimeSlot, startTime, syncTimelineByCenter]);
+
+  useEffect(() => {
+    if (timeRulerManualScrollRef.current) return;
+    centerTimeSlot(startTime, 'auto');
+  }, [startTime, timeSlots, centerTimeSlot]);
 
   const handleApplyBookingDate = () => {
     const normalized = String(draftBookingDate || '').trim();
@@ -703,7 +802,7 @@ function Reservations() {
 
             {bookingStep === 'plan' ? (
               <>
-                <Card className="border-0 shadow-sm mt-3 client-res-controls-card">
+                <Card className={`border-0 shadow-sm mt-3 client-res-controls-card ${controlsCollapsed ? 'is-collapsed' : ''}`}>
                   <Card.Body>
                     <div className="client-res-controls-head">
                       <div>
@@ -730,13 +829,12 @@ function Reservations() {
                               <strong>{startTime}</strong>
                               <small>{t(`Шаг ${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} мин`, `${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} daq qadam`)}</small>
                             </div>
-                            <input className="client-res-time-slider" type="range" min={0} max={Math.max(0, timeSlots.length - 1)} step={1} value={selectedTimeSlotIndex} onChange={(e) => handleTimelineChange(e.target.value)} />
-                            <div className="client-res-time-ruler">
+                            <div ref={timeRulerRef} className="client-res-time-ruler" onScroll={handleTimeRulerScroll}>
                               {timeSlots.map((slot, index) => {
                                 const active = slot.value === startTime;
                                 const isHour = slot.minutes % 60 === 0;
                                 return (
-                                  <button key={slot.value} type="button" className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => setStartTime(slot.value)} title={slot.value} aria-label={slot.value}>
+                                  <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); }} title={slot.value} aria-label={slot.value}>
                                     <span className="client-res-ruler-line" />
                                     {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
                                     {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
@@ -796,26 +894,34 @@ function Reservations() {
                     </div>
                   </div>
 
-                  <div className="client-res-plan-controls">
-                    <Button size="sm" variant="light" onClick={handlePlanZoomIn}>+</Button>
-                    <Button size="sm" variant="light" onClick={handlePlanZoomOut}>-</Button>
-                    <Button size="sm" variant="outline-secondary" onClick={fitPlanToViewport}>{t('Центр', 'Markaz')}</Button>
-                    <Button size="sm" variant="outline-secondary" onClick={handleToggleFullscreen}>{isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Fullscreen', 'To‘liq ekran')}</Button>
+                  <div className="client-res-plan-controls" aria-label={t('Управление картой', 'Xarita boshqaruvi')}>
+                    <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomIn} title={t('Приблизить', 'Yaqinlashtirish')} aria-label={t('Приблизить', 'Yaqinlashtirish')}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    </button>
+                    <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomOut} title={t('Отдалить', 'Uzoqlashtirish')} aria-label={t('Отдалить', 'Uzoqlashtirish')}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+                    </button>
+                    <button type="button" className="client-res-map-control-btn" onClick={fitPlanToViewport} title={t('Сбросить вид', 'Ko‘rinishni tiklash')} aria-label={t('Сбросить вид', 'Ko‘rinishni tiklash')}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V6h3M18 9V6h-3M6 15v3h3M18 15v3h-3" /></svg>
+                    </button>
+                    <button type="button" className="client-res-map-control-btn" onClick={handleToggleFullscreen} title={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')} aria-label={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">{isPlanFullscreen ? <path d="M9 15H6v3M15 15h3v3M9 9H6V6M15 9h3V6" /> : <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />}</svg>
+                    </button>
+                  </div>
+
+                  <div className="client-res-map-next-overlay">
+                    <Button variant="primary" className="client-res-next-btn" disabled={loadingAvailability || !selectedTableIds.length || !selectedFloorId} onClick={() => setBookingStep('details')}>{t('Далее', 'Keyingi')}</Button>
                   </div>
                 </section>
 
                 {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mt-2 mb-2">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
-
-                <div className="client-res-plan-next-row">
-                  <Button variant="primary" className="client-res-next-btn" disabled={loadingAvailability || !selectedTableIds.length || !selectedFloorId} onClick={() => setBookingStep('details')}>{t('Далее', 'Keyingi')}</Button>
-                </div>
               </>
             ) : (
               <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card">
                 <Card.Body>
                   <div className="client-res-details-head">
                     <Button variant="outline-secondary" onClick={() => setBookingStep('plan')}>{t('← Назад к схеме', '← Sxemaga qaytish')}</Button>
-                    <div className="text-muted small">{selectedDateLabel || bookingDate} · {startTime}</div>
+                    <div className="text-muted small">{selectedDateLabel || bookingDate} · {startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</div>
                   </div>
 
                   <Row className="g-3">
@@ -849,10 +955,10 @@ function Reservations() {
                       <Card className="h-100 border-0 client-res-form-card">
                         <Card.Body>
                           <Form.Group className="mb-3">
-                            <Form.Label>{t('Длительность брони', 'Bron davomiyligi')}</Form.Label>
+                            <Form.Label>{t('Занимать до', 'Band qilish oxiri')}</Form.Label>
                             <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
-                              {bookingDurationOptions.map((value) => (
-                                <option key={value} value={value}>{value} {t('мин', 'daq')}</option>
+                              {bookingEndOptions.map((option) => (
+                                <option key={option.duration} value={option.duration}>{option.endTime} ({option.duration} {t('мин', 'daq')})</option>
                               ))}
                             </Form.Select>
                           </Form.Group>
@@ -877,7 +983,7 @@ function Reservations() {
 
                           {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mb-3">{t('Выбранные столы не покрывают количество гостей', 'Tanlangan stollar mehmonlar soniga yetmaydi')}</Alert>}
 
-                          <Button variant="success" className="w-100" disabled={submitting || !selectedTableIds.length || !selectedFloorId || !isCapacityEnough} onClick={submitReservation}>{submitting ? t('Отправляем...', 'Yuborilmoqda...') : t('Забронировать', 'Band qilish')}</Button>
+                          <Button variant="primary" className="w-100 client-res-book-btn" disabled={submitting || !selectedTableIds.length || !selectedFloorId || !isCapacityEnough} onClick={submitReservation}>{submitting ? t('Отправляем...', 'Yuborilmoqda...') : t('Забронировать', 'Band qilish')}</Button>
                         </Card.Body>
                       </Card>
                     </Col>

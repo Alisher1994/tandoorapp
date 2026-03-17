@@ -1314,7 +1314,7 @@ h6 {
 
 .client-res-controls-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
@@ -1328,14 +1328,18 @@ h6 {
   color: #64748b;
 }
 
+.client-res-controls-card.is-collapsed .client-res-controls-head {
+  margin-bottom: 0;
+}
+
 .client-res-collapse-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
   border: 1px solid #c7d2e7;
-  background: #f8fafc;
+  background: #f3f6ff;
   color: #334155;
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -1371,30 +1375,42 @@ h6 {
   font-size: 0.77rem;
 }
 
-.client-res-controls-card .client-res-time-slider {
-  width: 100%;
-  margin-top: 6px;
-  accent-color: #4f46e5;
-}
-
 .client-res-time-ruler {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   align-items: flex-end;
-  gap: 0;
+  gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid #dbe2f0;
-  border-radius: 12px;
-  background: #f8fafc;
-  padding: 8px 10px 6px;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  border: 1px solid #d8e0f0;
+  border-radius: 14px;
+  background: #f8faff;
+  padding: 8px 0 6px;
+}
+
+.client-res-time-ruler::before,
+.client-res-time-ruler::after {
+  content: '';
+  flex: 0 0 max(72px, calc(50% - 30px));
+}
+
+.client-res-time-ruler::-webkit-scrollbar {
+  height: 4px;
+}
+
+.client-res-time-ruler::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.42);
+  border-radius: 999px;
 }
 
 .client-res-ruler-tick {
   border: 0;
   background: transparent;
   color: #64748b;
-  min-width: 16px;
+  min-width: 42px;
   padding: 0;
   margin: 0;
   display: inline-flex;
@@ -1402,6 +1418,9 @@ h6 {
   align-items: center;
   justify-content: flex-end;
   cursor: pointer;
+  scroll-snap-align: center;
+  opacity: 0.45;
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
 .client-res-ruler-line {
@@ -1422,9 +1441,14 @@ h6 {
   background: #4f46e5;
 }
 
+.client-res-ruler-tick.is-active {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
 .client-res-ruler-label {
   margin-top: 4px;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1472,23 +1496,26 @@ h6 {
 }
 
 .client-res-map-shell {
-  margin-top: 8px;
-  border: 1px solid #d8deee;
-  border-radius: 16px;
+  margin-top: 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  border: 0;
+  border-radius: 0;
   overflow: hidden;
   background: #edf2ff;
   position: relative;
 }
 
 .client-res-map-shell .client-res-plan-stage {
-  height: min(78vh, calc(100vh - 248px));
-  min-height: 450px;
+  height: calc(100vh - 192px);
+  min-height: 500px;
   border: 0;
   border-radius: 0;
 }
 
 .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
-  height: min(82vh, calc(100vh - 178px));
+  height: calc(100vh - 126px);
 }
 
 .client-res-map-shell:fullscreen .client-res-plan-stage {
@@ -1512,6 +1539,14 @@ h6 {
 
 .client-res-details-card {
   border-radius: 16px;
+}
+
+.client-res-map-next-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 11;
 }
 
 .client-res-top-card .card-body {
@@ -1695,12 +1730,59 @@ h6 {
 
 .client-res-plan-controls {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 12px;
+  right: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   z-index: 8;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.client-res-map-shell:hover .client-res-plan-controls,
+.client-res-map-shell:focus-within .client-res-plan-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (pointer: coarse) {
+  .client-res-plan-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.client-res-map-control-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.client-res-map-control-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.client-res-map-control-btn:hover,
+.client-res-map-control-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.92);
+  color: #1e1b4b;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.2);
 }
 
 .client-res-plan-table {
@@ -1828,7 +1910,29 @@ h6 {
 }
 
 .client-res-next-btn {
-  min-width: 128px;
+  min-width: 176px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0.62rem 1.4rem;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  box-shadow: 0 10px 24px rgba(67, 56, 202, 0.38);
+}
+
+.client-res-next-btn:hover,
+.client-res-next-btn:focus-visible {
+  background: linear-gradient(135deg, #4338ca 0%, #5b5af4 100%);
+}
+
+.client-res-book-btn {
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  box-shadow: 0 10px 24px rgba(67, 56, 202, 0.3);
+}
+
+.client-res-book-btn:hover,
+.client-res-book-btn:focus-visible {
+  background: linear-gradient(135deg, #4338ca 0%, #5857ef 100%);
 }
 
 .client-res-details-head {
@@ -1901,12 +2005,12 @@ h6 {
   }
 
   .client-res-map-shell .client-res-plan-stage {
-    height: min(72vh, calc(100vh - 292px));
+    height: calc(100vh - 246px);
     min-height: 410px;
   }
 
   .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
-    height: min(78vh, calc(100vh - 222px));
+    height: calc(100vh - 180px);
   }
 
   .client-res-plan-stage {
@@ -1959,12 +2063,12 @@ h6 {
   }
 
   .client-res-map-shell .client-res-plan-stage {
-    height: calc(100vh - 340px);
+    height: calc(100vh - 300px);
     min-height: 350px;
   }
 
   .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
-    height: calc(100vh - 272px);
+    height: calc(100vh - 214px);
   }
 
   .client-res-top-card .card-body {
