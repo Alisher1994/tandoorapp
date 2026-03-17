@@ -273,6 +273,89 @@ const SearchableRestaurantFilter = ({
   );
 };
 
+const CustomSelectDropdown = ({
+  value,
+  onChange,
+  options = [],
+  placeholder = 'Выберите',
+  disabled = false,
+  searchable = false,
+  searchValue = '',
+  onSearchChange = () => {},
+  searchPlaceholder = 'Поиск...',
+  clearLabel = '',
+  noDataLabel = 'Нет данных',
+  menuClassName = '',
+  toggleClassName = 'form-control-custom',
+  toggleStyle = { minHeight: '40px' }
+}) => {
+  const [show, setShow] = useState(false);
+  const selectedOption = options.find((item) => String(item.value) === String(value));
+
+  return (
+    <Dropdown
+      show={show && !disabled}
+      onToggle={(nextShow) => setShow(disabled ? false : nextShow)}
+      autoClose="outside"
+      className="w-100"
+      popperConfig={{ strategy: 'fixed' }}
+    >
+      <Dropdown.Toggle
+        variant="light"
+        className={`${toggleClassName} w-100 d-flex align-items-center justify-content-between text-start`}
+        style={toggleStyle}
+        disabled={disabled}
+      >
+        <span className="text-truncate">{selectedOption?.label || placeholder}</span>
+      </Dropdown.Toggle>
+      <Dropdown.Menu className={menuClassName} style={{ width: '100%', maxHeight: '320px', overflowY: 'auto', zIndex: 2100 }}>
+        {searchable && (
+          <>
+            <div className="px-2 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              <Form.Control
+                className="form-control-custom"
+                type="search"
+                placeholder={searchPlaceholder}
+                value={searchValue}
+                onChange={(e) => onSearchChange(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <Dropdown.Divider className="my-1" />
+          </>
+        )}
+        {clearLabel ? (
+          <Dropdown.Item
+            active={String(value || '') === ''}
+            onClick={() => {
+              onChange('');
+              setShow(false);
+            }}
+          >
+            {clearLabel}
+          </Dropdown.Item>
+        ) : null}
+        {options.length ? (
+          options.map((item) => (
+            <Dropdown.Item
+              key={`custom-select-option-${item.value}`}
+              active={String(item.value) === String(value)}
+              onClick={() => {
+                onChange(item.value);
+                setShow(false);
+              }}
+            >
+              {item.label}
+            </Dropdown.Item>
+          ))
+        ) : (
+          <Dropdown.Item disabled>{noDataLabel}</Dropdown.Item>
+        )}
+      </Dropdown.Menu>
+    </Dropdown>
+  );
+};
+
 const MiniBarChart = ({
   title,
   rows = [],
@@ -4191,6 +4274,11 @@ function SuperAdminDashboard() {
     ];
 
     const yearOptions = Array.from({ length: 7 }, (_, index) => (new Date().getFullYear() - 3 + index));
+    const analyticsPeriodOptions = [
+      { value: 'daily', label: language === 'uz' ? 'Kun' : 'День' },
+      { value: 'monthly', label: language === 'uz' ? 'Oy' : 'Месяц' },
+      { value: 'yearly', label: language === 'uz' ? 'Yil' : 'Год' }
+    ];
     const periodCaption = overviewAnalyticsPeriod === 'daily'
       ? (overviewAnalyticsDate || '—')
       : overviewAnalyticsPeriod === 'monthly'
@@ -4254,7 +4342,7 @@ function SuperAdminDashboard() {
     return (
       <div className="admin-analytics-layout">
         <div className="admin-analytics-header-row">
-          <div className="d-flex align-items-start gap-2 ms-auto">
+          <div className="d-flex align-items-start gap-2 ms-auto w-100 admin-analytics-filter-shell">
             <Button
               type="button"
               variant="outline-secondary"
@@ -4267,18 +4355,18 @@ function SuperAdminDashboard() {
               <FilterIcon />
             </Button>
             {showAnalyticsFilterPanel && (
-              <div className="admin-analytics-filters-area">
+              <div className="admin-analytics-filters-area flex-grow-1">
                 <div className="admin-analytics-filter-group">
                   <span className="admin-analytics-filter-label">{language === 'uz' ? 'Davr' : 'Период'}</span>
-                  <Form.Select
+                  <CustomSelectDropdown
                     value={overviewAnalyticsPeriod}
-                    onChange={(e) => setOverviewAnalyticsPeriod(e.target.value)}
-                    className="admin-analytics-filter-control"
-                  >
-                    <option value="daily">{language === 'uz' ? 'Kun' : 'День'}</option>
-                    <option value="monthly">{language === 'uz' ? 'Oy' : 'Месяц'}</option>
-                    <option value="yearly">{language === 'uz' ? 'Yil' : 'Год'}</option>
-                  </Form.Select>
+                    onChange={setOverviewAnalyticsPeriod}
+                    options={analyticsPeriodOptions}
+                    placeholder={language === 'uz' ? 'Davr' : 'Период'}
+                    menuClassName="sa-analytics-period-menu"
+                    toggleClassName="admin-analytics-filter-control admin-analytics-filter-button"
+                    toggleStyle={{ minHeight: '40px' }}
+                  />
                 </div>
                 <div className="admin-analytics-filter-group">
                   <span className="admin-analytics-filter-label">{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
@@ -9560,6 +9648,18 @@ function SuperAdminDashboard() {
                 const level1Options = filterBySearch(level1Raw, globalProductCategorySearch.level1);
                 const level2Options = filterBySearch(level2Raw, globalProductCategorySearch.level2);
                 const level3Options = filterBySearch(level3Raw, globalProductCategorySearch.level3);
+                const level1DropdownOptions = level1Options.map((category) => ({
+                  value: String(category.id),
+                  label: `[${category.sort_order ?? '-'}] ${category.name_ru || category.name_uz || `#${category.id}`}`
+                }));
+                const level2DropdownOptions = level2Options.map((category) => ({
+                  value: String(category.id),
+                  label: `[${category.sort_order ?? '-'}] ${category.name_ru || category.name_uz || `#${category.id}`}`
+                }));
+                const level3DropdownOptions = level3Options.map((category) => ({
+                  value: String(category.id),
+                  label: `[${category.sort_order ?? '-'}] ${category.name_ru || category.name_uz || `#${category.id}`}`
+                }));
 
                 const handleLevelSelect = (levelIndex, nextValue) => {
                   const normalized = String(nextValue || '').trim();
@@ -9592,68 +9692,48 @@ function SuperAdminDashboard() {
                     <Form.Label>{language === 'uz' ? 'Tavsiya kategoriya' : 'Рекомендуемая категория'}</Form.Label>
                     <Row className="g-2">
                       <Col md={4}>
-                        <Form.Control
-                          type="search"
-                          value={globalProductCategorySearch.level1}
-                          onChange={(e) => setGlobalProductCategorySearch((prev) => ({ ...prev, level1: e.target.value }))}
-                          placeholder={language === 'uz' ? "Asosiy kategoriyani qidirish" : 'Поиск основной категории'}
-                        />
-                        <Form.Select
-                          className="mt-2"
+                        <CustomSelectDropdown
                           value={level1SelectedId}
-                          onChange={(e) => handleLevelSelect(0, e.target.value)}
-                        >
-                          <option value="">{language === 'uz' ? 'Категория 1 tanlanmagan' : 'Категория 1 не выбрана'}</option>
-                          {level1Options.map((category) => (
-                            <option key={`global-cat-level1-${category.id}`} value={String(category.id)}>
-                              [{category.sort_order ?? '-'}] {category.name_ru}
-                            </option>
-                          ))}
-                        </Form.Select>
+                          onChange={(value) => handleLevelSelect(0, value)}
+                          options={level1DropdownOptions}
+                          searchable
+                          searchValue={globalProductCategorySearch.level1}
+                          onSearchChange={(value) => setGlobalProductCategorySearch((prev) => ({ ...prev, level1: value }))}
+                          searchPlaceholder={language === 'uz' ? "Asosiy kategoriyani qidirish" : 'Поиск основной категории'}
+                          clearLabel={language === 'uz' ? 'Категория 1 tanlanmagan' : 'Категория 1 не выбрана'}
+                          noDataLabel={language === 'uz' ? "Ma'lumot yo'q" : 'Нет данных'}
+                          menuClassName="sa-category-select-menu"
+                        />
                       </Col>
                       <Col md={4}>
-                        <Form.Control
-                          type="search"
-                          value={globalProductCategorySearch.level2}
-                          onChange={(e) => setGlobalProductCategorySearch((prev) => ({ ...prev, level2: e.target.value }))}
-                          placeholder={language === 'uz' ? 'Subkategoriya qidirish' : 'Поиск субкатегории'}
-                          disabled={!level1SelectedId}
-                        />
-                        <Form.Select
-                          className="mt-2"
+                        <CustomSelectDropdown
                           value={level2SelectedId}
-                          onChange={(e) => handleLevelSelect(1, e.target.value)}
+                          onChange={(value) => handleLevelSelect(1, value)}
+                          options={level2DropdownOptions}
+                          searchable
+                          searchValue={globalProductCategorySearch.level2}
+                          onSearchChange={(value) => setGlobalProductCategorySearch((prev) => ({ ...prev, level2: value }))}
+                          searchPlaceholder={language === 'uz' ? 'Subkategoriya qidirish' : 'Поиск субкатегории'}
+                          clearLabel={language === 'uz' ? 'Категория 2 tanlanmagan' : 'Категория 2 не выбрана'}
+                          noDataLabel={language === 'uz' ? "Ma'lumot yo'q" : 'Нет данных'}
+                          menuClassName="sa-category-select-menu"
                           disabled={!level1SelectedId}
-                        >
-                          <option value="">{language === 'uz' ? 'Категория 2 tanlanmagan' : 'Категория 2 не выбрана'}</option>
-                          {level2Options.map((category) => (
-                            <option key={`global-cat-level2-${category.id}`} value={String(category.id)}>
-                              [{category.sort_order ?? '-'}] {category.name_ru}
-                            </option>
-                          ))}
-                        </Form.Select>
+                        />
                       </Col>
                       <Col md={4}>
-                        <Form.Control
-                          type="search"
-                          value={globalProductCategorySearch.level3}
-                          onChange={(e) => setGlobalProductCategorySearch((prev) => ({ ...prev, level3: e.target.value }))}
-                          placeholder={language === 'uz' ? '3-daraja qidirish' : 'Поиск категории 3 уровня'}
+                        <CustomSelectDropdown
+                          value={level3SelectedId}
+                          onChange={(value) => handleLevelSelect(2, value)}
+                          options={level3DropdownOptions}
+                          searchable
+                          searchValue={globalProductCategorySearch.level3}
+                          onSearchChange={(value) => setGlobalProductCategorySearch((prev) => ({ ...prev, level3: value }))}
+                          searchPlaceholder={language === 'uz' ? '3-daraja qidirish' : 'Поиск категории 3 уровня'}
+                          clearLabel={language === 'uz' ? 'Категория 3 tanlanmagan' : 'Категория 3 не выбрана'}
+                          noDataLabel={language === 'uz' ? "Ma'lumot yo'q" : 'Нет данных'}
+                          menuClassName="sa-category-select-menu"
                           disabled={!level2SelectedId}
                         />
-                        <Form.Select
-                          className="mt-2"
-                          value={level3SelectedId}
-                          onChange={(e) => handleLevelSelect(2, e.target.value)}
-                          disabled={!level2SelectedId}
-                        >
-                          <option value="">{language === 'uz' ? 'Категория 3 tanlanmagan' : 'Категория 3 не выбрана'}</option>
-                          {level3Options.map((category) => (
-                            <option key={`global-cat-level3-${category.id}`} value={String(category.id)}>
-                              [{category.sort_order ?? '-'}] {category.name_ru}
-                            </option>
-                          ))}
-                        </Form.Select>
                       </Col>
                     </Row>
                   </Form.Group>

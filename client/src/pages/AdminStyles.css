@@ -2064,6 +2064,36 @@ body::-webkit-scrollbar,
     border-radius: 16px;
     background: #ffffff;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    width: 100%;
+    flex: 1 1 auto;
+}
+
+.admin-analytics-filter-shell {
+    width: 100%;
+}
+
+.sa-analytics-period-menu {
+    min-width: 100% !important;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    padding: 4px 0;
+}
+
+.sa-analytics-period-menu .dropdown-item {
+    font-weight: 600;
+    padding: 8px 12px;
+}
+
+.sa-analytics-period-menu .dropdown-item.active,
+.sa-analytics-period-menu .dropdown-item:active {
+    background: #2563eb;
+    color: #fff;
+}
+
+.sa-category-select-menu {
+    min-width: 100% !important;
+    border-radius: 10px;
+    border: 1px solid #dbe2ea;
 }
 
 .admin-analytics-filter-group {
@@ -2909,6 +2939,10 @@ body::-webkit-scrollbar,
 @media (max-width: 575.98px) {
     .admin-analytics-header-row {
         gap: 14px;
+    }
+
+    .admin-analytics-filter-shell {
+        width: 100%;
     }
 
     .admin-analytics-period-tabs {
