@@ -4455,11 +4455,13 @@ router.get('/analytics/overview', async (req, res) => {
           END
         ) AS fulfillment_type,
         o.delivery_address,
+        o.delivery_coordinates,
         o.created_at,
         o.customer_name,
         o.customer_phone,
         o.is_paid,
         o.payment_status,
+        COALESCE(NULLIF(BTRIM(r.name), ''), CONCAT('ID ', o.restaurant_id::text)) AS restaurant_name,
         COALESCE(
           NULLIF(BTRIM(u_operator.full_name), ''),
           NULLIF(BTRIM(u_operator.username), ''),
@@ -4473,6 +4475,7 @@ router.get('/analytics/overview', async (req, res) => {
             AND osh.status = 'accepted'
         ) AS has_accepted_action
       FROM orders o
+      LEFT JOIN restaurants r ON r.id = o.restaurant_id
       LEFT JOIN users u ON u.id = o.user_id
       LEFT JOIN users u_operator ON u_operator.id = o.processed_by
       WHERE o.created_at >= $1::date
@@ -4668,6 +4671,17 @@ router.get('/analytics/overview', async (req, res) => {
       if (fulfillmentType === 'pickup') return true;
       return String(order?.delivery_address || '').trim().toLowerCase() === 'самовывоз';
     };
+    const parseDeliveryCoordinates = (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+      const [latRaw, lngRaw] = raw.split(',').map((part) => String(part || '').trim());
+      if (!latRaw || !lngRaw) return null;
+      const lat = Number.parseFloat(latRaw.replace(',', '.'));
+      const lng = Number.parseFloat(lngRaw.replace(',', '.'));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+      return { lat, lng };
+    };
 
     let revenue = 0;
     let deliveredOrdersCount = 0;
@@ -4690,6 +4704,7 @@ router.get('/analytics/overview', async (req, res) => {
     let operatorPaymentsTotalAmount = 0;
 
     const topCustomersMap = new Map();
+    const orderLocations = [];
 
     for (const order of ordersResult.rows) {
       const createdAt = new Date(order.created_at);
@@ -4754,6 +4769,21 @@ router.get('/analytics/overview', async (req, res) => {
       const customerEntry = topCustomersMap.get(customerKey);
       customerEntry.ordersCount += 1;
       customerEntry.totalAmount += totalAmount;
+
+      const orderLocation = parseDeliveryCoordinates(order.delivery_coordinates);
+      if (orderLocation) {
+        orderLocations.push({
+          orderId: Number.parseInt(order.id, 10) || null,
+          orderNumber: order.order_number || null,
+          lat: orderLocation.lat,
+          lng: orderLocation.lng,
+          totalAmount,
+          createdAt: order.created_at,
+          deliveryAddress: order.delivery_address || '',
+          customerName: String(order.customer_name || '').trim() || 'Клиент',
+          restaurantName: String(order.restaurant_name || '').trim() || 'Магазин'
+        });
+      }
 
       const normalizedPaymentMethod = String(order.payment_method || '').trim().toLowerCase();
       if (OPERATOR_PAYMENT_METHODS.includes(normalizedPaymentMethod)) {
@@ -5034,6 +5064,7 @@ router.get('/analytics/overview', async (req, res) => {
         revenue: revenueTimeline,
         orders: ordersTimeline
       },
+      orderLocations,
       topProducts,
       topCustomers,
       categories: {

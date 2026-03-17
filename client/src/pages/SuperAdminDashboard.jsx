@@ -8,12 +8,20 @@ import {
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
   Toast, ToastContainer, Dropdown
 } from 'react-bootstrap';
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
+import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
+import {
+  getLeafletTileLayerConfig,
+  getSavedMapProvider,
+  normalizeMapProvider,
+  saveMapProvider
+} from '../utils/mapTileProviders';
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
@@ -187,6 +195,42 @@ const createEmptyProductReviewAnalytics = () => ({
   latestComments: [],
   topProducts: []
 });
+const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
+const ANALYTICS_DEFAULT_MAP_ZOOM = 11;
+const normalizeOverviewOrderLocation = (point) => {
+  if (!point || typeof point !== 'object') return null;
+  const lat = Number(point.lat);
+  const lng = Number(point.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return {
+    ...point,
+    lat,
+    lng
+  };
+};
+const getOverviewOrderLocationKey = (point) => (
+  String(point?.orderId ?? point?.orderNumber ?? `${point?.lat}:${point?.lng}`)
+);
+const SuperAdminAnalyticsMapAutoBounds = ({ points = [], selectedPoint = null }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    if (selectedPoint && Number.isFinite(selectedPoint.lat) && Number.isFinite(selectedPoint.lng)) {
+      map.setView([selectedPoint.lat, selectedPoint.lng], Math.max(map.getZoom(), 14), { animate: true, duration: 0.3 });
+      return;
+    }
+    if (!Array.isArray(points) || !points.length) {
+      map.setView(ANALYTICS_DEFAULT_MAP_CENTER, ANALYTICS_DEFAULT_MAP_ZOOM, { animate: false });
+      return;
+    }
+    const bounds = points.map((point) => [point.lat, point.lng]);
+    map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+  }, [map, points, selectedPoint]);
+
+  return null;
+};
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
@@ -930,6 +974,8 @@ function SuperAdminDashboard() {
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
+  const [overviewMapProvider, setOverviewMapProvider] = useState(() => getSavedMapProvider());
+  const [selectedOverviewOrderLocation, setSelectedOverviewOrderLocation] = useState(null);
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
   const [overviewProductReviewAnalytics, setOverviewProductReviewAnalytics] = useState(() => createEmptyProductReviewAnalytics());
@@ -4620,6 +4666,52 @@ function SuperAdminDashboard() {
     if (!Number.isFinite(numeric)) return '0';
     return Math.round(numeric).toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
   };
+  const overviewMapProviderOptions = useMemo(() => ([
+    { value: 'osm', label: 'OpenStreetMap' },
+    { value: 'yandex', label: 'Yandex' }
+  ]), []);
+  const overviewMapTileLayerConfig = useMemo(() => getLeafletTileLayerConfig(overviewMapProvider, {
+    yandexApiKey: import.meta.env.VITE_YANDEX_MAPS_KEY || ''
+  }), [overviewMapProvider]);
+  const isOverviewYandexMapProvider = overviewMapProvider === 'yandex';
+  const handleOverviewMapProviderChange = React.useCallback((nextValue) => {
+    const normalizedProvider = normalizeMapProvider(nextValue);
+    setOverviewMapProvider(normalizedProvider);
+    saveMapProvider(normalizedProvider);
+  }, []);
+  const handleOverviewYandexMapLoadError = React.useCallback(() => {
+    if (overviewMapProvider !== 'yandex') return;
+    const fallbackProvider = 'osm';
+    setOverviewMapProvider(fallbackProvider);
+    saveMapProvider(fallbackProvider);
+  }, [overviewMapProvider]);
+  const overviewAnalyticsOrderLocations = useMemo(() => {
+    const source = Array.isArray(overviewAnalyticsData?.orderLocations)
+      ? overviewAnalyticsData.orderLocations
+      : [];
+    return source
+      .map(normalizeOverviewOrderLocation)
+      .filter(Boolean)
+      .sort((left, right) => (
+        new Date(right?.createdAt || 0).getTime() - new Date(left?.createdAt || 0).getTime()
+      ));
+  }, [overviewAnalyticsData?.orderLocations]);
+
+  useEffect(() => {
+    if (!overviewAnalyticsOrderLocations.length) {
+      if (selectedOverviewOrderLocation) setSelectedOverviewOrderLocation(null);
+      return;
+    }
+    if (!selectedOverviewOrderLocation) {
+      setSelectedOverviewOrderLocation(overviewAnalyticsOrderLocations[0]);
+      return;
+    }
+    const selectedKey = getOverviewOrderLocationKey(selectedOverviewOrderLocation);
+    const exists = overviewAnalyticsOrderLocations.some((location) => getOverviewOrderLocationKey(location) === selectedKey);
+    if (!exists) {
+      setSelectedOverviewOrderLocation(overviewAnalyticsOrderLocations[0]);
+    }
+  }, [overviewAnalyticsOrderLocations, selectedOverviewOrderLocation]);
 
   const monthShortLabels = language === 'uz'
     ? ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun', 'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
@@ -5300,6 +5392,139 @@ function SuperAdminDashboard() {
                 </div>
               ))}
             </div>
+
+            <Row className="g-4 mb-4">
+              <Col xs={12}>
+                <Card className="border-0 shadow-sm admin-analytics-surface-card admin-analytics-map-card">
+                  <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
+                      {t('orderGeography')}
+                    </h6>
+                    <Form.Select
+                      size="sm"
+                      value={overviewMapProvider}
+                      onChange={(e) => handleOverviewMapProviderChange(e.target.value)}
+                      style={{ minWidth: '140px' }}
+                      aria-label={language === 'uz' ? 'Xarita manbasi' : 'Источник карты'}
+                    >
+                      {overviewMapProviderOptions.map((item) => (
+                        <option key={`sa-overview-map-provider-${item.value}`} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    <Row className="g-0">
+                      <Col lg={8} xl={9}>
+                        <div
+                          style={{
+                            height: '390px',
+                            width: '100%',
+                            background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
+                          }}
+                        >
+                          {overviewAnalyticsOrderLocations.length === 0 ? (
+                            <div className="h-100 d-flex align-items-center justify-content-center text-muted">
+                              {t('noDataForPeriod')}
+                            </div>
+                          ) : isOverviewYandexMapProvider ? (
+                            <YandexAnalyticsMap
+                              points={overviewAnalyticsOrderLocations}
+                              selectedPoint={selectedOverviewOrderLocation}
+                              onSelectPoint={setSelectedOverviewOrderLocation}
+                              onLoadError={handleOverviewYandexMapLoadError}
+                              height="100%"
+                            />
+                          ) : (
+                            <MapContainer
+                              center={ANALYTICS_DEFAULT_MAP_CENTER}
+                              zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                              style={{ height: '100%', width: '100%', filter: 'saturate(0.9) contrast(1.03)' }}
+                            >
+                              <TileLayer
+                                url={overviewMapTileLayerConfig.url}
+                                attribution={overviewMapTileLayerConfig.attribution}
+                                maxZoom={overviewMapTileLayerConfig.maxZoom}
+                              />
+                              <SuperAdminAnalyticsMapAutoBounds
+                                points={overviewAnalyticsOrderLocations}
+                                selectedPoint={selectedOverviewOrderLocation}
+                              />
+                              {overviewAnalyticsOrderLocations.map((location) => {
+                                const locationKey = getOverviewOrderLocationKey(location);
+                                const isSelected = selectedOverviewOrderLocation
+                                  && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
+                                return (
+                                  <CircleMarker
+                                    key={`sa-overview-map-${locationKey}`}
+                                    center={[location.lat, location.lng]}
+                                    radius={isSelected ? 9 : 7}
+                                    pathOptions={{
+                                      color: isSelected ? '#1d4ed8' : '#ef4444',
+                                      fillColor: isSelected ? '#1d4ed8' : '#f97316',
+                                      fillOpacity: 0.8,
+                                      weight: 2
+                                    }}
+                                    eventHandlers={{
+                                      click: () => setSelectedOverviewOrderLocation(location)
+                                    }}
+                                  />
+                                );
+                              })}
+                            </MapContainer>
+                          )}
+                        </div>
+                      </Col>
+                      <Col lg={4} xl={3} className="border-start bg-white">
+                        <div className="p-3 h-100 admin-custom-scrollbar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
+                          <div className="small text-uppercase text-muted fw-semibold mb-2">
+                            {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
+                          </div>
+                          <div className="d-grid gap-2">
+                            {overviewAnalyticsOrderLocations.length > 0 ? overviewAnalyticsOrderLocations.map((location) => {
+                              const locationKey = getOverviewOrderLocationKey(location);
+                              const isSelected = selectedOverviewOrderLocation
+                                && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
+                              return (
+                                <button
+                                  key={`sa-overview-map-list-${locationKey}`}
+                                  type="button"
+                                  className="admin-analytics-map-list-item text-start"
+                                  style={{
+                                    borderColor: isSelected ? '#93c5fd' : '#e2e8f0',
+                                    background: isSelected ? '#eff6ff' : '#ffffff'
+                                  }}
+                                  onClick={() => setSelectedOverviewOrderLocation(location)}
+                                >
+                                  <div className="fw-semibold text-truncate">{location.customerName || 'Клиент'}</div>
+                                  <div className="small text-muted text-truncate">
+                                    {location.restaurantName || 'Магазин'}
+                                  </div>
+                                  <div className="small text-truncate">№{location.orderNumber || '—'} · {formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}</div>
+                                </button>
+                              );
+                            }) : (
+                              <div className="text-muted small">{t('noDataForPeriod')}</div>
+                            )}
+                          </div>
+
+                          {selectedOverviewOrderLocation ? (
+                            <div className="mt-3 p-2 rounded border bg-white">
+                              <div className="small"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedOverviewOrderLocation.orderNumber || '—'}</div>
+                              <div className="small"><strong>{t('amount')}:</strong> {formatAnalyticsMoney(selectedOverviewOrderLocation.totalAmount || 0)} {t('sum')}</div>
+                              <div className="small"><strong>{t('date')}:</strong> {selectedOverviewOrderLocation.createdAt ? new Date(selectedOverviewOrderLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
+                              <div className="small"><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedOverviewOrderLocation.deliveryAddress || '—'}</div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
 
             <Row className="g-4 mb-4">
               <Col lg={4}>

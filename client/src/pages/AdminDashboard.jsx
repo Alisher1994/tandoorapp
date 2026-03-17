@@ -1279,6 +1279,12 @@ function AdminDashboard() {
     saveMapProvider(normalizedProvider);
   }, []);
   const isYandexMapProvider = leafletMapProvider === 'yandex';
+  const handleYandexAnalyticsMapLoadError = useCallback(() => {
+    if (leafletMapProvider !== 'yandex') return;
+    const fallbackProvider = 'osm';
+    setLeafletMapProvider(fallbackProvider);
+    saveMapProvider(fallbackProvider);
+  }, [leafletMapProvider]);
   const variantSupportContactName = String(billingInfo?.requisites?.card_holder || '').trim();
   const variantSupportPhone = String(billingInfo?.requisites?.phone_number || '').trim();
   const variantSupportTelegram = String(billingInfo?.requisites?.telegram_username || '').trim();
@@ -5865,6 +5871,7 @@ function AdminDashboard() {
                   shopPoint={analyticsShopLocation}
                   selectedPoint={selectedAnalyticsLocation}
                   onSelectPoint={openAnalyticsLocationDetails}
+                  onLoadError={handleYandexAnalyticsMapLoadError}
                   height="100%"
                 />
               ) : (
@@ -7388,6 +7395,7 @@ function AdminDashboard() {
                                   shopPoint={analyticsShopLocation}
                                   selectedPoint={selectedAnalyticsLocation}
                                   onSelectPoint={openAnalyticsLocationDetails}
+                                  onLoadError={handleYandexAnalyticsMapLoadError}
                                   height="100%"
                                 />
                               ) : (
@@ -11261,6 +11269,7 @@ function AdminDashboard() {
                     shopPoint={analyticsShopLocation}
                     selectedPoint={selectedAnalyticsLocation}
                     onSelectPoint={openAnalyticsLocationDetails}
+                    onLoadError={handleYandexAnalyticsMapLoadError}
                     height="100%"
                   />
                 ) : (

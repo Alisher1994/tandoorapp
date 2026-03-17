@@ -5,6 +5,10 @@ const DEFAULT_ZOOM = 12;
 
 let yandexMapsLoaderPromise = null;
 
+const resetYandexLoader = () => {
+  yandexMapsLoaderPromise = null;
+};
+
 const loadYandexMaps = () => {
   if (typeof window === 'undefined') {
     return Promise.reject(new Error('Yandex Maps доступен только в браузере'));
@@ -30,6 +34,7 @@ const loadYandexMaps = () => {
       setTimeout(() => {
         if (!window.ymaps) {
           clearInterval(waitTimer);
+          resetYandexLoader();
           reject(new Error('Не удалось загрузить Yandex Maps'));
         }
       }, 15000);
@@ -42,12 +47,16 @@ const loadYandexMaps = () => {
     script.async = true;
     script.onload = () => {
       if (!window.ymaps) {
+        resetYandexLoader();
         reject(new Error('Yandex Maps API не инициализирован'));
         return;
       }
       window.ymaps.ready(() => resolve(window.ymaps));
     };
-    script.onerror = () => reject(new Error('Ошибка загрузки Yandex Maps API'));
+    script.onerror = () => {
+      resetYandexLoader();
+      reject(new Error('Ошибка загрузки Yandex Maps API'));
+    };
     document.head.appendChild(script);
   });
 
@@ -75,6 +84,7 @@ function YandexAnalyticsMap({
   shopPoint = null,
   selectedPoint = null,
   onSelectPoint = () => {},
+  onLoadError = () => {},
   height = '100%'
 }) {
   const containerRef = useRef(null);
@@ -110,7 +120,9 @@ function YandexAnalyticsMap({
         map.geoObjects.add(geoCollection);
       } catch (error) {
         if (!destroyed) {
-          setLoadError(error?.message || 'Не удалось загрузить карту Yandex');
+          const message = error?.message || 'Не удалось загрузить карту Yandex';
+          setLoadError(message);
+          onLoadError(message);
         }
       }
     };
@@ -125,7 +137,7 @@ function YandexAnalyticsMap({
       }
       geoCollectionRef.current = null;
     };
-  }, []);
+  }, [onLoadError]);
 
   useEffect(() => {
     const map = mapRef.current;
