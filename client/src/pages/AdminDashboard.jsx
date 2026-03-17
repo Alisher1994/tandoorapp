@@ -6763,18 +6763,24 @@ function AdminDashboard() {
               {/* Broadcast */}
               <Nav.Link
                 onClick={() => setShowBroadcastModal(true)}
-                className="admin-nav-link admin-header-pill admin-header-action-pill"
+                className="admin-nav-link admin-header-pill admin-header-action-pill admin-collapsible-pill admin-collapsible-pill--action"
+                title={t('broadcast')}
               >
-                <i className="bi bi-megaphone-fill me-1" aria-hidden="true"></i>
-                {t('broadcast')}
+                <span className="admin-pill-icon" aria-hidden="true">
+                  <i className="bi bi-megaphone-fill"></i>
+                </span>
+                <span className="admin-pill-expand">{t('broadcast')}</span>
               </Nav.Link>
               {isReservationModuleEnabled && (
                 <Nav.Link
                   onClick={() => navigate('/admin/reservations')}
-                  className="admin-nav-link admin-header-pill admin-header-action-pill"
+                  className="admin-nav-link admin-header-pill admin-header-action-pill admin-collapsible-pill admin-collapsible-pill--action"
+                  title={t('reservations')}
                 >
-                  <i className="bi bi-calendar2-week-fill me-1" aria-hidden="true"></i>
-                  {t('reservations')}
+                  <span className="admin-pill-icon" aria-hidden="true">
+                    <i className="bi bi-calendar2-week-fill"></i>
+                  </span>
+                  <span className="admin-pill-expand">{t('reservations')}</span>
                 </Nav.Link>
               )}
 
@@ -6784,11 +6790,16 @@ function AdminDashboard() {
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none border-0 admin-header-pill admin-lang-pill"
+                    className="d-flex align-items-center py-1 px-3 rounded-pill text-decoration-none border-0 admin-header-pill admin-lang-pill admin-collapsible-pill admin-collapsible-pill--lang"
+                    title={activeLanguageOption?.label || activeLanguageOption?.shortLabel || 'RU'}
                   >
-                    <img src={activeLanguageOption?.flag} width="16" height="12" alt={activeLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
-                    <span className="admin-lang-pill-label">{activeLanguageOption?.shortLabel || 'RU'}</span>
-                    <i className="bi bi-chevron-down admin-lang-pill-chevron" aria-hidden="true"></i>
+                    <span className="admin-pill-icon" aria-hidden="true">
+                      <img src={activeLanguageOption?.flag} width="16" height="12" alt={activeLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+                    </span>
+                    <span className="admin-pill-expand">
+                      <span className="admin-lang-pill-label">{activeLanguageOption?.shortLabel || 'RU'}</span>
+                      <i className="bi bi-chevron-down admin-lang-pill-chevron" aria-hidden="true"></i>
+                    </span>
                   </Dropdown.Toggle>
                   <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-lang-dropdown-menu">
                     {languageOptions.map((option) => (
@@ -6812,12 +6823,13 @@ function AdminDashboard() {
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill"
+                    className="d-flex align-items-center py-1 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill admin-collapsible-pill admin-collapsible-pill--user"
+                    title={user?.full_name || user?.username || 'Administrator'}
                   >
-                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm admin-user-avatar">
+                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white shadow-sm admin-user-avatar admin-pill-icon">
                       {user?.username?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                    <div className="d-none d-md-block text-start">
+                    <div className="d-none d-md-block text-start admin-pill-expand">
                       <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Administrator'}</div>
                       <div className="text-white-50 small admin-user-id">ID: {String(user?.id || 0).padStart(5, '0')}</div>
                     </div>
@@ -6860,24 +6872,29 @@ function AdminDashboard() {
 
                 {/* Separate Balance pill */}
                 <div
-                  className="py-1 px-3 rounded-pill d-flex flex-column align-items-end justify-content-center text-decoration-none shadow-sm transition-all admin-header-pill admin-balance-pill"
-                  style={{ cursor: 'pointer', minWidth: '110px' }}
+                  className="py-1 px-3 rounded-pill d-flex align-items-center justify-content-center text-decoration-none shadow-sm transition-all admin-header-pill admin-balance-pill admin-collapsible-pill admin-collapsible-pill--balance"
+                  style={{ cursor: 'pointer' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     fetchBillingInfo();
                     setShowBalanceModal(true);
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.18)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                  }}
+                  title={`${checksAvailableLabel}: ${formatChecksCount(balanceChecksCount)} ${checksCountLabel}`}
                 >
-                  <span className="text-white-50 extra-small fw-bold text-uppercase" style={{ fontSize: '0.55rem', letterSpacing: '0.05rem' }}>{checksAvailableLabel}</span>
-                  <span className="text-white fw-bold" style={{ fontSize: '0.85rem' }}>{formatChecksCount(balanceChecksCount)} <span className="opacity-75 fw-normal small">{checksCountLabel}</span></span>
+                  <span className="admin-pill-icon admin-balance-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 3h16v18H4z" />
+                      <path d="M8 7h8" />
+                      <path d="M8 11h8" />
+                      <path d="m8.5 15 2.2 2 4.8-4.5" />
+                    </svg>
+                  </span>
+                  <span className="admin-pill-expand admin-balance-content">
+                    <span className="text-white-50 extra-small fw-bold text-uppercase admin-balance-caption">{checksAvailableLabel}</span>
+                    <span className="text-white fw-bold admin-balance-value">
+                      {formatChecksCount(balanceChecksCount)} <span className="opacity-75 fw-normal small">{checksCountLabel}</span>
+                    </span>
+                  </span>
                 </div>
               </div>
             </Nav>

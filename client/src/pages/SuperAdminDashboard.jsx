@@ -6989,11 +6989,16 @@ function SuperAdminDashboard() {
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 py-1 px-3 rounded-pill text-decoration-none border-0 admin-header-pill admin-lang-pill"
+                    className="d-flex align-items-center py-1 px-3 rounded-pill text-decoration-none border-0 admin-header-pill admin-lang-pill admin-collapsible-pill admin-collapsible-pill--lang"
+                    title={activeHeaderLanguageOption?.label || activeHeaderLanguageOption?.shortLabel || 'RU'}
                   >
-                    <img src={activeHeaderLanguageOption?.flag} width="16" height="12" alt={activeHeaderLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
-                    <span className="admin-lang-pill-label">{activeHeaderLanguageOption?.shortLabel || 'RU'}</span>
-                    <i className="bi bi-chevron-down admin-lang-pill-chevron" aria-hidden="true"></i>
+                    <span className="admin-pill-icon" aria-hidden="true">
+                      <img src={activeHeaderLanguageOption?.flag} width="16" height="12" alt={activeHeaderLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+                    </span>
+                    <span className="admin-pill-expand">
+                      <span className="admin-lang-pill-label">{activeHeaderLanguageOption?.shortLabel || 'RU'}</span>
+                      <i className="bi bi-chevron-down admin-lang-pill-chevron" aria-hidden="true"></i>
+                    </span>
                   </Dropdown.Toggle>
                   <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-lang-dropdown-menu">
                     {headerLanguageOptions.map((option) => (
@@ -7031,12 +7036,13 @@ function SuperAdminDashboard() {
                   <Dropdown.Toggle
                     variant="link"
                     bsPrefix="p-0"
-                    className="d-flex align-items-center gap-2 py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill"
+                    className="d-flex align-items-center py-2 px-3 rounded-pill text-decoration-none custom-user-dropdown admin-user-toggle admin-header-pill admin-user-pill admin-collapsible-pill admin-collapsible-pill--user"
+                    title={user?.full_name || user?.username || 'Super Administrator'}
                   >
-                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar">
+                    <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white admin-user-avatar admin-pill-icon">
                       {user?.username?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                    <div className="d-none d-md-block text-start">
+                    <div className="d-none d-md-block text-start admin-pill-expand">
                       <div className="text-white small fw-bold lh-1">{user?.full_name || user?.username || 'Super Administrator'}</div>
                       <div className="text-white-50 small admin-user-id">Administrator</div>
                     </div>
