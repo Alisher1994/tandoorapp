@@ -1029,6 +1029,7 @@ function SuperAdminDashboard() {
   });
   const [overviewMapProvider, setOverviewMapProvider] = useState(() => getSavedMapProvider());
   const [selectedOverviewOrderLocation, setSelectedOverviewOrderLocation] = useState(null);
+  const [overviewMapSelectionLocked, setOverviewMapSelectionLocked] = useState(false);
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
   const [overviewProductReviewAnalytics, setOverviewProductReviewAnalytics] = useState(() => createEmptyProductReviewAnalytics());
@@ -4749,20 +4750,28 @@ function SuperAdminDashboard() {
         new Date(right?.createdAt || 0).getTime() - new Date(left?.createdAt || 0).getTime()
       ));
   }, [overviewAnalyticsData?.orderLocations]);
+  const handleSelectOverviewOrderLocation = React.useCallback((location) => {
+    if (!location) return;
+    setSelectedOverviewOrderLocation(location);
+    setOverviewMapSelectionLocked(true);
+  }, []);
 
   useEffect(() => {
     if (!overviewAnalyticsOrderLocations.length) {
       if (selectedOverviewOrderLocation) setSelectedOverviewOrderLocation(null);
+      setOverviewMapSelectionLocked(false);
       return;
     }
     if (!selectedOverviewOrderLocation) {
       setSelectedOverviewOrderLocation(overviewAnalyticsOrderLocations[0]);
+      setOverviewMapSelectionLocked(false);
       return;
     }
     const selectedKey = getOverviewOrderLocationKey(selectedOverviewOrderLocation);
     const exists = overviewAnalyticsOrderLocations.some((location) => getOverviewOrderLocationKey(location) === selectedKey);
     if (!exists) {
       setSelectedOverviewOrderLocation(overviewAnalyticsOrderLocations[0]);
+      setOverviewMapSelectionLocked(false);
     }
   }, [overviewAnalyticsOrderLocations, selectedOverviewOrderLocation]);
 
@@ -5485,8 +5494,8 @@ function SuperAdminDashboard() {
                           ) : isOverviewYandexMapProvider ? (
                             <YandexAnalyticsMap
                               points={overviewAnalyticsOrderLocations}
-                              selectedPoint={selectedOverviewOrderLocation}
-                              onSelectPoint={setSelectedOverviewOrderLocation}
+                              selectedPoint={overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
+                              onSelectPoint={handleSelectOverviewOrderLocation}
                               onLoadError={handleOverviewYandexMapLoadError}
                               height="100%"
                             />
@@ -5504,7 +5513,7 @@ function SuperAdminDashboard() {
                               <SuperAdminAnalyticsMapResizeFix />
                               <SuperAdminAnalyticsMapAutoBounds
                                 points={overviewAnalyticsOrderLocations}
-                                selectedPoint={selectedOverviewOrderLocation}
+                                selectedPoint={overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
                               />
                               {overviewAnalyticsOrderLocations.map((location) => {
                                 const locationKey = getOverviewOrderLocationKey(location);
@@ -5516,7 +5525,7 @@ function SuperAdminDashboard() {
                                     position={[location.lat, location.lng]}
                                     icon={getOverviewAnalyticsPointIcon(isSelected)}
                                     eventHandlers={{
-                                      click: () => setSelectedOverviewOrderLocation(location)
+                                      click: () => handleSelectOverviewOrderLocation(location)
                                     }}
                                   />
                                 );
@@ -5544,7 +5553,7 @@ function SuperAdminDashboard() {
                                     borderColor: isSelected ? '#93c5fd' : '#e2e8f0',
                                     background: isSelected ? '#eff6ff' : '#ffffff'
                                   }}
-                                  onClick={() => setSelectedOverviewOrderLocation(location)}
+                                  onClick={() => handleSelectOverviewOrderLocation(location)}
                                 >
                                   <div className="fw-semibold text-truncate">{location.customerName || 'Клиент'}</div>
                                   <div className="small text-muted text-truncate">

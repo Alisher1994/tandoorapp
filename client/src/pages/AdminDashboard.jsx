@@ -1229,6 +1229,7 @@ function AdminDashboard() {
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
   const [leafletMapProvider, setLeafletMapProvider] = useState(() => getSavedMapProvider());
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
+  const [analyticsMapSelectionLocked, setAnalyticsMapSelectionLocked] = useState(false);
   const analyticsListItemRefs = useRef(new Map());
   const analyticsFullscreenListItemRefs = useRef(new Map());
 
@@ -1955,6 +1956,7 @@ function AdminDashboard() {
   const openAnalyticsLocationDetails = (location) => {
     if (!location) return;
     setSelectedAnalyticsLocation(location);
+    setAnalyticsMapSelectionLocked(true);
   };
 
   const monthlyAnalyticsLocationsList = useMemo(() => (
@@ -2035,15 +2037,18 @@ function AdminDashboard() {
   useEffect(() => {
     if (!activeAnalyticsLocationsList.length) {
       if (selectedAnalyticsLocation) setSelectedAnalyticsLocation(null);
+      setAnalyticsMapSelectionLocked(false);
       return;
     }
     if (!selectedAnalyticsLocation) {
       setSelectedAnalyticsLocation(activeAnalyticsLocationsList[0]);
+      setAnalyticsMapSelectionLocked(false);
       return;
     }
     const exists = activeAnalyticsLocationsList.some((location) => location.orderId === selectedAnalyticsLocation.orderId);
     if (!exists) {
       setSelectedAnalyticsLocation(activeAnalyticsLocationsList[0]);
+      setAnalyticsMapSelectionLocked(false);
     }
   }, [activeAnalyticsLocationsList, selectedAnalyticsLocation]);
 
@@ -5914,7 +5919,7 @@ function AdminDashboard() {
                 <YandexAnalyticsMap
                   points={activeAnalyticsLocationsList}
                   shopPoint={analyticsShopLocation}
-                  selectedPoint={selectedAnalyticsLocation}
+                  selectedPoint={analyticsMapSelectionLocked ? selectedAnalyticsLocation : null}
                   onSelectPoint={openAnalyticsLocationDetails}
                   onLoadError={handleYandexAnalyticsMapLoadError}
                   height="100%"
@@ -5932,7 +5937,7 @@ function AdminDashboard() {
                   />
                   <AnalyticsMapResizeFix />
                   <AnalyticsMapAutoBounds points={activeAnalyticsMapPoints} />
-                  <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                  <AnalyticsMapFocus selectedPoint={analyticsMapSelectionLocked ? selectedAnalyticsLocation : null} />
                   {activeAnalyticsLocationsList.map((location) => {
                     const isSelected = selectedAnalyticsLocation &&
                       (selectedAnalyticsLocation.orderId === location.orderId);
@@ -7439,7 +7444,7 @@ function AdminDashboard() {
                                 <YandexAnalyticsMap
                                   points={analytics.orderLocations || []}
                                   shopPoint={analyticsShopLocation}
-                                  selectedPoint={selectedAnalyticsLocation}
+                                  selectedPoint={analyticsMapSelectionLocked ? selectedAnalyticsLocation : null}
                                   onSelectPoint={openAnalyticsLocationDetails}
                                   onLoadError={handleYandexAnalyticsMapLoadError}
                                   height="100%"
@@ -7457,7 +7462,7 @@ function AdminDashboard() {
                                   />
                                   <AnalyticsMapResizeFix />
                                   <AnalyticsMapAutoBounds points={monthlyAnalyticsMapPoints} />
-                                  <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                                  <AnalyticsMapFocus selectedPoint={analyticsMapSelectionLocked ? selectedAnalyticsLocation : null} />
                                   {analytics.orderLocations.map((location) => {
                                     const isSelected = selectedAnalyticsLocation &&
                                       (selectedAnalyticsLocation.orderId === location.orderId);
@@ -11314,7 +11319,7 @@ function AdminDashboard() {
                   <YandexAnalyticsMap
                     points={activeAnalyticsLocationsList}
                     shopPoint={analyticsShopLocation}
-                    selectedPoint={selectedAnalyticsLocation}
+                    selectedPoint={analyticsMapSelectionLocked ? selectedAnalyticsLocation : null}
                     onSelectPoint={openAnalyticsLocationDetails}
                     onLoadError={handleYandexAnalyticsMapLoadError}
                     height="100%"
@@ -11332,7 +11337,7 @@ function AdminDashboard() {
                     />
                     <AnalyticsMapResizeFix />
                     <AnalyticsMapAutoBounds points={activeAnalyticsLocationsList} />
-                    <AnalyticsMapFocus selectedPoint={selectedAnalyticsLocation} />
+                    <AnalyticsMapFocus selectedPoint={analyticsMapSelectionLocked ? selectedAnalyticsLocation : null} />
                     {activeAnalyticsLocationsList.map((location) => (
                       (() => {
                         const isSelected = selectedAnalyticsLocation &&
