@@ -21,6 +21,15 @@ const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+const MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const SPREADSHEET_IMPORT_EXTENSIONS = new Set(['.xlsx', '.xls', '.csv']);
+const SPREADSHEET_IMPORT_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'application/csv',
+  'text/plain'
+]);
 const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
 const MAX_ORDER_RATING = 5;
 const DAVRON_SCAM_PRANK_SESSION_KEY = 'sa_davron_scam_prank_v1_shown';
@@ -94,6 +103,27 @@ const normalizeOrderRatingValue = (value) => {
   if (parsed < 0) return 0;
   if (parsed > MAX_ORDER_RATING) return MAX_ORDER_RATING;
   return parsed;
+};
+const getFileExtensionLower = (filename) => {
+  const value = String(filename || '');
+  const idx = value.lastIndexOf('.');
+  return idx >= 0 ? value.slice(idx).toLowerCase() : '';
+};
+const validateSpreadsheetImportFile = (file) => {
+  if (!file) return 'Файл не выбран';
+  const ext = getFileExtensionLower(file.name);
+  const mime = String(file.type || '').toLowerCase();
+  const size = Number(file.size || 0);
+  if (!SPREADSHEET_IMPORT_EXTENSIONS.has(ext) && !SPREADSHEET_IMPORT_MIME_TYPES.has(mime)) {
+    return 'Разрешены только .xlsx, .xls или .csv';
+  }
+  if (size <= 0) {
+    return 'Файл пустой';
+  }
+  if (size > MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES) {
+    return 'Файл слишком большой (максимум 5 МБ)';
+  }
+  return '';
 };
 const buildRatingStarsText = (value) => {
   const normalized = normalizeOrderRatingValue(value);
@@ -3139,6 +3169,12 @@ function SuperAdminDashboard() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+
+    const fileValidationError = validateSpreadsheetImportFile(file);
+    if (fileValidationError) {
+      setError(fileValidationError);
+      return;
+    }
 
     setIsImportingCategories(true);
     try {

@@ -71,6 +71,15 @@ const VARIANT_IMAGE_SLOTS_COUNT = 4;
 const DEFAULT_CLOTHING_SIZES = Object.freeze(['S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL']);
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+const MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const SPREADSHEET_IMPORT_EXTENSIONS = new Set(['.xlsx', '.xls', '.csv']);
+const SPREADSHEET_IMPORT_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'application/csv',
+  'text/plain'
+]);
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
@@ -118,6 +127,27 @@ const ANALYTICS_PAYMENT_METHOD_META = {
 const normalizeAnalyticsPaymentMethod = (paymentMethod) => {
   const normalized = String(paymentMethod || '').trim().toLowerCase();
   return ANALYTICS_PAYMENT_METHOD_ORDER.includes(normalized) ? normalized : '';
+};
+const getFileExtensionLower = (filename) => {
+  const value = String(filename || '');
+  const idx = value.lastIndexOf('.');
+  return idx >= 0 ? value.slice(idx).toLowerCase() : '';
+};
+const validateSpreadsheetImportFile = (file) => {
+  if (!file) return 'Файл не выбран';
+  const ext = getFileExtensionLower(file.name);
+  const mime = String(file.type || '').toLowerCase();
+  const size = Number(file.size || 0);
+  if (!SPREADSHEET_IMPORT_EXTENSIONS.has(ext) && !SPREADSHEET_IMPORT_MIME_TYPES.has(mime)) {
+    return 'Разрешены только .xlsx, .xls или .csv';
+  }
+  if (size <= 0) {
+    return 'Файл пустой';
+  }
+  if (size > MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES) {
+    return 'Файл слишком большой (максимум 5 МБ)';
+  }
+  return '';
 };
 const padDatePart = (value) => String(value).padStart(2, '0');
 const toLocalDateKey = (rawDate) => {
@@ -4624,6 +4654,14 @@ function AdminDashboard() {
     const file = e.target.files[0];
     if (!file) return;
 
+    const fileValidationError = validateSpreadsheetImportFile(file);
+    if (fileValidationError) {
+      alert(fileValidationError);
+      setExcelFile(null);
+      setExcelPreview([]);
+      return;
+    }
+
     setExcelFile(file);
 
     // Read and preview Excel file
@@ -4648,6 +4686,12 @@ function AdminDashboard() {
 
   const importExcel = async () => {
     if (!excelFile) return;
+
+    const fileValidationError = validateSpreadsheetImportFile(excelFile);
+    if (fileValidationError) {
+      alert(fileValidationError);
+      return;
+    }
 
     setImportingExcel(true);
     try {
