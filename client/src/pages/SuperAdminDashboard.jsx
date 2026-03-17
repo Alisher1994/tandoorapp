@@ -494,6 +494,7 @@ function SuperAdminDashboard() {
   const [logs, setLogs] = useState({ logs: [], total: 0 });
   const [activityTypes, setActivityTypes] = useState([]);
   const [activityTypesLoading, setActivityTypesLoading] = useState(false);
+  const [showActivityTypeModal, setShowActivityTypeModal] = useState(false);
   const [activityTypeForm, setActivityTypeForm] = useState({ name: '', sort_order: '', is_visible: true });
   const [activityTypeSearchFilter, setActivityTypeSearchFilter] = useState('');
   const [activityTypeVisibilityFilter, setActivityTypeVisibilityFilter] = useState('all');
@@ -3357,6 +3358,18 @@ function SuperAdminDashboard() {
     setActivityTypeForm({ name: '', sort_order: '', is_visible: true });
   };
 
+  const closeActivityTypeModal = () => {
+    if (savingActivityType) return;
+    setShowActivityTypeModal(false);
+    resetActivityTypeForm();
+  };
+
+  const handleAddActivityType = () => {
+    resetActivityTypeForm();
+    setShowActivityTypeModal(true);
+    setActiveTab('activity_types');
+  };
+
   const handleEditActivityType = (item) => {
     setEditingActivityType(item);
     setActivityTypeForm({
@@ -3364,6 +3377,7 @@ function SuperAdminDashboard() {
       sort_order: item.sort_order ?? '',
       is_visible: item.is_visible !== false
     });
+    setShowActivityTypeModal(true);
     setActiveTab('activity_types');
   };
 
@@ -3388,6 +3402,7 @@ function SuperAdminDashboard() {
         await axios.post(`${API_URL}/superadmin/activity-types`, payload);
         setSuccess('Вид деятельности добавлен');
       }
+      setShowActivityTypeModal(false);
       resetActivityTypeForm();
       await loadActivityTypes();
       await loadRestaurants();
@@ -4239,26 +4254,6 @@ function SuperAdminDashboard() {
     return (
       <div className="admin-analytics-layout">
         <div className="admin-analytics-header-row">
-          <div className="admin-analytics-period-tabs">
-            {[
-              { key: 'daily', label: language === 'uz' ? 'Kun' : 'День' },
-              { key: 'monthly', label: language === 'uz' ? 'Oy' : 'Месяц' },
-              { key: 'yearly', label: language === 'uz' ? 'Yil' : 'Год' }
-            ].map((periodTab) => (
-              <button
-                key={`sa-analytics-period-${periodTab.key}`}
-                type="button"
-                className={`admin-analytics-period-btn${overviewAnalyticsPeriod === periodTab.key ? ' is-active' : ''}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setOverviewAnalyticsPeriod(periodTab.key);
-                }}
-              >
-                {periodTab.label}
-              </button>
-            ))}
-          </div>
           <div className="d-flex align-items-start gap-2 ms-auto">
             <Button
               type="button"
@@ -4273,6 +4268,18 @@ function SuperAdminDashboard() {
             </Button>
             {showAnalyticsFilterPanel && (
               <div className="admin-analytics-filters-area">
+                <div className="admin-analytics-filter-group">
+                  <span className="admin-analytics-filter-label">{language === 'uz' ? 'Davr' : 'Период'}</span>
+                  <Form.Select
+                    value={overviewAnalyticsPeriod}
+                    onChange={(e) => setOverviewAnalyticsPeriod(e.target.value)}
+                    className="admin-analytics-filter-control"
+                  >
+                    <option value="daily">{language === 'uz' ? 'Kun' : 'День'}</option>
+                    <option value="monthly">{language === 'uz' ? 'Oy' : 'Месяц'}</option>
+                    <option value="yearly">{language === 'uz' ? 'Yil' : 'Год'}</option>
+                  </Form.Select>
+                </div>
                 <div className="admin-analytics-filter-group">
                   <span className="admin-analytics-filter-label">{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
                   <button
@@ -6626,6 +6633,9 @@ function SuperAdminDashboard() {
                     <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
                       Всего: {activityTypes.length}
                     </Badge>
+                    <Button className="btn-primary-custom" onClick={handleAddActivityType}>
+                      {language === 'uz' ? "Qo'shish" : 'Добавить'}
+                    </Button>
                     <Button
                       type="button"
                       variant="outline-secondary"
@@ -6672,57 +6682,6 @@ function SuperAdminDashboard() {
                     </Col>
                   </Row>
                 )}
-
-                <Card className="border-0 shadow-sm mb-3">
-                  <Card.Body>
-                    <Row className="g-3 align-items-end">
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-medium text-secondary">Название</Form.Label>
-                          <Form.Control
-                            value={activityTypeForm.name}
-                            onChange={(e) => setActivityTypeForm({ ...activityTypeForm, name: e.target.value })}
-                            placeholder="Например: Одежда"
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={2}>
-                        <Form.Group>
-                          <Form.Label className="fw-medium text-secondary">Порядок</Form.Label>
-                          <Form.Control
-                            type="number"
-                            min="0"
-                            value={activityTypeForm.sort_order}
-                            onChange={(e) => setActivityTypeForm({ ...activityTypeForm, sort_order: e.target.value })}
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={2}>
-                        <Form.Check
-                          type="switch"
-                          id="activity-type-visible-switch"
-                          label="Показывать"
-                          checked={activityTypeForm.is_visible !== false}
-                          onChange={(e) => setActivityTypeForm({ ...activityTypeForm, is_visible: e.target.checked })}
-                        />
-                      </Col>
-                      <Col md={2} className="d-flex gap-2">
-                        <Button
-                          className="btn-primary-custom w-100"
-                          onClick={handleSaveActivityType}
-                          disabled={savingActivityType}
-                        >
-                          {savingActivityType ? '...' : (editingActivityType ? 'Сохранить' : 'Добавить')}
-                        </Button>
-                        {editingActivityType && (
-                          <Button variant="outline-secondary" onClick={resetActivityTypeForm}>
-                            Отмена
-                          </Button>
-                        )}
-                      </Col>
-                    </Row>
-                  </Card.Body>
-                </Card>
 
                 {activityTypesLoading ? (
                   <TableSkeleton rows={6} columns={6} label="Загрузка видов деятельности" />
@@ -9418,6 +9377,66 @@ function SuperAdminDashboard() {
             {savingHelpInstruction
               ? '...'
               : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showActivityTypeModal}
+        onHide={closeActivityTypeModal}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {editingActivityType
+              ? (language === 'uz' ? 'Faoliyat turini tahrirlash' : 'Редактировать вид деятельности')
+              : (language === 'uz' ? "Faoliyat turi qo'shish" : 'Добавить вид деятельности')}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Nomi' : 'Название'}</Form.Label>
+                <Form.Control
+                  value={activityTypeForm.name}
+                  onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder={language === 'uz' ? 'Masalan: Kiyim-kechak' : 'Например: Одежда'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Tartib' : 'Порядок'}</Form.Label>
+                <Form.Control
+                  type="number"
+                  min="0"
+                  value={activityTypeForm.sort_order}
+                  onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, sort_order: e.target.value }))}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6} className="d-flex align-items-end">
+              <Form.Check
+                type="switch"
+                id="activity-type-visible-modal-switch"
+                label={language === 'uz' ? "Ko'rsatish" : 'Показывать'}
+                checked={activityTypeForm.is_visible !== false}
+                onChange={(e) => setActivityTypeForm((prev) => ({ ...prev, is_visible: e.target.checked }))}
+              />
+            </Col>
+          </Row>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeActivityTypeModal} disabled={savingActivityType}>
+            {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+          <Button className="btn-primary-custom" onClick={handleSaveActivityType} disabled={savingActivityType}>
+            {savingActivityType
+              ? '...'
+              : (editingActivityType
+                ? (language === 'uz' ? 'Saqlash' : 'Сохранить')
+                : (language === 'uz' ? "Qo'shish" : 'Добавить'))}
           </Button>
         </Modal.Footer>
       </Modal>
