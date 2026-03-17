@@ -2909,6 +2909,12 @@ body::-webkit-scrollbar,
     background: #ffffff;
 }
 
+.admin-analytics-map-card .leaflet-container {
+    position: relative !important;
+    overflow: hidden !important;
+    background: #dbeafe;
+}
+
 .admin-analytics-map-sidebar {
     background: #ffffff;
 }

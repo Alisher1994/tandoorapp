@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
+import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {

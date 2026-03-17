@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
+import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Container from 'react-bootstrap/Container';
