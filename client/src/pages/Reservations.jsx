@@ -255,17 +255,22 @@ function Reservations() {
     const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
     return new Intl.NumberFormat(language === 'uz' ? 'uz-UZ' : 'ru-RU').format(Math.round(amount));
   }, [language]);
-  const mainMenuPath = useMemo(() => (isOperator() ? '/admin' : '/catalog'), [isOperator]);
+  const resolveMainMenuPath = useCallback(() => {
+    const isOperatorUser = typeof isOperator === 'function'
+      ? isOperator()
+      : (user?.role === 'operator' || user?.role === 'superadmin');
+    return isOperatorUser ? '/admin' : '/catalog';
+  }, [isOperator, user?.role]);
   const handleBackClick = useCallback(() => {
     if (bookingStep !== 'plan') {
       setBookingStep('plan');
       return;
     }
-    navigate(mainMenuPath);
-  }, [bookingStep, mainMenuPath, navigate]);
+    navigate(resolveMainMenuPath());
+  }, [bookingStep, navigate, resolveMainMenuPath]);
   const handleBrandClick = useCallback(() => {
-    navigate(mainMenuPath);
-  }, [mainMenuPath, navigate]);
+    navigate(resolveMainMenuPath());
+  }, [navigate, resolveMainMenuPath]);
 
   const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
     const viewport = planViewportRef.current?.getBoundingClientRect();
