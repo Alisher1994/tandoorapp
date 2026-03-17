@@ -258,6 +258,8 @@ body::-webkit-scrollbar,
 
 .admin-header-pill-group {
     min-height: 54px;
+    gap: 8px !important;
+    margin-left: 0 !important;
 }
 
 .admin-header-pill {
@@ -323,15 +325,17 @@ body::-webkit-scrollbar,
 
 @media (hover: hover) and (pointer: fine) {
     .admin-collapsible-pill {
-        width: 46px;
-        min-width: 46px;
-        max-width: 46px;
-        height: 46px;
+        width: auto;
+        min-width: 52px !important;
+        max-width: 52px;
+        height: 52px !important;
+        min-height: 52px !important;
         padding: 0 !important;
         overflow: hidden;
         border-radius: 999px !important;
         justify-content: center;
         gap: 0 !important;
+        flex-wrap: nowrap;
         transition: max-width 0.24s ease, padding 0.24s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
@@ -347,13 +351,15 @@ body::-webkit-scrollbar,
 
     .admin-collapsible-pill:hover,
     .admin-collapsible-pill:focus-visible,
-    .admin-collapsible-pill:focus-within {
+    .admin-collapsible-pill:focus-within,
+    .admin-collapsible-pill.show {
         padding: 0 14px !important;
     }
 
     .admin-collapsible-pill:hover .admin-pill-expand,
     .admin-collapsible-pill:focus-visible .admin-pill-expand,
-    .admin-collapsible-pill:focus-within .admin-pill-expand {
+    .admin-collapsible-pill:focus-within .admin-pill-expand,
+    .admin-collapsible-pill.show .admin-pill-expand {
         max-width: 240px;
         opacity: 1;
         margin-left: 8px;
@@ -363,25 +369,29 @@ body::-webkit-scrollbar,
 
     .admin-collapsible-pill--action:hover,
     .admin-collapsible-pill--action:focus-visible,
-    .admin-collapsible-pill--action:focus-within {
+    .admin-collapsible-pill--action:focus-within,
+    .admin-collapsible-pill--action.show {
         max-width: 168px;
     }
 
     .admin-collapsible-pill--lang:hover,
     .admin-collapsible-pill--lang:focus-visible,
-    .admin-collapsible-pill--lang:focus-within {
+    .admin-collapsible-pill--lang:focus-within,
+    .admin-collapsible-pill--lang.show {
         max-width: 132px;
     }
 
     .admin-collapsible-pill--user:hover,
     .admin-collapsible-pill--user:focus-visible,
-    .admin-collapsible-pill--user:focus-within {
+    .admin-collapsible-pill--user:focus-within,
+    .admin-collapsible-pill--user.show {
         max-width: 260px;
     }
 
     .admin-collapsible-pill--balance:hover,
     .admin-collapsible-pill--balance:focus-visible,
-    .admin-collapsible-pill--balance:focus-within {
+    .admin-collapsible-pill--balance:focus-within,
+    .admin-collapsible-pill--balance.show {
         max-width: 180px;
     }
 }
