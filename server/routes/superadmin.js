@@ -208,6 +208,7 @@ const ensureGlobalProductsSchema = async () => {
         thumb_url TEXT,
         product_images JSONB DEFAULT '[]'::jsonb,
         barcode VARCHAR(120),
+        ikpu VARCHAR(64),
         recommended_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
         unit VARCHAR(32) DEFAULT 'шт',
         order_step NUMERIC(10,2),
@@ -227,6 +228,7 @@ const ensureGlobalProductsSchema = async () => {
     await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS thumb_url TEXT`).catch(() => {});
     await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS product_images JSONB DEFAULT '[]'::jsonb`).catch(() => {});
     await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`).catch(() => {});
+    await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS ikpu VARCHAR(64)`).catch(() => {});
     await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS recommended_category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL`).catch(() => {});
     await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS unit VARCHAR(32) DEFAULT 'шт'`).catch(() => {});
     await pool.query(`ALTER TABLE global_products ADD COLUMN IF NOT EXISTS order_step NUMERIC(10,2)`).catch(() => {});
@@ -241,6 +243,11 @@ const ensureGlobalProductsSchema = async () => {
     await pool.query(`UPDATE global_products SET size_options = '[]'::jsonb WHERE size_options IS NULL`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_active_name ON global_products(is_active, LOWER(name_ru))`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_barcode ON global_products(barcode)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_global_products_ikpu ON global_products(ikpu)`).catch(() => {});
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_global_products_barcode_normalized
+      ON global_products ((NULLIF(REGEXP_REPLACE(COALESCE(barcode, ''), '\\D', '', 'g'), '')))
+    `).catch(() => {});
     globalProductsSchemaReady = true;
   })();
 
@@ -316,6 +323,26 @@ const normalizeRestaurantAdminChecklist = (value) => {
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
+const normalizeBarcodeValue = (value) => String(value || '').replace(/\D/g, '').slice(0, 120);
+const findGlobalProductByBarcode = async (barcode, excludeId = null) => {
+  const normalizedBarcode = normalizeBarcodeValue(barcode);
+  if (!normalizedBarcode) return null;
+
+  const hasExcludeId = Number.isFinite(excludeId) && excludeId > 0;
+  const params = hasExcludeId ? [normalizedBarcode, excludeId] : [normalizedBarcode];
+  const exclusionSql = hasExcludeId ? 'AND gp.id <> $2' : '';
+  const duplicateResult = await pool.query(
+    `
+      SELECT gp.id, gp.name_ru
+      FROM global_products gp
+      WHERE NULLIF(REGEXP_REPLACE(COALESCE(gp.barcode, ''), '\\D', '', 'g'), '') = $1
+      ${exclusionSql}
+      LIMIT 1
+    `,
+    params
+  );
+  return duplicateResult.rows?.[0] || null;
+};
 const normalizePositivePrice = (value, fallback = null) => {
   if (value === undefined || value === null || value === '') return fallback;
   const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
@@ -3112,6 +3139,7 @@ router.post('/global-products', async (req, res) => {
     const descriptionRu = toOptionalTrimmedText(req.body?.description_ru).slice(0, 3000);
     const descriptionUz = toOptionalTrimmedText(req.body?.description_uz).slice(0, 3000);
     const barcode = toOptionalTrimmedText(req.body?.barcode).slice(0, 120);
+    const ikpu = toOptionalTrimmedText(req.body?.ikpu).slice(0, 64);
     const recommendedCategoryIdRaw = Number.parseInt(req.body?.recommended_category_id, 10);
     const recommendedCategoryId = Number.isFinite(recommendedCategoryIdRaw) && recommendedCategoryIdRaw > 0
       ? recommendedCategoryIdRaw
@@ -3142,27 +3170,33 @@ router.post('/global-products', async (req, res) => {
         return res.status(400).json({ error: 'Рекомендуемая категория не найдена' });
       }
     }
+    const duplicateBarcodeProduct = await findGlobalProductByBarcode(barcode);
+    if (duplicateBarcodeProduct) {
+      return res.status(409).json({
+        error: `Штрихкод уже используется (товар #${duplicateBarcodeProduct.id}: ${duplicateBarcodeProduct.name_ru || 'без названия'})`
+      });
+    }
 
     const result = await pool.query(
       `
         INSERT INTO global_products (
           name_ru, name_uz, description_ru, description_uz,
-          image_url, thumb_url, product_images, barcode,
+          image_url, thumb_url, product_images, barcode, ikpu,
           recommended_category_id, unit, order_step,
           size_enabled, size_options, is_active,
           created_by, updated_by
         ) VALUES (
           $1, $2, $3, $4,
-          $5, $6, $7::jsonb, $8,
-          $9, $10, $11,
-          $12, $13::jsonb, true,
-          $14, $14
+          $5, $6, $7::jsonb, $8, $9,
+          $10, $11, $12,
+          $13, $14::jsonb, true,
+          $15, $15
         )
         RETURNING *
       `,
       [
         nameRu, nameUz || null, descriptionRu || null, descriptionUz || null,
-        imageUrl, thumbUrl, JSON.stringify(normalizedImages), barcode || null,
+        imageUrl, thumbUrl, JSON.stringify(normalizedImages), barcode || null, ikpu || null,
         recommendedCategoryId, unit, orderStep,
         sizeEnabled, JSON.stringify(sizeOptions), req.user.id
       ]
@@ -3170,6 +3204,9 @@ router.post('/global-products', async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    if (error?.code === '23505' && String(error?.constraint || '').includes('uq_global_products_barcode_normalized')) {
+      return res.status(409).json({ error: 'Штрихкод уже используется другим глобальным товаром' });
+    }
     console.error('Create global product error:', error);
     res.status(500).json({ error: 'Ошибка создания глобального товара' });
   }
@@ -3198,6 +3235,7 @@ router.put('/global-products/:id', async (req, res) => {
     const descriptionRu = toOptionalTrimmedText(req.body?.description_ru).slice(0, 3000);
     const descriptionUz = toOptionalTrimmedText(req.body?.description_uz).slice(0, 3000);
     const barcode = toOptionalTrimmedText(req.body?.barcode).slice(0, 120);
+    const ikpu = toOptionalTrimmedText(req.body?.ikpu).slice(0, 64);
     const recommendedCategoryIdRaw = Number.parseInt(req.body?.recommended_category_id, 10);
     const recommendedCategoryId = Number.isFinite(recommendedCategoryIdRaw) && recommendedCategoryIdRaw > 0
       ? recommendedCategoryIdRaw
@@ -3231,6 +3269,12 @@ router.put('/global-products/:id', async (req, res) => {
         return res.status(400).json({ error: 'Рекомендуемая категория не найдена' });
       }
     }
+    const duplicateBarcodeProduct = await findGlobalProductByBarcode(barcode, id);
+    if (duplicateBarcodeProduct) {
+      return res.status(409).json({
+        error: `Штрихкод уже используется (товар #${duplicateBarcodeProduct.id}: ${duplicateBarcodeProduct.name_ru || 'без названия'})`
+      });
+    }
 
     const result = await pool.query(
       `
@@ -3243,20 +3287,21 @@ router.put('/global-products/:id', async (req, res) => {
           thumb_url = $6,
           product_images = $7::jsonb,
           barcode = $8,
-          recommended_category_id = $9,
-          unit = $10,
-          order_step = $11,
-          size_enabled = $12,
-          size_options = $13::jsonb,
-          is_active = $14,
-          updated_by = $15,
+          ikpu = $9,
+          recommended_category_id = $10,
+          unit = $11,
+          order_step = $12,
+          size_enabled = $13,
+          size_options = $14::jsonb,
+          is_active = $15,
+          updated_by = $16,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $16
+        WHERE id = $17
         RETURNING *
       `,
       [
         nameRu, nameUz || null, descriptionRu || null, descriptionUz || null,
-        imageUrl, thumbUrl, JSON.stringify(normalizedImages), barcode || null,
+        imageUrl, thumbUrl, JSON.stringify(normalizedImages), barcode || null, ikpu || null,
         recommendedCategoryId, unit, orderStep, sizeEnabled, JSON.stringify(sizeOptions),
         isActive, req.user.id, id
       ]
@@ -3264,6 +3309,9 @@ router.put('/global-products/:id', async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
+    if (error?.code === '23505' && String(error?.constraint || '').includes('uq_global_products_barcode_normalized')) {
+      return res.status(409).json({ error: 'Штрихкод уже используется другим глобальным товаром' });
+    }
     console.error('Update global product error:', error);
     res.status(500).json({ error: 'Ошибка обновления глобального товара' });
   }

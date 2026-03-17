@@ -106,6 +106,7 @@ const createEmptyGlobalProductForm = () => ({
   description_ru: '',
   description_uz: '',
   barcode: '',
+  ikpu: '',
   image_url: '',
   recommended_category_id: '',
   unit: 'шт',
@@ -2134,6 +2135,7 @@ function SuperAdminDashboard() {
         description_ru: product.description_ru || '',
         description_uz: product.description_uz || '',
         barcode: product.barcode || '',
+        ikpu: product.ikpu || '',
         image_url: product.image_url || '',
         recommended_category_id: product.recommended_category_id ? String(product.recommended_category_id) : '',
         unit: product.unit || 'шт',
@@ -2171,6 +2173,7 @@ function SuperAdminDashboard() {
       description_ru: String(globalProductForm.description_ru || '').trim(),
       description_uz: String(globalProductForm.description_uz || '').trim(),
       barcode: String(globalProductForm.barcode || '').trim(),
+      ikpu: String(globalProductForm.ikpu || '').trim(),
       image_url: imageUrl || null,
       thumb_url: null,
       product_images: imageUrl ? [{ url: imageUrl }] : [],
@@ -2218,6 +2221,7 @@ function SuperAdminDashboard() {
       description_ru: String(item?.description_ru || '').trim(),
       description_uz: String(item?.description_uz || '').trim(),
       barcode: String(item?.barcode || '').trim(),
+      ikpu: String(item?.ikpu || '').trim(),
       image_url: normalizedImageUrl || null,
       thumb_url: null,
       product_images: normalizedImageUrl ? [{ url: normalizedImageUrl }] : [],
@@ -3195,6 +3199,51 @@ function SuperAdminDashboard() {
       .map(([key, value]) => `${key}: ${String(value)}`);
     if (!entries.length) return '-';
     return entries.join(' | ').slice(0, 180);
+  };
+  const getPhoneTelHref = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    let cleaned = raw.replace(/[^\d+]/g, '');
+    if (!cleaned) return '';
+    if (cleaned.startsWith('++')) {
+      cleaned = `+${cleaned.replace(/\+/g, '')}`;
+    }
+    return `tel:${cleaned}`;
+  };
+  const buildTelegramProfileLink = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+
+    if (/^https?:\/\//i.test(raw)) {
+      try {
+        const parsed = new URL(raw);
+        const host = String(parsed.hostname || '').toLowerCase();
+        const usernameFromPath = String(parsed.pathname || '').replace(/\//g, '').trim();
+        if (host === 't.me' || host === 'telegram.me' || host.endsWith('.t.me')) {
+          const normalizedUsername = usernameFromPath.replace(/^@+/, '');
+          return {
+            href: raw,
+            label: normalizedUsername ? `@${normalizedUsername}` : raw
+          };
+        }
+      } catch (_) {
+        return {
+          href: raw,
+          label: raw
+        };
+      }
+      return {
+        href: raw,
+        label: raw
+      };
+    }
+
+    const normalizedUsername = raw.replace(/^@+/, '').replace(/\s+/g, '');
+    if (!normalizedUsername) return null;
+    return {
+      href: `https://t.me/${encodeURIComponent(normalizedUsername)}`,
+      label: `@${normalizedUsername}`
+    };
   };
   const getQuickRestaurantIssueCount = (restaurant) => {
     const token = String(restaurant?.telegram_bot_token || '').trim();
@@ -7302,7 +7351,7 @@ function SuperAdminDashboard() {
                 {globalProductsLoading ? (
                   <TableSkeleton
                     rows={8}
-                    columns={8}
+                    columns={9}
                     label={language === 'uz' ? "Global mahsulotlar yuklanmoqda" : 'Загрузка глобальных товаров'}
                   />
                 ) : (
@@ -7315,6 +7364,7 @@ function SuperAdminDashboard() {
                             <th>{language === 'uz' ? 'Rasm' : 'Фото'}</th>
                             <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
                             <th>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</th>
+                            <th>{language === 'uz' ? 'IKPU kodi' : 'Код ИКПУ'}</th>
                             <th>{language === 'uz' ? 'Tavsiya kategoriya' : 'Рекоменд. категория'}</th>
                             <th>{language === 'uz' ? 'Birlik' : 'Ед. изм.'}</th>
                             <th>{language === 'uz' ? 'Holat' : 'Статус'}</th>
@@ -7365,6 +7415,7 @@ function SuperAdminDashboard() {
                                     <div className="small text-muted">{item.name_uz || '—'}</div>
                                   </td>
                                   <td>{item.barcode || '—'}</td>
+                                  <td>{item.ikpu || '—'}</td>
                                   <td>{recommendedCategory || '—'}</td>
                                   <td>
                                     <div>{item.unit || 'шт'}</div>
@@ -7402,7 +7453,7 @@ function SuperAdminDashboard() {
                             })
                           ) : (
                             <tr>
-                              <td colSpan="8" className="text-center py-5 text-muted">
+                              <td colSpan="9" className="text-center py-5 text-muted">
                                 {language === 'uz'
                                   ? "Global mahsulotlar hozircha yo'q"
                                   : 'Глобальные товары пока не добавлены'}
@@ -10746,7 +10797,7 @@ function SuperAdminDashboard() {
               </Form.Group>
             </Col>
 
-            <Col md={6}>
+            <Col md={4}>
               <Form.Group>
                 <Form.Label>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</Form.Label>
                 <Form.Control
@@ -10756,7 +10807,17 @@ function SuperAdminDashboard() {
                 />
               </Form.Group>
             </Col>
-            <Col md={6}>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'IKPU kodi' : 'Код ИКПУ'}</Form.Label>
+                <Form.Control
+                  value={globalProductForm.ikpu}
+                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, ikpu: String(e.target.value || '').replace(/\s+/g, ' ').trimStart().slice(0, 64) }))}
+                  placeholder={language === 'uz' ? 'Masalan: 12345678901234' : 'Например: 12345678901234'}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
               <Form.Group>
                 <Form.Label>{language === 'uz' ? "O'lchov birligi" : 'Единица измерения'}</Form.Label>
                 <Form.Control
@@ -11999,20 +12060,78 @@ function SuperAdminDashboard() {
                 ? "Diagnostika ma'lumotlari yuklanmadi. Qayta tekshirib ko'ring."
                 : 'Данные диагностики не загружены. Нажмите «Перепроверить».'}
             </Alert>
-          ) : (
-            <>
-              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                <div className="small text-muted">
-                  {language === 'uz' ? 'Oxirgi tekshiruv' : 'Последняя проверка'}:{' '}
+	          ) : (
+	            <>
+	              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+	                <div className="small text-muted">
+	                  {language === 'uz' ? 'Oxirgi tekshiruv' : 'Последняя проверка'}:{' '}
                   <strong>{restaurantIssuesData?.checked_at ? formatBalanceOperationDate(restaurantIssuesData.checked_at) : '—'}</strong>
                 </div>
                 <Badge className={`badge-custom ${Number(restaurantIssuesData?.issue_count || 0) > 0 ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success'}`}>
-                  {language === 'uz' ? 'Xatolar soni' : 'Ошибок'}: {Number(restaurantIssuesData?.issue_count || 0)}
-                </Badge>
-              </div>
+	                  {language === 'uz' ? 'Xatolar soni' : 'Ошибок'}: {Number(restaurantIssuesData?.issue_count || 0)}
+	                </Badge>
+	              </div>
 
-              {Number(restaurantIssuesData?.issue_count || 0) > 0 ? (
-                <div className="d-flex flex-column gap-2 mb-4">
+	              {(() => {
+	                const phoneValue = String(restaurantIssuesTarget?.phone || '').trim();
+	                const phoneHref = getPhoneTelHref(phoneValue);
+	                const telegramRaw = String(
+	                  restaurantIssuesTarget?.support_username ||
+	                  restaurantIssuesTarget?.telegram_bot_username ||
+	                  restaurantIssuesData?.bot_username ||
+	                  ''
+	                ).trim();
+	                const telegramLink = buildTelegramProfileLink(telegramRaw);
+	                const hasContacts = !!phoneValue || !!telegramLink;
+
+	                if (!hasContacts) return null;
+	                return (
+	                  <div className="border rounded-3 p-3 mb-3 bg-light">
+	                    <div className="fw-semibold mb-2">
+	                      {language === 'uz' ? "Do'kon kontaktlari" : 'Контакты магазина'}
+	                    </div>
+	                    <Row className="g-2">
+	                      <Col md={6}>
+	                        <div className="small text-muted">{language === 'uz' ? 'Telefon' : 'Телефон'}</div>
+	                        {phoneValue ? (
+	                          phoneHref ? (
+	                          <a
+	                            href={phoneHref}
+	                            className="fw-semibold text-decoration-none"
+	                            style={{ color: 'var(--primary-color)' }}
+	                          >
+	                            {phoneValue}
+	                          </a>
+	                          ) : (
+	                            <div className="fw-semibold">{phoneValue}</div>
+	                          )
+	                        ) : (
+	                          <div className="fw-semibold">-</div>
+	                        )}
+	                      </Col>
+	                      <Col md={6}>
+	                        <div className="small text-muted">Telegram</div>
+	                        {telegramLink ? (
+	                          <a
+	                            href={telegramLink.href}
+	                            target="_blank"
+	                            rel="noreferrer"
+	                            className="fw-semibold text-decoration-none"
+	                            style={{ color: 'var(--primary-color)' }}
+	                          >
+	                            {telegramLink.label}
+	                          </a>
+	                        ) : (
+	                          <div className="fw-semibold">-</div>
+	                        )}
+	                      </Col>
+	                    </Row>
+	                  </div>
+	                );
+	              })()}
+
+	              {Number(restaurantIssuesData?.issue_count || 0) > 0 ? (
+	                <div className="d-flex flex-column gap-2 mb-4">
                   {(restaurantIssuesData?.issues || []).map((issue, index) => (
                     <div key={`${issue?.code || 'issue'}-${index}`} className="border rounded-3 p-3 bg-light">
                       <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
