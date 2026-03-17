@@ -631,6 +631,16 @@ function AdminReservations() {
     await saveTableRotation(selectedPlanTable.id, nextRotation);
   };
 
+  const rotatePlanTableBy = async (tableId, delta) => {
+    const target = tables.find((table) => Number(table.id) === Number(tableId));
+    if (!target) return;
+    setSelectedPlanTableId(Number(tableId));
+    const currentRotation = normalizeRotationAngle(target.rotation, 0);
+    const nextRotation = normalizeRotationAngle(currentRotation + Number(delta || 0), currentRotation);
+    applyTableRotationLocally(tableId, nextRotation);
+    await saveTableRotation(tableId, nextRotation);
+  };
+
   const handleTablePlanPointerDown = (event, table) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     const canvas = floorPlanRef.current;
@@ -1332,8 +1342,47 @@ function AdminReservations() {
                           }}
                         >
                           <div
+                            className="admin-reservation-plan-table-rotate-controls"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="admin-reservation-plan-table-rotate-btn is-left"
+                              title={tx('Повернуть влево на 15°', '15° chapga burish')}
+                              onClick={() => rotatePlanTableBy(tableId, -15)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  rotatePlanTableBy(tableId, -15);
+                                }
+                              }}
+                            >
+                              ↺
+                            </span>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="admin-reservation-plan-table-rotate-btn is-right"
+                              title={tx('Повернуть вправо на 15°', '15° o‘ngga burish')}
+                              onClick={() => rotatePlanTableBy(tableId, 15)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  rotatePlanTableBy(tableId, 15);
+                                }
+                              }}
+                            >
+                              ↻
+                            </span>
+                          </div>
+                          <div
                             className="admin-reservation-plan-table-visual"
-                            style={{ transform: `rotate(${rotation}deg)` }}
+                            style={{
+                              transform: `rotate(${rotation}deg)`,
+                              transformOrigin: 'center center'
+                            }}
                           >
                             {templateImageUrl ? (
                               <img

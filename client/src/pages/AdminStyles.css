@@ -829,6 +829,7 @@ body::-webkit-scrollbar,
     background: transparent;
     box-shadow: none;
     padding: 2px 4px;
+    position: relative;
     display: inline-flex;
     flex-direction: column;
     align-items: center;
@@ -894,6 +895,51 @@ body::-webkit-scrollbar,
     color: #334155;
     line-height: 1;
     pointer-events: none;
+}
+
+.admin-reservation-plan-table-rotate-controls {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+
+.admin-reservation-plan-table:hover .admin-reservation-plan-table-rotate-controls,
+.admin-reservation-plan-table:focus-visible .admin-reservation-plan-table-rotate-controls,
+.admin-reservation-plan-table.is-selected .admin-reservation-plan-table-rotate-controls {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.admin-reservation-plan-table-rotate-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(100, 116, 139, 0.42);
+    background: rgba(255, 255, 255, 0.92);
+    color: #334155;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.admin-reservation-plan-table-rotate-btn:hover,
+.admin-reservation-plan-table-rotate-btn:focus-visible {
+    background: #ffffff;
+    border-color: rgba(71, 85, 105, 0.8);
+    color: #0f172a;
+    outline: none;
 }
 
 .admin-reservation-plan-rotation-panel {
