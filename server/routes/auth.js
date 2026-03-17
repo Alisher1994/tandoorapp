@@ -11,6 +11,7 @@ const {
   ACTION_TYPES,
   ENTITY_TYPES
 } = require('../services/activityLogger');
+const { logSecurityEvent } = require('../services/securityEvents');
 
 const router = express.Router();
 const maskIdentifierForLogs = (value) => {
@@ -31,6 +32,19 @@ const loginRateLimiter = rateLimit({
       ip: getIpFromRequest(req),
       request_id: req.requestId || null
     });
+    logSecurityEvent({
+      eventType: 'auth_rate_limit',
+      riskLevel: 'high',
+      sourceIp: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req),
+      requestMethod: req.method,
+      requestPath: req.originalUrl || req.url || '',
+      target: 'auth_login',
+      statusCode: options.statusCode,
+      details: {
+        reason: 'Login rate limit exceeded'
+      }
+    }).catch(() => {});
     res.status(options.statusCode).json(options.message);
   }
 });
@@ -113,6 +127,17 @@ async function verifyPasswordCandidate(password, user) {
 
   return isValidPassword;
 }
+
+const trackAuthSecurityEvent = (req, payload = {}) => {
+  logSecurityEvent({
+    sourceIp: getIpFromRequest(req),
+    userAgent: getUserAgentFromRequest(req),
+    requestMethod: req.method,
+    requestPath: req.originalUrl || req.url || '',
+    target: 'auth_login',
+    ...payload
+  }).catch(() => {});
+};
 
 // Register (only for customers via Telegram bot)
 router.post('/register', async (req, res) => {
@@ -219,6 +244,15 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         ip: getIpFromRequest(req),
         request_id: req.requestId || null
       });
+      trackAuthSecurityEvent(req, {
+        eventType: 'auth_account_not_found',
+        riskLevel: 'medium',
+        statusCode: 401,
+        details: {
+          identifier: maskIdentifierForLogs(identifier),
+          portal: requestedPortal || 'any'
+        }
+      });
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 
@@ -270,6 +304,15 @@ router.post('/login', loginRateLimiter, async (req, res) => {
           ip: getIpFromRequest(req),
           request_id: req.requestId || null
         });
+        trackAuthSecurityEvent(req, {
+          eventType: 'auth_inactive_account',
+          riskLevel: 'low',
+          statusCode: 403,
+          details: {
+            identifier: maskIdentifierForLogs(identifier),
+            portal: requestedPortal || 'any'
+          }
+        });
         return res.status(403).json({ error: 'Аккаунт деактивирован' });
       }
       console.warn('⚠️ Login failed: invalid password', {
@@ -277,6 +320,15 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         portal: requestedPortal || 'any',
         ip: getIpFromRequest(req),
         request_id: req.requestId || null
+      });
+      trackAuthSecurityEvent(req, {
+        eventType: 'auth_invalid_password',
+        riskLevel: 'medium',
+        statusCode: 401,
+        details: {
+          identifier: maskIdentifierForLogs(identifier),
+          portal: requestedPortal || 'any'
+        }
       });
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
@@ -302,6 +354,15 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     if (requestedAccountUserId) {
       user = validCandidates.find((candidate) => Number(candidate.id) === requestedAccountUserId) || null;
       if (!user) {
+        trackAuthSecurityEvent(req, {
+          eventType: 'auth_invalid_account_choice',
+          riskLevel: 'low',
+          statusCode: 401,
+          details: {
+            identifier: maskIdentifierForLogs(identifier),
+            requested_account_user_id: requestedAccountUserId
+          }
+        });
         return res.status(401).json({ error: 'Выбранный аккаунт недоступен для этих данных входа' });
       }
     } else {

@@ -22,6 +22,7 @@ const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 const { initBroadcastWorker } = require('./services/broadcastWorker');
 const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorker');
+const { logSecurityEvent } = require('./services/securityEvents');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -97,6 +98,41 @@ const sanitizeUrlForLogs = (rawUrl) => {
   return normalizedQuery ? `${pathname}?${normalizedQuery}` : pathname;
 };
 
+const getRequestIp = (req) => {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').trim();
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.ip || req.socket?.remoteAddress || null;
+};
+
+const detectApiProbeRisk = (pathValue) => {
+  const normalized = String(pathValue || '').toLowerCase();
+  if (!normalized) return 'low';
+  const highSignals = [
+    '.env',
+    'phpmyadmin',
+    'wp-admin',
+    'wp-login',
+    'adminer',
+    'etc/passwd',
+    '/boaform',
+    '/cgi-bin'
+  ];
+  if (highSignals.some((signal) => normalized.includes(signal))) return 'high';
+  const mediumSignals = ['select%20', 'union%20', 'or%201=1', 'script', '../', '%2e%2e'];
+  if (mediumSignals.some((signal) => normalized.includes(signal))) return 'medium';
+  return 'low';
+};
+
+const trackSecurityEvent = (req, payload = {}) => {
+  logSecurityEvent({
+    sourceIp: getRequestIp(req),
+    userAgent: req.headers['user-agent'] || '',
+    requestMethod: req.method,
+    requestPath: sanitizeUrlForLogs(req.originalUrl || req.url || ''),
+    ...payload
+  }).catch(() => {});
+};
+
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 1200,
@@ -108,6 +144,15 @@ const webhookLimiter = rateLimit({
       ip: req.ip,
       path: req.originalUrl || req.url || '',
       request_id: req.requestId || null
+    });
+    trackSecurityEvent(req, {
+      eventType: 'webhook_rate_limit',
+      riskLevel: 'high',
+      target: 'telegram_webhook',
+      statusCode: options.statusCode,
+      details: {
+        reason: 'Webhook rate limit exceeded'
+      }
     });
     res.status(options.statusCode).json(options.message);
   }
@@ -163,6 +208,15 @@ app.use(cors((req, callback) => {
       origin: normalizedOrigin || origin,
       path: req.originalUrl || req.url || '',
       request_id: req.requestId || null
+    });
+    trackSecurityEvent(req, {
+      eventType: 'cors_blocked_origin',
+      riskLevel: 'medium',
+      target: 'cors',
+      statusCode: 403,
+      details: {
+        blocked_origin: normalizedOrigin || origin
+      }
     });
   }
   return callback(null, { origin: isAllowed, credentials: true });
@@ -249,6 +303,15 @@ app.post('/api/telegram/webhook', webhookLimiter, express.json(), (req, res) => 
       ip: req.ip,
       request_id: req.requestId || null
     });
+    trackSecurityEvent(req, {
+      eventType: 'webhook_invalid_secret',
+      riskLevel: 'high',
+      target: 'telegram_webhook',
+      statusCode: 401,
+      details: {
+        reason: 'invalid secret token'
+      }
+    });
     return res.sendStatus(401);
   }
   const bot = getBot();
@@ -265,12 +328,33 @@ app.post('/api/telegram/webhook/:restaurantId', webhookLimiter, express.json(), 
       ip: req.ip,
       request_id: req.requestId || null
     });
+    trackSecurityEvent(req, {
+      eventType: 'webhook_invalid_secret',
+      riskLevel: 'high',
+      target: 'telegram_webhook_restaurant',
+      statusCode: 401,
+      restaurantId: req.params.restaurantId,
+      details: {
+        reason: 'invalid secret token'
+      }
+    });
     return res.sendStatus(401);
   }
   const { restaurantId } = req.params;
   const processed = processWebhook(restaurantId, req.body);
   if (!processed) {
     console.warn(`⚠️ No bot found for restaurant ID: ${restaurantId}`);
+    trackSecurityEvent(req, {
+      eventType: 'webhook_unknown_restaurant',
+      riskLevel: 'medium',
+      target: 'telegram_webhook_restaurant',
+      statusCode: 404,
+      restaurantId,
+      details: {
+        reason: 'No bot found for restaurant',
+        restaurant_id: restaurantId
+      }
+    });
   }
   res.sendStatus(200);
 });
@@ -287,6 +371,21 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payments/payme', paymeRoutes);
+
+// API 404 trap (useful for scan/attack monitoring)
+app.use('/api', (req, res) => {
+  const pathValue = req.originalUrl || req.url || '';
+  trackSecurityEvent(req, {
+    eventType: 'api_probe_404',
+    riskLevel: detectApiProbeRisk(pathValue),
+    target: 'api',
+    statusCode: 404,
+    details: {
+      reason: 'API endpoint not found'
+    }
+  });
+  res.status(404).json({ error: 'API endpoint not found' });
+});
 
 // Serve static files from React app (must be after API routes)
 if (process.env.NODE_ENV === 'production') {

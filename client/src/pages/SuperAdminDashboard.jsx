@@ -608,6 +608,7 @@ function SuperAdminDashboard() {
   const [showCustomersFilterPanel, setShowCustomersFilterPanel] = useState(false);
   const [showAdsFilterPanel, setShowAdsFilterPanel] = useState(false);
   const [showLogsFilterPanel, setShowLogsFilterPanel] = useState(false);
+  const [showSecurityFilterPanel, setShowSecurityFilterPanel] = useState(false);
 
   // Data
   const [stats, setStats] = useState({});
@@ -638,6 +639,24 @@ function SuperAdminDashboard() {
   });
   const [customers, setCustomers] = useState({ customers: [], total: 0 });
   const [logs, setLogs] = useState({ logs: [], total: 0 });
+  const [securityEventsData, setSecurityEventsData] = useState({ events: [], total: 0, page: 1, limit: 20 });
+  const [securityStats, setSecurityStats] = useState({
+    overview: {
+      total: 0,
+      open_total: 0,
+      high_total: 0,
+      total_24h: 0,
+      open_24h: 0,
+      high_24h: 0,
+      total_7d: 0
+    },
+    top_sources_24h: [],
+    by_type_24h: [],
+    by_risk_24h: []
+  });
+  const [securityEventsLoading, setSecurityEventsLoading] = useState(false);
+  const [securityStatsLoading, setSecurityStatsLoading] = useState(false);
+  const [securityEventStatusUpdatingId, setSecurityEventStatusUpdatingId] = useState(null);
   const [activityTypes, setActivityTypes] = useState([]);
   const [activityTypesLoading, setActivityTypesLoading] = useState(false);
   const [showActivityTypeModal, setShowActivityTypeModal] = useState(false);
@@ -764,6 +783,17 @@ function SuperAdminDashboard() {
   const [customerRestaurantSearch, setCustomerRestaurantSearch] = useState('');
   const [logsFilter, setLogsFilter] = useState({
     action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15
+  });
+  const [securityFilter, setSecurityFilter] = useState({
+    event_type: '',
+    risk_level: '',
+    status: 'open',
+    source_ip: '',
+    search: '',
+    start_date: '',
+    end_date: '',
+    page: 1,
+    limit: 20
   });
   const [billingOpsFilter, setBillingOpsFilter] = useState({
     restaurant_id: '',
@@ -1041,6 +1071,9 @@ function SuperAdminDashboard() {
     if (activeTab === 'operators') loadOperators();
     if (activeTab === 'customers') loadCustomers();
     if (activeTab === 'logs') loadLogs();
+    if (activeTab === 'security') {
+      loadSecurityStats();
+    }
     if (activeTab === 'categories') loadCategories();
     if (activeTab === 'activity_types') loadActivityTypes();
     if (activeTab === 'reservation_templates') loadReservationTemplates();
@@ -1089,6 +1122,10 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'logs') loadLogs();
   }, [logsFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'security') loadSecurityEvents();
+  }, [securityFilter, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'billing_transactions') loadBillingTransactions();
@@ -1853,6 +1890,92 @@ function SuperAdminDashboard() {
       setError('Ошибка загрузки логов');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSecurityEvents = async () => {
+    setSecurityEventsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/security/events`, {
+        params: securityFilter
+      });
+      const payload = response.data || {};
+      setSecurityEventsData({
+        events: Array.isArray(payload.events) ? payload.events : [],
+        total: Number(payload.total || 0),
+        page: Number(payload.page || securityFilter.page || 1),
+        limit: Number(payload.limit || securityFilter.limit || 20)
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Xavfsizlik hodisalarini yuklab bo'lmadi"
+        : 'Ошибка загрузки событий безопасности'));
+    } finally {
+      setSecurityEventsLoading(false);
+    }
+  };
+
+  const loadSecurityStats = async () => {
+    setSecurityStatsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/security/events/stats`);
+      const payload = response.data || {};
+      setSecurityStats({
+        overview: payload.overview || {
+          total: 0,
+          open_total: 0,
+          high_total: 0,
+          total_24h: 0,
+          open_24h: 0,
+          high_24h: 0,
+          total_7d: 0
+        },
+        top_sources_24h: Array.isArray(payload.top_sources_24h) ? payload.top_sources_24h : [],
+        by_type_24h: Array.isArray(payload.by_type_24h) ? payload.by_type_24h : [],
+        by_risk_24h: Array.isArray(payload.by_risk_24h) ? payload.by_risk_24h : []
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Xavfsizlik statistikasi yuklanmadi"
+        : 'Ошибка загрузки статистики безопасности'));
+    } finally {
+      setSecurityStatsLoading(false);
+    }
+  };
+
+  const handleSecurityEventStatusToggle = async (eventItem) => {
+    const eventId = Number(eventItem?.id);
+    if (!Number.isFinite(eventId) || eventId <= 0) return;
+    const currentStatus = String(eventItem?.status || '').toLowerCase();
+    const nextStatus = currentStatus === 'resolved' ? 'open' : 'resolved';
+    const confirmationText = nextStatus === 'resolved'
+      ? (language === 'uz'
+        ? 'Hodisani hal qilindi deb belgilaysizmi?'
+        : 'Отметить событие как решённое?')
+      : (language === 'uz'
+        ? 'Hodisani qayta ochasizmi?'
+        : 'Переоткрыть событие?');
+    if (!window.confirm(confirmationText)) return;
+
+    setSecurityEventStatusUpdatingId(eventId);
+    try {
+      const resolutionNote = nextStatus === 'resolved'
+        ? (language === 'uz' ? 'Superadmin panelidan yopildi' : 'Закрыто из панели супер-админа')
+        : '';
+      await axios.patch(`${API_URL}/superadmin/security/events/${eventId}/status`, {
+        status: nextStatus,
+        resolution_note: resolutionNote
+      });
+      setSuccess(nextStatus === 'resolved'
+        ? (language === 'uz' ? 'Hodisa hal qilindi deb belgilandi' : 'Событие отмечено как решённое')
+        : (language === 'uz' ? 'Hodisa qayta ochildi' : 'Событие переоткрыто'));
+      await Promise.all([loadSecurityEvents(), loadSecurityStats()]);
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Hodisa statusini o'zgartirib bo'lmadi"
+        : 'Не удалось изменить статус события'));
+    } finally {
+      setSecurityEventStatusUpdatingId(null);
     }
   };
 
@@ -2769,6 +2892,24 @@ function SuperAdminDashboard() {
     return [selected, ...filtered];
   }, [allRestaurants, billingOpsRestaurantSearch, billingOpsFilter.restaurant_id]);
 
+  const securityEventTypeOptions = useMemo(() => {
+    const uniqueTypes = new Set();
+    (securityEventsData.events || []).forEach((item) => {
+      const eventType = String(item?.event_type || '').trim();
+      if (eventType) uniqueTypes.add(eventType);
+    });
+    (securityStats.by_type_24h || []).forEach((item) => {
+      const eventType = String(item?.event_type || '').trim();
+      if (eventType) uniqueTypes.add(eventType);
+    });
+    return Array.from(uniqueTypes).sort((left, right) => left.localeCompare(right, 'ru'));
+  }, [securityEventsData.events, securityStats.by_type_24h]);
+  const topSecuritySource24h = useMemo(() => (
+    Array.isArray(securityStats.top_sources_24h) && securityStats.top_sources_24h.length > 0
+      ? securityStats.top_sources_24h[0]
+      : null
+  ), [securityStats.top_sources_24h]);
+
   const topupRestaurantOptions = useMemo(() => {
     const term = topupRestaurantSearch.trim().toLowerCase();
     const filtered = allRestaurants.filter((restaurant) => (
@@ -2975,6 +3116,85 @@ function SuperAdminDashboard() {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '—';
     return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+  };
+  const formatSecurityEventType = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    const labels = {
+      webhook_rate_limit: language === 'uz' ? 'Webhook rate-limit' : 'Лимит запросов webhook',
+      cors_blocked_origin: language === 'uz' ? 'CORS bloklangan origin' : 'Заблокированный CORS origin',
+      webhook_invalid_secret: language === 'uz' ? 'Webhook secret xato' : 'Неверный webhook secret',
+      webhook_unknown_restaurant: language === 'uz' ? "Noma'lum do'kon webhook" : 'Webhook неизвестного магазина',
+      api_probe_404: language === 'uz' ? 'API probing (404)' : 'Сканирование API (404)',
+      auth_rate_limit: language === 'uz' ? 'Kirish urinish limiti' : 'Лимит попыток входа',
+      auth_account_not_found: language === 'uz' ? 'Kirish: akkaunt topilmadi' : 'Вход: аккаунт не найден',
+      auth_inactive_account: language === 'uz' ? 'Kirish: nofaol akkaunt' : 'Вход: неактивный аккаунт',
+      auth_invalid_password: language === 'uz' ? "Kirish: noto'g'ri parol" : 'Вход: неверный пароль',
+      auth_invalid_account_choice: language === 'uz' ? "Kirish: noto'g'ri akkaunt tanlovi" : 'Вход: неверный выбор аккаунта'
+    };
+    return labels[normalized] || String(value || 'unknown');
+  };
+  const getSecurityRiskMeta = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'critical') {
+      return {
+        label: 'Critical',
+        style: { backgroundColor: '#7f1d1d', color: '#fee2e2' }
+      };
+    }
+    if (normalized === 'high') {
+      return {
+        label: language === 'uz' ? 'Yuqori' : 'Высокий',
+        style: { backgroundColor: '#fee2e2', color: '#991b1b' }
+      };
+    }
+    if (normalized === 'medium') {
+      return {
+        label: language === 'uz' ? "O'rtacha" : 'Средний',
+        style: { backgroundColor: '#fef3c7', color: '#92400e' }
+      };
+    }
+    return {
+      label: language === 'uz' ? 'Past' : 'Низкий',
+      style: { backgroundColor: '#dcfce7', color: '#166534' }
+    };
+  };
+  const getSecurityStatusMeta = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'resolved') {
+      return {
+        label: language === 'uz' ? 'Yechilgan' : 'Решено',
+        style: { backgroundColor: '#dcfce7', color: '#166534' }
+      };
+    }
+    return {
+      label: language === 'uz' ? 'Ochiq' : 'Открыто',
+      style: { backgroundColor: '#fee2e2', color: '#991b1b' }
+    };
+  };
+  const formatSecuritySourceLabel = (eventItem) => {
+    const parts = [
+      String(eventItem?.source_city || '').trim(),
+      String(eventItem?.source_region || '').trim(),
+      String(eventItem?.source_country || '').trim()
+    ].filter(Boolean);
+    if (!parts.length) return language === 'uz' ? "Geoma'lumot yo'q" : 'Гео не определено';
+    return parts.join(', ');
+  };
+  const formatSecurityDetailsSummary = (details) => {
+    if (!details || typeof details !== 'object') return '-';
+    const preferredKeys = ['reason', 'origin', 'message', 'error', 'hint'];
+    for (const key of preferredKeys) {
+      const value = details?.[key];
+      if (value === undefined || value === null) continue;
+      const text = String(value).trim();
+      if (text) return text.slice(0, 160);
+    }
+    const entries = Object.entries(details)
+      .filter(([key, value]) => key && value !== undefined && value !== null && String(value).trim() !== '')
+      .slice(0, 2)
+      .map(([key, value]) => `${key}: ${String(value)}`);
+    if (!entries.length) return '-';
+    return entries.join(' | ').slice(0, 180);
   };
   const getQuickRestaurantIssueCount = (restaurant) => {
     const token = String(restaurant?.telegram_bot_token || '').trim();
@@ -5689,7 +5909,7 @@ function SuperAdminDashboard() {
     navigate('/login');
   };
 
-  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs', 'billing_transactions'].includes(activeTab);
+  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs', 'billing_transactions', 'security'].includes(activeTab);
   const headerLanguageOptions = useMemo(() => ([
     {
       code: 'ru',
@@ -5759,6 +5979,20 @@ function SuperAdminDashboard() {
         limit: 20
       });
       setBillingOpsRestaurantSearch('');
+      return;
+    }
+    if (activeTab === 'security') {
+      setSecurityFilter({
+        event_type: '',
+        risk_level: '',
+        status: 'open',
+        source_ip: '',
+        search: '',
+        start_date: '',
+        end_date: '',
+        page: 1,
+        limit: 20
+      });
     }
   };
 
@@ -6180,6 +6414,71 @@ function SuperAdminDashboard() {
             className="form-control-custom"
             value={billingOpsFilter.end_date}
             onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
+          />
+        </div>
+      );
+    }
+
+    if (activeTab === 'security') {
+      return (
+        <div className="d-flex flex-column gap-3">
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder={language === 'uz' ? "Qidiruv (IP, yo'l, tafsilot)" : 'Поиск (IP, путь, детали)'}
+            value={securityFilter.search}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+          />
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            placeholder="IP"
+            value={securityFilter.source_ip}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, source_ip: e.target.value, page: 1 }))}
+          />
+          <Form.Select
+            className="form-control-custom"
+            value={securityFilter.event_type}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, event_type: e.target.value, page: 1 }))}
+          >
+            <option value="">{language === 'uz' ? 'Barcha hodisalar' : 'Все события'}</option>
+            {securityEventTypeOptions.map((eventType) => (
+              <option key={`mobile-security-event-type-${eventType}`} value={eventType}>
+                {formatSecurityEventType(eventType)}
+              </option>
+            ))}
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={securityFilter.risk_level}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, risk_level: e.target.value, page: 1 }))}
+          >
+            <option value="">{language === 'uz' ? 'Barcha risklar' : 'Все риски'}</option>
+            <option value="low">{language === 'uz' ? 'Past' : 'Низкий'}</option>
+            <option value="medium">{language === 'uz' ? "O'rtacha" : 'Средний'}</option>
+            <option value="high">{language === 'uz' ? 'Yuqori' : 'Высокий'}</option>
+            <option value="critical">Critical</option>
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={securityFilter.status}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, status: e.target.value, page: 1 }))}
+          >
+            <option value="">{language === 'uz' ? 'Barcha statuslar' : 'Все статусы'}</option>
+            <option value="open">{language === 'uz' ? 'Ochiq' : 'Открыто'}</option>
+            <option value="resolved">{language === 'uz' ? 'Yechilgan' : 'Решено'}</option>
+          </Form.Select>
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            value={securityFilter.start_date}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, start_date: e.target.value, page: 1 }))}
+          />
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            value={securityFilter.end_date}
+            onChange={(e) => setSecurityFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
           />
         </div>
       );
@@ -8758,6 +9057,281 @@ function SuperAdminDashboard() {
                     </Col>
                   </Row>
                 </Form>
+              </Tab>
+
+              <Tab eventKey="security" title={`🛡️ ${language === 'uz' ? 'Xavfsizlik' : 'Безопасность'}`}>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? 'Tizim hujumlari monitori' : 'Мониторинг атак на систему'}
+                  </h5>
+                  <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
+                    <i className="bi bi-funnel"></i> {language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                  </Button>
+                  <div className="d-none d-lg-flex align-items-center gap-2 ms-auto">
+                    <Button
+                      type="button"
+                      variant="outline-secondary"
+                      className={`admin-filter-icon-btn${showSecurityFilterPanel ? ' is-active' : ''}`}
+                      onClick={() => setShowSecurityFilterPanel((prev) => !prev)}
+                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+                      aria-expanded={showSecurityFilterPanel}
+                    >
+                      <FilterIcon />
+                    </Button>
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => {
+                        loadSecurityEvents();
+                        loadSecurityStats();
+                      }}
+                      disabled={securityEventsLoading || securityStatsLoading}
+                    >
+                      {language === 'uz' ? 'Yangilash' : 'Обновить'}
+                    </Button>
+                  </div>
+                </div>
+
+                {showSecurityFilterPanel && (
+                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap mb-3">
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      style={{ width: '240px' }}
+                      placeholder={language === 'uz' ? "Qidiruv (IP, yo'l, tafsilot)" : 'Поиск (IP, путь, детали)'}
+                      value={securityFilter.search}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+                    />
+                    <Form.Control
+                      className="form-control-custom"
+                      type="search"
+                      style={{ width: '160px' }}
+                      placeholder="IP"
+                      value={securityFilter.source_ip}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, source_ip: e.target.value, page: 1 }))}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '220px' }}
+                      value={securityFilter.event_type}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, event_type: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{language === 'uz' ? 'Barcha hodisalar' : 'Все события'}</option>
+                      {securityEventTypeOptions.map((eventType) => (
+                        <option key={`security-event-type-${eventType}`} value={eventType}>
+                          {formatSecurityEventType(eventType)}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '160px' }}
+                      value={securityFilter.risk_level}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, risk_level: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{language === 'uz' ? 'Barcha risklar' : 'Все риски'}</option>
+                      <option value="low">{language === 'uz' ? 'Past' : 'Низкий'}</option>
+                      <option value="medium">{language === 'uz' ? "O'rtacha" : 'Средний'}</option>
+                      <option value="high">{language === 'uz' ? 'Yuqori' : 'Высокий'}</option>
+                      <option value="critical">Critical</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '160px' }}
+                      value={securityFilter.status}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, status: e.target.value, page: 1 }))}
+                    >
+                      <option value="">{language === 'uz' ? 'Barcha statuslar' : 'Все статусы'}</option>
+                      <option value="open">{language === 'uz' ? 'Ochiq' : 'Открыто'}</option>
+                      <option value="resolved">{language === 'uz' ? 'Yechilgan' : 'Решено'}</option>
+                    </Form.Select>
+                    <Form.Control
+                      type="date"
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={securityFilter.start_date}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, start_date: e.target.value, page: 1 }))}
+                    />
+                    <Form.Control
+                      type="date"
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={securityFilter.end_date}
+                      onChange={(e) => setSecurityFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
+                    />
+                    <Button
+                      variant="light"
+                      className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
+                      style={{ height: '38px', padding: '0 15px' }}
+                      title={language === 'uz' ? 'Filtrlarni tozalash' : 'Сбросить фильтры'}
+                      onClick={() => setSecurityFilter({
+                        event_type: '',
+                        risk_level: '',
+                        status: 'open',
+                        source_ip: '',
+                        search: '',
+                        start_date: '',
+                        end_date: '',
+                        page: 1,
+                        limit: securityFilter.limit
+                      })}
+                      disabled={!securityFilter.event_type && !securityFilter.risk_level && securityFilter.status === 'open' && !securityFilter.source_ip && !securityFilter.search && !securityFilter.start_date && !securityFilter.end_date}
+                    >
+                      {language === 'uz' ? 'Tozalash' : 'Сброс'}
+                    </Button>
+                  </div>
+                )}
+
+                {securityStatsLoading ? (
+                  <TableSkeleton rows={1} columns={4} label={language === 'uz' ? 'Xavfsizlik statistikasi yuklanmoqda' : 'Загрузка статистики безопасности'} />
+                ) : (
+                  <Row className="g-3 mb-3">
+                    <Col md={3} sm={6}>
+                      <Card className="border-0 shadow-sm h-100">
+                        <Card.Body>
+                          <div className="small text-muted">{language === 'uz' ? '24 soat ichida' : 'За 24 часа'}</div>
+                          <div className="fs-4 fw-bold">{Number(securityStats?.overview?.total_24h || 0).toLocaleString('ru-RU')}</div>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                    <Col md={3} sm={6}>
+                      <Card className="border-0 shadow-sm h-100">
+                        <Card.Body>
+                          <div className="small text-muted">{language === 'uz' ? 'Ochiq (24 soat)' : 'Открытые (24 часа)'}</div>
+                          <div className="fs-4 fw-bold text-danger">{Number(securityStats?.overview?.open_24h || 0).toLocaleString('ru-RU')}</div>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                    <Col md={3} sm={6}>
+                      <Card className="border-0 shadow-sm h-100">
+                        <Card.Body>
+                          <div className="small text-muted">{language === 'uz' ? 'Yuqori/Critical (24 soat)' : 'Высокий/Critical (24 часа)'}</div>
+                          <div className="fs-4 fw-bold" style={{ color: '#991b1b' }}>
+                            {Number(securityStats?.overview?.high_24h || 0).toLocaleString('ru-RU')}
+                          </div>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                    <Col md={3} sm={6}>
+                      <Card className="border-0 shadow-sm h-100">
+                        <Card.Body>
+                          <div className="small text-muted">{language === 'uz' ? 'Eng faol manba (24 soat)' : 'Топ источник (24 часа)'}</div>
+                          <div className="fw-bold text-truncate" title={topSecuritySource24h?.source_ip || '-'}>
+                            {topSecuritySource24h?.source_ip || '-'}
+                          </div>
+                          <div className="small text-muted text-truncate" title={topSecuritySource24h ? formatSecuritySourceLabel(topSecuritySource24h) : '-'}>
+                            {topSecuritySource24h ? formatSecuritySourceLabel(topSecuritySource24h) : '-'}
+                          </div>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  </Row>
+                )}
+
+                {securityEventsLoading ? (
+                  <TableSkeleton rows={8} columns={9} label={language === 'uz' ? 'Xavfsizlik hodisalari yuklanmoqda' : 'Загрузка событий безопасности'} />
+                ) : (
+                  <>
+                    <div className="admin-table-container">
+                      <Table responsive hover className="admin-table align-middle">
+                        <thead>
+                          <tr>
+                            <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                            <th>{language === 'uz' ? 'Manba' : 'Источник'}</th>
+                            <th>{language === 'uz' ? 'Hujum turi' : 'Тип атаки'}</th>
+                            <th>{language === 'uz' ? 'Maqsad' : 'Цель'}</th>
+                            <th>{language === 'uz' ? 'Risk' : 'Риск'}</th>
+                            <th>{language === 'uz' ? 'Status' : 'Статус'}</th>
+                            <th>{language === 'uz' ? "Do'kon / Foydalanuvchi" : 'Магазин / Пользователь'}</th>
+                            <th>{language === 'uz' ? 'Tafsilot' : 'Детали'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Amal' : 'Действие'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(securityEventsData.events || []).map((eventItem) => {
+                            const riskMeta = getSecurityRiskMeta(eventItem?.risk_level);
+                            const statusMeta = getSecurityStatusMeta(eventItem?.status);
+                            const isResolved = String(eventItem?.status || '').toLowerCase() === 'resolved';
+                            const isUpdating = Number(securityEventStatusUpdatingId) === Number(eventItem?.id);
+                            return (
+                              <tr key={`security-event-${eventItem.id}`}>
+                                <td>
+                                  <small className="text-muted">{formatBalanceOperationDate(eventItem.created_at)}</small>
+                                </td>
+                                <td>
+                                  <div className="fw-semibold">{eventItem.source_ip || '-'}</div>
+                                  <div className="small text-muted">{formatSecuritySourceLabel(eventItem)}</div>
+                                </td>
+                                <td>
+                                  <div className="fw-semibold">{formatSecurityEventType(eventItem.event_type)}</div>
+                                  <div className="small text-muted">{eventItem.event_type}</div>
+                                </td>
+                                <td style={{ minWidth: '180px' }}>
+                                  <div className="small">
+                                    <strong>{String(eventItem.request_method || '').toUpperCase() || '-'}</strong>
+                                    {' '}
+                                    {eventItem.request_path || eventItem.target || '-'}
+                                  </div>
+                                  <div className="small text-muted">
+                                    HTTP {eventItem.status_code ?? '-'}
+                                  </div>
+                                </td>
+                                <td>
+                                  <Badge className="badge-custom" style={riskMeta.style}>
+                                    {riskMeta.label}
+                                  </Badge>
+                                </td>
+                                <td>
+                                  <Badge className="badge-custom" style={statusMeta.style}>
+                                    {statusMeta.label}
+                                  </Badge>
+                                </td>
+                                <td>
+                                  <div className="small fw-semibold">{eventItem.restaurant_name || '-'}</div>
+                                  <div className="small text-muted">{eventItem.user_full_name || eventItem.user_username || '-'}</div>
+                                </td>
+                                <td style={{ maxWidth: '280px' }}>
+                                  <small title={formatSecurityDetailsSummary(eventItem.details)}>
+                                    {formatSecurityDetailsSummary(eventItem.details)}
+                                  </small>
+                                </td>
+                                <td className="text-end">
+                                  <Button
+                                    size="sm"
+                                    variant={isResolved ? 'outline-secondary' : 'outline-success'}
+                                    onClick={() => handleSecurityEventStatusToggle(eventItem)}
+                                    disabled={isUpdating}
+                                  >
+                                    {isUpdating
+                                      ? (language === 'uz' ? '...' : '...')
+                                      : (isResolved
+                                        ? (language === 'uz' ? 'Qayta ochish' : 'Переоткрыть')
+                                        : (language === 'uz' ? 'Yechildi' : 'Решить'))}
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {(securityEventsData.events || []).length === 0 && (
+                            <tr>
+                              <td colSpan="9" className="text-center py-5 text-muted">
+                                {language === 'uz' ? "Hodisalar topilmadi" : 'События не найдены'}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </Table>
+                    </div>
+                    <DataPagination
+                      current={securityFilter.page}
+                      total={securityEventsData.total}
+                      limit={securityFilter.limit}
+                      onPageChange={(val) => setSecurityFilter((prev) => ({ ...prev, page: val }))}
+                      onLimitChange={(val) => setSecurityFilter((prev) => ({ ...prev, limit: val, page: 1 }))}
+                      limitOptions={[15, 20, 30, 50]}
+                    />
+                  </>
+                )}
               </Tab>
 
               {/* Logs Tab */}

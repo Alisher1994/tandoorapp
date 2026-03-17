@@ -29,6 +29,12 @@ const {
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
+const {
+  ensureSecurityEventsSchema,
+  listSecurityEvents,
+  getSecurityEventsStats,
+  setSecurityEventStatus
+} = require('../services/securityEvents');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -4125,6 +4131,67 @@ router.get('/logs/stats', async (req, res) => {
   } catch (error) {
     console.error('Get logs stats error:', error);
     res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
+// Мониторинг атак / инцидентов безопасности
+router.get('/security/events', async (req, res) => {
+  try {
+    await ensureSecurityEventsSchema();
+    const result = await listSecurityEvents({
+      eventType: req.query?.event_type,
+      riskLevel: req.query?.risk_level,
+      status: req.query?.status,
+      sourceIp: req.query?.source_ip,
+      search: req.query?.search,
+      startDate: req.query?.start_date,
+      endDate: req.query?.end_date,
+      page: req.query?.page,
+      limit: req.query?.limit
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Get security events error:', error);
+    res.status(500).json({ error: 'Ошибка получения событий безопасности' });
+  }
+});
+
+router.get('/security/events/stats', async (_req, res) => {
+  try {
+    await ensureSecurityEventsSchema();
+    const stats = await getSecurityEventsStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Get security events stats error:', error);
+    res.status(500).json({ error: 'Ошибка получения статистики безопасности' });
+  }
+});
+
+router.patch('/security/events/:id/status', async (req, res) => {
+  try {
+    await ensureSecurityEventsSchema();
+    const updated = await setSecurityEventStatus({
+      eventId: req.params.id,
+      status: req.body?.status,
+      resolvedBy: req.user?.id,
+      resolutionNote: req.body?.resolution_note
+    });
+
+    res.json(updated);
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (message === 'INVALID_EVENT_ID') {
+      return res.status(400).json({ error: 'Некорректный ID события' });
+    }
+    if (message === 'INVALID_STATUS') {
+      return res.status(400).json({ error: 'Некорректный статус события' });
+    }
+    if (message === 'EVENT_NOT_FOUND') {
+      return res.status(404).json({ error: 'Событие не найдено' });
+    }
+    console.error('Update security event status error:', error);
+    res.status(500).json({ error: 'Ошибка обновления статуса события безопасности' });
   }
 });
 
