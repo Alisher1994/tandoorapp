@@ -39,8 +39,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    applyUiTheme(user?.active_restaurant_ui_theme);
-  }, [user?.active_restaurant_ui_theme]);
+    const effectiveTheme = user?.role === 'superadmin'
+      ? 'talablar_blue'
+      : user?.active_restaurant_ui_theme;
+    applyUiTheme(effectiveTheme);
+  }, [user?.role, user?.active_restaurant_ui_theme]);
 
   const initializeAuth = async () => {
     // Check for token in URL first (auto-login from Telegram)

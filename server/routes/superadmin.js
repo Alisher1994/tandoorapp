@@ -1903,7 +1903,7 @@ router.post('/restaurants', async (req, res) => {
       ? null
       : String(telegram_group_id).trim();
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
-    const normalizedUiTheme = normalizeUiTheme(ui_theme, 'classic');
+    const normalizedUiTheme = normalizeUiTheme(ui_theme, 'talablar_blue');
     const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(req.body?.currency_code, 'uz');
     const normalizedSizeVariantsEnabled = normalizeBooleanFlag(req.body?.size_variants_enabled, false);
