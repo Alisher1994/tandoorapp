@@ -31,6 +31,39 @@ const SPREADSHEET_IMPORT_MIME_TYPES = new Set([
   'text/plain'
 ]);
 const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
+const RESTAURANT_COMMENT_CHECKLIST_OPTIONS = [
+  {
+    code: 'call_completed',
+    ru: 'Созвон проведен',
+    uz: "Qo'ng'iroq qilindi"
+  },
+  {
+    code: 'meeting_completed',
+    ru: 'Личная встреча проведена',
+    uz: 'Shaxsiy uchrashuv bo‘ldi'
+  },
+  {
+    code: 'products_added',
+    ru: 'Товары добавлены',
+    uz: "Mahsulotlar qo'shildi"
+  },
+  {
+    code: 'has_improvement_suggestions',
+    ru: 'Есть предложения по улучшению',
+    uz: 'Yaxshilash bo‘yicha takliflar bor'
+  },
+  {
+    code: 'telegram_token_issue',
+    ru: 'Не получается добавить Telegram-токен',
+    uz: "Telegram tokenini qo'shib bo'lmayapti"
+  },
+  {
+    code: 'customers_not_adding',
+    ru: 'Клиенты не добавляются',
+    uz: "Mijozlar qo'shilmayapti"
+  }
+];
+const RESTAURANT_COMMENT_CHECKLIST_CODE_SET = new Set(RESTAURANT_COMMENT_CHECKLIST_OPTIONS.map((item) => item.code));
 const MAX_ORDER_RATING = 5;
 const DAVRON_SCAM_PRANK_SESSION_KEY = 'sa_davron_scam_prank_v1_shown';
 const CATALOG_ANIMATION_SEASON_OPTIONS = [
@@ -775,7 +808,13 @@ function SuperAdminDashboard() {
   const [showRestaurantCommentModal, setShowRestaurantCommentModal] = useState(false);
   const [commentRestaurant, setCommentRestaurant] = useState(null);
   const [restaurantCommentDraft, setRestaurantCommentDraft] = useState('');
+  const [restaurantCommentChecklist, setRestaurantCommentChecklist] = useState([]);
   const [savingRestaurantComment, setSavingRestaurantComment] = useState(false);
+  const [showRestaurantIssuesModal, setShowRestaurantIssuesModal] = useState(false);
+  const [restaurantIssuesTarget, setRestaurantIssuesTarget] = useState(null);
+  const [restaurantIssuesData, setRestaurantIssuesData] = useState(null);
+  const [restaurantIssuesLoading, setRestaurantIssuesLoading] = useState(false);
+  const [restaurantIssueCountMap, setRestaurantIssueCountMap] = useState({});
 
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
@@ -2937,6 +2976,16 @@ function SuperAdminDashboard() {
     if (Number.isNaN(date.getTime())) return '—';
     return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
   };
+  const getQuickRestaurantIssueCount = (restaurant) => {
+    const token = String(restaurant?.telegram_bot_token || '').trim();
+    const botMetaError = String(restaurant?.telegram_bot_meta_error || '').trim();
+    const botUsername = String(restaurant?.telegram_bot_username || '').trim();
+
+    if (!token) return 1;
+    if (botMetaError) return 1;
+    if (!botUsername) return 1;
+    return 0;
+  };
   const getBillingOperationMeta = (type) => {
     const normalized = String(type || '').trim().toLowerCase();
     if (normalized === 'deposit') {
@@ -3711,13 +3760,74 @@ function SuperAdminDashboard() {
     }
   };
 
-  const updateRestaurantCommentInState = (restaurantId, adminComment) => {
+  const loadRestaurantTelegramDiagnostics = async (restaurantId, { silent = false } = {}) => {
+    const normalizedId = Number.parseInt(restaurantId, 10);
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null;
+
+    if (!silent) setRestaurantIssuesLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/restaurants/${normalizedId}/telegram-diagnostics`);
+      const payload = response.data || {};
+      const normalizedIssueCount = Number(payload.issue_count || 0);
+      setRestaurantIssueCountMap((prev) => ({ ...prev, [normalizedId]: normalizedIssueCount }));
+      setRestaurantIssuesData(payload);
+      return payload;
+    } catch (err) {
+      if (!silent) {
+        setRestaurantIssuesData(null);
+        setError(err.response?.data?.error || (language === 'uz'
+          ? 'Telegram diagnostikasini yuklab bo‘lmadi'
+          : 'Не удалось загрузить диагностику Telegram'));
+      }
+      return null;
+    } finally {
+      if (!silent) setRestaurantIssuesLoading(false);
+    }
+  };
+
+  const openRestaurantIssuesModal = async (restaurant) => {
+    if (!restaurant?.id) return;
+    setRestaurantIssuesTarget(restaurant);
+    setRestaurantIssuesData(null);
+    setShowRestaurantIssuesModal(true);
+    await loadRestaurantTelegramDiagnostics(restaurant.id);
+  };
+
+  const closeRestaurantIssuesModal = () => {
+    if (restaurantIssuesLoading) return;
+    setShowRestaurantIssuesModal(false);
+    setRestaurantIssuesTarget(null);
+    setRestaurantIssuesData(null);
+  };
+
+  const refreshRestaurantIssuesModal = async () => {
+    if (!restaurantIssuesTarget?.id) return;
+    await loadRestaurantTelegramDiagnostics(restaurantIssuesTarget.id);
+  };
+
+  const normalizeRestaurantCommentChecklist = (value) => {
+    const source = Array.isArray(value) ? value : [];
+    const unique = [];
+    const seen = new Set();
+
+    source.forEach((rawCode) => {
+      const code = String(rawCode || '').trim();
+      if (!code || seen.has(code) || !RESTAURANT_COMMENT_CHECKLIST_CODE_SET.has(code)) return;
+      seen.add(code);
+      unique.push(code);
+    });
+
+    return unique;
+  };
+
+  const updateRestaurantCommentInState = (restaurantId, adminComment, adminChecklist = []) => {
     const normalizedComment = adminComment ? String(adminComment) : null;
+    const normalizedChecklist = normalizeRestaurantCommentChecklist(adminChecklist);
     const targetId = String(restaurantId);
     setRestaurants((prev) => {
       const nextRestaurants = (Array.isArray(prev?.restaurants) ? prev.restaurants : []).map((restaurant) => (
         String(restaurant.id) === targetId
-          ? { ...restaurant, admin_comment: normalizedComment }
+          ? { ...restaurant, admin_comment: normalizedComment, admin_comment_checklist: normalizedChecklist }
           : restaurant
       ));
       return {
@@ -3729,25 +3839,44 @@ function SuperAdminDashboard() {
       Array.isArray(prev)
         ? prev.map((restaurant) => (
           String(restaurant.id) === targetId
-            ? { ...restaurant, admin_comment: normalizedComment }
+            ? { ...restaurant, admin_comment: normalizedComment, admin_comment_checklist: normalizedChecklist }
             : restaurant
         ))
         : prev
     ));
   };
 
-  const getRestaurantCommentTooltip = (commentValue) => {
+  const getRestaurantCommentTooltip = (commentValue, checklistValue = []) => {
     const normalized = String(commentValue || '').trim();
+    const checklist = normalizeRestaurantCommentChecklist(checklistValue);
     if (!normalized) {
+      if (checklist.length > 0) {
+        return language === 'uz'
+          ? `Checklist belgilari: ${checklist.length}`
+          : `Отмечено пунктов чеклиста: ${checklist.length}`;
+      }
       return language === 'uz' ? "Do'kon izohini qo'shish" : 'Добавить комментарий магазина';
     }
     const singleLine = normalized.replace(/\s+/g, ' ');
     return singleLine.length > 220 ? `${singleLine.slice(0, 220)}...` : singleLine;
   };
 
+  const toggleRestaurantCommentChecklistItem = (code) => {
+    const normalizedCode = String(code || '').trim();
+    if (!RESTAURANT_COMMENT_CHECKLIST_CODE_SET.has(normalizedCode)) return;
+    setRestaurantCommentChecklist((prev) => {
+      const list = normalizeRestaurantCommentChecklist(prev);
+      if (list.includes(normalizedCode)) {
+        return list.filter((itemCode) => itemCode !== normalizedCode);
+      }
+      return [...list, normalizedCode];
+    });
+  };
+
   const openRestaurantCommentModal = (restaurant) => {
     setCommentRestaurant(restaurant);
     setRestaurantCommentDraft(String(restaurant?.admin_comment || ''));
+    setRestaurantCommentChecklist(normalizeRestaurantCommentChecklist(restaurant?.admin_comment_checklist));
     setShowRestaurantCommentModal(true);
   };
 
@@ -3756,18 +3885,27 @@ function SuperAdminDashboard() {
     setShowRestaurantCommentModal(false);
     setCommentRestaurant(null);
     setRestaurantCommentDraft('');
+    setRestaurantCommentChecklist([]);
   };
 
   const handleSaveRestaurantComment = async () => {
     if (!commentRestaurant?.id) return;
     setSavingRestaurantComment(true);
     try {
+      const normalizedChecklist = normalizeRestaurantCommentChecklist(restaurantCommentChecklist);
       const response = await axios.put(
         `${API_URL}/superadmin/restaurants/${commentRestaurant.id}/admin-comment`,
-        { admin_comment: restaurantCommentDraft }
+        {
+          admin_comment: restaurantCommentDraft,
+          admin_comment_checklist: normalizedChecklist
+        }
       );
       const savedComment = response.data?.admin_comment ? String(response.data.admin_comment) : null;
-      updateRestaurantCommentInState(commentRestaurant.id, savedComment);
+      updateRestaurantCommentInState(
+        commentRestaurant.id,
+        savedComment,
+        response.data?.admin_comment_checklist
+      );
       setSuccess(language === 'uz' ? "Do'kon izohi saqlandi" : 'Комментарий магазина сохранен');
       closeRestaurantCommentModal(true);
     } catch (err) {
@@ -6520,7 +6658,7 @@ function SuperAdminDashboard() {
                 )}
 
                 {loading ? (
-                  <TableSkeleton rows={8} columns={10} label="Загрузка списка магазинов" />
+                  <TableSkeleton rows={8} columns={11} label="Загрузка списка магазинов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -6535,6 +6673,7 @@ function SuperAdminDashboard() {
                             <th>{t('saTableBalance') || 'Баланс'}</th>
                             <th>{t('saServiceFee') || 'Сбор за обслуживание'}</th>
                             <th>{t('saTableTier') || 'Тариф'}</th>
+                            <th>{language === 'uz' ? 'Muammolar' : 'Проблемы'}</th>
                             <th>{t('saTableStatus')}</th>
                             <th className="text-end">{t('saTableActions')}</th>
                           </tr>
@@ -6648,6 +6787,29 @@ function SuperAdminDashboard() {
                                 </Badge>
                               </td>
                               <td>
+                                {(() => {
+                                  const mappedIssueCount = restaurantIssueCountMap[r.id];
+                                  const issuesCount = Number.isFinite(mappedIssueCount)
+                                    ? mappedIssueCount
+                                    : getQuickRestaurantIssueCount(r);
+                                  const isProblem = issuesCount > 0;
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      variant={isProblem ? 'outline-danger' : 'outline-success'}
+                                      className="d-inline-flex align-items-center gap-2"
+                                      onClick={() => openRestaurantIssuesModal(r)}
+                                      title={language === 'uz'
+                                        ? "Telegram diagnostikasini ochish"
+                                        : 'Открыть диагностику Telegram'}
+                                    >
+                                      <span>{issuesCount}</span>
+                                      <span>{isProblem ? '⚠️' : '✅'}</span>
+                                    </Button>
+                                  );
+                                })()}
+                              </td>
+                              <td>
                                 <div className="d-flex align-items-center gap-2">
                                   <Badge className={`badge-custom sa-status-badge ${r.is_active ? 'sa-status-badge-active' : 'sa-status-badge-inactive'}`}>
                                     {r.is_active ? (language === 'uz' ? 'Faol' : 'Активен') : (language === 'uz' ? 'Nofaol' : 'Неактивен')}
@@ -6677,10 +6839,10 @@ function SuperAdminDashboard() {
                                     variant="light"
                                     className="action-btn text-secondary restaurant-comment-action-btn"
                                     onClick={() => openRestaurantCommentModal(r)}
-                                    title={getRestaurantCommentTooltip(r.admin_comment)}
+                                    title={getRestaurantCommentTooltip(r.admin_comment, r.admin_comment_checklist)}
                                   >
                                     📝
-                                    {String(r.admin_comment || '').trim() && (
+                                    {(String(r.admin_comment || '').trim() || normalizeRestaurantCommentChecklist(r.admin_comment_checklist).length > 0) && (
                                       <span className="restaurant-comment-indicator" aria-hidden="true" />
                                     )}
                                   </Button>
@@ -6695,7 +6857,7 @@ function SuperAdminDashboard() {
                             </tr>
                           ))}
                           {filteredRestaurants?.length === 0 && (
-                            <tr><td colSpan="10" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
+                            <tr><td colSpan="11" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
                           )}
                         </tbody>
                       </Table>
@@ -11144,6 +11306,46 @@ function SuperAdminDashboard() {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          <div className="mb-3">
+            <div className="fw-semibold mb-2">
+              {language === 'uz' ? 'Cheklist: bajarilgan ishlar' : 'Чеклист: выполненные шаги'}
+            </div>
+            <Row className="g-2 mb-2">
+              {RESTAURANT_COMMENT_CHECKLIST_OPTIONS
+                .filter((item) => ['call_completed', 'meeting_completed', 'products_added'].includes(item.code))
+                .map((item) => (
+                  <Col md={6} key={`comment-checklist-completed-${item.code}`}>
+                    <Form.Check
+                      type="checkbox"
+                      id={`restaurant-comment-check-${item.code}`}
+                      checked={restaurantCommentChecklist.includes(item.code)}
+                      onChange={() => toggleRestaurantCommentChecklistItem(item.code)}
+                      label={language === 'uz' ? item.uz : item.ru}
+                    />
+                  </Col>
+                ))}
+            </Row>
+
+            <div className="fw-semibold mb-2 mt-3">
+              {language === 'uz' ? 'Cheklist: muammolar' : 'Чеклист: проблемы'}
+            </div>
+            <Row className="g-2">
+              {RESTAURANT_COMMENT_CHECKLIST_OPTIONS
+                .filter((item) => ['has_improvement_suggestions', 'telegram_token_issue', 'customers_not_adding'].includes(item.code))
+                .map((item) => (
+                  <Col md={6} key={`comment-checklist-problem-${item.code}`}>
+                    <Form.Check
+                      type="checkbox"
+                      id={`restaurant-comment-check-${item.code}`}
+                      checked={restaurantCommentChecklist.includes(item.code)}
+                      onChange={() => toggleRestaurantCommentChecklistItem(item.code)}
+                      label={language === 'uz' ? item.uz : item.ru}
+                    />
+                  </Col>
+                ))}
+            </Row>
+          </div>
+
           <Form.Group controlId="restaurant-admin-comment">
             <Form.Label className="fw-semibold">
               {language === 'uz'
@@ -11188,6 +11390,105 @@ function SuperAdminDashboard() {
             {savingRestaurantComment
               ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
               : t('saSave')}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal show={showRestaurantIssuesModal} onHide={closeRestaurantIssuesModal} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz' ? 'Telegram diagnostikasi' : 'Диагностика Telegram'}
+            {restaurantIssuesTarget?.name ? `: ${restaurantIssuesTarget.name}` : ''}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {restaurantIssuesLoading ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" size="sm" className="me-2" />
+              {language === 'uz' ? 'Tekshirilmoqda...' : 'Проверка...'}
+            </div>
+          ) : !restaurantIssuesData ? (
+            <Alert variant="warning" className="mb-0">
+              {language === 'uz'
+                ? "Diagnostika ma'lumotlari yuklanmadi. Qayta tekshirib ko'ring."
+                : 'Данные диагностики не загружены. Нажмите «Перепроверить».'}
+            </Alert>
+          ) : (
+            <>
+              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <div className="small text-muted">
+                  {language === 'uz' ? 'Oxirgi tekshiruv' : 'Последняя проверка'}:{' '}
+                  <strong>{restaurantIssuesData?.checked_at ? formatBalanceOperationDate(restaurantIssuesData.checked_at) : '—'}</strong>
+                </div>
+                <Badge className={`badge-custom ${Number(restaurantIssuesData?.issue_count || 0) > 0 ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success'}`}>
+                  {language === 'uz' ? 'Xatolar soni' : 'Ошибок'}: {Number(restaurantIssuesData?.issue_count || 0)}
+                </Badge>
+              </div>
+
+              {Number(restaurantIssuesData?.issue_count || 0) > 0 ? (
+                <div className="d-flex flex-column gap-2 mb-4">
+                  {(restaurantIssuesData?.issues || []).map((issue, index) => (
+                    <div key={`${issue?.code || 'issue'}-${index}`} className="border rounded-3 p-3 bg-light">
+                      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <div className="fw-semibold">
+                          {index + 1}. {issue?.title || (language === 'uz' ? 'Muammo' : 'Проблема')}
+                        </div>
+                        <Badge className={`badge-custom ${String(issue?.severity || '') === 'warning' ? 'bg-warning bg-opacity-10 text-warning' : 'bg-danger bg-opacity-10 text-danger'}`}>
+                          {String(issue?.severity || '') === 'warning'
+                            ? (language === 'uz' ? 'Ogohlantirish' : 'Предупреждение')
+                            : (language === 'uz' ? 'Muhim' : 'Требует внимания')}
+                        </Badge>
+                      </div>
+                      <div className="small text-muted mb-2">
+                        {issue?.description || '—'}
+                      </div>
+                      <div className="small">
+                        <strong>{language === 'uz' ? 'Yechim:' : 'Решение:'}</strong> {issue?.solution || '—'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Alert variant="success" className="mb-4">
+                  {language === 'uz'
+                    ? "Muammolar topilmadi. Telegram integratsiyasi joyida."
+                    : 'Проблем не найдено. Telegram-интеграция в порядке.'}
+                </Alert>
+              )}
+
+              <div>
+                <div className="fw-semibold mb-2">
+                  {language === 'uz' ? 'Chek-list' : 'Чеклист'}
+                </div>
+                <div className="d-flex flex-column gap-2">
+                  {(restaurantIssuesData?.checks || []).map((checkItem, index) => (
+                    <div
+                      key={`${checkItem?.code || 'check'}-${index}`}
+                      className="d-flex align-items-start justify-content-between gap-3 border rounded-3 p-2"
+                    >
+                      <div>
+                        <div className="small fw-semibold">{checkItem?.label || '—'}</div>
+                        {checkItem?.hint ? (
+                          <div className="small text-muted">{checkItem.hint}</div>
+                        ) : null}
+                      </div>
+                      <Badge className={`badge-custom ${checkItem?.ok ? 'bg-success bg-opacity-10 text-success' : 'bg-danger bg-opacity-10 text-danger'}`}>
+                        {checkItem?.ok ? 'OK' : (language === 'uz' ? 'Xato' : 'Ошибка')}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeRestaurantIssuesModal} disabled={restaurantIssuesLoading}>
+            {language === 'uz' ? 'Yopish' : 'Закрыть'}
+          </Button>
+          <Button className="btn-primary-custom" onClick={refreshRestaurantIssuesModal} disabled={restaurantIssuesLoading || !restaurantIssuesTarget?.id}>
+            {restaurantIssuesLoading && <Spinner animation="border" size="sm" className="me-2" />}
+            {language === 'uz' ? 'Qayta tekshirish' : 'Перепроверить'}
           </Button>
         </Modal.Footer>
       </Modal>

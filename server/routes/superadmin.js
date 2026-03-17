@@ -280,10 +280,32 @@ const parseFlexibleAmount = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
+const RESTAURANT_ADMIN_CHECKLIST_CODES = new Set([
+  'call_completed',
+  'meeting_completed',
+  'products_added',
+  'has_improvement_suggestions',
+  'telegram_token_issue',
+  'customers_not_adding'
+]);
 const normalizeRestaurantAdminComment = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   if (!normalized) return null;
   return normalized.slice(0, MAX_RESTAURANT_ADMIN_COMMENT_LENGTH);
+};
+const normalizeRestaurantAdminChecklist = (value) => {
+  const source = Array.isArray(value) ? value : [];
+  const uniqueCodes = [];
+  const seen = new Set();
+
+  for (const rawCode of source) {
+    const code = String(rawCode || '').trim();
+    if (!code || !RESTAURANT_ADMIN_CHECKLIST_CODES.has(code) || seen.has(code)) continue;
+    seen.add(code);
+    uniqueCodes.push(code);
+  }
+
+  return uniqueCodes;
 };
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
@@ -466,6 +488,214 @@ const resolveTelegramBotMeta = async (token) => {
     telegram_bot_name: me?.first_name || null,
     telegram_bot_username: me?.username ? `@${me.username}` : null
   };
+};
+
+const trimTelegramDiagnosticText = (value, maxLength = 240) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length <= maxLength) return raw;
+  return `${raw.slice(0, Math.max(1, maxLength - 1))}…`;
+};
+
+const detectTelegramDiagnosticErrorCode = (message) => {
+  const normalized = String(message || '').toLowerCase();
+  if (!normalized) return 'unknown';
+  if (normalized.includes('401') || normalized.includes('unauthorized')) return 'unauthorized';
+  if (normalized.includes('404') || normalized.includes('not found')) return 'not_found';
+  if (normalized.includes('429') || normalized.includes('too many requests')) return 'rate_limit';
+  if (normalized.includes('timeout') || normalized.includes('timed out') || normalized.includes('econn') || normalized.includes('network')) return 'network';
+  return 'unknown';
+};
+
+const makeTelegramDiagnosticIssue = ({
+  code,
+  title,
+  description,
+  solution,
+  severity = 'error'
+}) => ({
+  code,
+  title,
+  description: trimTelegramDiagnosticText(description, 360),
+  solution: trimTelegramDiagnosticText(solution, 240),
+  severity: severity === 'warning' ? 'warning' : 'error'
+});
+
+const buildRestaurantTelegramDiagnostics = async (restaurant) => {
+  const restaurantId = Number.parseInt(restaurant?.id, 10);
+  const restaurantName = String(restaurant?.name || '').trim() || `#${restaurantId || '?'}`;
+  const token = normalizeTokenValue(restaurant?.telegram_bot_token);
+  const checks = [];
+  const issues = [];
+  const pushCheck = (code, label, ok, hint = '') => {
+    checks.push({
+      code,
+      label,
+      ok: !!ok,
+      hint: hint ? trimTelegramDiagnosticText(hint, 220) : ''
+    });
+  };
+
+  if (!token) {
+    issues.push(makeTelegramDiagnosticIssue({
+      code: 'token_missing',
+      title: 'Не указан Telegram Bot Token',
+      description: 'У магазина не заполнен токен бота, Telegram-интеграция не сможет работать.',
+      solution: 'Откройте редактирование магазина, вставьте актуальный токен из BotFather и сохраните.'
+    }));
+    pushCheck('token_present', 'Токен бота заполнен', false, 'Токен отсутствует');
+    pushCheck('token_valid', 'Токен проходит проверку в Telegram', false, 'Проверка невозможна без токена');
+    pushCheck('webhook_configured', 'Webhook установлен', false, 'Webhook нельзя проверить без валидного токена');
+
+    return {
+      restaurant_id: restaurantId || null,
+      restaurant_name: restaurantName,
+      issue_count: issues.length,
+      issues,
+      checks,
+      checked_at: new Date().toISOString()
+    };
+  }
+
+  pushCheck('token_present', 'Токен бота заполнен', true, '');
+
+  let bot = null;
+  let botProfile = null;
+  try {
+    bot = new TelegramBot(token);
+    botProfile = await bot.getMe();
+    pushCheck('token_valid', 'Токен проходит проверку в Telegram', true, '');
+  } catch (error) {
+    const errorMessage = trimTelegramDiagnosticText(error?.message || 'Не удалось проверить токен', 280);
+    const errorCode = detectTelegramDiagnosticErrorCode(errorMessage);
+    let title = 'Токен бота не прошёл проверку';
+    let solution = 'Проверьте токен в BotFather и сохраните его заново в настройках магазина.';
+
+    if (errorCode === 'unauthorized') {
+      title = 'Недействительный токен (401 Unauthorized)';
+      solution = 'Запросите у клиента новый токен в BotFather, обновите токен магазина и сохраните.';
+    } else if (errorCode === 'not_found') {
+      title = 'Бот не найден (404 Not Found)';
+      solution = 'Проверьте, что бот существует, и токен скопирован полностью без лишних пробелов.';
+    } else if (errorCode === 'rate_limit') {
+      title = 'Временный лимит Telegram API (429)';
+      solution = 'Подождите 1-2 минуты и нажмите «Перепроверить».';
+    } else if (errorCode === 'network') {
+      title = 'Сетевая ошибка при проверке бота';
+      solution = 'Проверьте доступность Telegram API и повторите проверку позже.';
+    }
+
+    issues.push(makeTelegramDiagnosticIssue({
+      code: 'token_invalid',
+      title,
+      description: `Telegram вернул ошибку: ${errorMessage}`,
+      solution
+    }));
+    pushCheck('token_valid', 'Токен проходит проверку в Telegram', false, errorMessage);
+    pushCheck('webhook_configured', 'Webhook установлен', false, 'Webhook не проверяется, пока токен невалиден');
+
+    return {
+      restaurant_id: restaurantId || null,
+      restaurant_name: restaurantName,
+      issue_count: issues.length,
+      issues,
+      checks,
+      bot_username: null,
+      checked_at: new Date().toISOString()
+    };
+  }
+
+  try {
+    const webhookInfo = await bot.getWebHookInfo();
+    const webhookUrl = String(webhookInfo?.url || '').trim();
+    const expectedPath = `/api/telegram/webhook/${restaurantId}`;
+    const webhookIsSet = !!webhookUrl;
+    const webhookMatchesExpectedPath = webhookUrl.includes(expectedPath);
+    const pendingUpdates = Number.parseInt(webhookInfo?.pending_update_count, 10);
+    const lastErrorMessage = trimTelegramDiagnosticText(webhookInfo?.last_error_message || '', 300);
+    const lastErrorDateRaw = Number.parseInt(webhookInfo?.last_error_date, 10);
+    const lastErrorAt = Number.isFinite(lastErrorDateRaw) && lastErrorDateRaw > 0
+      ? new Date(lastErrorDateRaw * 1000).toISOString()
+      : null;
+
+    pushCheck('webhook_configured', 'Webhook установлен', webhookIsSet, webhookIsSet ? '' : 'Telegram не вернул URL webhook');
+    pushCheck(
+      'webhook_target',
+      'Webhook направлен в правильный маршрут магазина',
+      webhookIsSet && webhookMatchesExpectedPath,
+      webhookIsSet
+        ? (webhookMatchesExpectedPath ? '' : `Текущий URL: ${trimTelegramDiagnosticText(webhookUrl, 140)}`)
+        : 'URL webhook отсутствует'
+    );
+
+    if (!webhookIsSet) {
+      issues.push(makeTelegramDiagnosticIssue({
+        code: 'webhook_missing',
+        title: 'Webhook не установлен',
+        description: 'Telegram не содержит webhook URL для этого магазина.',
+        solution: 'Сохраните настройки магазина с токеном и выполните redeploy/restart сервиса.'
+      }));
+    } else if (!webhookMatchesExpectedPath) {
+      issues.push(makeTelegramDiagnosticIssue({
+        code: 'webhook_mismatch',
+        title: 'Webhook указывает на другой маршрут',
+        description: `Сейчас используется URL: ${webhookUrl}`,
+        solution: 'Пересохраните токен магазина и выполните redeploy, чтобы webhook выставился автоматически.'
+      }));
+    }
+
+    if (lastErrorMessage) {
+      issues.push(makeTelegramDiagnosticIssue({
+        code: 'webhook_last_error',
+        title: 'Telegram сообщает последнюю ошибку webhook',
+        description: `${lastErrorMessage}${lastErrorAt ? ` (время: ${lastErrorAt})` : ''}`,
+        solution: 'Исправьте причину ошибки (чаще всего токен/домен), затем нажмите «Перепроверить».',
+        severity: 'warning'
+      }));
+    }
+
+    if (Number.isFinite(pendingUpdates) && pendingUpdates > 100) {
+      issues.push(makeTelegramDiagnosticIssue({
+        code: 'webhook_backlog',
+        title: 'Накопилась очередь обновлений в webhook',
+        description: `В очереди Telegram сейчас ${pendingUpdates} обновлений.`,
+        solution: 'Проверьте доступность backend и корректность webhook. После стабилизации очередь уменьшится.',
+        severity: 'warning'
+      }));
+    }
+
+    return {
+      restaurant_id: restaurantId || null,
+      restaurant_name: restaurantName,
+      issue_count: issues.length,
+      issues,
+      checks,
+      bot_username: botProfile?.username ? `@${botProfile.username}` : null,
+      webhook_url: webhookUrl || null,
+      pending_update_count: Number.isFinite(pendingUpdates) ? pendingUpdates : 0,
+      checked_at: new Date().toISOString()
+    };
+  } catch (error) {
+    const webhookErrorMessage = trimTelegramDiagnosticText(error?.message || 'Не удалось получить webhook информацию', 280);
+    issues.push(makeTelegramDiagnosticIssue({
+      code: 'webhook_check_failed',
+      title: 'Не удалось проверить webhook',
+      description: webhookErrorMessage,
+      solution: 'Повторите проверку через несколько секунд. Если ошибка повторяется, проверьте сеть/доступ к Telegram API.'
+    }));
+    pushCheck('webhook_configured', 'Webhook установлен', false, webhookErrorMessage);
+    pushCheck('webhook_target', 'Webhook направлен в правильный маршрут магазина', false, webhookErrorMessage);
+
+    return {
+      restaurant_id: restaurantId || null,
+      restaurant_name: restaurantName,
+      issue_count: issues.length,
+      issues,
+      checks,
+      bot_username: botProfile?.username ? `@${botProfile.username}` : null,
+      checked_at: new Date().toISOString()
+    };
+  }
 };
 
 const enrichRestaurantWithBotMeta = async (restaurant) => {
@@ -771,6 +1001,12 @@ const ensureRestaurantAdminCommentSchema = async () => {
 
   restaurantAdminCommentSchemaPromise = (async () => {
     await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS admin_comment TEXT').catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS admin_comment_checklist JSONB DEFAULT '[]'::jsonb`).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET admin_comment_checklist = '[]'::jsonb
+      WHERE admin_comment_checklist IS NULL
+    `).catch(() => {});
     restaurantAdminCommentSchemaReady = true;
   })();
 
@@ -1222,6 +1458,34 @@ router.get('/restaurants', async (req, res) => {
   } catch (error) {
     console.error('Get restaurants error:', error);
     res.status(500).json({ error: 'Ошибка получения ресторанов' });
+  }
+});
+
+// Диагностика Telegram-интеграции магазина (ошибки/чеклист)
+router.get('/restaurants/:id/telegram-diagnostics', async (req, res) => {
+  try {
+    const restaurantId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID магазина' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, name, telegram_bot_token
+       FROM restaurants
+       WHERE id = $1
+       LIMIT 1`,
+      [restaurantId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Магазин не найден' });
+    }
+
+    const diagnostics = await buildRestaurantTelegramDiagnostics(result.rows[0]);
+    res.json(diagnostics);
+  } catch (error) {
+    console.error('Restaurant telegram diagnostics error:', error);
+    res.status(500).json({ error: 'Ошибка диагностики Telegram-интеграции' });
   }
 });
 
@@ -2414,7 +2678,7 @@ router.put('/restaurants/:id/admin-comment', async (req, res) => {
     }
 
     const oldResult = await pool.query(
-      'SELECT id, name, admin_comment FROM restaurants WHERE id = $1 LIMIT 1',
+      'SELECT id, name, admin_comment, admin_comment_checklist FROM restaurants WHERE id = $1 LIMIT 1',
       [restaurantId]
     );
     if (oldResult.rows.length === 0) {
@@ -2422,13 +2686,15 @@ router.put('/restaurants/:id/admin-comment', async (req, res) => {
     }
 
     const adminComment = normalizeRestaurantAdminComment(req.body?.admin_comment);
+    const adminChecklist = normalizeRestaurantAdminChecklist(req.body?.admin_comment_checklist);
     const updateResult = await pool.query(
       `UPDATE restaurants
        SET admin_comment = $1,
+           admin_comment_checklist = $2::jsonb,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING id, name, admin_comment`,
-      [adminComment, restaurantId]
+       WHERE id = $3
+       RETURNING id, name, admin_comment, admin_comment_checklist`,
+      [adminComment, JSON.stringify(adminChecklist), restaurantId]
     );
 
     const updatedRow = updateResult.rows[0];
@@ -2439,8 +2705,14 @@ router.put('/restaurants/:id/admin-comment', async (req, res) => {
       entityType: ENTITY_TYPES.RESTAURANT,
       entityId: restaurantId,
       entityName: updatedRow.name,
-      oldValues: { admin_comment: oldResult.rows[0].admin_comment || null },
-      newValues: { admin_comment: updatedRow.admin_comment || null },
+      oldValues: {
+        admin_comment: oldResult.rows[0].admin_comment || null,
+        admin_comment_checklist: Array.isArray(oldResult.rows[0].admin_comment_checklist) ? oldResult.rows[0].admin_comment_checklist : []
+      },
+      newValues: {
+        admin_comment: updatedRow.admin_comment || null,
+        admin_comment_checklist: Array.isArray(updatedRow.admin_comment_checklist) ? updatedRow.admin_comment_checklist : []
+      },
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
     });
