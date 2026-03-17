@@ -215,6 +215,8 @@ CREATE TABLE IF NOT EXISTS reservation_floors (
   name VARCHAR(120) NOT NULL,
   sort_order INTEGER DEFAULT 0,
   image_url TEXT,
+  plan_image_opacity DECIMAL(4, 3) DEFAULT 1,
+  plan_dark_overlay DECIMAL(4, 3) DEFAULT 0,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

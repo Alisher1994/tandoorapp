@@ -56,6 +56,13 @@ const toAbsoluteMediaUrl = (url) => {
   const base = API_URL.replace('/api', '');
   return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
 };
+const extractTableCenterLabel = (name, fallback = '') => {
+  const raw = String(name || '').trim();
+  if (!raw) return String(fallback || '');
+  const numberMatch = raw.match(/\d+/);
+  if (numberMatch?.[0]) return numberMatch[0];
+  return raw.length > 4 ? raw.slice(0, 4) : raw;
+};
 
 const EyeIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
@@ -97,6 +104,12 @@ function AdminReservations() {
   const draggedPositionRef = useRef(null);
   const planDraggedDraftRef = useRef(null);
   const planDragDepthRef = useRef(0);
+  const floorVisualSaveTimerRef = useRef(null);
+  const floorVisualDraftRef = useRef({
+    floorId: null,
+    plan_image_opacity: 1,
+    plan_dark_overlay: 0
+  });
   const isUz = language === 'uz';
   const tx = (ru, uz) => (isUz ? uz : ru);
 
@@ -150,6 +163,7 @@ function AdminReservations() {
   const [showPlanRotationControls, setShowPlanRotationControls] = useState(false);
   const [isCreatingPlanTable, setIsCreatingPlanTable] = useState(false);
   const [isPlanDropActive, setIsPlanDropActive] = useState(false);
+  const [savingFloorVisual, setSavingFloorVisual] = useState(false);
   const [floorImageMeta, setFloorImageMeta] = useState({ width: 0, height: 0 });
   const [tablesPage, setTablesPage] = useState(1);
   const [tablesPageSize, setTablesPageSize] = useState(10);
@@ -163,6 +177,14 @@ function AdminReservations() {
   const selectedFloorImageUrl = useMemo(
     () => toAbsoluteMediaUrl(selectedFloor?.image_url),
     [selectedFloor?.image_url]
+  );
+  const selectedFloorImageOpacity = useMemo(
+    () => clamp(asNumber(selectedFloor?.plan_image_opacity, 1), 0.25, 1),
+    [selectedFloor?.plan_image_opacity]
+  );
+  const selectedFloorDarkOverlay = useMemo(
+    () => clamp(asNumber(selectedFloor?.plan_dark_overlay, 0), 0, 0.8),
+    [selectedFloor?.plan_dark_overlay]
   );
   const floorAspectRatio = useMemo(() => {
     const width = Number(floorImageMeta.width || 0);
@@ -190,6 +212,75 @@ function AdminReservations() {
     };
     setPlanScale(Number(scale.toFixed(3)));
     setPlanOffset(offset);
+  };
+  const queueSaveFloorVisualConfig = (floorId, nextOpacity, nextOverlay) => {
+    floorVisualDraftRef.current = {
+      floorId,
+      plan_image_opacity: clamp(asNumber(nextOpacity, 1), 0.25, 1),
+      plan_dark_overlay: clamp(asNumber(nextOverlay, 0), 0, 0.8)
+    };
+
+    if (floorVisualSaveTimerRef.current) {
+      window.clearTimeout(floorVisualSaveTimerRef.current);
+    }
+
+    floorVisualSaveTimerRef.current = window.setTimeout(async () => {
+      const draft = floorVisualDraftRef.current;
+      if (!draft.floorId) return;
+      setSavingFloorVisual(true);
+      try {
+        const response = await axios.put(`${API_URL}/admin/reservations/floors/${draft.floorId}`, {
+          plan_image_opacity: draft.plan_image_opacity,
+          plan_dark_overlay: draft.plan_dark_overlay
+        });
+        const updatedFloor = response.data || null;
+        if (updatedFloor?.id) {
+          setFloors((prev) => prev.map((floor) => (
+            Number(floor.id) === Number(updatedFloor.id)
+              ? { ...floor, ...updatedFloor }
+              : floor
+          )));
+        }
+      } catch (saveError) {
+        setError(tx('Не удалось сохранить визуальные настройки схемы', 'Sxema vizual sozlamalarini saqlab bo‘lmadi'));
+      } finally {
+        setSavingFloorVisual(false);
+      }
+    }, 260);
+  };
+
+  const updateSelectedFloorVisualConfig = (patch) => {
+    const floorId = Number(selectedFloorId);
+    if (!floorId) return;
+
+    const nextOpacity = clamp(
+      asNumber(
+        Object.prototype.hasOwnProperty.call(patch || {}, 'plan_image_opacity')
+          ? patch.plan_image_opacity
+          : selectedFloorImageOpacity,
+        selectedFloorImageOpacity
+      ),
+      0.25,
+      1
+    );
+    const nextOverlay = clamp(
+      asNumber(
+        Object.prototype.hasOwnProperty.call(patch || {}, 'plan_dark_overlay')
+          ? patch.plan_dark_overlay
+          : selectedFloorDarkOverlay,
+        selectedFloorDarkOverlay
+      ),
+      0,
+      0.8
+    );
+
+    setFloors((prev) => prev.map((floor) => (
+      Number(floor.id) === floorId
+        ? { ...floor, plan_image_opacity: nextOpacity, plan_dark_overlay: nextOverlay }
+        : floor
+    )));
+
+    queueSaveFloorVisualConfig(floorId, nextOpacity, nextOverlay);
   };
   const selectedTemplate = useMemo(
     () => templates.find((template) => Number(template.id) === Number(tableForm.template_id)) || null,
@@ -410,6 +501,13 @@ function AdminReservations() {
     const storageKey = `reservation_plan_table_scale_${selectedFloorId}`;
     window.localStorage.setItem(storageKey, String(clamp(asNumber(planTableScale, 1), 0.65, 1.85)));
   }, [selectedFloorId, planTableScale]);
+
+  useEffect(() => () => {
+    if (floorVisualSaveTimerRef.current) {
+      window.clearTimeout(floorVisualSaveTimerRef.current);
+      floorVisualSaveTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedPlanTableId) return;
@@ -1403,7 +1501,16 @@ function AdminReservations() {
                           : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
                         backgroundSize: selectedFloorImageUrl ? '100% 100%' : 'cover',
                         backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'center'
+                        backgroundPosition: 'center',
+                        opacity: selectedFloorImageOpacity
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: `rgba(0, 0, 0, ${selectedFloorDarkOverlay})`,
+                        pointerEvents: 'none'
                       }}
                     />
                     {tables.map((table) => {
@@ -1414,6 +1521,7 @@ function AdminReservations() {
                       const isSelected = Number(selectedPlanTableId) === tableId;
                       const rotation = normalizeRotationAngle(table.rotation, 0);
                       const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
+                      const tableCenterLabel = extractTableCenterLabel(table.name, tableId);
 
                       return (
                         <button
@@ -1494,6 +1602,7 @@ function AdminReservations() {
                                 <div>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
                               </div>
                             )}
+                            <span className="admin-reservation-plan-table-center-id">{tableCenterLabel}</span>
                           </div>
                           <div className="admin-reservation-plan-table-label">{table.name}</div>
                         </button>
@@ -1642,6 +1751,37 @@ function AdminReservations() {
                   </div>
                   <Form.Text className="text-muted">
                     {tx('Только для удобства редактора, на клиенте пропорции останутся ровными.', 'Faqat editor qulayligi uchun, mijoz tomonda proporsiya to‘g‘ri qoladi.')} {Math.round(clamp(asNumber(planTableScale, 1), 0.65, 1.85) * 100)}%
+                  </Form.Text>
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label className="small text-muted mb-1">
+                    {tx('Прозрачность плана', 'Sxema shaffofligi')}
+                  </Form.Label>
+                  <Form.Range
+                    min={0.25}
+                    max={1}
+                    step={0.05}
+                    value={selectedFloorImageOpacity}
+                    onChange={(event) => updateSelectedFloorVisualConfig({ plan_image_opacity: event.target.value })}
+                  />
+                  <Form.Text className="text-muted">
+                    {tx('Видимость схемы', 'Sxema ko‘rinishi')}: {Math.round(selectedFloorImageOpacity * 100)}%
+                  </Form.Text>
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label className="small text-muted mb-1">
+                    {tx('Наложение чёрного слоя', 'Qora qatlam')}
+                  </Form.Label>
+                  <Form.Range
+                    min={0}
+                    max={0.8}
+                    step={0.05}
+                    value={selectedFloorDarkOverlay}
+                    onChange={(event) => updateSelectedFloorVisualConfig({ plan_dark_overlay: event.target.value })}
+                  />
+                  <Form.Text className="text-muted">
+                    {tx('Затемнение', 'Qoraytirish')}: {Math.round(selectedFloorDarkOverlay * 100)}%
+                    {savingFloorVisual ? ` · ${tx('сохранение...', 'saqlanmoqda...')}` : ''}
                   </Form.Text>
                 </Form.Group>
                 <div className="small text-muted mb-1">{tx('Мебель', 'Mebel')}</div>

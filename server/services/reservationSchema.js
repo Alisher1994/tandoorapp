@@ -48,6 +48,60 @@ const SYSTEM_TABLE_TEMPLATES = [
     width: 2.0,
     height: 1.1,
     image_url: '/reservation-furniture/table_sofa_4.png'
+  },
+  {
+    code: 'table_round_1',
+    name: 'Одиночный стол (1 место)',
+    shape: 'round',
+    seats_count: 1,
+    width: 0.8,
+    height: 0.8,
+    image_url: '/reservation-furniture/table_round_2.png'
+  },
+  {
+    code: 'table_square_2',
+    name: 'Квадратный стол (2 места)',
+    shape: 'square',
+    seats_count: 2,
+    width: 1.0,
+    height: 1.0,
+    image_url: '/reservation-furniture/table_square_4.png'
+  },
+  {
+    code: 'table_rect_4',
+    name: 'Прямоугольный стол (4 места)',
+    shape: 'rect',
+    seats_count: 4,
+    width: 1.5,
+    height: 1.0,
+    image_url: '/reservation-furniture/table_rect_6.png'
+  },
+  {
+    code: 'table_rect_8',
+    name: 'Прямоугольный стол (8 мест)',
+    shape: 'rect',
+    seats_count: 8,
+    width: 2.2,
+    height: 1.2,
+    image_url: '/reservation-furniture/table_rect_6.png'
+  },
+  {
+    code: 'table_sofa_2',
+    name: 'Диванный стол (2 места)',
+    shape: 'sofa',
+    seats_count: 2,
+    width: 1.6,
+    height: 1.0,
+    image_url: '/reservation-furniture/table_sofa_4.png'
+  },
+  {
+    code: 'table_sofa_6',
+    name: 'Диванный стол (6 мест)',
+    shape: 'sofa',
+    seats_count: 6,
+    width: 2.4,
+    height: 1.2,
+    image_url: '/reservation-furniture/table_sofa_4.png'
   }
 ];
 
@@ -111,11 +165,41 @@ async function createReservationSchema(executor) {
       name VARCHAR(120) NOT NULL,
       sort_order INTEGER DEFAULT 0,
       image_url TEXT,
+      plan_image_opacity DECIMAL(4, 3) DEFAULT 1,
+      plan_dark_overlay DECIMAL(4, 3) DEFAULT 0,
       is_active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await run(executor, `
+    ALTER TABLE reservation_floors
+    ADD COLUMN IF NOT EXISTS plan_image_opacity DECIMAL(4, 3) DEFAULT 1
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_floors
+    ADD COLUMN IF NOT EXISTS plan_dark_overlay DECIMAL(4, 3) DEFAULT 0
+  `).catch(() => {});
+  await run(executor, `
+    UPDATE reservation_floors
+    SET plan_image_opacity = 1
+    WHERE plan_image_opacity IS NULL
+  `).catch(() => {});
+  await run(executor, `
+    UPDATE reservation_floors
+    SET plan_dark_overlay = 0
+    WHERE plan_dark_overlay IS NULL
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_floors
+    ADD CONSTRAINT IF NOT EXISTS reservation_floors_plan_image_opacity_check
+    CHECK (plan_image_opacity >= 0 AND plan_image_opacity <= 1)
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_floors
+    ADD CONSTRAINT IF NOT EXISTS reservation_floors_plan_dark_overlay_check
+    CHECK (plan_dark_overlay >= 0 AND plan_dark_overlay <= 1)
+  `).catch(() => {});
 
   await run(executor, `
     CREATE TABLE IF NOT EXISTS reservation_table_templates (

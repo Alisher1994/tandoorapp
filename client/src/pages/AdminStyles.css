@@ -971,6 +971,7 @@ body::-webkit-scrollbar,
 .admin-reservation-plan-table-visual {
     width: 88px;
     height: 62px;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -983,6 +984,26 @@ body::-webkit-scrollbar,
     height: 100%;
     object-fit: contain;
     pointer-events: none;
+}
+
+.admin-reservation-plan-table-center-id {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.35);
+    background: rgba(255, 255, 255, 0.92);
+    color: #111827;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 22px;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .admin-reservation-plan-table-fallback {

@@ -28,6 +28,11 @@ const clampTimeSlotStep = (value, fallback = 30) => {
   if (!Number.isInteger(parsed)) return fallback;
   return Math.min(60, Math.max(5, parsed));
 };
+const clampRatio = (value, fallback = 0, min = 0, max = 1) => {
+  const parsed = parseAmount(value, fallback);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Number(parsed)));
+};
 
 const resolveRestaurantId = (req) => {
   const explicit = parsePositiveInt(req.query.restaurant_id)
@@ -368,12 +373,16 @@ router.post('/floors', async (req, res) => {
     const sortOrder = Number.isFinite(Number(req.body?.sort_order)) ? Number.parseInt(req.body.sort_order, 10) : 0;
     const imageUrl = req.body?.image_url ? String(req.body.image_url).trim() : null;
     const isActive = req.body?.is_active === undefined ? true : !!req.body.is_active;
+    const planImageOpacity = clampRatio(req.body?.plan_image_opacity, 1, 0.25, 1);
+    const planDarkOverlay = clampRatio(req.body?.plan_dark_overlay, 0, 0, 0.8);
 
     const result = await pool.query(
-      `INSERT INTO reservation_floors (restaurant_id, name, sort_order, image_url, is_active)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO reservation_floors (
+         restaurant_id, name, sort_order, image_url, plan_image_opacity, plan_dark_overlay, is_active
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [restaurantId, name, sortOrder, imageUrl, isActive]
+      [restaurantId, name, sortOrder, imageUrl, planImageOpacity, planDarkOverlay, isActive]
     );
 
     return res.status(201).json(result.rows[0]);
@@ -420,6 +429,14 @@ router.put('/floors/:id', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'is_active')) {
       params.push(!!req.body.is_active);
       updates.push(`is_active = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'plan_image_opacity')) {
+      params.push(clampRatio(req.body.plan_image_opacity, 1, 0.25, 1));
+      updates.push(`plan_image_opacity = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'plan_dark_overlay')) {
+      params.push(clampRatio(req.body.plan_dark_overlay, 0, 0, 0.8));
+      updates.push(`plan_dark_overlay = $${params.length}`);
     }
 
     if (!updates.length) {

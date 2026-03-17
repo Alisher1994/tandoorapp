@@ -109,6 +109,13 @@ const normalizeRotationAngle = (value) => {
   const normalized = ((parsed % 360) + 360) % 360;
   return Number(normalized.toFixed(2));
 };
+const extractTableCenterLabel = (name, fallback = '') => {
+  const raw = String(name || '').trim();
+  if (!raw) return String(fallback || '');
+  const numberMatch = raw.match(/\d+/);
+  if (numberMatch?.[0]) return numberMatch[0];
+  return raw.length > 4 ? raw.slice(0, 4) : raw;
+};
 const formatDayLabel = (dateValue, language = 'ru') => {
   const parsed = new Date(`${dateValue}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return '';
@@ -206,6 +213,14 @@ function Reservations() {
     [workingWindow.startMinutes, workingWindow.endMinutes, timeSlotStepMinutes]
   );
   const selectedDateLabel = useMemo(() => formatDayLabel(bookingDate, language), [bookingDate, language]);
+  const selectedFloorImageOpacity = useMemo(
+    () => clamp(asNumber(selectedFloor?.plan_image_opacity, 1), 0.25, 1),
+    [selectedFloor?.plan_image_opacity]
+  );
+  const selectedFloorDarkOverlay = useMemo(
+    () => clamp(asNumber(selectedFloor?.plan_dark_overlay, 0), 0, 0.8),
+    [selectedFloor?.plan_dark_overlay]
+  );
   const floorAspectRatio = useMemo(() => {
     const width = Number(floorImageMeta.width || 0);
     const height = Number(floorImageMeta.height || 0);
@@ -990,7 +1005,14 @@ function Reservations() {
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
                     {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность столов...', 'Stollar mavjudligi tekshirilmoqda...')}</div>}
                     <div className="client-res-plan-world" style={{ width: `${PLAN_WORLD_WIDTH}px`, height: `${planWorldHeight}px`, transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})` }}>
-                      <div className="client-res-plan-floor" style={{ backgroundImage: selectedFloorImageUrl ? `url(${selectedFloorImageUrl})` : 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)' }} />
+                      <div
+                        className="client-res-plan-floor"
+                        style={{
+                          backgroundImage: selectedFloorImageUrl ? `url(${selectedFloorImageUrl})` : 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)',
+                          opacity: selectedFloorImageOpacity
+                        }}
+                      />
+                      <div className="client-res-plan-floor-overlay" style={{ background: `rgba(0, 0, 0, ${selectedFloorDarkOverlay})` }} />
 
                       {tables.map((table) => {
                         const selected = selectedTableIds.includes(Number(table.id));
@@ -999,6 +1021,7 @@ function Reservations() {
                         const tableY = (normalizePlanCoordinate(table.y, 50) / 100) * planWorldHeight;
                         const tableRotation = normalizeRotationAngle(table.rotation);
                         const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
+                        const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
                         return (
                           <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available}>
@@ -1007,6 +1030,7 @@ function Reservations() {
                             )}
                             <div className="client-res-plan-table-visual" style={{ transform: `rotate(${tableRotation}deg)` }}>
                               {templateImageUrl ? <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" /> : <span className="client-res-plan-table-fallback">{table.name}</span>}
+                              <span className="client-res-plan-table-center-id">{tableCenterLabel}</span>
                             </div>
                             <span className="client-res-plan-table-label">{table.name}</span>
                           </button>
