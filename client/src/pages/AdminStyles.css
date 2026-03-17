@@ -821,6 +821,131 @@ body::-webkit-scrollbar,
     box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
+.admin-reservation-plan-table {
+    min-width: 76px;
+    min-height: 52px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+    padding: 2px 4px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    touch-action: none;
+    outline: none;
+}
+
+.admin-reservation-plan-table:hover,
+.admin-reservation-plan-table:focus-visible,
+.admin-reservation-plan-table.is-selected,
+.admin-reservation-plan-table.is-dragging {
+    border-color: #94a3b8;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14);
+}
+
+.admin-reservation-plan-table.is-dragging {
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 10%, #fff);
+}
+
+.admin-reservation-plan-table-visual {
+    width: 88px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transform-origin: center center;
+}
+
+.admin-reservation-plan-table-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.admin-reservation-plan-table-fallback {
+    min-width: 64px;
+    min-height: 36px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    background: rgba(248, 250, 252, 0.72);
+    color: #1e293b;
+    font-size: 10px;
+    line-height: 1.1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.admin-reservation-plan-table-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #334155;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.admin-reservation-plan-rotation-panel {
+    position: absolute;
+    right: 54px;
+    top: 10px;
+    z-index: 4;
+    width: min(320px, calc(100% - 84px));
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.admin-reservation-plan-rotation-title {
+    font-size: 0.78rem;
+    color: #334155;
+}
+
+.admin-reservation-plan-rotation-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-reservation-plan-rotation-range {
+    width: 100%;
+}
+
+.admin-reservation-plan-rotation-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-reservation-plan-rotation-controls .form-control {
+    height: 32px !important;
+    min-height: 32px !important;
+    width: 86px;
+}
+
+.admin-reservation-plan-rotation-degree {
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
 .admin-reservation-plan-drop-hint {
     position: absolute;
     left: 50%;
@@ -928,6 +1053,13 @@ body::-webkit-scrollbar,
 
     .admin-reservation-header-controls .admin-reservation-control {
         flex: 1 1 160px;
+    }
+
+    .admin-reservation-plan-rotation-panel {
+        right: 10px;
+        left: 10px;
+        width: auto;
+        top: 56px;
     }
 }
 

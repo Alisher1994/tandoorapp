@@ -39,6 +39,13 @@ const asInt = (value, fallback = 0) => {
   return Number.isInteger(parsed) ? parsed : fallback;
 };
 
+const normalizeRotationAngle = (value, fallback = 0) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const normalized = ((parsed % 360) + 360) % 360;
+  return Number(normalized.toFixed(2));
+};
+
 const toAbsoluteMediaUrl = (url) => {
   const raw = String(url || '').trim();
   if (!raw) return '';
@@ -134,6 +141,8 @@ function AdminReservations() {
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
   const [planPanStart, setPlanPanStart] = useState(null);
+  const [selectedPlanTableId, setSelectedPlanTableId] = useState(null);
+  const [showPlanRotationControls, setShowPlanRotationControls] = useState(false);
   const [isCreatingPlanTable, setIsCreatingPlanTable] = useState(false);
   const [isPlanDropActive, setIsPlanDropActive] = useState(false);
   const [tablesPage, setTablesPage] = useState(1);
@@ -152,6 +161,14 @@ function AdminReservations() {
   const selectedTemplate = useMemo(
     () => templates.find((template) => Number(template.id) === Number(tableForm.template_id)) || null,
     [templates, tableForm.template_id]
+  );
+  const selectedPlanTable = useMemo(
+    () => tables.find((table) => Number(table.id) === Number(selectedPlanTableId)) || null,
+    [tables, selectedPlanTableId]
+  );
+  const selectedPlanTableRotation = useMemo(
+    () => normalizeRotationAngle(selectedPlanTable?.rotation, 0),
+    [selectedPlanTable?.rotation]
   );
   const pagedTables = useMemo(() => {
     const start = (tablesPage - 1) * tablesPageSize;
@@ -313,7 +330,18 @@ function AdminReservations() {
     setPlanScale(1);
     setPlanOffset({ x: 0, y: 0 });
     setPlanPanStart(null);
+    setSelectedPlanTableId(null);
+    setShowPlanRotationControls(false);
   }, [selectedFloorId]);
+
+  useEffect(() => {
+    if (!selectedPlanTableId) return;
+    const exists = tables.some((table) => Number(table.id) === Number(selectedPlanTableId));
+    if (!exists) {
+      setSelectedPlanTableId(null);
+      setShowPlanRotationControls(false);
+    }
+  }, [tables, selectedPlanTableId]);
 
   useEffect(() => {
     const node = floorPlanRef.current;
@@ -415,6 +443,7 @@ function AdminReservations() {
       photo_url: String(draftPayload?.photo_url || '').trim() || null,
       x: clamp(asNumber(draftPayload?.x, 50), 2, 98),
       y: clamp(asNumber(draftPayload?.y, 50), 2, 98),
+      rotation: normalizeRotationAngle(draftPayload?.rotation, 0),
       is_active: true
     };
 
@@ -447,7 +476,8 @@ function AdminReservations() {
       template_id: tableForm.template_id,
       photo_url: tableForm.photo_url,
       x: tableForm.x,
-      y: tableForm.y
+      y: tableForm.y,
+      rotation: 0
     });
     if (!created) return;
     setTableForm(createEmptyTableForm());
@@ -560,10 +590,52 @@ function AdminReservations() {
     }
   };
 
+  const saveTableRotation = async (tableId, rotation) => {
+    try {
+      await axios.put(`${API_URL}/admin/reservations/tables/${tableId}`, {
+        rotation: normalizeRotationAngle(rotation, 0)
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || tx('Ошибка сохранения поворота стола', 'Stol burilishini saqlashda xatolik'));
+      await loadTables(selectedFloorId);
+    }
+  };
+
+  const applyTableRotationLocally = (tableId, rotation) => {
+    const normalized = normalizeRotationAngle(rotation, 0);
+    setTables((prev) => prev.map((item) => (
+      Number(item.id) === Number(tableId)
+        ? { ...item, rotation: normalized }
+        : item
+    )));
+    return normalized;
+  };
+
+  const handleSelectedTableRotationChange = (nextRotation) => {
+    if (!selectedPlanTable) return;
+    applyTableRotationLocally(selectedPlanTable.id, nextRotation);
+  };
+
+  const commitSelectedTableRotation = async (rotationOverride = null) => {
+    if (!selectedPlanTable) return;
+    const nextRotation = rotationOverride === null
+      ? normalizeRotationAngle(selectedPlanTable.rotation, 0)
+      : normalizeRotationAngle(rotationOverride, 0);
+    await saveTableRotation(selectedPlanTable.id, nextRotation);
+  };
+
+  const rotateSelectedTableBy = async (delta) => {
+    if (!selectedPlanTable) return;
+    const nextRotation = normalizeRotationAngle(selectedPlanTableRotation + Number(delta || 0), selectedPlanTableRotation);
+    applyTableRotationLocally(selectedPlanTable.id, nextRotation);
+    await saveTableRotation(selectedPlanTable.id, nextRotation);
+  };
+
   const handleTablePlanPointerDown = (event, table) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     const canvas = floorPlanRef.current;
     if (!canvas) return;
+    setSelectedPlanTableId(Number(table.id));
     const rect = canvas.getBoundingClientRect();
     const startX = normalizePlanCoordinate(table.x, 50);
     const startY = normalizePlanCoordinate(table.y, 50);
@@ -660,7 +732,8 @@ function AdminReservations() {
       name: normalizedName,
       capacity: Math.max(1, asInt(tableForm.capacity, activeTemplate?.seats_count || 2)),
       template_id: effectiveTemplateId || null,
-      photo_url: String(tableForm.photo_url || '').trim() || null
+      photo_url: String(tableForm.photo_url || '').trim() || null,
+      rotation: 0
     };
   };
 
@@ -764,6 +837,8 @@ function AdminReservations() {
   const handlePlanPointerDown = (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (event.target.closest('[data-plan-table="1"]')) return;
+    setSelectedPlanTableId(null);
+    setShowPlanRotationControls(false);
     setPlanPanStart({
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -1093,7 +1168,8 @@ function AdminReservations() {
                               <td>{table.template_name || '—'}</td>
                               <td className="small text-muted">
                                 x: {Number.parseFloat(table.x || 0).toFixed(1)}%<br />
-                                y: {Number.parseFloat(table.y || 0).toFixed(1)}%
+                                y: {Number.parseFloat(table.y || 0).toFixed(1)}%<br />
+                                ↻: {normalizeRotationAngle(table.rotation, 0).toFixed(0)}°
                               </td>
                               <td>{table.photo_url ? <Badge bg="secondary">{tx('Есть', 'Bor')}</Badge> : '—'}</td>
                               <td className="text-end">
@@ -1228,12 +1304,15 @@ function AdminReservations() {
                       const posX = normalizePlanCoordinate(table.x, 50);
                       const posY = normalizePlanCoordinate(table.y, 50);
                       const isDragging = dragState?.tableId === tableId;
+                      const isSelected = Number(selectedPlanTableId) === tableId;
+                      const rotation = normalizeRotationAngle(table.rotation, 0);
                       const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
 
                       return (
                         <button
                           key={`plan-table-${table.id}`}
                           type="button"
+                          className={`admin-reservation-plan-table ${isDragging ? 'is-dragging' : ''} ${isSelected ? 'is-selected' : ''}`}
                           data-plan-table="1"
                           onPointerDown={(event) => {
                             event.stopPropagation();
@@ -1247,37 +1326,29 @@ function AdminReservations() {
                             left: `${posX}%`,
                             top: `${posY}%`,
                             transform: 'translate(-50%, -50%)',
-                            minWidth: 76,
-                            minHeight: 50,
-                            borderRadius: 12,
-                            border: `2px solid ${isDragging ? 'var(--primary-color)' : '#94a3b8'}`,
-                            background: isDragging
-                              ? 'color-mix(in srgb, var(--primary-color) 10%, #fff)'
-                              : 'rgba(255,255,255,0.76)',
-                            boxShadow: '0 6px 16px rgba(15,23,42,0.14)',
-                            padding: templateImageUrl ? '2px 4px' : '6px 8px',
                             cursor: isDragging ? 'grabbing' : 'grab',
                             userSelect: 'none',
-                            display: 'inline-flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 2
+                            zIndex: isDragging ? 6 : isSelected ? 5 : 3
                           }}
                         >
-                          {templateImageUrl ? (
-                            <img
-                              src={templateImageUrl}
-                              alt={table.template_name || table.name}
-                              style={{ width: 88, height: 62, objectFit: 'contain', pointerEvents: 'none' }}
-                            />
-                          ) : (
-                            <>
-                              <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{table.name}</div>
-                              <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.1 }}>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
-                            </>
-                          )}
-                          <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', lineHeight: 1 }}>{table.name}</div>
+                          <div
+                            className="admin-reservation-plan-table-visual"
+                            style={{ transform: `rotate(${rotation}deg)` }}
+                          >
+                            {templateImageUrl ? (
+                              <img
+                                src={templateImageUrl}
+                                alt={table.template_name || table.name}
+                                className="admin-reservation-plan-table-image"
+                              />
+                            ) : (
+                              <div className="admin-reservation-plan-table-fallback">
+                                <div>{table.name}</div>
+                                <div>{table.capacity || 0} {tx('мест', 'o\'rin')}</div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="admin-reservation-plan-table-label">{table.name}</div>
                         </button>
                       );
                     })}
@@ -1287,7 +1358,11 @@ function AdminReservations() {
                       {tx('Отпустите, чтобы добавить стол в эту точку', 'Stolni shu joyga qo\'shish uchun qo\'yib yuboring')}
                     </div>
                   )}
-                  <div className="admin-reservation-plan-tools">
+                  <div
+                    className="admin-reservation-plan-tools"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 2.4))}>+</Button>
                     <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 2.4))}>−</Button>
                     <Button
@@ -1298,7 +1373,76 @@ function AdminReservations() {
                     >
                       <ResetIcon />
                     </Button>
+                    <Button
+                      className="action-btn admin-reservation-action-btn"
+                      variant="primary"
+                      title={tx('Повернуть стол', 'Stolni burish')}
+                      disabled={!selectedPlanTable}
+                      onClick={() => setShowPlanRotationControls((prev) => !prev)}
+                    >
+                      ↻
+                    </Button>
                   </div>
+                  {showPlanRotationControls && selectedPlanTable && (
+                    <div
+                      className="admin-reservation-plan-rotation-panel"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="admin-reservation-plan-rotation-title">
+                        {tx('Поворот стола', 'Stol burilishi')}: <strong>{selectedPlanTable.name}</strong>
+                      </div>
+                      <div className="admin-reservation-plan-rotation-row">
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => rotateSelectedTableBy(-5)}
+                        >
+                          −5°
+                        </Button>
+                        <input
+                          className="admin-reservation-plan-rotation-range"
+                          type="range"
+                          min={0}
+                          max={359}
+                          step={1}
+                          value={Math.round(selectedPlanTableRotation)}
+                          onChange={(event) => handleSelectedTableRotationChange(event.target.value)}
+                          onMouseUp={(event) => commitSelectedTableRotation(event.currentTarget.value)}
+                          onTouchEnd={(event) => commitSelectedTableRotation(event.currentTarget.value)}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => rotateSelectedTableBy(5)}
+                        >
+                          +5°
+                        </Button>
+                      </div>
+                      <div className="admin-reservation-plan-rotation-controls">
+                        <Form.Control
+                          type="number"
+                          min={0}
+                          max={359}
+                          step={1}
+                          value={Math.round(selectedPlanTableRotation)}
+                          onChange={(event) => handleSelectedTableRotationChange(event.target.value)}
+                          onBlur={(event) => commitSelectedTableRotation(event.target.value)}
+                        />
+                        <span className="admin-reservation-plan-rotation-degree">°</span>
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={async () => {
+                            handleSelectedTableRotationChange(0);
+                            await commitSelectedTableRotation(0);
+                          }}
+                        >
+                          0°
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
