@@ -769,6 +769,12 @@ function SuperAdminDashboard() {
   const [restaurantsStatusFilter, setRestaurantsStatusFilter] = useState('');
   const [restaurantsSelectFilter, setRestaurantsSelectFilter] = useState('');
   const [restaurantsSelectSearch, setRestaurantsSelectSearch] = useState('');
+  const [restaurantsActivityTypeFilter, setRestaurantsActivityTypeFilter] = useState('');
+  const [restaurantsCreatedFromFilter, setRestaurantsCreatedFromFilter] = useState('');
+  const [restaurantsCreatedToFilter, setRestaurantsCreatedToFilter] = useState('');
+  const [restaurantsTariffFilter, setRestaurantsTariffFilter] = useState('');
+  const [restaurantsProblemsFilter, setRestaurantsProblemsFilter] = useState('');
+  const [restaurantsProductsFilter, setRestaurantsProductsFilter] = useState('');
   const [operatorsPage, setOperatorsPage] = useState(1);
   const [operatorsLimit, setOperatorsLimit] = useState(15);
   const [operatorSearch, setOperatorSearch] = useState('');
@@ -2942,6 +2948,36 @@ function SuperAdminDashboard() {
 
     return [selected, ...filtered];
   }, [restaurants, restaurantsSelectSearch, restaurantsSelectFilter]);
+  const restaurantsActivityTypeFilterOptions = useMemo(() => {
+    const source = restaurants?.restaurants || [];
+    const unique = new Map();
+    source.forEach((restaurant) => {
+      const activityId = Number.parseInt(restaurant?.activity_type_id, 10);
+      if (!Number.isInteger(activityId) || activityId <= 0) return;
+      const name = String(restaurant?.activity_type_name || '').trim();
+      if (!name) return;
+      if (!unique.has(activityId)) {
+        unique.set(activityId, {
+          id: activityId,
+          name
+        });
+      }
+    });
+    return Array.from(unique.values()).sort((left, right) => (
+      String(left.name || '').localeCompare(String(right.name || ''), 'ru', { sensitivity: 'base' })
+    ));
+  }, [restaurants]);
+  const getRestaurantIssueCountForFilters = (restaurant) => {
+    const mappedIssueCount = Number(restaurantIssueCountMap?.[restaurant?.id]);
+    if (Number.isFinite(mappedIssueCount)) return Math.max(0, mappedIssueCount);
+    const token = String(restaurant?.telegram_bot_token || '').trim();
+    const botMetaError = String(restaurant?.telegram_bot_meta_error || '').trim();
+    const botUsername = String(restaurant?.telegram_bot_username || '').trim();
+    if (!token) return 1;
+    if (botMetaError) return 1;
+    if (!botUsername) return 1;
+    return 0;
+  };
 
   const restaurantActivityTypeOptions = useMemo(() => {
     const visibleItems = activityTypes.filter((item) => item.is_visible !== false);
@@ -2990,15 +3026,67 @@ function SuperAdminDashboard() {
 
   const filteredRestaurants = useMemo(() => {
     const source = restaurants?.restaurants || [];
+    const normalizedNameFilter = String(restaurantsNameFilter || '').trim().toLowerCase();
     return source.filter((restaurant) => {
-      const nameMatch = !restaurantsNameFilter ||
-        String(restaurant.name || '').toLowerCase().includes(restaurantsNameFilter.trim().toLowerCase());
+      const nameMatch = !normalizedNameFilter ||
+        String(restaurant.name || '').toLowerCase().includes(normalizedNameFilter);
       const selectedMatch = !restaurantsSelectFilter || String(restaurant.id) === String(restaurantsSelectFilter);
       const statusMatch = !restaurantsStatusFilter ||
         (restaurantsStatusFilter === 'active' ? !!restaurant.is_active : !restaurant.is_active);
-      return nameMatch && selectedMatch && statusMatch;
+      const restaurantActivityId = Number.parseInt(restaurant?.activity_type_id, 10);
+      const activityTypeMatch = !restaurantsActivityTypeFilter || (
+        restaurantsActivityTypeFilter === 'none'
+          ? (!Number.isInteger(restaurantActivityId) || restaurantActivityId <= 0)
+          : String(restaurantActivityId) === String(restaurantsActivityTypeFilter)
+      );
+      const createdAtDate = restaurant?.created_at ? new Date(restaurant.created_at) : null;
+      const createdAtIso = createdAtDate && !Number.isNaN(createdAtDate.getTime())
+        ? `${createdAtDate.getFullYear()}-${String(createdAtDate.getMonth() + 1).padStart(2, '0')}-${String(createdAtDate.getDate()).padStart(2, '0')}`
+        : '';
+      const createdFromMatch = !restaurantsCreatedFromFilter || (createdAtIso && createdAtIso >= restaurantsCreatedFromFilter);
+      const createdToMatch = !restaurantsCreatedToFilter || (createdAtIso && createdAtIso <= restaurantsCreatedToFilter);
+      const tariffMatch = !restaurantsTariffFilter || (
+        restaurantsTariffFilter === 'free'
+          ? restaurant?.is_free_tier === true
+          : restaurant?.is_free_tier !== true
+      );
+      const issuesCount = getRestaurantIssueCountForFilters(restaurant);
+      const problemsMatch = !restaurantsProblemsFilter || (
+        restaurantsProblemsFilter === 'with_problems'
+          ? issuesCount > 0
+          : issuesCount <= 0
+      );
+      const productsCount = Number(restaurant?.products_count || 0);
+      const productsMatch = !restaurantsProductsFilter || (
+        restaurantsProductsFilter === 'with_products'
+          ? productsCount > 0
+          : productsCount <= 0
+      );
+      return (
+        nameMatch &&
+        selectedMatch &&
+        statusMatch &&
+        activityTypeMatch &&
+        createdFromMatch &&
+        createdToMatch &&
+        tariffMatch &&
+        problemsMatch &&
+        productsMatch
+      );
     });
-  }, [restaurants, restaurantsNameFilter, restaurantsSelectFilter, restaurantsStatusFilter]);
+  }, [
+    restaurants,
+    restaurantsNameFilter,
+    restaurantsSelectFilter,
+    restaurantsStatusFilter,
+    restaurantsActivityTypeFilter,
+    restaurantsCreatedFromFilter,
+    restaurantsCreatedToFilter,
+    restaurantsTariffFilter,
+    restaurantsProblemsFilter,
+    restaurantsProductsFilter,
+    restaurantIssueCountMap
+  ]);
 
   const paginatedRestaurants = useMemo(() => {
     const start = (restaurantsPage - 1) * restaurantsLimit;
@@ -5987,6 +6075,12 @@ function SuperAdminDashboard() {
       setRestaurantsStatusFilter('');
       setRestaurantsSelectFilter('');
       setRestaurantsSelectSearch('');
+      setRestaurantsActivityTypeFilter('');
+      setRestaurantsCreatedFromFilter('');
+      setRestaurantsCreatedToFilter('');
+      setRestaurantsTariffFilter('');
+      setRestaurantsProblemsFilter('');
+      setRestaurantsProductsFilter('');
       setRestaurantsPage(1);
       return;
     }
@@ -6241,6 +6335,60 @@ function SuperAdminDashboard() {
             <option value="">Все статусы</option>
             <option value="active">Активные</option>
             <option value="inactive">Неактивные</option>
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={restaurantsActivityTypeFilter}
+            onChange={(e) => { setRestaurantsActivityTypeFilter(e.target.value); setRestaurantsPage(1); }}
+          >
+            <option value="">{language === 'uz' ? 'Barcha faoliyat turlari' : 'Все виды деятельности'}</option>
+            <option value="none">{language === 'uz' ? 'Faoliyat turi tanlanmagan' : 'Без вида деятельности'}</option>
+            {restaurantsActivityTypeFilterOptions.map((item) => (
+              <option key={`restaurants-mobile-activity-type-${item.id}`} value={String(item.id)}>
+                {item.name}
+              </option>
+            ))}
+          </Form.Select>
+          <div className="d-flex gap-2">
+            <Form.Control
+              className="form-control-custom"
+              type="date"
+              value={restaurantsCreatedFromFilter}
+              onChange={(e) => { setRestaurantsCreatedFromFilter(e.target.value); setRestaurantsPage(1); }}
+            />
+            <Form.Control
+              className="form-control-custom"
+              type="date"
+              value={restaurantsCreatedToFilter}
+              onChange={(e) => { setRestaurantsCreatedToFilter(e.target.value); setRestaurantsPage(1); }}
+            />
+          </div>
+          <Form.Select
+            className="form-control-custom"
+            value={restaurantsTariffFilter}
+            onChange={(e) => { setRestaurantsTariffFilter(e.target.value); setRestaurantsPage(1); }}
+          >
+            <option value="">{language === 'uz' ? 'Barcha tariflar' : 'Все тарифы'}</option>
+            <option value="paid">{language === 'uz' ? "Pullik" : 'Платный'}</option>
+            <option value="free">{language === 'uz' ? 'Bepul' : 'Бесплатный'}</option>
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={restaurantsProblemsFilter}
+            onChange={(e) => { setRestaurantsProblemsFilter(e.target.value); setRestaurantsPage(1); }}
+          >
+            <option value="">{language === 'uz' ? 'Muammolar: hammasi' : 'Проблемы: все'}</option>
+            <option value="with_problems">{language === 'uz' ? 'Muammosi bor' : 'Есть проблемы'}</option>
+            <option value="without_problems">{language === 'uz' ? "Muammosiz" : 'Без проблем'}</option>
+          </Form.Select>
+          <Form.Select
+            className="form-control-custom"
+            value={restaurantsProductsFilter}
+            onChange={(e) => { setRestaurantsProductsFilter(e.target.value); setRestaurantsPage(1); }}
+          >
+            <option value="">{language === 'uz' ? 'Mahsulotlar: hammasi' : 'Товары: все'}</option>
+            <option value="with_products">{language === 'uz' ? 'Mahsulot bor' : 'Есть товары'}</option>
+            <option value="without_products">{language === 'uz' ? "Mahsulotsiz" : 'Нет товаров'}</option>
           </Form.Select>
         </div>
       );
@@ -7013,6 +7161,64 @@ function SuperAdminDashboard() {
                       <option value="">Все статусы</option>
                       <option value="active">Активные</option>
                       <option value="inactive">Неактивные</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '220px' }}
+                      value={restaurantsActivityTypeFilter}
+                      onChange={(e) => { setRestaurantsActivityTypeFilter(e.target.value); setRestaurantsPage(1); }}
+                    >
+                      <option value="">{language === 'uz' ? 'Barcha faoliyat turlari' : 'Все виды деятельности'}</option>
+                      <option value="none">{language === 'uz' ? 'Faoliyat turi tanlanmagan' : 'Без вида деятельности'}</option>
+                      {restaurantsActivityTypeFilterOptions.map((item) => (
+                        <option key={`restaurants-activity-type-filter-${item.id}`} value={String(item.id)}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </Form.Select>
+                    <Form.Control
+                      className="form-control-custom"
+                      type="date"
+                      style={{ width: '170px' }}
+                      value={restaurantsCreatedFromFilter}
+                      onChange={(e) => { setRestaurantsCreatedFromFilter(e.target.value); setRestaurantsPage(1); }}
+                    />
+                    <Form.Control
+                      className="form-control-custom"
+                      type="date"
+                      style={{ width: '170px' }}
+                      value={restaurantsCreatedToFilter}
+                      onChange={(e) => { setRestaurantsCreatedToFilter(e.target.value); setRestaurantsPage(1); }}
+                    />
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '150px' }}
+                      value={restaurantsTariffFilter}
+                      onChange={(e) => { setRestaurantsTariffFilter(e.target.value); setRestaurantsPage(1); }}
+                    >
+                      <option value="">{language === 'uz' ? 'Barcha tariflar' : 'Все тарифы'}</option>
+                      <option value="paid">{language === 'uz' ? "Pullik" : 'Платный'}</option>
+                      <option value="free">{language === 'uz' ? 'Bepul' : 'Бесплатный'}</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={restaurantsProblemsFilter}
+                      onChange={(e) => { setRestaurantsProblemsFilter(e.target.value); setRestaurantsPage(1); }}
+                    >
+                      <option value="">{language === 'uz' ? 'Muammolar: hammasi' : 'Проблемы: все'}</option>
+                      <option value="with_problems">{language === 'uz' ? 'Muammosi bor' : 'Есть проблемы'}</option>
+                      <option value="without_problems">{language === 'uz' ? "Muammosiz" : 'Без проблем'}</option>
+                    </Form.Select>
+                    <Form.Select
+                      className="form-control-custom"
+                      style={{ width: '170px' }}
+                      value={restaurantsProductsFilter}
+                      onChange={(e) => { setRestaurantsProductsFilter(e.target.value); setRestaurantsPage(1); }}
+                    >
+                      <option value="">{language === 'uz' ? 'Mahsulotlar: hammasi' : 'Товары: все'}</option>
+                      <option value="with_products">{language === 'uz' ? 'Mahsulot bor' : 'Есть товары'}</option>
+                      <option value="without_products">{language === 'uz' ? "Mahsulotsiz" : 'Нет товаров'}</option>
                     </Form.Select>
                   </div>
                 )}
