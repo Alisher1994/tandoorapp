@@ -20,6 +20,9 @@ import { useLanguage } from '../context/LanguageContext';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const RESERVATION_STATUSES = ['new', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show'];
+const PLAN_WORLD_WIDTH = 1200;
+const PLAN_MIN_SCALE = 0.45;
+const PLAN_MAX_SCALE = 2.8;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const normalizePlanCoordinate = (value, fallback = 50) => {
   const parsed = Number.parseFloat(value);
@@ -141,11 +144,13 @@ function AdminReservations() {
   const [dragState, setDragState] = useState(null);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
+  const [planTableScale, setPlanTableScale] = useState(1);
   const [planPanStart, setPlanPanStart] = useState(null);
   const [selectedPlanTableId, setSelectedPlanTableId] = useState(null);
   const [showPlanRotationControls, setShowPlanRotationControls] = useState(false);
   const [isCreatingPlanTable, setIsCreatingPlanTable] = useState(false);
   const [isPlanDropActive, setIsPlanDropActive] = useState(false);
+  const [floorImageMeta, setFloorImageMeta] = useState({ width: 0, height: 0 });
   const [tablesPage, setTablesPage] = useState(1);
   const [tablesPageSize, setTablesPageSize] = useState(10);
   const [reservationsPage, setReservationsPage] = useState(1);
@@ -159,6 +164,33 @@ function AdminReservations() {
     () => toAbsoluteMediaUrl(selectedFloor?.image_url),
     [selectedFloor?.image_url]
   );
+  const floorAspectRatio = useMemo(() => {
+    const width = Number(floorImageMeta.width || 0);
+    const height = Number(floorImageMeta.height || 0);
+    if (width > 0 && height > 0) return clamp(width / height, 0.45, 2.8);
+    return 1.1;
+  }, [floorImageMeta.width, floorImageMeta.height]);
+  const planWorldHeight = useMemo(
+    () => Math.max(560, Math.round(PLAN_WORLD_WIDTH / floorAspectRatio)),
+    [floorAspectRatio]
+  );
+
+  const fitPlanToCanvas = () => {
+    const canvas = floorPlanRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 40 || rect.height < 40) return;
+    const padding = Math.min(72, Math.max(22, Math.round(Math.min(rect.width, rect.height) * 0.08)));
+    const maxWidth = Math.max(1, rect.width - (padding * 2));
+    const maxHeight = Math.max(1, rect.height - (padding * 2));
+    const scale = clamp(Math.min(maxWidth / PLAN_WORLD_WIDTH, maxHeight / planWorldHeight), PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+    const offset = {
+      x: Number(((rect.width - (PLAN_WORLD_WIDTH * scale)) / 2).toFixed(2)),
+      y: Number(((rect.height - (planWorldHeight * scale)) / 2).toFixed(2))
+    };
+    setPlanScale(Number(scale.toFixed(3)));
+    setPlanOffset(offset);
+  };
   const selectedTemplate = useMemo(
     () => templates.find((template) => Number(template.id) === Number(tableForm.template_id)) || null,
     [templates, tableForm.template_id]
@@ -329,12 +361,55 @@ function AdminReservations() {
   }, [selectedFloorId]);
 
   useEffect(() => {
-    setPlanScale(1);
-    setPlanOffset({ x: 0, y: 0 });
+    if (!selectedFloorImageUrl) {
+      setFloorImageMeta({ width: 0, height: 0 });
+      return undefined;
+    }
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (cancelled) return;
+      setFloorImageMeta({
+        width: image.naturalWidth || 0,
+        height: image.naturalHeight || 0
+      });
+    };
+    image.onerror = () => {
+      if (cancelled) return;
+      setFloorImageMeta({ width: 0, height: 0 });
+    };
+    image.src = selectedFloorImageUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFloorImageUrl]);
+
+  useEffect(() => {
     setPlanPanStart(null);
     setSelectedPlanTableId(null);
     setShowPlanRotationControls(false);
-  }, [selectedFloorId]);
+    if (selectedFloorId) {
+      const storageKey = `reservation_plan_table_scale_${selectedFloorId}`;
+      const stored = Number.parseFloat(window.localStorage.getItem(storageKey) || '');
+      if (Number.isFinite(stored)) {
+        setPlanTableScale(clamp(stored, 0.65, 1.85));
+      } else {
+        setPlanTableScale(1);
+      }
+    } else {
+      setPlanTableScale(1);
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      fitPlanToCanvas();
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [selectedFloorId, planWorldHeight]);
+
+  useEffect(() => {
+    if (!selectedFloorId) return;
+    const storageKey = `reservation_plan_table_scale_${selectedFloorId}`;
+    window.localStorage.setItem(storageKey, String(clamp(asNumber(planTableScale, 1), 0.65, 1.85)));
+  }, [selectedFloorId, planTableScale]);
 
   useEffect(() => {
     if (!selectedPlanTableId) return;
@@ -355,7 +430,7 @@ function AdminReservations() {
       }
       event.stopPropagation();
       const delta = event.deltaY < 0 ? 0.1 : -0.1;
-      setPlanScale((prev) => clamp(Number((prev + delta).toFixed(2)), 0.7, 2.4));
+      setPlanScale((prev) => clamp(Number((prev + delta).toFixed(2)), PLAN_MIN_SCALE, PLAN_MAX_SCALE));
     };
 
     node.addEventListener('wheel', nativeWheelHandler, { passive: false });
@@ -649,7 +724,6 @@ function AdminReservations() {
     const canvas = floorPlanRef.current;
     if (!canvas) return;
     setSelectedPlanTableId(Number(table.id));
-    const rect = canvas.getBoundingClientRect();
     const startX = normalizePlanCoordinate(table.x, 50);
     const startY = normalizePlanCoordinate(table.y, 50);
     draggedPositionRef.current = { tableId: table.id, x: startX, y: startY };
@@ -661,8 +735,8 @@ function AdminReservations() {
       startX,
       startY,
       scale: planScale,
-      width: rect.width || 1,
-      height: rect.height || 1
+      width: PLAN_WORLD_WIDTH,
+      height: planWorldHeight
     });
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -714,19 +788,15 @@ function AdminReservations() {
     if (!canvas) return { x: 50, y: 50 };
 
     const rect = canvas.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
     const pointerX = clientX - rect.left;
     const pointerY = clientY - rect.top;
-    const centerX = width / 2;
-    const centerY = height / 2;
     const scale = Math.max(0.1, asNumber(planScale, 1));
-    const normalizedX = ((pointerX - planOffset.x - centerX) / scale) + centerX;
-    const normalizedY = ((pointerY - planOffset.y - centerY) / scale) + centerY;
+    const worldX = (pointerX - planOffset.x) / scale;
+    const worldY = (pointerY - planOffset.y) / scale;
 
     return {
-      x: clamp((normalizedX / width) * 100, 2, 98),
-      y: clamp((normalizedY / height) * 100, 2, 98)
+      x: clamp((worldX / PLAN_WORLD_WIDTH) * 100, 2, 98),
+      y: clamp((worldY / planWorldHeight) * 100, 2, 98)
     };
   };
 
@@ -1316,9 +1386,12 @@ function AdminReservations() {
                   <div
                     style={{
                       position: 'absolute',
-                      inset: 0,
+                      left: 0,
+                      top: 0,
+                      width: `${PLAN_WORLD_WIDTH}px`,
+                      height: `${planWorldHeight}px`,
                       transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})`,
-                      transformOrigin: 'center center'
+                      transformOrigin: '0 0'
                     }}
                   >
                     <div
@@ -1328,15 +1401,15 @@ function AdminReservations() {
                         backgroundImage: selectedFloorImageUrl
                           ? `url(${selectedFloorImageUrl})`
                           : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
-                        backgroundSize: selectedFloorImageUrl ? 'contain' : 'cover',
+                        backgroundSize: selectedFloorImageUrl ? '100% 100%' : 'cover',
                         backgroundRepeat: 'no-repeat',
                         backgroundPosition: 'center'
                       }}
                     />
                     {tables.map((table) => {
                       const tableId = Number(table.id);
-                      const posX = normalizePlanCoordinate(table.x, 50);
-                      const posY = normalizePlanCoordinate(table.y, 50);
+                      const posX = (normalizePlanCoordinate(table.x, 50) / 100) * PLAN_WORLD_WIDTH;
+                      const posY = (normalizePlanCoordinate(table.y, 50) / 100) * planWorldHeight;
                       const isDragging = dragState?.tableId === tableId;
                       const isSelected = Number(selectedPlanTableId) === tableId;
                       const rotation = normalizeRotationAngle(table.rotation, 0);
@@ -1357,9 +1430,10 @@ function AdminReservations() {
                           onPointerCancel={() => handleTablePlanPointerCancel(tableId)}
                           style={{
                             position: 'absolute',
-                            left: `${posX}%`,
-                            top: `${posY}%`,
-                            transform: 'translate(-50%, -50%)',
+                            left: `${posX}px`,
+                            top: `${posY}px`,
+                            transform: `translate(-50%, -50%) scale(${clamp(asNumber(planTableScale, 1), 0.65, 1.85)})`,
+                            transformOrigin: 'center center',
                             cursor: isDragging ? 'grabbing' : 'grab',
                             userSelect: 'none',
                             zIndex: isDragging ? 6 : isSelected ? 5 : 3
@@ -1436,13 +1510,13 @@ function AdminReservations() {
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 2.4))}>+</Button>
-                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 2.4))}>−</Button>
+                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), PLAN_MIN_SCALE, PLAN_MAX_SCALE))}>+</Button>
+                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), PLAN_MIN_SCALE, PLAN_MAX_SCALE))}>−</Button>
                     <Button
                       className="action-btn admin-reservation-action-btn"
                       variant="primary"
-                      title={tx('Сбросить масштаб и позицию', 'Masshtab va joylashuvni tiklash')}
-                      onClick={() => { setPlanScale(1); setPlanOffset({ x: 0, y: 0 }); }}
+                      title={tx('Подогнать схему по экрану', 'Sxemani ekranga moslash')}
+                      onClick={fitPlanToCanvas}
                     >
                       <ResetIcon />
                     </Button>
@@ -1538,6 +1612,37 @@ function AdminReservations() {
                     value={tableForm.capacity}
                     onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: Math.max(1, asInt(event.target.value, 1)) }))}
                   />
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label className="small text-muted mb-1">
+                    {tx('Масштаб столов на схеме', 'Sxemadagi stollar masshtabi')}
+                  </Form.Label>
+                  <div className="d-flex align-items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline-secondary"
+                      onClick={() => setPlanTableScale((prev) => clamp(Number((prev - 0.05).toFixed(2)), 0.65, 1.85))}
+                    >
+                      −
+                    </Button>
+                    <Form.Range
+                      min={0.65}
+                      max={1.85}
+                      step={0.05}
+                      value={planTableScale}
+                      onChange={(event) => setPlanTableScale(clamp(asNumber(event.target.value, 1), 0.65, 1.85))}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline-secondary"
+                      onClick={() => setPlanTableScale((prev) => clamp(Number((prev + 0.05).toFixed(2)), 0.65, 1.85))}
+                    >
+                      +
+                    </Button>
+                  </div>
+                  <Form.Text className="text-muted">
+                    {tx('Только для удобства редактора, на клиенте пропорции останутся ровными.', 'Faqat editor qulayligi uchun, mijoz tomonda proporsiya to‘g‘ri qoladi.')} {Math.round(clamp(asNumber(planTableScale, 1), 0.65, 1.85) * 100)}%
+                  </Form.Text>
                 </Form.Group>
                 <div className="small text-muted mb-1">{tx('Мебель', 'Mebel')}</div>
                 <div className="small text-muted mb-2">
