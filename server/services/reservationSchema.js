@@ -71,6 +71,7 @@ async function createReservationSchema(executor) {
       reservation_fee DECIMAL(12, 2) DEFAULT 0,
       reservation_service_cost DECIMAL(12, 2) DEFAULT 0,
       max_duration_minutes INTEGER DEFAULT 180,
+      time_slot_step_minutes INTEGER DEFAULT 30,
       allow_multi_table BOOLEAN DEFAULT true,
       prepay_mode VARCHAR(20) DEFAULT 'none',
       prepay_percent DECIMAL(5, 2) DEFAULT 0,
@@ -87,6 +88,20 @@ async function createReservationSchema(executor) {
     UPDATE restaurant_reservation_settings
     SET reservation_service_cost = 0
     WHERE reservation_service_cost IS NULL
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE restaurant_reservation_settings
+    ADD COLUMN IF NOT EXISTS time_slot_step_minutes INTEGER DEFAULT 30
+  `).catch(() => {});
+  await run(executor, `
+    UPDATE restaurant_reservation_settings
+    SET time_slot_step_minutes = 30
+    WHERE time_slot_step_minutes IS NULL
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE restaurant_reservation_settings
+    ADD CONSTRAINT IF NOT EXISTS restaurant_reservation_settings_time_slot_step_check
+    CHECK (time_slot_step_minutes BETWEEN 5 AND 60)
   `).catch(() => {});
 
   await run(executor, `

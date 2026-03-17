@@ -1299,6 +1299,221 @@ h6 {
   padding-inline: 8px;
 }
 
+.client-res-controls-card {
+  margin-top: 10px;
+  border: 1px solid #d8deee;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.client-res-controls-card .card-body {
+  padding: 12px 14px;
+}
+
+.client-res-controls-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.client-res-controls-head .client-res-top-title {
+  color: #0f172a;
+}
+
+.client-res-controls-head .client-res-top-subtitle {
+  color: #64748b;
+}
+
+.client-res-collapse-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #c7d2e7;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.client-res-controls-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 14px;
+  align-items: end;
+}
+
+.client-res-time-col {
+  min-width: 0;
+}
+
+.client-res-controls-card .client-res-time-readout {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #475569;
+}
+
+.client-res-controls-card .client-res-time-readout strong {
+  color: #0f172a;
+}
+
+.client-res-controls-card .client-res-time-readout small {
+  color: #64748b;
+  font-size: 0.77rem;
+}
+
+.client-res-controls-card .client-res-time-slider {
+  width: 100%;
+  margin-top: 6px;
+  accent-color: #4f46e5;
+}
+
+.client-res-time-ruler {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #dbe2f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 8px 10px 6px;
+}
+
+.client-res-ruler-tick {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  min-width: 16px;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  cursor: pointer;
+}
+
+.client-res-ruler-line {
+  display: block;
+  width: 2px;
+  height: 10px;
+  border-radius: 999px;
+  background: #a5b4cf;
+}
+
+.client-res-ruler-tick.is-hour .client-res-ruler-line {
+  height: 18px;
+  background: #64748b;
+}
+
+.client-res-ruler-tick.is-active .client-res-ruler-line {
+  height: 22px;
+  background: #4f46e5;
+}
+
+.client-res-ruler-label {
+  margin-top: 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.client-res-ruler-tick.is-hour .client-res-ruler-label {
+  color: #1e293b;
+}
+
+.client-res-ruler-tick.is-active .client-res-ruler-label {
+  color: #312e81;
+}
+
+.client-res-ruler-end {
+  display: block;
+  width: 10px;
+  height: 1px;
+}
+
+.client-res-day-col {
+  width: 100%;
+}
+
+.client-res-day-btn {
+  width: 100%;
+  min-height: 70px;
+  border-radius: 12px;
+  border: 1px solid #d4deef;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: left;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.client-res-day-btn span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.client-res-day-btn strong {
+  font-size: 0.96rem;
+}
+
+.client-res-map-shell {
+  margin-top: 8px;
+  border: 1px solid #d8deee;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #edf2ff;
+  position: relative;
+}
+
+.client-res-map-shell .client-res-plan-stage {
+  height: min(78vh, calc(100vh - 248px));
+  min-height: 450px;
+  border: 0;
+  border-radius: 0;
+}
+
+.client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
+  height: min(82vh, calc(100vh - 178px));
+}
+
+.client-res-map-shell:fullscreen .client-res-plan-stage {
+  height: 100vh;
+  min-height: 100vh;
+}
+
+.client-res-map-loading {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d6deef;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.client-res-details-card {
+  border-radius: 16px;
+}
+
 .client-res-top-card .card-body {
   padding: 14px;
 }
@@ -1570,12 +1785,12 @@ h6 {
 }
 
 .client-res-floor-carousel {
-  margin-top: 6px;
+  margin-top: 10px;
   margin-bottom: 8px;
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
 }
 
 .client-res-floor-pill {
@@ -1681,6 +1896,19 @@ h6 {
 }
 
 @media (max-width: 991.98px) {
+  .client-res-controls-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .client-res-map-shell .client-res-plan-stage {
+    height: min(72vh, calc(100vh - 292px));
+    min-height: 410px;
+  }
+
+  .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
+    height: min(78vh, calc(100vh - 222px));
+  }
+
   .client-res-plan-stage {
     height: clamp(390px, 63vh, 640px);
   }
@@ -1724,6 +1952,19 @@ h6 {
   .client-res-plan-stage {
     height: clamp(420px, 66vh, 700px);
     min-height: 420px;
+  }
+
+  .client-res-controls-card .card-body {
+    padding: 10px 10px 12px;
+  }
+
+  .client-res-map-shell .client-res-plan-stage {
+    height: calc(100vh - 340px);
+    min-height: 350px;
+  }
+
+  .client-res-map-shell.is-controls-collapsed .client-res-plan-stage {
+    height: calc(100vh - 272px);
   }
 
   .client-res-top-card .card-body {

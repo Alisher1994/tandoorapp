@@ -108,6 +108,7 @@ function AdminReservations() {
   const [settings, setSettings] = useState({
     reservation_fee: 0,
     max_duration_minutes: 180,
+    time_slot_step_minutes: 30,
     allow_multi_table: true
   });
   const [supportContact, setSupportContact] = useState({
@@ -267,6 +268,7 @@ function AdminReservations() {
       setSettings({
         reservation_fee: asNumber(nextSettings.reservation_fee, 0),
         max_duration_minutes: asInt(nextSettings.max_duration_minutes, 180),
+        time_slot_step_minutes: Math.min(60, Math.max(5, asInt(nextSettings.time_slot_step_minutes, 30))),
         allow_multi_table: nextSettings.allow_multi_table !== false
       });
       setSupportContact({
@@ -370,6 +372,7 @@ function AdminReservations() {
       const payload = {
         reservation_fee: Math.max(0, asNumber(settings.reservation_fee, 0)),
         max_duration_minutes: Math.max(30, asInt(settings.max_duration_minutes, 180)),
+        time_slot_step_minutes: Math.min(60, Math.max(5, asInt(settings.time_slot_step_minutes, 30))),
         allow_multi_table: !!settings.allow_multi_table
       };
       await axios.put(`${API_URL}/admin/reservations/settings`, payload);
@@ -989,6 +992,27 @@ function AdminReservations() {
                 step={30}
                 value={settings.max_duration_minutes}
                 onChange={(event) => setSettings((prev) => ({ ...prev, max_duration_minutes: event.target.value }))}
+              />
+            </Col>
+            <Col md={6}>
+              <Form.Label className="d-flex align-items-center gap-2">
+                <span>{tx('Шаг времени на шкале (мин.)', 'Vaqt shkalasi qadami (daq.)')}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  title={tx('От 5 до 60 минут. Например, 30 даст слоты 10:00, 10:30, 11:00.', '5 dan 60 daqiqagacha. Masalan, 30 bo\'lsa 10:00, 10:30, 11:00 kabi bo\'ladi.')}
+                  style={{ fontSize: 14, color: '#64748b', cursor: 'help' }}
+                >
+                  ⓘ
+                </span>
+              </Form.Label>
+              <Form.Control
+                type="number"
+                min={5}
+                max={60}
+                step={5}
+                value={settings.time_slot_step_minutes}
+                onChange={(event) => setSettings((prev) => ({ ...prev, time_slot_step_minutes: event.target.value }))}
               />
             </Col>
             <Col md={6} className="d-flex align-items-end">

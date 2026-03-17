@@ -86,6 +86,7 @@ const getReservationConfig = async (client, restaurantId) => {
        COALESCE(rs.enabled, false) AS enabled,
        COALESCE(rs.reservation_fee, 0) AS reservation_fee,
        COALESCE(rs.max_duration_minutes, 180) AS max_duration_minutes,
+       COALESCE(rs.time_slot_step_minutes, 30) AS time_slot_step_minutes,
        COALESCE(rs.allow_multi_table, true) AS allow_multi_table,
        COALESCE(rs.prepay_mode, 'none') AS prepay_mode,
        COALESCE(rs.prepay_percent, 0) AS prepay_percent,
@@ -247,6 +248,7 @@ router.get('/availability', async (req, res) => {
       duration_minutes: durationMinutes,
       reservation_enabled: asBooleanFlag(config.enabled),
       reservation_fee: parseAmount(config.reservation_fee, 0),
+      time_slot_step_minutes: parsePositiveInt(config.time_slot_step_minutes, 30),
       allow_multi_table: Boolean(config.allow_multi_table),
       tables
     });

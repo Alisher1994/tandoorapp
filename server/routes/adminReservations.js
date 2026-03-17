@@ -23,6 +23,11 @@ const parseAmount = (value, fallback = 0) => {
 };
 
 const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
+const clampTimeSlotStep = (value, fallback = 30) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed)) return fallback;
+  return Math.min(60, Math.max(5, parsed));
+};
 
 const resolveRestaurantId = (req) => {
   const explicit = parsePositiveInt(req.query.restaurant_id)
@@ -48,6 +53,7 @@ const ensureRestaurantSettingsRow = async (client, restaurantId) => {
        reservation_fee,
        reservation_service_cost,
        max_duration_minutes,
+       time_slot_step_minutes,
        allow_multi_table,
        prepay_mode,
        prepay_percent
@@ -58,6 +64,7 @@ const ensureRestaurantSettingsRow = async (client, restaurantId) => {
        0,
        COALESCE(r.reservation_cost, 0),
        180,
+       30,
        true,
        'none',
        0
@@ -256,6 +263,10 @@ router.put('/settings', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'max_duration_minutes')) {
       params.push(parsePositiveInt(req.body.max_duration_minutes, 180));
       updates.push(`max_duration_minutes = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'time_slot_step_minutes')) {
+      params.push(clampTimeSlotStep(req.body.time_slot_step_minutes, 30));
+      updates.push(`time_slot_step_minutes = $${params.length}`);
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allow_multi_table')) {
       params.push(!!req.body.allow_multi_table);

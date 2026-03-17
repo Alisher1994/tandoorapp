@@ -20,6 +20,11 @@ const PLAN_MIN_SCALE = 0.55;
 const PLAN_MAX_SCALE = 3.4;
 const PLAN_WORLD_WIDTH = 1200;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const normalizeTimeSlotStep = (value, fallback = 30) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed)) return fallback;
+  return clamp(parsed, 5, 60);
+};
 const normalizePlanCoordinate = (value, fallback = 50) => {
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -63,7 +68,7 @@ const minutesToTime = (minutesValue) => {
 const buildTimeSlots = (startHour = 9, endHour = 23, stepMinutes = 30) => {
   const slots = [];
   const start = startHour * 60;
-  const end = (endHour * 60) + stepMinutes;
+  const end = endHour * 60;
   for (let value = start; value <= end; value += stepMinutes) {
     slots.push({
       minutes: value,
@@ -104,14 +109,18 @@ function Reservations() {
   const [tables, setTables] = useState([]);
   const [selectedFloorId, setSelectedFloorId] = useState(null);
   const [bookingDate, setBookingDate] = useState(todayDate());
+  const [draftBookingDate, setDraftBookingDate] = useState(todayDate());
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
   const [startTime, setStartTime] = useState(currentHourTime());
   const [durationMinutes, setDurationMinutes] = useState(120);
+  const [timeSlotStepMinutes, setTimeSlotStepMinutes] = useState(30);
   const [guestsCount, setGuestsCount] = useState(2);
   const [bookingMode, setBookingMode] = useState('reservation_only');
   const [comment, setComment] = useState('');
   const [allowMultiTable, setAllowMultiTable] = useState(true);
   const [selectedTableIds, setSelectedTableIds] = useState([]);
   const [bookingStep, setBookingStep] = useState('plan');
+  const [controlsCollapsed, setControlsCollapsed] = useState(false);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
   const [planGestureMode, setPlanGestureMode] = useState('idle');
@@ -136,8 +145,7 @@ function Reservations() {
   const selectedTables = useMemo(() => tables.filter((table) => selectedTableIds.includes(Number(table.id))), [tables, selectedTableIds]);
   const totalSelectedCapacity = useMemo(() => selectedTables.reduce((sum, table) => sum + (Number.parseInt(table.capacity, 10) || 0), 0), [selectedTables]);
   const isCapacityEnough = totalSelectedCapacity >= guestsCount;
-  const timeSlots = useMemo(() => buildTimeSlots(9, 23, 30), []);
-  const timelineHourMarks = useMemo(() => timeSlots.filter((slot) => slot.minutes % 60 === 0), [timeSlots]);
+  const timeSlots = useMemo(() => buildTimeSlots(9, 23, normalizeTimeSlotStep(timeSlotStepMinutes, 30)), [timeSlotStepMinutes]);
   const selectedTimeSlotIndex = useMemo(() => {
     const directIndex = timeSlots.findIndex((slot) => slot.value === startTime);
     if (directIndex >= 0) return directIndex;
@@ -305,6 +313,7 @@ function Reservations() {
       const nextTables = Array.isArray(payload.tables) ? payload.tables : [];
       setTables(nextTables);
       setAllowMultiTable(payload.allow_multi_table !== false);
+      setTimeSlotStepMinutes(normalizeTimeSlotStep(payload.time_slot_step_minutes, 30));
       setSelectedTableIds((prev) => {
         const availableIds = new Set(nextTables.filter((t) => t.is_available).map((t) => Number(t.id)));
         const filtered = prev.filter((id) => availableIds.has(Number(id)));
@@ -354,6 +363,31 @@ function Reservations() {
   useEffect(() => {
     fetchAvailability();
   }, [selectedFloorId, bookingDate, startTime, durationMinutes, restaurantId]);
+
+  useEffect(() => {
+    setDraftBookingDate(bookingDate);
+  }, [bookingDate]);
+
+  useEffect(() => {
+    if (!timeSlots.length) return;
+    const hasExact = timeSlots.some((slot) => slot.value === startTime);
+    if (hasExact) return;
+
+    const currentMinutes = parseTimeToMinutes(startTime, parseTimeToMinutes(currentHourTime(), 9 * 60));
+    let nearest = timeSlots[0];
+    let nearestDiff = Number.POSITIVE_INFINITY;
+    timeSlots.forEach((slot) => {
+      const diff = Math.abs(slot.minutes - currentMinutes);
+      if (diff < nearestDiff) {
+        nearestDiff = diff;
+        nearest = slot;
+      }
+    });
+
+    if (nearest?.value) {
+      setStartTime(nearest.value);
+    }
+  }, [startTime, timeSlots]);
 
   useEffect(() => {
     if (!selectedFloorImageUrl) {
@@ -453,6 +487,17 @@ function Reservations() {
     const index = clamp(Number.parseInt(nextIndexValue, 10) || 0, 0, timeSlots.length - 1);
     const slot = timeSlots[index];
     if (slot?.value) setStartTime(slot.value);
+  };
+
+  const handleApplyBookingDate = () => {
+    const normalized = String(draftBookingDate || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      setShowDatePickerModal(false);
+      setDraftBookingDate(bookingDate);
+      return;
+    }
+    setBookingDate(normalized);
+    setShowDatePickerModal(false);
   };
 
   const handlePlanPointerDown = (event) => {
@@ -656,103 +701,115 @@ function Reservations() {
             {error && <Alert variant="danger" className="mt-3 border-0 shadow-sm">{error}</Alert>}
             {successMessage && <Alert variant="success" className="mt-3 border-0 shadow-sm">{successMessage}</Alert>}
 
-            <Card className="border-0 shadow-sm mt-3 client-res-top-card">
-              <Card.Body>
-                <div className="client-res-top-row">
-                  <div>
-                    <div className="client-res-top-title">{t('Бронирование', 'Band qilish')}</div>
-                    <div className="client-res-top-subtitle">{selectedDateLabel || bookingDate}</div>
-                  </div>
-                  <div className="client-res-top-controls">
-                    <Form.Control type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="client-res-date-input" />
-                    <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Math.max(30, Number.parseInt(e.target.value, 10) || 30))} className="client-res-duration-input">
-                      {bookingDurationOptions.map((durationOption) => (
-                        <option key={durationOption} value={durationOption}>{t(`${durationOption} мин`, `${durationOption} daq`)}</option>
-                      ))}
-                    </Form.Select>
-                  </div>
-                </div>
-
-                <div className="client-res-time-readout">
-                  <span>{t('Время:', 'Vaqt:')}</span>
-                  <strong>{startTime}</strong>
-                </div>
-
-                <input className="client-res-time-slider" type="range" min={0} max={Math.max(0, timeSlots.length - 1)} step={1} value={selectedTimeSlotIndex} onChange={(e) => handleTimelineChange(e.target.value)} />
-                <div className="client-res-time-hour-strip">
-                  {timelineHourMarks.map((mark) => {
-                    const active = startTime.slice(0, 2) === mark.value.slice(0, 2);
-                    return <button key={mark.value} type="button" className={`client-res-time-hour-btn ${active ? 'is-active' : ''}`} onClick={() => setStartTime(mark.value)}>{mark.hourLabel}</button>;
-                  })}
-                </div>
-              </Card.Body>
-            </Card>
-
             {bookingStep === 'plan' ? (
-              <Card className="border-0 shadow-sm mt-3 mb-3 client-res-plan-card">
-                <Card.Body>
-                  <div className="client-res-plan-header-row">
-                    <div className="client-res-plan-header-title-wrap">
-                      <div className="client-res-plan-header-title">{t('Выберите стол на схеме', 'Sxemadan stol tanlang')}</div>
-                      <div className="client-res-plan-header-subtitle">{selectedFloor?.name || t('Этаж не выбран', 'Qavat tanlanmagan')}</div>
-                    </div>
-
-                    <div className="client-res-plan-header-actions">
-                      {loadingAvailability && <div className="text-muted small d-flex align-items-center gap-2"><Spinner animation="border" size="sm" />{t('Обновляем', 'Yangilanmoqda')}</div>}
-                    </div>
-                  </div>
-
-                  <div className="client-res-floor-carousel" role="tablist" aria-label={t('Этажи', 'Qavatlar')}>
-                    {floors.map((floor) => {
-                      const active = Number(selectedFloorId) === Number(floor.id);
-                      const floorTablesCount = Number.isInteger(Number(floor.tables_count)) ? Number(floor.tables_count) : null;
-                      return <button key={floor.id} type="button" className={`client-res-floor-pill ${active ? 'is-active' : ''}`} onClick={() => setSelectedFloorId(Number(floor.id))}><span>{floor.name}</span><small>{floorTablesCount ?? '•'}</small></button>;
-                    })}
-                  </div>
-
-                  <div ref={planStageRef} className="client-res-plan-stage-wrap">
-                    <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
-                      <div className="client-res-plan-world" style={{ width: `${PLAN_WORLD_WIDTH}px`, height: `${planWorldHeight}px`, transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})` }}>
-                        <div className="client-res-plan-floor" style={{ backgroundImage: selectedFloorImageUrl ? `url(${selectedFloorImageUrl})` : 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)' }} />
-
-                        {tables.map((table) => {
-                          const selected = selectedTableIds.includes(Number(table.id));
-                          const available = Boolean(table.is_available);
-                          const tableX = (normalizePlanCoordinate(table.x, 50) / 100) * PLAN_WORLD_WIDTH;
-                          const tableY = (normalizePlanCoordinate(table.y, 50) / 100) * planWorldHeight;
-                          const tableRotation = normalizeRotationAngle(table.rotation);
-                          const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
-
-                          return (
-                            <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available}>
-                              {table.photo_url && (
-                                <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
-                              )}
-                              <div className="client-res-plan-table-visual" style={{ transform: `rotate(${tableRotation}deg)` }}>
-                                {templateImageUrl ? <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" /> : <span className="client-res-plan-table-fallback">{table.name}</span>}
-                              </div>
-                              <span className="client-res-plan-table-label">{table.name}</span>
-                            </button>
-                          );
-                        })}
+              <>
+                <Card className="border-0 shadow-sm mt-3 client-res-controls-card">
+                  <Card.Body>
+                    <div className="client-res-controls-head">
+                      <div>
+                        <div className="client-res-top-title">{t('Бронирование', 'Band qilish')}</div>
+                        <div className="client-res-top-subtitle">{selectedFloor?.name || t('Этаж не выбран', 'Qavat tanlanmagan')}</div>
                       </div>
+                      <button
+                        type="button"
+                        className="client-res-collapse-btn"
+                        onClick={() => setControlsCollapsed((prev) => !prev)}
+                        aria-expanded={!controlsCollapsed}
+                        title={controlsCollapsed ? t('Развернуть', 'Yoyish') : t('Свернуть', 'Yig‘ish')}
+                      >
+                        {controlsCollapsed ? '▾' : '▴'}
+                      </button>
                     </div>
 
-                    <div className="client-res-plan-controls">
-                      <Button size="sm" variant="light" onClick={handlePlanZoomIn}>+</Button>
-                      <Button size="sm" variant="light" onClick={handlePlanZoomOut}>-</Button>
-                      <Button size="sm" variant="outline-secondary" onClick={fitPlanToViewport}>{t('Центр', 'Markaz')}</Button>
-                      <Button size="sm" variant="outline-secondary" onClick={handleToggleFullscreen}>{isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Fullscreen', 'To‘liq ekran')}</Button>
+                    {!controlsCollapsed && (
+                      <>
+                        <div className="client-res-controls-row">
+                          <div className="client-res-time-col">
+                            <div className="client-res-time-readout">
+                              <span>{t('Время:', 'Vaqt:')}</span>
+                              <strong>{startTime}</strong>
+                              <small>{t(`Шаг ${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} мин`, `${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} daq qadam`)}</small>
+                            </div>
+                            <input className="client-res-time-slider" type="range" min={0} max={Math.max(0, timeSlots.length - 1)} step={1} value={selectedTimeSlotIndex} onChange={(e) => handleTimelineChange(e.target.value)} />
+                            <div className="client-res-time-ruler">
+                              {timeSlots.map((slot, index) => {
+                                const active = slot.value === startTime;
+                                const isHour = slot.minutes % 60 === 0;
+                                return (
+                                  <button key={slot.value} type="button" className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => setStartTime(slot.value)} title={slot.value} aria-label={slot.value}>
+                                    <span className="client-res-ruler-line" />
+                                    {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
+                                    {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
+                                    {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="client-res-day-col">
+                            <button type="button" className="client-res-day-btn" onClick={() => { setDraftBookingDate(bookingDate); setShowDatePickerModal(true); }}>
+                              <span>{t('День', 'Kun')}</span>
+                              <strong>{selectedDateLabel || bookingDate}</strong>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="client-res-floor-carousel" role="tablist" aria-label={t('Этажи', 'Qavatlar')}>
+                          {floors.map((floor) => {
+                            const active = Number(selectedFloorId) === Number(floor.id);
+                            const floorTablesCount = Number.isInteger(Number(floor.tables_count)) ? Number(floor.tables_count) : null;
+                            return <button key={floor.id} type="button" className={`client-res-floor-pill ${active ? 'is-active' : ''}`} onClick={() => setSelectedFloorId(Number(floor.id))}><span>{floor.name}</span><small>{floorTablesCount ?? '•'}</small></button>;
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </Card.Body>
+                </Card>
+
+                <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''}`}>
+                  <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
+                    {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность столов...', 'Stollar mavjudligi tekshirilmoqda...')}</div>}
+                    <div className="client-res-plan-world" style={{ width: `${PLAN_WORLD_WIDTH}px`, height: `${planWorldHeight}px`, transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})` }}>
+                      <div className="client-res-plan-floor" style={{ backgroundImage: selectedFloorImageUrl ? `url(${selectedFloorImageUrl})` : 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%)' }} />
+
+                      {tables.map((table) => {
+                        const selected = selectedTableIds.includes(Number(table.id));
+                        const available = Boolean(table.is_available);
+                        const tableX = (normalizePlanCoordinate(table.x, 50) / 100) * PLAN_WORLD_WIDTH;
+                        const tableY = (normalizePlanCoordinate(table.y, 50) / 100) * planWorldHeight;
+                        const tableRotation = normalizeRotationAngle(table.rotation);
+                        const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
+
+                        return (
+                          <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available}>
+                            {table.photo_url && (
+                              <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
+                            )}
+                            <div className="client-res-plan-table-visual" style={{ transform: `rotate(${tableRotation}deg)` }}>
+                              {templateImageUrl ? <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" /> : <span className="client-res-plan-table-fallback">{table.name}</span>}
+                            </div>
+                            <span className="client-res-plan-table-label">{table.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mb-3">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
-
-                  <div className="client-res-plan-next-row">
-                    <Button variant="primary" className="client-res-next-btn" disabled={!selectedTableIds.length || !selectedFloorId} onClick={() => setBookingStep('details')}>{t('Далее', 'Keyingi')}</Button>
+                  <div className="client-res-plan-controls">
+                    <Button size="sm" variant="light" onClick={handlePlanZoomIn}>+</Button>
+                    <Button size="sm" variant="light" onClick={handlePlanZoomOut}>-</Button>
+                    <Button size="sm" variant="outline-secondary" onClick={fitPlanToViewport}>{t('Центр', 'Markaz')}</Button>
+                    <Button size="sm" variant="outline-secondary" onClick={handleToggleFullscreen}>{isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Fullscreen', 'To‘liq ekran')}</Button>
                   </div>
-                </Card.Body>
-              </Card>
+                </section>
+
+                {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mt-2 mb-2">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
+
+                <div className="client-res-plan-next-row">
+                  <Button variant="primary" className="client-res-next-btn" disabled={loadingAvailability || !selectedTableIds.length || !selectedFloorId} onClick={() => setBookingStep('details')}>{t('Далее', 'Keyingi')}</Button>
+                </div>
+              </>
             ) : (
               <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card">
                 <Card.Body>
@@ -792,6 +849,15 @@ function Reservations() {
                       <Card className="h-100 border-0 client-res-form-card">
                         <Card.Body>
                           <Form.Group className="mb-3">
+                            <Form.Label>{t('Длительность брони', 'Bron davomiyligi')}</Form.Label>
+                            <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
+                              {bookingDurationOptions.map((value) => (
+                                <option key={value} value={value}>{value} {t('мин', 'daq')}</option>
+                              ))}
+                            </Form.Select>
+                          </Form.Group>
+
+                          <Form.Group className="mb-3">
                             <Form.Label>{t('Количество гостей', 'Mehmonlar soni')}</Form.Label>
                             <Form.Control type="number" min={1} value={guestsCount} onChange={(e) => setGuestsCount(Math.max(1, Number.parseInt(e.target.value, 10) || 1))} />
                           </Form.Group>
@@ -820,8 +886,38 @@ function Reservations() {
               </Card>
             )}
           </>
-        )}
+      )}
       </Container>
+      <Modal
+        show={showDatePickerModal}
+        onHide={() => {
+          setShowDatePickerModal(false);
+          setDraftBookingDate(bookingDate);
+        }}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>{t('Выбор дня бронирования', 'Bron kunini tanlash')}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group>
+            <Form.Label>{t('Дата', 'Sana')}</Form.Label>
+            <Form.Control type="date" value={draftBookingDate} min={todayDate()} onChange={(event) => setDraftBookingDate(event.target.value)} />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="outline-secondary"
+            onClick={() => {
+              setShowDatePickerModal(false);
+              setDraftBookingDate(bookingDate);
+            }}
+          >
+            {t('Отмена', 'Bekor qilish')}
+          </Button>
+          <Button variant="primary" onClick={handleApplyBookingDate}>{t('Применить', 'Qo‘llash')}</Button>
+        </Modal.Footer>
+      </Modal>
       <Modal show={showPhotoModal} onHide={() => setShowPhotoModal(false)} centered><Modal.Header closeButton><Modal.Title>{t('Фото стола', 'Stol rasmi')}: {photoTableName}</Modal.Title></Modal.Header><Modal.Body className="p-2">{photoUrl ? <img src={photoUrl} alt={photoTableName} style={{ width: '100%', borderRadius: 10, maxHeight: '70vh', objectFit: 'contain' }} /> : <div className="text-muted p-3 text-center">{t('Фото не найдено', 'Rasm topilmadi')}</div>}</Modal.Body></Modal>
       {!isOperator() && <BottomNav />}
       {!isOperator() && <div style={{ height: 76 }} />}

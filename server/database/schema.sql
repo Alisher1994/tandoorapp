@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS restaurant_reservation_settings (
   reservation_fee DECIMAL(12, 2) DEFAULT 0,
   reservation_service_cost DECIMAL(12, 2) DEFAULT 0,
   max_duration_minutes INTEGER DEFAULT 180,
+  time_slot_step_minutes INTEGER DEFAULT 30 CHECK (time_slot_step_minutes BETWEEN 5 AND 60),
   allow_multi_table BOOLEAN DEFAULT true,
   prepay_mode VARCHAR(20) DEFAULT 'none' CHECK (prepay_mode IN ('none', 'fixed', 'percent')),
   prepay_percent DECIMAL(5, 2) DEFAULT 0,
