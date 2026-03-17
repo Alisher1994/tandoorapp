@@ -703,10 +703,15 @@ function Reservations() {
 
                     <div className="client-res-plan-header-actions">
                       {loadingAvailability && <div className="text-muted small d-flex align-items-center gap-2"><Spinner animation="border" size="sm" />{t('Обновляем', 'Yangilanmoqda')}</div>}
-                      <Form.Select value={selectedFloorId || ''} onChange={(e) => setSelectedFloorId(Number.parseInt(e.target.value, 10) || null)} className="client-res-floor-select">
-                        {floors.map((floor) => <option key={floor.id} value={floor.id}>{floor.name}</option>)}
-                      </Form.Select>
                     </div>
+                  </div>
+
+                  <div className="client-res-floor-carousel" role="tablist" aria-label={t('Этажи', 'Qavatlar')}>
+                    {floors.map((floor) => {
+                      const active = Number(selectedFloorId) === Number(floor.id);
+                      const floorTablesCount = Number.isInteger(Number(floor.tables_count)) ? Number(floor.tables_count) : null;
+                      return <button key={floor.id} type="button" className={`client-res-floor-pill ${active ? 'is-active' : ''}`} onClick={() => setSelectedFloorId(Number(floor.id))}><span>{floor.name}</span><small>{floorTablesCount ?? '•'}</small></button>;
+                    })}
                   </div>
 
                   <div ref={planStageRef} className="client-res-plan-stage-wrap">
@@ -743,14 +748,6 @@ function Reservations() {
                       <Button size="sm" variant="outline-secondary" onClick={fitPlanToViewport}>{t('Центр', 'Markaz')}</Button>
                       <Button size="sm" variant="outline-secondary" onClick={handleToggleFullscreen}>{isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Fullscreen', 'To‘liq ekran')}</Button>
                     </div>
-                  </div>
-
-                  <div className="client-res-floor-carousel" role="tablist" aria-label={t('Этажи', 'Qavatlar')}>
-                    {floors.map((floor) => {
-                      const active = Number(selectedFloorId) === Number(floor.id);
-                      const floorTablesCount = Number.isInteger(Number(floor.tables_count)) ? Number(floor.tables_count) : null;
-                      return <button key={floor.id} type="button" className={`client-res-floor-pill ${active ? 'is-active' : ''}`} onClick={() => setSelectedFloorId(Number(floor.id))}><span>{floor.name}</span><small>{floorTablesCount ?? '•'}</small></button>;
-                    })}
                   </div>
 
                   <div className="client-res-summary-strip">
