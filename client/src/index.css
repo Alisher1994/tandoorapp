@@ -1604,17 +1604,10 @@ h6 {
   opacity: 0.78;
 }
 
-.client-res-summary-strip {
-  margin-top: 10px;
-  margin-bottom: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .client-res-plan-next-row {
+  margin-top: 10px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   align-items: center;
 }
@@ -1737,10 +1730,6 @@ h6 {
     padding: 12px;
   }
 
-  .client-res-summary-strip {
-    margin-top: 8px;
-    margin-bottom: 8px;
-  }
 }
 
 .client-bottom-space {

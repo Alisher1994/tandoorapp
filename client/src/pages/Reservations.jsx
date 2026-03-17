@@ -7,12 +7,10 @@ import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
-import Badge from 'react-bootstrap/Badge';
 import Modal from 'react-bootstrap/Modal';
 import Spinner from 'react-bootstrap/Spinner';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { formatPrice } from '../context/CartContext';
 import ClientTopBar from '../components/ClientTopBar';
 import BottomNav from '../components/BottomNav';
 import { PageSkeleton } from '../components/SkeletonUI';
@@ -112,7 +110,6 @@ function Reservations() {
   const [bookingMode, setBookingMode] = useState('reservation_only');
   const [comment, setComment] = useState('');
   const [allowMultiTable, setAllowMultiTable] = useState(true);
-  const [reservationFee, setReservationFee] = useState(0);
   const [selectedTableIds, setSelectedTableIds] = useState([]);
   const [bookingStep, setBookingStep] = useState('plan');
   const [planScale, setPlanScale] = useState(1);
@@ -308,7 +305,6 @@ function Reservations() {
       const nextTables = Array.isArray(payload.tables) ? payload.tables : [];
       setTables(nextTables);
       setAllowMultiTable(payload.allow_multi_table !== false);
-      setReservationFee(Number.parseFloat(payload.reservation_fee) || 0);
       setSelectedTableIds((prev) => {
         const availableIds = new Set(nextTables.filter((t) => t.is_available).map((t) => Number(t.id)));
         const filtered = prev.filter((id) => availableIds.has(Number(id)));
@@ -750,16 +746,9 @@ function Reservations() {
                     </div>
                   </div>
 
-                  <div className="client-res-summary-strip">
-                    <Badge bg="success">{t('Выбрано столов', 'Tanlangan stollar')}: {selectedTableIds.length}</Badge>
-                    <Badge bg={isCapacityEnough ? 'primary' : 'warning'} text={isCapacityEnough ? undefined : 'dark'}>{t('Итоговая вместимость', 'Jami sig‘im')}: {totalSelectedCapacity}</Badge>
-                    <Badge bg="secondary">{t('Стоимость брони', 'Band narxi')}: {formatPrice(reservationFee)}</Badge>
-                  </div>
-
                   {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mb-3">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
 
                   <div className="client-res-plan-next-row">
-                    <div className="text-muted small">{t('Можно двигать карту пальцем и масштабировать щипком', 'Xaritani barmoq bilan suring va pinch bilan kattalashtiring')}</div>
                     <Button variant="primary" className="client-res-next-btn" disabled={!selectedTableIds.length || !selectedFloorId} onClick={() => setBookingStep('details')}>{t('Далее', 'Keyingi')}</Button>
                   </div>
                 </Card.Body>
