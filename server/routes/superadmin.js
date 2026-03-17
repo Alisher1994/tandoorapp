@@ -966,9 +966,14 @@ const OPERATOR_PAYMENT_LABELS = {
   uzum: 'Uzum'
 };
 const RESERVATION_TEMPLATE_SHAPES = new Set(['round', 'square', 'rect', 'sofa', 'custom']);
+const RESERVATION_FURNITURE_CATEGORIES = new Set(['tables_chairs', 'bed', 'garage_box', 'work_desk', 'bunk']);
 const normalizeReservationTemplateShape = (value, fallback = 'custom') => {
   const normalized = String(value || '').trim().toLowerCase();
   return RESERVATION_TEMPLATE_SHAPES.has(normalized) ? normalized : fallback;
+};
+const normalizeReservationFurnitureCategory = (value, fallback = 'tables_chairs') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return RESERVATION_FURNITURE_CATEGORIES.has(normalized) ? normalized : fallback;
 };
 const normalizeReservationTemplateCode = (value) => (
   String(value || '')
@@ -1671,16 +1676,19 @@ router.patch('/activity-types/:id/visibility', async (req, res) => {
 
 router.get('/reservation-table-templates', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     await ensureReservationSchema();
     const result = await pool.query(`
       SELECT
         tpl.*,
+        bat.name AS activity_type_name,
         (
           SELECT COUNT(*)
           FROM reservation_tables t
           WHERE t.template_id = tpl.id
         ) AS tables_count
       FROM reservation_table_templates tpl
+      LEFT JOIN business_activity_types bat ON bat.id = tpl.activity_type_id
       ORDER BY tpl.is_system DESC, tpl.name ASC, tpl.id ASC
     `);
     res.json(result.rows);
@@ -1692,10 +1700,13 @@ router.get('/reservation-table-templates', async (req, res) => {
 
 router.post('/reservation-table-templates', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     await ensureReservationSchema();
     const name = String(req.body?.name || '').trim();
     const imageUrl = normalizeReservationTemplateImageUrl(req.body?.image_url);
     const shape = normalizeReservationTemplateShape(req.body?.shape, 'custom');
+    const furnitureCategory = normalizeReservationFurnitureCategory(req.body?.furniture_category, 'tables_chairs');
+    const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
     const seatsCount = Math.max(1, parseReservationTemplateInt(req.body?.seats_count, 2));
     const width = Math.max(0.2, parseReservationTemplateFloat(req.body?.width, 1));
     const height = Math.max(0.2, parseReservationTemplateFloat(req.body?.height, 1));
@@ -1706,6 +1717,15 @@ router.post('/reservation-table-templates', async (req, res) => {
     if (!imageUrl) {
       return res.status(400).json({ error: 'Изображение мебели обязательно' });
     }
+    if (activityTypeId) {
+      const activityTypeResult = await pool.query(
+        'SELECT id FROM business_activity_types WHERE id = $1 LIMIT 1',
+        [activityTypeId]
+      );
+      if (!activityTypeResult.rows.length) {
+        return res.status(400).json({ error: 'Выбранный вид деятельности не найден' });
+      }
+    }
 
     let code = normalizeReservationTemplateCode(req.body?.code || name);
     if (!code) {
@@ -1714,11 +1734,11 @@ router.post('/reservation-table-templates', async (req, res) => {
 
     const tryInsert = async (codeValue) => pool.query(
       `INSERT INTO reservation_table_templates (
-         code, name, shape, image_url, seats_count, width, height, is_system
+         code, name, shape, image_url, furniture_category, activity_type_id, seats_count, width, height, is_system
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false)
        RETURNING *`,
-      [codeValue, name, shape, imageUrl, seatsCount, width, height]
+      [codeValue, name, shape, imageUrl, furnitureCategory, activityTypeId, seatsCount, width, height]
     );
 
     try {
@@ -1737,6 +1757,7 @@ router.post('/reservation-table-templates', async (req, res) => {
 
 router.put('/reservation-table-templates/:id', async (req, res) => {
   try {
+    await ensureActivityTypesSchema();
     await ensureReservationSchema();
     const templateId = parseReservationTemplateInt(req.params.id, 0);
     if (!templateId) {
@@ -1769,6 +1790,24 @@ router.put('/reservation-table-templates/:id', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'shape')) {
       params.push(normalizeReservationTemplateShape(req.body?.shape, 'custom'));
       updates.push(`shape = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'furniture_category')) {
+      params.push(normalizeReservationFurnitureCategory(req.body?.furniture_category, 'tables_chairs'));
+      updates.push(`furniture_category = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'activity_type_id')) {
+      const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
+      if (activityTypeId) {
+        const activityTypeResult = await pool.query(
+          'SELECT id FROM business_activity_types WHERE id = $1 LIMIT 1',
+          [activityTypeId]
+        );
+        if (!activityTypeResult.rows.length) {
+          return res.status(400).json({ error: 'Выбранный вид деятельности не найден' });
+        }
+      }
+      params.push(activityTypeId);
+      updates.push(`activity_type_id = $${params.length}`);
     }
 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'seats_count')) {

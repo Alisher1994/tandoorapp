@@ -2,12 +2,18 @@ const pool = require('../database/connection');
 
 let reservationSchemaReady = false;
 let reservationSchemaPromise = null;
+const RESERVATION_FURNITURE_CATEGORIES = new Set(['tables_chairs', 'bed', 'garage_box', 'work_desk', 'bunk']);
+const normalizeReservationFurnitureCategory = (value, fallback = 'tables_chairs') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return RESERVATION_FURNITURE_CATEGORIES.has(normalized) ? normalized : fallback;
+};
 
 const SYSTEM_TABLE_TEMPLATES = [
   {
     code: 'table_round_2',
     name: 'Круглый стол (2 места)',
     shape: 'round',
+    furniture_category: 'tables_chairs',
     seats_count: 2,
     width: 1.0,
     height: 1.0,
@@ -17,6 +23,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_round_4',
     name: 'Круглый стол (4 места)',
     shape: 'round',
+    furniture_category: 'tables_chairs',
     seats_count: 4,
     width: 1.2,
     height: 1.2,
@@ -26,6 +33,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_square_4',
     name: 'Квадратный стол (4 места)',
     shape: 'square',
+    furniture_category: 'tables_chairs',
     seats_count: 4,
     width: 1.2,
     height: 1.2,
@@ -35,6 +43,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_rect_6',
     name: 'Прямоугольный стол (6 мест)',
     shape: 'rect',
+    furniture_category: 'tables_chairs',
     seats_count: 6,
     width: 1.8,
     height: 1.1,
@@ -44,6 +53,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_sofa_4',
     name: 'Диванный стол (4 места)',
     shape: 'sofa',
+    furniture_category: 'tables_chairs',
     seats_count: 4,
     width: 2.0,
     height: 1.1,
@@ -53,6 +63,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_round_1',
     name: 'Одиночный стол (1 место)',
     shape: 'round',
+    furniture_category: 'tables_chairs',
     seats_count: 1,
     width: 0.8,
     height: 0.8,
@@ -62,6 +73,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_square_2',
     name: 'Квадратный стол (2 места)',
     shape: 'square',
+    furniture_category: 'tables_chairs',
     seats_count: 2,
     width: 1.0,
     height: 1.0,
@@ -71,6 +83,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_rect_4',
     name: 'Прямоугольный стол (4 места)',
     shape: 'rect',
+    furniture_category: 'tables_chairs',
     seats_count: 4,
     width: 1.5,
     height: 1.0,
@@ -80,6 +93,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_rect_8',
     name: 'Прямоугольный стол (8 мест)',
     shape: 'rect',
+    furniture_category: 'tables_chairs',
     seats_count: 8,
     width: 2.2,
     height: 1.2,
@@ -89,6 +103,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_sofa_2',
     name: 'Диванный стол (2 места)',
     shape: 'sofa',
+    furniture_category: 'tables_chairs',
     seats_count: 2,
     width: 1.6,
     height: 1.0,
@@ -98,10 +113,61 @@ const SYSTEM_TABLE_TEMPLATES = [
     code: 'table_sofa_6',
     name: 'Диванный стол (6 мест)',
     shape: 'sofa',
+    furniture_category: 'tables_chairs',
     seats_count: 6,
     width: 2.4,
     height: 1.2,
     image_url: '/reservation-furniture/table_sofa_4.png'
+  },
+  {
+    code: 'bed_single_1',
+    name: 'Кровать (1 место)',
+    shape: 'custom',
+    furniture_category: 'bed',
+    seats_count: 1,
+    width: 2.0,
+    height: 1.0,
+    image_url: '/reservation-furniture/bed_single.svg'
+  },
+  {
+    code: 'bed_double_2',
+    name: 'Кровать (2 места)',
+    shape: 'custom',
+    furniture_category: 'bed',
+    seats_count: 2,
+    width: 2.3,
+    height: 1.4,
+    image_url: '/reservation-furniture/bed_double.svg'
+  },
+  {
+    code: 'garage_box_1',
+    name: 'Гаражный бокс (1 место)',
+    shape: 'custom',
+    furniture_category: 'garage_box',
+    seats_count: 1,
+    width: 2.8,
+    height: 1.6,
+    image_url: '/reservation-furniture/garage_box.svg'
+  },
+  {
+    code: 'work_desk_1',
+    name: 'Рабочий стол (1 место)',
+    shape: 'custom',
+    furniture_category: 'work_desk',
+    seats_count: 1,
+    width: 1.6,
+    height: 0.9,
+    image_url: '/reservation-furniture/work_desk.svg'
+  },
+  {
+    code: 'bunk_bed_2',
+    name: 'Койка (2 места)',
+    shape: 'custom',
+    furniture_category: 'bunk',
+    seats_count: 2,
+    width: 2.2,
+    height: 1.1,
+    image_url: '/reservation-furniture/bunk_bed.svg'
   }
 ];
 
@@ -208,6 +274,8 @@ async function createReservationSchema(executor) {
       name VARCHAR(160) NOT NULL,
       shape VARCHAR(20) DEFAULT 'round',
       image_url TEXT,
+      furniture_category VARCHAR(32) DEFAULT 'tables_chairs',
+      activity_type_id INTEGER,
       seats_count INTEGER DEFAULT 2,
       width DECIMAL(8, 2) DEFAULT 1,
       height DECIMAL(8, 2) DEFAULT 1,
@@ -226,8 +294,26 @@ async function createReservationSchema(executor) {
   `).catch(() => {});
   await run(executor, `
     ALTER TABLE reservation_table_templates
+    ADD COLUMN IF NOT EXISTS furniture_category VARCHAR(32) DEFAULT 'tables_chairs'
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_table_templates
+    ADD COLUMN IF NOT EXISTS activity_type_id INTEGER
+  `).catch(() => {});
+  await run(executor, `
+    UPDATE reservation_table_templates
+    SET furniture_category = 'tables_chairs'
+    WHERE furniture_category IS NULL OR BTRIM(furniture_category) = ''
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_table_templates
     ADD CONSTRAINT IF NOT EXISTS reservation_table_templates_shape_check
     CHECK (shape IN ('round', 'square', 'rect', 'sofa', 'custom'))
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_table_templates
+    ADD CONSTRAINT IF NOT EXISTS reservation_table_templates_furniture_category_check
+    CHECK (furniture_category IN ('tables_chairs', 'bed', 'garage_box', 'work_desk', 'bunk'))
   `).catch(() => {});
 
   await run(executor, `
@@ -349,6 +435,14 @@ async function createReservationSchema(executor) {
     ON reservation_tables(restaurant_id, floor_id, is_active, id)
   `);
   await run(executor, `
+    CREATE INDEX IF NOT EXISTS idx_reservation_table_templates_furniture_category
+    ON reservation_table_templates(furniture_category, id)
+  `).catch(() => {});
+  await run(executor, `
+    CREATE INDEX IF NOT EXISTS idx_reservation_table_templates_activity_type_id
+    ON reservation_table_templates(activity_type_id, id)
+  `).catch(() => {});
+  await run(executor, `
     CREATE INDEX IF NOT EXISTS idx_reservations_restaurant_date
     ON reservations(restaurant_id, booking_date, start_time, end_time)
   `);
@@ -380,14 +474,16 @@ async function createReservationSchema(executor) {
   for (const template of SYSTEM_TABLE_TEMPLATES) {
     await run(executor, `
       INSERT INTO reservation_table_templates (
-        code, name, shape, image_url, seats_count, width, height, is_system
+        code, name, shape, image_url, furniture_category, activity_type_id, seats_count, width, height, is_system
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
       ON CONFLICT ((LOWER(code)))
       DO UPDATE SET
         name = EXCLUDED.name,
         shape = EXCLUDED.shape,
         image_url = EXCLUDED.image_url,
+        furniture_category = EXCLUDED.furniture_category,
+        activity_type_id = EXCLUDED.activity_type_id,
         seats_count = EXCLUDED.seats_count,
         width = EXCLUDED.width,
         height = EXCLUDED.height,
@@ -398,6 +494,8 @@ async function createReservationSchema(executor) {
       template.name,
       template.shape,
       template.image_url || null,
+      normalizeReservationFurnitureCategory(template.furniture_category, 'tables_chairs'),
+      null,
       template.seats_count,
       template.width,
       template.height

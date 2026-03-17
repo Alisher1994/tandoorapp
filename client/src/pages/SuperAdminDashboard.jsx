@@ -100,10 +100,19 @@ const RESERVATION_TEMPLATE_SHAPE_OPTIONS = [
   { value: 'sofa', ru: 'Диванный', uz: 'Divanli' },
   { value: 'custom', ru: 'Произвольный', uz: 'Maxsus' }
 ];
+const RESERVATION_TEMPLATE_CATEGORY_OPTIONS = [
+  { value: 'tables_chairs', ru: 'Столы и стулья', uz: 'Stol va stullar' },
+  { value: 'bed', ru: 'Кровати', uz: 'Krovatlar' },
+  { value: 'garage_box', ru: 'Гараж / бокс', uz: 'Garaj / boks' },
+  { value: 'work_desk', ru: 'Рабочий стол', uz: 'Ish stoli' },
+  { value: 'bunk', ru: 'Койки', uz: 'Koykalar' }
+];
 const createEmptyReservationTemplateForm = () => ({
   id: null,
   name: '',
   shape: 'custom',
+  furniture_category: 'tables_chairs',
+  activity_type_id: '',
   seats_count: 2,
   width: 1,
   height: 1,
@@ -1690,6 +1699,8 @@ function SuperAdminDashboard() {
       id: template.id,
       name: String(template.name || '').trim(),
       shape: String(template.shape || 'custom').trim().toLowerCase() || 'custom',
+      furniture_category: String(template.furniture_category || 'tables_chairs').trim().toLowerCase() || 'tables_chairs',
+      activity_type_id: template.activity_type_id ? String(template.activity_type_id) : '',
       seats_count: Number.parseInt(template.seats_count, 10) || 2,
       width: Number.parseFloat(template.width) || 1,
       height: Number.parseFloat(template.height) || 1,
@@ -1720,6 +1731,8 @@ function SuperAdminDashboard() {
     const payload = {
       name: String(reservationTemplateForm.name || '').trim(),
       shape: String(reservationTemplateForm.shape || 'custom').trim().toLowerCase(),
+      furniture_category: String(reservationTemplateForm.furniture_category || 'tables_chairs').trim().toLowerCase() || 'tables_chairs',
+      activity_type_id: reservationTemplateForm.activity_type_id ? (Number.parseInt(reservationTemplateForm.activity_type_id, 10) || null) : null,
       seats_count: Math.max(1, Number.parseInt(reservationTemplateForm.seats_count, 10) || 1),
       width: Math.max(0.2, Number.parseFloat(String(reservationTemplateForm.width).replace(',', '.')) || 1),
       height: Math.max(0.2, Number.parseFloat(String(reservationTemplateForm.height).replace(',', '.')) || 1),
@@ -8105,7 +8118,7 @@ function SuperAdminDashboard() {
                 </div>
 
                 {reservationTemplatesLoading ? (
-                  <TableSkeleton rows={6} columns={8} label={language === 'uz' ? "Mebel shablonlari yuklanmoqda" : 'Загрузка шаблонов мебели'} />
+                  <TableSkeleton rows={6} columns={10} label={language === 'uz' ? "Mebel shablonlari yuklanmoqda" : 'Загрузка шаблонов мебели'} />
                 ) : (
                   <div className="admin-table-container">
                     <Table responsive hover className="admin-table">
@@ -8116,6 +8129,8 @@ function SuperAdminDashboard() {
                           <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
                           <th>{language === 'uz' ? "Sig'im" : 'Вместимость'}</th>
                           <th>{language === 'uz' ? 'Shakl' : 'Форма'}</th>
+                          <th>{language === 'uz' ? 'Kategoriya' : 'Категория'}</th>
+                          <th>{language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}</th>
                           <th>{language === 'uz' ? "O'lcham" : 'Размер'}</th>
                           <th>{language === 'uz' ? 'Turi' : 'Тип'}</th>
                           <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
@@ -8124,6 +8139,7 @@ function SuperAdminDashboard() {
                       <tbody>
                         {reservationTemplates.map((template) => {
                           const shapeLabel = RESERVATION_TEMPLATE_SHAPE_OPTIONS.find((item) => item.value === template.shape);
+                          const categoryLabel = RESERVATION_TEMPLATE_CATEGORY_OPTIONS.find((item) => item.value === String(template.furniture_category || 'tables_chairs'));
                           const imageSrc = String(template.image_url || '').trim();
                           const isSystem = template.is_system === true || template.is_system === 'true';
                           return (
@@ -8141,6 +8157,8 @@ function SuperAdminDashboard() {
                               <td className="fw-semibold">{template.name}</td>
                               <td>{template.seats_count || 0}</td>
                               <td>{shapeLabel ? (language === 'uz' ? shapeLabel.uz : shapeLabel.ru) : (template.shape || '—')}</td>
+                              <td>{categoryLabel ? (language === 'uz' ? categoryLabel.uz : categoryLabel.ru) : '—'}</td>
+                              <td>{template.activity_type_name || (language === 'uz' ? 'Barchasi uchun' : 'Для всех')}</td>
                               <td>{Number.parseFloat(template.width || 0).toFixed(1)} × {Number.parseFloat(template.height || 0).toFixed(1)}</td>
                               <td>
                                 <Badge className={`badge-custom ${isSystem ? 'bg-secondary bg-opacity-10 text-muted' : 'bg-success bg-opacity-10 text-success'}`}>
@@ -8185,7 +8203,7 @@ function SuperAdminDashboard() {
                           );
                         })}
                         {!reservationTemplates.length && (
-                          <tr><td colSpan="8" className="text-center py-5 text-muted">{language === 'uz' ? "Mebel shablonlari yo'q" : 'Шаблоны мебели пока не добавлены'}</td></tr>
+                          <tr><td colSpan="10" className="text-center py-5 text-muted">{language === 'uz' ? "Mebel shablonlari yo'q" : 'Шаблоны мебели пока не добавлены'}</td></tr>
                         )}
                       </tbody>
                     </Table>
@@ -12869,6 +12887,50 @@ function SuperAdminDashboard() {
               ))}
             </Form.Select>
           </Form.Group>
+
+          <Row className="g-3 mb-3">
+            <Col md={6}>
+              <Form.Label>{language === 'uz' ? 'Kategoriya' : 'Категория'} *</Form.Label>
+              <Form.Select
+                value={reservationTemplateForm.furniture_category}
+                onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, furniture_category: e.target.value }))}
+              >
+                {RESERVATION_TEMPLATE_CATEGORY_OPTIONS.map((item) => (
+                  <option key={`reservation-template-category-${item.value}`} value={item.value}>
+                    {language === 'uz' ? item.uz : item.ru}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
+            <Col md={6}>
+              <Form.Label>{language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}</Form.Label>
+              <Form.Select
+                value={reservationTemplateForm.activity_type_id || ''}
+                onChange={(e) => setReservationTemplateForm((prev) => ({ ...prev, activity_type_id: e.target.value }))}
+              >
+                <option value="">{language === 'uz' ? 'Barcha yo‘nalishlar uchun' : 'Для всех направлений'}</option>
+                {[...(activityTypes || [])]
+                  .sort((a, b) => {
+                    const aOrder = Number.parseInt(a?.sort_order, 10);
+                    const bOrder = Number.parseInt(b?.sort_order, 10);
+                    const safeAOrder = Number.isFinite(aOrder) ? aOrder : 0;
+                    const safeBOrder = Number.isFinite(bOrder) ? bOrder : 0;
+                    if (safeAOrder !== safeBOrder) return safeAOrder - safeBOrder;
+                    return String(a?.name || '').localeCompare(String(b?.name || ''), language === 'uz' ? 'uz' : 'ru');
+                  })
+                  .map((item) => (
+                    <option key={`reservation-template-activity-type-${item.id}`} value={String(item.id)}>
+                      {item.name}
+                    </option>
+                  ))}
+              </Form.Select>
+              <Form.Text className="text-muted">
+                {language === 'uz'
+                  ? "Bo'sh qoldirilsa, barcha faoliyat turlarida ko'rinadi."
+                  : 'Если не выбрано, шаблон виден для всех видов деятельности.'}
+              </Form.Text>
+            </Col>
+          </Row>
 
           <Form.Group className="mb-2">
             <Form.Label>PNG *</Form.Label>

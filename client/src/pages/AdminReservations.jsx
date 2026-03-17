@@ -96,6 +96,14 @@ const createEmptyTableForm = () => ({
   x: 50,
   y: 50
 });
+const TEMPLATE_CATEGORY_OPTIONS = [
+  { value: 'all', ru: 'Все категории', uz: 'Barcha toifalar' },
+  { value: 'tables_chairs', ru: 'Столы и стулья', uz: 'Stol va stullar' },
+  { value: 'bed', ru: 'Кровати', uz: 'Krovatlar' },
+  { value: 'garage_box', ru: 'Гараж / бокс', uz: 'Garaj / boks' },
+  { value: 'work_desk', ru: 'Рабочий стол', uz: 'Ish stoli' },
+  { value: 'bunk', ru: 'Койки', uz: 'Koykalar' }
+];
 
 function AdminReservations() {
   const navigate = useNavigate();
@@ -143,6 +151,7 @@ function AdminReservations() {
   const [templates, setTemplates] = useState([]);
   const [tables, setTables] = useState([]);
   const [tableForm, setTableForm] = useState(createEmptyTableForm);
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState('all');
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [reservations, setReservations] = useState([]);
@@ -286,6 +295,13 @@ function AdminReservations() {
     () => templates.find((template) => Number(template.id) === Number(tableForm.template_id)) || null,
     [templates, tableForm.template_id]
   );
+  const filteredTemplates = useMemo(() => (
+    templates.filter((template) => (
+      templateCategoryFilter === 'all'
+        ? true
+        : String(template?.furniture_category || 'tables_chairs') === templateCategoryFilter
+    ))
+  ), [templates, templateCategoryFilter]);
   const selectedPlanTable = useMemo(
     () => tables.find((table) => Number(table.id) === Number(selectedPlanTableId)) || null,
     [tables, selectedPlanTableId]
@@ -1788,6 +1804,19 @@ function AdminReservations() {
                 <div className="small text-muted mb-2">
                   {tx('Перетащите карточку мебели на схему для мгновенного добавления.', 'Tez qo\'shish uchun mebel kartasini sxemaga sudrab olib boring.')}
                 </div>
+                <Form.Group className="mb-2">
+                  <Form.Select
+                    size="sm"
+                    value={templateCategoryFilter}
+                    onChange={(event) => setTemplateCategoryFilter(event.target.value)}
+                  >
+                    {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
+                      <option key={`plan-template-category-${option.value}`} value={option.value}>
+                        {tx(option.ru, option.uz)}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
                 <div className="admin-reservation-plan-template-grid mb-2">
                   <button
                     type="button"
@@ -1801,7 +1830,7 @@ function AdminReservations() {
                   >
                     <span className="small text-muted">{tx('Без шаблона', 'Shablonsiz')}</span>
                   </button>
-                  {templates.map((template) => {
+                  {filteredTemplates.map((template) => {
                     const isActive = Number(tableForm.template_id) === Number(template.id);
                     const imageUrl = toAbsoluteMediaUrl(template.image_url);
                     return (
@@ -2067,6 +2096,19 @@ function AdminReservations() {
                 <div className="small fw-semibold text-dark mb-2">
                   {tx('Галерея мебели', 'Mebel galereyasi')}
                 </div>
+                <Form.Group className="mb-2">
+                  <Form.Select
+                    size="sm"
+                    value={templateCategoryFilter}
+                    onChange={(event) => setTemplateCategoryFilter(event.target.value)}
+                  >
+                    {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
+                      <option key={`modal-template-category-${option.value}`} value={option.value}>
+                        {tx(option.ru, option.uz)}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
                 <div className="d-flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -2076,7 +2118,7 @@ function AdminReservations() {
                   >
                     {tx('Без шаблона', 'Shablonsiz')}
                   </Button>
-                  {templates.map((template) => {
+                  {filteredTemplates.map((template) => {
                     const isActive = Number(tableForm.template_id) === Number(template.id);
                     const imageUrl = toAbsoluteMediaUrl(template.image_url);
                     return (

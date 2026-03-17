@@ -228,6 +228,8 @@ CREATE TABLE IF NOT EXISTS reservation_table_templates (
   code VARCHAR(80) NOT NULL,
   name VARCHAR(160) NOT NULL,
   shape VARCHAR(20) DEFAULT 'round' CHECK (shape IN ('round', 'square', 'rect', 'sofa', 'custom')),
+  furniture_category VARCHAR(32) DEFAULT 'tables_chairs' CHECK (furniture_category IN ('tables_chairs', 'bed', 'garage_box', 'work_desk', 'bunk')),
+  activity_type_id INTEGER,
   seats_count INTEGER DEFAULT 2,
   width DECIMAL(8, 2) DEFAULT 1,
   height DECIMAL(8, 2) DEFAULT 1,
@@ -378,6 +380,8 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity_type
 CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_table_templates_code ON reservation_table_templates (LOWER(code));
+CREATE INDEX IF NOT EXISTS idx_reservation_table_templates_furniture_category ON reservation_table_templates(furniture_category, id);
+CREATE INDEX IF NOT EXISTS idx_reservation_table_templates_activity_type_id ON reservation_table_templates(activity_type_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_tables_floor_name ON reservation_tables (floor_id, LOWER(name));
 CREATE INDEX IF NOT EXISTS idx_reservation_floors_restaurant ON reservation_floors(restaurant_id, sort_order, id);
 CREATE INDEX IF NOT EXISTS idx_reservation_tables_restaurant_floor ON reservation_tables(restaurant_id, floor_id, is_active, id);
