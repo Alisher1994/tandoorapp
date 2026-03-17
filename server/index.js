@@ -185,7 +185,7 @@ const cspReportOnlyValue = [
   "font-src 'self' data: https:",
   "connect-src 'self' https: wss:",
   "media-src 'self' blob: data: https:",
-  "frame-src 'self' https://web.telegram.org https://*.telegram.org https://yandex.ru https://*.yandex.ru https://www.google.com https://maps.google.com"
+  "frame-src 'self' https://web.telegram.org https://*.telegram.org https://yandex.ru https://*.yandex.ru https://www.google.com https://maps.google.com https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://youtube-nocookie.com"
 ].join('; ');
 const permissionsPolicyValue = [
   'accelerometer=()',
