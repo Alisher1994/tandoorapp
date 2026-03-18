@@ -1075,7 +1075,6 @@ function Reservations() {
                               }
                             }}
                           />
-                          <small className="client-res-overlay-value-preview">{bookingDateCompact}</small>
                         </div>
                         <div className="client-res-overlay-row">
                           <span className="client-res-overlay-label">{t('Этаж', 'Qavat')}</span>
@@ -1217,24 +1216,29 @@ function Reservations() {
                             />
                           </Form.Group>
 
-                          <Form.Group className="mb-3">
-                            <Form.Label>{t('Начало', 'Boshlanish')}</Form.Label>
-                            <Form.Control
-                              type="text"
-                              readOnly
-                              className="client-res-readonly-input"
-                              value={startTime}
-                            />
-                          </Form.Group>
-
-                          <Form.Group className="mb-3">
-                            <Form.Label>{t('До', 'Gacha')}</Form.Label>
-                            <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
-                              {bookingEndOptions.map((option) => (
-                                <option key={option.duration} value={option.duration}>{option.endTime} ({option.duration} {t('мин', 'daq')})</option>
-                              ))}
-                            </Form.Select>
-                          </Form.Group>
+                          <Row className="g-2 mb-3">
+                            <Col xs={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label>{t('Начало', 'Boshlanish')}</Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  readOnly
+                                  className="client-res-readonly-input"
+                                  value={startTime}
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col xs={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label>{t('До', 'Gacha')}</Form.Label>
+                                <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
+                                  {bookingEndOptions.map((option) => (
+                                    <option key={option.duration} value={option.duration}>{option.endTime}</option>
+                                  ))}
+                                </Form.Select>
+                              </Form.Group>
+                            </Col>
+                          </Row>
 
                           <Form.Group className="mb-3">
                             <Form.Label>{t('Количество гостей', 'Mehmonlar soni')}</Form.Label>
