@@ -3728,6 +3728,70 @@ router.post('/global-products/image-preview', async (req, res) => {
   }
 });
 
+router.post('/categories/image-preview', async (req, res) => {
+  try {
+    const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
+    const requestedMode = ['generate', 'process'].includes(modeRaw) ? modeRaw : 'auto';
+    const categoryName = toOptionalTrimmedText(req.body?.name || req.body?.name_ru || req.body?.name_uz).slice(0, 180);
+    const sourceImageUrl = toOptionalTrimmedText(req.body?.image_url);
+    const effectiveMode = requestedMode === 'auto'
+      ? (sourceImageUrl ? 'process' : 'generate')
+      : requestedMode;
+
+    let sourceBuffer;
+    let provider = 'source_upload';
+
+    if (effectiveMode === 'process') {
+      const resolvedSourceUrl = resolveGlobalProductAiImageSourceUrl(sourceImageUrl, req);
+      if (!resolvedSourceUrl) {
+        return res.status(400).json({
+          error: 'Для обработки сначала выберите фото категории (доступны только /uploads или доверенные http/https ссылки)'
+        });
+      }
+      sourceBuffer = await downloadGlobalProductAiSourceImage(resolvedSourceUrl);
+    } else {
+      if (!categoryName) {
+        return res.status(400).json({ error: 'Укажите название категории для генерации изображения' });
+      }
+      const generated = await generateGlobalProductImageByName(categoryName);
+      sourceBuffer = generated.buffer;
+      provider = generated.provider || 'generator';
+    }
+
+    const previewBuffer = await prepareGlobalProductTransparentPreview(sourceBuffer);
+    const previewUrl = await saveGlobalProductAiImage(previewBuffer);
+
+    res.json({
+      preview_url: previewUrl,
+      provider,
+      mode: effectiveMode
+    });
+  } catch (error) {
+    console.error('Category image preview error:', error);
+    const rawMessage = String(error?.message || '').trim();
+    const lowMessage = rawMessage.toLowerCase();
+    const isInputError = lowMessage.includes('укажите название')
+      || lowMessage.includes('выберите фото')
+      || lowMessage.includes('источник')
+      || lowMessage.includes('некоррект');
+    const isUpstreamError = Boolean(error?.isAxiosError)
+      || lowMessage.includes('timeout')
+      || lowMessage.includes('fetch failed')
+      || lowMessage.includes('pollinations')
+      || lowMessage.includes('gemini');
+    const statusCode = isInputError ? 400 : (isUpstreamError ? 502 : 500);
+    const baseErrorText = statusCode === 502
+      ? 'Внешний AI-сервис сейчас недоступен. Попробуйте еще раз или используйте обработку выбранного фото.'
+      : 'Не удалось подготовить preview изображения категории';
+    const details = rawMessage ? rawMessage.slice(0, 220) : undefined;
+
+    res.status(statusCode).json({
+      error: baseErrorText,
+      ...(details ? { details } : {})
+    });
+  }
+});
+
 router.get('/global-products', async (req, res) => {
   try {
     await ensureGlobalProductsSchema();

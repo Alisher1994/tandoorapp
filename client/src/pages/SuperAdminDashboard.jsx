@@ -794,6 +794,10 @@ function SuperAdminDashboard() {
   const [categoryForm, setCategoryForm] = useState({ id: null, name_ru: '', name_uz: '', image_url: '', sort_order: 0, parent_id: null });
   const [editingLevel, setEditingLevel] = useState(0);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [categoryAiPreviewUrl, setCategoryAiPreviewUrl] = useState('');
+  const [categoryAiMode, setCategoryAiMode] = useState('');
+  const [categoryAiLoading, setCategoryAiLoading] = useState(false);
+  const [categoryAiError, setCategoryAiError] = useState('');
   const [isImportingCategories, setIsImportingCategories] = useState(false);
   const [globalProducts, setGlobalProducts] = useState({ items: [], total: 0, page: 1, limit: 15 });
   const [globalProductsLoading, setGlobalProductsLoading] = useState(false);
@@ -822,6 +826,7 @@ function SuperAdminDashboard() {
   const [globalProductTextLoading, setGlobalProductTextLoading] = useState(false);
   const categoryImportInputRef = useRef(null);
   const globalProductImageInputRef = useRef(null);
+  const categoryAiRequestIdRef = useRef(0);
   const globalProductAiRequestIdRef = useRef(0);
   const hiddenOpsConsoleInputRef = useRef(null);
   const hiddenOpsHotkeyLastPressedRef = useRef(0);
@@ -2328,6 +2333,82 @@ function SuperAdminDashboard() {
     return `${API_URL.replace('/api', '')}${raw.startsWith('/') ? '' : '/'}${raw}`;
   };
 
+  const runCategoryAiPreview = async (mode) => {
+    const normalizedMode = mode === 'process' ? 'process' : 'generate';
+    const categoryName = String(categoryForm.name_ru || categoryForm.name_uz || '').trim();
+    const sourceImageUrl = String(categoryForm.image_url || '').trim();
+
+    if (normalizedMode === 'generate' && !categoryName) {
+      setCategoryAiError(language === 'uz'
+        ? "Avval kategoriya nomini kiriting"
+        : 'Сначала укажите название категории');
+      return;
+    }
+    if (normalizedMode === 'process' && !sourceImageUrl) {
+      setCategoryAiError(language === 'uz'
+        ? "Avval kategoriya rasmini tanlang"
+        : 'Сначала выберите фото категории');
+      return;
+    }
+
+    const requestId = categoryAiRequestIdRef.current + 1;
+    categoryAiRequestIdRef.current = requestId;
+    setCategoryAiError('');
+    setCategoryAiMode(normalizedMode);
+    setCategoryAiLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/superadmin/categories/image-preview`, {
+        mode: normalizedMode,
+        name: categoryName,
+        image_url: sourceImageUrl
+      });
+      if (categoryAiRequestIdRef.current !== requestId) return;
+
+      const previewUrl = String(response.data?.preview_url || '').trim();
+      if (!previewUrl) {
+        setCategoryAiError(language === 'uz'
+          ? "Preview tayyor bo'lmadi"
+          : 'Preview не был получен');
+        return;
+      }
+      setCategoryAiPreviewUrl(previewUrl);
+      setCategoryAiMode(String(response.data?.mode || normalizedMode));
+    } catch (err) {
+      if (categoryAiRequestIdRef.current !== requestId) return;
+      const serverError = String(err.response?.data?.error || '').trim();
+      const serverDetails = String(err.response?.data?.details || '').trim();
+      const fallbackError = language === 'uz'
+        ? 'Preview tayyorlashda xatolik'
+        : 'Ошибка подготовки preview';
+      setCategoryAiError(serverDetails ? `${serverError || fallbackError}: ${serverDetails}` : (serverError || fallbackError));
+    } finally {
+      if (categoryAiRequestIdRef.current === requestId) {
+        setCategoryAiLoading(false);
+      }
+    }
+  };
+
+  const handleRegenerateCategoryAiPreview = () => {
+    const hasSourceImage = Boolean(String(categoryForm.image_url || '').trim());
+    const hasCategoryName = Boolean(String(categoryForm.name_ru || categoryForm.name_uz || '').trim());
+    let mode = 'generate';
+    if (categoryAiMode === 'process' && hasSourceImage) {
+      mode = 'process';
+    } else if (!hasCategoryName && hasSourceImage) {
+      mode = 'process';
+    } else if (hasCategoryName) {
+      mode = 'generate';
+    } else if (hasSourceImage) {
+      mode = 'process';
+    } else {
+      setCategoryAiError(language === 'uz'
+        ? 'Qayta yaratish uchun nom yoki rasm kerak'
+        : 'Для перегенерации нужно название или исходное фото');
+      return;
+    }
+    runCategoryAiPreview(mode);
+  };
+
   const handleGenerateGlobalProductText = async () => {
     const nameRu = String(globalProductForm.name_ru || '').trim();
     const nameUz = String(globalProductForm.name_uz || '').trim();
@@ -2550,6 +2631,18 @@ function SuperAdminDashboard() {
     setGlobalProductAiMode('');
     handleImageUpload(file, (url) => {
       setGlobalProductForm((prev) => ({ ...prev, image_url: url }));
+    });
+  };
+
+  const handleCategoryImageUpload = (event) => {
+    const file = event.target?.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setCategoryAiError('');
+    setCategoryAiPreviewUrl('');
+    setCategoryAiMode('');
+    handleImageUpload(file, (url) => {
+      setCategoryForm((prev) => ({ ...prev, image_url: url }));
     });
   };
 
@@ -3875,7 +3968,21 @@ function SuperAdminDashboard() {
   };
 
   // Container functions
+  const closeCategoryModal = () => {
+    categoryAiRequestIdRef.current += 1;
+    setShowCategoryModal(false);
+    setCategoryAiPreviewUrl('');
+    setCategoryAiMode('');
+    setCategoryAiLoading(false);
+    setCategoryAiError('');
+  };
+
   const openCategoryModal = (levelIndex, parentCategory = null, categoryToEdit = null) => {
+    categoryAiRequestIdRef.current += 1;
+    setCategoryAiPreviewUrl('');
+    setCategoryAiMode('');
+    setCategoryAiLoading(false);
+    setCategoryAiError('');
     setEditingLevel(levelIndex);
     const pId = parentCategory ? parentCategory.id : null;
 
@@ -3933,14 +4040,19 @@ function SuperAdminDashboard() {
     }
 
     try {
+      const normalizedImageUrl = String(categoryAiPreviewUrl || categoryForm.image_url || '').trim();
+      const payload = {
+        ...categoryForm,
+        image_url: normalizedImageUrl
+      };
       if (categoryForm.id) {
-        await axios.put(`${API_URL}/superadmin/categories/${categoryForm.id}`, categoryForm);
+        await axios.put(`${API_URL}/superadmin/categories/${categoryForm.id}`, payload);
         setSuccess('Категория обновлена');
       } else {
-        await axios.post(`${API_URL}/superadmin/categories`, categoryForm);
+        await axios.post(`${API_URL}/superadmin/categories`, payload);
         setSuccess('Категория добавлена');
       }
-      setShowCategoryModal(false);
+      closeCategoryModal();
       loadCategories();
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка сохранения категории');
@@ -13383,7 +13495,7 @@ function SuperAdminDashboard() {
       </Modal>
 
       {/* Category Modal */}
-      <Modal show={showCategoryModal} onHide={() => setShowCategoryModal(false)}>
+      <Modal show={showCategoryModal} onHide={closeCategoryModal}>
           <Modal.Header closeButton>
           <Modal.Title>
             {categoryForm.id ? 'Редактировать категорию' : 'Добавить категорию'}
@@ -13418,26 +13530,28 @@ function SuperAdminDashboard() {
               <Form.Control
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    handleImageUpload(file, (url) => setCategoryForm({ ...categoryForm, image_url: url }));
-                  }
-                }}
-                disabled={uploadingImage}
+                onChange={handleCategoryImageUpload}
+                disabled={uploadingImage || categoryAiLoading}
               />
               {categoryForm.image_url && (
                 <div className="mt-2 text-center border p-2 rounded bg-light">
                   <img
-                    src={categoryForm.image_url}
+                    src={resolveGlobalProductImagePreviewUrl(categoryForm.image_url)}
                     alt="Preview"
                     style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'cover' }}
                   />
                   <Button
+                    type="button"
                     variant="link"
                     size="sm"
                     className="text-danger d-block w-100 mt-2 text-decoration-none"
-                    onClick={() => setCategoryForm({ ...categoryForm, image_url: '' })}
+                    onClick={() => {
+                      setCategoryForm((prev) => ({ ...prev, image_url: '' }));
+                      setCategoryAiPreviewUrl('');
+                      setCategoryAiMode('');
+                      setCategoryAiError('');
+                    }}
+                    disabled={categoryAiLoading}
                   >
                     Удалить изображение
                   </Button>
@@ -13448,10 +13562,92 @@ function SuperAdminDashboard() {
               <Form.Control
                 type="url"
                 value={categoryForm.image_url}
-                onChange={(e) => setCategoryForm({ ...categoryForm, image_url: e.target.value })}
+                onChange={(e) => {
+                  setCategoryAiError('');
+                  setCategoryAiPreviewUrl('');
+                  setCategoryAiMode('');
+                  setCategoryForm({ ...categoryForm, image_url: e.target.value });
+                }}
                 placeholder="https://example.com/image.jpg"
                 className="mt-1"
+                disabled={categoryAiLoading}
               />
+
+              <div className="d-flex flex-wrap gap-2 mt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline-primary"
+                  onClick={() => runCategoryAiPreview('generate')}
+                  disabled={categoryAiLoading || !String(categoryForm.name_ru || categoryForm.name_uz || '').trim()}
+                >
+                  {language === 'uz' ? 'Generatsiya' : 'Генерация'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline-primary"
+                  onClick={() => runCategoryAiPreview('process')}
+                  disabled={categoryAiLoading || !String(categoryForm.image_url || '').trim()}
+                >
+                  {language === 'uz' ? 'Обработка' : 'Обработать'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline-secondary"
+                  onClick={handleRegenerateCategoryAiPreview}
+                  disabled={categoryAiLoading || (!String(categoryForm.name_ru || categoryForm.name_uz || '').trim() && !String(categoryForm.image_url || '').trim())}
+                >
+                  {language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
+                </Button>
+              </div>
+
+              <div className="mt-3 text-center border p-2 rounded bg-light">
+                <div className="d-flex align-items-center justify-content-between px-1 mb-2">
+                  <span className="small text-muted fw-semibold">AI preview</span>
+                  {categoryAiMode && (
+                    <Badge bg={categoryAiMode === 'process' ? 'secondary' : 'primary'}>
+                      {categoryAiMode === 'process'
+                        ? (language === 'uz' ? 'Обработка' : 'Обработка')
+                        : (language === 'uz' ? 'Generatsiya' : 'Генерация')}
+                    </Badge>
+                  )}
+                </div>
+                {categoryAiPreviewUrl ? (
+                  <img
+                    src={resolveGlobalProductImagePreviewUrl(categoryAiPreviewUrl)}
+                    alt="Category AI preview"
+                    style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div className="text-muted py-3 small">
+                    {categoryAiLoading
+                      ? (language === 'uz' ? "Preview tayyorlanmoqda..." : 'Подготовка preview...')
+                      : (language === 'uz' ? "Preview hali yo'q" : 'Preview пока не создан')}
+                  </div>
+                )}
+                {categoryAiPreviewUrl && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline-success"
+                    className="mt-2"
+                    onClick={() => {
+                      setCategoryForm((prev) => ({ ...prev, image_url: categoryAiPreviewUrl }));
+                      setCategoryAiError('');
+                    }}
+                    disabled={categoryAiLoading}
+                  >
+                    {language === 'uz' ? "Preview ni qo'llash" : 'Применить preview'}
+                  </Button>
+                )}
+              </div>
+              {categoryAiError && (
+                <Alert variant="warning" className="mt-2 mb-0 py-2 px-3">
+                  {categoryAiError}
+                </Alert>
+              )}
             </Form.Group>
 
             <Form.Group className="mb-3">
@@ -13473,7 +13669,7 @@ function SuperAdminDashboard() {
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowCategoryModal(false)}>{t('saCancel')}</Button>
+            <Button type="button" variant="secondary" onClick={closeCategoryModal}>{t('saCancel')}</Button>
             <Button variant="primary" type="submit">{t('saSave')}</Button>
           </Modal.Footer>
         </Form>
