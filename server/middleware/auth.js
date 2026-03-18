@@ -61,6 +61,32 @@ const authenticate = async (req, res, next) => {
 
     const user = userResult.rows[0];
 
+    // Operator/superadmin tokens can carry explicit restaurant context (e.g. "My store" button in bot).
+    // Respect it when user has access to that restaurant to prevent opening the wrong store.
+    if ((user.role === 'operator' || user.role === 'superadmin') && tokenRestaurantId) {
+      const adminRestaurantAccessResult = await pool.query(`
+        SELECT 1
+        FROM operator_restaurants opr
+        INNER JOIN restaurants r ON r.id = opr.restaurant_id
+        WHERE opr.user_id = $1
+          AND opr.restaurant_id = $2
+          AND r.is_active = true
+        LIMIT 1
+      `, [user.id, tokenRestaurantId]);
+
+      if (adminRestaurantAccessResult.rows.length === 0) {
+        return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+      }
+
+      if (Number(user.active_restaurant_id) !== Number(tokenRestaurantId)) {
+        await pool.query(
+          'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
+          [tokenRestaurantId, user.id]
+        );
+      }
+      user.active_restaurant_id = tokenRestaurantId;
+    }
+
     // Customer tokens can carry restaurant context; apply it per session to avoid cross-store leakage.
     if (user.role === 'customer' && tokenRestaurantId) {
       const customerRestaurantAccessResult = await pool.query(`
