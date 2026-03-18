@@ -818,6 +818,7 @@ function SuperAdminDashboard() {
   const [globalProductAiMode, setGlobalProductAiMode] = useState('');
   const [globalProductAiLoading, setGlobalProductAiLoading] = useState(false);
   const [globalProductAiError, setGlobalProductAiError] = useState('');
+  const [globalProductTextLoading, setGlobalProductTextLoading] = useState(false);
   const categoryImportInputRef = useRef(null);
   const globalProductImageInputRef = useRef(null);
   const globalProductAiRequestIdRef = useRef(0);
@@ -2279,6 +2280,7 @@ function SuperAdminDashboard() {
     setGlobalProductAiMode('');
     setGlobalProductAiLoading(false);
     setGlobalProductAiError('');
+    setGlobalProductTextLoading(false);
   };
 
   const openGlobalProductModal = (product = null) => {
@@ -2291,6 +2293,7 @@ function SuperAdminDashboard() {
     setGlobalProductAiMode('');
     setGlobalProductAiLoading(false);
     setGlobalProductAiError('');
+    setGlobalProductTextLoading(false);
 
     if (product) {
       setEditingGlobalProduct(product);
@@ -2321,6 +2324,47 @@ function SuperAdminDashboard() {
     if (!raw) return '';
     if (/^(https?:\/\/|data:image\/|blob:)/i.test(raw)) return raw;
     return `${API_URL.replace('/api', '')}${raw.startsWith('/') ? '' : '/'}${raw}`;
+  };
+
+  const handleGenerateGlobalProductText = async () => {
+    const nameRu = String(globalProductForm.name_ru || '').trim();
+    const nameUz = String(globalProductForm.name_uz || '').trim();
+    if (!nameRu && !nameUz) {
+      setError(language === 'uz'
+        ? "Avval mahsulot nomini kamida bitta tilda kiriting"
+        : 'Сначала укажите название товара хотя бы на одном языке');
+      return;
+    }
+
+    setGlobalProductTextLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/superadmin/global-products/description-preview`, {
+        name_ru: nameRu,
+        name_uz: nameUz
+      });
+      const nextNameRu = String(response.data?.name_ru || nameRu || nameUz || '').trim();
+      const nextNameUz = String(response.data?.name_uz || nameUz || nameRu || '').trim();
+      const nextDescriptionRu = String(response.data?.description_ru || '').trim();
+      const nextDescriptionUz = String(response.data?.description_uz || '').trim();
+
+      setGlobalProductForm((prev) => ({
+        ...prev,
+        name_ru: nextNameRu,
+        name_uz: nextNameUz,
+        description_ru: nextDescriptionRu,
+        description_uz: nextDescriptionUz
+      }));
+      setSuccess(language === 'uz'
+        ? 'RU/UZ matnlari yaratildi'
+        : 'Тексты RU/UZ сгенерированы');
+    } catch (err) {
+      setError(
+        String(err.response?.data?.error || '').trim()
+        || (language === 'uz' ? 'Matn yaratishda xatolik' : 'Ошибка генерации текста')
+      );
+    } finally {
+      setGlobalProductTextLoading(false);
+    }
   };
 
   const runGlobalProductAiPreview = async (mode) => {
@@ -11442,6 +11486,18 @@ function SuperAdminDashboard() {
                   placeholder={language === 'uz' ? 'UZ tavsif' : 'Описание на узбекском'}
                 />
               </Form.Group>
+            </Col>
+            <Col md={12} className="d-flex justify-content-end">
+              <Button
+                size="sm"
+                variant="outline-primary"
+                onClick={handleGenerateGlobalProductText}
+                disabled={globalProductTextLoading || (!String(globalProductForm.name_ru || '').trim() && !String(globalProductForm.name_uz || '').trim())}
+              >
+                {globalProductTextLoading
+                  ? (language === 'uz' ? 'Yaratilmoqda...' : 'Генерация...')
+                  : (language === 'uz' ? 'RU/UZ matn yaratish' : 'Сгенерировать текст RU/UZ')}
+              </Button>
             </Col>
 
             <Col md={4}>

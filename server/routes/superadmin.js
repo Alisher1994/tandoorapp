@@ -76,6 +76,12 @@ const GEMINI_IMAGE_MODEL_CANDIDATES = [
   'gemini-2.5-flash',
   'gemini-2.0-flash'
 ].filter(Boolean);
+const GEMINI_TEXT_MODEL_CANDIDATES = [
+  process.env.GEMINI_TEXT_MODEL,
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-flash-latest'
+].filter(Boolean);
 const uploadsDir = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
   : path.join(__dirname, '../../uploads');
@@ -577,13 +583,41 @@ const extractGeminiInlineImageBuffer = (payload) => {
   return null;
 };
 
+const extractGeminiTextContent = (payload) => {
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+  for (const candidate of candidates) {
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+    for (const part of parts) {
+      const text = String(part?.text || '').trim();
+      if (text) return text;
+    }
+  }
+  return '';
+};
+
+const extractFirstJsonObject = (value) => {
+  const source = String(value || '').trim();
+  if (!source) return null;
+  const firstBrace = source.indexOf('{');
+  const lastBrace = source.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
+  const candidate = source.slice(firstBrace, lastBrace + 1);
+  try {
+    return JSON.parse(candidate);
+  } catch (_) {
+    return null;
+  }
+};
+
+const resolveGeminiApiKey = () => String(
+  process.env.GEMINI_API_KEY
+  || process.env.GOOGLE_GEMINI_API_KEY
+  || process.env.GOOGLE_AI_API_KEY
+  || ''
+).trim();
+
 const generateGlobalProductImageWithGemini = async (prompt) => {
-  const apiKey = String(
-    process.env.GEMINI_API_KEY
-    || process.env.GOOGLE_GEMINI_API_KEY
-    || process.env.GOOGLE_AI_API_KEY
-    || ''
-  ).trim();
+  const apiKey = resolveGeminiApiKey();
   if (!apiKey) return null;
 
   let lastError = null;
@@ -611,6 +645,116 @@ const generateGlobalProductImageWithGemini = async (prompt) => {
   }
   if (lastError) throw lastError;
   return null;
+};
+
+const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false } = {}) => {
+  const apiKey = resolveGeminiApiKey();
+  if (!apiKey) return null;
+
+  let lastError = null;
+  for (const model of GEMINI_TEXT_MODEL_CANDIDATES) {
+    try {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.35,
+            ...(expectJson ? { responseMimeType: 'application/json' } : {})
+          }
+        },
+        {
+          timeout: 65000,
+          maxBodyLength: 4 * 1024 * 1024
+        }
+      );
+      const text = extractGeminiTextContent(response.data);
+      if (text) {
+        return { text, provider: `gemini:${model}` };
+      }
+      lastError = new Error('Gemini не вернул текст');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+};
+
+const normalizeCatalogText = (value, maxLength = 3000) => String(value || '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, maxLength);
+
+const buildLocalGlobalProductTextFallback = ({ nameRu, nameUz }) => {
+  const normalizedNameRu = normalizeCatalogText(nameRu || nameUz, 255);
+  const normalizedNameUz = normalizeCatalogText(nameUz || nameRu, 255);
+  return {
+    name_ru: normalizedNameRu,
+    name_uz: normalizedNameUz,
+    description_ru: normalizeCatalogText(
+      normalizedNameRu
+        ? `${normalizedNameRu} — качественный товар для ежедневного использования и продажи в заведении.`
+        : 'Качественный товар для ежедневного использования и продажи в заведении.',
+      3000
+    ),
+    description_uz: normalizeCatalogText(
+      normalizedNameUz
+        ? `${normalizedNameUz} — kundalik foydalanish va savdo uchun mos sifatli mahsulot.`
+        : "Kundalik foydalanish va savdo uchun mos sifatli mahsulot.",
+      3000
+    ),
+    provider: 'local-template'
+  };
+};
+
+const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
+  const normalizedRu = normalizeCatalogText(nameRu, 255);
+  const normalizedUz = normalizeCatalogText(nameUz, 255);
+  if (!normalizedRu && !normalizedUz) {
+    throw new Error('Укажите хотя бы одно название товара (RU или UZ)');
+  }
+
+  const prompt = [
+    'Ты ассистент каталога товаров ресторана.',
+    'Верни только валидный JSON без markdown, без комментариев.',
+    'Схема JSON строго:',
+    '{"name_ru":"...","name_uz":"...","description_ru":"...","description_uz":"..."}',
+    `name_ru_input: "${normalizedRu || ''}"`,
+    `name_uz_input: "${normalizedUz || ''}"`,
+    'Требования:',
+    '1) Если name_ru_input пуст, переведи из name_uz_input на русский и заполни name_ru.',
+    '2) Если name_uz_input пуст, переведи из name_ru_input на узбекский (латиница) и заполни name_uz.',
+    '3) Если поле уже заполнено, не меняй смысл названия и оставь его близким к исходному.',
+    '4) Сформируй description_ru и description_uz: 1-2 коротких предложения, по делу, без эмодзи, без рекламных слоганов, без цен.',
+    '5) Описания должны соответствовать одному и тому же товару.'
+  ].join('\n');
+
+  try {
+    const result = await generateGlobalProductTextWithGemini(prompt, { expectJson: true });
+    if (!result?.text) {
+      return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+    }
+    const parsed = extractFirstJsonObject(result.text);
+    if (!parsed || typeof parsed !== 'object') {
+      return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+    }
+    const outputNameRu = normalizeCatalogText(parsed.name_ru || normalizedRu || normalizedUz, 255);
+    const outputNameUz = normalizeCatalogText(parsed.name_uz || normalizedUz || normalizedRu, 255);
+    const fallback = buildLocalGlobalProductTextFallback({ nameRu: outputNameRu, nameUz: outputNameUz });
+
+    return {
+      name_ru: outputNameRu || fallback.name_ru,
+      name_uz: outputNameUz || fallback.name_uz,
+      description_ru: normalizeCatalogText(parsed.description_ru || fallback.description_ru, 3000),
+      description_uz: normalizeCatalogText(parsed.description_uz || fallback.description_uz, 3000),
+      provider: result.provider || 'gemini'
+    };
+  } catch (error) {
+    console.warn('Global product description generation fallback:', error?.message || error);
+    return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+  }
 };
 
 const generateGlobalProductImageWithPollinations = async (prompt) => {
@@ -3487,6 +3631,38 @@ router.get('/operators', async (req, res) => {
 // =====================================================
 // ГЛОБАЛЬНЫЕ ТОВАРЫ (шаблоны для магазинов)
 // =====================================================
+
+router.post('/global-products/description-preview', async (req, res) => {
+  try {
+    const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
+    const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+
+    if (!nameRu && !nameUz) {
+      return res.status(400).json({
+        error: 'Укажите название товара хотя бы на одном языке (RU или UZ)'
+      });
+    }
+
+    const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz });
+    res.json({
+      name_ru: generated.name_ru || nameRu || nameUz,
+      name_uz: generated.name_uz || nameUz || nameRu,
+      description_ru: generated.description_ru || '',
+      description_uz: generated.description_uz || '',
+      provider: generated.provider || 'local-template'
+    });
+  } catch (error) {
+    console.error('Global product description preview error:', error);
+    const rawMessage = String(error?.message || '').trim();
+    const lowMessage = rawMessage.toLowerCase();
+    const statusCode = lowMessage.includes('укажите') ? 400 : 500;
+    res.status(statusCode).json({
+      error: statusCode === 400
+        ? (rawMessage || 'Укажите название товара')
+        : 'Не удалось сгенерировать описание товара'
+    });
+  }
+});
 
 router.post('/global-products/image-preview', async (req, res) => {
   try {
