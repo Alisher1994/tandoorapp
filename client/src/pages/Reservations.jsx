@@ -218,6 +218,8 @@ function Reservations() {
   const planPinchRef = useRef(null);
   const planScaleRef = useRef(1);
   const planOffsetRef = useRef({ x: 0, y: 0 });
+  const planTransformPendingRef = useRef({ scale: 1, offset: { x: 0, y: 0 } });
+  const planTransformRafRef = useRef(null);
   const planManualTransformRef = useRef(false);
   const timeRulerRef = useRef(null);
   const timeRulerAutoScrollRef = useRef(false);
@@ -309,16 +311,49 @@ function Reservations() {
     y: Number((Number(offsetCandidate?.y) || 0).toFixed(3))
   }), []);
 
+  const schedulePlanTransformCommit = useCallback(() => {
+    if (planTransformRafRef.current) return;
+
+    const commit = () => {
+      planTransformRafRef.current = null;
+      const pending = planTransformPendingRef.current;
+
+      setPlanScale((prev) => (Math.abs(prev - pending.scale) < 0.0001 ? prev : pending.scale));
+      setPlanOffset((prev) => (
+        prev.x === pending.offset.x && prev.y === pending.offset.y ? prev : pending.offset
+      ));
+    };
+
+    if (typeof window.requestAnimationFrame === 'function') {
+      planTransformRafRef.current = window.requestAnimationFrame(commit);
+    } else {
+      planTransformRafRef.current = window.setTimeout(commit, 16);
+    }
+  }, []);
+
   const setPlanTransform = useCallback((nextScaleCandidate, nextOffsetCandidate) => {
     const nextScale = clamp(Number(nextScaleCandidate) || 1, PLAN_MIN_SCALE, PLAN_MAX_SCALE);
     const constrainedOffset = constrainOffset(nextOffsetCandidate, nextScale);
     const roundedScale = Number(nextScale.toFixed(4));
 
-    setPlanScale(roundedScale);
-    setPlanOffset(constrainedOffset);
+    planTransformPendingRef.current = {
+      scale: roundedScale,
+      offset: constrainedOffset
+    };
     planScaleRef.current = roundedScale;
     planOffsetRef.current = constrainedOffset;
-  }, [constrainOffset]);
+    schedulePlanTransformCommit();
+  }, [constrainOffset, schedulePlanTransformCommit]);
+
+  useEffect(() => () => {
+    if (!planTransformRafRef.current) return;
+    if (typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(planTransformRafRef.current);
+    } else {
+      window.clearTimeout(planTransformRafRef.current);
+    }
+    planTransformRafRef.current = null;
+  }, []);
 
   const fitPlanToViewport = useCallback(() => {
     const viewport = planViewportRef.current?.getBoundingClientRect();
@@ -943,6 +978,8 @@ function Reservations() {
 
   const handlePlanPointerMove = (event) => {
     if (!planPointersRef.current.has(event.pointerId)) return;
+
+    event.preventDefault();
 
     planPointersRef.current.set(event.pointerId, {
       x: event.clientX,
