@@ -912,7 +912,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         adminUrl ? { text: t(lang, 'adminPanelButton'), web_app: { url: adminUrl } } : { text: t(lang, 'adminPanelButton') },
         storeUrl ? { text: t(lang, 'myStoreButton'), web_app: { url: storeUrl } } : { text: t(lang, 'myStoreButton') }
       ],
-      [{ text: t(lang, 'resetButton') }]
+      [
+        { text: t(lang, 'contactButton') },
+        { text: t(lang, 'resetButton') }
+      ]
     ],
     resize_keyboard: true,
     is_persistent: true
@@ -2474,11 +2477,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const updateResult = await pool.query(
           `UPDATE users
            SET password = $1,
-               username = CASE WHEN $4 <> '' THEN $4 ELSE username END,
+               username = CASE WHEN $3 <> '' THEN $3 ELSE username END,
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2 AND telegram_id = $3
+           WHERE id = $2
            RETURNING username, phone`,
-          [hashedPassword, state.dbUserId, userId, normalizedLogin]
+          [hashedPassword, state.dbUserId, normalizedLogin]
         );
 
         if (updateResult.rows.length === 0) {
