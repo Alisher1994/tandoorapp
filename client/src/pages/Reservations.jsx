@@ -9,7 +9,7 @@ import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Minus, LocateFixed, Expand, Minimize } from 'lucide-react';
+import { Plus, Minus, LocateFixed, Expand, Minimize, CircleHelp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ClientTopBar from '../components/ClientTopBar';
@@ -23,6 +23,7 @@ const PLAN_MARKER_HIT_SIZE = 92;
 const PLAN_MARKER_VISUAL_SIZE = 64;
 const DEFAULT_WORK_START_MINUTES = 9 * 60;
 const DEFAULT_WORK_END_MINUTES = 23 * 60;
+const RESERVATION_ONBOARDING_STORAGE_KEY_PREFIX = 'client_reservation_onboarding_seen_v1';
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const asNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -212,6 +213,8 @@ function Reservations() {
   const [reservationReceipt, setReservationReceipt] = useState(null);
   const [floorImageMeta, setFloorImageMeta] = useState({ width: 0, height: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
 
   const planStageRef = useRef(null);
   const planViewportRef = useRef(null);
@@ -236,6 +239,11 @@ function Reservations() {
   const availabilityRequestIdRef = useRef(0);
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
+  const reservationEnabled = restaurant?.reservation_enabled === true;
+  const onboardingStorageKey = useMemo(
+    () => (restaurantId ? `${RESERVATION_ONBOARDING_STORAGE_KEY_PREFIX}:${restaurantId}` : ''),
+    [restaurantId]
+  );
   const selectedFloor = useMemo(() => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null, [floors, selectedFloorId]);
   const selectedFloorImageUrl = useMemo(() => toAbsoluteMediaUrl(selectedFloor?.image_url), [selectedFloor?.image_url]);
   const selectedTables = useMemo(() => tables.filter((table) => selectedTableIds.includes(Number(table.id))), [tables, selectedTableIds]);
@@ -277,6 +285,75 @@ function Reservations() {
   );
   const selectedEndTime = useMemo(() => addMinutesWithinDay(startTime, durationMinutes), [startTime, durationMinutes]);
   const bookingTotalCost = useMemo(() => Math.max(0, reservationFee) + Math.max(0, reservationServiceCost), [reservationFee, reservationServiceCost]);
+  const tableTypeNames = useMemo(() => {
+    const uniqueTypes = new Set();
+    tables.forEach((table) => {
+      const templateName = String(table?.template_name || '').trim();
+      if (templateName) uniqueTypes.add(templateName);
+    });
+    return Array.from(uniqueTypes).slice(0, 10);
+  }, [tables]);
+  const onboardingSteps = useMemo(() => ([
+    {
+      title: t('Добро пожаловать в бронирование', 'Band qilish bo‘limiga xush kelibsiz'),
+      description: t(
+        'Это короткий урок на 1 минуту: покажем, как быстро выбрать этаж, время и стол.',
+        'Bu 1 daqiqalik qisqa yo‘riqnoma: qavat, vaqt va stolni tez tanlashni ko‘rsatamiz.'
+      ),
+      bullets: [
+        t('Вы всегда можете пропустить обучение.', 'Yo‘riqnomani har doim o‘tkazib yuborishingiz mumkin.'),
+        t('Позже урок можно открыть кнопкой “?” на карте.', 'Keyin yo‘riqnomani xaritadagi “?” tugmasi bilan qayta ochish mumkin.')
+      ]
+    },
+    {
+      title: t('Дата, время и этаж', 'Sana, vaqt va qavat'),
+      description: t(
+        'Верхняя панель отвечает за дату и этаж, а нижняя линейка — за время брони.',
+        'Yuqori panel sana va qavat uchun, pastdagi chiziq esa bron vaqtini tanlash uchun xizmat qiladi.'
+      ),
+      bullets: [
+        t('Сначала выберите дату и этаж.', 'Avval sana va qavatni tanlang.'),
+        t('Потом прокрутите линейку времени и выберите удобный слот.', 'Keyin vaqt chizig‘ini surib, qulay vaqtni tanlang.')
+      ]
+    },
+    {
+      title: t('Как читать карту столов', 'Stollar xaritasini qanday o‘qish kerak'),
+      description: t(
+        'На карте можно двигать схему пальцем, приближать и выбирать свободные столы.',
+        'Xaritada sxemani barmoq bilan surish, yaqinlashtirish va bo‘sh stollarni tanlash mumkin.'
+      ),
+      bullets: [
+        t('Свободный стол: зеленая подсветка.', 'Bo‘sh stol: yashil yoritish.'),
+        t('Занятый стол: красная подсветка.', 'Band stol: qizil yoritish.'),
+        t('Выбранный стол: синий акцент.', 'Tanlangan stol: ko‘k ajratish.')
+      ]
+    },
+    {
+      title: t('Типы столов в этом зале', 'Bu zaldagi stol turlari'),
+      description: tableTypeNames.length
+        ? t('Сейчас на схеме доступны такие типы столов:', 'Hozir sxemada quyidagi stol turlari mavjud:')
+        : t(
+          'Когда схема загрузит столы, здесь появятся их типы (например: гараж, диван, VIP и т.д.).',
+          'Sxemadagi stollar yuklangach, bu yerda ularning turlari ko‘rinadi (masalan: garaj, divan, VIP va h.k.).'
+        ),
+      bullets: tableTypeNames.length ? [] : [
+        t('Тип стола влияет на удобство размещения гостей.', 'Stol turi mehmonlarni qulay joylashtirishga ta’sir qiladi.')
+      ],
+      tableTypes: tableTypeNames
+    },
+    {
+      title: t('Готово', 'Tayyor'),
+      description: t(
+        'Выберите стол(ы) и нажмите «Далее». Если что-то непонятно, откройте подсказку кнопкой “?”.',
+        'Stol(lar)ni tanlab, «Keyingi» ni bosing. Biror narsa tushunarsiz bo‘lsa, “?” tugmasi orqali yo‘riqnomani oching.'
+      ),
+      bullets: []
+    }
+  ]), [t, tableTypeNames]);
+  const currentOnboardingStep = useMemo(
+    () => onboardingSteps[onboardingStep] || onboardingSteps[0] || null,
+    [onboardingStep, onboardingSteps]
+  );
   const moneyLabel = useMemo(() => {
     const code = String(restaurant?.currency_code || '').toLowerCase();
     if (code === 'kz') return '₸';
@@ -307,6 +384,37 @@ function Reservations() {
   const handleBrandClick = useCallback(() => {
     navigate(resolveMainMenuPath());
   }, [navigate, resolveMainMenuPath]);
+  const persistOnboardingSeen = useCallback(() => {
+    if (!onboardingStorageKey || typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      window.localStorage.setItem(onboardingStorageKey, '1');
+    } catch {
+      // ignore storage restrictions in private webviews
+    }
+  }, [onboardingStorageKey]);
+  const closeOnboarding = useCallback((markAsSeen = true) => {
+    if (markAsSeen) persistOnboardingSeen();
+    setShowOnboardingModal(false);
+    setOnboardingStep(0);
+  }, [persistOnboardingSeen]);
+  const openOnboarding = useCallback(() => {
+    setOnboardingStep(0);
+    setShowOnboardingModal(true);
+  }, []);
+  const handleOnboardingSkip = useCallback(() => {
+    closeOnboarding(true);
+  }, [closeOnboarding]);
+  const handleOnboardingNext = useCallback(() => {
+    const lastStepIndex = Math.max(0, onboardingSteps.length - 1);
+    if (onboardingStep >= lastStepIndex) {
+      closeOnboarding(true);
+      return;
+    }
+    setOnboardingStep((prev) => Math.min(prev + 1, lastStepIndex));
+  }, [onboardingStep, onboardingSteps.length, closeOnboarding]);
+  const handleOnboardingPrev = useCallback(() => {
+    setOnboardingStep((prev) => Math.max(0, prev - 1));
+  }, []);
 
   const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
     const viewport = planViewportRef.current?.getBoundingClientRect();
@@ -693,6 +801,11 @@ function Reservations() {
   }, [bookingEndOptions, timeSlots, minDurationMinutes, startTime]);
 
   useEffect(() => {
+    const maxStep = Math.max(0, onboardingSteps.length - 1);
+    setOnboardingStep((prev) => clamp(prev, 0, maxStep));
+  }, [onboardingSteps.length]);
+
+  useEffect(() => {
     if (!selectedFloorImageUrl) {
       setFloorImageMeta({ width: 0, height: 0 });
       return undefined;
@@ -757,6 +870,26 @@ function Reservations() {
     }, 0);
     return () => window.clearTimeout(fallbackTimer);
   }, [selectedFloorId, planWorldHeight, fitPlanToViewport]);
+
+  useEffect(() => {
+    if (!reservationEnabled) return;
+    if (bookingStep !== 'plan') return;
+    if (showOnboardingModal) return;
+    if (!onboardingStorageKey) return;
+
+    let seen = false;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        seen = window.localStorage.getItem(onboardingStorageKey) === '1';
+      } catch {
+        seen = false;
+      }
+    }
+    if (!seen) {
+      setOnboardingStep(0);
+      setShowOnboardingModal(true);
+    }
+  }, [bookingStep, reservationEnabled, onboardingStorageKey, showOnboardingModal]);
 
   useEffect(() => {
     if (bookingStep !== 'plan') return undefined;
@@ -1224,7 +1357,6 @@ function Reservations() {
   };
 
   const hasNoRestaurant = !restaurantId;
-  const reservationEnabled = restaurant?.reservation_enabled === true;
   if (loading) return <PageSkeleton fullscreen label={t('Загрузка...', 'Yuklanmoqda...')} cards={4} />;
 
   return (
@@ -1418,6 +1550,9 @@ function Reservations() {
                     <button type="button" className="client-res-map-control-btn" onClick={handleToggleFullscreen} title={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')} aria-label={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')}>
                       {isPlanFullscreen ? <Minimize aria-hidden="true" /> : <Expand aria-hidden="true" />}
                     </button>
+                    <button type="button" className="client-res-map-control-btn client-res-map-help-btn" onClick={openOnboarding} title={t('Как пользоваться', 'Qanday foydalanish')} aria-label={t('Как пользоваться', 'Qanday foydalanish')}>
+                      <CircleHelp aria-hidden="true" />
+                    </button>
                   </div>
 
                   <div className="client-res-time-strip" aria-label={t('Выбор времени', 'Vaqt tanlash')}>
@@ -1577,6 +1712,43 @@ function Reservations() {
         </Modal.Footer>
       </Modal>
       <Modal show={showPhotoModal} onHide={() => setShowPhotoModal(false)} centered><Modal.Header closeButton><Modal.Title>{t('Фото стола', 'Stol rasmi')}: {photoTableName}</Modal.Title></Modal.Header><Modal.Body className="p-2">{photoUrl ? <img src={photoUrl} alt={photoTableName} style={{ width: '100%', borderRadius: 10, maxHeight: '70vh', objectFit: 'contain' }} /> : <div className="text-muted p-3 text-center">{t('Фото не найдено', 'Rasm topilmadi')}</div>}</Modal.Body></Modal>
+      <Modal show={showOnboardingModal} onHide={handleOnboardingSkip} centered className="client-res-onboarding-modal">
+        <Modal.Header closeButton>
+          <Modal.Title>{t('Краткий урок по бронированию', 'Band qilish bo‘yicha qisqa yo‘riqnoma')}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="client-res-onboarding-progress">
+            {Math.min(onboardingStep + 1, onboardingSteps.length)} / {onboardingSteps.length}
+          </div>
+          <div className="client-res-onboarding-title">{currentOnboardingStep?.title || ''}</div>
+          <div className="client-res-onboarding-description">{currentOnboardingStep?.description || ''}</div>
+          {Array.isArray(currentOnboardingStep?.bullets) && currentOnboardingStep.bullets.length > 0 && (
+            <ul className="client-res-onboarding-list">
+              {currentOnboardingStep.bullets.map((bullet, index) => (
+                <li key={`onboarding-bullet-${index}`}>{bullet}</li>
+              ))}
+            </ul>
+          )}
+          {Array.isArray(currentOnboardingStep?.tableTypes) && currentOnboardingStep.tableTypes.length > 0 && (
+            <div className="client-res-onboarding-tags">
+              {currentOnboardingStep.tableTypes.map((typeName) => (
+                <span key={`onboarding-type-${typeName}`} className="client-res-onboarding-tag">{typeName}</span>
+              ))}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer className="client-res-onboarding-actions">
+          <Button variant="link" className="client-res-onboarding-skip-btn" onClick={handleOnboardingSkip}>
+            {t('Пропустить обучение', 'Yo‘riqnomani o‘tkazib yuborish')}
+          </Button>
+          <Button variant="outline-secondary" onClick={handleOnboardingPrev} disabled={onboardingStep === 0}>
+            {t('Назад', 'Orqaga')}
+          </Button>
+          <Button variant="primary" onClick={handleOnboardingNext}>
+            {onboardingStep >= onboardingSteps.length - 1 ? t('Понятно', 'Tushunarli') : t('Далее', 'Keyingi')}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
