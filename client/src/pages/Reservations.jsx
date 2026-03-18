@@ -228,6 +228,7 @@ function Reservations() {
   const planVisibilityRecoveryArmedRef = useRef(false);
   const planVisibilityRecoveryAttemptsRef = useRef(0);
   const lastAvailabilityKeyRef = useRef('');
+  const availabilityInFlightKeyRef = useRef('');
   const availabilityRequestIdRef = useRef(0);
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
@@ -442,13 +443,11 @@ function Reservations() {
   }, []);
 
   const fetchAvailability = useCallback(async (nextFloorId = selectedFloorId, overrides = {}) => {
-    const requestId = availabilityRequestIdRef.current + 1;
-    availabilityRequestIdRef.current = requestId;
-
     const effectiveDate = String(overrides.bookingDate || bookingDate || '').trim();
     const effectiveStartTime = String(overrides.startTime || startTime || '').trim();
     const effectiveDuration = Number.parseInt(overrides.durationMinutes ?? durationMinutes, 10);
     const availabilityKey = `${restaurantId || 0}:${nextFloorId || 0}:${effectiveDate}:${effectiveStartTime}:${effectiveDuration || 0}`;
+    if (!overrides.force && availabilityInFlightKeyRef.current === availabilityKey) return;
     if (!overrides.force && availabilityKey === lastAvailabilityKeyRef.current) return;
 
     if (!restaurantId || !nextFloorId || !effectiveDate || !effectiveStartTime) return;
@@ -456,15 +455,22 @@ function Reservations() {
     if (!optimisticEndTime) return;
     if (parseTimeToMinutes(optimisticEndTime, Number.NaN) > workingWindow.endMinutes) return;
     if (restaurant?.reservation_enabled !== true) {
+      setLoadingAvailability(false);
       setTables([]);
       lastAvailabilityKeyRef.current = '';
+      availabilityInFlightKeyRef.current = '';
       return;
     }
+
+    const requestId = availabilityRequestIdRef.current + 1;
+    availabilityRequestIdRef.current = requestId;
+    availabilityInFlightKeyRef.current = availabilityKey;
     lastAvailabilityKeyRef.current = availabilityKey;
     setLoadingAvailability(true);
     setError('');
     try {
       const response = await axios.get(`${API_URL}/reservations/availability`, {
+        timeout: 15000,
         params: {
           restaurant_id: restaurantId,
           floor_id: nextFloorId,
@@ -494,9 +500,15 @@ function Reservations() {
       lastAvailabilityKeyRef.current = '';
       planVisibilityRecoveryArmedRef.current = false;
       planVisibilityRecoveryAttemptsRef.current = 0;
-      setError(err.response?.data?.error || t('Ошибка загрузки столов', 'Stollarni yuklashda xatolik'));
+      const timeoutDetected = err?.code === 'ECONNABORTED' || /timeout/i.test(String(err?.message || ''));
+      setError(timeoutDetected
+        ? t('Слишком долго загружаем столы. Попробуйте ещё раз', 'Stollar uzoq yuklanmoqda. Qayta urinib ko‘ring')
+        : (err.response?.data?.error || t('Ошибка загрузки столов', 'Stollarni yuklashda xatolik')));
       setTables([]);
     } finally {
+      if (availabilityInFlightKeyRef.current === availabilityKey) {
+        availabilityInFlightKeyRef.current = '';
+      }
       if (requestId !== availabilityRequestIdRef.current) return;
       setLoadingAvailability(false);
     }
