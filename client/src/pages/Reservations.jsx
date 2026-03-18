@@ -1211,13 +1211,17 @@ function Reservations() {
                       onKeyDown={handleControlsHeadKeyDown}
                     >
                       <div className="client-res-controls-summary-row">
-                        <span className="client-res-controls-date-value">{bookingDateCompact}</span>
-                        {selectedTableIds.length > 0 && (
+                        <div className="client-res-controls-meta">
+                          <span className="client-res-controls-date-value">{bookingDateCompact}</span>
+                          <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
+                        </div>
+                        <div className="client-res-controls-action-slot">
                           <Button
                             variant="primary"
                             size="sm"
-                            className="client-res-controls-next-btn"
-                            disabled={loadingAvailability || !selectedFloorId}
+                            className={`client-res-controls-next-btn ${selectedTableIds.length > 0 ? '' : 'is-hidden'}`}
+                            disabled={loadingAvailability || !selectedFloorId || selectedTableIds.length === 0}
+                            aria-hidden={selectedTableIds.length === 0}
                             onClick={(event) => {
                               event.stopPropagation();
                               setBookingStep('details');
@@ -1225,9 +1229,8 @@ function Reservations() {
                           >
                             {t('Далее', 'Keyingi')}
                           </Button>
-                        )}
+                        </div>
                       </div>
-                      <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
                     </div>
 
                     {!controlsCollapsed && (

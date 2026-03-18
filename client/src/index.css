@@ -1296,37 +1296,42 @@ h6 {
 
 .client-reservation-content {
   max-width: min(1380px, calc(100vw - 12px)) !important;
+  padding-top: 0;
   padding-inline: 8px;
 }
 
 .client-res-controls-overlay {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 14;
-  border: 1px solid rgba(199, 210, 231, 0.78);
-  border-radius: 16px;
-  background: rgba(247, 250, 255, 0.74);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  padding: 8px 10px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
 }
 
 .client-res-controls-overlay.is-collapsed {
-  background: rgba(247, 250, 255, 0.38);
-  border-color: rgba(199, 210, 231, 0.46);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .client-res-controls-head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 2px;
-  margin-bottom: 4px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 64px;
+  gap: 12px;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.78);
+  background: rgba(241, 245, 249, 0.92);
   cursor: pointer;
   user-select: none;
 }
@@ -1346,14 +1351,33 @@ h6 {
 
 .client-res-controls-summary-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  width: 100%;
+  gap: 12px;
+}
+
+.client-res-controls-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+  padding-left: 4px;
+}
+
+.client-res-controls-action-slot {
+  flex: 0 0 112px;
+  min-height: 34px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .client-res-controls-date-value {
   color: #0f172a;
-  font-size: 1.01rem;
+  font-size: 0.86rem;
   font-weight: 400;
   line-height: 1.2;
 }
@@ -1370,6 +1394,12 @@ h6 {
   box-shadow: 0 8px 18px rgba(67, 56, 202, 0.28);
 }
 
+.client-res-controls-next-btn.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .client-res-controls-next-btn:hover,
 .client-res-controls-next-btn:focus-visible {
   color: #ffffff;
@@ -1379,8 +1409,8 @@ h6 {
 .client-res-controls-floor-line {
   display: block;
   color: #475569;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.86rem;
+  font-weight: 500;
   line-height: 1.2;
 }
 
@@ -1413,7 +1443,10 @@ h6 {
 }
 
 .client-res-controls-stack {
-  margin-top: 8px;
+  margin-top: 0;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.5);
+  background: rgba(241, 245, 249, 0.88);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1562,7 +1595,7 @@ h6 {
 }
 
 .client-res-map-shell {
-  margin-top: 10px;
+  margin-top: 0;
   width: 100vw;
   margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
@@ -2257,9 +2290,9 @@ h6 {
   }
 
   .client-res-controls-overlay {
-    left: 8px;
-    right: 8px;
-    top: 8px;
+    left: 0;
+    right: 0;
+    top: 0;
   }
 
   .client-res-controls-title-line {
@@ -2291,7 +2324,7 @@ h6 {
   }
 
   .client-res-controls-overlay {
-    padding: 8px;
+    padding: 0;
   }
 
   .client-res-time-ruler {
