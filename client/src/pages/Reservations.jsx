@@ -19,6 +19,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 const PLAN_MIN_SCALE = 0.45;
 const PLAN_MAX_SCALE = 3.4;
 const PLAN_WORLD_WIDTH = 1200;
+const PLAN_MARKER_HIT_SIZE = 92;
+const PLAN_MARKER_VISUAL_SIZE = 64;
 const DEFAULT_WORK_START_MINUTES = 9 * 60;
 const DEFAULT_WORK_END_MINUTES = 23 * 60;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -1080,6 +1082,13 @@ function Reservations() {
     zoomPlanAt(planScaleRef.current - 0.18, viewport.width / 2, viewport.height / 2);
   };
 
+  const handlePlanZoomSliderChange = (event) => {
+    const viewport = planViewportRef.current?.getBoundingClientRect();
+    if (!viewport) return;
+    const sliderScale = clamp(asNumber(event?.target?.value, planScaleRef.current), PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+    zoomPlanAt(sliderScale, viewport.width / 2, viewport.height / 2);
+  };
+
   const handleToggleFullscreen = async () => {
     const stageEl = planStageRef.current;
     if (!stageEl || !document.fullscreenEnabled) return;
@@ -1289,7 +1298,6 @@ function Reservations() {
                         const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
-                        const markerScaleCompensation = Number(clamp(1 / Math.max(planScale, 0.001), 0.9, 2.2).toFixed(4));
                         const markerZIndex = selected ? 14 : (available ? 10 : 9);
                         const markerPalette = getTableMarkerPalette({ selected, available });
 
@@ -1302,10 +1310,10 @@ function Reservations() {
                             style={{
                               left: `${tableX}px`,
                               top: `${tableY}px`,
-                              transform: `translate(-50%, -50%) scale(${markerScaleCompensation})`,
+                              transform: 'translate(-50%, -50%)',
                               zIndex: markerZIndex,
-                              width: '44px',
-                              height: '44px',
+                              width: `${PLAN_MARKER_HIT_SIZE}px`,
+                              height: `${PLAN_MARKER_HIT_SIZE}px`,
                               borderRadius: '999px',
                               border: `2px solid ${markerPalette.borderColor}`,
                               background: markerPalette.background,
@@ -1329,8 +1337,8 @@ function Reservations() {
                               <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
                             )}
                             {templateImageUrl && (
-                              <span className="client-res-plan-table-visual" style={{ transform: `translate(-50%, -50%) rotate(${tableRotation}deg)`, width: '70px', height: '46px', opacity: available ? 0.78 : 0.55 }}>
-                                <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" style={{ width: '70px', height: '46px', opacity: selected ? 0.88 : 0.72 }} />
+                              <span className="client-res-plan-table-visual" style={{ transform: `translate(-50%, -50%) rotate(${tableRotation}deg)`, width: `${PLAN_MARKER_VISUAL_SIZE}px`, height: `${PLAN_MARKER_VISUAL_SIZE}px`, opacity: available ? 0.8 : 0.56 }}>
+                                <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" style={{ width: `${PLAN_MARKER_VISUAL_SIZE}px`, height: `${PLAN_MARKER_VISUAL_SIZE}px`, opacity: selected ? 0.9 : 0.76 }} />
                               </span>
                             )}
                             <span className="client-res-plan-table-center-id" style={{ color: markerPalette.textColor, borderColor: available ? 'rgba(15, 23, 42, 0.35)' : 'rgba(127, 29, 29, 0.4)' }}>{tableCenterLabel}</span>
@@ -1347,6 +1355,20 @@ function Reservations() {
                     <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomOut} title={t('Отдалить', 'Uzoqlashtirish')} aria-label={t('Отдалить', 'Uzoqlashtirish')}>
                       <Minus aria-hidden="true" />
                     </button>
+                    <label className="client-res-map-zoom-slider-wrap" aria-label={t('Масштаб карты', 'Xarita masshtabi')}>
+                      <input
+                        type="range"
+                        min={PLAN_MIN_SCALE}
+                        max={PLAN_MAX_SCALE}
+                        step={0.01}
+                        value={planScale}
+                        className="client-res-map-zoom-slider"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onPointerMove={(event) => event.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={handlePlanZoomSliderChange}
+                      />
+                    </label>
                     <button type="button" className="client-res-map-control-btn" onClick={fitPlanToViewport} title={t('Сбросить вид', 'Ko‘rinishni tiklash')} aria-label={t('Сбросить вид', 'Ko‘rinishni tiklash')}>
                       <LocateFixed aria-hidden="true" />
                     </button>

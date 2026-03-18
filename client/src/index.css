@@ -1946,6 +1946,33 @@ h6 {
   transform: scale(1.06);
 }
 
+.client-res-map-zoom-slider-wrap {
+  width: 36px;
+  height: 112px;
+  border-radius: 10px;
+  border: 1px solid rgba(172, 186, 212, 0.82);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1px 0;
+  padding: 0;
+}
+
+.client-res-map-zoom-slider {
+  width: 94px;
+  height: 4px;
+  margin: 0;
+  transform: rotate(-90deg);
+  transform-origin: center center;
+  accent-color: #4f46e5;
+  cursor: pointer;
+  background: transparent;
+}
+
 .client-res-plan-table {
   position: absolute;
   transform: translate(-50%, -50%);
