@@ -1212,6 +1212,33 @@ body::-webkit-scrollbar,
     gap: 8px;
     height: clamp(340px, 50vh, 640px);
     overflow: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.admin-reservation-plan-template-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.admin-reservation-plan-template-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-reservation-plan-template-grid::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+    transition: background-color 0.24s ease;
+}
+
+.admin-reservation-plan-template-grid.is-scrolling,
+.admin-reservation-plan-template-grid:hover {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.72) transparent;
+}
+
+.admin-reservation-plan-template-grid.is-scrolling::-webkit-scrollbar-thumb,
+.admin-reservation-plan-template-grid:hover::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.72);
 }
 
 .admin-reservation-plan-template-item {

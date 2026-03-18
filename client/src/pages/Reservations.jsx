@@ -1103,8 +1103,20 @@ function Reservations() {
                         const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
+                        const markerScaleCompensation = Number((1 / Math.max(planScale, 0.001)).toFixed(4));
+
                         return (
-                          <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? 'is-available' : 'is-disabled is-unavailable'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available} title={table.name || ''}>
+                          <button
+                            key={table.id}
+                            type="button"
+                            data-plan-table="1"
+                            className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? 'is-available' : 'is-disabled is-unavailable'}`}
+                            style={{ left: `${tableX}px`, top: `${tableY}px`, transform: `translate(-50%, -50%) scale(${markerScaleCompensation})` }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={() => toggleTableSelection(table)}
+                            disabled={!available}
+                            title={table.name || ''}
+                          >
                             {table.photo_url && (
                               <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
                             )}

@@ -192,6 +192,8 @@ function AdminReservations() {
   const [planPanStart, setPlanPanStart] = useState(null);
   const [selectedPlanTableId, setSelectedPlanTableId] = useState(null);
   const [planSidebarTab, setPlanSidebarTab] = useState('gallery');
+  const [isPlanGalleryScrolling, setIsPlanGalleryScrolling] = useState(false);
+  const planGalleryScrollTimerRef = useRef(null);
   const [tableRenameDraft, setTableRenameDraft] = useState('');
   const tableRenameInputRef = useRef(null);
   const [showPlanRotationControls, setShowPlanRotationControls] = useState(false);
@@ -394,6 +396,12 @@ function AdminReservations() {
     }, 40);
     return () => window.clearTimeout(timer);
   }, [planSidebarTab, selectedPlanTable?.id]);
+  useEffect(() => () => {
+    if (planGalleryScrollTimerRef.current) {
+      window.clearTimeout(planGalleryScrollTimerRef.current);
+      planGalleryScrollTimerRef.current = null;
+    }
+  }, []);
   const pagedTables = useMemo(() => {
     const start = (tablesPage - 1) * tablesPageSize;
     return tables.slice(start, start + tablesPageSize);
@@ -1168,6 +1176,17 @@ function AdminReservations() {
     }
   };
 
+  const handlePlanGalleryScroll = () => {
+    if (!isPlanGalleryScrolling) setIsPlanGalleryScrolling(true);
+    if (planGalleryScrollTimerRef.current) {
+      window.clearTimeout(planGalleryScrollTimerRef.current);
+    }
+    planGalleryScrollTimerRef.current = window.setTimeout(() => {
+      setIsPlanGalleryScrolling(false);
+      planGalleryScrollTimerRef.current = null;
+    }, 520);
+  };
+
   const handlePlanPointerDown = (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (event.target.closest('[data-plan-table="1"]')) return;
@@ -1928,7 +1947,10 @@ function AdminReservations() {
                         ))}
                       </Form.Select>
                     </Form.Group>
-                    <div className="admin-reservation-plan-template-grid mb-1">
+                    <div
+                      className={`admin-reservation-plan-template-grid mb-1 ${isPlanGalleryScrolling ? 'is-scrolling' : ''}`}
+                      onScroll={handlePlanGalleryScroll}
+                    >
                       <button
                         type="button"
                         className={`admin-reservation-plan-template-item ${!tableForm.template_id ? 'is-active' : ''}`}
