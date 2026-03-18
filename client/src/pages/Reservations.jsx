@@ -120,18 +120,10 @@ const extractTableCenterLabel = (name, fallback = '') => {
   if (numberMatch?.[0]) return numberMatch[0];
   return raw.length > 4 ? raw.slice(0, 4) : raw;
 };
-const formatDayLabel = (dateValue, language = 'ru') => {
-  const parsed = new Date(`${dateValue}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return '';
-  try {
-    return parsed.toLocaleDateString(language === 'uz' ? 'uz-UZ' : 'ru-RU', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'long'
-    });
-  } catch {
-    return String(dateValue || '');
-  }
+const formatDateCompact = (dateValue) => {
+  const [yyyy, mm, dd] = String(dateValue || '').split('-');
+  if (!yyyy || !mm || !dd) return String(dateValue || '');
+  return `${dd}.${mm}.${yyyy}`;
 };
 const resolveWorkingWindow = (workStartTime, workEndTime) => {
   const startMinutes = parseTimeToMinutes(workStartTime, Number.NaN);
@@ -170,8 +162,6 @@ function Reservations() {
   const [tables, setTables] = useState([]);
   const [selectedFloorId, setSelectedFloorId] = useState(null);
   const [bookingDate, setBookingDate] = useState(todayDate());
-  const [draftBookingDate, setDraftBookingDate] = useState(todayDate());
-  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
   const [startTime, setStartTime] = useState(currentHourTime());
   const [durationMinutes, setDurationMinutes] = useState(120);
   const [timeSlotStepMinutes, setTimeSlotStepMinutes] = useState(30);
@@ -184,7 +174,7 @@ function Reservations() {
   const [allowMultiTable, setAllowMultiTable] = useState(true);
   const [selectedTableIds, setSelectedTableIds] = useState([]);
   const [bookingStep, setBookingStep] = useState('plan');
-  const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const [controlsCollapsed, setControlsCollapsed] = useState(true);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
   const [planGestureMode, setPlanGestureMode] = useState('idle');
@@ -209,6 +199,7 @@ function Reservations() {
   const timeRulerManualScrollRef = useRef(false);
   const timeRulerManualScrollTimeoutRef = useRef(null);
   const timeRulerSyncRafRef = useRef(null);
+  const timeRulerHintPlayedRef = useRef(false);
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
   const selectedFloor = useMemo(() => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null, [floors, selectedFloorId]);
@@ -220,7 +211,7 @@ function Reservations() {
     () => buildTimeSlots(workingWindow.startMinutes, workingWindow.endMinutes, normalizeTimeSlotStep(timeSlotStepMinutes, 30)),
     [workingWindow.startMinutes, workingWindow.endMinutes, timeSlotStepMinutes]
   );
-  const selectedDateLabel = useMemo(() => formatDayLabel(bookingDate, language), [bookingDate, language]);
+  const bookingDateCompact = useMemo(() => formatDateCompact(bookingDate), [bookingDate]);
   const selectedFloorImageOpacity = useMemo(
     () => clamp(asNumber(selectedFloor?.plan_image_opacity, 1), 0.25, 1),
     [selectedFloor?.plan_image_opacity]
@@ -506,10 +497,6 @@ function Reservations() {
   }, []);
 
   useEffect(() => {
-    setDraftBookingDate(bookingDate);
-  }, [bookingDate]);
-
-  useEffect(() => {
     if (!timeSlots.length) return;
     const hasExact = timeSlots.some((slot) => slot.value === startTime);
     if (hasExact) return;
@@ -758,16 +745,46 @@ function Reservations() {
     centerTimeSlot(startTime, 'auto');
   }, [startTime, timeSlots, centerTimeSlot]);
 
-  const handleApplyBookingDate = () => {
-    const normalized = String(draftBookingDate || '').trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-      setShowDatePickerModal(false);
-      setDraftBookingDate(bookingDate);
-      return;
-    }
-    setBookingDate(normalized);
-    setShowDatePickerModal(false);
-  };
+  useEffect(() => {
+    if (bookingStep !== 'plan' || controlsCollapsed || timeRulerHintPlayedRef.current) return undefined;
+    const ruler = timeRulerRef.current;
+    if (!ruler || timeSlots.length < 3) return undefined;
+
+    timeRulerHintPlayedRef.current = true;
+    centerTimeSlot(startTime, 'auto');
+
+    const initialLeft = ruler.scrollLeft;
+    const nudgeDistance = Math.min(180, Math.max(76, Math.round(ruler.clientWidth * 0.22)));
+    timeRulerAutoScrollRef.current = true;
+
+    const timerForward = window.setTimeout(() => {
+      if (typeof ruler.scrollTo === 'function') {
+        ruler.scrollTo({ left: initialLeft + nudgeDistance, behavior: 'smooth' });
+      } else {
+        ruler.scrollLeft = initialLeft + nudgeDistance;
+      }
+    }, 180);
+
+    const timerBackward = window.setTimeout(() => {
+      if (typeof ruler.scrollTo === 'function') {
+        ruler.scrollTo({ left: initialLeft, behavior: 'smooth' });
+      } else {
+        ruler.scrollLeft = initialLeft;
+      }
+    }, 640);
+
+    const timerFinalize = window.setTimeout(() => {
+      timeRulerAutoScrollRef.current = false;
+      centerTimeSlot(startTime, 'smooth');
+    }, 980);
+
+    return () => {
+      window.clearTimeout(timerForward);
+      window.clearTimeout(timerBackward);
+      window.clearTimeout(timerFinalize);
+      timeRulerAutoScrollRef.current = false;
+    };
+  }, [bookingStep, controlsCollapsed, timeSlots, centerTimeSlot, startTime]);
 
   const handlePlanPointerDown = (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -1007,15 +1024,12 @@ function Reservations() {
 
             {bookingStep === 'plan' ? (
               <>
-                <Card className={`border-0 shadow-sm mt-3 client-res-controls-card ${controlsCollapsed ? 'is-collapsed' : ''}`}>
-                  <Card.Body>
+                <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''}`}>
+                  <div className={`client-res-controls-overlay ${controlsCollapsed ? 'is-collapsed' : ''}`}>
                     <div className="client-res-controls-head">
-                      <div>
-                        <div className="client-res-top-title">{t('Бронирование', 'Band qilish')}</div>
-                        <div className="client-res-top-subtitle">
-                          {selectedFloor?.name || t('Этаж не выбран', 'Qavat tanlanmagan')}
-                          {startTime ? ` · ${startTime}${selectedEndTime ? ` - ${selectedEndTime}` : ''}` : ''}
-                        </div>
+                      <div className="client-res-controls-title-line">
+                        <span className="client-res-top-title">{t('Бронирование', 'Band qilish')}</span>
+                        <span className="client-res-top-subtitle">{startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</span>
                       </div>
                       <button
                         type="button"
@@ -1029,52 +1043,60 @@ function Reservations() {
                     </div>
 
                     {!controlsCollapsed && (
-                      <>
-                        <div className="client-res-controls-row">
-                          <div className="client-res-time-col">
-                            <div className="client-res-time-readout">
-                              <span>{t('Время:', 'Vaqt:')}</span>
-                              <strong>{startTime}</strong>
-                              <small>{t(`Шаг ${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} мин`, `${normalizeTimeSlotStep(timeSlotStepMinutes, 30)} daq qadam`)}</small>
-                              <small>{t(`Часы ${workingWindow.startLabel}-${workingWindow.endLabel}`, `${workingWindow.startLabel}-${workingWindow.endLabel}`)}</small>
-                            </div>
-                            <div ref={timeRulerRef} className="client-res-time-ruler" onScroll={handleTimeRulerScroll}>
-                              {timeSlots.map((slot, index) => {
-                                const active = slot.value === startTime;
-                                const isHour = slot.minutes % 60 === 0;
-                                return (
-                                  <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); }} title={slot.value} aria-label={slot.value}>
-                                    <span className="client-res-ruler-line" />
-                                    {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
-                                    {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
-                                    {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                      <div className="client-res-controls-stack">
+                        <div className="client-res-overlay-row">
+                          <span className="client-res-overlay-label">{t('Дата', 'Sana')}</span>
+                          <Form.Control
+                            type="date"
+                            className="client-res-overlay-input"
+                            value={bookingDate}
+                            min={todayDate()}
+                            onClick={(event) => event.currentTarget.showPicker?.()}
+                            onFocus={(event) => event.currentTarget.showPicker?.()}
+                            onChange={(event) => {
+                              const nextDate = String(event.target.value || '').trim();
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+                                setBookingDate(nextDate);
+                              }
+                            }}
+                          />
+                          <small className="client-res-overlay-value-preview">{bookingDateCompact}</small>
+                        </div>
+                        <div className="client-res-overlay-row">
+                          <span className="client-res-overlay-label">{t('Этаж', 'Qavat')}</span>
+                          <Form.Select className="client-res-overlay-input" value={selectedFloorId || ''} onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}>
+                            <option value="">{t('Выберите этаж', 'Qavatni tanlang')}</option>
+                            {floors.map((floor) => (
+                              <option key={`reservation-floor-${floor.id}`} value={floor.id}>
+                                {floor.name}
+                              </option>
+                            ))}
+                          </Form.Select>
+                        </div>
+                        <div className="client-res-overlay-row client-res-overlay-row-time">
+                          <div className="client-res-time-readout">
+                            <span>{t('Время', 'Vaqt')}:</span>
+                            <strong>{startTime}</strong>
                           </div>
-
-                          <div className="client-res-day-col">
-                            <button type="button" className="client-res-day-btn" onClick={() => { setDraftBookingDate(bookingDate); setShowDatePickerModal(true); }}>
-                              <span>{t('День', 'Kun')}</span>
-                              <strong>{selectedDateLabel || bookingDate}</strong>
-                            </button>
+                          <div ref={timeRulerRef} className="client-res-time-ruler" onScroll={handleTimeRulerScroll}>
+                            {timeSlots.map((slot, index) => {
+                              const active = slot.value === startTime;
+                              const isHour = slot.minutes % 60 === 0;
+                              return (
+                                <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); }} title={slot.value} aria-label={slot.value}>
+                                  <span className="client-res-ruler-line" />
+                                  {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
+                                  {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
+                                  {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-
-                        <div className="client-res-floor-carousel" role="tablist" aria-label={t('Этажи', 'Qavatlar')}>
-                          {floors.map((floor) => {
-                            const active = Number(selectedFloorId) === Number(floor.id);
-                            const floorTablesCount = Number.isInteger(Number(floor.tables_count)) ? Number(floor.tables_count) : null;
-                            return <button key={floor.id} type="button" className={`client-res-floor-pill ${active ? 'is-active' : ''}`} onClick={() => setSelectedFloorId(Number(floor.id))}><span>{floor.name}</span><small>{floorTablesCount ?? '•'}</small></button>;
-                          })}
-                        </div>
-                      </>
+                      </div>
                     )}
-                  </Card.Body>
-                </Card>
+                  </div>
 
-                <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''}`}>
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
                     {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность столов...', 'Stollar mavjudligi tekshirilmoqda...')}</div>}
                     <div className="client-res-plan-world" style={{ width: `${PLAN_WORLD_WIDTH}px`, height: `${planWorldHeight}px`, transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})` }}>
@@ -1097,7 +1119,7 @@ function Reservations() {
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
                         return (
-                          <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available} title={table.name || ''}>
+                          <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? 'is-available' : 'is-disabled is-unavailable'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available} title={table.name || ''}>
                             {table.photo_url && (
                               <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
                             )}
@@ -1134,10 +1156,10 @@ function Reservations() {
                 {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mt-2 mb-2">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
               </>
             ) : (
-              <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card">
+                <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card">
                 <Card.Body>
                   <div className="client-res-details-head">
-                    <div className="text-muted small">{selectedDateLabel || bookingDate} · {startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</div>
+                    <div className="text-muted small">{bookingDateCompact} · {startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</div>
                   </div>
 
                   <Row className="g-3">
@@ -1171,6 +1193,15 @@ function Reservations() {
                       <Card className="h-100 border-0 client-res-form-card">
                         <Card.Body>
                           <Form.Group className="mb-3">
+                            <Form.Label>{t('Выбрано', 'Tanlangan')}</Form.Label>
+                            <Form.Control
+                              type="text"
+                              readOnly
+                              value={`${bookingDateCompact}, ${startTime}${selectedEndTime ? ` - ${selectedEndTime}` : ''}`}
+                            />
+                          </Form.Group>
+
+                          <Form.Group className="mb-3">
                             <Form.Label>{t('Занимать до', 'Band qilish oxiri')}</Form.Label>
                             <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
                               {bookingEndOptions.map((option) => (
@@ -1182,14 +1213,6 @@ function Reservations() {
                           <Form.Group className="mb-3">
                             <Form.Label>{t('Количество гостей', 'Mehmonlar soni')}</Form.Label>
                             <Form.Control type="number" min={1} value={guestsCount} onChange={(e) => setGuestsCount(Math.max(1, Number.parseInt(e.target.value, 10) || 1))} />
-                          </Form.Group>
-
-                          <Form.Group className="mb-3">
-                            <Form.Label>{t('Тип брони', 'Band turi')}</Form.Label>
-                            <Form.Select value={bookingMode} onChange={(e) => setBookingMode(e.target.value)}>
-                              <option value="reservation_only">{t('Только бронь', 'Faqat bron')}</option>
-                              <option value="with_items">{t('Бронь + блюда', 'Bron + taomlar')}</option>
-                            </Form.Select>
                           </Form.Group>
 
                           <Form.Group className="mb-3">
@@ -1225,36 +1248,6 @@ function Reservations() {
           </>
       )}
       </Container>
-      <Modal
-        show={showDatePickerModal}
-        onHide={() => {
-          setShowDatePickerModal(false);
-          setDraftBookingDate(bookingDate);
-        }}
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>{t('Выбор дня бронирования', 'Bron kunini tanlash')}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form.Group>
-            <Form.Label>{t('Дата', 'Sana')}</Form.Label>
-            <Form.Control type="date" value={draftBookingDate} min={todayDate()} onChange={(event) => setDraftBookingDate(event.target.value)} />
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            variant="outline-secondary"
-            onClick={() => {
-              setShowDatePickerModal(false);
-              setDraftBookingDate(bookingDate);
-            }}
-          >
-            {t('Отмена', 'Bekor qilish')}
-          </Button>
-          <Button variant="primary" onClick={handleApplyBookingDate}>{t('Применить', 'Qo‘llash')}</Button>
-        </Modal.Footer>
-      </Modal>
       <Modal show={showReceiptModal} onHide={handleCloseReceiptModal} centered>
         <Modal.Header closeButton>
           <Modal.Title>{t('Бронь оформлена', 'Bron rasmiylashtirildi')}</Modal.Title>

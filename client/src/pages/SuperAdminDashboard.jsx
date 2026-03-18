@@ -1718,9 +1718,14 @@ function SuperAdminDashboard() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    const isPng = String(file.type || '').toLowerCase().includes('png') || String(file.name || '').toLowerCase().endsWith('.png');
-    if (!isPng) {
-      setError(language === 'uz' ? 'Faqat PNG fayl yuklang' : 'Загрузите PNG-файл');
+    const mime = String(file.type || '').toLowerCase();
+    const filename = String(file.name || '').toLowerCase();
+    const isAllowed = mime.startsWith('image/')
+      || filename.endsWith('.png')
+      || filename.endsWith('.svg')
+      || filename.endsWith('.webp');
+    if (!isAllowed) {
+      setError(language === 'uz' ? 'PNG/SVG rasm yuklang' : 'Загрузите PNG/SVG изображение');
       return;
     }
     setError('');
@@ -1743,7 +1748,7 @@ function SuperAdminDashboard() {
       return;
     }
     if (!payload.image_url) {
-      setError(language === 'uz' ? 'PNG rasmni fayldan yuklang' : 'Загрузите PNG-изображение из файла');
+      setError(language === 'uz' ? 'PNG/SVG rasmni fayldan yuklang' : 'Загрузите PNG/SVG изображение из файла');
       return;
     }
 
@@ -8108,8 +8113,8 @@ function SuperAdminDashboard() {
                     <h5 className="fw-bold mb-0">{language === 'uz' ? "Bron uchun mebel shablonlari" : 'Шаблоны мебели для бронирования'}</h5>
                     <small className="text-muted">
                       {language === 'uz'
-                        ? "Mebel rasmini faqat PNG fayl orqali yuklang. URL kiritish talab qilinmaydi."
-                        : 'Загрузка только PNG-файлом. Вставка URL не требуется.'}
+                        ? "Mebel rasmini PNG yoki SVG fayl orqali yuklang. URL kiritish talab qilinmaydi."
+                        : 'Загрузка через PNG или SVG файл. Вставка URL не требуется.'}
                     </small>
                   </div>
                   <Button className="btn-primary-custom" onClick={() => openReservationTemplateModal()}>
@@ -8176,16 +8181,16 @@ function SuperAdminDashboard() {
                               </td>
                               <td className="text-end">
                                 <div className="d-inline-flex gap-2">
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-primary"
+                                    onClick={() => openReservationTemplateModal(template)}
+                                    title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                  >
+                                    ✏️
+                                  </Button>
                                   {!isSystem && (
                                     <>
-                                      <Button
-                                        variant="light"
-                                        className="action-btn text-primary"
-                                        onClick={() => openReservationTemplateModal(template)}
-                                        title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
-                                      >
-                                        ✏️
-                                      </Button>
                                       <Button
                                         variant="light"
                                         className="action-btn text-danger"
@@ -12933,10 +12938,10 @@ function SuperAdminDashboard() {
           </Row>
 
           <Form.Group className="mb-2">
-            <Form.Label>PNG *</Form.Label>
+            <Form.Label>PNG / SVG *</Form.Label>
             <Form.Control
               type="file"
-              accept="image/png"
+              accept="image/png,image/svg+xml,image/webp"
               onChange={handleReservationTemplateImageSelect}
               disabled={uploadingImage}
             />

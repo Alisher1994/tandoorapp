@@ -926,6 +926,28 @@ body::-webkit-scrollbar,
     overscroll-behavior: contain;
 }
 
+.admin-reservation-plan-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+        linear-gradient(to right, rgba(100, 116, 139, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(100, 116, 139, 0.08) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.5;
+}
+
+.admin-reservation-plan-world {
+    z-index: 1;
+}
+
+.admin-reservation-plan-floor,
+.admin-reservation-plan-floor-overlay {
+    pointer-events: none;
+}
+
 .admin-reservation-plan-canvas:active {
     cursor: grabbing;
 }

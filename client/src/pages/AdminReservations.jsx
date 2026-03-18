@@ -1498,6 +1498,7 @@ function AdminReservations() {
                   style={{ cursor: planPanStart ? 'grabbing' : 'grab' }}
                 >
                   <div
+                    className="admin-reservation-plan-world"
                     style={{
                       position: 'absolute',
                       left: 0,
@@ -1509,19 +1510,21 @@ function AdminReservations() {
                     }}
                   >
                     <div
+                      className="admin-reservation-plan-floor"
                       style={{
                         position: 'absolute',
                         inset: 0,
                         backgroundImage: selectedFloorImageUrl
                           ? `url(${selectedFloorImageUrl})`
                           : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
-                        backgroundSize: selectedFloorImageUrl ? '100% 100%' : 'cover',
+                        backgroundSize: selectedFloorImageUrl ? 'contain' : 'cover',
                         backgroundRepeat: 'no-repeat',
                         backgroundPosition: 'center',
                         opacity: selectedFloorImageOpacity
                       }}
                     />
                     <div
+                      className="admin-reservation-plan-floor-overlay"
                       style={{
                         position: 'absolute',
                         inset: 0,

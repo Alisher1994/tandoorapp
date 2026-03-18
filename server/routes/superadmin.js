@@ -1771,9 +1771,6 @@ router.put('/reservation-table-templates/:id', async (req, res) => {
     if (!existingResult.rows.length) {
       return res.status(404).json({ error: 'Шаблон мебели не найден' });
     }
-    if (existingResult.rows[0].is_system) {
-      return res.status(403).json({ error: 'Системный шаблон редактировать нельзя' });
-    }
 
     const updates = [];
     const params = [];
