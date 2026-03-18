@@ -545,13 +545,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       FROM candidates c
       ORDER BY
         CASE
-          WHEN c.role = 'superadmin' THEN 0
           WHEN c.role = 'operator' AND EXISTS (
             SELECT 1
             FROM operator_restaurants opr
             WHERE opr.user_id = c.id
               AND opr.restaurant_id = $2
-          ) THEN 1
+          ) THEN 0
+          WHEN c.role = 'superadmin' THEN 1
           WHEN c.role = 'customer' THEN 2
           WHEN c.role = 'operator' THEN 3
           ELSE 4

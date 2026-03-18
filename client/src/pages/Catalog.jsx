@@ -180,6 +180,15 @@ function Catalog() {
   }, []);
 
   useEffect(() => {
+    // Keep catalog bound to token-selected restaurant in Telegram WebApp.
+    if (!isTelegramWebView) return;
+    const activeRestaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+    if (!Number.isInteger(activeRestaurantId) || activeRestaurantId <= 0) return;
+    if (Number(selectedRestaurant) === activeRestaurantId) return;
+    setSelectedRestaurant(activeRestaurantId);
+  }, [isTelegramWebView, user?.active_restaurant_id, selectedRestaurant]);
+
+  useEffect(() => {
     const languagePromptShown = sessionStorage.getItem('client_language_prompt_done') === '1';
     if (!languagePromptShown) {
       setPendingLanguage(language === 'uz' ? 'uz' : 'ru');
@@ -757,14 +766,33 @@ function Catalog() {
   const fetchRestaurants = async () => {
     try {
       const response = await axios.get(`${API_URL}/products/restaurants/list`);
-      setRestaurants(response.data || []);
+      const restaurantList = response.data || [];
+      setRestaurants(restaurantList);
+
+      const activeRestaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+      const hasActiveRestaurantInList = Number.isInteger(activeRestaurantId) && activeRestaurantId > 0
+        ? restaurantList.some((item) => Number(item?.id) === activeRestaurantId)
+        : false;
+
+      // In bot/WebApp context we should always open the shop that comes from token (active_restaurant_id),
+      // even if user has superadmin access to many shops.
+      if (isTelegramWebView && hasActiveRestaurantInList) {
+        setSelectedRestaurant(activeRestaurantId);
+        return;
+      }
+
+      // Prefer active restaurant for admins/operators as well; fallback to first item only if missing.
+      if (hasActiveRestaurantInList && !selectedRestaurant) {
+        setSelectedRestaurant(activeRestaurantId);
+        return;
+      }
 
       // Auto-select for operators if not set
       if (isOperator()) {
-        if (response.data?.length === 1) {
-          setSelectedRestaurant(response.data[0].id);
-        } else if (response.data?.length > 0 && !selectedRestaurant) {
-          setSelectedRestaurant(response.data[0].id);
+        if (restaurantList.length === 1) {
+          setSelectedRestaurant(restaurantList[0].id);
+        } else if (restaurantList.length > 0 && !selectedRestaurant) {
+          setSelectedRestaurant(restaurantList[0].id);
         }
       }
     } catch (error) {
