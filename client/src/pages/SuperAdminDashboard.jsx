@@ -82,6 +82,29 @@ const CATALOG_ANIMATION_SEASON_OPTIONS = [
   { value: 'autumn', label: 'Осень' },
   { value: 'winter', label: 'Зима' }
 ];
+const AI_PROVIDER_TYPE_OPTIONS = [
+  { value: 'gemini', label: 'Gemini' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'replicate', label: 'Replicate' },
+  { value: 'cloudflare', label: 'Cloudflare AI' },
+  { value: 'pollinations', label: 'Pollinations' },
+  { value: 'custom', label: 'Custom' }
+];
+const createEmptyAiProviderDraft = () => ({
+  local_key: `draft-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+  id: null,
+  name: '',
+  provider_type: 'gemini',
+  api_key: '',
+  api_key_masked: '',
+  has_api_key: false,
+  image_model: '',
+  text_model: '',
+  priority: 100,
+  is_enabled: true,
+  is_active: false,
+  config_json: {}
+});
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return ['off', 'spring', 'summer', 'autumn', 'winter'].includes(normalized) ? normalized : fallback;
@@ -984,8 +1007,28 @@ function SuperAdminDashboard() {
     click_link: '',
     payme_link: '',
     catalog_animation_season: 'off',
+    ai_enabled: true,
     default_starting_balance: 100000,
     default_order_cost: 1000
+  });
+  const [aiProviders, setAiProviders] = useState([]);
+  const [aiProvidersLoading, setAiProvidersLoading] = useState(false);
+  const [aiProviderSavingId, setAiProviderSavingId] = useState(null);
+  const [aiProviderDeletingId, setAiProviderDeletingId] = useState(null);
+  const [aiProviderActivatingId, setAiProviderActivatingId] = useState(null);
+  const [aiUsageDays, setAiUsageDays] = useState(30);
+  const [aiUsageLoading, setAiUsageLoading] = useState(false);
+  const [aiUsageSummary, setAiUsageSummary] = useState({
+    days: 30,
+    totals: {
+      total_requests: 0,
+      success_requests: 0,
+      failed_requests: 0,
+      quota_related_errors: 0,
+      estimated_cost_usd: 0
+    },
+    by_provider: [],
+    recent_errors: []
   });
   const [isCentralTokenVisible, setIsCentralTokenVisible] = useState(false);
   const centralTokenHideTimeoutRef = useRef(null);
@@ -1192,6 +1235,7 @@ function SuperAdminDashboard() {
     loadStats();
     loadInternalRestaurants();
     loadActivityTypes();
+    loadBillingSettings();
   }, []);
 
   useEffect(() => {
@@ -1207,7 +1251,11 @@ function SuperAdminDashboard() {
     if (activeTab === 'reservation_templates') loadReservationTemplates();
     if (activeTab === 'help_instructions') loadHelpInstructions();
     if (activeTab === 'ads') loadAdBanners();
-    if (activeTab === 'billing') loadBillingSettings();
+    if (activeTab === 'billing') {
+      loadBillingSettings();
+      loadAiProviders();
+      loadAiUsageSummary(aiUsageDays);
+    }
     if (activeTab === 'global_products') {
       if (!categories.length) loadCategories();
     }
@@ -1270,6 +1318,11 @@ function SuperAdminDashboard() {
   }, [activeTab, adBannerStatusFilter]);
 
   useEffect(() => {
+    if (activeTab !== 'billing') return;
+    loadAiUsageSummary(aiUsageDays);
+  }, [activeTab, aiUsageDays]);
+
+  useEffect(() => {
     if (activeTab !== 'global_products') return;
     const timer = setTimeout(() => {
       loadGlobalProducts();
@@ -1322,6 +1375,17 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     const onKeyDown = (event) => {
+      const target = event.target;
+      const tagName = String(target?.tagName || '').toLowerCase();
+      const isTypingField = target?.isContentEditable || ['input', 'textarea', 'select'].includes(tagName);
+      const isCtrlSpaceHotkey = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey
+        && (event.code === 'Space' || event.key === ' ');
+      if (isCtrlSpaceHotkey && !isTypingField) {
+        event.preventDefault();
+        navigate('/admin');
+        return;
+      }
+
       const isHotkey = event.ctrlKey && event.key === '`';
       if (!isHotkey && !(showHiddenOpsConsole && event.key === 'Escape')) return;
 
@@ -1346,7 +1410,7 @@ function SuperAdminDashboard() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showHiddenOpsConsole]);
+  }, [showHiddenOpsConsole, navigate]);
 
   useEffect(() => {
     if (!isHiddenOpsTelemetryEnabled || !hiddenOpsTelemetryExpiresAt) return;
@@ -2331,8 +2395,16 @@ function SuperAdminDashboard() {
     if (/^(https?:\/\/|data:image\/|blob:)/i.test(raw)) return raw;
     return `${API_URL.replace('/api', '')}${raw.startsWith('/') ? '' : '/'}${raw}`;
   };
+  const isAiFeatureEnabled = billingSettings.ai_enabled !== false;
+  const aiDisabledMessage = language === 'uz'
+    ? 'AI funksiyalari superadmin sozlamalarida ochirilgan'
+    : 'AI функции отключены в настройках супер-админки';
 
   const runCategoryAiPreview = async (mode) => {
+    if (!isAiFeatureEnabled) {
+      setCategoryAiError(aiDisabledMessage);
+      return;
+    }
     const normalizedMode = mode === 'process' ? 'process' : 'generate';
     const categoryName = String(categoryForm.name_ru || categoryForm.name_uz || '').trim();
     const sourceImageUrl = String(categoryForm.image_url || '').trim();
@@ -2411,6 +2483,10 @@ function SuperAdminDashboard() {
   };
 
   const handleGenerateGlobalProductText = async () => {
+    if (!isAiFeatureEnabled) {
+      setError(aiDisabledMessage);
+      return;
+    }
     const nameRu = String(globalProductForm.name_ru || '').trim();
     const nameUz = String(globalProductForm.name_uz || '').trim();
     if (!nameRu && !nameUz) {
@@ -2452,6 +2528,10 @@ function SuperAdminDashboard() {
   };
 
   const runGlobalProductAiPreview = async (mode) => {
+    if (!isAiFeatureEnabled) {
+      setGlobalProductAiError(aiDisabledMessage);
+      return;
+    }
     const normalizedMode = mode === 'process' ? 'process' : 'generate';
     const productName = String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim();
     const sourceImageUrl = String(globalProductForm.image_url || '').trim();
@@ -2709,6 +2789,7 @@ function SuperAdminDashboard() {
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
+          ai_enabled: response.data.ai_enabled !== false,
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
@@ -2723,6 +2804,7 @@ function SuperAdminDashboard() {
         ...billingSettings,
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
+        ai_enabled: billingSettings.ai_enabled !== false,
         default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
       };
       const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
@@ -2732,12 +2814,164 @@ function SuperAdminDashboard() {
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
+          ai_enabled: response.data.ai_enabled !== false,
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
       setSuccess('Настройки биллинга сохранены');
     } catch (err) {
       setError('Ошибка сохранения настроек');
+    }
+  };
+
+  const normalizeAiProviderDraft = (item = {}) => {
+    const base = createEmptyAiProviderDraft();
+    return {
+      ...base,
+      ...item,
+      local_key: item.local_key || (item.id ? `provider-${item.id}` : base.local_key),
+      id: Number(item.id) || null,
+      provider_type: String(item.provider_type || 'gemini').trim().toLowerCase() || 'gemini',
+      api_key: '',
+      api_key_masked: String(item.api_key_masked || '').trim(),
+      has_api_key: Boolean(item.has_api_key),
+      image_model: String(item.image_model || '').trim(),
+      text_model: String(item.text_model || '').trim(),
+      priority: Number.isFinite(Number(item.priority)) ? Number(item.priority) : 100,
+      is_enabled: item.is_enabled !== false,
+      is_active: item.is_active === true,
+      config_json: (item.config_json && typeof item.config_json === 'object' && !Array.isArray(item.config_json))
+        ? item.config_json
+        : {}
+    };
+  };
+  const getAiProviderKey = (item) => (item?.id ? `id-${item.id}` : String(item?.local_key || ''));
+
+  const loadAiProviders = async () => {
+    try {
+      setAiProvidersLoading(true);
+      const response = await axios.get(`${API_URL}/superadmin/ai/providers`);
+      const providers = Array.isArray(response.data?.providers)
+        ? response.data.providers.map((item) => normalizeAiProviderDraft(item))
+        : [];
+      setAiProviders(providers);
+    } catch (err) {
+      console.error('Load AI providers error:', err);
+    } finally {
+      setAiProvidersLoading(false);
+    }
+  };
+
+  const loadAiUsageSummary = async (days = aiUsageDays) => {
+    try {
+      setAiUsageLoading(true);
+      const normalizedDays = Number.isFinite(Number(days)) ? Number(days) : 30;
+      const response = await axios.get(`${API_URL}/superadmin/ai/usage/summary`, {
+        params: { days: normalizedDays }
+      });
+      const payload = response.data || {};
+      setAiUsageSummary({
+        days: Number(payload.days) || normalizedDays,
+        totals: {
+          total_requests: Number(payload?.totals?.total_requests || 0),
+          success_requests: Number(payload?.totals?.success_requests || 0),
+          failed_requests: Number(payload?.totals?.failed_requests || 0),
+          quota_related_errors: Number(payload?.totals?.quota_related_errors || 0),
+          estimated_cost_usd: Number(payload?.totals?.estimated_cost_usd || 0)
+        },
+        by_provider: Array.isArray(payload.by_provider) ? payload.by_provider : [],
+        recent_errors: Array.isArray(payload.recent_errors) ? payload.recent_errors : []
+      });
+    } catch (err) {
+      console.error('Load AI usage summary error:', err);
+    } finally {
+      setAiUsageLoading(false);
+    }
+  };
+
+  const addAiProviderDraft = () => {
+    setAiProviders((prev) => [...prev, createEmptyAiProviderDraft()]);
+  };
+
+  const updateAiProviderDraft = (providerKey, patch) => {
+    setAiProviders((prev) => prev.map((item) => (
+      getAiProviderKey(item) === providerKey
+        ? { ...item, ...patch }
+        : item
+    )));
+  };
+
+  const saveAiProvider = async (provider) => {
+    const providerKey = getAiProviderKey(provider);
+    const hasName = Boolean(String(provider?.name || '').trim());
+    if (!hasName) {
+      setError('Укажите название AI-провайдера');
+      return;
+    }
+    try {
+      setAiProviderSavingId(providerKey);
+      const payload = {
+        name: String(provider.name || '').trim(),
+        provider_type: String(provider.provider_type || 'gemini').trim().toLowerCase(),
+        api_key: String(provider.api_key || '').trim(),
+        image_model: String(provider.image_model || '').trim(),
+        text_model: String(provider.text_model || '').trim(),
+        priority: Number.isFinite(Number(provider.priority)) ? Number(provider.priority) : 100,
+        is_enabled: provider.is_enabled !== false,
+        is_active: provider.is_active === true,
+        config_json: provider.config_json && typeof provider.config_json === 'object' && !Array.isArray(provider.config_json)
+          ? provider.config_json
+          : {}
+      };
+
+      if (provider.id) {
+        await axios.put(`${API_URL}/superadmin/ai/providers/${provider.id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/superadmin/ai/providers`, payload);
+      }
+
+      setSuccess('AI-провайдер сохранён');
+      await loadAiProviders();
+      await loadAiUsageSummary(aiUsageDays);
+    } catch (err) {
+      setError(String(err?.response?.data?.error || 'Ошибка сохранения AI-провайдера'));
+    } finally {
+      setAiProviderSavingId(null);
+    }
+  };
+
+  const activateAiProvider = async (provider) => {
+    if (!provider?.id) {
+      setError('Сначала сохраните провайдера');
+      return;
+    }
+    try {
+      setAiProviderActivatingId(provider.id);
+      await axios.patch(`${API_URL}/superadmin/ai/providers/${provider.id}/activate`);
+      setSuccess('Активный AI-провайдер обновлён');
+      await loadAiProviders();
+    } catch (err) {
+      setError(String(err?.response?.data?.error || 'Ошибка активации AI-провайдера'));
+    } finally {
+      setAiProviderActivatingId(null);
+    }
+  };
+
+  const removeAiProvider = async (provider) => {
+    if (!provider?.id) {
+      setAiProviders((prev) => prev.filter((item) => getAiProviderKey(item) !== getAiProviderKey(provider)));
+      return;
+    }
+    try {
+      setAiProviderDeletingId(provider.id);
+      await axios.delete(`${API_URL}/superadmin/ai/providers/${provider.id}`);
+      setSuccess('AI-провайдер удалён');
+      await loadAiProviders();
+      await loadAiUsageSummary(aiUsageDays);
+    } catch (err) {
+      setError(String(err?.response?.data?.error || 'Ошибка удаления AI-провайдера'));
+    } finally {
+      setAiProviderDeletingId(null);
     }
   };
 
@@ -9789,6 +10023,295 @@ function SuperAdminDashboard() {
                     </div>
                   </Alert>
 
+                  <Alert
+                    variant={isAiFeatureEnabled ? 'light' : 'warning'}
+                    className="border-0 shadow-sm rounded-4 mb-4"
+                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                  >
+                    <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+                      <div>
+                        <div className="fw-bold">
+                          {language === 'uz' ? 'AI funksiyalari' : 'AI функционал'}
+                        </div>
+                        <div className="small text-muted">
+                          {language === 'uz'
+                            ? "O'chirilsa, superadmin panelidagi AI matn va rasm preview tugmalari ishlamaydi."
+                            : 'При выключении AI-кнопки генерации текста и preview изображений в суперадминке не работают.'}
+                        </div>
+                      </div>
+                      <Form.Check
+                        type="switch"
+                        id="superadmin-ai-enabled-switch"
+                        className="fw-semibold"
+                        label={isAiFeatureEnabled
+                          ? (language === 'uz' ? 'AI yoqilgan' : 'AI включен')
+                          : (language === 'uz' ? "AI o'chirilgan" : 'AI выключен')}
+                        checked={isAiFeatureEnabled}
+                        onChange={(e) => setBillingSettings((prev) => ({
+                          ...prev,
+                          ai_enabled: !!e.target.checked
+                        }))}
+                      />
+                    </div>
+                  </Alert>
+
+                  <Card className="admin-card admin-section-panel mb-4">
+                    <Card.Header className="admin-section-panel-header py-3 d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-2">
+                      <h6 className="mb-0 fw-bold">AI провайдеры и ключи</h6>
+                      <div className="d-flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => {
+                            loadAiProviders();
+                            loadAiUsageSummary(aiUsageDays);
+                          }}
+                          disabled={aiProvidersLoading || aiUsageLoading}
+                        >
+                          Обновить
+                        </Button>
+                        <Button
+                          type="button"
+                          className="btn-primary-custom"
+                          size="sm"
+                          onClick={addAiProviderDraft}
+                        >
+                          + Добавить
+                        </Button>
+                      </div>
+                    </Card.Header>
+                    <Card.Body className="p-4">
+                      <Row className="g-2 mb-3">
+                        <Col md={3}>
+                          <div className="small text-muted">Запросов ({aiUsageSummary.days} дн.)</div>
+                          <div className="fw-bold">{Number(aiUsageSummary?.totals?.total_requests || 0)}</div>
+                        </Col>
+                        <Col md={3}>
+                          <div className="small text-muted">Успех / Ошибки</div>
+                          <div className="fw-bold">
+                            {Number(aiUsageSummary?.totals?.success_requests || 0)} / {Number(aiUsageSummary?.totals?.failed_requests || 0)}
+                          </div>
+                        </Col>
+                        <Col md={3}>
+                          <div className="small text-muted">Ошибки квоты</div>
+                          <div className="fw-bold">{Number(aiUsageSummary?.totals?.quota_related_errors || 0)}</div>
+                        </Col>
+                        <Col md={3}>
+                          <div className="small text-muted">Оценка расходов (USD)</div>
+                          <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
+                        </Col>
+                      </Row>
+
+                      <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+                        <Form.Select
+                          style={{ width: 170 }}
+                          value={aiUsageDays}
+                          onChange={(e) => setAiUsageDays(Number(e.target.value) || 30)}
+                        >
+                          <option value={7}>7 дней</option>
+                          <option value={14}>14 дней</option>
+                          <option value={30}>30 дней</option>
+                          <option value={60}>60 дней</option>
+                          <option value={90}>90 дней</option>
+                        </Form.Select>
+                        {aiUsageLoading && <small className="text-muted">Загрузка статистики...</small>}
+                      </div>
+
+                      {aiProvidersLoading ? (
+                        <div className="text-muted">Загрузка AI-провайдеров...</div>
+                      ) : (
+                        <>
+                          {aiProviders.length === 0 && (
+                            <Alert variant="secondary" className="mb-3">
+                              Провайдеры не добавлены. Нажмите “+ Добавить”.
+                            </Alert>
+                          )}
+                          {aiProviders.map((provider) => {
+                            const providerKey = getAiProviderKey(provider);
+                            const isSaving = aiProviderSavingId === providerKey;
+                            const isDeleting = provider.id && aiProviderDeletingId === provider.id;
+                            const isActivating = provider.id && aiProviderActivatingId === provider.id;
+                            return (
+                              <div key={providerKey} className="border rounded-3 p-3 mb-3 bg-light">
+                                <Row className="g-2 align-items-end">
+                                  <Col md={3}>
+                                    <Form.Label className="small fw-semibold mb-1">Название</Form.Label>
+                                    <Form.Control
+                                      value={provider.name}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { name: e.target.value })}
+                                      placeholder="Например: Gemini Main"
+                                    />
+                                  </Col>
+                                  <Col md={2}>
+                                    <Form.Label className="small fw-semibold mb-1">Тип</Form.Label>
+                                    <Form.Select
+                                      value={provider.provider_type}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { provider_type: e.target.value })}
+                                    >
+                                      {AI_PROVIDER_TYPE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                      ))}
+                                    </Form.Select>
+                                  </Col>
+                                  <Col md={3}>
+                                    <Form.Label className="small fw-semibold mb-1">API key</Form.Label>
+                                    <Form.Control
+                                      type="password"
+                                      value={provider.api_key}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { api_key: e.target.value })}
+                                      placeholder={provider.has_api_key ? `Сохранён: ${provider.api_key_masked || '••••'}` : 'Введите ключ'}
+                                    />
+                                  </Col>
+                                  <Col md={2}>
+                                    <Form.Label className="small fw-semibold mb-1">Image model</Form.Label>
+                                    <Form.Control
+                                      value={provider.image_model || ''}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { image_model: e.target.value })}
+                                      placeholder="gemini-2.5-flash-image"
+                                    />
+                                  </Col>
+                                  <Col md={2}>
+                                    <Form.Label className="small fw-semibold mb-1">Text model</Form.Label>
+                                    <Form.Control
+                                      value={provider.text_model || ''}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { text_model: e.target.value })}
+                                      placeholder="gemini-2.5-flash"
+                                    />
+                                  </Col>
+                                  <Col md={2}>
+                                    <Form.Label className="small fw-semibold mb-1">Приоритет</Form.Label>
+                                    <Form.Control
+                                      type="number"
+                                      min="1"
+                                      max="9999"
+                                      value={provider.priority}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { priority: e.target.value })}
+                                    />
+                                  </Col>
+                                  <Col md={3} className="d-flex flex-wrap gap-3 align-items-center">
+                                    <Form.Check
+                                      type="switch"
+                                      id={`ai-provider-enabled-${providerKey}`}
+                                      label="Включен"
+                                      checked={provider.is_enabled !== false}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { is_enabled: !!e.target.checked })}
+                                    />
+                                    <Form.Check
+                                      type="switch"
+                                      id={`ai-provider-active-intent-${providerKey}`}
+                                      label="Сделать активным"
+                                      checked={provider.is_active === true}
+                                      onChange={(e) => updateAiProviderDraft(providerKey, { is_active: !!e.target.checked })}
+                                    />
+                                  </Col>
+                                  <Col md={7} className="d-flex flex-wrap gap-2 justify-content-md-end">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="btn-primary-custom"
+                                      onClick={() => saveAiProvider(provider)}
+                                      disabled={isSaving || isDeleting || isActivating}
+                                    >
+                                      {isSaving ? 'Сохранение...' : 'Сохранить'}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={provider.is_active ? 'success' : 'outline-success'}
+                                      onClick={() => activateAiProvider(provider)}
+                                      disabled={!provider.id || isSaving || isDeleting || isActivating}
+                                    >
+                                      {isActivating ? 'Активация...' : (provider.is_active ? 'Активный' : 'Активировать')}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline-danger"
+                                      onClick={() => removeAiProvider(provider)}
+                                      disabled={isSaving || isDeleting || isActivating}
+                                    >
+                                      {isDeleting ? 'Удаление...' : 'Удалить'}
+                                    </Button>
+                                  </Col>
+                                </Row>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+
+                      <div className="small text-muted mt-2">
+                        Примечание: если выбран активный провайдер, AI запросы идут через него. ENV-ключи используются только когда активный провайдер не задан.
+                      </div>
+
+                      {Array.isArray(aiUsageSummary.by_provider) && aiUsageSummary.by_provider.length > 0 && (
+                        <div className="mt-4">
+                          <div className="fw-semibold mb-2">По провайдерам</div>
+                          <div className="table-responsive">
+                            <table className="table table-sm align-middle mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Провайдер</th>
+                                  <th>Тип</th>
+                                  <th className="text-end">Запросы</th>
+                                  <th className="text-end">Успех</th>
+                                  <th className="text-end">Ошибки</th>
+                                  <th className="text-end">Оценка USD</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {aiUsageSummary.by_provider.map((row, index) => (
+                                  <tr key={`${row.provider_name || 'provider'}-${index}`}>
+                                    <td>{row.provider_name || '-'}</td>
+                                    <td>{row.provider_type || '-'}</td>
+                                    <td className="text-end">{Number(row.requests || 0)}</td>
+                                    <td className="text-end">{Number(row.success_requests || 0)}</td>
+                                    <td className="text-end">{Number(row.failed_requests || 0)}</td>
+                                    <td className="text-end">${Number(row.estimated_cost_usd || 0).toFixed(3)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {Array.isArray(aiUsageSummary.recent_errors) && aiUsageSummary.recent_errors.length > 0 && (
+                        <div className="mt-4">
+                          <div className="fw-semibold mb-2">Последние ошибки AI</div>
+                          <div className="table-responsive">
+                            <table className="table table-sm align-middle mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Время</th>
+                                  <th>Провайдер</th>
+                                  <th>Операция</th>
+                                  <th>Код / HTTP</th>
+                                  <th>Сообщение</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {aiUsageSummary.recent_errors.slice(0, 10).map((row, index) => (
+                                  <tr key={`ai-error-${index}`}>
+                                    <td>{row.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '-'}</td>
+                                    <td>{row.provider_name || row.provider_type || '-'}</td>
+                                    <td>{row.operation || '-'}</td>
+                                    <td>
+                                      {String(row.error_code || '').trim() || '-'}
+                                      {row.http_status ? ` / ${row.http_status}` : ''}
+                                    </td>
+                                    <td>{String(row.error_message || '').trim().slice(0, 140) || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </Card.Body>
+                  </Card>
+
                   <Row className="g-4">
                     <Col md={7}>
                       <Card className="admin-card admin-section-panel h-100">
@@ -11729,7 +12252,7 @@ function SuperAdminDashboard() {
                 size="sm"
                 variant="outline-primary"
                 onClick={handleGenerateGlobalProductText}
-                disabled={globalProductTextLoading || (!String(globalProductForm.name_ru || '').trim() && !String(globalProductForm.name_uz || '').trim())}
+                disabled={!isAiFeatureEnabled || globalProductTextLoading || (!String(globalProductForm.name_ru || '').trim() && !String(globalProductForm.name_uz || '').trim())}
               >
                 {globalProductTextLoading
                   ? (language === 'uz' ? 'Yaratilmoqda...' : 'Генерация...')
@@ -11996,7 +12519,7 @@ function SuperAdminDashboard() {
                             size="sm"
                             variant="outline-primary"
                             onClick={() => runGlobalProductAiPreview('generate')}
-                            disabled={globalProductAiLoading || !String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim()}
+                            disabled={!isAiFeatureEnabled || globalProductAiLoading || !String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim()}
                           >
                             {language === 'uz' ? 'Generatsiya' : 'Генерация'}
                           </Button>
@@ -12004,7 +12527,7 @@ function SuperAdminDashboard() {
                             size="sm"
                             variant="outline-primary"
                             onClick={() => runGlobalProductAiPreview('process')}
-                            disabled={globalProductAiLoading || !globalProductForm.image_url}
+                            disabled={!isAiFeatureEnabled || globalProductAiLoading || !globalProductForm.image_url}
                           >
                             {language === 'uz' ? 'Обработка' : 'Обработать'}
                           </Button>
@@ -12014,7 +12537,7 @@ function SuperAdminDashboard() {
                             title={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
                             aria-label={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
                             onClick={handleRegenerateGlobalProductAiPreview}
-                            disabled={globalProductAiLoading || (!String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim() && !globalProductForm.image_url)}
+                            disabled={!isAiFeatureEnabled || globalProductAiLoading || (!String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim() && !globalProductForm.image_url)}
                           >
                             <i className="bi bi-arrow-clockwise" aria-hidden="true" />
                           </button>
@@ -12023,6 +12546,11 @@ function SuperAdminDashboard() {
                     </div>
                   </div>
 
+                  {!isAiFeatureEnabled && (
+                    <Alert variant="secondary" className="mt-3 mb-2 py-2 px-3">
+                      {aiDisabledMessage}
+                    </Alert>
+                  )}
                   {globalProductAiError && (
                     <Alert variant="warning" className="mt-3 mb-2 py-2 px-3">
                       {globalProductAiError}
@@ -13576,7 +14104,7 @@ function SuperAdminDashboard() {
                   size="sm"
                   variant="outline-primary"
                   onClick={() => runCategoryAiPreview('generate')}
-                  disabled={categoryAiLoading || !String(categoryForm.name_ru || categoryForm.name_uz || '').trim()}
+                  disabled={!isAiFeatureEnabled || categoryAiLoading || !String(categoryForm.name_ru || categoryForm.name_uz || '').trim()}
                 >
                   {language === 'uz' ? 'Generatsiya' : 'Генерация'}
                 </Button>
@@ -13585,7 +14113,7 @@ function SuperAdminDashboard() {
                   size="sm"
                   variant="outline-primary"
                   onClick={() => runCategoryAiPreview('process')}
-                  disabled={categoryAiLoading || !String(categoryForm.image_url || '').trim()}
+                  disabled={!isAiFeatureEnabled || categoryAiLoading || !String(categoryForm.image_url || '').trim()}
                 >
                   {language === 'uz' ? 'Обработка' : 'Обработать'}
                 </Button>
@@ -13594,11 +14122,16 @@ function SuperAdminDashboard() {
                   size="sm"
                   variant="outline-secondary"
                   onClick={handleRegenerateCategoryAiPreview}
-                  disabled={categoryAiLoading || (!String(categoryForm.name_ru || categoryForm.name_uz || '').trim() && !String(categoryForm.image_url || '').trim())}
+                  disabled={!isAiFeatureEnabled || categoryAiLoading || (!String(categoryForm.name_ru || categoryForm.name_uz || '').trim() && !String(categoryForm.image_url || '').trim())}
                 >
                   {language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
                 </Button>
               </div>
+              {!isAiFeatureEnabled && (
+                <Alert variant="secondary" className="mt-2 mb-0 py-2 px-3">
+                  {aiDisabledMessage}
+                </Alert>
+              )}
               {categoryAiMode && !categoryAiError && (
                 <div className="mt-2 small text-muted">
                   {categoryAiLoading

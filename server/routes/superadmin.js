@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../database/connection');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const sharp = require('sharp');
 const axios = require('axios');
 const bcrypt = require('bcryptjs');
@@ -65,6 +66,10 @@ let restaurantAdminCommentSchemaReady = false;
 let restaurantAdminCommentSchemaPromise = null;
 let globalProductsSchemaReady = false;
 let globalProductsSchemaPromise = null;
+let aiProvidersSchemaReady = false;
+let aiProvidersSchemaPromise = null;
+let aiUsageSchemaReady = false;
+let aiUsageSchemaPromise = null;
 const GLOBAL_PRODUCT_MAX_IMAGES = 5;
 const GLOBAL_PRODUCT_AI_OUTPUT_SIZE = 1024;
 const GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
@@ -99,6 +104,8 @@ const DEFAULT_ACTIVITY_TYPES = [
   'Цветочные',
   'Продуктовый магазин'
 ];
+const AI_PROVIDER_TYPES = new Set(['gemini', 'openai', 'replicate', 'cloudflare', 'pollinations', 'custom']);
+const AI_PROVIDER_OPERATIONS = new Set(['image_generate', 'image_process', 'text_generate']);
 
 const normalizeTokenValue = (value) => {
   const normalized = value ? String(value).trim() : '';
@@ -127,6 +134,97 @@ const normalizeBooleanFlag = (value, fallback = false) => {
   if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
   if (['false', '0', 'no', 'off'].includes(normalized)) return false;
   return fallback;
+};
+const normalizeAiProviderType = (value, fallback = 'gemini') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return AI_PROVIDER_TYPES.has(normalized) ? normalized : fallback;
+};
+const normalizeAiProviderName = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+const normalizeAiProviderModel = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+const normalizeAiProviderConfigJson = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+};
+const toAiProviderPriority = (value, fallback = 100) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(9999, parsed));
+};
+const buildAiApiKeyMask = (value) => {
+  const token = String(value || '').trim();
+  if (!token) return '';
+  if (token.length <= 8) return `${token.slice(0, 2)}••••${token.slice(-2)}`;
+  return `${token.slice(0, 4)}••••••••${token.slice(-4)}`;
+};
+const resolveAiEncryptionKey = () => {
+  const source = String(process.env.AI_PROVIDER_ENCRYPTION_KEY || process.env.JWT_SECRET || '').trim();
+  if (!source) return null;
+  return crypto.createHash('sha256').update(source).digest();
+};
+const encryptAiSecret = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  const key = resolveAiEncryptionKey();
+  if (!key) return '';
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(normalized, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`;
+};
+const decryptAiSecret = (payload) => {
+  const raw = String(payload || '').trim();
+  if (!raw) return '';
+  if (!raw.startsWith('v1:')) return '';
+  const parts = raw.split(':');
+  if (parts.length !== 4) return '';
+  const key = resolveAiEncryptionKey();
+  if (!key) return '';
+  try {
+    const iv = Buffer.from(parts[1], 'base64');
+    const tag = Buffer.from(parts[2], 'base64');
+    const encrypted = Buffer.from(parts[3], 'base64');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8').trim();
+  } catch (_) {
+    return '';
+  }
+};
+const normalizeAiProviderDbRow = (row) => ({
+  id: Number(row?.id || 0),
+  name: String(row?.name || '').trim(),
+  provider_type: normalizeAiProviderType(row?.provider_type, 'gemini'),
+  image_model: String(row?.image_model || '').trim(),
+  text_model: String(row?.text_model || '').trim(),
+  is_enabled: row?.is_enabled !== false,
+  is_active: row?.is_active === true,
+  priority: toAiProviderPriority(row?.priority, 100),
+  api_key_masked: String(row?.api_key_masked || '').trim(),
+  has_api_key: Boolean(String(row?.api_key_encrypted || '').trim()),
+  config_json: normalizeAiProviderConfigJson(row?.config_json),
+  created_at: row?.created_at || null,
+  updated_at: row?.updated_at || null
+});
+const normalizeAiUsageOperation = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return AI_PROVIDER_OPERATIONS.has(normalized) ? normalized : 'image_generate';
+};
+const estimateGeminiImageCostUsd = (model) => {
+  const normalized = String(model || '').toLowerCase();
+  if (normalized.includes('gemini-2.5-flash-image')) return 0.039;
+  if (normalized.includes('gemini-3.1-flash-image-preview')) return 0.067;
+  return null;
+};
+const parseProviderTag = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return { type: '', model: '' };
+  const separator = raw.indexOf(':');
+  if (separator === -1) return { type: raw.toLowerCase(), model: '' };
+  return {
+    type: raw.slice(0, separator).trim().toLowerCase(),
+    model: raw.slice(separator + 1).trim()
+  };
 };
 
 const ensureActivityTypesSchema = async () => {
@@ -194,12 +292,19 @@ const ensureBillingSettingsSchema = async () => {
   billingSettingsSchemaPromise = (async () => {
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS catalog_animation_season VARCHAR(16) DEFAULT 'off'`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN catalog_animation_season SET DEFAULT 'off'`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ALTER COLUMN ai_enabled SET DEFAULT true`).catch(() => {});
     await pool.query(`
       UPDATE billing_settings
       SET catalog_animation_season = 'off'
       WHERE catalog_animation_season IS NULL
         OR BTRIM(catalog_animation_season) = ''
         OR catalog_animation_season NOT IN ('off', 'spring', 'summer', 'autumn', 'winter')
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE billing_settings
+      SET ai_enabled = true
+      WHERE ai_enabled IS NULL
     `).catch(() => {});
     await pool.query(`
       ALTER TABLE billing_settings
@@ -213,6 +318,121 @@ const ensureBillingSettingsSchema = async () => {
     await billingSettingsSchemaPromise;
   } finally {
     billingSettingsSchemaPromise = null;
+  }
+};
+const ensureAiProvidersSchema = async () => {
+  if (aiProvidersSchemaReady) return;
+  if (aiProvidersSchemaPromise) {
+    await aiProvidersSchemaPromise;
+    return;
+  }
+
+  aiProvidersSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_providers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        provider_type VARCHAR(32) NOT NULL DEFAULT 'gemini',
+        api_key_encrypted TEXT,
+        api_key_masked VARCHAR(32),
+        image_model VARCHAR(120),
+        text_model VARCHAR(120),
+        config_json JSONB DEFAULT '{}'::jsonb,
+        is_enabled BOOLEAN DEFAULT true,
+        is_active BOOLEAN DEFAULT false,
+        priority INTEGER DEFAULT 100,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS provider_type VARCHAR(32) DEFAULT 'gemini'`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS api_key_encrypted TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS api_key_masked VARCHAR(32)`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS image_model VARCHAR(120)`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS text_model VARCHAR(120)`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS config_json JSONB DEFAULT '{}'::jsonb`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 100`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE ai_providers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`
+      UPDATE ai_providers
+      SET provider_type = 'gemini'
+      WHERE provider_type IS NULL OR BTRIM(provider_type) = ''
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE ai_providers
+      SET config_json = '{}'::jsonb
+      WHERE config_json IS NULL
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE ai_providers
+      SET is_enabled = true
+      WHERE is_enabled IS NULL
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE ai_providers
+      SET is_active = false
+      WHERE is_active IS NULL
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ai_providers_enabled_active
+      ON ai_providers (is_enabled, is_active, priority, id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_providers_single_active
+      ON ai_providers ((is_active))
+      WHERE is_active = true
+    `).catch(() => {});
+    aiProvidersSchemaReady = true;
+  })();
+
+  try {
+    await aiProvidersSchemaPromise;
+  } finally {
+    aiProvidersSchemaPromise = null;
+  }
+};
+const ensureAiUsageSchema = async () => {
+  if (aiUsageSchemaReady) return;
+  if (aiUsageSchemaPromise) {
+    await aiUsageSchemaPromise;
+    return;
+  }
+
+  aiUsageSchemaPromise = (async () => {
+    await ensureAiProvidersSchema();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_provider_usage (
+        id BIGSERIAL PRIMARY KEY,
+        provider_id INTEGER REFERENCES ai_providers(id) ON DELETE SET NULL,
+        provider_name VARCHAR(120),
+        provider_type VARCHAR(32),
+        operation VARCHAR(32) NOT NULL,
+        model VARCHAR(120),
+        status VARCHAR(16) NOT NULL,
+        http_status INTEGER,
+        error_code VARCHAR(120),
+        error_message TEXT,
+        estimated_cost_usd NUMERIC(12,6),
+        meta_json JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_provider_usage_created_at ON ai_provider_usage(created_at DESC)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_provider_usage_provider_created ON ai_provider_usage(provider_id, created_at DESC)`).catch(() => {});
+    aiUsageSchemaReady = true;
+  })();
+
+  try {
+    await aiUsageSchemaPromise;
+  } finally {
+    aiUsageSchemaPromise = null;
   }
 };
 const ensureGlobalProductsSchema = async () => {
@@ -609,19 +829,156 @@ const extractFirstJsonObject = (value) => {
   }
 };
 
-const resolveGeminiApiKey = () => String(
+const resolveGeminiApiKeyFromEnv = () => String(
   process.env.GEMINI_API_KEY
   || process.env.GOOGLE_GEMINI_API_KEY
   || process.env.GOOGLE_AI_API_KEY
   || ''
 ).trim();
 
+const getActiveAiProviderRuntimeConfig = async () => {
+  await ensureAiProvidersSchema();
+  const result = await pool.query(`
+    SELECT id, name, provider_type, api_key_encrypted, api_key_masked,
+           image_model, text_model, config_json, is_enabled, is_active, priority
+    FROM ai_providers
+    WHERE is_enabled = true AND is_active = true
+    ORDER BY priority ASC, id ASC
+    LIMIT 1
+  `);
+  const row = result.rows[0];
+  if (!row) return null;
+  const normalized = normalizeAiProviderDbRow(row);
+  const apiKey = decryptAiSecret(row.api_key_encrypted);
+  return {
+    ...normalized,
+    api_key: apiKey
+  };
+};
+
+const buildAiProviderRef = (provider) => {
+  if (!provider) return null;
+  return {
+    id: Number(provider.id || 0) || null,
+    name: String(provider.name || '').trim() || 'AI Provider',
+    provider_type: normalizeAiProviderType(provider.provider_type, 'gemini')
+  };
+};
+
+const resolveGeminiRuntimeConfig = async () => {
+  const activeProvider = await getActiveAiProviderRuntimeConfig();
+  if (activeProvider && activeProvider.provider_type === 'gemini' && activeProvider.api_key) {
+    const imageCandidates = [
+      normalizeAiProviderModel(activeProvider.image_model),
+      ...GEMINI_IMAGE_MODEL_CANDIDATES
+    ].filter(Boolean);
+    const textCandidates = [
+      normalizeAiProviderModel(activeProvider.text_model),
+      ...GEMINI_TEXT_MODEL_CANDIDATES
+    ].filter(Boolean);
+    return {
+      apiKey: activeProvider.api_key,
+      imageModelCandidates: [...new Set(imageCandidates)],
+      textModelCandidates: [...new Set(textCandidates)],
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+  if (activeProvider) {
+    return {
+      apiKey: '',
+      imageModelCandidates: GEMINI_IMAGE_MODEL_CANDIDATES,
+      textModelCandidates: GEMINI_TEXT_MODEL_CANDIDATES,
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+
+  const apiKey = resolveGeminiApiKeyFromEnv();
+  return {
+    apiKey,
+    imageModelCandidates: GEMINI_IMAGE_MODEL_CANDIDATES,
+    textModelCandidates: GEMINI_TEXT_MODEL_CANDIDATES,
+    providerRef: apiKey
+      ? { id: null, name: 'Railway ENV Gemini', provider_type: 'gemini' }
+      : null
+  };
+};
+
+const logAiUsageEvent = async ({
+  providerRef = null,
+  operation = 'image_generate',
+  model = '',
+  status = 'success',
+  httpStatus = null,
+  errorCode = '',
+  errorMessage = '',
+  estimatedCostUsd = null,
+  meta = {}
+} = {}) => {
+  try {
+    await ensureAiUsageSchema();
+    const safeOperation = normalizeAiUsageOperation(operation);
+    const safeStatus = status === 'failed' ? 'failed' : 'success';
+    const normalizedModel = normalizeAiProviderModel(model);
+    const normalizedErrorCode = String(errorCode || '').trim().slice(0, 120) || null;
+    const normalizedErrorMessage = String(errorMessage || '').trim().slice(0, 700) || null;
+    const normalizedMeta = normalizeAiProviderConfigJson(meta);
+    const numericCost = Number.isFinite(Number(estimatedCostUsd))
+      ? Math.max(0, Number(estimatedCostUsd))
+      : null;
+    await pool.query(`
+      INSERT INTO ai_provider_usage (
+        provider_id, provider_name, provider_type, operation, model, status,
+        http_status, error_code, error_message, estimated_cost_usd, meta_json
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+    `, [
+      providerRef?.id || null,
+      String(providerRef?.name || '').trim() || null,
+      String(providerRef?.provider_type || '').trim() || null,
+      safeOperation,
+      normalizedModel || null,
+      safeStatus,
+      Number.isFinite(Number(httpStatus)) ? Number(httpStatus) : null,
+      normalizedErrorCode,
+      normalizedErrorMessage,
+      numericCost,
+      JSON.stringify(normalizedMeta)
+    ]);
+  } catch (error) {
+    console.warn('AI usage logging warning:', error?.message || error);
+  }
+};
+
+const isAiFeatureEnabled = async () => {
+  await ensureBillingSettingsSchema();
+  const result = await pool.query(
+    'SELECT ai_enabled FROM billing_settings WHERE id = 1 LIMIT 1'
+  );
+  if (!result.rows.length) return true;
+  return result.rows[0]?.ai_enabled !== false;
+};
+
+const ensureAiFeatureEnabled = async (res) => {
+  try {
+    const enabled = await isAiFeatureEnabled();
+    if (enabled) return true;
+    res.status(403).json({
+      error: 'AI функции временно отключены в настройках супер-админки',
+      code: 'ai_disabled'
+    });
+    return false;
+  } catch (error) {
+    console.error('AI feature flag check error:', error?.message || error);
+    return true;
+  }
+};
+
 const generateGlobalProductImageWithGemini = async (prompt) => {
-  const apiKey = resolveGeminiApiKey();
+  const runtime = await resolveGeminiRuntimeConfig();
+  const apiKey = runtime.apiKey;
   if (!apiKey) return null;
 
   let lastError = null;
-  for (const model of GEMINI_IMAGE_MODEL_CANDIDATES) {
+  for (const model of runtime.imageModelCandidates) {
     try {
       const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -636,7 +993,12 @@ const generateGlobalProductImageWithGemini = async (prompt) => {
       );
       const imageBuffer = extractGeminiInlineImageBuffer(response.data);
       if (imageBuffer) {
-        return { buffer: imageBuffer, provider: `gemini:${model}` };
+        return {
+          buffer: imageBuffer,
+          provider: `gemini:${model}`,
+          model,
+          providerRef: runtime.providerRef || { id: null, name: 'Gemini', provider_type: 'gemini' }
+        };
       }
       lastError = new Error('Gemini не вернул изображение');
     } catch (error) {
@@ -648,11 +1010,12 @@ const generateGlobalProductImageWithGemini = async (prompt) => {
 };
 
 const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false } = {}) => {
-  const apiKey = resolveGeminiApiKey();
+  const runtime = await resolveGeminiRuntimeConfig();
+  const apiKey = runtime.apiKey;
   if (!apiKey) return null;
 
   let lastError = null;
-  for (const model of GEMINI_TEXT_MODEL_CANDIDATES) {
+  for (const model of runtime.textModelCandidates) {
     try {
       const response = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -670,7 +1033,12 @@ const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false 
       );
       const text = extractGeminiTextContent(response.data);
       if (text) {
-        return { text, provider: `gemini:${model}` };
+        return {
+          text,
+          provider: `gemini:${model}`,
+          model,
+          providerRef: runtime.providerRef || { id: null, name: 'Gemini', provider_type: 'gemini' }
+        };
       }
       lastError = new Error('Gemini не вернул текст');
     } catch (error) {
@@ -705,7 +1073,8 @@ const buildLocalGlobalProductTextFallback = ({ nameRu, nameUz }) => {
         : "Kundalik foydalanish va savdo uchun mos sifatli mahsulot.",
       3000
     ),
-    provider: 'local-template'
+    provider: 'local-template',
+    providerRef: null
   };
 };
 
@@ -749,7 +1118,8 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
       name_uz: outputNameUz || fallback.name_uz,
       description_ru: normalizeCatalogText(parsed.description_ru || fallback.description_ru, 3000),
       description_uz: normalizeCatalogText(parsed.description_uz || fallback.description_uz, 3000),
-      provider: result.provider || 'gemini'
+      provider: result.provider || 'gemini',
+      providerRef: result.providerRef || null
     };
   } catch (error) {
     console.warn('Global product description generation fallback:', error?.message || error);
@@ -2532,12 +2902,14 @@ router.put('/billing-settings', async (req, res) => {
       default_starting_balance, default_order_cost,
       superadmin_bot_token,
       superadmin_telegram_id,
-      catalog_animation_season
+      catalog_animation_season,
+      ai_enabled
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
+    const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -2551,6 +2923,7 @@ router.put('/billing-settings', async (req, res) => {
           superadmin_bot_token = $9,
           superadmin_telegram_id = $10,
           catalog_animation_season = $11,
+          ai_enabled = $12,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -2561,7 +2934,8 @@ router.put('/billing-settings', async (req, res) => {
       parseFlexibleAmount(default_order_cost, 1000),
       normalizedToken,
       normalizedSuperadminTelegramId,
-      normalizedCatalogAnimationSeason
+      normalizedCatalogAnimationSeason,
+      normalizedAiEnabled
     ]);
 
     try {
@@ -3704,6 +4078,7 @@ router.get('/operators', async (req, res) => {
 
 router.post('/global-products/description-preview', async (req, res) => {
   try {
+    if (!(await ensureAiFeatureEnabled(res))) return;
     const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
     const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
 
@@ -3714,6 +4089,17 @@ router.post('/global-products/description-preview', async (req, res) => {
     }
 
     const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz });
+    const parsedProvider = parseProviderTag(generated.provider || '');
+    const providerRef = generated.providerRef || (parsedProvider.type
+      ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
+      : null);
+    await logAiUsageEvent({
+      providerRef,
+      operation: 'text_generate',
+      model: parsedProvider.model,
+      status: 'success',
+      meta: { endpoint: 'global-products/description-preview' }
+    });
     res.json({
       name_ru: generated.name_ru || nameRu || nameUz,
       name_uz: generated.name_uz || nameUz || nameRu,
@@ -3723,6 +4109,15 @@ router.post('/global-products/description-preview', async (req, res) => {
     });
   } catch (error) {
     console.error('Global product description preview error:', error);
+    await logAiUsageEvent({
+      providerRef: null,
+      operation: 'text_generate',
+      status: 'failed',
+      httpStatus: Number(error?.response?.status || 0) || null,
+      errorCode: String(error?.response?.data?.error?.status || '').trim(),
+      errorMessage: String(error?.message || '').trim(),
+      meta: { endpoint: 'global-products/description-preview' }
+    });
     const rawMessage = String(error?.message || '').trim();
     const lowMessage = rawMessage.toLowerCase();
     const statusCode = lowMessage.includes('укажите') ? 400 : 500;
@@ -3735,7 +4130,9 @@ router.post('/global-products/description-preview', async (req, res) => {
 });
 
 router.post('/global-products/image-preview', async (req, res) => {
+  let usageOperation = 'image_generate';
   try {
+    if (!(await ensureAiFeatureEnabled(res))) return;
     const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
     const requestedMode = ['generate', 'process'].includes(modeRaw) ? modeRaw : 'auto';
     const productName = toOptionalTrimmedText(req.body?.name || req.body?.name_ru || req.body?.name_uz).slice(0, 180);
@@ -3744,9 +4141,12 @@ router.post('/global-products/image-preview', async (req, res) => {
     const effectiveMode = requestedMode === 'auto'
       ? (sourceImageUrl ? 'process' : 'generate')
       : requestedMode;
+    usageOperation = effectiveMode === 'process' ? 'image_process' : 'image_generate';
 
     let sourceBuffer;
     let provider = 'source_upload';
+    let providerRef = null;
+    let resolvedModel = '';
 
     if (effectiveMode === 'process') {
       const resolvedSourceUrl = resolveGlobalProductAiImageSourceUrl(sourceImageUrl, req);
@@ -3768,10 +4168,25 @@ router.post('/global-products/image-preview', async (req, res) => {
       const generated = await generateGlobalProductImageByName(productName, { categoryContextPath });
       sourceBuffer = generated.buffer;
       provider = generated.provider || 'generator';
+      providerRef = generated.providerRef || null;
+      resolvedModel = String(generated.model || '').trim();
     }
 
     const previewBuffer = await prepareGlobalProductTransparentPreview(sourceBuffer);
     const previewUrl = await saveGlobalProductAiImage(previewBuffer);
+    const parsedProvider = parseProviderTag(provider);
+    const effectiveProviderRef = providerRef || (parsedProvider.type
+      ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
+      : null);
+    const usageModel = resolvedModel || parsedProvider.model || '';
+    await logAiUsageEvent({
+      providerRef: effectiveProviderRef,
+      operation: usageOperation,
+      model: usageModel,
+      status: 'success',
+      estimatedCostUsd: parsedProvider.type === 'gemini' ? estimateGeminiImageCostUsd(usageModel) : 0,
+      meta: { endpoint: 'global-products/image-preview', mode: effectiveMode }
+    });
 
     res.json({
       preview_url: previewUrl,
@@ -3780,6 +4195,15 @@ router.post('/global-products/image-preview', async (req, res) => {
     });
   } catch (error) {
     console.error('Global product image preview error:', error);
+    await logAiUsageEvent({
+      providerRef: null,
+      operation: usageOperation,
+      status: 'failed',
+      httpStatus: Number(error?.response?.status || 0) || null,
+      errorCode: String(error?.response?.data?.error?.status || '').trim(),
+      errorMessage: String(error?.message || '').trim(),
+      meta: { endpoint: 'global-products/image-preview' }
+    });
     const rawMessage = String(error?.message || '').trim();
     const lowMessage = rawMessage.toLowerCase();
     const isInputError = lowMessage.includes('укажите название')
@@ -3805,7 +4229,9 @@ router.post('/global-products/image-preview', async (req, res) => {
 });
 
 router.post('/categories/image-preview', async (req, res) => {
+  let usageOperation = 'image_generate';
   try {
+    if (!(await ensureAiFeatureEnabled(res))) return;
     const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
     const requestedMode = ['generate', 'process'].includes(modeRaw) ? modeRaw : 'auto';
     const categoryName = toOptionalTrimmedText(req.body?.name || req.body?.name_ru || req.body?.name_uz).slice(0, 180);
@@ -3815,9 +4241,12 @@ router.post('/categories/image-preview', async (req, res) => {
     const effectiveMode = requestedMode === 'auto'
       ? (sourceImageUrl ? 'process' : 'generate')
       : requestedMode;
+    usageOperation = effectiveMode === 'process' ? 'image_process' : 'image_generate';
 
     let sourceBuffer;
     let provider = 'source_upload';
+    let providerRef = null;
+    let resolvedModel = '';
 
     if (effectiveMode === 'process') {
       const resolvedSourceUrl = resolveGlobalProductAiImageSourceUrl(sourceImageUrl, req);
@@ -3850,10 +4279,25 @@ router.post('/categories/image-preview', async (req, res) => {
       const generated = await generateGlobalProductImageByName(categoryName, { categoryContextPath });
       sourceBuffer = generated.buffer;
       provider = generated.provider || 'generator';
+      providerRef = generated.providerRef || null;
+      resolvedModel = String(generated.model || '').trim();
     }
 
     const previewBuffer = await prepareGlobalProductTransparentPreview(sourceBuffer);
     const previewUrl = await saveGlobalProductAiImage(previewBuffer);
+    const parsedProvider = parseProviderTag(provider);
+    const effectiveProviderRef = providerRef || (parsedProvider.type
+      ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
+      : null);
+    const usageModel = resolvedModel || parsedProvider.model || '';
+    await logAiUsageEvent({
+      providerRef: effectiveProviderRef,
+      operation: usageOperation,
+      model: usageModel,
+      status: 'success',
+      estimatedCostUsd: parsedProvider.type === 'gemini' ? estimateGeminiImageCostUsd(usageModel) : 0,
+      meta: { endpoint: 'categories/image-preview', mode: effectiveMode }
+    });
 
     res.json({
       preview_url: previewUrl,
@@ -3862,6 +4306,15 @@ router.post('/categories/image-preview', async (req, res) => {
     });
   } catch (error) {
     console.error('Category image preview error:', error);
+    await logAiUsageEvent({
+      providerRef: null,
+      operation: usageOperation,
+      status: 'failed',
+      httpStatus: Number(error?.response?.status || 0) || null,
+      errorCode: String(error?.response?.data?.error?.status || '').trim(),
+      errorMessage: String(error?.message || '').trim(),
+      meta: { endpoint: 'categories/image-preview' }
+    });
     const rawMessage = String(error?.message || '').trim();
     const lowMessage = rawMessage.toLowerCase();
     const isInputError = lowMessage.includes('укажите название')
@@ -6656,6 +7109,367 @@ router.delete('/ads/banners/:id', async (req, res) => {
   }
 });
 
+const resolveAiProviderPayload = (payload = {}, existing = null) => {
+  const current = existing || {};
+  const name = normalizeAiProviderName(
+    payload.name === undefined ? current.name : payload.name
+  );
+  const providerType = normalizeAiProviderType(
+    payload.provider_type === undefined ? current.provider_type : payload.provider_type,
+    'gemini'
+  );
+  const imageModel = normalizeAiProviderModel(
+    payload.image_model === undefined ? current.image_model : payload.image_model
+  );
+  const textModel = normalizeAiProviderModel(
+    payload.text_model === undefined ? current.text_model : payload.text_model
+  );
+  const priority = toAiProviderPriority(
+    payload.priority === undefined ? current.priority : payload.priority,
+    100
+  );
+  const isEnabled = normalizeBooleanFlag(
+    payload.is_enabled === undefined ? current.is_enabled : payload.is_enabled,
+    true
+  );
+  const requestedIsActive = normalizeBooleanFlag(
+    payload.is_active === undefined ? current.is_active : payload.is_active,
+    false
+  );
+  const isActive = isEnabled ? requestedIsActive : false;
+  const configJson = normalizeAiProviderConfigJson(
+    payload.config_json === undefined ? current.config_json : payload.config_json
+  );
+
+  const rawApiKeyInput = payload.api_key === undefined || payload.api_key === null
+    ? null
+    : String(payload.api_key).trim();
+  const clearApiKey = normalizeBooleanFlag(payload.clear_api_key, false);
+  const currentEncrypted = String(current.api_key_encrypted || '').trim();
+  const currentMasked = String(current.api_key_masked || '').trim();
+  let nextEncrypted = currentEncrypted;
+  let nextMasked = currentMasked;
+
+  if (clearApiKey) {
+    nextEncrypted = '';
+    nextMasked = '';
+  } else if (rawApiKeyInput !== null && rawApiKeyInput !== '') {
+    nextEncrypted = encryptAiSecret(rawApiKeyInput);
+    nextMasked = buildAiApiKeyMask(rawApiKeyInput);
+  }
+
+  return {
+    name,
+    providerType,
+    imageModel,
+    textModel,
+    priority,
+    isEnabled,
+    isActive,
+    configJson,
+    apiKeyEncrypted: nextEncrypted,
+    apiKeyMasked: nextMasked
+  };
+};
+
+// =====================================================
+// AI ПРОВАЙДЕРЫ И МЕТРИКИ
+// =====================================================
+
+router.get('/ai/providers', async (req, res) => {
+  try {
+    await ensureAiProvidersSchema();
+    const result = await pool.query(`
+      SELECT
+        id, name, provider_type, api_key_encrypted, api_key_masked,
+        image_model, text_model, config_json, is_enabled, is_active,
+        priority, created_at, updated_at
+      FROM ai_providers
+      ORDER BY is_active DESC, priority ASC, id ASC
+    `);
+    res.json({
+      providers: result.rows.map((row) => normalizeAiProviderDbRow(row))
+    });
+  } catch (error) {
+    console.error('Get AI providers error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки AI-провайдеров' });
+  }
+});
+
+router.post('/ai/providers', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureAiProvidersSchema();
+    const payload = resolveAiProviderPayload(req.body || {}, {
+      provider_type: 'gemini',
+      priority: 100,
+      is_enabled: true,
+      is_active: false,
+      config_json: {}
+    });
+    if (!payload.name) {
+      return res.status(400).json({ error: 'Укажите название провайдера' });
+    }
+    if (payload.providerType !== 'pollinations' && !payload.apiKeyEncrypted) {
+      return res.status(400).json({ error: 'Укажите API ключ для выбранного провайдера' });
+    }
+
+    await client.query('BEGIN');
+    if (payload.isActive) {
+      await client.query(`UPDATE ai_providers SET is_active = false WHERE is_active = true`);
+    }
+    const insertResult = await client.query(`
+      INSERT INTO ai_providers (
+        name, provider_type, api_key_encrypted, api_key_masked,
+        image_model, text_model, config_json, is_enabled, is_active,
+        priority, created_by, updated_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$11)
+      RETURNING id, name, provider_type, api_key_encrypted, api_key_masked,
+                image_model, text_model, config_json, is_enabled, is_active,
+                priority, created_at, updated_at
+    `, [
+      payload.name,
+      payload.providerType,
+      payload.apiKeyEncrypted || null,
+      payload.apiKeyMasked || null,
+      payload.imageModel || null,
+      payload.textModel || null,
+      JSON.stringify(payload.configJson),
+      payload.isEnabled,
+      payload.isActive,
+      payload.priority,
+      req.user.id
+    ]);
+    await client.query('COMMIT');
+    res.status(201).json({
+      provider: normalizeAiProviderDbRow(insertResult.rows[0])
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Create AI provider error:', error);
+    res.status(500).json({ error: 'Ошибка создания AI-провайдера' });
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/ai/providers/:id', async (req, res) => {
+  const providerId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(providerId) || providerId <= 0) {
+    return res.status(400).json({ error: 'Некорректный ID провайдера' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await ensureAiProvidersSchema();
+    const existingResult = await client.query(`
+      SELECT id, name, provider_type, api_key_encrypted, api_key_masked,
+             image_model, text_model, config_json, is_enabled, is_active,
+             priority, created_at, updated_at
+      FROM ai_providers
+      WHERE id = $1
+      LIMIT 1
+    `, [providerId]);
+    if (!existingResult.rows.length) {
+      return res.status(404).json({ error: 'AI-провайдер не найден' });
+    }
+
+    const payload = resolveAiProviderPayload(req.body || {}, existingResult.rows[0]);
+    if (!payload.name) {
+      return res.status(400).json({ error: 'Укажите название провайдера' });
+    }
+    if (payload.providerType !== 'pollinations' && !payload.apiKeyEncrypted) {
+      return res.status(400).json({ error: 'Укажите API ключ для выбранного провайдера' });
+    }
+
+    await client.query('BEGIN');
+    if (payload.isActive) {
+      await client.query(`UPDATE ai_providers SET is_active = false WHERE is_active = true AND id <> $1`, [providerId]);
+    }
+    const updateResult = await client.query(`
+      UPDATE ai_providers
+      SET name = $1,
+          provider_type = $2,
+          api_key_encrypted = $3,
+          api_key_masked = $4,
+          image_model = $5,
+          text_model = $6,
+          config_json = $7::jsonb,
+          is_enabled = $8,
+          is_active = $9,
+          priority = $10,
+          updated_by = $11,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $12
+      RETURNING id, name, provider_type, api_key_encrypted, api_key_masked,
+                image_model, text_model, config_json, is_enabled, is_active,
+                priority, created_at, updated_at
+    `, [
+      payload.name,
+      payload.providerType,
+      payload.apiKeyEncrypted || null,
+      payload.apiKeyMasked || null,
+      payload.imageModel || null,
+      payload.textModel || null,
+      JSON.stringify(payload.configJson),
+      payload.isEnabled,
+      payload.isActive,
+      payload.priority,
+      req.user.id,
+      providerId
+    ]);
+    await client.query('COMMIT');
+
+    res.json({
+      provider: normalizeAiProviderDbRow(updateResult.rows[0])
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Update AI provider error:', error);
+    res.status(500).json({ error: 'Ошибка обновления AI-провайдера' });
+  } finally {
+    client.release();
+  }
+});
+
+router.patch('/ai/providers/:id/activate', async (req, res) => {
+  const providerId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(providerId) || providerId <= 0) {
+    return res.status(400).json({ error: 'Некорректный ID провайдера' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await ensureAiProvidersSchema();
+    await client.query('BEGIN');
+    const checkResult = await client.query(`
+      SELECT id, is_enabled
+      FROM ai_providers
+      WHERE id = $1
+      LIMIT 1
+    `, [providerId]);
+    if (!checkResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'AI-провайдер не найден' });
+    }
+
+    await client.query(`UPDATE ai_providers SET is_active = false WHERE is_active = true AND id <> $1`, [providerId]);
+    const result = await client.query(`
+      UPDATE ai_providers
+      SET is_active = true,
+          is_enabled = true,
+          updated_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, name, provider_type, api_key_encrypted, api_key_masked,
+                image_model, text_model, config_json, is_enabled, is_active,
+                priority, created_at, updated_at
+    `, [providerId, req.user.id]);
+    await client.query('COMMIT');
+
+    res.json({
+      provider: normalizeAiProviderDbRow(result.rows[0])
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Activate AI provider error:', error);
+    res.status(500).json({ error: 'Ошибка активации AI-провайдера' });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/ai/providers/:id', async (req, res) => {
+  const providerId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(providerId) || providerId <= 0) {
+    return res.status(400).json({ error: 'Некорректный ID провайдера' });
+  }
+
+  try {
+    await ensureAiProvidersSchema();
+    const result = await pool.query('DELETE FROM ai_providers WHERE id = $1 RETURNING id', [providerId]);
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'AI-провайдер не найден' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete AI provider error:', error);
+    res.status(500).json({ error: 'Ошибка удаления AI-провайдера' });
+  }
+});
+
+router.get('/ai/usage/summary', async (req, res) => {
+  try {
+    await ensureAiUsageSchema();
+    const daysRaw = Number.parseInt(req.query.days, 10);
+    const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(365, daysRaw)) : 30;
+
+    const totalsResult = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total_requests,
+        COUNT(*) FILTER (WHERE status = 'success')::int AS success_requests,
+        COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_requests,
+        COUNT(*) FILTER (
+          WHERE (error_code = 'RESOURCE_EXHAUSTED')
+             OR (COALESCE(error_message, '') ILIKE '%quota%')
+             OR (COALESCE(error_message, '') ILIKE '%rate limit%')
+        )::int AS quota_related_errors,
+        COALESCE(SUM(estimated_cost_usd), 0)::numeric(14,6) AS estimated_cost_usd
+      FROM ai_provider_usage
+      WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
+    `, [days]);
+
+    const byProviderResult = await pool.query(`
+      SELECT
+        COALESCE(NULLIF(provider_name, ''), 'Unknown provider') AS provider_name,
+        COALESCE(NULLIF(provider_type, ''), 'unknown') AS provider_type,
+        COUNT(*)::int AS requests,
+        COUNT(*) FILTER (WHERE status = 'success')::int AS success_requests,
+        COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_requests,
+        COALESCE(SUM(estimated_cost_usd), 0)::numeric(14,6) AS estimated_cost_usd,
+        MAX(created_at) AS last_event_at
+      FROM ai_provider_usage
+      WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
+      GROUP BY 1, 2
+      ORDER BY requests DESC, provider_name ASC
+      LIMIT 30
+    `, [days]);
+
+    const recentErrorsResult = await pool.query(`
+      SELECT
+        provider_name,
+        provider_type,
+        operation,
+        model,
+        http_status,
+        error_code,
+        error_message,
+        created_at
+      FROM ai_provider_usage
+      WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND status = 'failed'
+      ORDER BY created_at DESC
+      LIMIT 30
+    `, [days]);
+
+    res.json({
+      days,
+      totals: totalsResult.rows[0] || {
+        total_requests: 0,
+        success_requests: 0,
+        failed_requests: 0,
+        quota_related_errors: 0,
+        estimated_cost_usd: 0
+      },
+      by_provider: byProviderResult.rows || [],
+      recent_errors: recentErrorsResult.rows || []
+    });
+  } catch (error) {
+    console.error('Get AI usage summary error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки AI статистики' });
+  }
+});
+
 // =====================================================
 // БИЛЛИНГ (НАСТРОЙКИ)
 // =====================================================
@@ -6682,12 +7496,14 @@ router.put('/billing/settings', async (req, res) => {
       click_link, payme_link, default_starting_balance, default_order_cost,
       superadmin_bot_token,
       superadmin_telegram_id,
-      catalog_animation_season
+      catalog_animation_season,
+      ai_enabled
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
+    const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -6701,13 +7517,14 @@ router.put('/billing/settings', async (req, res) => {
           superadmin_bot_token = $9,
           superadmin_telegram_id = $10,
           catalog_animation_season = $11,
+          ai_enabled = $12,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, parseFloat(default_starting_balance) || 100000, parseFlexibleAmount(default_order_cost, 1000),
-      normalizedToken, normalizedSuperadminTelegramId, normalizedCatalogAnimationSeason
+      normalizedToken, normalizedSuperadminTelegramId, normalizedCatalogAnimationSeason, normalizedAiEnabled
     ]);
 
     try {
