@@ -33,6 +33,12 @@ const APP_BUILD_VERSION = process.env.RAILWAY_DEPLOYMENT_ID
   || process.env.SOURCE_VERSION
   || `local-${Date.now()}`;
 const APP_BUILD_TIMESTAMP = new Date().toISOString();
+const applyNoStoreHeaders = (res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+};
 
 // Логируем какой порт используется
 console.log(`📌 PORT from environment: ${process.env.PORT || 'not set, using default 3000'}`);
@@ -282,14 +288,13 @@ app.use('/uploads', express.static(uploadsPath, {
 
 // Root route for Railway health check
 app.get('/', (req, res) => {
+  applyNoStoreHeaders(res);
   res.redirect('/login');
 });
 
 // App version for client-side update checks (no cache)
 app.get('/version.json', (req, res) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
+  applyNoStoreHeaders(res);
   res.json({
     version: APP_BUILD_VERSION,
     built_at: APP_BUILD_TIMESTAMP
@@ -427,9 +432,7 @@ if (process.env.NODE_ENV === 'production') {
     app.use(express.static(buildPath, {
       setHeaders: (res, filePath) => {
         if (filePath.endsWith('index.html')) {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-          res.setHeader('Pragma', 'no-cache');
-          res.setHeader('Expires', '0');
+          applyNoStoreHeaders(res);
           return;
         }
 
@@ -442,9 +445,7 @@ if (process.env.NODE_ENV === 'production') {
 
     // Serve React app (catch-all route must be last)
     app.get('*', (req, res) => {
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
+      applyNoStoreHeaders(res);
       res.sendFile(path.join(buildPath, 'index.html'));
     });
   } else {

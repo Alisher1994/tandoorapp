@@ -15,10 +15,28 @@ const {
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+const WEB_APP_CACHE_VERSION = String(
+  process.env.RAILWAY_DEPLOYMENT_ID
+  || process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.SOURCE_VERSION
+  || process.env.npm_package_version
+  || ''
+).trim();
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
   return secret || null;
+}
+
+function appendWebAppCacheVersion(rawUrl) {
+  if (!rawUrl || !WEB_APP_CACHE_VERSION) return rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.searchParams.set('app_v', WEB_APP_CACHE_VERSION);
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
 }
 
 // Generate login token for auto-login
@@ -39,7 +57,7 @@ function generateLoginToken(userId, username, options = {}) {
 
 function buildCatalogUrl(appUrl, token) {
   const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
-  return `${trimmed}/catalog?token=${token}`;
+  return appendWebAppCacheVersion(`${trimmed}/catalog?token=${encodeURIComponent(token)}`);
 }
 
 // Store for registration states
@@ -281,7 +299,7 @@ function buildWebLoginUrl(params = {}) {
     search.set(key, String(value));
   });
   const query = search.toString();
-  return `${trimmed}/login${query ? `?${query}` : ''}`;
+  return appendWebAppCacheVersion(`${trimmed}/login${query ? `?${query}` : ''}`);
 }
 
 async function resolvePreferredAdminTelegramUser(telegramId) {

@@ -22,10 +22,28 @@ const registrationStates = new Map();
 const passwordResetCooldown = new Map();
 const languageSelectionStates = new Map();
 const languagePreferences = new Map();
+const WEB_APP_CACHE_VERSION = String(
+  process.env.RAILWAY_DEPLOYMENT_ID
+  || process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.SOURCE_VERSION
+  || process.env.npm_package_version
+  || ''
+).trim();
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
   return secret || null;
+}
+
+function appendWebAppCacheVersion(rawUrl) {
+  if (!rawUrl || !WEB_APP_CACHE_VERSION) return rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.searchParams.set('app_v', WEB_APP_CACHE_VERSION);
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
 }
 
 const BOT_LANGUAGES = ['ru', 'uz'];
@@ -108,7 +126,7 @@ function generateLoginToken(userId, username, options = {}) {
 function buildCatalogUrl(appUrl, token) {
   if (!appUrl) return null;
   const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
-  return `${trimmed}/catalog?token=${token}`;
+  return appendWebAppCacheVersion(`${trimmed}/catalog?token=${encodeURIComponent(token)}`);
 }
 
 function generateTemporaryPassword(length = 12) {
@@ -249,7 +267,7 @@ function buildWebLoginUrl(params = {}) {
     search.set(key, String(value));
   });
   const query = search.toString();
-  return `${trimmed}/login${query ? `?${query}` : ''}`;
+  return appendWebAppCacheVersion(`${trimmed}/login${query ? `?${query}` : ''}`);
 }
 
 function normalizeBotLanguage(value) {
