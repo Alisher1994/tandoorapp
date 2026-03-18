@@ -90,6 +90,27 @@ function parseOptionalInt(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeTelegramUsernameCandidate(value, telegramId) {
+  const raw = String(value || '').trim().toLowerCase().replace(/^@+/, '');
+  const normalized = raw.replace(/[^a-z0-9_]/g, '').slice(0, 40);
+  if (normalized) return normalized;
+  return `tg_${telegramId}`;
+}
+
+async function resolveUniqueTelegramWebAppUsername(telegramId, preferredValue = '') {
+  const base = normalizeTelegramUsernameCandidate(preferredValue, telegramId);
+  let candidate = base;
+  let suffix = 1;
+  while (true) {
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1',
+      [candidate]
+    );
+    if (existing.rows.length === 0) return candidate;
+    candidate = `${base}_${suffix++}`;
+  }
+}
+
 function timingSafeHexEqual(a, b) {
   const left = String(a || '').trim().toLowerCase();
   const right = String(b || '').trim().toLowerCase();
@@ -645,17 +666,61 @@ router.post('/telegram-webapp-login', async (req, res) => {
       [verified.telegramId, restaurantId]
     );
 
-    if (candidateResult.rows.length === 0) {
+    let user = candidateResult.rows[0] || null;
+
+    // Silent onboarding for Telegram WebApp Open button:
+    // if user is not yet created in DB, create customer account automatically.
+    if (!user) {
+      const tgUser = verified.user || {};
+      const fullName = String(
+        [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim()
+        || tgUser.username
+        || `Telegram ${verified.telegramId}`
+      ).slice(0, 255);
+      const username = await resolveUniqueTelegramWebAppUsername(
+        verified.telegramId,
+        tgUser.username || ''
+      );
+      const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+      const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+      const languageCode = String(tgUser.language_code || '').toLowerCase().startsWith('uz') ? 'uz' : 'ru';
+
+      const createdResult = await pool.query(
+        `
+        INSERT INTO users (
+          telegram_id, username, password, full_name, role, is_active, active_restaurant_id, bot_language
+        )
+        VALUES ($1, $2, $3, $4, 'customer', true, $5, $6)
+        ON CONFLICT (telegram_id) DO UPDATE SET
+          active_restaurant_id = EXCLUDED.active_restaurant_id,
+          bot_language = COALESCE(users.bot_language, EXCLUDED.bot_language),
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+        `,
+        [verified.telegramId, username, hashedPassword, fullName, restaurantId, languageCode]
+      );
+      user = createdResult.rows[0] || null;
+    }
+
+    if (!user) {
       return res.status(401).json({ error: 'Пользователь Telegram не найден в системе' });
     }
 
-    const user = candidateResult.rows[0];
     if (!user.is_active) {
       return res.status(403).json({ error: 'Аккаунт деактивирован', blocked: true });
     }
 
-    if (user.role === 'customer' && !user.has_customer_access) {
-      return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+    // Customer in Telegram Mini App is auto-linked to the current restaurant.
+    if (user.role === 'customer') {
+      await pool.query(
+        `
+        INSERT INTO user_restaurants (user_id, restaurant_id, last_interaction)
+        VALUES ($1, $2, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, restaurant_id)
+        DO UPDATE SET last_interaction = CURRENT_TIMESTAMP
+        `,
+        [user.id, restaurantId]
+      ).catch(() => {});
     }
     if ((user.role === 'operator' || user.role === 'superadmin') && !user.has_operator_access) {
       return res.status(403).json({ error: 'Нет доступа к этому магазину' });

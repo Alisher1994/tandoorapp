@@ -34,6 +34,68 @@ export function AuthProvider({ children }) {
   const [isBlocked, setIsBlocked] = useState(false);
   const [supportUsername, setSupportUsername] = useState(null);
 
+  const getRestaurantIdFromLocation = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('restaurant_id') || urlParams.get('restaurantId') || '';
+  };
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const parseRestaurantIdFromToken = (rawToken) => {
+    try {
+      const token = String(rawToken || '').trim();
+      const payloadPart = token.split('.')[1] || '';
+      if (!payloadPart) return '';
+      const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+      const decodedPayload = JSON.parse(atob(padded));
+      const candidate = Number.parseInt(
+        decodedPayload?.restaurantId || decodedPayload?.restaurant_id,
+        10
+      );
+      return Number.isFinite(candidate) && candidate > 0 ? String(candidate) : '';
+    } catch (_) {
+      return '';
+    }
+  };
+
+  const waitForTelegramInitData = async (attempts = 5, delayMs = 250) => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const telegramInitData = window.Telegram?.WebApp?.initData || '';
+      if (telegramInitData) return telegramInitData;
+      await sleep(delayMs);
+    }
+    return '';
+  };
+
+  const tryTelegramWebAppAutoLogin = async (restaurantId) => {
+    if (!restaurantId) return false;
+
+    const telegramInitData = await waitForTelegramInitData();
+    if (!telegramInitData) return false;
+
+    try {
+      const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, {
+        init_data: telegramInitData,
+        restaurant_id: restaurantId
+      });
+      const nextToken = response.data?.token;
+      const nextUser = withNormalizedTheme(response.data?.user || null);
+      if (!nextToken || !nextUser) return false;
+
+      localStorage.setItem('token', nextToken);
+      localStorage.setItem('active_restaurant_id', String(nextUser?.active_restaurant_id || ''));
+      axios.defaults.headers.common['Authorization'] = `Bearer ${nextToken}`;
+      setUser(nextUser);
+      setIsBlocked(false);
+      setSupportUsername(null);
+      return true;
+    } catch (error) {
+      console.warn('Telegram WebApp auto-login skipped:', error?.response?.data?.error || error.message);
+      return false;
+    }
+  };
+
   useEffect(() => {
     initializeAuth();
   }, []);
@@ -49,7 +111,9 @@ export function AuthProvider({ children }) {
     // Check for token in URL first (auto-login from Telegram)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
-    const restaurantIdFromUrl = urlParams.get('restaurant_id') || urlParams.get('restaurantId') || '';
+    const restaurantIdFromUrl = getRestaurantIdFromLocation();
+    const restaurantIdFromToken = parseRestaurantIdFromToken(tokenFromUrl);
+    const effectiveRestaurantId = restaurantIdFromUrl || restaurantIdFromToken;
     
     if (tokenFromUrl) {
       // Save token from URL and try to authenticate
@@ -61,8 +125,16 @@ export function AuthProvider({ children }) {
       const remainingQuery = urlParams.toString();
       const nextUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}`;
       window.history.replaceState({}, document.title, nextUrl);
-      
-      await fetchUser();
+
+      const authResult = await fetchUser({ manageLoading: false });
+      if (authResult?.unauthorized) {
+        const loggedInByTelegram = await tryTelegramWebAppAutoLogin(effectiveRestaurantId);
+        if (loggedInByTelegram) {
+          setLoading(false);
+          return;
+        }
+      }
+      setLoading(false);
       return;
     }
     
@@ -70,38 +142,26 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      await fetchUser();
-    } else {
-      // Fallback for Telegram menu button "Open" without token in URL.
-      const telegramInitData = window.Telegram?.WebApp?.initData || '';
-      if (telegramInitData && restaurantIdFromUrl) {
-        try {
-          const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, {
-            init_data: telegramInitData,
-            restaurant_id: restaurantIdFromUrl
-          });
-          const nextToken = response.data?.token;
-          const nextUser = withNormalizedTheme(response.data?.user || null);
-          if (nextToken && nextUser) {
-            localStorage.setItem('token', nextToken);
-            localStorage.setItem('active_restaurant_id', String(nextUser?.active_restaurant_id || ''));
-            axios.defaults.headers.common['Authorization'] = `Bearer ${nextToken}`;
-            setUser(nextUser);
-            setIsBlocked(false);
-            setSupportUsername(null);
-            setLoading(false);
-            return;
-          }
-        } catch (error) {
-          // Silent fallback to normal login screen.
-          console.warn('Telegram WebApp auto-login skipped:', error?.response?.data?.error || error.message);
+      const authResult = await fetchUser({ manageLoading: false });
+      if (authResult?.unauthorized) {
+        const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
+        if (loggedInByTelegram) {
+          setLoading(false);
+          return;
         }
+      }
+      setLoading(false);
+    } else {
+      const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
+      if (loggedInByTelegram) {
+        setLoading(false);
+        return;
       }
       setLoading(false);
     }
   };
 
-  const fetchUser = async () => {
+  const fetchUser = async ({ manageLoading = true } = {}) => {
     try {
       const response = await axios.get(`${API_URL}/auth/me`);
       const normalizedUser = withNormalizedTheme(response.data.user);
@@ -137,7 +197,9 @@ export function AuthProvider({ children }) {
         error: error.response?.data?.error || error.message || 'Temporary auth error'
       };
     } finally {
-      setLoading(false);
+      if (manageLoading) {
+        setLoading(false);
+      }
     }
   };
 

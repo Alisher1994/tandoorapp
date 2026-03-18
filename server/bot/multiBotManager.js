@@ -127,10 +127,26 @@ function generateLoginToken(userId, username, options = {}) {
   );
 }
 
-function buildCatalogUrl(appUrl, token) {
+function buildCatalogUrl(appUrl, token, restaurantId = null) {
   if (!appUrl) return null;
   const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
-  return appendWebAppCacheVersion(`${trimmed}/catalog?token=${encodeURIComponent(token)}`);
+  let effectiveRestaurantId = Number.parseInt(restaurantId, 10);
+  if (!Number.isFinite(effectiveRestaurantId) || effectiveRestaurantId <= 0) {
+    try {
+      const decoded = jwt.decode(token) || {};
+      const fromToken = Number.parseInt(decoded?.restaurantId || decoded?.restaurant_id, 10);
+      effectiveRestaurantId = Number.isFinite(fromToken) && fromToken > 0 ? fromToken : null;
+    } catch (_) {
+      effectiveRestaurantId = null;
+    }
+  }
+
+  const query = new URLSearchParams();
+  query.set('token', String(token || '').trim());
+  if (Number.isFinite(effectiveRestaurantId) && effectiveRestaurantId > 0) {
+    query.set('restaurant_id', String(effectiveRestaurantId));
+  }
+  return appendWebAppCacheVersion(`${trimmed}/catalog?${query.toString()}`);
 }
 
 function buildCatalogPublicUrl(appUrl, restaurantId) {
