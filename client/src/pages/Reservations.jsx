@@ -9,6 +9,7 @@ import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Minus, LocateFixed, Expand, Minimize } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import ClientTopBar from '../components/ClientTopBar';
@@ -199,6 +200,7 @@ function Reservations() {
   const timeRulerManualScrollRef = useRef(false);
   const timeRulerManualScrollTimeoutRef = useRef(null);
   const timeRulerSyncRafRef = useRef(null);
+  const latestStartTimeRef = useRef(startTime);
   const lastAvailabilityKeyRef = useRef('');
   const availabilityRequestIdRef = useRef(0);
 
@@ -398,7 +400,7 @@ function Reservations() {
     setPlanGestureMode('pinch');
   }, []);
 
-  const fetchAvailability = async (nextFloorId = selectedFloorId, overrides = {}) => {
+  const fetchAvailability = useCallback(async (nextFloorId = selectedFloorId, overrides = {}) => {
     const requestId = availabilityRequestIdRef.current + 1;
     availabilityRequestIdRef.current = requestId;
 
@@ -453,7 +455,7 @@ function Reservations() {
       if (requestId !== availabilityRequestIdRef.current) return;
       setLoadingAvailability(false);
     }
-  };
+  }, [selectedFloorId, bookingDate, startTime, durationMinutes, restaurantId, workingWindow.endMinutes, restaurant?.reservation_enabled, t]);
 
   useEffect(() => {
     let isMounted = true;
@@ -501,7 +503,7 @@ function Reservations() {
 
   useEffect(() => {
     fetchAvailability();
-  }, [selectedFloorId, bookingDate, startTime, durationMinutes, restaurantId]);
+  }, [fetchAvailability]);
 
   useEffect(() => () => {
     if (timeRulerManualScrollTimeoutRef.current) {
@@ -517,6 +519,10 @@ function Reservations() {
       timeRulerSyncRafRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    latestStartTimeRef.current = startTime;
+  }, [startTime]);
 
   useEffect(() => {
     if (!timeSlots.length) return;
@@ -730,10 +736,11 @@ function Reservations() {
       void fetchAvailability(selectedFloorId, {
         bookingDate,
         startTime: nearestValue,
-        durationMinutes: durationMinutes
+        durationMinutes,
+        force: true
       });
     }
-  }, [startTime, selectedFloorId, bookingDate, durationMinutes]);
+  }, [startTime, selectedFloorId, bookingDate, durationMinutes, fetchAvailability]);
 
   const handleTimeRulerScroll = useCallback(() => {
     if (timeRulerAutoScrollRef.current) return;
@@ -744,7 +751,7 @@ function Reservations() {
     }
     timeRulerManualScrollTimeoutRef.current = window.setTimeout(() => {
       timeRulerManualScrollRef.current = false;
-      centerTimeSlot(startTime, 'smooth');
+      centerTimeSlot(latestStartTimeRef.current, 'smooth');
     }, 140);
 
     if (timeRulerSyncRafRef.current) {
@@ -765,7 +772,7 @@ function Reservations() {
         timeRulerSyncRafRef.current = null;
       }, 16);
     }
-  }, [centerTimeSlot, startTime, syncTimelineByCenter]);
+  }, [centerTimeSlot, syncTimelineByCenter]);
 
   useEffect(() => {
     if (timeRulerManualScrollRef.current) return;
@@ -1058,26 +1065,6 @@ function Reservations() {
                             ))}
                           </Form.Select>
                         </div>
-                        <div className="client-res-overlay-row client-res-overlay-row-time">
-                          <div className="client-res-time-readout">
-                            <span>{t('Время', 'Vaqt')}:</span>
-                            <strong>{startTime}</strong>
-                          </div>
-                          <div ref={timeRulerRef} className="client-res-time-ruler" onScroll={handleTimeRulerScroll}>
-                            {timeSlots.map((slot, index) => {
-                              const active = slot.value === startTime;
-                              const isHour = slot.minutes % 60 === 0;
-                              return (
-                                <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); }} title={slot.value} aria-label={slot.value}>
-                                  <span className="client-res-ruler-line" />
-                                  {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
-                                  {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
-                                  {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -1103,7 +1090,7 @@ function Reservations() {
                         const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
-                        const markerScaleCompensation = Number((1 / Math.max(planScale, 0.001)).toFixed(4));
+                        const markerScaleCompensation = Number(clamp(1 / Math.max(planScale, 0.001), 0.65, 1.35).toFixed(4));
 
                         return (
                           <button
@@ -1132,17 +1119,39 @@ function Reservations() {
 
                   <div className="client-res-plan-controls" aria-label={t('Управление картой', 'Xarita boshqaruvi')}>
                     <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomIn} title={t('Приблизить', 'Yaqinlashtirish')} aria-label={t('Приблизить', 'Yaqinlashtirish')}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                      <Plus aria-hidden="true" />
                     </button>
                     <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomOut} title={t('Отдалить', 'Uzoqlashtirish')} aria-label={t('Отдалить', 'Uzoqlashtirish')}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+                      <Minus aria-hidden="true" />
                     </button>
                     <button type="button" className="client-res-map-control-btn" onClick={fitPlanToViewport} title={t('Сбросить вид', 'Ko‘rinishni tiklash')} aria-label={t('Сбросить вид', 'Ko‘rinishni tiklash')}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V6h3M18 9V6h-3M6 15v3h3M18 15v3h-3" /></svg>
+                      <LocateFixed aria-hidden="true" />
                     </button>
                     <button type="button" className="client-res-map-control-btn" onClick={handleToggleFullscreen} title={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')} aria-label={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true">{isPlanFullscreen ? <path d="M9 15H6v3M15 15h3v3M9 9H6V6M15 9h3V6" /> : <path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" />}</svg>
+                      {isPlanFullscreen ? <Minimize aria-hidden="true" /> : <Expand aria-hidden="true" />}
                     </button>
+                  </div>
+
+                  <div className="client-res-time-strip" aria-label={t('Выбор времени', 'Vaqt tanlash')}>
+                    <div className="client-res-time-strip-head">
+                      <span className="client-res-time-strip-label">{t('Время', 'Vaqt')}</span>
+                      <strong className="client-res-time-strip-value">{startTime}</strong>
+                      {selectedEndTime ? <span className="client-res-time-strip-range">{startTime} - {selectedEndTime}</span> : null}
+                    </div>
+                    <div ref={timeRulerRef} className="client-res-time-ruler client-res-time-ruler--floating" onScroll={handleTimeRulerScroll}>
+                      {timeSlots.map((slot, index) => {
+                        const active = slot.value === startTime;
+                        const isHour = slot.minutes % 60 === 0;
+                        return (
+                          <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); }} title={slot.value} aria-label={slot.value}>
+                            <span className="client-res-ruler-line" />
+                            {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
+                            {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
+                            {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="client-res-map-next-overlay">

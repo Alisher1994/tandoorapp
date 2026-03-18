@@ -1567,6 +1567,53 @@ h6 {
   z-index: 11;
 }
 
+.client-res-time-strip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: max(66px, calc(env(safe-area-inset-bottom) + 56px));
+  z-index: 12;
+  border: 1px solid rgba(199, 210, 231, 0.74);
+  border-radius: 14px;
+  background: rgba(247, 250, 255, 0.82);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 6px 9px 7px;
+}
+
+.client-res-time-strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.client-res-time-strip-label {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.client-res-time-strip-value {
+  color: #0f172a;
+  font-size: 0.94rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.client-res-time-strip-range {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.client-res-time-ruler--floating {
+  background: rgba(255, 255, 255, 0.84);
+}
+
 .client-res-top-card .card-body {
   padding: 14px;
 }
@@ -2174,6 +2221,12 @@ h6 {
   .client-res-controls-title-line {
     flex-wrap: wrap;
   }
+
+  .client-res-time-strip {
+    left: 8px;
+    right: 8px;
+    bottom: max(62px, calc(env(safe-area-inset-bottom) + 52px));
+  }
 }
 
 @media (max-width: 767.98px) {
@@ -2199,6 +2252,11 @@ h6 {
 
   .client-res-time-ruler {
     gap: 11px;
+  }
+
+  .client-res-time-strip {
+    padding: 7px 8px;
+    bottom: max(60px, calc(env(safe-area-inset-bottom) + 50px));
   }
 
   .client-res-ruler-tick {
