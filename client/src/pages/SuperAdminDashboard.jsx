@@ -3580,6 +3580,78 @@ function SuperAdminDashboard() {
     if (!entries.length) return '-';
     return entries.join(' | ').slice(0, 180);
   };
+  const formatSecurityPortalLabel = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (language === 'uz') {
+      if (normalized === 'superadmin') return 'superadmin paneliga';
+      if (normalized === 'admin') return 'admin paneliga';
+      if (normalized === 'operator') return 'operator paneliga';
+      if (normalized === 'customer') return 'mijoz kirishiga';
+      return 'tizimga';
+    }
+    if (normalized === 'superadmin') return 'в супер-админку';
+    if (normalized === 'admin') return 'в админку';
+    if (normalized === 'operator') return 'в панель оператора';
+    if (normalized === 'customer') return 'в клиентский вход';
+    return 'в систему';
+  };
+  const formatSecurityHumanSummary = (eventItem) => {
+    const type = String(eventItem?.event_type || '').trim().toLowerCase();
+    const details = (eventItem?.details && typeof eventItem.details === 'object') ? eventItem.details : {};
+    const identifier = String(details?.identifier || '').trim();
+    const portalLabel = formatSecurityPortalLabel(details?.portal || '');
+    const targetPath = String(eventItem?.request_path || eventItem?.target || '').trim();
+
+    if (type === 'auth_invalid_password') {
+      return language === 'uz'
+        ? `${portalLabel} kirish urinishida parol noto'g'ri bo'lgan${identifier ? ` (login: ${identifier})` : ''}.`
+        : `Попытка входа ${portalLabel}: неверный пароль${identifier ? ` (логин: ${identifier})` : ''}.`;
+    }
+    if (type === 'auth_account_not_found') {
+      return language === 'uz'
+        ? `${portalLabel} kirishda bunday akkaunt topilmadi${identifier ? ` (login: ${identifier})` : ''}.`
+        : `Попытка входа ${portalLabel}: такой аккаунт не найден${identifier ? ` (логин: ${identifier})` : ''}.`;
+    }
+    if (type === 'auth_inactive_account') {
+      return language === 'uz'
+        ? `Akkaunt topilgan, lekin u o‘chirilgan yoki faol emas${identifier ? ` (login: ${identifier})` : ''}.`
+        : `Аккаунт найден, но отключен или неактивен${identifier ? ` (логин: ${identifier})` : ''}.`;
+    }
+    if (type === 'auth_rate_limit') {
+      return language === 'uz'
+        ? 'Qisqa vaqt ichida juda ko‘p kirish urinishlari bo‘lgani uchun himoya cheklovi ishga tushdi.'
+        : 'За короткое время было слишком много попыток входа, сработало ограничение защиты.';
+    }
+    if (type === 'auth_invalid_account_choice') {
+      return language === 'uz'
+        ? 'Kirishda noto‘g‘ri akkaunt tanlangan.'
+        : 'При входе был выбран недоступный аккаунт.';
+    }
+    if (type === 'webhook_invalid_secret') {
+      return language === 'uz'
+        ? 'Webhook maxfiy kaliti noto‘g‘ri yuborilgan.'
+        : 'Webhook пришёл с неверным секретным ключом.';
+    }
+    if (type === 'cors_blocked_origin') {
+      return language === 'uz'
+        ? 'So‘rov ruxsat etilmagan domen/origin dan kelgan va bloklangan.'
+        : 'Запрос пришёл с неразрешённого origin и был заблокирован.';
+    }
+    if (type === 'api_probe_404') {
+      return language === 'uz'
+        ? 'Kimdir mavjud bo‘lmagan API manzillarini tekshirgan (сканирование).'
+        : 'Кто-то проверял несуществующие API-адреса (сканирование).';
+    }
+
+    if (targetPath) {
+      return language === 'uz'
+        ? `Shubhali hodisa qayd etildi: ${targetPath}.`
+        : `Зафиксировано подозрительное событие: ${targetPath}.`;
+    }
+    return language === 'uz'
+      ? 'Shubhali hodisa qayd etildi.'
+      : 'Зафиксировано подозрительное событие.';
+  };
   const getPhoneTelHref = (value) => {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -10033,7 +10105,10 @@ function SuperAdminDashboard() {
                                   <div className="small text-muted">{eventItem.user_full_name || eventItem.user_username || '-'}</div>
                                 </td>
                                 <td style={{ maxWidth: '280px' }}>
-                                  <small title={formatSecurityDetailsSummary(eventItem.details)}>
+                                  <div className="small fw-semibold mb-1">
+                                    {formatSecurityHumanSummary(eventItem)}
+                                  </div>
+                                  <small className="text-muted" title={formatSecurityDetailsSummary(eventItem.details)}>
                                     {formatSecurityDetailsSummary(eventItem.details)}
                                   </small>
                                 </td>
