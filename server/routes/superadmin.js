@@ -612,7 +612,6 @@ const generateGlobalProductImageWithGemini = async (prompt) => {
 };
 
 const generateGlobalProductImageWithPollinations = async (prompt) => {
-  const seed = Date.now();
   const negativePrompt = [
     'multiple objects',
     'shelf',
@@ -623,22 +622,97 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
     'logo',
     'watermark',
     'person',
-    'hands'
+    'hands',
+    'ui card',
+    'product card template',
+    'poster'
   ].join(', ');
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&safe=true&enhance=true&negative=${encodeURIComponent(negativePrompt)}`;
+
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const modelCandidates = ['flux', 'turbo', ''];
+  let lastError = null;
+
+  for (const model of modelCandidates) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const seed = Date.now() + Math.floor(Math.random() * 1000000);
+      const params = new URLSearchParams({
+        width: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
+        height: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
+        seed: String(seed),
+        nologo: 'true',
+        safe: 'true',
+        enhance: 'true',
+        negative: negativePrompt
+      });
+      if (model) params.set('model', model);
+
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
+
+      try {
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 25000,
+          maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+          maxRedirects: 3,
+          headers: {
+            Accept: 'image/*,*/*;q=0.8',
+            'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+          },
+          validateStatus: (status) => status >= 200 && status < 400
+        });
+        const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+        if (!contentType.startsWith('image/')) {
+          throw new Error(`Pollinations вернул неподдерживаемый content-type: ${contentType || 'unknown'}`);
+        }
+        const buffer = Buffer.from(response.data || []);
+        if (!buffer.length) throw new Error('Pollinations вернул пустой ответ');
+        return { buffer, provider: model ? `pollinations:${model}` : 'pollinations' };
+      } catch (error) {
+        lastError = error;
+        const statusCode = Number(error?.response?.status || 0);
+        const canRetry = attempt < 2 && [408, 425, 429, 500, 502, 503, 504].includes(statusCode);
+        if (canRetry) {
+          await wait(1200 * attempt);
+          continue;
+        }
+      }
+    }
+  }
+
+  if (lastError) throw lastError;
+  throw new Error('Pollinations не вернул изображение');
+};
+
+const generateGlobalProductImageWithLoremFlickr = async (name) => {
+  const tokens = String(name || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  const tagString = [...tokens, 'product', 'object', 'isolated'].join(',');
+  const lock = Date.now() + Math.floor(Math.random() * 1000000);
+  const url = `https://loremflickr.com/${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}/${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}/${encodeURIComponent(tagString)}?lock=${lock}`;
+
   const response = await axios.get(url, {
     responseType: 'arraybuffer',
-    timeout: 70000,
+    timeout: 25000,
     maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+    maxRedirects: 5,
+    headers: {
+      Accept: 'image/*,*/*;q=0.8',
+      'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+    },
     validateStatus: (status) => status >= 200 && status < 400
   });
   const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
   if (!contentType.startsWith('image/')) {
-    throw new Error('Pollinations вернул не изображение');
+    throw new Error('LoremFlickr вернул не изображение');
   }
   const buffer = Buffer.from(response.data || []);
-  if (!buffer.length) throw new Error('Генератор не вернул изображение');
-  return { buffer, provider: 'pollinations' };
+  if (!buffer.length) throw new Error('LoremFlickr вернул пустой ответ');
+  return { buffer, provider: 'loremflickr' };
 };
 
 const escapeXml = (value) => String(value || '')
@@ -685,17 +759,20 @@ const generateGlobalProductImageByName = async (name) => {
   const cleanName = String(name || '').trim().slice(0, 180);
   if (!cleanName) throw new Error('Укажите название товара для генерации');
   const prompt = [
-    `Studio product packshot of "${cleanName}"`,
-    'single product only',
-    'centered object',
+    `Professional studio product photo of "${cleanName}"`,
+    'single real product item only',
+    'isolated object in center',
     'square composition 1:1',
-    'object occupies around 75% of frame',
-    'plain white or transparent background',
-    'soft studio lighting',
-    'photorealistic',
+    'object occupies around 75 percent of frame',
+    'clean white seamless background',
+    'soft studio lighting, high detail',
+    'photorealistic commercial packshot',
     'no people',
     'no shelf',
     'no scene',
+    'no ecommerce card',
+    'no package mockup template',
+    'no UI',
     'no text',
     'no logo',
     'no watermark'
@@ -715,6 +792,13 @@ const generateGlobalProductImageByName = async (name) => {
   } catch (error) {
     console.warn('Pollinations generation fallback:', error?.message || error);
     generationErrors.push(`pollinations: ${error?.message || 'unknown'}`);
+  }
+
+  try {
+    return await generateGlobalProductImageWithLoremFlickr(cleanName);
+  } catch (error) {
+    console.warn('LoremFlickr generation fallback:', error?.message || error);
+    generationErrors.push(`loremflickr: ${error?.message || 'unknown'}`);
   }
 
   console.warn('All external generators failed, using local placeholder:', generationErrors.join(' | '));

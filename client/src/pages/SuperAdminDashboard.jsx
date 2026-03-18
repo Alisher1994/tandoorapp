@@ -2379,9 +2379,23 @@ function SuperAdminDashboard() {
   };
 
   const handleRegenerateGlobalProductAiPreview = () => {
-    const mode = globalProductAiMode === 'process'
-      ? 'process'
-      : (String(globalProductForm.image_url || '').trim() ? 'process' : 'generate');
+    const hasSourceImage = Boolean(String(globalProductForm.image_url || '').trim());
+    const hasProductName = Boolean(String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim());
+    let mode = 'generate';
+    if (globalProductAiMode === 'process' && hasSourceImage) {
+      mode = 'process';
+    } else if (!hasProductName && hasSourceImage) {
+      mode = 'process';
+    } else if (hasProductName) {
+      mode = 'generate';
+    } else if (hasSourceImage) {
+      mode = 'process';
+    } else {
+      setGlobalProductAiError(language === 'uz'
+        ? 'Qayta yaratish uchun nom yoki rasm kerak'
+        : 'Для перегенерации нужно название или исходное фото');
+      return;
+    }
     runGlobalProductAiPreview(mode);
   };
 
@@ -11633,81 +11647,85 @@ function SuperAdminDashboard() {
                       <div className="admin-global-product-image-preview-title">
                         {language === 'uz' ? 'Joriy slot' : 'Текущий слот'}
                       </div>
-                      {globalProductForm.image_url ? (
-                        <img
-                          src={resolveGlobalProductImagePreviewUrl(globalProductForm.image_url)}
-                          alt="global-product-slot-preview"
-                          className="admin-global-product-image-preview-thumb"
-                        />
-                      ) : (
-                        <div className="admin-global-product-image-preview-empty">📷</div>
-                      )}
-                      <div className="admin-global-product-slot-actions">
-                        <Button
-                          size="sm"
-                          variant="outline-secondary"
-                          onClick={() => globalProductImageInputRef.current?.click()}
-                          disabled={uploadingImage || globalProductAiLoading}
-                        >
-                          {language === 'uz' ? 'Tanlash' : 'Выбрать'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-danger"
-                          onClick={() => {
-                            setGlobalProductForm((prev) => ({ ...prev, image_url: '' }));
-                            setGlobalProductAiPreviewUrl('');
-                            setGlobalProductAiMode('');
-                            setGlobalProductAiError('');
-                          }}
-                          disabled={(!globalProductForm.image_url && !globalProductAiPreviewUrl) || globalProductAiLoading}
-                        >
-                          {language === 'uz' ? "O'chirish" : 'Удалить'}
-                        </Button>
+                      <div className="admin-global-product-image-preview-stage">
+                        {globalProductForm.image_url ? (
+                          <img
+                            src={resolveGlobalProductImagePreviewUrl(globalProductForm.image_url)}
+                            alt="global-product-slot-preview"
+                            className="admin-global-product-image-preview-thumb"
+                          />
+                        ) : (
+                          <div className="admin-global-product-image-preview-empty">📷</div>
+                        )}
+                        <div className="admin-global-product-slot-actions admin-global-product-slot-actions-overlay">
+                          <Button
+                            size="sm"
+                            variant="outline-secondary"
+                            onClick={() => globalProductImageInputRef.current?.click()}
+                            disabled={uploadingImage || globalProductAiLoading}
+                          >
+                            {language === 'uz' ? 'Tanlash' : 'Выбрать'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            onClick={() => {
+                              setGlobalProductForm((prev) => ({ ...prev, image_url: '' }));
+                              setGlobalProductAiPreviewUrl('');
+                              setGlobalProductAiMode('');
+                              setGlobalProductAiError('');
+                            }}
+                            disabled={(!globalProductForm.image_url && !globalProductAiPreviewUrl) || globalProductAiLoading}
+                          >
+                            {language === 'uz' ? "O'chirish" : 'Удалить'}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     <div className="admin-global-product-image-preview-card">
                       <div className="admin-global-product-image-preview-title">
                         {language === 'uz' ? 'AI preview' : 'AI preview'}
                       </div>
-                      {globalProductAiPreviewUrl ? (
-                        <img
-                          src={resolveGlobalProductImagePreviewUrl(globalProductAiPreviewUrl)}
-                          alt="global-product-ai-preview"
-                          className="admin-global-product-image-preview-thumb"
-                        />
-                      ) : (
-                        <div className="admin-global-product-image-preview-empty">
-                          {language === 'uz' ? 'Preview yo‘q' : 'Нет preview'}
+                      <div className="admin-global-product-image-preview-stage">
+                        {globalProductAiPreviewUrl ? (
+                          <img
+                            src={resolveGlobalProductImagePreviewUrl(globalProductAiPreviewUrl)}
+                            alt="global-product-ai-preview"
+                            className="admin-global-product-image-preview-thumb"
+                          />
+                        ) : (
+                          <div className="admin-global-product-image-preview-empty">
+                            {language === 'uz' ? 'Preview yo‘q' : 'Нет preview'}
+                          </div>
+                        )}
+                        <div className="admin-global-product-slot-actions admin-global-product-slot-actions-overlay">
+                          <Button
+                            size="sm"
+                            variant="outline-primary"
+                            onClick={() => runGlobalProductAiPreview('generate')}
+                            disabled={globalProductAiLoading || !String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim()}
+                          >
+                            {language === 'uz' ? 'Generatsiya' : 'Генерация'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline-primary"
+                            onClick={() => runGlobalProductAiPreview('process')}
+                            disabled={globalProductAiLoading || !globalProductForm.image_url}
+                          >
+                            {language === 'uz' ? 'Обработка' : 'Обработать'}
+                          </Button>
+                          <button
+                            type="button"
+                            className="admin-global-product-refresh-btn"
+                            title={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
+                            aria-label={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
+                            onClick={handleRegenerateGlobalProductAiPreview}
+                            disabled={globalProductAiLoading || (!String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim() && !globalProductForm.image_url)}
+                          >
+                            <i className="bi bi-arrow-clockwise" aria-hidden="true" />
+                          </button>
                         </div>
-                      )}
-                      <div className="admin-global-product-slot-actions">
-                        <Button
-                          size="sm"
-                          variant="outline-primary"
-                          onClick={() => runGlobalProductAiPreview('generate')}
-                          disabled={globalProductAiLoading || !String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim()}
-                        >
-                          {language === 'uz' ? 'Generatsiya' : 'Генерация'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-primary"
-                          onClick={() => runGlobalProductAiPreview('process')}
-                          disabled={globalProductAiLoading || !globalProductForm.image_url}
-                        >
-                          {language === 'uz' ? 'Обработка' : 'Обработать'}
-                        </Button>
-                        <button
-                          type="button"
-                          className="admin-global-product-refresh-btn"
-                          title={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
-                          aria-label={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
-                          onClick={handleRegenerateGlobalProductAiPreview}
-                          disabled={globalProductAiLoading || (!String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim() && !globalProductForm.image_url)}
-                        >
-                          <i className="bi bi-arrow-clockwise" aria-hidden="true" />
-                        </button>
                       </div>
                     </div>
                   </div>

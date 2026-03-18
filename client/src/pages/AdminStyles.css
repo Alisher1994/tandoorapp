@@ -6641,9 +6641,14 @@ body::-webkit-scrollbar,
     margin-bottom: 8px;
 }
 
+.admin-global-product-image-preview-stage {
+    position: relative;
+    width: min(100%, 190px);
+}
+
 .admin-global-product-image-preview-thumb {
     width: 100%;
-    max-width: 180px;
+    max-width: none;
     height: 140px;
     object-fit: contain;
     border-radius: 10px;
@@ -6653,7 +6658,7 @@ body::-webkit-scrollbar,
 
 .admin-global-product-image-preview-empty {
     width: 100%;
-    max-width: 180px;
+    max-width: none;
     height: 140px;
     display: inline-flex;
     align-items: center;
@@ -6668,23 +6673,43 @@ body::-webkit-scrollbar,
 }
 
 .admin-global-product-slot-actions {
-    margin-top: 10px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
 }
 
 .admin-global-product-slot-actions .btn {
     border-radius: 8px;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(2px);
+    border-color: rgba(148, 163, 184, 0.72);
+}
+
+.admin-global-product-slot-actions-overlay {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.admin-global-product-image-preview-stage:hover .admin-global-product-slot-actions-overlay,
+.admin-global-product-image-preview-stage:focus-within .admin-global-product-slot-actions-overlay {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .admin-global-product-refresh-btn {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
     border: 1px solid #cbd5e1;
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.96);
     color: #475569;
     display: inline-flex;
     align-items: center;
@@ -6704,4 +6729,14 @@ body::-webkit-scrollbar,
     opacity: 0.45;
     cursor: not-allowed;
     transform: none;
+}
+
+@media (hover: none) {
+    .admin-global-product-slot-actions-overlay {
+        position: static;
+        margin-top: 10px;
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
+    }
 }
