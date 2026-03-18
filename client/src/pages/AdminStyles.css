@@ -6666,3 +6666,42 @@ body::-webkit-scrollbar,
     text-align: center;
     padding: 8px;
 }
+
+.admin-global-product-slot-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-global-product-slot-actions .btn {
+    border-radius: 8px;
+}
+
+.admin-global-product-refresh-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: transform 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.admin-global-product-refresh-btn:hover,
+.admin-global-product-refresh-btn:focus-visible {
+    border-color: #94a3b8;
+    color: #1e293b;
+    transform: rotate(20deg);
+}
+
+.admin-global-product-refresh-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+}

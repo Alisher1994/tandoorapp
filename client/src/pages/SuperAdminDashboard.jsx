@@ -815,7 +815,6 @@ function SuperAdminDashboard() {
   const [editingGlobalProduct, setEditingGlobalProduct] = useState(null);
   const [savingGlobalProduct, setSavingGlobalProduct] = useState(false);
   const [globalProductAiPreviewUrl, setGlobalProductAiPreviewUrl] = useState('');
-  const [globalProductAiProvider, setGlobalProductAiProvider] = useState('');
   const [globalProductAiMode, setGlobalProductAiMode] = useState('');
   const [globalProductAiLoading, setGlobalProductAiLoading] = useState(false);
   const [globalProductAiError, setGlobalProductAiError] = useState('');
@@ -2277,7 +2276,6 @@ function SuperAdminDashboard() {
     setGlobalProductCategorySearch({ level1: '', level2: '', level3: '' });
     setGlobalProductForm(createEmptyGlobalProductForm());
     setGlobalProductAiPreviewUrl('');
-    setGlobalProductAiProvider('');
     setGlobalProductAiMode('');
     setGlobalProductAiLoading(false);
     setGlobalProductAiError('');
@@ -2290,7 +2288,6 @@ function SuperAdminDashboard() {
     globalProductAiRequestIdRef.current += 1;
     setGlobalProductCategorySearch({ level1: '', level2: '', level3: '' });
     setGlobalProductAiPreviewUrl('');
-    setGlobalProductAiProvider('');
     setGlobalProductAiMode('');
     setGlobalProductAiLoading(false);
     setGlobalProductAiError('');
@@ -2365,7 +2362,6 @@ function SuperAdminDashboard() {
         return;
       }
       setGlobalProductAiPreviewUrl(previewUrl);
-      setGlobalProductAiProvider(String(response.data?.provider || ''));
       setGlobalProductAiMode(String(response.data?.mode || normalizedMode));
     } catch (err) {
       if (globalProductAiRequestIdRef.current !== requestId) return;
@@ -2380,14 +2376,6 @@ function SuperAdminDashboard() {
         setGlobalProductAiLoading(false);
       }
     }
-  };
-
-  const handleApplyGlobalProductAiPreview = () => {
-    if (!globalProductAiPreviewUrl) return;
-    setGlobalProductForm((prev) => ({
-      ...prev,
-      image_url: globalProductAiPreviewUrl
-    }));
   };
 
   const handleRegenerateGlobalProductAiPreview = () => {
@@ -2412,7 +2400,7 @@ function SuperAdminDashboard() {
     const normalizedOrderStep = Number.isFinite(parsedStep) && parsedStep > 0
       ? Math.round((parsedStep + Number.EPSILON) * 100) / 100
       : null;
-    const imageUrl = String(globalProductForm.image_url || '').trim();
+    const imageUrl = String(globalProductAiPreviewUrl || globalProductForm.image_url || '').trim();
 
     const payload = {
       name_ru: nameRu,
@@ -2498,6 +2486,8 @@ function SuperAdminDashboard() {
     event.target.value = '';
     if (!file) return;
     setGlobalProductAiError('');
+    setGlobalProductAiPreviewUrl('');
+    setGlobalProductAiMode('');
     handleImageUpload(file, (url) => {
       setGlobalProductForm((prev) => ({ ...prev, image_url: url }));
     });
@@ -11463,24 +11453,49 @@ function SuperAdminDashboard() {
             <Col md={4}>
               <Form.Group>
                 <Form.Label>{language === 'uz' ? "O'lchov birligi" : 'Единица измерения'}</Form.Label>
-                <Form.Control
+                <Form.Select
                   value={globalProductForm.unit}
-                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, unit: e.target.value }))}
-                  placeholder={language === 'uz' ? "Masalan: шт, кг, л" : 'Например: шт, кг, л'}
-                />
+                  onChange={(e) => {
+                    const nextUnit = String(e.target.value || 'шт').trim() || 'шт';
+                    setGlobalProductForm((prev) => ({
+                      ...prev,
+                      unit: nextUnit,
+                      order_step: nextUnit === 'кг' ? prev.order_step : ''
+                    }));
+                  }}
+                >
+                  <option value="шт">{language === 'uz' ? 'dona' : 'шт'}</option>
+                  <option value="порция">{language === 'uz' ? 'porsiya' : 'порция'}</option>
+                  <option value="кг">кг</option>
+                  <option value="л">л</option>
+                  <option value="г">г</option>
+                  <option value="мл">мл</option>
+                  <option value="Стакан">{language === 'uz' ? 'stakan' : 'Стакан'}</option>
+                  <option value="Банка">{language === 'uz' ? 'banka' : 'Банка'}</option>
+                  <option value="Пачка">{language === 'uz' ? 'pachka' : 'Пачка'}</option>
+                  <option value="Блок">{language === 'uz' ? 'blok' : 'Блок'}</option>
+                  <option value="см">см</option>
+                  <option value="м">м</option>
+                  <option value="м2">м2</option>
+                  <option value="м3">м3</option>
+                  <option value="км">км</option>
+                  <option value="т">т</option>
+                </Form.Select>
               </Form.Group>
             </Col>
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label>{language === 'uz' ? 'Шаг (для кг)' : 'Шаг (для кг)'}</Form.Label>
-                <Form.Control
-                  value={globalProductForm.order_step}
-                  onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, order_step: String(e.target.value || '').replace(/[^\d.,]/g, '').slice(0, 12) }))}
-                  placeholder={language === 'uz' ? "Masalan: 0.1" : 'Например: 0.1'}
-                  inputMode="decimal"
-                />
-              </Form.Group>
-            </Col>
+            {globalProductForm.unit === 'кг' && (
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label>{language === 'uz' ? 'Шаг (кг uchun)' : 'Шаг (для кг)'}</Form.Label>
+                  <Form.Control
+                    value={globalProductForm.order_step}
+                    onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, order_step: String(e.target.value || '').replace(/[^\d.,]/g, '').slice(0, 12) }))}
+                    placeholder={language === 'uz' ? "Masalan: 0.1" : 'Например: 0.1'}
+                    inputMode="decimal"
+                  />
+                </Form.Group>
+              </Col>
+            )}
             <Col md={12}>
               {(() => {
                 const selectedPathIds = getGlobalProductCategoryPathIds(globalProductForm.recommended_category_id);
@@ -11606,7 +11621,12 @@ function SuperAdminDashboard() {
                 <Form.Label>{language === 'uz' ? 'Rasm' : 'Фото'}</Form.Label>
                 <div
                   className="rounded border p-3 bg-light"
-                  onPaste={(e) => handlePaste(e, (url) => setGlobalProductForm((prev) => ({ ...prev, image_url: url })))}
+                  onPaste={(e) => handlePaste(e, (url) => {
+                    setGlobalProductAiPreviewUrl('');
+                    setGlobalProductAiMode('');
+                    setGlobalProductAiError('');
+                    setGlobalProductForm((prev) => ({ ...prev, image_url: url }));
+                  })}
                 >
                   <div className="admin-global-product-image-preview-grid">
                     <div className="admin-global-product-image-preview-card">
@@ -11622,6 +11642,29 @@ function SuperAdminDashboard() {
                       ) : (
                         <div className="admin-global-product-image-preview-empty">📷</div>
                       )}
+                      <div className="admin-global-product-slot-actions">
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => globalProductImageInputRef.current?.click()}
+                          disabled={uploadingImage || globalProductAiLoading}
+                        >
+                          {language === 'uz' ? 'Tanlash' : 'Выбрать'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          onClick={() => {
+                            setGlobalProductForm((prev) => ({ ...prev, image_url: '' }));
+                            setGlobalProductAiPreviewUrl('');
+                            setGlobalProductAiMode('');
+                            setGlobalProductAiError('');
+                          }}
+                          disabled={(!globalProductForm.image_url && !globalProductAiPreviewUrl) || globalProductAiLoading}
+                        >
+                          {language === 'uz' ? "O'chirish" : 'Удалить'}
+                        </Button>
+                      </div>
                     </div>
                     <div className="admin-global-product-image-preview-card">
                       <div className="admin-global-product-image-preview-title">
@@ -11638,6 +11681,34 @@ function SuperAdminDashboard() {
                           {language === 'uz' ? 'Preview yo‘q' : 'Нет preview'}
                         </div>
                       )}
+                      <div className="admin-global-product-slot-actions">
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          onClick={() => runGlobalProductAiPreview('generate')}
+                          disabled={globalProductAiLoading || !String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim()}
+                        >
+                          {language === 'uz' ? 'Generatsiya' : 'Генерация'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          onClick={() => runGlobalProductAiPreview('process')}
+                          disabled={globalProductAiLoading || !globalProductForm.image_url}
+                        >
+                          {language === 'uz' ? 'Обработка' : 'Обработать'}
+                        </Button>
+                        <button
+                          type="button"
+                          className="admin-global-product-refresh-btn"
+                          title={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
+                          aria-label={language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
+                          onClick={handleRegenerateGlobalProductAiPreview}
+                          disabled={globalProductAiLoading || (!String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim() && !globalProductForm.image_url)}
+                        >
+                          <i className="bi bi-arrow-clockwise" aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -11646,67 +11717,6 @@ function SuperAdminDashboard() {
                       {globalProductAiError}
                     </Alert>
                   )}
-
-                  <div className="d-flex flex-column gap-2 flex-grow-1 mt-3">
-                    <div className="d-flex flex-wrap gap-2">
-                      <Button
-                        variant="outline-secondary"
-                        onClick={() => globalProductImageInputRef.current?.click()}
-                        disabled={uploadingImage || globalProductAiLoading}
-                      >
-                        {language === 'uz' ? 'Fayl tanlash' : 'Выбрать файл'}
-                      </Button>
-                      <Button
-                        variant="outline-danger"
-                        onClick={() => setGlobalProductForm((prev) => ({ ...prev, image_url: '' }))}
-                        disabled={!globalProductForm.image_url || globalProductAiLoading}
-                      >
-                        {language === 'uz' ? "O'chirish" : 'Удалить'}
-                      </Button>
-                      <Button
-                        variant="outline-primary"
-                        onClick={() => runGlobalProductAiPreview('generate')}
-                        disabled={globalProductAiLoading || !String(globalProductForm.name_ru || globalProductForm.name_uz || '').trim()}
-                      >
-                        {globalProductAiLoading && globalProductAiMode !== 'process'
-                          ? (language === 'uz' ? 'Yaratilmoqda...' : 'Генерация...')
-                          : (language === 'uz' ? 'AI rasm yaratish' : 'Сгенерировать AI фото')}
-                      </Button>
-                      <Button
-                        variant="outline-primary"
-                        onClick={() => runGlobalProductAiPreview('process')}
-                        disabled={globalProductAiLoading || !globalProductForm.image_url}
-                      >
-                        {globalProductAiLoading && globalProductAiMode === 'process'
-                          ? (language === 'uz' ? 'Qayta ishlanmoqda...' : 'Обработка...')
-                          : (language === 'uz' ? 'Rasmni tozalash' : 'Обработать фото')}
-                      </Button>
-                      <Button
-                        variant="outline-dark"
-                        onClick={handleRegenerateGlobalProductAiPreview}
-                        disabled={globalProductAiLoading || (!globalProductAiPreviewUrl && !globalProductForm.image_url)}
-                      >
-                        {language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
-                      </Button>
-                      <Button
-                        className="btn-primary-custom"
-                        onClick={handleApplyGlobalProductAiPreview}
-                        disabled={globalProductAiLoading || !globalProductAiPreviewUrl}
-                      >
-                        {language === 'uz' ? 'Preview-ni saqlash' : 'Сохранить preview в слот'}
-                      </Button>
-                    </div>
-                    <Form.Text className="text-muted">
-                      {language === 'uz'
-                        ? 'AI preview alohida tayyorlanadi: yoqsa saqlaysiz, yoqmasa qayta yaratishingiz mumkin. Ctrl+V orqali ham rasm qo‘yish mumkin.'
-                        : 'AI preview формируется отдельно: если нравится, сохраните в слот, если нет — перегенерируйте. Можно вставить фото через Ctrl+V.'}
-                    </Form.Text>
-                    {globalProductAiProvider && (
-                      <Form.Text className="text-muted">
-                        {language === 'uz' ? `Manba: ${globalProductAiProvider}` : `Провайдер: ${globalProductAiProvider}`}
-                      </Form.Text>
-                    )}
-                  </div>
                 </div>
                 <Form.Control
                   ref={globalProductImageInputRef}

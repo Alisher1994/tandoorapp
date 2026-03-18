@@ -653,18 +653,28 @@ const generateGlobalProductPlaceholderImage = async (name) => {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}" height="${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}" viewBox="0 0 ${GLOBAL_PRODUCT_AI_OUTPUT_SIZE} ${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}">
       <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stop-color="#f8fafc" />
           <stop offset="100%" stop-color="#e2e8f0" />
         </linearGradient>
+        <linearGradient id="obj1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fef3c7" />
+          <stop offset="100%" stop-color="#fdba74" />
+        </linearGradient>
+        <linearGradient id="obj2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#bfdbfe" />
+          <stop offset="100%" stop-color="#60a5fa" />
+        </linearGradient>
       </defs>
-      <rect width="100%" height="100%" fill="url(#g)" />
-      <rect x="248" y="236" width="528" height="548" rx="54" fill="#ffffff" stroke="#cbd5e1" stroke-width="8"/>
-      <rect x="286" y="312" width="452" height="308" rx="38" fill="#eef2ff"/>
-      <circle cx="512" cy="466" r="104" fill="#dbeafe"/>
-      <circle cx="512" cy="466" r="62" fill="#93c5fd"/>
-      <rect x="360" y="682" width="304" height="34" rx="17" fill="#cbd5e1"/>
-      <text x="512" y="842" fill="#0f172a" text-anchor="middle" font-size="50" font-family="Arial, sans-serif">${title}</text>
+      <rect width="100%" height="100%" fill="url(#bg)" />
+      <ellipse cx="512" cy="760" rx="250" ry="44" fill="rgba(15,23,42,0.16)" />
+      <rect x="346" y="290" width="332" height="428" rx="52" fill="url(#obj1)" stroke="#b45309" stroke-width="8"/>
+      <rect x="434" y="238" width="156" height="76" rx="24" fill="#f59e0b" stroke="#b45309" stroke-width="8"/>
+      <rect x="392" y="356" width="240" height="106" rx="24" fill="rgba(255,255,255,0.86)"/>
+      <rect x="396" y="520" width="232" height="156" rx="20" fill="url(#obj2)" stroke="#2563eb" stroke-width="6"/>
+      <circle cx="512" cy="598" r="34" fill="#dbeafe" />
+      <rect x="412" y="846" width="200" height="22" rx="11" fill="#cbd5e1"/>
+      <text x="512" y="905" fill="#334155" text-anchor="middle" font-size="44" font-family="Arial, sans-serif">${title}</text>
     </svg>
   `;
   const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
@@ -675,7 +685,7 @@ const generateGlobalProductImageByName = async (name) => {
   const cleanName = String(name || '').trim().slice(0, 180);
   if (!cleanName) throw new Error('Укажите название товара для генерации');
   const prompt = [
-    `E-commerce product card packshot of "${cleanName}"`,
+    `Studio product packshot of "${cleanName}"`,
     'single product only',
     'centered object',
     'square composition 1:1',
