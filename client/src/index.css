@@ -1583,13 +1583,13 @@ h6 {
   align-items: flex-start;
 }
 
-.client-res-top-title {
+.client-res-top-card .client-res-top-title {
   font-size: clamp(1rem, 1.55vw, 1.22rem);
   font-weight: 800;
   color: #f8fafc;
 }
 
-.client-res-top-subtitle {
+.client-res-top-card .client-res-top-subtitle {
   margin-top: 2px;
   font-size: 0.9rem;
   color: rgba(248, 250, 252, 0.82);
@@ -1819,8 +1819,8 @@ h6 {
 }
 
 .client-res-plan-table.is-selected {
-  border-color: rgba(79, 70, 229, 0.88);
-  box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.24), 0 10px 24px rgba(49, 46, 129, 0.32);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .client-res-plan-table.is-disabled {
@@ -1882,6 +1882,13 @@ h6 {
   text-align: center;
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.24);
   pointer-events: none;
+}
+
+.client-res-plan-table.is-selected .client-res-plan-table-center-id {
+  border-color: rgba(49, 46, 129, 0.95);
+  background: rgba(79, 70, 229, 0.96);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(49, 46, 129, 0.44);
 }
 
 .client-res-plan-table-label {
