@@ -754,7 +754,22 @@ function Reservations() {
     centerTimeSlot(startTime, 'auto');
 
     const initialLeft = ruler.scrollLeft;
-    const nudgeDistance = Math.min(180, Math.max(76, Math.round(ruler.clientWidth * 0.22)));
+    const ticks = Array.from(ruler.querySelectorAll('[data-slot-value]'));
+    const activeTick = ruler.querySelector(`[data-slot-value="${startTime}"]`);
+    const activeIndex = ticks.findIndex((tick) => tick === activeTick);
+    const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
+    const forwardTargetIndex = Math.min(safeActiveIndex + 4, ticks.length - 1);
+    const forwardTargetTick = ticks[forwardTargetIndex];
+    const referenceTick = ticks[safeActiveIndex] || ticks[0];
+    const firstTick = ticks[0];
+    const secondTick = ticks[1];
+    const stepDistance = firstTick && secondTick
+      ? Math.max(24, Math.abs(secondTick.offsetLeft - firstTick.offsetLeft))
+      : Math.max(24, Math.round(ruler.clientWidth * 0.12));
+    const nudgeDistanceRaw = forwardTargetTick && referenceTick
+      ? Math.abs(forwardTargetTick.offsetLeft - referenceTick.offsetLeft)
+      : Math.round(stepDistance * 4);
+    const nudgeDistance = Math.min(520, Math.max(Math.round(stepDistance * 4), nudgeDistanceRaw));
     timeRulerAutoScrollRef.current = true;
 
     const timerForward = window.setTimeout(() => {
@@ -1193,16 +1208,27 @@ function Reservations() {
                       <Card className="h-100 border-0 client-res-form-card">
                         <Card.Body>
                           <Form.Group className="mb-3">
-                            <Form.Label>{t('Выбрано', 'Tanlangan')}</Form.Label>
+                            <Form.Label>{t('Дата', 'Sana')}</Form.Label>
                             <Form.Control
                               type="text"
                               readOnly
-                              value={`${bookingDateCompact}, ${startTime}${selectedEndTime ? ` - ${selectedEndTime}` : ''}`}
+                              className="client-res-readonly-input"
+                              value={bookingDateCompact}
                             />
                           </Form.Group>
 
                           <Form.Group className="mb-3">
-                            <Form.Label>{t('Занимать до', 'Band qilish oxiri')}</Form.Label>
+                            <Form.Label>{t('Начало', 'Boshlanish')}</Form.Label>
+                            <Form.Control
+                              type="text"
+                              readOnly
+                              className="client-res-readonly-input"
+                              value={startTime}
+                            />
+                          </Form.Group>
+
+                          <Form.Group className="mb-3">
+                            <Form.Label>{t('До', 'Gacha')}</Form.Label>
                             <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
                               {bookingEndOptions.map((option) => (
                                 <option key={option.duration} value={option.duration}>{option.endTime} ({option.duration} {t('мин', 'daq')})</option>

@@ -2111,6 +2111,17 @@ h6 {
   color: #64748b;
 }
 
+.client-res-readonly-input {
+  background: #eef2f7 !important;
+  border-color: #d3dceb !important;
+  color: #0f172a !important;
+  font-weight: 600;
+}
+
+.client-res-readonly-input[readonly] {
+  cursor: default;
+}
+
 @media (max-width: 991.98px) {
   .client-res-map-shell .client-res-plan-stage {
     height: calc(100dvh - 78px);
