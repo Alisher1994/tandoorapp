@@ -794,7 +794,6 @@ function SuperAdminDashboard() {
   const [categoryForm, setCategoryForm] = useState({ id: null, name_ru: '', name_uz: '', image_url: '', sort_order: 0, parent_id: null });
   const [editingLevel, setEditingLevel] = useState(0);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [categoryAiPreviewUrl, setCategoryAiPreviewUrl] = useState('');
   const [categoryAiMode, setCategoryAiMode] = useState('');
   const [categoryAiLoading, setCategoryAiLoading] = useState(false);
   const [categoryAiError, setCategoryAiError] = useState('');
@@ -2373,7 +2372,7 @@ function SuperAdminDashboard() {
           : 'Preview не был получен');
         return;
       }
-      setCategoryAiPreviewUrl(previewUrl);
+      setCategoryForm((prev) => ({ ...prev, image_url: previewUrl }));
       setCategoryAiMode(String(response.data?.mode || normalizedMode));
     } catch (err) {
       if (categoryAiRequestIdRef.current !== requestId) return;
@@ -2642,7 +2641,6 @@ function SuperAdminDashboard() {
     event.target.value = '';
     if (!file) return;
     setCategoryAiError('');
-    setCategoryAiPreviewUrl('');
     setCategoryAiMode('');
     handleImageUpload(file, (url) => {
       setCategoryForm((prev) => ({ ...prev, image_url: url }));
@@ -3974,7 +3972,6 @@ function SuperAdminDashboard() {
   const closeCategoryModal = () => {
     categoryAiRequestIdRef.current += 1;
     setShowCategoryModal(false);
-    setCategoryAiPreviewUrl('');
     setCategoryAiMode('');
     setCategoryAiLoading(false);
     setCategoryAiError('');
@@ -3982,7 +3979,6 @@ function SuperAdminDashboard() {
 
   const openCategoryModal = (levelIndex, parentCategory = null, categoryToEdit = null) => {
     categoryAiRequestIdRef.current += 1;
-    setCategoryAiPreviewUrl('');
     setCategoryAiMode('');
     setCategoryAiLoading(false);
     setCategoryAiError('');
@@ -4043,7 +4039,7 @@ function SuperAdminDashboard() {
     }
 
     try {
-      const normalizedImageUrl = String(categoryAiPreviewUrl || categoryForm.image_url || '').trim();
+      const normalizedImageUrl = String(categoryForm.image_url || '').trim();
       const payload = {
         ...categoryForm,
         image_url: normalizedImageUrl
@@ -13550,7 +13546,6 @@ function SuperAdminDashboard() {
                     className="text-danger d-block w-100 mt-2 text-decoration-none"
                     onClick={() => {
                       setCategoryForm((prev) => ({ ...prev, image_url: '' }));
-                      setCategoryAiPreviewUrl('');
                       setCategoryAiMode('');
                       setCategoryAiError('');
                     }}
@@ -13563,15 +13558,14 @@ function SuperAdminDashboard() {
               {uploadingImage && <div className="text-muted mt-2"><small>Загрузка изображения...</small></div>}
               <Form.Text className="text-muted mt-2 d-block">Или введите URL изображения:</Form.Text>
               <Form.Control
-                type="url"
+                type="text"
                 value={categoryForm.image_url}
                 onChange={(e) => {
                   setCategoryAiError('');
-                  setCategoryAiPreviewUrl('');
                   setCategoryAiMode('');
                   setCategoryForm({ ...categoryForm, image_url: e.target.value });
                 }}
-                placeholder="https://example.com/image.jpg"
+                placeholder="/uploads/image.webp или https://example.com/image.jpg"
                 className="mt-1"
                 disabled={categoryAiLoading}
               />
@@ -13605,47 +13599,17 @@ function SuperAdminDashboard() {
                   {language === 'uz' ? 'Qayta yaratish' : 'Перегенерировать'}
                 </Button>
               </div>
-
-              <div className="mt-3 text-center border p-2 rounded bg-light">
-                <div className="d-flex align-items-center justify-content-between px-1 mb-2">
-                  <span className="small text-muted fw-semibold">AI preview</span>
-                  {categoryAiMode && (
-                    <Badge bg={categoryAiMode === 'process' ? 'secondary' : 'primary'}>
-                      {categoryAiMode === 'process'
-                        ? (language === 'uz' ? 'Обработка' : 'Обработка')
-                        : (language === 'uz' ? 'Generatsiya' : 'Генерация')}
-                    </Badge>
-                  )}
+              {categoryAiMode && !categoryAiError && (
+                <div className="mt-2 small text-muted">
+                  {categoryAiLoading
+                    ? (language === 'uz' ? "AI rasm tayyorlanmoqda..." : 'AI изображение подготавливается...')
+                    : (
+                      categoryAiMode === 'process'
+                        ? (language === 'uz' ? "AI: rasm qayta ishlanib shu slotga qo'llandi" : 'AI: обработка завершена и применена в этот слот')
+                        : (language === 'uz' ? "AI: rasm yaratildi va shu slotga qo'llandi" : 'AI: генерация завершена и применена в этот слот')
+                    )}
                 </div>
-                {categoryAiPreviewUrl ? (
-                  <img
-                    src={resolveGlobalProductImagePreviewUrl(categoryAiPreviewUrl)}
-                    alt="Category AI preview"
-                    style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div className="text-muted py-3 small">
-                    {categoryAiLoading
-                      ? (language === 'uz' ? "Preview tayyorlanmoqda..." : 'Подготовка preview...')
-                      : (language === 'uz' ? "Preview hali yo'q" : 'Preview пока не создан')}
-                  </div>
-                )}
-                {categoryAiPreviewUrl && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline-success"
-                    className="mt-2"
-                    onClick={() => {
-                      setCategoryForm((prev) => ({ ...prev, image_url: categoryAiPreviewUrl }));
-                      setCategoryAiError('');
-                    }}
-                    disabled={categoryAiLoading}
-                  >
-                    {language === 'uz' ? "Preview ni qo'llash" : 'Применить preview'}
-                  </Button>
-                )}
-              </div>
+              )}
               {categoryAiError && (
                 <Alert variant="warning" className="mt-2 mb-0 py-2 px-3">
                   {categoryAiError}
