@@ -56,6 +56,7 @@ const BOT_TEXTS = {
     promoButton: '😍 Акция',
     myOrders: '📋 Мои заказы',
     contactButton: '☎️ Связь',
+    openMenuShortcut: 'Открыть',
     adminPanelButton: '🧑‍💼 Админ панель',
     myStoreButton: '🏪 Мой магазин',
     welcomeBack: '👋 С возвращением, {name}!',
@@ -85,6 +86,7 @@ const BOT_TEXTS = {
     promoButton: '😍 Aksiya',
     myOrders: '📋 Buyurtmalarim',
     contactButton: "☎️ Bog'lanish",
+    openMenuShortcut: 'Ochish',
     adminPanelButton: '🧑‍💼 Admin panel',
     myStoreButton: "🏪 Mening do'konim",
     welcomeBack: '👋 Qaytganingiz bilan, {name}!',
@@ -921,6 +923,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     is_persistent: true
   });
 
+  const setPrivateChatMenuButton = async ({ chatId, webAppUrl, lang = 'ru' }) => {
+    if (!chatId || !webAppUrl) return;
+    try {
+      await bot.setChatMenuButton({
+        chat_id: chatId,
+        menu_button: {
+          type: 'web_app',
+          text: t(lang, 'openMenuShortcut'),
+          web_app: { url: webAppUrl }
+        }
+      });
+    } catch (error) {
+      console.error(`[${restaurantName}] setChatMenuButton error:`, error.message);
+    }
+  };
+
   const ensureFlowStateMeta = (state = {}) => {
     if (!Array.isArray(state._flowMessageIds)) {
       state._flowMessageIds = [];
@@ -1150,6 +1168,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         await bot.sendMessage(chatId, t(userLang, 'loginWarn'));
         return;
       }
+      await setPrivateChatMenuButton({
+        chatId,
+        webAppUrl: storeUrl || adminUrl,
+        lang: userLang
+      });
       const inlineKeyboard = [];
       if (storeUrl) {
         inlineKeyboard.push([{ text: t(userLang, 'myStoreButton'), url: storeUrl }]);
@@ -1176,6 +1199,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       await bot.sendMessage(chatId, t(userLang, 'loginWarn'));
       return;
     }
+    await setPrivateChatMenuButton({
+      chatId,
+      webAppUrl: loginUrl,
+      lang: userLang
+    });
     await bot.sendMessage(
       chatId,
       action === 'promo' ? t(userLang, 'promoHint') : (userLang === 'uz' ? 'Do\'konni ochish uchun keyboard tugmasidan foydalaning.' : 'Для открытия магазина используйте кнопку на keyboard.'),
@@ -1281,6 +1309,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       if (canUseRestaurantAdminKeyboard(user)) {
         const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
+        await setPrivateChatMenuButton({
+          chatId,
+          webAppUrl: storeUrl || adminUrl,
+          lang: language
+        });
 
         await bot.sendMessage(
           chatId,
@@ -1296,6 +1329,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       } else {
         const token = generateLoginToken(user.id, user.username, { restaurantId });
         const loginUrl = buildCatalogUrl(appUrl, token);
+        await setPrivateChatMenuButton({
+          chatId,
+          webAppUrl: loginUrl,
+          lang: language
+        });
 
         await bot.sendMessage(
           chatId,
@@ -1401,6 +1439,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       if (canUseRestaurantAdminKeyboard(user)) {
         const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
+        await setPrivateChatMenuButton({
+          chatId,
+          webAppUrl: storeUrl || adminUrl,
+          lang: userLang
+        });
 
         bot.sendMessage(
           chatId,
@@ -1415,6 +1458,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       } else {
         const token = generateLoginToken(user.id, user.username, { restaurantId });
         const loginUrl = buildCatalogUrl(appUrl, token);
+        await setPrivateChatMenuButton({
+          chatId,
+          webAppUrl: loginUrl,
+          lang: userLang
+        });
 
         bot.sendMessage(chatId,
           `🏪 <b>${restaurantName}</b>\n\n` +
