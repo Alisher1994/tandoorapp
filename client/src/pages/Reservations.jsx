@@ -21,6 +21,10 @@ const PLAN_WORLD_WIDTH = 1200;
 const DEFAULT_WORK_START_MINUTES = 9 * 60;
 const DEFAULT_WORK_END_MINUTES = 23 * 60;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const asNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 const normalizeTimeSlotStep = (value, fallback = 30) => {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed)) return fallback;
