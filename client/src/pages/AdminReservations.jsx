@@ -87,6 +87,26 @@ const ResetIcon = () => (
   </svg>
 );
 
+const RotateLeftMiniIcon = () => (
+  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
+    <path d="M8 4H4v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20 12a8 8 0 1 0-2.34 5.66" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const RotateRightMiniIcon = () => (
+  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
+    <path d="M16 4h4v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 12a8 8 0 1 1 2.34 5.66" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const CloseMiniIcon = () => (
+  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
+    <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 const PLAN_TABLE_DRAFT_MIME = 'application/x-admin-reservation-table-draft';
 const createEmptyTableForm = () => ({
   name: '',
@@ -160,7 +180,7 @@ function AdminReservations() {
   const [imageModalTitle, setImageModalTitle] = useState('');
   const [imageModalUrl, setImageModalUrl] = useState('');
   const [showImageModal, setShowImageModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('settings');
+  const [activeTab, setActiveTab] = useState('plan');
   const [showFloorModal, setShowFloorModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [dragState, setDragState] = useState(null);
@@ -171,6 +191,9 @@ function AdminReservations() {
   const [planTableScale, setPlanTableScale] = useState(1);
   const [planPanStart, setPlanPanStart] = useState(null);
   const [selectedPlanTableId, setSelectedPlanTableId] = useState(null);
+  const [planSidebarTab, setPlanSidebarTab] = useState('gallery');
+  const [tableRenameDraft, setTableRenameDraft] = useState('');
+  const tableRenameInputRef = useRef(null);
   const [showPlanRotationControls, setShowPlanRotationControls] = useState(false);
   const [isCreatingPlanTable, setIsCreatingPlanTable] = useState(false);
   const [isPlanDropActive, setIsPlanDropActive] = useState(false);
@@ -360,6 +383,17 @@ function AdminReservations() {
     () => normalizeRotationAngle(selectedPlanTable?.rotation, 0),
     [selectedPlanTable?.rotation]
   );
+  useEffect(() => {
+    setTableRenameDraft(String(selectedPlanTable?.name || ''));
+  }, [selectedPlanTable?.id, selectedPlanTable?.name]);
+  useEffect(() => {
+    if (planSidebarTab !== 'settings' || !selectedPlanTable) return undefined;
+    const timer = window.setTimeout(() => {
+      tableRenameInputRef.current?.focus?.();
+      tableRenameInputRef.current?.select?.();
+    }, 40);
+    return () => window.clearTimeout(timer);
+  }, [planSidebarTab, selectedPlanTable?.id]);
   const pagedTables = useMemo(() => {
     const start = (tablesPage - 1) * tablesPageSize;
     return tables.slice(start, start + tablesPageSize);
@@ -698,15 +732,16 @@ function AdminReservations() {
     }
 
     try {
-      await axios.post(`${API_URL}/admin/reservations/tables`, payload);
+      const response = await axios.post(`${API_URL}/admin/reservations/tables`, payload);
+      const createdTable = response.data || null;
       await loadTables(floorId);
       if (showSuccessMessage) {
         setSuccess(tx('Стол добавлен', 'Stol qo\'shildi'));
       }
-      return true;
+      return createdTable || true;
     } catch (err) {
       setError(err.response?.data?.error || tx('Ошибка добавления стола', 'Stol qo\'shishda xatolik'));
-      return false;
+      return null;
     }
   };
 
@@ -846,6 +881,21 @@ function AdminReservations() {
     }
   };
 
+  const saveTableName = async (tableId, name) => {
+    const normalizedName = String(name || '').trim();
+    if (!normalizedName) return false;
+    try {
+      await axios.put(`${API_URL}/admin/reservations/tables/${tableId}`, {
+        name: normalizedName
+      });
+      return true;
+    } catch (err) {
+      setError(err.response?.data?.error || tx('Ошибка переименования стола', 'Stol nomini o‘zgartirishda xatolik'));
+      await loadTables(selectedFloorId);
+      return false;
+    }
+  };
+
   const applyTableRotationLocally = (tableId, rotation) => {
     const normalized = normalizeRotationAngle(rotation, 0);
     setTables((prev) => prev.map((item) => (
@@ -854,6 +904,17 @@ function AdminReservations() {
         : item
     )));
     return normalized;
+  };
+
+  const applyTableNameLocally = (tableId, name) => {
+    const normalizedName = String(name || '').trim();
+    if (!normalizedName) return normalizedName;
+    setTables((prev) => prev.map((item) => (
+      Number(item.id) === Number(tableId)
+        ? { ...item, name: normalizedName }
+        : item
+    )));
+    return normalizedName;
   };
 
   const handleSelectedTableRotationChange = (nextRotation) => {
@@ -876,6 +937,22 @@ function AdminReservations() {
     await saveTableRotation(selectedPlanTable.id, nextRotation);
   };
 
+  const commitSelectedTableName = async () => {
+    if (!selectedPlanTable) return;
+    const currentName = String(selectedPlanTable.name || '').trim();
+    const nextName = String(tableRenameDraft || '').trim();
+    if (!nextName) {
+      setTableRenameDraft(currentName);
+      return;
+    }
+    if (nextName === currentName) return;
+    applyTableNameLocally(selectedPlanTable.id, nextName);
+    const ok = await saveTableName(selectedPlanTable.id, nextName);
+    if (!ok) {
+      setTableRenameDraft(currentName);
+    }
+  };
+
   const rotatePlanTableBy = async (tableId, delta) => {
     const target = tables.find((table) => Number(table.id) === Number(tableId));
     if (!target) return;
@@ -891,6 +968,7 @@ function AdminReservations() {
     const canvas = floorPlanRef.current;
     if (!canvas) return;
     setSelectedPlanTableId(Number(table.id));
+    setPlanSidebarTab('settings');
     const startX = normalizePlanCoordinate(table.x, 50);
     const startY = normalizePlanCoordinate(table.y, 50);
     draggedPositionRef.current = { tableId: table.id, x: startX, y: startY };
@@ -1076,11 +1154,17 @@ function AdminReservations() {
       y
     });
     setIsCreatingPlanTable(false);
-    if (created) {
-      setTableForm((prev) => ({
-        ...prev,
-        name: String(asInt(payload.name, asInt(suggestedTableName, 1)) + 1)
-      }));
+    if (created && created.id) {
+      const createdId = Number(created.id);
+      setSelectedPlanTableId(createdId);
+      setPlanSidebarTab('settings');
+      setShowPlanRotationControls(false);
+      const createdName = String(created.name || '');
+      setTableRenameDraft(createdName);
+      window.setTimeout(() => {
+        tableRenameInputRef.current?.focus?.();
+        tableRenameInputRef.current?.select?.();
+      }, 50);
     }
   };
 
@@ -1162,11 +1246,10 @@ function AdminReservations() {
         <Card.Body className="p-3">
           <div className="admin-settings-pill-tabs" role="tablist" aria-label={tx('Вкладки бронирования', 'Bronlash bo\'limlari')}>
             {[
-              { key: 'settings', label: tx('Настройки', 'Sozlamalar'), emoji: '⚙️' },
+              { key: 'plan', label: tx('Схемы', 'Sxemalar'), emoji: '🗺️' },
               { key: 'floors', label: tx('Этажи', 'Qavatlar'), emoji: '🏢' },
-              { key: 'tables', label: tx('Столы', 'Stollar'), emoji: '🪑' },
-              { key: 'plan', label: tx('Схема', 'Sxema'), emoji: '🗺️' },
-              { key: 'requests', label: tx('Заявки', 'So\'rovlar'), emoji: '📋' }
+              { key: 'requests', label: tx('Заявки', 'So\'rovlar'), emoji: '📋' },
+              { key: 'settings', label: tx('Настройки', 'Sozlamalar'), emoji: '⚙️' }
             ].map((tab) => {
               const isActive = activeTab === tab.key;
               return (
@@ -1639,7 +1722,7 @@ function AdminReservations() {
                                 }
                               }}
                             >
-                              ↺
+                              <RotateLeftMiniIcon />
                             </span>
                             <span
                               role="button"
@@ -1654,7 +1737,7 @@ function AdminReservations() {
                                 }
                               }}
                             >
-                              ↻
+                              <RotateRightMiniIcon />
                             </span>
                             <span
                               role="button"
@@ -1669,7 +1752,7 @@ function AdminReservations() {
                                 }
                               }}
                             >
-                              ×
+                              <CloseMiniIcon />
                             </span>
                           </div>
                           <div
@@ -1693,7 +1776,6 @@ function AdminReservations() {
                             )}
                             <span className="admin-reservation-plan-table-center-id">{tableCenterLabel}</span>
                           </div>
-                          <div className="admin-reservation-plan-table-label">{table.name}</div>
                         </button>
                       );
                     })}
@@ -1810,155 +1892,188 @@ function AdminReservations() {
               </div>
 
               <aside className="admin-reservation-plan-sidebar">
-                <div className="small fw-semibold text-dark mb-2">{tx('Добавление стола', 'Stol qo\'shish')}</div>
-                <Form.Group className="mb-2">
-                  <Form.Control
-                    value={tableForm.name}
-                    placeholder={tx('Название стола', 'Stol nomi')}
-                    onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
-                  />
-                  <Form.Text className="text-muted">
-                    {tx('Если оставить пустым, подставится номер', 'Bo\'sh qoldirilsa, raqam qo\'yiladi')}: {suggestedTableName}
-                  </Form.Text>
-                </Form.Group>
-                <Form.Group className="mb-2">
-                  <Form.Control
-                    type="number"
-                    min={1}
-                    value={tableForm.capacity}
-                    onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: Math.max(1, asInt(event.target.value, 1)) }))}
-                  />
-                </Form.Group>
-                <Form.Group className="mb-2">
-                  <Form.Label className="small text-muted mb-1">
-                    {tx('Масштаб столов на схеме', 'Sxemadagi stollar masshtabi')}
-                  </Form.Label>
-                  <div className="d-flex align-items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline-secondary"
-                      onClick={() => setPlanTableScale((prev) => clamp(Number((prev - 0.05).toFixed(2)), 0.65, 1.85))}
-                    >
-                      −
-                    </Button>
-                    <Form.Range
-                      min={0.65}
-                      max={1.85}
-                      step={0.05}
-                      value={planTableScale}
-                      onChange={(event) => setPlanTableScale(clamp(asNumber(event.target.value, 1), 0.65, 1.85))}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline-secondary"
-                      onClick={() => setPlanTableScale((prev) => clamp(Number((prev + 0.05).toFixed(2)), 0.65, 1.85))}
-                    >
-                      +
-                    </Button>
-                  </div>
-                  <Form.Text className="text-muted">
-                    {tx('Только для удобства редактора, на клиенте пропорции останутся ровными.', 'Faqat editor qulayligi uchun, mijoz tomonda proporsiya to‘g‘ri qoladi.')} {Math.round(clamp(asNumber(planTableScale, 1), 0.65, 1.85) * 100)}%
-                  </Form.Text>
-                </Form.Group>
-                <Form.Group className="mb-2">
-                  <Form.Label className="small text-muted mb-1">
-                    {tx('Прозрачность плана', 'Sxema shaffofligi')}
-                  </Form.Label>
-                  <Form.Range
-                    min={0.25}
-                    max={1}
-                    step={0.05}
-                    value={selectedFloorImageOpacity}
-                    onChange={(event) => updateSelectedFloorVisualConfig({ plan_image_opacity: event.target.value })}
-                  />
-                  <Form.Text className="text-muted">
-                    {tx('Видимость схемы', 'Sxema ko‘rinishi')}: {Math.round(selectedFloorImageOpacity * 100)}%
-                  </Form.Text>
-                </Form.Group>
-                <Form.Group className="mb-2">
-                  <Form.Label className="small text-muted mb-1">
-                    {tx('Наложение чёрного слоя', 'Qora qatlam')}
-                  </Form.Label>
-                  <Form.Range
-                    min={0}
-                    max={0.8}
-                    step={0.05}
-                    value={selectedFloorDarkOverlay}
-                    onChange={(event) => updateSelectedFloorVisualConfig({ plan_dark_overlay: event.target.value })}
-                  />
-                  <Form.Text className="text-muted">
-                    {tx('Затемнение', 'Qoraytirish')}: {Math.round(selectedFloorDarkOverlay * 100)}%
-                    {savingFloorVisual ? ` · ${tx('сохранение...', 'saqlanmoqda...')}` : ''}
-                  </Form.Text>
-                </Form.Group>
-                <div className="small text-muted mb-1">{tx('Мебель', 'Mebel')}</div>
-                <div className="small text-muted mb-2">
-                  {tx('Перетащите карточку мебели на схему для мгновенного добавления.', 'Tez qo\'shish uchun mebel kartasini sxemaga sudrab olib boring.')}
-                </div>
-                <Form.Group className="mb-2">
-                  <Form.Select
-                    size="sm"
-                    value={templateCategoryFilter}
-                    onChange={(event) => setTemplateCategoryFilter(event.target.value)}
-                  >
-                    {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
-                      <option key={`plan-template-category-${option.value}`} value={option.value}>
-                        {tx(option.ru, option.uz)}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-                <div className="admin-reservation-plan-template-grid mb-2">
+                <div className="admin-reservation-plan-sidebar-tabs" role="tablist" aria-label={tx('Панель схемы', 'Sxema paneli')}>
                   <button
                     type="button"
-                    className={`admin-reservation-plan-template-item ${!tableForm.template_id ? 'is-active' : ''}`}
-                    onClick={() => applyTemplateSelection(null)}
-                    draggable={Boolean(selectedFloorId) && !isCreatingPlanTable}
-                    onDragStart={(event) => handlePlanDraftDragStart(event, null)}
-                    onDragEnd={handlePlanDraftDragEnd}
-                    title={tx('Без шаблона • перетащите на схему', 'Shablonsiz • sxemaga sudrang')}
-                    disabled={!selectedFloorId || isCreatingPlanTable}
+                    role="tab"
+                    aria-selected={planSidebarTab === 'gallery'}
+                    className={`admin-reservation-plan-sidebar-tab-btn ${planSidebarTab === 'gallery' ? 'is-active' : ''}`}
+                    onClick={() => setPlanSidebarTab('gallery')}
                   >
-                    <span className="small text-muted">{tx('Без шаблона', 'Shablonsiz')}</span>
+                    {tx('Галерея', 'Galereya')}
                   </button>
-                  {filteredTemplates.map((template) => {
-                    const isActive = Number(tableForm.template_id) === Number(template.id);
-                    const imageUrl = toAbsoluteMediaUrl(template.image_url);
-                    return (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={planSidebarTab === 'settings'}
+                    className={`admin-reservation-plan-sidebar-tab-btn ${planSidebarTab === 'settings' ? 'is-active' : ''}`}
+                    onClick={() => setPlanSidebarTab('settings')}
+                  >
+                    {tx('Настройки', 'Sozlamalar')}
+                  </button>
+                </div>
+
+                {planSidebarTab === 'gallery' ? (
+                  <>
+                    <div className="small fw-semibold text-dark mb-1">{tx('Галерея мебели', 'Mebel galereyasi')}</div>
+                    <div className="small text-muted mb-2">
+                      {tx('Перетащите карточку мебели на схему для мгновенного добавления.', 'Tez qo\'shish uchun mebel kartasini sxemaga sudrab olib boring.')}
+                    </div>
+                    <Form.Group className="mb-2">
+                      <Form.Select
+                        size="sm"
+                        value={templateCategoryFilter}
+                        onChange={(event) => setTemplateCategoryFilter(event.target.value)}
+                      >
+                        {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
+                          <option key={`plan-template-category-${option.value}`} value={option.value}>
+                            {tx(option.ru, option.uz)}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                    <div className="admin-reservation-plan-template-grid mb-1">
                       <button
-                        key={template.id}
                         type="button"
-                        className={`admin-reservation-plan-template-item ${isActive ? 'is-active' : ''}`}
-                        onClick={() => applyTemplateSelection(template.id)}
+                        className={`admin-reservation-plan-template-item ${!tableForm.template_id ? 'is-active' : ''}`}
+                        onClick={() => applyTemplateSelection(null)}
                         draggable={Boolean(selectedFloorId) && !isCreatingPlanTable}
-                        onDragStart={(event) => handlePlanDraftDragStart(event, template.id)}
+                        onDragStart={(event) => handlePlanDraftDragStart(event, null)}
                         onDragEnd={handlePlanDraftDragEnd}
-                        title={`${template.name} • ${template.seats_count || 0}`}
+                        title={tx('Без шаблона • перетащите на схему', 'Shablonsiz • sxemaga sudrang')}
                         disabled={!selectedFloorId || isCreatingPlanTable}
                       >
-                        <div className="admin-reservation-plan-template-thumb">
-                          {imageUrl ? (
-                            <img src={imageUrl} alt={template.name} />
-                          ) : (
-                            <span style={{ fontSize: 18 }}>🪑</span>
-                          )}
-                        </div>
-                        <div className="small text-truncate w-100">{template.name}</div>
-                        <div className="small text-muted">{template.seats_count || 0} {tx('мест', 'o\'rin')}</div>
+                        <span className="small text-muted">{tx('Без шаблона', 'Shablonsiz')}</span>
                       </button>
-                    );
-                  })}
-                </div>
-                <Form.Group className="mb-2">
-                  <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
-                  <Form.Text className="text-muted">
-                    {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото стола (из файла)', 'Stolning real rasmi (fayldan)')}
-                  </Form.Text>
-                </Form.Group>
-                {tableForm.photo_url && (
-                  <div className="admin-reservation-photo-slot mb-2">
-                    <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото стола', 'Stol rasmi')} className="admin-reservation-photo-slot-img" />
-                  </div>
+                      {filteredTemplates.map((template) => {
+                        const isActive = Number(tableForm.template_id) === Number(template.id);
+                        const imageUrl = toAbsoluteMediaUrl(template.image_url);
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            className={`admin-reservation-plan-template-item ${isActive ? 'is-active' : ''}`}
+                            onClick={() => applyTemplateSelection(template.id)}
+                            draggable={Boolean(selectedFloorId) && !isCreatingPlanTable}
+                            onDragStart={(event) => handlePlanDraftDragStart(event, template.id)}
+                            onDragEnd={handlePlanDraftDragEnd}
+                            title={`${template.name} • ${template.seats_count || 0}`}
+                            disabled={!selectedFloorId || isCreatingPlanTable}
+                          >
+                            <div className="admin-reservation-plan-template-thumb">
+                              {imageUrl ? (
+                                <img src={imageUrl} alt={template.name} />
+                              ) : (
+                                <span style={{ fontSize: 18 }}>🪑</span>
+                              )}
+                            </div>
+                            <div className="small text-truncate w-100">{template.name}</div>
+                            <div className="small text-muted">{template.seats_count || 0} {tx('мест', 'o\'rin')}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="small fw-semibold text-dark mb-2">{tx('Настройки схемы', 'Sxema sozlamalari')}</div>
+                    <Form.Group className="mb-2">
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Номер элемента', 'Element raqami')}
+                      </Form.Label>
+                      <div className="d-flex align-items-center gap-2">
+                        <Form.Control
+                          ref={tableRenameInputRef}
+                          value={tableRenameDraft}
+                          placeholder={tx('Выберите элемент на схеме', 'Sxemadan element tanlang')}
+                          disabled={!selectedPlanTable}
+                          onChange={(event) => setTableRenameDraft(event.target.value)}
+                          onBlur={commitSelectedTableName}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              commitSelectedTableName();
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          disabled={!selectedPlanTable}
+                          onClick={commitSelectedTableName}
+                        >
+                          OK
+                        </Button>
+                      </div>
+                      <Form.Text className="text-muted">
+                        {selectedPlanTable
+                          ? tx('После вставки элемента можно сразу переименовать его номер.', 'Element qo‘shilgach, raqamini darhol o‘zgartirish mumkin.')
+                          : tx('Сначала выберите элемент на схеме.', 'Avval sxemadan element tanlang.')}
+                      </Form.Text>
+                    </Form.Group>
+                    <Form.Group className="mb-2">
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Масштаб столов на схеме', 'Sxemadagi stollar masshtabi')}
+                      </Form.Label>
+                      <div className="d-flex align-items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => setPlanTableScale((prev) => clamp(Number((prev - 0.05).toFixed(2)), 0.65, 1.85))}
+                        >
+                          −
+                        </Button>
+                        <Form.Range
+                          min={0.65}
+                          max={1.85}
+                          step={0.05}
+                          value={planTableScale}
+                          onChange={(event) => setPlanTableScale(clamp(asNumber(event.target.value, 1), 0.65, 1.85))}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => setPlanTableScale((prev) => clamp(Number((prev + 0.05).toFixed(2)), 0.65, 1.85))}
+                        >
+                          +
+                        </Button>
+                      </div>
+                      <Form.Text className="text-muted">
+                        {tx('Только для удобства редактора, на клиенте пропорции останутся ровными.', 'Faqat editor qulayligi uchun, mijoz tomonda proporsiya to‘g‘ri qoladi.')} {Math.round(clamp(asNumber(planTableScale, 1), 0.65, 1.85) * 100)}%
+                      </Form.Text>
+                    </Form.Group>
+                    <Form.Group className="mb-2">
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Прозрачность плана', 'Sxema shaffofligi')}
+                      </Form.Label>
+                      <Form.Range
+                        min={0.25}
+                        max={1}
+                        step={0.05}
+                        value={selectedFloorImageOpacity}
+                        onChange={(event) => updateSelectedFloorVisualConfig({ plan_image_opacity: event.target.value })}
+                      />
+                      <Form.Text className="text-muted">
+                        {tx('Видимость схемы', 'Sxema ko‘rinishi')}: {Math.round(selectedFloorImageOpacity * 100)}%
+                      </Form.Text>
+                    </Form.Group>
+                    <Form.Group className="mb-0">
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Наложение чёрного слоя', 'Qora qatlam')}
+                      </Form.Label>
+                      <Form.Range
+                        min={0}
+                        max={0.8}
+                        step={0.05}
+                        value={selectedFloorDarkOverlay}
+                        onChange={(event) => updateSelectedFloorVisualConfig({ plan_dark_overlay: event.target.value })}
+                      />
+                      <Form.Text className="text-muted">
+                        {tx('Затемнение', 'Qoraytirish')}: {Math.round(selectedFloorDarkOverlay * 100)}%
+                        {savingFloorVisual ? ` · ${tx('сохранение...', 'saqlanmoqda...')}` : ''}
+                      </Form.Text>
+                    </Form.Group>
+                  </>
                 )}
               </aside>
             </div>

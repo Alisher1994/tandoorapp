@@ -200,6 +200,7 @@ function Reservations() {
   const timeRulerManualScrollTimeoutRef = useRef(null);
   const timeRulerSyncRafRef = useRef(null);
   const timeRulerHintPlayedRef = useRef(false);
+  const availabilityRequestIdRef = useRef(0);
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
   const selectedFloor = useMemo(() => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null, [floors, selectedFloorId]);
@@ -398,6 +399,9 @@ function Reservations() {
   }, []);
 
   const fetchAvailability = async (nextFloorId = selectedFloorId) => {
+    const requestId = availabilityRequestIdRef.current + 1;
+    availabilityRequestIdRef.current = requestId;
+
     if (!restaurantId || !nextFloorId || !bookingDate || !startTime) return;
     const optimisticEndTime = addMinutesWithinDay(startTime, durationMinutes);
     if (!optimisticEndTime) return;
@@ -412,6 +416,7 @@ function Reservations() {
       const response = await axios.get(`${API_URL}/reservations/availability`, {
         params: { restaurant_id: restaurantId, floor_id: nextFloorId, date: bookingDate, start_time: startTime, duration_minutes: durationMinutes }
       });
+      if (requestId !== availabilityRequestIdRef.current) return;
       const payload = response.data || {};
       const nextTables = Array.isArray(payload.tables) ? payload.tables : [];
       setTables(nextTables);
@@ -426,9 +431,11 @@ function Reservations() {
         return payload.allow_multi_table === false && filtered.length > 1 ? filtered.slice(0, 1) : filtered;
       });
     } catch (err) {
+      if (requestId !== availabilityRequestIdRef.current) return;
       setError(err.response?.data?.error || t('Ошибка загрузки столов', 'Stollarni yuklashda xatolik'));
       setTables([]);
     } finally {
+      if (requestId !== availabilityRequestIdRef.current) return;
       setLoadingAvailability(false);
     }
   };
