@@ -87,6 +87,18 @@ const GEMINI_TEXT_MODEL_CANDIDATES = [
   'gemini-2.0-flash',
   'gemini-flash-latest'
 ].filter(Boolean);
+const OPENAI_IMAGE_MODEL_CANDIDATES = [
+  process.env.OPENAI_IMAGE_MODEL,
+  'gpt-image-1.5',
+  'gpt-image-1',
+  'gpt-image-1-mini'
+].filter(Boolean);
+const OPENAI_TEXT_MODEL_CANDIDATES = [
+  process.env.OPENAI_TEXT_MODEL,
+  'gpt-4.1-mini',
+  'gpt-4.1',
+  'gpt-4o-mini'
+].filter(Boolean);
 const uploadsDir = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
   : path.join(__dirname, '../../uploads');
@@ -835,6 +847,11 @@ const resolveGeminiApiKeyFromEnv = () => String(
   || process.env.GOOGLE_AI_API_KEY
   || ''
 ).trim();
+const resolveOpenAiApiKeyFromEnv = () => String(
+  process.env.OPENAI_API_KEY
+  || process.env.OPENAI_KEY
+  || ''
+).trim();
 
 const getActiveAiProviderRuntimeConfig = async () => {
   await ensureAiProvidersSchema();
@@ -899,6 +916,43 @@ const resolveGeminiRuntimeConfig = async () => {
     textModelCandidates: GEMINI_TEXT_MODEL_CANDIDATES,
     providerRef: apiKey
       ? { id: null, name: 'Railway ENV Gemini', provider_type: 'gemini' }
+      : null
+  };
+};
+const resolveOpenAiRuntimeConfig = async () => {
+  const activeProvider = await getActiveAiProviderRuntimeConfig();
+  if (activeProvider && activeProvider.provider_type === 'openai' && activeProvider.api_key) {
+    const imageCandidates = [
+      normalizeAiProviderModel(activeProvider.image_model),
+      ...OPENAI_IMAGE_MODEL_CANDIDATES
+    ].filter(Boolean);
+    const textCandidates = [
+      normalizeAiProviderModel(activeProvider.text_model),
+      ...OPENAI_TEXT_MODEL_CANDIDATES
+    ].filter(Boolean);
+    return {
+      apiKey: activeProvider.api_key,
+      imageModelCandidates: [...new Set(imageCandidates)],
+      textModelCandidates: [...new Set(textCandidates)],
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+  if (activeProvider) {
+    return {
+      apiKey: '',
+      imageModelCandidates: OPENAI_IMAGE_MODEL_CANDIDATES,
+      textModelCandidates: OPENAI_TEXT_MODEL_CANDIDATES,
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+
+  const apiKey = resolveOpenAiApiKeyFromEnv();
+  return {
+    apiKey,
+    imageModelCandidates: OPENAI_IMAGE_MODEL_CANDIDATES,
+    textModelCandidates: OPENAI_TEXT_MODEL_CANDIDATES,
+    providerRef: apiKey
+      ? { id: null, name: 'Railway ENV OpenAI', provider_type: 'openai' }
       : null
   };
 };
@@ -1050,6 +1104,105 @@ const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false 
   return null;
 };
 
+const generateGlobalProductImageWithOpenAI = async (prompt) => {
+  const runtime = await resolveOpenAiRuntimeConfig();
+  const apiKey = runtime.apiKey;
+  if (!apiKey) return null;
+
+  let lastError = null;
+  for (const model of runtime.imageModelCandidates) {
+    try {
+      const response = await axios.post(
+        'https://api.openai.com/v1/images/generations',
+        {
+          model,
+          prompt,
+          size: `${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}x${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}`,
+          response_format: 'b64_json'
+        },
+        {
+          timeout: 90000,
+          maxBodyLength: 6 * 1024 * 1024,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      const b64Image = String(response?.data?.data?.[0]?.b64_json || '').trim();
+      if (b64Image) {
+        const imageBuffer = Buffer.from(b64Image, 'base64');
+        if (imageBuffer.length > 0) {
+          return {
+            buffer: imageBuffer,
+            provider: `openai:${model}`,
+            model,
+            providerRef: runtime.providerRef || { id: null, name: 'OpenAI', provider_type: 'openai' }
+          };
+        }
+      }
+      lastError = new Error('OpenAI не вернул изображение');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+};
+
+const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false } = {}) => {
+  const runtime = await resolveOpenAiRuntimeConfig();
+  const apiKey = runtime.apiKey;
+  if (!apiKey) return null;
+
+  let lastError = null;
+  for (const model of runtime.textModelCandidates) {
+    try {
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: expectJson
+                ? 'Return only valid JSON with no markdown and no comments.'
+                : 'You are a helpful catalog assistant.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.35,
+          ...(expectJson ? { response_format: { type: 'json_object' } } : {})
+        },
+        {
+          timeout: 65000,
+          maxBodyLength: 4 * 1024 * 1024,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      const text = String(response?.data?.choices?.[0]?.message?.content || '').trim();
+      if (text) {
+        return {
+          text,
+          provider: `openai:${model}`,
+          model,
+          providerRef: runtime.providerRef || { id: null, name: 'OpenAI', provider_type: 'openai' }
+        };
+      }
+      lastError = new Error('OpenAI не вернул текст');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+};
+
 const normalizeCatalogText = (value, maxLength = 3000) => String(value || '')
   .replace(/\s+/g, ' ')
   .trim()
@@ -1101,7 +1254,19 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
   ].join('\n');
 
   try {
-    const result = await generateGlobalProductTextWithGemini(prompt, { expectJson: true });
+    let result = null;
+    try {
+      result = await generateGlobalProductTextWithGemini(prompt, { expectJson: true });
+    } catch (error) {
+      console.warn('Gemini text generation fallback:', error?.message || error);
+    }
+    if (!result?.text) {
+      try {
+        result = await generateGlobalProductTextWithOpenAI(prompt, { expectJson: true });
+      } catch (error) {
+        console.warn('OpenAI text generation fallback:', error?.message || error);
+      }
+    }
     if (!result?.text) {
       return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
     }
@@ -1291,6 +1456,14 @@ const generateGlobalProductImageByName = async (name, { categoryContextPath = []
   } catch (error) {
     console.warn('Gemini generation fallback:', error?.message || error);
     generationErrors.push(`gemini: ${error?.message || 'unknown'}`);
+  }
+
+  try {
+    const openAiResult = await generateGlobalProductImageWithOpenAI(prompt);
+    if (openAiResult?.buffer) return openAiResult;
+  } catch (error) {
+    console.warn('OpenAI generation fallback:', error?.message || error);
+    generationErrors.push(`openai: ${error?.message || 'unknown'}`);
   }
 
   try {
@@ -4214,6 +4387,7 @@ router.post('/global-products/image-preview', async (req, res) => {
       || lowMessage.includes('timeout')
       || lowMessage.includes('fetch failed')
       || lowMessage.includes('pollinations')
+      || lowMessage.includes('openai')
       || lowMessage.includes('gemini');
     const statusCode = isInputError ? 400 : (isUpstreamError ? 502 : 500);
     const baseErrorText = statusCode === 502
@@ -4325,6 +4499,7 @@ router.post('/categories/image-preview', async (req, res) => {
       || lowMessage.includes('timeout')
       || lowMessage.includes('fetch failed')
       || lowMessage.includes('pollinations')
+      || lowMessage.includes('openai')
       || lowMessage.includes('gemini');
     const statusCode = isInputError ? 400 : (isUpstreamError ? 502 : 500);
     const baseErrorText = statusCode === 502

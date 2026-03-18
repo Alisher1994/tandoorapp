@@ -2193,6 +2193,25 @@ function AdminDashboard() {
   }, []);
 
   useEffect(() => {
+    if (user?.role !== 'superadmin') return undefined;
+
+    const onKeyDown = (event) => {
+      const target = event.target;
+      const tagName = String(target?.tagName || '').toLowerCase();
+      const isTypingField = target?.isContentEditable || ['input', 'textarea', 'select'].includes(tagName);
+      const isCtrlSpaceHotkey = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey
+        && (event.code === 'Space' || event.key === ' ');
+      if (!isCtrlSpaceHotkey || isTypingField) return;
+
+      event.preventDefault();
+      navigate('/superadmin');
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navigate, user?.role]);
+
+  useEffect(() => {
     setProductsPage(1);
   }, [productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
