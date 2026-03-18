@@ -126,6 +126,30 @@ const formatDateCompact = (dateValue) => {
   if (!yyyy || !mm || !dd) return String(dateValue || '');
   return `${dd}.${mm}.${yyyy}`;
 };
+const getTableMarkerPalette = ({ selected, available }) => {
+  if (selected) {
+    return {
+      borderColor: '#4338ca',
+      background: 'rgba(224, 231, 255, 0.98)',
+      textColor: '#312e81',
+      shadow: '0 0 0 4px rgba(129, 140, 248, 0.24), 0 10px 24px rgba(49, 46, 129, 0.3)'
+    };
+  }
+  if (available) {
+    return {
+      borderColor: '#16a34a',
+      background: 'rgba(220, 252, 231, 0.98)',
+      textColor: '#14532d',
+      shadow: '0 8px 18px rgba(21, 128, 61, 0.22)'
+    };
+  }
+  return {
+    borderColor: '#dc2626',
+    background: 'rgba(254, 226, 226, 0.98)',
+    textColor: '#991b1b',
+    shadow: '0 8px 18px rgba(127, 29, 29, 0.22)'
+  };
+};
 const resolveWorkingWindow = (workStartTime, workEndTime) => {
   const startMinutes = parseTimeToMinutes(workStartTime, Number.NaN);
   const endMinutes = parseTimeToMinutes(workEndTime, Number.NaN);
@@ -1201,6 +1225,7 @@ function Reservations() {
 
                         const markerScaleCompensation = Number(clamp(1 / Math.max(planScale, 0.001), 0.9, 2.2).toFixed(4));
                         const markerZIndex = selected ? 14 : (available ? 10 : 9);
+                        const markerPalette = getTableMarkerPalette({ selected, available });
 
                         return (
                           <button
@@ -1208,21 +1233,41 @@ function Reservations() {
                             type="button"
                             data-plan-table="1"
                             className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? 'is-available' : 'is-disabled is-unavailable'}`}
-                            style={{ left: `${tableX}px`, top: `${tableY}px`, transform: `translate(-50%, -50%) scale(${markerScaleCompensation})`, zIndex: markerZIndex }}
+                            style={{
+                              left: `${tableX}px`,
+                              top: `${tableY}px`,
+                              transform: `translate(-50%, -50%) scale(${markerScaleCompensation})`,
+                              zIndex: markerZIndex,
+                              width: '44px',
+                              height: '44px',
+                              borderRadius: '999px',
+                              border: `2px solid ${markerPalette.borderColor}`,
+                              background: markerPalette.background,
+                              boxShadow: markerPalette.shadow,
+                              color: markerPalette.textColor,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              overflow: 'visible',
+                              appearance: 'none',
+                              WebkitAppearance: 'none',
+                              cursor: available ? 'pointer' : 'not-allowed'
+                            }}
                             onPointerDown={(event) => event.stopPropagation()}
                             onClick={() => toggleTableSelection(table)}
-                            disabled={!available}
+                            aria-disabled={!available}
                             title={table.name || ''}
                           >
                             {table.photo_url && (
                               <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
                             )}
                             {templateImageUrl && (
-                              <span className="client-res-plan-table-visual" style={{ transform: `translate(-50%, -50%) rotate(${tableRotation}deg)` }}>
-                                <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" />
+                              <span className="client-res-plan-table-visual" style={{ transform: `translate(-50%, -50%) rotate(${tableRotation}deg)`, width: '70px', height: '46px', opacity: available ? 0.78 : 0.55 }}>
+                                <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" style={{ width: '70px', height: '46px', opacity: selected ? 0.88 : 0.72 }} />
                               </span>
                             )}
-                            <span className="client-res-plan-table-center-id">{tableCenterLabel}</span>
+                            <span className="client-res-plan-table-center-id" style={{ color: markerPalette.textColor, borderColor: available ? 'rgba(15, 23, 42, 0.35)' : 'rgba(127, 29, 29, 0.4)' }}>{tableCenterLabel}</span>
                           </button>
                         );
                       })}
