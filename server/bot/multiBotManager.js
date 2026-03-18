@@ -133,6 +133,12 @@ function buildCatalogUrl(appUrl, token) {
   return appendWebAppCacheVersion(`${trimmed}/catalog?token=${encodeURIComponent(token)}`);
 }
 
+function buildCatalogPublicUrl(appUrl, restaurantId) {
+  if (!appUrl || !restaurantId) return null;
+  const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+  return appendWebAppCacheVersion(`${trimmed}/catalog?restaurant_id=${encodeURIComponent(String(restaurantId))}`);
+}
+
 function generateTemporaryPassword(length = 12) {
   const raw = crypto.randomBytes(24).toString('base64url').replace(/[^a-zA-Z0-9]/g, '');
   return raw.slice(0, length);
@@ -3077,6 +3083,7 @@ async function initMultiBots() {
     console.log(`📋 Found ${result.rows.length} restaurants with bot tokens`);
 
     const isProduction = process.env.NODE_ENV === 'production';
+    const appUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
     const webhookBaseUrl = process.env.TELEGRAM_WEBHOOK_URL || process.env.BACKEND_URL || process.env.FRONTEND_URL || process.env.TELEGRAM_WEB_APP_URL;
     const webhookSecretToken = getTelegramWebhookSecretToken();
 
@@ -3119,6 +3126,23 @@ async function initMultiBots() {
 
         // Setup handlers
         setupBotHandlers(bot, restaurant.id, restaurant.name, restaurant.telegram_bot_token);
+
+        // Set default menu button for all private chats in this bot.
+        // Uses a static restaurant-scoped URL; auth is resolved in WebApp via Telegram initData.
+        try {
+          const defaultCatalogUrl = buildCatalogPublicUrl(appUrl, restaurant.id);
+          if (defaultCatalogUrl) {
+            await bot.setChatMenuButton({
+              menu_button: JSON.stringify({
+                type: 'web_app',
+                text: 'Open',
+                web_app: { url: defaultCatalogUrl }
+              })
+            });
+          }
+        } catch (menuError) {
+          console.error(`⚠️ ${restaurant.name}: default menu button setup failed:`, menuError.message);
+        }
 
       } catch (error) {
         console.error(`❌ Failed to initialize bot for ${restaurant.name}:`, error.message);

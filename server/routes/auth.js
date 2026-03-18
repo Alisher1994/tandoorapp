@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
@@ -21,6 +22,7 @@ const maskIdentifierForLogs = (value) => {
   return `${raw.slice(0, 2)}***${raw.slice(-2)}`;
 };
 const normalizeIdentifierForSecurityDetails = (value) => String(value || '').trim().slice(0, 180);
+const TELEGRAM_WEBAPP_AUTH_MAX_AGE_SECONDS = Number.parseInt(process.env.TELEGRAM_WEBAPP_AUTH_MAX_AGE_SECONDS, 10) || 86400;
 const loginRateLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 20,
@@ -86,6 +88,79 @@ function normalizeLoginPortal(value) {
 function parseOptionalInt(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function timingSafeHexEqual(a, b) {
+  const left = String(a || '').trim().toLowerCase();
+  const right = String(b || '').trim().toLowerCase();
+  if (!left || !right) return false;
+  if (!/^[0-9a-f]+$/.test(left) || !/^[0-9a-f]+$/.test(right)) return false;
+  if (left.length !== right.length) return false;
+  const leftBuffer = Buffer.from(left, 'hex');
+  const rightBuffer = Buffer.from(right, 'hex');
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function verifyTelegramWebAppInitData(initData, botToken) {
+  const rawInitData = String(initData || '').trim();
+  const rawBotToken = String(botToken || '').trim();
+  if (!rawInitData || !rawBotToken) {
+    return { ok: false, reason: 'missing_data' };
+  }
+
+  const params = new URLSearchParams(rawInitData);
+  const providedHash = String(params.get('hash') || '').trim();
+  if (!providedHash) {
+    return { ok: false, reason: 'missing_hash' };
+  }
+  params.delete('hash');
+
+  const dataCheckString = [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+
+  const secretKey = crypto
+    .createHmac('sha256', 'WebAppData')
+    .update(rawBotToken)
+    .digest();
+  const computedHash = crypto
+    .createHmac('sha256', secretKey)
+    .update(dataCheckString)
+    .digest('hex');
+
+  if (!timingSafeHexEqual(providedHash, computedHash)) {
+    return { ok: false, reason: 'invalid_hash' };
+  }
+
+  const authDate = Number.parseInt(params.get('auth_date'), 10);
+  if (!Number.isFinite(authDate) || authDate <= 0) {
+    return { ok: false, reason: 'invalid_auth_date' };
+  }
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  if (nowEpoch - authDate > TELEGRAM_WEBAPP_AUTH_MAX_AGE_SECONDS) {
+    return { ok: false, reason: 'stale_auth_data' };
+  }
+
+  let user = null;
+  try {
+    user = JSON.parse(params.get('user') || '{}');
+  } catch (_) {
+    return { ok: false, reason: 'invalid_user_payload' };
+  }
+
+  const telegramId = Number.parseInt(user?.id, 10);
+  if (!Number.isFinite(telegramId) || telegramId <= 0) {
+    return { ok: false, reason: 'missing_telegram_id' };
+  }
+
+  return {
+    ok: true,
+    telegramId,
+    authDate,
+    user
+  };
 }
 
 function getPortalRoleRank(role, portal) {
@@ -475,6 +550,188 @@ router.post('/login', loginRateLimiter, async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Ошибка входа' });
+  }
+});
+
+// Telegram Mini App login (WebApp initData, no password)
+router.post('/telegram-webapp-login', async (req, res) => {
+  try {
+    const restaurantId = parseOptionalInt(req.body?.restaurant_id);
+    const initData = String(req.body?.init_data || '').trim();
+
+    if (!restaurantId || restaurantId <= 0) {
+      return res.status(400).json({ error: 'restaurant_id обязателен' });
+    }
+    if (!initData) {
+      return res.status(400).json({ error: 'init_data обязателен' });
+    }
+
+    const restaurantResult = await pool.query(
+      `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, telegram_bot_token
+       FROM restaurants
+       WHERE id = $1 AND is_active = true
+       LIMIT 1`,
+      [restaurantId]
+    );
+    if (restaurantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Магазин не найден' });
+    }
+    const restaurant = restaurantResult.rows[0];
+    const botToken = String(restaurant.telegram_bot_token || '').trim();
+    if (!botToken) {
+      return res.status(503).json({ error: 'Бот магазина не настроен' });
+    }
+
+    const verified = verifyTelegramWebAppInitData(initData, botToken);
+    if (!verified.ok) {
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
+    }
+
+    const candidateResult = await pool.query(
+      `
+      WITH candidates AS (
+        SELECT u.*
+        FROM users u
+        WHERE u.telegram_id = $1
+        UNION
+        SELECT u.*
+        FROM telegram_admin_links tal
+        JOIN users u ON u.id = tal.user_id
+        WHERE tal.telegram_id = $1
+      ),
+      scored AS (
+        SELECT
+          c.*,
+          (
+            EXISTS (
+              SELECT 1
+              FROM user_restaurants ur
+              WHERE ur.user_id = c.id
+                AND ur.restaurant_id = $2
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM orders o
+              WHERE o.user_id = c.id
+                AND o.restaurant_id = $2
+            )
+            OR $2 = COALESCE(c.active_restaurant_id, -1)
+          ) AS has_customer_access,
+          EXISTS (
+            SELECT 1
+            FROM operator_restaurants opr
+            JOIN restaurants r ON r.id = opr.restaurant_id
+            WHERE opr.user_id = c.id
+              AND opr.restaurant_id = $2
+              AND r.is_active = true
+          ) AS has_operator_access
+        FROM candidates c
+      )
+      SELECT *
+      FROM scored
+      ORDER BY
+        CASE
+          WHEN role = 'customer' AND has_customer_access THEN 0
+          WHEN role = 'operator' AND has_operator_access THEN 1
+          WHEN role = 'superadmin' AND has_operator_access THEN 2
+          WHEN role = 'customer' THEN 3
+          WHEN role = 'operator' THEN 4
+          WHEN role = 'superadmin' THEN 5
+          ELSE 6
+        END,
+        id DESC
+      LIMIT 1
+      `,
+      [verified.telegramId, restaurantId]
+    );
+
+    if (candidateResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Пользователь Telegram не найден в системе' });
+    }
+
+    const user = candidateResult.rows[0];
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Аккаунт деактивирован', blocked: true });
+    }
+
+    if (user.role === 'customer' && !user.has_customer_access) {
+      return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+    }
+    if ((user.role === 'operator' || user.role === 'superadmin') && !user.has_operator_access) {
+      return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+    }
+
+    if (Number(user.active_restaurant_id) !== Number(restaurantId)) {
+      await pool.query(
+        'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
+        [restaurantId, user.id]
+      );
+      user.active_restaurant_id = restaurantId;
+    }
+
+    const tokenPayload = {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      restaurantId: Number(restaurantId)
+    };
+
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    });
+
+    let restaurants = [];
+    if (user.role === 'superadmin' || user.role === 'operator') {
+      const restaurantsResult = await pool.query(
+        `
+        SELECT r.id, r.name
+        FROM restaurants r
+        INNER JOIN operator_restaurants opr ON r.id = opr.restaurant_id
+        WHERE opr.user_id = $1 AND r.is_active = true
+        ORDER BY r.name
+        `,
+        [user.id]
+      );
+      restaurants = restaurantsResult.rows;
+    }
+
+    await logActivity({
+      userId: user.id,
+      restaurantId: restaurantId,
+      actionType: ACTION_TYPES.LOGIN,
+      entityType: ENTITY_TYPES.USER,
+      entityId: user.id,
+      entityName: user.full_name || user.username || `tg_${verified.telegramId}`,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req),
+      details: {
+        source: 'telegram_webapp',
+        telegram_id: verified.telegramId
+      }
+    }).catch(() => {});
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name,
+        phone: user.phone,
+        role: user.role,
+        active_restaurant_id: restaurantId,
+        active_restaurant_name: restaurant.name,
+        active_restaurant_logo: restaurant.logo_url,
+        active_restaurant_logo_display_mode: restaurant.logo_display_mode,
+        active_restaurant_currency_code: restaurant.currency_code || 'uz',
+        active_restaurant_ui_theme: normalizeUiTheme(restaurant.ui_theme, 'classic'),
+        active_restaurant_service_fee: restaurant.service_fee,
+        active_restaurant_is_delivery_enabled: restaurant.is_delivery_enabled,
+        restaurants
+      }
+    });
+  } catch (error) {
+    console.error('Telegram WebApp login error:', error);
+    res.status(500).json({ error: 'Ошибка входа через Telegram' });
   }
 });
 

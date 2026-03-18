@@ -49,6 +49,7 @@ export function AuthProvider({ children }) {
     // Check for token in URL first (auto-login from Telegram)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
+    const restaurantIdFromUrl = urlParams.get('restaurant_id') || urlParams.get('restaurantId') || '';
     
     if (tokenFromUrl) {
       // Save token from URL and try to authenticate
@@ -71,6 +72,31 @@ export function AuthProvider({ children }) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       await fetchUser();
     } else {
+      // Fallback for Telegram menu button "Open" without token in URL.
+      const telegramInitData = window.Telegram?.WebApp?.initData || '';
+      if (telegramInitData && restaurantIdFromUrl) {
+        try {
+          const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, {
+            init_data: telegramInitData,
+            restaurant_id: restaurantIdFromUrl
+          });
+          const nextToken = response.data?.token;
+          const nextUser = withNormalizedTheme(response.data?.user || null);
+          if (nextToken && nextUser) {
+            localStorage.setItem('token', nextToken);
+            localStorage.setItem('active_restaurant_id', String(nextUser?.active_restaurant_id || ''));
+            axios.defaults.headers.common['Authorization'] = `Bearer ${nextToken}`;
+            setUser(nextUser);
+            setIsBlocked(false);
+            setSupportUsername(null);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          // Silent fallback to normal login screen.
+          console.warn('Telegram WebApp auto-login skipped:', error?.response?.data?.error || error.message);
+        }
+      }
       setLoading(false);
     }
   };
