@@ -1137,45 +1137,15 @@ function Reservations() {
                       onClick={toggleControlsCollapsed}
                       onKeyDown={handleControlsHeadKeyDown}
                     >
-                      <div className="client-res-controls-title-line">
-                        <span className="client-res-top-title">{t('Бронирование', 'Band qilish')}</span>
-                      </div>
                       <div className="client-res-controls-summary-row">
                         <span className="client-res-controls-date-value">{bookingDateCompact}</span>
-                        {selectedTableIds.length > 0 && (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className="client-res-controls-next-btn"
-                            disabled={loadingAvailability || !selectedFloorId}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setBookingStep('details');
-                            }}
-                          >
-                            {t('Далее', 'Keyingi')}
-                          </Button>
-                        )}
                       </div>
-                      <span className="client-res-controls-floor-line">{t('Этаж', 'Qavat')}: {selectedFloor?.name || '—'}</span>
-                      <button
-                        type="button"
-                        className="client-res-collapse-btn"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleControlsCollapsed();
-                        }}
-                        aria-expanded={!controlsCollapsed}
-                        title={controlsCollapsed ? t('Развернуть', 'Yoyish') : t('Свернуть', 'Yig‘ish')}
-                      >
-                        {controlsCollapsed ? '▾' : '▴'}
-                      </button>
+                      <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
                     </div>
 
                     {!controlsCollapsed && (
                       <div className="client-res-controls-stack">
                         <div className="client-res-overlay-row">
-                          <span className="client-res-overlay-label">{t('Дата', 'Sana')}</span>
                           <Form.Control
                             type="date"
                             className="client-res-overlay-input"
@@ -1192,7 +1162,6 @@ function Reservations() {
                           />
                         </div>
                         <div className="client-res-overlay-row">
-                          <span className="client-res-overlay-label">{t('Этаж', 'Qavat')}</span>
                           <Form.Select className="client-res-overlay-input" value={selectedFloorId || ''} onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}>
                             <option value="">{t('Выберите этаж', 'Qavatni tanlang')}</option>
                             {floors.map((floor) => (
@@ -1248,10 +1217,12 @@ function Reservations() {
                             {table.photo_url && (
                               <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
                             )}
-                            <div className="client-res-plan-table-visual" style={{ transform: `rotate(${tableRotation}deg)` }}>
-                              {templateImageUrl ? <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" /> : <span className="client-res-plan-table-fallback">{table.name}</span>}
-                              <span className="client-res-plan-table-center-id">{tableCenterLabel}</span>
-                            </div>
+                            {templateImageUrl && (
+                              <span className="client-res-plan-table-visual" style={{ transform: `translate(-50%, -50%) rotate(${tableRotation}deg)` }}>
+                                <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" />
+                              </span>
+                            )}
+                            <span className="client-res-plan-table-center-id">{tableCenterLabel}</span>
                           </button>
                         );
                       })}
