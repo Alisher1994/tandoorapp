@@ -1099,6 +1099,19 @@ body::-webkit-scrollbar,
     outline: none;
 }
 
+.admin-reservation-plan-table-rotate-btn.is-danger {
+    color: #b91c1c;
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(254, 242, 242, 0.95);
+}
+
+.admin-reservation-plan-table-rotate-btn.is-danger:hover,
+.admin-reservation-plan-table-rotate-btn.is-danger:focus-visible {
+    color: #991b1b;
+    border-color: rgba(220, 38, 38, 0.78);
+    background: #fff1f2;
+}
+
 .admin-reservation-plan-rotation-panel {
     position: absolute;
     right: 54px;

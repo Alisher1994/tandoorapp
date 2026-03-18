@@ -1656,6 +1656,21 @@ function AdminReservations() {
                             >
                               ↻
                             </span>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="admin-reservation-plan-table-rotate-btn is-danger"
+                              title={tx('Удалить стол', 'Stolni o‘chirish')}
+                              onClick={() => deleteTable(tableId)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  deleteTable(tableId);
+                                }
+                              }}
+                            >
+                              ×
+                            </span>
                           </div>
                           <div
                             className="admin-reservation-plan-table-visual"
