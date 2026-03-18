@@ -613,7 +613,19 @@ const generateGlobalProductImageWithGemini = async (prompt) => {
 
 const generateGlobalProductImageWithPollinations = async (prompt) => {
   const seed = Date.now();
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&safe=true&enhance=true`;
+  const negativePrompt = [
+    'multiple objects',
+    'shelf',
+    'store interior',
+    'table setting',
+    'busy background',
+    'text',
+    'logo',
+    'watermark',
+    'person',
+    'hands'
+  ].join(', ');
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&safe=true&enhance=true&negative=${encodeURIComponent(negativePrompt)}`;
   const response = await axios.get(url, {
     responseType: 'arraybuffer',
     timeout: 70000,
@@ -627,50 +639,6 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
   const buffer = Buffer.from(response.data || []);
   if (!buffer.length) throw new Error('Генератор не вернул изображение');
   return { buffer, provider: 'pollinations' };
-};
-
-const generateGlobalProductImageWithLoremFlickr = async (name) => {
-  const tags = String(name || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 4)
-    .join(',');
-  const url = `https://loremflickr.com/1024/1024/${encodeURIComponent(tags || 'product')}`;
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 45000,
-    maxRedirects: 5,
-    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
-    validateStatus: (status) => status >= 200 && status < 400
-  });
-  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
-  if (!contentType.startsWith('image/')) {
-    throw new Error('LoremFlickr вернул не изображение');
-  }
-  const buffer = Buffer.from(response.data || []);
-  if (!buffer.length) throw new Error('LoremFlickr не вернул изображение');
-  return { buffer, provider: 'loremflickr' };
-};
-
-const generateGlobalProductImageWithPicsum = async () => {
-  const url = `https://picsum.photos/seed/${Date.now()}/1024/1024`;
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 35000,
-    maxRedirects: 5,
-    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
-    validateStatus: (status) => status >= 200 && status < 400
-  });
-  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
-  if (!contentType.startsWith('image/')) {
-    throw new Error('Picsum вернул не изображение');
-  }
-  const buffer = Buffer.from(response.data || []);
-  if (!buffer.length) throw new Error('Picsum не вернул изображение');
-  return { buffer, provider: 'picsum' };
 };
 
 const escapeXml = (value) => String(value || '')
@@ -706,7 +674,22 @@ const generateGlobalProductPlaceholderImage = async (name) => {
 const generateGlobalProductImageByName = async (name) => {
   const cleanName = String(name || '').trim().slice(0, 180);
   if (!cleanName) throw new Error('Укажите название товара для генерации');
-  const prompt = `Studio product photo of "${cleanName}", single isolated object, centered composition, plain light background, no text, no logo, photorealistic, catalog style`;
+  const prompt = [
+    `E-commerce product card packshot of "${cleanName}"`,
+    'single product only',
+    'centered object',
+    'square composition 1:1',
+    'object occupies around 75% of frame',
+    'plain white or transparent background',
+    'soft studio lighting',
+    'photorealistic',
+    'no people',
+    'no shelf',
+    'no scene',
+    'no text',
+    'no logo',
+    'no watermark'
+  ].join(', ');
   const generationErrors = [];
 
   try {
@@ -722,20 +705,6 @@ const generateGlobalProductImageByName = async (name) => {
   } catch (error) {
     console.warn('Pollinations generation fallback:', error?.message || error);
     generationErrors.push(`pollinations: ${error?.message || 'unknown'}`);
-  }
-
-  try {
-    return await generateGlobalProductImageWithLoremFlickr(cleanName);
-  } catch (error) {
-    console.warn('LoremFlickr generation fallback:', error?.message || error);
-    generationErrors.push(`loremflickr: ${error?.message || 'unknown'}`);
-  }
-
-  try {
-    return await generateGlobalProductImageWithPicsum();
-  } catch (error) {
-    console.warn('Picsum generation fallback:', error?.message || error);
-    generationErrors.push(`picsum: ${error?.message || 'unknown'}`);
   }
 
   console.warn('All external generators failed, using local placeholder:', generationErrors.join(' | '));
