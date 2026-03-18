@@ -1097,7 +1097,7 @@ function Reservations() {
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
                         return (
-                          <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available}>
+                          <button key={table.id} type="button" data-plan-table="1" className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`} style={{ left: `${tableX}px`, top: `${tableY}px` }} onPointerDown={(event) => event.stopPropagation()} onClick={() => toggleTableSelection(table)} disabled={!available} title={table.name || ''}>
                             {table.photo_url && (
                               <span role="button" tabIndex={0} className="client-res-plan-photo-btn" onClick={(event) => { event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); setPhotoTableName(String(table.name || t('Стол', 'Stol'))); setPhotoUrl(toAbsoluteMediaUrl(table.photo_url)); setShowPhotoModal(true); } }}>📷</span>
                             )}
@@ -1105,7 +1105,6 @@ function Reservations() {
                               {templateImageUrl ? <img src={templateImageUrl} alt={table.template_name || table.name} className="client-res-plan-table-img" /> : <span className="client-res-plan-table-fallback">{table.name}</span>}
                               <span className="client-res-plan-table-center-id">{tableCenterLabel}</span>
                             </div>
-                            <span className="client-res-plan-table-label">{table.name}</span>
                           </button>
                         );
                       })}
