@@ -1915,10 +1915,6 @@ function AdminReservations() {
 
                 {planSidebarTab === 'gallery' ? (
                   <>
-                    <div className="small fw-semibold text-dark mb-1">{tx('Галерея мебели', 'Mebel galereyasi')}</div>
-                    <div className="small text-muted mb-2">
-                      {tx('Перетащите карточку мебели на схему для мгновенного добавления.', 'Tez qo\'shish uchun mebel kartasini sxemaga sudrab olib boring.')}
-                    </div>
                     <Form.Group className="mb-2">
                       <Form.Select
                         size="sm"
