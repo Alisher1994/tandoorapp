@@ -2360,7 +2360,9 @@ function SuperAdminDashboard() {
       const response = await axios.post(`${API_URL}/superadmin/categories/image-preview`, {
         mode: normalizedMode,
         name: categoryName,
-        image_url: sourceImageUrl
+        image_url: sourceImageUrl,
+        category_id: categoryForm.id || null,
+        parent_id: categoryForm.parent_id || null
       });
       if (categoryAiRequestIdRef.current !== requestId) return;
 
@@ -2477,7 +2479,8 @@ function SuperAdminDashboard() {
       const response = await axios.post(`${API_URL}/superadmin/global-products/image-preview`, {
         mode: normalizedMode,
         name: productName,
-        image_url: sourceImageUrl
+        image_url: sourceImageUrl,
+        recommended_category_id: globalProductForm.recommended_category_id || null
       });
       if (globalProductAiRequestIdRef.current !== requestId) return;
 

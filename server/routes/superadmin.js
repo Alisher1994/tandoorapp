@@ -869,11 +869,33 @@ const generateGlobalProductPlaceholderImage = async (name) => {
   return { buffer, provider: 'placeholder-svg' };
 };
 
-const generateGlobalProductImageByName = async (name) => {
+const normalizeAiCategoryContextPath = (value) => {
+  if (!Array.isArray(value)) return [];
+  const unique = new Set();
+  const normalized = [];
+  for (const item of value) {
+    const clean = String(item || '').replace(/\s+/g, ' ').trim().slice(0, 84);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (unique.has(key)) continue;
+    unique.add(key);
+    normalized.push(clean);
+    if (normalized.length >= 8) break;
+  }
+  return normalized;
+};
+
+const generateGlobalProductImageByName = async (name, { categoryContextPath = [] } = {}) => {
   const cleanName = String(name || '').trim().slice(0, 180);
   if (!cleanName) throw new Error('Укажите название товара для генерации');
+  const contextPath = normalizeAiCategoryContextPath(categoryContextPath);
+  const contextHint = contextPath.length ? contextPath.join(' > ') : '';
+
   const prompt = [
     `Professional studio product photo of "${cleanName}"`,
+    contextHint ? `catalog category context: "${contextHint}"` : '',
+    contextHint ? 'if product name is ambiguous, strictly choose the object variant that matches this category context' : '',
+    contextHint ? 'example: battery in automotive context means car starter battery, not AA/AAA household battery' : '',
     'single real product item only',
     'isolated object in center',
     'square composition 1:1',
@@ -890,7 +912,7 @@ const generateGlobalProductImageByName = async (name) => {
     'no text',
     'no logo',
     'no watermark'
-  ].join(', ');
+  ].filter(Boolean).join(', ');
   const generationErrors = [];
 
   try {
@@ -1501,6 +1523,54 @@ const normalizeCategoryId = (value) => {
 };
 
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const getCategoryChainFromLeaf = async (client, categoryId) => {
+  const normalizedCategoryId = normalizeCategoryId(categoryId);
+  if (!normalizedCategoryId) return [];
+
+  const result = await client.query(`
+    WITH RECURSIVE category_chain AS (
+      SELECT id, parent_id, name_ru, name_uz, 1 AS depth
+      FROM categories
+      WHERE id = $1
+
+      UNION ALL
+
+      SELECT c.id, c.parent_id, c.name_ru, c.name_uz, cc.depth + 1
+      FROM categories c
+      INNER JOIN category_chain cc ON cc.parent_id = c.id
+      WHERE cc.depth < $2
+    )
+    SELECT id, parent_id, name_ru, name_uz, depth
+    FROM category_chain
+    ORDER BY depth DESC, id ASC
+  `, [normalizedCategoryId, CATEGORY_CHAIN_GUARD_LIMIT]);
+
+  return Array.isArray(result.rows) ? result.rows : [];
+};
+
+const buildAiCategoryContextPath = ({ chainRows = [], leafName = '' } = {}) => {
+  const result = [];
+  const unique = new Set();
+  const pushName = (value) => {
+    const normalized = normalizeCategoryName(value).slice(0, 84);
+    if (!normalized) return;
+    const key = normalized.toLowerCase();
+    if (unique.has(key)) return;
+    unique.add(key);
+    result.push(normalized);
+  };
+
+  for (const row of chainRows) {
+    pushName(row?.name_ru || row?.name_uz || '');
+    if (result.length >= 8) break;
+  }
+  if (result.length < 8) {
+    pushName(leafName);
+  }
+
+  return result;
+};
 
 const AD_BANNER_MAX_SLOTS = 10;
 const AD_TRANSITIONS = new Set(['none', 'fade', 'slide']);
@@ -3669,6 +3739,7 @@ router.post('/global-products/image-preview', async (req, res) => {
     const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
     const requestedMode = ['generate', 'process'].includes(modeRaw) ? modeRaw : 'auto';
     const productName = toOptionalTrimmedText(req.body?.name || req.body?.name_ru || req.body?.name_uz).slice(0, 180);
+    const recommendedCategoryId = normalizeCategoryId(req.body?.recommended_category_id);
     const sourceImageUrl = toOptionalTrimmedText(req.body?.image_url);
     const effectiveMode = requestedMode === 'auto'
       ? (sourceImageUrl ? 'process' : 'generate')
@@ -3689,7 +3760,12 @@ router.post('/global-products/image-preview', async (req, res) => {
       if (!productName) {
         return res.status(400).json({ error: 'Укажите название товара для генерации изображения' });
       }
-      const generated = await generateGlobalProductImageByName(productName);
+      let categoryContextPath = [];
+      if (recommendedCategoryId) {
+        const chain = await getCategoryChainFromLeaf(pool, recommendedCategoryId);
+        categoryContextPath = buildAiCategoryContextPath({ chainRows: chain });
+      }
+      const generated = await generateGlobalProductImageByName(productName, { categoryContextPath });
       sourceBuffer = generated.buffer;
       provider = generated.provider || 'generator';
     }
@@ -3733,6 +3809,8 @@ router.post('/categories/image-preview', async (req, res) => {
     const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
     const requestedMode = ['generate', 'process'].includes(modeRaw) ? modeRaw : 'auto';
     const categoryName = toOptionalTrimmedText(req.body?.name || req.body?.name_ru || req.body?.name_uz).slice(0, 180);
+    const categoryId = normalizeCategoryId(req.body?.category_id);
+    const parentCategoryId = normalizeCategoryId(req.body?.parent_id);
     const sourceImageUrl = toOptionalTrimmedText(req.body?.image_url);
     const effectiveMode = requestedMode === 'auto'
       ? (sourceImageUrl ? 'process' : 'generate')
@@ -3753,7 +3831,23 @@ router.post('/categories/image-preview', async (req, res) => {
       if (!categoryName) {
         return res.status(400).json({ error: 'Укажите название категории для генерации изображения' });
       }
-      const generated = await generateGlobalProductImageByName(categoryName);
+      let categoryContextPath = [];
+      if (categoryId) {
+        const chain = await getCategoryChainFromLeaf(pool, categoryId);
+        categoryContextPath = buildAiCategoryContextPath({ chainRows: chain });
+        if (categoryContextPath.length) {
+          categoryContextPath[categoryContextPath.length - 1] = normalizeCategoryName(categoryName).slice(0, 84) || categoryContextPath[categoryContextPath.length - 1];
+        } else {
+          categoryContextPath = buildAiCategoryContextPath({ leafName: categoryName });
+        }
+      } else if (parentCategoryId) {
+        const parentChain = await getCategoryChainFromLeaf(pool, parentCategoryId);
+        categoryContextPath = buildAiCategoryContextPath({ chainRows: parentChain, leafName: categoryName });
+      } else {
+        categoryContextPath = buildAiCategoryContextPath({ leafName: categoryName });
+      }
+
+      const generated = await generateGlobalProductImageByName(categoryName, { categoryContextPath });
       sourceBuffer = generated.buffer;
       provider = generated.provider || 'generator';
     }
