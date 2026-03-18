@@ -342,6 +342,22 @@ function Reservations() {
     [tutorialStepIndex, tutorialSteps]
   );
   const currentTutorialStepId = currentTutorialStep?.id || '';
+  const tutorialCardPlacement = useMemo(() => {
+    if (!isTutorialActive || !tutorialSpotlight) return 'bottom';
+    if (typeof window === 'undefined') return 'bottom';
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (!viewportHeight) return 'bottom';
+
+    const spaceAbove = Math.max(0, tutorialSpotlight.top - 8);
+    const spaceBelow = Math.max(0, viewportHeight - tutorialSpotlight.bottom - 8);
+    const minCardSpace = 168;
+
+    if (spaceBelow < minCardSpace && spaceAbove > spaceBelow) {
+      return 'top';
+    }
+    return 'bottom';
+  }, [isTutorialActive, tutorialSpotlight]);
   const moneyLabel = useMemo(() => {
     const code = String(restaurant?.currency_code || '').toLowerCase();
     if (code === 'kz') return '₸';
@@ -1865,7 +1881,7 @@ function Reservations() {
           ) : (
             <div className="client-res-tutorial-mask" style={{ inset: 0 }} />
           )}
-          <div className="client-res-tutorial-card">
+          <div className={`client-res-tutorial-card ${tutorialCardPlacement === 'top' ? 'is-top' : ''}`}>
             <div className="client-res-tutorial-step">{t('Шаг', 'Qadam')} {Math.min(tutorialStepIndex + 1, tutorialSteps.length)} / {tutorialSteps.length}</div>
             <div className="client-res-tutorial-text">{currentTutorialStep?.text || ''}</div>
             <button type="button" className="client-res-tutorial-skip-btn" onClick={() => stopTutorial(true)}>

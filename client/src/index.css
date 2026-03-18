@@ -2355,6 +2355,11 @@ h6 {
   pointer-events: auto;
 }
 
+.client-res-tutorial-card.is-top {
+  top: max(74px, calc(env(safe-area-inset-top) + 54px));
+  bottom: auto;
+}
+
 .client-res-tutorial-step {
   color: #334155;
   font-size: 0.76rem;
