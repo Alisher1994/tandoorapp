@@ -16,7 +16,7 @@ import ClientTopBar from '../components/ClientTopBar';
 import { PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const PLAN_MIN_SCALE = 0.35;
+const PLAN_MIN_SCALE = 0.45;
 const PLAN_MAX_SCALE = 3.4;
 const PLAN_WORLD_WIDTH = 1200;
 const DEFAULT_WORK_START_MINUTES = 9 * 60;
@@ -295,9 +295,10 @@ function Reservations() {
     if (!viewport || viewport.width < 40 || viewport.height < 40) return;
 
     const padding = Math.min(84, Math.max(24, Math.round(Math.min(viewport.width, viewport.height) * 0.08)));
+    const minFitScale = viewport.width < 768 ? 0.56 : PLAN_MIN_SCALE;
     const fitScale = clamp(
       Math.min((viewport.width - (padding * 2)) / PLAN_WORLD_WIDTH, (viewport.height - (padding * 2)) / planWorldHeight),
-      PLAN_MIN_SCALE,
+      minFitScale,
       PLAN_MAX_SCALE
     );
     const fitOffset = {
@@ -1073,6 +1074,9 @@ function Reservations() {
 
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
                     {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность столов...', 'Stollar mavjudligi tekshirilmoqda...')}</div>}
+                    {!loadingAvailability && tables.length === 0 && (
+                      <div className="client-res-map-empty">{t('На этой схеме пока нет столов для выбранного времени', 'Tanlangan vaqt uchun bu sxemada stollar hali topilmadi')}</div>
+                    )}
                     <div className="client-res-plan-world" style={{ width: `${PLAN_WORLD_WIDTH}px`, height: `${planWorldHeight}px`, transform: `translate(${planOffset.x}px, ${planOffset.y}px) scale(${planScale})` }}>
                       <div
                         className="client-res-plan-floor"
@@ -1092,7 +1096,7 @@ function Reservations() {
                         const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
-                        const markerScaleCompensation = Number(clamp(1 / Math.max(planScale, 0.001), 0.65, 1.35).toFixed(4));
+                        const markerScaleCompensation = Number(clamp(1 / Math.max(planScale, 0.001), 0.9, 2.2).toFixed(4));
 
                         return (
                           <button

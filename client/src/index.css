@@ -1573,6 +1573,23 @@ h6 {
   color: #334155;
 }
 
+.client-res-map-empty {
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #d6deef;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  text-align: center;
+  max-width: min(84vw, 320px);
+}
+
 .client-res-details-card {
   border-radius: 16px;
 }
