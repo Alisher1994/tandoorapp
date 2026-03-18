@@ -29,6 +29,17 @@ const WEB_APP_CACHE_VERSION = String(
   || process.env.npm_package_version
   || ''
 ).trim();
+const TELEGRAM_MENU_BUTTON_BACKFILL_ENABLED = String(
+  process.env.TELEGRAM_MENU_BUTTON_BACKFILL_ENABLED ?? '1'
+).trim() !== '0';
+const TELEGRAM_MENU_BUTTON_BACKFILL_LIMIT = Math.max(
+  0,
+  Number.parseInt(process.env.TELEGRAM_MENU_BUTTON_BACKFILL_LIMIT, 10) || 2500
+);
+const TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS = Math.max(
+  0,
+  Number.parseInt(process.env.TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS, 10) || 35
+);
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
@@ -153,6 +164,95 @@ function buildCatalogPublicUrl(appUrl, restaurantId) {
   if (!appUrl || !restaurantId) return null;
   const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
   return appendWebAppCacheVersion(`${trimmed}/catalog?restaurant_id=${encodeURIComponent(String(restaurantId))}`);
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function getKnownPrivateChatIdsForRestaurant(restaurantId) {
+  const result = await pool.query(
+    `
+    SELECT DISTINCT chat_id
+    FROM (
+      SELECT CAST(u.telegram_id AS TEXT) AS chat_id
+      FROM users u
+      INNER JOIN user_restaurants ur ON ur.user_id = u.id
+      WHERE ur.restaurant_id = $1
+        AND u.telegram_id IS NOT NULL
+
+      UNION
+
+      SELECT CAST(u.telegram_id AS TEXT) AS chat_id
+      FROM users u
+      INNER JOIN orders o ON o.user_id = u.id
+      WHERE o.restaurant_id = $1
+        AND u.telegram_id IS NOT NULL
+
+      UNION
+
+      SELECT CAST(COALESCE(tal.telegram_id, u.telegram_id) AS TEXT) AS chat_id
+      FROM operator_restaurants opr
+      INNER JOIN users u ON u.id = opr.user_id
+      LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
+      WHERE opr.restaurant_id = $1
+        AND COALESCE(tal.telegram_id, u.telegram_id) IS NOT NULL
+    ) AS known_chats
+    WHERE chat_id <> ''
+    ORDER BY chat_id DESC
+    `,
+    [restaurantId]
+  );
+  return result.rows
+    .map((row) => String(row.chat_id || '').trim())
+    .filter(Boolean);
+}
+
+async function backfillPrivateChatMenuButtons({ bot, restaurantId, restaurantName, webAppUrl }) {
+  if (!TELEGRAM_MENU_BUTTON_BACKFILL_ENABLED || !bot || !webAppUrl) return;
+
+  try {
+    const knownChatIds = await getKnownPrivateChatIdsForRestaurant(restaurantId);
+    if (knownChatIds.length === 0) {
+      console.log(`ℹ️ ${restaurantName}: no known private chats for silent menu backfill`);
+      return;
+    }
+
+    const targetChatIds = TELEGRAM_MENU_BUTTON_BACKFILL_LIMIT > 0
+      ? knownChatIds.slice(0, TELEGRAM_MENU_BUTTON_BACKFILL_LIMIT)
+      : knownChatIds;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const chatId of targetChatIds) {
+      try {
+        await bot.setChatMenuButton({
+          chat_id: chatId,
+          menu_button: JSON.stringify({
+            type: 'web_app',
+            text: 'Open',
+            web_app: { url: webAppUrl }
+          })
+        });
+        successCount += 1;
+      } catch (error) {
+        failCount += 1;
+        const telegramErrorCode = error?.response?.body?.error_code;
+        if (telegramErrorCode !== 400 && telegramErrorCode !== 403) {
+          console.error(`⚠️ ${restaurantName}: silent menu backfill failed for chat ${chatId}:`, error.message);
+        }
+      }
+
+      if (TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS > 0) {
+        await delay(TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS);
+      }
+    }
+
+    console.log(
+      `✅ ${restaurantName}: silent menu backfill done (${successCount}/${targetChatIds.length}, failed: ${failCount})`
+    );
+  } catch (error) {
+    console.error(`⚠️ ${restaurantName}: silent menu backfill error:`, error.message);
+  }
 }
 
 function generateTemporaryPassword(length = 12) {
@@ -3154,6 +3254,14 @@ async function initMultiBots() {
                 text: 'Open',
                 web_app: { url: defaultCatalogUrl }
               })
+            });
+
+            // Silent rollout: update menu button in known private chats without any visible bot messages.
+            void backfillPrivateChatMenuButtons({
+              bot,
+              restaurantId: restaurant.id,
+              restaurantName: restaurant.name,
+              webAppUrl: defaultCatalogUrl
             });
           }
         } catch (menuError) {
