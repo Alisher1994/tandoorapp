@@ -70,8 +70,10 @@ const GLOBAL_PRODUCT_AI_OUTPUT_SIZE = 1024;
 const GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
 const GEMINI_IMAGE_MODEL_CANDIDATES = [
   process.env.GEMINI_IMAGE_MODEL,
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.5-flash-image',
+  'gemini-3.1-flash-image-preview',
+  'gemini-3-pro-image-preview',
+  'gemini-2.5-flash',
   'gemini-2.0-flash'
 ].filter(Boolean);
 const uploadsDir = process.env.UPLOADS_DIR
@@ -683,38 +685,6 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
   throw new Error('Pollinations не вернул изображение');
 };
 
-const generateGlobalProductImageWithLoremFlickr = async (name) => {
-  const tokens = String(name || '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean)
-    .slice(0, 4);
-  const tagString = [...tokens, 'product', 'object', 'isolated'].join(',');
-  const lock = Date.now() + Math.floor(Math.random() * 1000000);
-  const url = `https://loremflickr.com/${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}/${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}/${encodeURIComponent(tagString)}?lock=${lock}`;
-
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 25000,
-    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
-    maxRedirects: 5,
-    headers: {
-      Accept: 'image/*,*/*;q=0.8',
-      'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
-    },
-    validateStatus: (status) => status >= 200 && status < 400
-  });
-  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
-  if (!contentType.startsWith('image/')) {
-    throw new Error('LoremFlickr вернул не изображение');
-  }
-  const buffer = Buffer.from(response.data || []);
-  if (!buffer.length) throw new Error('LoremFlickr вернул пустой ответ');
-  return { buffer, provider: 'loremflickr' };
-};
-
 const escapeXml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -792,13 +762,6 @@ const generateGlobalProductImageByName = async (name) => {
   } catch (error) {
     console.warn('Pollinations generation fallback:', error?.message || error);
     generationErrors.push(`pollinations: ${error?.message || 'unknown'}`);
-  }
-
-  try {
-    return await generateGlobalProductImageWithLoremFlickr(cleanName);
-  } catch (error) {
-    console.warn('LoremFlickr generation fallback:', error?.message || error);
-    generationErrors.push(`loremflickr: ${error?.message || 'unknown'}`);
   }
 
   console.warn('All external generators failed, using local placeholder:', generationErrors.join(' | '));
