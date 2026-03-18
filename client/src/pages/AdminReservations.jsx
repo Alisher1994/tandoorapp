@@ -166,6 +166,8 @@ function AdminReservations() {
   const [dragState, setDragState] = useState(null);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
+  const planScaleRef = useRef(1);
+  const planOffsetRef = useRef({ x: 0, y: 0 });
   const [planTableScale, setPlanTableScale] = useState(1);
   const [planPanStart, setPlanPanStart] = useState(null);
   const [selectedPlanTableId, setSelectedPlanTableId] = useState(null);
@@ -206,6 +208,55 @@ function AdminReservations() {
     [floorAspectRatio]
   );
 
+  useEffect(() => {
+    planScaleRef.current = clamp(asNumber(planScale, 1), PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+  }, [planScale]);
+
+  useEffect(() => {
+    planOffsetRef.current = {
+      x: asNumber(planOffset?.x, 0),
+      y: asNumber(planOffset?.y, 0)
+    };
+  }, [planOffset]);
+
+  const setPlanTransform = (nextScale, nextOffset) => {
+    const safeScale = clamp(asNumber(nextScale, 1), PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+    const safeOffset = {
+      x: Number(asNumber(nextOffset?.x, 0).toFixed(2)),
+      y: Number(asNumber(nextOffset?.y, 0).toFixed(2))
+    };
+    planScaleRef.current = safeScale;
+    planOffsetRef.current = safeOffset;
+    setPlanScale(Number(safeScale.toFixed(3)));
+    setPlanOffset(safeOffset);
+  };
+
+  const zoomPlanAt = (nextScaleCandidate, anchorX, anchorY) => {
+    const currentScale = clamp(asNumber(planScaleRef.current, 1), PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+    const nextScale = clamp(asNumber(nextScaleCandidate, currentScale), PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+    if (Math.abs(nextScale - currentScale) < 0.0001) return;
+
+    const currentOffset = planOffsetRef.current || { x: 0, y: 0 };
+    const worldX = (asNumber(anchorX, 0) - currentOffset.x) / currentScale;
+    const worldY = (asNumber(anchorY, 0) - currentOffset.y) / currentScale;
+    const nextOffset = {
+      x: asNumber(anchorX, 0) - (worldX * nextScale),
+      y: asNumber(anchorY, 0) - (worldY * nextScale)
+    };
+    setPlanTransform(nextScale, nextOffset);
+  };
+
+  const zoomPlanByStepAt = (delta, anchorX, anchorY) => {
+    zoomPlanAt(asNumber(planScaleRef.current, 1) + asNumber(delta, 0), anchorX, anchorY);
+  };
+
+  const getPlanCanvasCenter = () => {
+    const canvas = floorPlanRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return { x: rect.width / 2, y: rect.height / 2 };
+  };
+
   const fitPlanToCanvas = () => {
     const canvas = floorPlanRef.current;
     if (!canvas) return;
@@ -219,8 +270,7 @@ function AdminReservations() {
       x: Number(((rect.width - (PLAN_WORLD_WIDTH * scale)) / 2).toFixed(2)),
       y: Number(((rect.height - (planWorldHeight * scale)) / 2).toFixed(2))
     };
-    setPlanScale(Number(scale.toFixed(3)));
-    setPlanOffset(offset);
+    setPlanTransform(Number(scale.toFixed(3)), offset);
   };
   const queueSaveFloorVisualConfig = (floorId, nextOpacity, nextOverlay) => {
     floorVisualDraftRef.current = {
@@ -543,8 +593,11 @@ function AdminReservations() {
         event.preventDefault();
       }
       event.stopPropagation();
+      const rect = node.getBoundingClientRect();
+      const anchorX = clamp(event.clientX - rect.left, 0, rect.width);
+      const anchorY = clamp(event.clientY - rect.top, 0, rect.height);
       const delta = event.deltaY < 0 ? 0.1 : -0.1;
-      setPlanScale((prev) => clamp(Number((prev + delta).toFixed(2)), PLAN_MIN_SCALE, PLAN_MAX_SCALE));
+      zoomPlanByStepAt(delta, anchorX, anchorY);
     };
 
     node.addEventListener('wheel', nativeWheelHandler, { passive: false });
@@ -1048,10 +1101,12 @@ function AdminReservations() {
 
   const handlePlanPointerMove = (event) => {
     if (!planPanStart) return;
-    setPlanOffset({
+    const nextOffset = {
       x: planPanStart.startOffsetX + (event.clientX - planPanStart.startClientX),
       y: planPanStart.startOffsetY + (event.clientY - planPanStart.startClientY)
-    });
+    };
+    planOffsetRef.current = nextOffset;
+    setPlanOffset(nextOffset);
   };
 
   const handlePlanPointerUp = (event) => {
@@ -1638,8 +1693,26 @@ function AdminReservations() {
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev + 0.1).toFixed(2)), PLAN_MIN_SCALE, PLAN_MAX_SCALE))}>+</Button>
-                    <Button className="action-btn admin-reservation-action-btn" variant="primary" onClick={() => setPlanScale((prev) => clamp(Number((prev - 0.1).toFixed(2)), PLAN_MIN_SCALE, PLAN_MAX_SCALE))}>−</Button>
+                    <Button
+                      className="action-btn admin-reservation-action-btn"
+                      variant="primary"
+                      onClick={() => {
+                        const center = getPlanCanvasCenter();
+                        zoomPlanByStepAt(0.1, center.x, center.y);
+                      }}
+                    >
+                      +
+                    </Button>
+                    <Button
+                      className="action-btn admin-reservation-action-btn"
+                      variant="primary"
+                      onClick={() => {
+                        const center = getPlanCanvasCenter();
+                        zoomPlanByStepAt(-0.1, center.x, center.y);
+                      }}
+                    >
+                      −
+                    </Button>
                     <Button
                       className="action-btn admin-reservation-action-btn"
                       variant="primary"
