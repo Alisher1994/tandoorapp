@@ -1015,6 +1015,7 @@ function SuperAdminDashboard() {
   const [aiProvidersLoading, setAiProvidersLoading] = useState(false);
   const [aiProviderSavingId, setAiProviderSavingId] = useState(null);
   const [aiProviderDeletingId, setAiProviderDeletingId] = useState(null);
+  const [aiProviderTestingId, setAiProviderTestingId] = useState(null);
   const [aiUsageDays, setAiUsageDays] = useState(30);
   const [aiUsageLoading, setAiUsageLoading] = useState(false);
   const [aiUsageSummary, setAiUsageSummary] = useState({
@@ -2935,10 +2936,17 @@ function SuperAdminDashboard() {
           : {}
       };
 
+      let savedProviderId = Number(provider?.id || 0) || null;
       if (provider.id) {
-        await axios.put(`${API_URL}/superadmin/ai/providers/${provider.id}`, payload);
+        const response = await axios.put(`${API_URL}/superadmin/ai/providers/${provider.id}`, payload);
+        savedProviderId = Number(response?.data?.provider?.id || provider.id) || savedProviderId;
       } else {
-        await axios.post(`${API_URL}/superadmin/ai/providers`, payload);
+        const response = await axios.post(`${API_URL}/superadmin/ai/providers`, payload);
+        savedProviderId = Number(response?.data?.provider?.id || 0) || null;
+      }
+
+      if (payload.is_active && savedProviderId) {
+        await axios.patch(`${API_URL}/superadmin/ai/providers/${savedProviderId}/activate`);
       }
 
       setSuccess('AI-провайдер сохранён');
@@ -2966,6 +2974,27 @@ function SuperAdminDashboard() {
       setError(String(err?.response?.data?.error || 'Ошибка удаления AI-провайдера'));
     } finally {
       setAiProviderDeletingId(null);
+    }
+  };
+  const testAiProvider = async (provider) => {
+    if (!provider?.id) {
+      setError('Сначала сохраните провайдера');
+      return;
+    }
+    try {
+      setAiProviderTestingId(provider.id);
+      const response = await axios.post(`${API_URL}/superadmin/ai/providers/${provider.id}/test`);
+      const textPreview = String(response?.data?.text_test?.preview || '').trim();
+      const imageModel = String(response?.data?.image_test?.model || '').trim();
+      const textModel = String(response?.data?.text_test?.model || '').trim();
+      setSuccess(
+        `Проверка пройдена: текст (${textModel || 'auto'}) и изображение (${imageModel || 'auto'}) получены.${textPreview ? ` Текст: ${textPreview}` : ''}`
+      );
+      await loadAiUsageSummary(aiUsageDays);
+    } catch (err) {
+      setError(String(err?.response?.data?.error || 'Проверка не пройдена: токен/модель не работают'));
+    } finally {
+      setAiProviderTestingId(null);
     }
   };
 
@@ -10125,6 +10154,7 @@ function SuperAdminDashboard() {
                             const providerKey = getAiProviderKey(provider);
                             const isSaving = aiProviderSavingId === providerKey;
                             const isDeleting = provider.id && aiProviderDeletingId === provider.id;
+                            const isTesting = provider.id && aiProviderTestingId === provider.id;
                             return (
                               <div key={providerKey} className="border rounded-3 p-3 mb-3 bg-light">
                                 <Row className="g-2 align-items-end">
@@ -10207,9 +10237,27 @@ function SuperAdminDashboard() {
                                     <Button
                                       type="button"
                                       size="sm"
+                                      variant="outline-secondary"
+                                      onClick={() => testAiProvider(provider)}
+                                      disabled={!provider.id || isSaving || isDeleting || isTesting}
+                                      title="Проверить токен и модели (текст + фото)"
+                                      aria-label="Проверить токен и модели"
+                                    >
+                                      {isTesting ? (
+                                        <>
+                                          <Spinner animation="border" size="sm" className="me-1" />
+                                          Проверка...
+                                        </>
+                                      ) : (
+                                        <i className="bi bi-patch-check" aria-hidden="true" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
                                       className="btn-primary-custom"
                                       onClick={() => saveAiProvider(provider)}
-                                      disabled={isSaving || isDeleting}
+                                      disabled={isSaving || isDeleting || isTesting}
                                     >
                                       {isSaving ? 'Сохранение...' : 'Сохранить'}
                                     </Button>
@@ -10218,7 +10266,7 @@ function SuperAdminDashboard() {
                                       size="sm"
                                       variant="outline-danger"
                                       onClick={() => removeAiProvider(provider)}
-                                      disabled={isSaving || isDeleting}
+                                      disabled={isSaving || isDeleting || isTesting}
                                     >
                                       {isDeleting ? 'Удаление...' : 'Удалить'}
                                     </Button>
@@ -10233,6 +10281,7 @@ function SuperAdminDashboard() {
                       <div className="small text-muted mt-2">
                         Примечание: включите тумблер "Активный" у нужного провайдера и нажмите "Сохранить" — предыдущий активный выключится автоматически.
                         ENV-ключи используются только когда активный провайдер не задан.
+                        Для кнопки проверки провайдер должен быть активным, иначе будет ошибка.
                       </div>
 
                       {Array.isArray(aiUsageSummary.by_provider) && aiUsageSummary.by_provider.length > 0 && (

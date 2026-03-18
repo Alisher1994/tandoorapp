@@ -852,6 +852,22 @@ const resolveOpenAiApiKeyFromEnv = () => String(
   || process.env.OPENAI_KEY
   || ''
 ).trim();
+const resolvePollinationsApiKeyFromEnv = () => String(
+  process.env.POLLINATIONS_API_KEY
+  || ''
+).trim();
+const buildModelCandidates = (items = []) => {
+  const seen = new Set();
+  const normalized = [];
+  for (const rawItem of items) {
+    const item = rawItem === undefined || rawItem === null ? '' : String(rawItem).trim();
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(item);
+  }
+  return normalized;
+};
 
 const getActiveAiProviderRuntimeConfig = async () => {
   await ensureAiProvidersSchema();
@@ -954,6 +970,37 @@ const resolveOpenAiRuntimeConfig = async () => {
     providerRef: apiKey
       ? { id: null, name: 'Railway ENV OpenAI', provider_type: 'openai' }
       : null
+  };
+};
+const resolvePollinationsRuntimeConfig = async () => {
+  const defaultImageCandidates = ['flux', 'turbo', ''];
+  const defaultTextCandidates = ['', 'openai', 'claude', 'gemini'];
+  const activeProvider = await getActiveAiProviderRuntimeConfig();
+  if (activeProvider && activeProvider.provider_type === 'pollinations') {
+    const imageCandidates = buildModelCandidates([
+      normalizeAiProviderModel(activeProvider.image_model),
+      ...defaultImageCandidates
+    ]);
+    const textCandidates = buildModelCandidates([
+      normalizeAiProviderModel(activeProvider.text_model),
+      ...defaultTextCandidates
+    ]);
+    return {
+      apiKey: activeProvider.api_key || '',
+      imageModelCandidates: imageCandidates,
+      textModelCandidates: textCandidates,
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+
+  const apiKey = resolvePollinationsApiKeyFromEnv();
+  return {
+    apiKey,
+    imageModelCandidates: buildModelCandidates(defaultImageCandidates),
+    textModelCandidates: buildModelCandidates(defaultTextCandidates),
+    providerRef: apiKey
+      ? { id: null, name: 'Railway ENV Pollinations', provider_type: 'pollinations' }
+      : { id: null, name: 'Pollinations', provider_type: 'pollinations' }
   };
 };
 
@@ -1202,6 +1249,66 @@ const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false 
   if (lastError) throw lastError;
   return null;
 };
+const generateGlobalProductTextWithPollinations = async (prompt, { expectJson = false } = {}) => {
+  const runtime = await resolvePollinationsRuntimeConfig();
+  let textPrompt = String(prompt || '').trim();
+  if (!textPrompt) return null;
+  if (expectJson) {
+    textPrompt = [
+      textPrompt,
+      'Return only valid JSON. No markdown. No comments.'
+    ].join('\n');
+  }
+
+  let lastError = null;
+  const modelCandidates = Array.isArray(runtime.textModelCandidates) && runtime.textModelCandidates.length
+    ? runtime.textModelCandidates
+    : [''];
+  for (const model of modelCandidates) {
+    try {
+      const params = new URLSearchParams();
+      if (model) params.set('model', model);
+      if (runtime.apiKey) params.set('key', runtime.apiKey);
+      const query = params.toString();
+      const url = `https://gen.pollinations.ai/text/${encodeURIComponent(textPrompt)}${query ? `?${query}` : ''}`;
+      const response = await axios.get(url, {
+        timeout: 45000,
+        maxContentLength: 2 * 1024 * 1024,
+        headers: {
+          Accept: 'text/plain,application/json;q=0.9,*/*;q=0.8',
+          'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+        },
+        validateStatus: (status) => status >= 200 && status < 400
+      });
+
+      let text = '';
+      if (typeof response.data === 'string') {
+        text = response.data.trim();
+      } else if (response.data && typeof response.data === 'object') {
+        text = String(
+          response.data.text
+          || response.data.response
+          || response.data.output
+          || ''
+        ).trim();
+      }
+      if (text) {
+        return {
+          text,
+          provider: model ? `pollinations:${model}` : 'pollinations',
+          model: model || '',
+          providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
+        };
+      }
+      lastError = new Error('Pollinations не вернул текст');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+};
 
 const normalizeCatalogText = (value, maxLength = 3000) => String(value || '')
   .replace(/\s+/g, ' ')
@@ -1268,6 +1375,13 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
       }
     }
     if (!result?.text) {
+      try {
+        result = await generateGlobalProductTextWithPollinations(prompt, { expectJson: true });
+      } catch (error) {
+        console.warn('Pollinations text generation fallback:', error?.message || error);
+      }
+    }
+    if (!result?.text) {
       return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
     }
     const parsed = extractFirstJsonObject(result.text);
@@ -1293,6 +1407,7 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
 };
 
 const generateGlobalProductImageWithPollinations = async (prompt) => {
+  const runtime = await resolvePollinationsRuntimeConfig();
   const negativePrompt = [
     'multiple objects',
     'shelf',
@@ -1310,7 +1425,9 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
   ].join(', ');
 
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const modelCandidates = ['flux', 'turbo', ''];
+  const modelCandidates = Array.isArray(runtime.imageModelCandidates) && runtime.imageModelCandidates.length
+    ? runtime.imageModelCandidates
+    : ['flux', 'turbo', ''];
   let lastError = null;
 
   for (const model of modelCandidates) {
@@ -1326,8 +1443,9 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
         negative: negativePrompt
       });
       if (model) params.set('model', model);
+      if (runtime.apiKey) params.set('key', runtime.apiKey);
 
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
+      const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${params.toString()}`;
 
       try {
         const response = await axios.get(url, {
@@ -1347,7 +1465,12 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
         }
         const buffer = Buffer.from(response.data || []);
         if (!buffer.length) throw new Error('Pollinations вернул пустой ответ');
-        return { buffer, provider: model ? `pollinations:${model}` : 'pollinations' };
+        return {
+          buffer,
+          provider: model ? `pollinations:${model}` : 'pollinations',
+          model: model || '',
+          providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
+        };
       } catch (error) {
         lastError = error;
         const statusCode = Number(error?.response?.status || 0);
@@ -7551,6 +7674,100 @@ router.patch('/ai/providers/:id/activate', async (req, res) => {
     res.status(500).json({ error: 'Ошибка активации AI-провайдера' });
   } finally {
     client.release();
+  }
+});
+
+router.post('/ai/providers/:id/test', async (req, res) => {
+  const providerId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(providerId) || providerId <= 0) {
+    return res.status(400).json({ error: 'Некорректный ID провайдера' });
+  }
+
+  try {
+    await ensureAiProvidersSchema();
+    const providerResult = await pool.query(`
+      SELECT
+        id, name, provider_type, api_key_encrypted, api_key_masked,
+        image_model, text_model, config_json, is_enabled, is_active,
+        priority, created_at, updated_at
+      FROM ai_providers
+      WHERE id = $1
+      LIMIT 1
+    `, [providerId]);
+    if (!providerResult.rows.length) {
+      return res.status(404).json({ error: 'AI-провайдер не найден' });
+    }
+
+    const row = providerResult.rows[0];
+    const provider = normalizeAiProviderDbRow(row);
+    const providerType = normalizeAiProviderType(provider.provider_type, 'gemini');
+    const apiKey = decryptAiSecret(row.api_key_encrypted);
+
+    if (provider.is_enabled === false) {
+      return res.status(400).json({
+        error: 'Провайдер выключен. Включите его перед проверкой.'
+      });
+    }
+    if (provider.is_active !== true) {
+      return res.status(400).json({
+        error: 'Провайдер не активирован. Активируйте и сохраните перед проверкой.'
+      });
+    }
+    if (!apiKey && providerType !== 'pollinations') {
+      return res.status(400).json({
+        error: 'У провайдера отсутствует API ключ. Проверьте токен.'
+      });
+    }
+
+    const textPrompt = 'Напиши 1 короткое предложение: тест AI провайдера для каталога.';
+    const imagePrompt = 'Single product photo of a fresh red apple on white background, studio light, high quality';
+
+    let textResult = null;
+    let imageResult = null;
+
+    if (providerType === 'gemini') {
+      textResult = await generateGlobalProductTextWithGemini(textPrompt, { expectJson: false });
+      imageResult = await generateGlobalProductImageWithGemini(imagePrompt);
+    } else if (providerType === 'openai') {
+      textResult = await generateGlobalProductTextWithOpenAI(textPrompt, { expectJson: false });
+      imageResult = await generateGlobalProductImageWithOpenAI(imagePrompt);
+    } else if (providerType === 'pollinations') {
+      textResult = await generateGlobalProductTextWithPollinations(textPrompt, { expectJson: false });
+      imageResult = await generateGlobalProductImageWithPollinations(imagePrompt);
+    } else {
+      return res.status(400).json({
+        error: `Проверка для типа "${providerType}" пока не поддерживается`
+      });
+    }
+
+    if (!textResult?.text || !imageResult?.buffer) {
+      return res.status(502).json({
+        error: 'Проверка не пройдена: токен/модель не дали корректный ответ'
+      });
+    }
+
+    const previewUrl = await saveGlobalProductAiImage(imageResult.buffer);
+    res.json({
+      success: true,
+      provider: {
+        id: provider.id,
+        name: provider.name,
+        provider_type: providerType
+      },
+      text_test: {
+        model: String(textResult.model || '').trim() || null,
+        preview: String(textResult.text || '').trim().slice(0, 180)
+      },
+      image_test: {
+        model: String(imageResult.model || '').trim() || null,
+        preview_url: previewUrl
+      }
+    });
+  } catch (error) {
+    console.error('AI provider test error:', error);
+    res.status(502).json({
+      error: `Проверка не пройдена: ${String(error?.message || 'ошибка токена/модели').slice(0, 220)}`
+    });
   }
 });
 
