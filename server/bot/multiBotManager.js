@@ -928,11 +928,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     try {
       await bot.setChatMenuButton({
         chat_id: chatId,
-        menu_button: {
+        // node-telegram-bot-api serializes nested objects for reply_markup only,
+        // so menu_button must be passed as JSON string.
+        menu_button: JSON.stringify({
           type: 'web_app',
           text: t(lang, 'openMenuShortcut'),
           web_app: { url: webAppUrl }
-        }
+        })
       });
     } catch (error) {
       console.error(`[${restaurantName}] setChatMenuButton error:`, error.message);
