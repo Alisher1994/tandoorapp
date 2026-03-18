@@ -16,7 +16,7 @@ import ClientTopBar from '../components/ClientTopBar';
 import { PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const PLAN_MIN_SCALE = 0.55;
+const PLAN_MIN_SCALE = 0.35;
 const PLAN_MAX_SCALE = 3.4;
 const PLAN_WORLD_WIDTH = 1200;
 const DEFAULT_WORK_START_MINUTES = 9 * 60;
@@ -274,41 +274,10 @@ function Reservations() {
     navigate(resolveMainMenuPath());
   }, [navigate, resolveMainMenuPath]);
 
-  const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
-    const viewport = planViewportRef.current?.getBoundingClientRect();
-    if (!viewport) {
-      return {
-        x: Number(offsetCandidate?.x) || 0,
-        y: Number(offsetCandidate?.y) || 0
-      };
-    }
-
-    const viewportWidth = viewport.width;
-    const viewportHeight = viewport.height;
-    const scaledWidth = PLAN_WORLD_WIDTH * scaleCandidate;
-    const scaledHeight = planWorldHeight * scaleCandidate;
-    const edgePadding = Math.min(140, Math.max(44, Math.round(Math.min(viewportWidth, viewportHeight) * 0.12)));
-
-    let x = Number(offsetCandidate?.x) || 0;
-    let y = Number(offsetCandidate?.y) || 0;
-
-    if (scaledWidth <= viewportWidth - (edgePadding * 1.7)) {
-      x = (viewportWidth - scaledWidth) / 2;
-    } else {
-      x = clamp(x, viewportWidth - scaledWidth - edgePadding, edgePadding);
-    }
-
-    if (scaledHeight <= viewportHeight - (edgePadding * 1.7)) {
-      y = (viewportHeight - scaledHeight) / 2;
-    } else {
-      y = clamp(y, viewportHeight - scaledHeight - edgePadding, edgePadding);
-    }
-
-    return {
-      x: Number(x.toFixed(3)),
-      y: Number(y.toFixed(3))
-    };
-  }, [planWorldHeight]);
+  const constrainOffset = useCallback((offsetCandidate) => ({
+    x: Number((Number(offsetCandidate?.x) || 0).toFixed(3)),
+    y: Number((Number(offsetCandidate?.y) || 0).toFixed(3))
+  }), []);
 
   const setPlanTransform = useCallback((nextScaleCandidate, nextOffsetCandidate) => {
     const nextScale = clamp(Number(nextScaleCandidate) || 1, PLAN_MIN_SCALE, PLAN_MAX_SCALE);
@@ -923,6 +892,17 @@ function Reservations() {
     }
   };
 
+  const toggleControlsCollapsed = useCallback(() => {
+    setControlsCollapsed((prev) => !prev);
+  }, []);
+
+  const handleControlsHeadKeyDown = useCallback((event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleControlsCollapsed();
+    }
+  }, [toggleControlsCollapsed]);
+
   const toggleTableSelection = (table) => {
     if (!table?.is_available) return;
     const tableId = Number(table.id);
@@ -1019,7 +999,14 @@ function Reservations() {
               <>
                 <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''}`}>
                   <div className={`client-res-controls-overlay ${controlsCollapsed ? 'is-collapsed' : ''}`}>
-                    <div className="client-res-controls-head">
+                    <div
+                      className="client-res-controls-head"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={!controlsCollapsed}
+                      onClick={toggleControlsCollapsed}
+                      onKeyDown={handleControlsHeadKeyDown}
+                    >
                       <div className="client-res-controls-title-line">
                         <span className="client-res-top-title">{t('Бронирование', 'Band qilish')}</span>
                         <span className="client-res-top-subtitle">{startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</span>
@@ -1027,7 +1014,10 @@ function Reservations() {
                       <button
                         type="button"
                         className="client-res-collapse-btn"
-                        onClick={() => setControlsCollapsed((prev) => !prev)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleControlsCollapsed();
+                        }}
                         aria-expanded={!controlsCollapsed}
                         title={controlsCollapsed ? t('Развернуть', 'Yoyish') : t('Свернуть', 'Yig‘ish')}
                       >
@@ -1065,6 +1055,18 @@ function Reservations() {
                             ))}
                           </Form.Select>
                         </div>
+                      </div>
+                    )}
+                    {selectedTableIds.length > 0 && (
+                      <div className="client-res-overlay-next-row">
+                        <Button
+                          variant="primary"
+                          className="client-res-overlay-next-btn"
+                          disabled={loadingAvailability || !selectedFloorId}
+                          onClick={() => setBookingStep('details')}
+                        >
+                          {t('Далее', 'Keyingi')}
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -1154,9 +1156,6 @@ function Reservations() {
                     </div>
                   </div>
 
-                  <div className="client-res-map-next-overlay">
-                    <Button variant="primary" className="client-res-next-btn" disabled={loadingAvailability || !selectedTableIds.length || !selectedFloorId} onClick={() => setBookingStep('details')}>{t('Далее', 'Keyingi')}</Button>
-                  </div>
                 </section>
 
                 {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mt-2 mb-2">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
