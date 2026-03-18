@@ -201,6 +201,8 @@ function Reservations() {
   const timeRulerManualScrollTimeoutRef = useRef(null);
   const timeRulerSyncRafRef = useRef(null);
   const latestStartTimeRef = useRef(startTime);
+  const planVisibilityRecoveryArmedRef = useRef(false);
+  const planVisibilityRecoveryAttemptsRef = useRef(0);
   const lastAvailabilityKeyRef = useRef('');
   const availabilityRequestIdRef = useRef(0);
 
@@ -450,6 +452,8 @@ function Reservations() {
       if (requestId !== availabilityRequestIdRef.current) return;
       const payload = response.data || {};
       const nextTables = Array.isArray(payload.tables) ? payload.tables : [];
+      planVisibilityRecoveryArmedRef.current = nextTables.length > 0;
+      planVisibilityRecoveryAttemptsRef.current = 0;
       setTables(nextTables);
       setAllowMultiTable(payload.allow_multi_table !== false);
       setTimeSlotStepMinutes(normalizeTimeSlotStep(payload.time_slot_step_minutes, 30));
@@ -464,6 +468,8 @@ function Reservations() {
     } catch (err) {
       if (requestId !== availabilityRequestIdRef.current) return;
       lastAvailabilityKeyRef.current = '';
+      planVisibilityRecoveryArmedRef.current = false;
+      planVisibilityRecoveryAttemptsRef.current = 0;
       setError(err.response?.data?.error || t('Ошибка загрузки столов', 'Stollarni yuklashda xatolik'));
       setTables([]);
     } finally {
@@ -707,6 +713,54 @@ function Reservations() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [setPlanTransform, fitPlanToViewport]);
+
+  useEffect(() => {
+    if (!planVisibilityRecoveryArmedRef.current) return;
+    if (!tables.length) {
+      planVisibilityRecoveryArmedRef.current = false;
+      planVisibilityRecoveryAttemptsRef.current = 0;
+      return;
+    }
+
+    const viewport = planViewportRef.current?.getBoundingClientRect();
+    if (!viewport || viewport.width < 40 || viewport.height < 40) return;
+
+    const currentScale = Math.max(0.001, Number(planScale) || 1);
+    const currentOffsetX = Number(planOffset?.x) || 0;
+    const currentOffsetY = Number(planOffset?.y) || 0;
+    const margin = 96;
+    let visibleCount = 0;
+
+    for (const table of tables) {
+      const worldX = (normalizePlanCoordinate(table.x, 50) / 100) * PLAN_WORLD_WIDTH;
+      const worldY = (normalizePlanCoordinate(table.y, 50) / 100) * planWorldHeight;
+      const viewX = currentOffsetX + (worldX * currentScale);
+      const viewY = currentOffsetY + (worldY * currentScale);
+      if (
+        viewX >= -margin
+        && viewX <= viewport.width + margin
+        && viewY >= -margin
+        && viewY <= viewport.height + margin
+      ) {
+        visibleCount += 1;
+        if (visibleCount > 0) break;
+      }
+    }
+
+    if (visibleCount > 0) {
+      planVisibilityRecoveryArmedRef.current = false;
+      planVisibilityRecoveryAttemptsRef.current = 0;
+      return;
+    }
+
+    if (planVisibilityRecoveryAttemptsRef.current >= 3) {
+      planVisibilityRecoveryArmedRef.current = false;
+      return;
+    }
+
+    planVisibilityRecoveryAttemptsRef.current += 1;
+    fitPlanToTables();
+  }, [tables, planScale, planOffset, planWorldHeight, fitPlanToTables]);
 
   useEffect(() => {
     if (bookingStep !== 'plan' || !tables.length) return undefined;
