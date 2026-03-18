@@ -52,7 +52,7 @@ const normalizeRotationAngle = (value, fallback = 0) => {
 const toAbsoluteMediaUrl = (url) => {
   const raw = String(url || '').trim();
   if (!raw) return '';
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(https?:\/\/|data:image\/|blob:)/i.test(raw)) return raw;
   const base = API_URL.replace('/api', '');
   return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
 };
@@ -2296,7 +2296,7 @@ function AdminReservations() {
               </Col>
               <Col xs={12}>
                 <div className="small fw-semibold text-dark mb-2">
-                  {tx('Галерея мебели', 'Mebel galereyasi')}
+                  {tx('Галерея элементов', 'Elementlar galereyasi')}
                 </div>
                 <Form.Group className="mb-2">
                   <Form.Select

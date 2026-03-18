@@ -40,7 +40,7 @@ const normalizePlanCoordinate = (value, fallback = 50) => {
 const toAbsoluteMediaUrl = (url) => {
   const raw = String(url || '').trim();
   if (!raw) return '';
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(https?:\/\/|data:image\/|blob:)/i.test(raw)) return raw;
   const base = API_URL.replace('/api', '');
   return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
 };
@@ -199,7 +199,7 @@ function Reservations() {
   const timeRulerManualScrollRef = useRef(false);
   const timeRulerManualScrollTimeoutRef = useRef(null);
   const timeRulerSyncRafRef = useRef(null);
-  const timeRulerHintPlayedRef = useRef(false);
+  const lastAvailabilityKeyRef = useRef('');
   const availabilityRequestIdRef = useRef(0);
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
@@ -398,23 +398,37 @@ function Reservations() {
     setPlanGestureMode('pinch');
   }, []);
 
-  const fetchAvailability = async (nextFloorId = selectedFloorId) => {
+  const fetchAvailability = async (nextFloorId = selectedFloorId, overrides = {}) => {
     const requestId = availabilityRequestIdRef.current + 1;
     availabilityRequestIdRef.current = requestId;
 
-    if (!restaurantId || !nextFloorId || !bookingDate || !startTime) return;
-    const optimisticEndTime = addMinutesWithinDay(startTime, durationMinutes);
+    const effectiveDate = String(overrides.bookingDate || bookingDate || '').trim();
+    const effectiveStartTime = String(overrides.startTime || startTime || '').trim();
+    const effectiveDuration = Number.parseInt(overrides.durationMinutes ?? durationMinutes, 10);
+    const availabilityKey = `${restaurantId || 0}:${nextFloorId || 0}:${effectiveDate}:${effectiveStartTime}:${effectiveDuration || 0}`;
+    if (!overrides.force && availabilityKey === lastAvailabilityKeyRef.current) return;
+
+    if (!restaurantId || !nextFloorId || !effectiveDate || !effectiveStartTime) return;
+    const optimisticEndTime = addMinutesWithinDay(effectiveStartTime, effectiveDuration);
     if (!optimisticEndTime) return;
     if (parseTimeToMinutes(optimisticEndTime, Number.NaN) > workingWindow.endMinutes) return;
     if (restaurant?.reservation_enabled !== true) {
       setTables([]);
+      lastAvailabilityKeyRef.current = '';
       return;
     }
+    lastAvailabilityKeyRef.current = availabilityKey;
     setLoadingAvailability(true);
     setError('');
     try {
       const response = await axios.get(`${API_URL}/reservations/availability`, {
-        params: { restaurant_id: restaurantId, floor_id: nextFloorId, date: bookingDate, start_time: startTime, duration_minutes: durationMinutes }
+        params: {
+          restaurant_id: restaurantId,
+          floor_id: nextFloorId,
+          date: effectiveDate,
+          start_time: effectiveStartTime,
+          duration_minutes: effectiveDuration
+        }
       });
       if (requestId !== availabilityRequestIdRef.current) return;
       const payload = response.data || {};
@@ -432,6 +446,7 @@ function Reservations() {
       });
     } catch (err) {
       if (requestId !== availabilityRequestIdRef.current) return;
+      lastAvailabilityKeyRef.current = '';
       setError(err.response?.data?.error || t('Ошибка загрузки столов', 'Stollarni yuklashda xatolik'));
       setTables([]);
     } finally {
@@ -712,8 +727,13 @@ function Reservations() {
 
     if (nearestValue && nearestValue !== startTime) {
       setStartTime(nearestValue);
+      void fetchAvailability(selectedFloorId, {
+        bookingDate,
+        startTime: nearestValue,
+        durationMinutes: durationMinutes
+      });
     }
-  }, [startTime]);
+  }, [startTime, selectedFloorId, bookingDate, durationMinutes]);
 
   const handleTimeRulerScroll = useCallback(() => {
     if (timeRulerAutoScrollRef.current) return;
@@ -751,71 +771,6 @@ function Reservations() {
     if (timeRulerManualScrollRef.current) return;
     centerTimeSlot(startTime, 'auto');
   }, [startTime, timeSlots, centerTimeSlot]);
-
-  useEffect(() => {
-    if (bookingStep !== 'plan' || controlsCollapsed || timeRulerHintPlayedRef.current) return undefined;
-    const ruler = timeRulerRef.current;
-    if (!ruler || timeSlots.length < 3) return undefined;
-
-    timeRulerHintPlayedRef.current = true;
-    centerTimeSlot(startTime, 'auto');
-
-    const initialLeft = ruler.scrollLeft;
-    const ticks = Array.from(ruler.querySelectorAll('[data-slot-value]'));
-    const activeTick = ruler.querySelector(`[data-slot-value="${startTime}"]`);
-    const activeIndex = ticks.findIndex((tick) => tick === activeTick);
-    const safeActiveIndex = activeIndex >= 0 ? activeIndex : 0;
-    const forwardTargetIndex = Math.min(safeActiveIndex + 4, ticks.length - 1);
-    const forwardTargetTick = ticks[forwardTargetIndex];
-    const referenceTick = ticks[safeActiveIndex] || ticks[0];
-    const firstTick = ticks[0];
-    const secondTick = ticks[1];
-    const stepDistance = firstTick && secondTick
-      ? Math.max(24, Math.abs(secondTick.offsetLeft - firstTick.offsetLeft))
-      : Math.max(24, Math.round(ruler.clientWidth * 0.12));
-    const nudgeDistanceRaw = forwardTargetTick && referenceTick
-      ? Math.abs(forwardTargetTick.offsetLeft - referenceTick.offsetLeft)
-      : Math.round(stepDistance * 4);
-    const nudgeDistance = Math.min(520, Math.max(Math.round(stepDistance * 4), nudgeDistanceRaw));
-    const maxLeft = Math.max(0, ruler.scrollWidth - ruler.clientWidth);
-    const rightTargetLeft = clamp(initialLeft + nudgeDistance, 0, maxLeft);
-    const leftTargetLeft = clamp(initialLeft - nudgeDistance, 0, maxLeft);
-    const forwardLeft = Math.abs(rightTargetLeft - initialLeft) >= Math.abs(leftTargetLeft - initialLeft)
-      ? rightTargetLeft
-      : leftTargetLeft;
-    const hasVisibleNudge = Math.abs(forwardLeft - initialLeft) >= Math.max(8, stepDistance * 0.6);
-    timeRulerAutoScrollRef.current = true;
-
-    const timerForward = window.setTimeout(() => {
-      if (!hasVisibleNudge) return;
-      if (typeof ruler.scrollTo === 'function') {
-        ruler.scrollTo({ left: forwardLeft, behavior: 'smooth' });
-      } else {
-        ruler.scrollLeft = forwardLeft;
-      }
-    }, 180);
-
-    const timerBackward = window.setTimeout(() => {
-      if (!hasVisibleNudge) return;
-      if (typeof ruler.scrollTo === 'function') {
-        ruler.scrollTo({ left: initialLeft, behavior: 'smooth' });
-      } else {
-        ruler.scrollLeft = initialLeft;
-      }
-    }, 980);
-
-    const timerFinalize = window.setTimeout(() => {
-      timeRulerAutoScrollRef.current = false;
-      centerTimeSlot(startTime, 'smooth');
-    }, 1460);
-
-    return () => {
-      window.clearTimeout(timerForward);
-      window.clearTimeout(timerBackward);
-      window.clearTimeout(timerFinalize);
-      timeRulerAutoScrollRef.current = false;
-    };
-  }, [bookingStep, controlsCollapsed, timeSlots, centerTimeSlot, startTime]);
 
   const handlePlanPointerDown = (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;

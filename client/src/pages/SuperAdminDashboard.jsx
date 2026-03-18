@@ -1682,7 +1682,7 @@ function SuperAdminDashboard() {
     } catch (err) {
       console.error('Load reservation templates error:', err);
       if (activeTab === 'reservation_templates') {
-        setError(language === 'uz' ? "Mebel shablonlarini yuklab bo'lmadi" : 'Ошибка загрузки шаблонов мебели');
+        setError(language === 'uz' ? "Element shablonlarini yuklab bo'lmadi" : 'Ошибка загрузки шаблонов элементов');
       }
     } finally {
       setReservationTemplatesLoading(false);
@@ -1714,6 +1714,17 @@ function SuperAdminDashboard() {
     setReservationTemplateForm(createEmptyReservationTemplateForm());
   };
 
+  const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('File read error'));
+      reader.readAsDataURL(file);
+    } catch (error) {
+      reject(error);
+    }
+  });
+
   const handleReservationTemplateImageSelect = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -1728,8 +1739,23 @@ function SuperAdminDashboard() {
       setError(language === 'uz' ? 'PNG/SVG rasm yuklang' : 'Загрузите PNG/SVG изображение');
       return;
     }
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      setError(language === 'uz' ? 'Rasm hajmi 12MB dan oshmasligi kerak' : 'Размер изображения не должен превышать 12MB');
+      return;
+    }
     setError('');
-    await handleImageUpload(file, (url) => setReservationTemplateForm((prev) => ({ ...prev, image_url: url })));
+    setUploadingImage(true);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (!/^data:image\//i.test(dataUrl)) {
+        throw new Error('invalid-data-url');
+      }
+      setReservationTemplateForm((prev) => ({ ...prev, image_url: dataUrl }));
+    } catch (_) {
+      setError(language === 'uz' ? "Rasmni o'qib bo'lmadi" : 'Не удалось прочитать изображение');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const saveReservationTemplate = async () => {
@@ -1744,7 +1770,7 @@ function SuperAdminDashboard() {
       image_url: String(reservationTemplateForm.image_url || '').trim()
     };
     if (!payload.name) {
-      setError(language === 'uz' ? 'Mebel nomini kiriting' : 'Введите название мебели');
+      setError(language === 'uz' ? 'Element nomini kiriting' : 'Введите название элемента');
       return;
     }
     if (!payload.image_url) {
@@ -1759,7 +1785,7 @@ function SuperAdminDashboard() {
       } else {
         await axios.post(`${API_URL}/superadmin/reservation-table-templates`, payload);
       }
-      setSuccess(language === 'uz' ? "Mebel shabloni saqlandi" : 'Шаблон мебели сохранен');
+      setSuccess(language === 'uz' ? "Element shabloni saqlandi" : 'Шаблон элемента сохранен');
       closeReservationTemplateModal();
       await loadReservationTemplates();
     } catch (err) {
@@ -2574,8 +2600,10 @@ function SuperAdminDashboard() {
   };
 
   const resolveAdPreviewImageUrl = (url) => {
-    if (!url) return '';
-    return String(url).startsWith('http') ? String(url) : `${API_URL.replace('/api', '')}${url}`;
+    const normalized = String(url || '').trim();
+    if (!normalized) return '';
+    if (/^(https?:\/\/|data:image\/|blob:)/i.test(normalized)) return normalized;
+    return `${API_URL.replace('/api', '')}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
   };
 
   const adPreviewRestaurantOptions = useMemo(() => (
@@ -8107,23 +8135,23 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="reservation_templates" title={`🪑 ${language === 'uz' ? 'Bron mebellari' : 'Мебель брони'}`}>
+              <Tab eventKey="reservation_templates" title={`🪑 ${language === 'uz' ? 'Bron shablonlari' : 'Шаблоны брони'}`}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <div>
-                    <h5 className="fw-bold mb-0">{language === 'uz' ? "Bron uchun mebel shablonlari" : 'Шаблоны мебели для бронирования'}</h5>
+                    <h5 className="fw-bold mb-0">{language === 'uz' ? "Bron uchun element shablonlari" : 'Шаблоны элементов для бронирования'}</h5>
                     <small className="text-muted">
                       {language === 'uz'
-                        ? "Mebel rasmini PNG yoki SVG fayl orqali yuklang. URL kiritish talab qilinmaydi."
+                        ? "Element rasmini PNG yoki SVG fayl orqali yuklang. URL kiritish talab qilinmaydi."
                         : 'Загрузка через PNG или SVG файл. Вставка URL не требуется.'}
                     </small>
                   </div>
                   <Button className="btn-primary-custom" onClick={() => openReservationTemplateModal()}>
-                    + {language === 'uz' ? "Mebel qo'shish" : 'Добавить мебель'}
+                    + {language === 'uz' ? "Shablon qo'shish" : 'Добавить шаблон'}
                   </Button>
                 </div>
 
                 {reservationTemplatesLoading ? (
-                  <TableSkeleton rows={6} columns={10} label={language === 'uz' ? "Mebel shablonlari yuklanmoqda" : 'Загрузка шаблонов мебели'} />
+                  <TableSkeleton rows={6} columns={10} label={language === 'uz' ? "Element shablonlari yuklanmoqda" : 'Загрузка шаблонов элементов'} />
                 ) : (
                   <div className="admin-table-container">
                     <Table responsive hover className="admin-table">
@@ -8153,7 +8181,7 @@ function SuperAdminDashboard() {
                               <td>
                                 {imageSrc ? (
                                   <img
-                                    src={imageSrc.startsWith('http') ? imageSrc : `${API_URL.replace('/api', '')}${imageSrc}`}
+                                    src={resolveAdPreviewImageUrl(imageSrc)}
                                     alt={template.name}
                                     style={{ width: 44, height: 34, objectFit: 'contain', borderRadius: 8, background: '#fff' }}
                                   />
@@ -8208,7 +8236,7 @@ function SuperAdminDashboard() {
                           );
                         })}
                         {!reservationTemplates.length && (
-                          <tr><td colSpan="10" className="text-center py-5 text-muted">{language === 'uz' ? "Mebel shablonlari yo'q" : 'Шаблоны мебели пока не добавлены'}</td></tr>
+                          <tr><td colSpan="10" className="text-center py-5 text-muted">{language === 'uz' ? "Element shablonlari yo'q" : 'Шаблоны элементов пока не добавлены'}</td></tr>
                         )}
                       </tbody>
                     </Table>
@@ -12832,8 +12860,8 @@ function SuperAdminDashboard() {
         <Modal.Header closeButton>
           <Modal.Title>
             {reservationTemplateForm.id
-              ? (language === 'uz' ? 'Mebelni tahrirlash' : 'Редактировать мебель')
-              : (language === 'uz' ? "Mebel qo'shish" : 'Добавить мебель')}
+              ? (language === 'uz' ? 'Elementni tahrirlash' : 'Редактировать элемент')
+              : (language === 'uz' ? "Shablon qo'shish" : 'Добавить шаблон')}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -12955,9 +12983,7 @@ function SuperAdminDashboard() {
           {reservationTemplateForm.image_url && (
             <div className="mt-3 text-center border rounded p-3 bg-light">
               <img
-                src={reservationTemplateForm.image_url.startsWith('http')
-                  ? reservationTemplateForm.image_url
-                  : `${API_URL.replace('/api', '')}${reservationTemplateForm.image_url.startsWith('/') ? '' : '/'}${reservationTemplateForm.image_url}`}
+                src={resolveAdPreviewImageUrl(reservationTemplateForm.image_url)}
                 alt={reservationTemplateForm.name || 'template'}
                 style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain' }}
               />

@@ -992,6 +992,7 @@ const normalizeReservationTemplateImageUrl = (value) => {
   const normalized = String(value || '').trim();
   if (!normalized) return '';
   if (/^https?:\/\//i.test(normalized)) return normalized;
+  if (/^data:image\//i.test(normalized)) return normalized;
   if (normalized.startsWith('/uploads/') || normalized.startsWith('/reservation-furniture/')) return normalized;
   return '';
 };
@@ -1694,7 +1695,7 @@ router.get('/reservation-table-templates', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Get reservation templates (superadmin) error:', error);
-    res.status(500).json({ error: 'Ошибка получения шаблонов мебели' });
+    res.status(500).json({ error: 'Ошибка получения шаблонов элементов' });
   }
 });
 
@@ -1712,10 +1713,10 @@ router.post('/reservation-table-templates', async (req, res) => {
     const height = Math.max(0.2, parseReservationTemplateFloat(req.body?.height, 1));
 
     if (!name) {
-      return res.status(400).json({ error: 'Название мебели обязательно' });
+      return res.status(400).json({ error: 'Название элемента обязательно' });
     }
     if (!imageUrl) {
-      return res.status(400).json({ error: 'Изображение мебели обязательно' });
+      return res.status(400).json({ error: 'Изображение элемента обязательно' });
     }
     if (activityTypeId) {
       const activityTypeResult = await pool.query(
@@ -1751,7 +1752,7 @@ router.post('/reservation-table-templates', async (req, res) => {
     }
   } catch (error) {
     console.error('Create reservation template (superadmin) error:', error);
-    res.status(500).json({ error: 'Ошибка создания шаблона мебели' });
+    res.status(500).json({ error: 'Ошибка создания шаблона элемента' });
   }
 });
 
@@ -1769,7 +1770,7 @@ router.put('/reservation-table-templates/:id', async (req, res) => {
       [templateId]
     );
     if (!existingResult.rows.length) {
-      return res.status(404).json({ error: 'Шаблон мебели не найден' });
+      return res.status(404).json({ error: 'Шаблон не найден' });
     }
 
     const updates = [];
@@ -1778,7 +1779,7 @@ router.put('/reservation-table-templates/:id', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'name')) {
       const name = String(req.body?.name || '').trim();
       if (!name) {
-        return res.status(400).json({ error: 'Название мебели обязательно' });
+        return res.status(400).json({ error: 'Название элемента обязательно' });
       }
       params.push(name);
       updates.push(`name = $${params.length}`);
@@ -1825,7 +1826,7 @@ router.put('/reservation-table-templates/:id', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'image_url')) {
       const imageUrl = normalizeReservationTemplateImageUrl(req.body?.image_url);
       if (!imageUrl) {
-        return res.status(400).json({ error: 'Изображение мебели обязательно' });
+        return res.status(400).json({ error: 'Изображение элемента обязательно' });
       }
       params.push(imageUrl);
       updates.push(`image_url = $${params.length}`);
@@ -1847,7 +1848,7 @@ router.put('/reservation-table-templates/:id', async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Update reservation template (superadmin) error:', error);
-    res.status(500).json({ error: 'Ошибка обновления шаблона мебели' });
+    res.status(500).json({ error: 'Ошибка обновления шаблона элемента' });
   }
 });
 
@@ -1864,7 +1865,7 @@ router.delete('/reservation-table-templates/:id', async (req, res) => {
       [templateId]
     );
     if (!existingResult.rows.length) {
-      return res.status(404).json({ error: 'Шаблон мебели не найден' });
+      return res.status(404).json({ error: 'Шаблон не найден' });
     }
     if (existingResult.rows[0].is_system) {
       return res.status(403).json({ error: 'Системный шаблон удалить нельзя' });
@@ -1880,10 +1881,10 @@ router.delete('/reservation-table-templates/:id', async (req, res) => {
     }
 
     await pool.query('DELETE FROM reservation_table_templates WHERE id = $1', [templateId]);
-    res.json({ message: 'Шаблон мебели удален' });
+    res.json({ message: 'Шаблон удален' });
   } catch (error) {
     console.error('Delete reservation template (superadmin) error:', error);
-    res.status(500).json({ error: 'Ошибка удаления шаблона мебели' });
+    res.status(500).json({ error: 'Ошибка удаления шаблона' });
   }
 });
 
