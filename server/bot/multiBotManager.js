@@ -57,6 +57,7 @@ const BOT_TEXTS = {
     myOrders: '📋 Мои заказы',
     contactButton: '☎️ Связь',
     adminPanelButton: '🧑‍💼 Админ панель',
+    myStoreButton: '🏪 Мой магазин',
     welcomeBack: '👋 С возвращением, {name}!',
     roleLine: '🧑‍💼 Роль: <b>{role}</b>',
     roleSuperadmin: 'Суперадмин',
@@ -85,6 +86,7 @@ const BOT_TEXTS = {
     myOrders: '📋 Buyurtmalarim',
     contactButton: "☎️ Bog'lanish",
     adminPanelButton: '🧑‍💼 Admin panel',
+    myStoreButton: "🏪 Mening do'konim",
     welcomeBack: '👋 Qaytganingiz bilan, {name}!',
     roleLine: '🧑‍💼 Rol: <b>{role}</b>',
     roleSuperadmin: 'Superadmin',
@@ -603,17 +605,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
       const userLang = resolveUserLanguage(user, fallbackLang);
       if (canUseRestaurantAdminKeyboard(user)) {
-        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
-          expiresIn: '1h',
-          role: user.role
-        });
-        const loginUrl = buildWebLoginUrl({
-          portal: 'admin',
-          restaurantId,
-          source: 'restaurant_bot',
-          token: adminAutoLoginToken
-        });
-        return buildAdminReplyKeyboard(loginUrl, userLang);
+        const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
+        return buildAdminReplyKeyboard(adminUrl, userLang, storeUrl);
       }
 
       const token = generateLoginToken(user.id, user.username || `user_${user.id}`, { restaurantId });
@@ -893,9 +886,32 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     };
   };
 
-  const buildAdminReplyKeyboard = (loginUrl, lang) => ({
+  const buildOperatorPortalUrls = (user) => {
+    if (!user?.id) {
+      return { adminUrl: null, storeUrl: null };
+    }
+    const username = user.username || `user_${user.id}`;
+    const adminAutoLoginToken = generateLoginToken(user.id, username, {
+      expiresIn: '1h',
+      role: user.role
+    });
+    const adminUrl = buildWebLoginUrl({
+      portal: 'admin',
+      restaurantId,
+      source: 'restaurant_bot',
+      token: adminAutoLoginToken
+    });
+    const storeToken = generateLoginToken(user.id, username, { restaurantId });
+    const storeUrl = buildCatalogUrl(appUrl, storeToken);
+    return { adminUrl, storeUrl };
+  };
+
+  const buildAdminReplyKeyboard = (adminUrl, lang, storeUrl = null) => ({
     keyboard: [
-      [loginUrl ? { text: t(lang, 'adminPanelButton'), web_app: { url: loginUrl } } : { text: t(lang, 'adminPanelButton') }],
+      [
+        adminUrl ? { text: t(lang, 'adminPanelButton'), web_app: { url: adminUrl } } : { text: t(lang, 'adminPanelButton') },
+        storeUrl ? { text: t(lang, 'myStoreButton'), web_app: { url: storeUrl } } : { text: t(lang, 'myStoreButton') }
+      ],
       [{ text: t(lang, 'resetButton') }]
     ],
     resize_keyboard: true,
@@ -1126,27 +1142,32 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     const userLang = resolveUserLanguage(user, getTelegramPreferredLanguage(msg.from?.language_code));
     const isAdmin = canUseRestaurantAdminKeyboard(user);
     if (isAdmin) {
-      const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
-        expiresIn: '1h',
-        role: user.role
-      });
-      const loginUrl = buildWebLoginUrl({
-        portal: 'admin',
-        restaurantId,
-        source: 'restaurant_bot',
-        token: adminAutoLoginToken
-      });
-      if (!loginUrl) {
+      const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
+      if (!adminUrl && !storeUrl) {
         await bot.sendMessage(chatId, t(userLang, 'loginWarn'));
         return;
       }
-      await bot.sendMessage(chatId, action === 'promo' ? t(userLang, 'promoHint') : t(userLang, 'loginHint'), {
-        reply_markup: { inline_keyboard: [[{ text: t(userLang, 'adminPanelButton'), url: loginUrl }]] }
+      const inlineKeyboard = [];
+      if (storeUrl) {
+        inlineKeyboard.push([{ text: t(userLang, 'myStoreButton'), url: storeUrl }]);
+      }
+      if (adminUrl) {
+        inlineKeyboard.push([{ text: t(userLang, 'adminPanelButton'), url: adminUrl }]);
+      }
+      const hintText = action === 'promo'
+        ? t(userLang, 'promoHint')
+        : (action === 'admin_panel'
+          ? t(userLang, 'loginHint')
+          : (userLang === 'uz'
+            ? 'Do\'konni ochish uchun keyboard tugmasidan foydalaning.'
+            : 'Для открытия магазина используйте кнопку на keyboard.'));
+      await bot.sendMessage(chatId, hintText, {
+        reply_markup: { inline_keyboard: inlineKeyboard }
       });
       return;
     }
 
-    const token = generateLoginToken(user.id, user.username, { restaurantId });
+    const token = generateLoginToken(user.id, user.username || `user_${user.id}`, { restaurantId });
     const loginUrl = buildCatalogUrl(appUrl, token);
     if (!loginUrl) {
       await bot.sendMessage(chatId, t(userLang, 'loginWarn'));
@@ -1172,6 +1193,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       [t('uz', 'editProfile'), 'edit_profile'],
       [t('ru', 'openMenu'), 'open_menu'],
       [t('uz', 'openMenu'), 'open_menu'],
+      [t('ru', 'myStoreButton'), 'open_menu'],
+      [t('uz', 'myStoreButton'), 'open_menu'],
       [t('ru', 'adminPanelButton'), 'admin_panel'],
       [t('uz', 'adminPanelButton'), 'admin_panel'],
       [t('ru', 'resetButton'), 'reset_password'],
@@ -1254,26 +1277,17 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       `, [user.id, restaurantId]);
 
       if (canUseRestaurantAdminKeyboard(user)) {
-        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
-          expiresIn: '1h',
-          role: user.role
-        });
-        const loginUrl = buildWebLoginUrl({
-          portal: 'admin',
-          restaurantId,
-          source: 'restaurant_bot',
-          token: adminAutoLoginToken
-        });
+        const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
 
         await bot.sendMessage(
           chatId,
           `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
           `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}\n` +
           `${t(language, 'restaurantLine', { name: restaurantName })}\n\n` +
-          `${loginUrl ? t(language, 'loginHint') : t(language, 'loginWarn')}`,
+          `${adminUrl ? t(language, 'loginHint') : t(language, 'loginWarn')}`,
           {
             parse_mode: 'HTML',
-            reply_markup: buildAdminReplyKeyboard(loginUrl, language)
+            reply_markup: buildAdminReplyKeyboard(adminUrl, language, storeUrl)
           }
         );
       } else {
@@ -1383,16 +1397,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       );
 
       if (canUseRestaurantAdminKeyboard(user)) {
-        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
-          expiresIn: '1h',
-          role: user.role
-        });
-        const loginUrl = buildWebLoginUrl({
-          portal: 'admin',
-          restaurantId,
-          source: 'restaurant_bot',
-          token: adminAutoLoginToken
-        });
+        const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
 
         bot.sendMessage(
           chatId,
@@ -1401,7 +1406,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           `${t(userLang, 'restaurantLine', { name: restaurantName })}`,
           {
             parse_mode: 'HTML',
-            reply_markup: buildAdminReplyKeyboard(loginUrl, userLang)
+            reply_markup: buildAdminReplyKeyboard(adminUrl, userLang, storeUrl)
           }
         );
       } else {
@@ -1796,7 +1801,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
 
         if (action === 'promo' || action === 'open_menu' || action === 'admin_panel') {
-          await sendOpenMenuFallback(msg, action === 'admin_panel' ? 'open_menu' : action);
+          await sendOpenMenuFallback(msg, action);
           return;
         }
       } catch (error) {
@@ -2350,18 +2355,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           }
 
           if (canUseRestaurantAdminKeyboard(user)) {
-            const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
-              expiresIn: '1h',
-              role: user.role
-            });
-            const loginUrl = buildWebLoginUrl({
-              portal: 'admin',
-              restaurantId,
-              source: 'restaurant_bot',
-              token: adminAutoLoginToken
-            });
+            const { adminUrl, storeUrl } = buildOperatorPortalUrls(user);
             await bot.sendMessage(chatId, t(selectedLang, 'languageSaved'), {
-              reply_markup: buildAdminReplyKeyboard(loginUrl, selectedLang)
+              reply_markup: buildAdminReplyKeyboard(adminUrl, selectedLang, storeUrl)
             });
           } else {
             const token = generateLoginToken(user.id, user.username || `user_${user.id}`, { restaurantId });
