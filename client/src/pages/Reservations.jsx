@@ -131,23 +131,23 @@ const getTableMarkerPalette = ({ selected, available }) => {
     return {
       borderColor: '#4338ca',
       background: 'rgba(224, 231, 255, 0.98)',
-      textColor: '#312e81',
+      textColor: '#ffffff',
       shadow: '0 0 0 4px rgba(129, 140, 248, 0.24), 0 10px 24px rgba(49, 46, 129, 0.3)'
     };
   }
   if (available) {
     return {
-      borderColor: '#16a34a',
-      background: 'rgba(220, 252, 231, 0.98)',
+      borderColor: 'transparent',
+      background: 'transparent',
       textColor: '#14532d',
-      shadow: '0 8px 18px rgba(21, 128, 61, 0.22)'
+      shadow: '0 0 0 6px rgba(34, 197, 94, 0.16), 0 10px 22px rgba(21, 128, 61, 0.22)'
     };
   }
   return {
-    borderColor: '#dc2626',
-    background: 'rgba(254, 226, 226, 0.98)',
+    borderColor: 'transparent',
+    background: 'transparent',
     textColor: '#991b1b',
-    shadow: '0 8px 18px rgba(127, 29, 29, 0.22)'
+    shadow: '0 0 0 6px rgba(248, 113, 113, 0.16), 0 10px 22px rgba(127, 29, 29, 0.22)'
   };
 };
 const resolveWorkingWindow = (workStartTime, workEndTime) => {
@@ -1212,6 +1212,20 @@ function Reservations() {
                     >
                       <div className="client-res-controls-summary-row">
                         <span className="client-res-controls-date-value">{bookingDateCompact}</span>
+                        {selectedTableIds.length > 0 && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="client-res-controls-next-btn"
+                            disabled={loadingAvailability || !selectedFloorId}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setBookingStep('details');
+                            }}
+                          >
+                            {t('Далее', 'Keyingi')}
+                          </Button>
+                        )}
                       </div>
                       <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
                     </div>

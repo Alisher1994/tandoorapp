@@ -1347,8 +1347,8 @@ h6 {
 .client-res-controls-summary-row {
   display: flex;
   align-items: baseline;
-  justify-content: flex-start;
-  gap: 0;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .client-res-controls-date-value {
@@ -1356,6 +1356,24 @@ h6 {
   font-size: 1.01rem;
   font-weight: 400;
   line-height: 1.2;
+}
+
+.client-res-controls-next-btn {
+  min-width: 102px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.4rem 0.9rem;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1.1;
+  box-shadow: 0 8px 18px rgba(67, 56, 202, 0.28);
+}
+
+.client-res-controls-next-btn:hover,
+.client-res-controls-next-btn:focus-visible {
+  color: #ffffff;
+  background: linear-gradient(135deg, #4338ca 0%, #5b5af4 100%);
 }
 
 .client-res-controls-floor-line {
