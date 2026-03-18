@@ -317,6 +317,48 @@ function Reservations() {
     setPlanGestureMode('idle');
   }, [planWorldHeight, setPlanTransform]);
 
+  const fitPlanToTables = useCallback(() => {
+    const viewport = planViewportRef.current?.getBoundingClientRect();
+    if (!viewport || viewport.width < 40 || viewport.height < 40 || !tables.length) {
+      fitPlanToViewport();
+      return;
+    }
+
+    const xs = [];
+    const ys = [];
+    tables.forEach((table) => {
+      xs.push((normalizePlanCoordinate(table.x, 50) / 100) * PLAN_WORLD_WIDTH);
+      ys.push((normalizePlanCoordinate(table.y, 50) / 100) * planWorldHeight);
+    });
+
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const boundsWidth = Math.max(120, maxX - minX);
+    const boundsHeight = Math.max(120, maxY - minY);
+    const padding = Math.min(84, Math.max(24, Math.round(Math.min(viewport.width, viewport.height) * 0.08)));
+    const minFitScale = viewport.width < 768 ? 0.62 : PLAN_MIN_SCALE;
+    const nextScale = clamp(
+      Math.min((viewport.width - (padding * 2)) / boundsWidth, (viewport.height - (padding * 2)) / boundsHeight),
+      minFitScale,
+      PLAN_MAX_SCALE
+    );
+    const boundsCenterX = (minX + maxX) / 2;
+    const boundsCenterY = (minY + maxY) / 2;
+    const nextOffset = {
+      x: (viewport.width / 2) - (boundsCenterX * nextScale),
+      y: (viewport.height / 2) - (boundsCenterY * nextScale)
+    };
+
+    setPlanTransform(nextScale, nextOffset);
+    planManualTransformRef.current = false;
+    planPointersRef.current.clear();
+    planPanRef.current = null;
+    planPinchRef.current = null;
+    setPlanGestureMode('idle');
+  }, [tables, planWorldHeight, fitPlanToViewport, setPlanTransform]);
+
   const zoomPlanAt = useCallback((nextScaleCandidate, anchorX, anchorY) => {
     const currentScale = planScaleRef.current;
     const currentOffset = planOffsetRef.current;
@@ -494,6 +536,15 @@ function Reservations() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.classList.add('client-res-scroll-hidden');
+    document.body.classList.add('client-res-scroll-hidden');
+    return () => {
+      document.documentElement.classList.remove('client-res-scroll-hidden');
+      document.body.classList.remove('client-res-scroll-hidden');
+    };
+  }, []);
+
+  useEffect(() => {
     latestStartTimeRef.current = startTime;
   }, [startTime]);
 
@@ -656,6 +707,27 @@ function Reservations() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [setPlanTransform, fitPlanToViewport]);
+
+  useEffect(() => {
+    if (bookingStep !== 'plan' || !tables.length) return undefined;
+    if (planManualTransformRef.current) return undefined;
+    if (typeof window.requestAnimationFrame === 'function') {
+      const animationFrame = window.requestAnimationFrame(() => {
+        fitPlanToTables();
+      });
+      return () => {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(animationFrame);
+        } else {
+          window.clearTimeout(animationFrame);
+        }
+      };
+    }
+    const fallbackTimer = window.setTimeout(() => {
+      fitPlanToTables();
+    }, 0);
+    return () => window.clearTimeout(fallbackTimer);
+  }, [bookingStep, tables, fitPlanToTables]);
 
   const centerTimeSlot = useCallback((slotValue, behavior = 'smooth') => {
     const ruler = timeRulerRef.current;
@@ -1013,8 +1085,25 @@ function Reservations() {
                     >
                       <div className="client-res-controls-title-line">
                         <span className="client-res-top-title">{t('Бронирование', 'Band qilish')}</span>
-                        <span className="client-res-top-subtitle">{startTime}{selectedEndTime ? ` - ${selectedEndTime}` : ''}</span>
                       </div>
+                      <div className="client-res-controls-summary-row">
+                        <span className="client-res-controls-date-value">{bookingDateCompact}</span>
+                        {selectedTableIds.length > 0 && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="client-res-controls-next-btn"
+                            disabled={loadingAvailability || !selectedFloorId}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setBookingStep('details');
+                            }}
+                          >
+                            {t('Далее', 'Keyingi')}
+                          </Button>
+                        )}
+                      </div>
+                      <span className="client-res-controls-floor-line">{t('Этаж', 'Qavat')}: {selectedFloor?.name || '—'}</span>
                       <button
                         type="button"
                         className="client-res-collapse-btn"
@@ -1061,18 +1150,6 @@ function Reservations() {
                         </div>
                       </div>
                     )}
-                    {selectedTableIds.length > 0 && (
-                      <div className="client-res-overlay-next-row">
-                        <Button
-                          variant="primary"
-                          className="client-res-overlay-next-btn"
-                          disabled={loadingAvailability || !selectedFloorId}
-                          onClick={() => setBookingStep('details')}
-                        >
-                          {t('Далее', 'Keyingi')}
-                        </Button>
-                      </div>
-                    )}
                   </div>
 
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
@@ -1100,6 +1177,7 @@ function Reservations() {
                         const tableCenterLabel = extractTableCenterLabel(table.name, table.id);
 
                         const markerScaleCompensation = Number(clamp(1 / Math.max(planScale, 0.001), 0.9, 2.2).toFixed(4));
+                        const markerZIndex = selected ? 14 : (available ? 10 : 9);
 
                         return (
                           <button
@@ -1107,7 +1185,7 @@ function Reservations() {
                             type="button"
                             data-plan-table="1"
                             className={`client-res-plan-table ${selected ? 'is-selected' : ''} ${available ? 'is-available' : 'is-disabled is-unavailable'}`}
-                            style={{ left: `${tableX}px`, top: `${tableY}px`, transform: `translate(-50%, -50%) scale(${markerScaleCompensation})` }}
+                            style={{ left: `${tableX}px`, top: `${tableY}px`, transform: `translate(-50%, -50%) scale(${markerScaleCompensation})`, zIndex: markerZIndex }}
                             onPointerDown={(event) => event.stopPropagation()}
                             onClick={() => toggleTableSelection(table)}
                             disabled={!available}
@@ -1144,8 +1222,7 @@ function Reservations() {
                   <div className="client-res-time-strip" aria-label={t('Выбор времени', 'Vaqt tanlash')}>
                     <div className="client-res-time-strip-head">
                       <span className="client-res-time-strip-label">{t('Время', 'Vaqt')}</span>
-                      <strong className="client-res-time-strip-value">{startTime}</strong>
-                      {selectedEndTime ? <span className="client-res-time-strip-range">{startTime} - {selectedEndTime}</span> : null}
+                      <span className="client-res-time-strip-range">{selectedEndTime ? `${startTime} - ${selectedEndTime}` : startTime}</span>
                     </div>
                     <div ref={timeRulerRef} className="client-res-time-ruler client-res-time-ruler--floating" onScroll={handleTimeRulerScroll}>
                       {timeSlots.map((slot, index) => {
