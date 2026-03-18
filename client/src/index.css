@@ -1605,6 +1605,9 @@ h6 {
   background: #eaf0ff;
   position: relative;
   min-height: calc(100dvh - 82px);
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
 }
 
 .client-res-map-shell .client-res-plan-stage {
@@ -1871,6 +1874,10 @@ h6 {
   cursor: grab;
   touch-action: none;
   user-select: none;
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 .client-res-plan-stage.is-gesturing {

@@ -308,10 +308,38 @@ function Reservations() {
     navigate(resolveMainMenuPath());
   }, [navigate, resolveMainMenuPath]);
 
-  const constrainOffset = useCallback((offsetCandidate) => ({
-    x: Number((Number(offsetCandidate?.x) || 0).toFixed(3)),
-    y: Number((Number(offsetCandidate?.y) || 0).toFixed(3))
-  }), []);
+  const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
+    const viewport = planViewportRef.current?.getBoundingClientRect();
+    const scale = clamp(Number(scaleCandidate) || 1, PLAN_MIN_SCALE, PLAN_MAX_SCALE);
+    const scaledWidth = PLAN_WORLD_WIDTH * scale;
+    const scaledHeight = planWorldHeight * scale;
+
+    let nextX = Number(offsetCandidate?.x);
+    let nextY = Number(offsetCandidate?.y);
+    nextX = Number.isFinite(nextX) ? nextX : 0;
+    nextY = Number.isFinite(nextY) ? nextY : 0;
+
+    if (viewport && viewport.width > 0 && viewport.height > 0) {
+      if (scaledWidth <= viewport.width) {
+        nextX = (viewport.width - scaledWidth) / 2;
+      } else {
+        const minX = viewport.width - scaledWidth;
+        nextX = clamp(nextX, minX, 0);
+      }
+
+      if (scaledHeight <= viewport.height) {
+        nextY = (viewport.height - scaledHeight) / 2;
+      } else {
+        const minY = viewport.height - scaledHeight;
+        nextY = clamp(nextY, minY, 0);
+      }
+    }
+
+    return {
+      x: Number(nextX.toFixed(3)),
+      y: Number(nextY.toFixed(3))
+    };
+  }, [planWorldHeight]);
 
   const schedulePlanTransformCommit = useCallback(() => {
     if (planTransformRafRef.current) return;
@@ -786,6 +814,21 @@ function Reservations() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [setPlanTransform, fitPlanToViewport]);
+
+  useEffect(() => {
+    const viewportEl = planViewportRef.current;
+    if (!viewportEl) return undefined;
+
+    const stopElasticTouch = (event) => {
+      if (!event.cancelable) return;
+      event.preventDefault();
+    };
+
+    viewportEl.addEventListener('touchmove', stopElasticTouch, { passive: false });
+    return () => {
+      viewportEl.removeEventListener('touchmove', stopElasticTouch);
+    };
+  }, []);
 
   useEffect(() => {
     if (!planVisibilityRecoveryArmedRef.current) return;
