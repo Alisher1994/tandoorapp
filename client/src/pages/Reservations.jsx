@@ -23,7 +23,7 @@ const PLAN_MARKER_HIT_SIZE = 92;
 const PLAN_MARKER_VISUAL_SIZE = 64;
 const DEFAULT_WORK_START_MINUTES = 9 * 60;
 const DEFAULT_WORK_END_MINUTES = 23 * 60;
-const RESERVATION_ONBOARDING_STORAGE_KEY_PREFIX = 'client_reservation_onboarding_seen_v1';
+const RESERVATION_TUTORIAL_STORAGE_KEY_PREFIX = 'client_reservation_tutorial_seen_v2';
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const asNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -213,11 +213,18 @@ function Reservations() {
   const [reservationReceipt, setReservationReceipt] = useState(null);
   const [floorImageMeta, setFloorImageMeta] = useState({ width: 0, height: 0 });
   const [isPlanFullscreen, setIsPlanFullscreen] = useState(false);
-  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [isTutorialActive, setIsTutorialActive] = useState(false);
+  const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
+  const [tutorialSpotlight, setTutorialSpotlight] = useState(null);
 
   const planStageRef = useRef(null);
   const planViewportRef = useRef(null);
+  const planDateInputRef = useRef(null);
+  const planFloorSelectRef = useRef(null);
+  const planNextButtonRef = useRef(null);
+  const detailsDurationSelectRef = useRef(null);
+  const detailsCommentRef = useRef(null);
+  const detailsBookButtonRef = useRef(null);
   const planPointersRef = useRef(new Map());
   const planPanRef = useRef(null);
   const planPinchRef = useRef(null);
@@ -240,8 +247,8 @@ function Reservations() {
 
   const restaurantId = useMemo(() => Number.parseInt(user?.active_restaurant_id, 10) || null, [user?.active_restaurant_id]);
   const reservationEnabled = restaurant?.reservation_enabled === true;
-  const onboardingStorageKey = useMemo(
-    () => (restaurantId ? `${RESERVATION_ONBOARDING_STORAGE_KEY_PREFIX}:${restaurantId}` : ''),
+  const tutorialStorageKey = useMemo(
+    () => (restaurantId ? `${RESERVATION_TUTORIAL_STORAGE_KEY_PREFIX}:${restaurantId}` : ''),
     [restaurantId]
   );
   const selectedFloor = useMemo(() => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null, [floors, selectedFloorId]);
@@ -285,75 +292,56 @@ function Reservations() {
   );
   const selectedEndTime = useMemo(() => addMinutesWithinDay(startTime, durationMinutes), [startTime, durationMinutes]);
   const bookingTotalCost = useMemo(() => Math.max(0, reservationFee) + Math.max(0, reservationServiceCost), [reservationFee, reservationServiceCost]);
-  const tableTypeNames = useMemo(() => {
-    const uniqueTypes = new Set();
-    tables.forEach((table) => {
-      const templateName = String(table?.template_name || '').trim();
-      if (templateName) uniqueTypes.add(templateName);
-    });
-    return Array.from(uniqueTypes).slice(0, 10);
-  }, [tables]);
-  const onboardingSteps = useMemo(() => ([
+  const tutorialSteps = useMemo(() => ([
     {
-      title: t('Добро пожаловать в бронирование', 'Band qilish bo‘limiga xush kelibsiz'),
-      description: t(
-        'Это короткий урок на 1 минуту: покажем, как быстро выбрать этаж, время и стол.',
-        'Bu 1 daqiqalik qisqa yo‘riqnoma: qavat, vaqt va stolni tez tanlashni ko‘rsatamiz.'
-      ),
-      bullets: [
-        t('Вы всегда можете пропустить обучение.', 'Yo‘riqnomani har doim o‘tkazib yuborishingiz mumkin.'),
-        t('Позже урок можно открыть кнопкой “?” на карте.', 'Keyin yo‘riqnomani xaritadagi “?” tugmasi bilan qayta ochish mumkin.')
-      ]
+      id: 'date',
+      target: 'date',
+      text: t('Шаг 1: выберите дату.', '1-qadam: sanani tanlang.')
     },
     {
-      title: t('Дата, время и этаж', 'Sana, vaqt va qavat'),
-      description: t(
-        'Верхняя панель отвечает за дату и этаж, а нижняя линейка — за время брони.',
-        'Yuqori panel sana va qavat uchun, pastdagi chiziq esa bron vaqtini tanlash uchun xizmat qiladi.'
-      ),
-      bullets: [
-        t('Сначала выберите дату и этаж.', 'Avval sana va qavatni tanlang.'),
-        t('Потом прокрутите линейку времени и выберите удобный слот.', 'Keyin vaqt chizig‘ini surib, qulay vaqtni tanlang.')
-      ]
+      id: 'floor',
+      target: 'floor',
+      text: t('Шаг 2: выберите этаж.', '2-qadam: qavatni tanlang.')
     },
     {
-      title: t('Как читать карту столов', 'Stollar xaritasini qanday o‘qish kerak'),
-      description: t(
-        'На карте можно двигать схему пальцем, приближать и выбирать свободные столы.',
-        'Xaritada sxemani barmoq bilan surish, yaqinlashtirish va bo‘sh stollarni tanlash mumkin.'
-      ),
-      bullets: [
-        t('Свободный стол: зеленая подсветка.', 'Bo‘sh stol: yashil yoritish.'),
-        t('Занятый стол: красная подсветка.', 'Band stol: qizil yoritish.'),
-        t('Выбранный стол: синий акцент.', 'Tanlangan stol: ko‘k ajratish.')
-      ]
+      id: 'time',
+      target: 'time',
+      text: t('Шаг 3: выберите время в шкале.', '3-qadam: vaqtni shkaladan tanlang.')
     },
     {
-      title: t('Типы столов в этом зале', 'Bu zaldagi stol turlari'),
-      description: tableTypeNames.length
-        ? t('Сейчас на схеме доступны такие типы столов:', 'Hozir sxemada quyidagi stol turlari mavjud:')
-        : t(
-          'Когда схема загрузит столы, здесь появятся их типы (например: гараж, диван, VIP и т.д.).',
-          'Sxemadagi stollar yuklangach, bu yerda ularning turlari ko‘rinadi (masalan: garaj, divan, VIP va h.k.).'
-        ),
-      bullets: tableTypeNames.length ? [] : [
-        t('Тип стола влияет на удобство размещения гостей.', 'Stol turi mehmonlarni qulay joylashtirishga ta’sir qiladi.')
-      ],
-      tableTypes: tableTypeNames
+      id: 'table',
+      target: 'table',
+      text: t('Шаг 4: выберите место для бронирования. Можно выбрать несколько столов.', '4-qadam: bron uchun joy tanlang. Bir nechta stolni tanlash mumkin.')
     },
     {
-      title: t('Готово', 'Tayyor'),
-      description: t(
-        'Выберите стол(ы) и нажмите «Далее». Если что-то непонятно, откройте подсказку кнопкой “?”.',
-        'Stol(lar)ni tanlab, «Keyingi» ni bosing. Biror narsa tushunarsiz bo‘lsa, “?” tugmasi orqali yo‘riqnomani oching.'
-      ),
-      bullets: []
+      id: 'next',
+      target: 'next',
+      text: t('Шаг 5: нажмите кнопку «Далее».', '5-qadam: «Keyingi» tugmasini bosing.')
+    },
+    {
+      id: 'duration',
+      target: 'duration',
+      text: t('Шаг 6: выберите время «до».', '6-qadam: «Gacha» vaqtini tanlang.')
+    },
+    {
+      id: 'comment',
+      target: 'comment',
+      text: t('Шаг 7: заполните комментарий.', '7-qadam: izohni to‘ldiring.')
+    },
+    {
+      id: 'book',
+      target: 'book',
+      text: t(
+        'Шаг 8: нажмите «Забронировать». Это учебный режим, заказ не будет создан.',
+        '8-qadam: «Band qilish» ni bosing. Bu o‘quv rejimi, bron yaratilmaydi.'
+      )
     }
-  ]), [t, tableTypeNames]);
-  const currentOnboardingStep = useMemo(
-    () => onboardingSteps[onboardingStep] || onboardingSteps[0] || null,
-    [onboardingStep, onboardingSteps]
+  ]), [t]);
+  const currentTutorialStep = useMemo(
+    () => tutorialSteps[tutorialStepIndex] || tutorialSteps[0] || null,
+    [tutorialStepIndex, tutorialSteps]
   );
+  const currentTutorialStepId = currentTutorialStep?.id || '';
   const moneyLabel = useMemo(() => {
     const code = String(restaurant?.currency_code || '').toLowerCase();
     if (code === 'kz') return '₸';
@@ -384,36 +372,47 @@ function Reservations() {
   const handleBrandClick = useCallback(() => {
     navigate(resolveMainMenuPath());
   }, [navigate, resolveMainMenuPath]);
-  const persistOnboardingSeen = useCallback(() => {
-    if (!onboardingStorageKey || typeof window === 'undefined' || !window.localStorage) return;
+  const persistTutorialSeen = useCallback(() => {
+    if (!tutorialStorageKey || typeof window === 'undefined' || !window.localStorage) return;
     try {
-      window.localStorage.setItem(onboardingStorageKey, '1');
+      window.localStorage.setItem(tutorialStorageKey, '1');
     } catch {
       // ignore storage restrictions in private webviews
     }
-  }, [onboardingStorageKey]);
-  const closeOnboarding = useCallback((markAsSeen = true) => {
-    if (markAsSeen) persistOnboardingSeen();
-    setShowOnboardingModal(false);
-    setOnboardingStep(0);
-  }, [persistOnboardingSeen]);
-  const openOnboarding = useCallback(() => {
-    setOnboardingStep(0);
-    setShowOnboardingModal(true);
+  }, [tutorialStorageKey]);
+  const stopTutorial = useCallback((markAsSeen = true) => {
+    if (markAsSeen) persistTutorialSeen();
+    setIsTutorialActive(false);
+    setTutorialStepIndex(0);
+    setTutorialSpotlight(null);
+  }, [persistTutorialSeen]);
+  const startTutorial = useCallback(() => {
+    setError('');
+    setSuccessMessage('');
+    setBookingStep('plan');
+    setControlsCollapsed(false);
+    setSelectedTableIds([]);
+    setComment('');
+    setTutorialStepIndex(0);
+    setIsTutorialActive(true);
   }, []);
-  const handleOnboardingSkip = useCallback(() => {
-    closeOnboarding(true);
-  }, [closeOnboarding]);
-  const handleOnboardingNext = useCallback(() => {
-    const lastStepIndex = Math.max(0, onboardingSteps.length - 1);
-    if (onboardingStep >= lastStepIndex) {
-      closeOnboarding(true);
-      return;
-    }
-    setOnboardingStep((prev) => Math.min(prev + 1, lastStepIndex));
-  }, [onboardingStep, onboardingSteps.length, closeOnboarding]);
-  const handleOnboardingPrev = useCallback(() => {
-    setOnboardingStep((prev) => Math.max(0, prev - 1));
+  const advanceTutorialStep = useCallback((expectedStepId) => {
+    if (!isTutorialActive) return;
+    const currentStep = tutorialSteps[tutorialStepIndex];
+    if (!currentStep || currentStep.id !== expectedStepId) return;
+    const lastStepIndex = Math.max(0, tutorialSteps.length - 1);
+    setTutorialStepIndex((prev) => Math.min(prev + 1, lastStepIndex));
+  }, [isTutorialActive, tutorialSteps, tutorialStepIndex]);
+  const getTutorialTargetElement = useCallback((targetName) => {
+    if (targetName === 'date') return planDateInputRef.current;
+    if (targetName === 'floor') return planFloorSelectRef.current;
+    if (targetName === 'time') return timeRulerRef.current;
+    if (targetName === 'table') return planViewportRef.current;
+    if (targetName === 'next') return planNextButtonRef.current;
+    if (targetName === 'duration') return detailsDurationSelectRef.current;
+    if (targetName === 'comment') return detailsCommentRef.current;
+    if (targetName === 'book') return detailsBookButtonRef.current;
+    return null;
   }, []);
 
   const constrainOffset = useCallback((offsetCandidate, scaleCandidate = planScaleRef.current) => {
@@ -801,9 +800,10 @@ function Reservations() {
   }, [bookingEndOptions, timeSlots, minDurationMinutes, startTime]);
 
   useEffect(() => {
-    const maxStep = Math.max(0, onboardingSteps.length - 1);
-    setOnboardingStep((prev) => clamp(prev, 0, maxStep));
-  }, [onboardingSteps.length]);
+    if (!isTutorialActive) return;
+    const maxStepIndex = Math.max(0, tutorialSteps.length - 1);
+    setTutorialStepIndex((prev) => clamp(prev, 0, maxStepIndex));
+  }, [isTutorialActive, tutorialSteps.length]);
 
   useEffect(() => {
     if (!selectedFloorImageUrl) {
@@ -872,24 +872,105 @@ function Reservations() {
   }, [selectedFloorId, planWorldHeight, fitPlanToViewport]);
 
   useEffect(() => {
-    if (!reservationEnabled) return;
-    if (bookingStep !== 'plan') return;
-    if (showOnboardingModal) return;
-    if (!onboardingStorageKey) return;
+    if (!reservationEnabled || !tutorialStorageKey || isTutorialActive) return;
 
     let seen = false;
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        seen = window.localStorage.getItem(onboardingStorageKey) === '1';
+        seen = window.localStorage.getItem(tutorialStorageKey) === '1';
       } catch {
         seen = false;
       }
     }
+
     if (!seen) {
-      setOnboardingStep(0);
-      setShowOnboardingModal(true);
+      startTutorial();
     }
-  }, [bookingStep, reservationEnabled, onboardingStorageKey, showOnboardingModal]);
+  }, [reservationEnabled, tutorialStorageKey, isTutorialActive, startTutorial]);
+
+  useEffect(() => {
+    if (!isTutorialActive || !currentTutorialStep?.target) {
+      setTutorialSpotlight(null);
+      return undefined;
+    }
+
+    const updateSpotlight = () => {
+      const targetElement = getTutorialTargetElement(currentTutorialStep.target);
+      if (!targetElement) {
+        setTutorialSpotlight(null);
+        return;
+      }
+
+      const rect = targetElement.getBoundingClientRect();
+      if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) {
+        setTutorialSpotlight(null);
+        return;
+      }
+
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      if (!viewportWidth || !viewportHeight) {
+        setTutorialSpotlight(null);
+        return;
+      }
+
+      const padding = 8;
+      const left = clamp(rect.left - padding, 2, Math.max(2, viewportWidth - 4));
+      const top = clamp(rect.top - padding, 2, Math.max(2, viewportHeight - 4));
+      const right = clamp(rect.right + padding, 2, Math.max(2, viewportWidth - 2));
+      const bottom = clamp(rect.bottom + padding, 2, Math.max(2, viewportHeight - 2));
+
+      setTutorialSpotlight({
+        left,
+        top,
+        right,
+        bottom,
+        width: Math.max(4, right - left),
+        height: Math.max(4, bottom - top)
+      });
+    };
+
+    let rafId = null;
+    const requestUpdate = () => {
+      if (rafId !== null && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(rafId);
+      }
+      if (typeof window.requestAnimationFrame === 'function') {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = null;
+          updateSpotlight();
+        });
+      } else {
+        rafId = window.setTimeout(() => {
+          rafId = null;
+          updateSpotlight();
+        }, 16);
+      }
+    };
+
+    requestUpdate();
+    window.addEventListener('resize', requestUpdate);
+    window.addEventListener('scroll', requestUpdate, true);
+    return () => {
+      if (rafId !== null) {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(rafId);
+        } else {
+          window.clearTimeout(rafId);
+        }
+      }
+      window.removeEventListener('resize', requestUpdate);
+      window.removeEventListener('scroll', requestUpdate, true);
+    };
+  }, [isTutorialActive, currentTutorialStep?.target, getTutorialTargetElement, bookingStep, controlsCollapsed, selectedTableIds.length, comment, durationMinutes, startTime]);
+
+  useEffect(() => {
+    if (!isTutorialActive) return;
+    if (currentTutorialStepId !== 'table') return;
+    if (selectedTableIds.length > 0) {
+      advanceTutorialStep('table');
+    }
+  }, [isTutorialActive, currentTutorialStepId, selectedTableIds.length, advanceTutorialStep]);
 
   useEffect(() => {
     if (bookingStep !== 'plan') return undefined;
@@ -1087,8 +1168,9 @@ function Reservations() {
         durationMinutes,
         force: true
       });
+      advanceTutorialStep('time');
     }
-  }, [startTime, selectedFloorId, bookingDate, durationMinutes, fetchAvailability]);
+  }, [startTime, selectedFloorId, bookingDate, durationMinutes, fetchAvailability, advanceTutorialStep]);
 
   const handleTimeRulerScroll = useCallback(() => {
     if (timeRulerAutoScrollRef.current) return;
@@ -1281,8 +1363,9 @@ function Reservations() {
   };
 
   const toggleControlsCollapsed = useCallback(() => {
+    if (isTutorialActive) return;
     setControlsCollapsed((prev) => !prev);
-  }, []);
+  }, [isTutorialActive]);
 
   const handleControlsHeadKeyDown = useCallback((event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -1302,6 +1385,25 @@ function Reservations() {
   };
 
   const submitReservation = async () => {
+    if (isTutorialActive) {
+      if (currentTutorialStepId !== 'book') {
+        setError(t('Сейчас учебный режим. Выполните текущий шаг.', 'Hozir o‘quv rejimi. Joriy qadamni bajaring.'));
+        return;
+      }
+      setError('');
+      setSuccessMessage(t(
+        'Обучение завершено. Учебная бронь не была отправлена.',
+        'O‘quv rejimi yakunlandi. O‘quv bron yuborilmadi.'
+      ));
+      stopTutorial(true);
+      setBookingStep('plan');
+      setControlsCollapsed(false);
+      setSelectedTableIds([]);
+      setComment('');
+      fetchAvailability();
+      return;
+    }
+
     if (!restaurantId) return;
     if (restaurant?.reservation_enabled !== true) {
       setError(t('Для этого магазина бронирование отключено', 'Ushbu do‘kon uchun band qilish xizmati o‘chirilgan'));
@@ -1401,6 +1503,7 @@ function Reservations() {
                         </div>
                         <div className="client-res-controls-action-slot">
                           <Button
+                            ref={planNextButtonRef}
                             variant="primary"
                             size="sm"
                             className={`client-res-controls-next-btn ${selectedTableIds.length > 0 ? '' : 'is-hidden'}`}
@@ -1408,6 +1511,7 @@ function Reservations() {
                             aria-hidden={selectedTableIds.length === 0}
                             onClick={(event) => {
                               event.stopPropagation();
+                              advanceTutorialStep('next');
                               setBookingStep('details');
                             }}
                           >
@@ -1421,22 +1525,37 @@ function Reservations() {
                       <div className="client-res-controls-stack">
                         <div className="client-res-overlay-row">
                           <Form.Control
+                            ref={planDateInputRef}
                             type="date"
                             className="client-res-overlay-input"
                             value={bookingDate}
                             min={todayDate()}
-                            onClick={(event) => event.currentTarget.showPicker?.()}
+                            onClick={(event) => {
+                              event.currentTarget.showPicker?.();
+                              advanceTutorialStep('date');
+                            }}
                             onFocus={(event) => event.currentTarget.showPicker?.()}
                             onChange={(event) => {
                               const nextDate = String(event.target.value || '').trim();
                               if (/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
                                 setBookingDate(nextDate);
+                                advanceTutorialStep('date');
                               }
                             }}
                           />
                         </div>
                         <div className="client-res-overlay-row">
-                          <Form.Select className="client-res-overlay-input" value={selectedFloorId || ''} onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}>
+                          <Form.Select
+                            ref={planFloorSelectRef}
+                            className="client-res-overlay-input"
+                            value={selectedFloorId || ''}
+                            onClick={() => advanceTutorialStep('floor')}
+                            onChange={(event) => {
+                              const nextFloorId = Number(event.target.value) || null;
+                              setSelectedFloorId(nextFloorId);
+                              if (nextFloorId) advanceTutorialStep('floor');
+                            }}
+                          >
                             <option value="">{t('Выберите этаж', 'Qavatni tanlang')}</option>
                             {floors.map((floor) => (
                               <option key={`reservation-floor-${floor.id}`} value={floor.id}>
@@ -1550,7 +1669,7 @@ function Reservations() {
                     <button type="button" className="client-res-map-control-btn" onClick={handleToggleFullscreen} title={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')} aria-label={isPlanFullscreen ? t('Свернуть', 'Yig‘ish') : t('Полный экран', 'To‘liq ekran')}>
                       {isPlanFullscreen ? <Minimize aria-hidden="true" /> : <Expand aria-hidden="true" />}
                     </button>
-                    <button type="button" className="client-res-map-control-btn client-res-map-help-btn" onClick={openOnboarding} title={t('Как пользоваться', 'Qanday foydalanish')} aria-label={t('Как пользоваться', 'Qanday foydalanish')}>
+                    <button type="button" className="client-res-map-control-btn client-res-map-help-btn" onClick={startTutorial} title={t('Как пользоваться', 'Qanday foydalanish')} aria-label={t('Как пользоваться', 'Qanday foydalanish')}>
                       <CircleHelp aria-hidden="true" />
                     </button>
                   </div>
@@ -1565,7 +1684,7 @@ function Reservations() {
                         const active = slot.value === startTime;
                         const isHour = slot.minutes % 60 === 0;
                         return (
-                          <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); }} title={slot.value} aria-label={slot.value}>
+                          <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); advanceTutorialStep('time'); }} title={slot.value} aria-label={slot.value}>
                             <span className="client-res-ruler-line" />
                             {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
                             {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
@@ -1642,7 +1761,15 @@ function Reservations() {
                             <Col xs={6}>
                               <Form.Group className="mb-0">
                                 <Form.Label>{t('До', 'Gacha')}</Form.Label>
-                                <Form.Select value={durationMinutes} onChange={(e) => setDurationMinutes(Number.parseInt(e.target.value, 10) || 120)}>
+                                <Form.Select
+                                  ref={detailsDurationSelectRef}
+                                  value={durationMinutes}
+                                  onClick={() => advanceTutorialStep('duration')}
+                                  onChange={(e) => {
+                                    setDurationMinutes(Number.parseInt(e.target.value, 10) || 120);
+                                    advanceTutorialStep('duration');
+                                  }}
+                                >
                                   {bookingEndOptions.map((option) => (
                                     <option key={option.duration} value={option.duration}>{option.endTime}</option>
                                   ))}
@@ -1658,7 +1785,20 @@ function Reservations() {
 
                           <Form.Group className="mb-3">
                             <Form.Label>{t('Комментарий (необязательно)', 'Izoh (ixtiyoriy)')}</Form.Label>
-                            <Form.Control as="textarea" rows={3} value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} />
+                            <Form.Control
+                              ref={detailsCommentRef}
+                              as="textarea"
+                              rows={3}
+                              value={comment}
+                              onChange={(e) => {
+                                const nextComment = e.target.value;
+                                setComment(nextComment);
+                                if (String(nextComment || '').trim()) {
+                                  advanceTutorialStep('comment');
+                                }
+                              }}
+                              maxLength={500}
+                            />
                           </Form.Group>
 
                           <div className="client-res-summary-card mb-3">
@@ -1678,7 +1818,7 @@ function Reservations() {
 
                           {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mb-3">{t('Выбранные столы не покрывают количество гостей', 'Tanlangan stollar mehmonlar soniga yetmaydi')}</Alert>}
 
-                          <Button variant="primary" className="w-100 client-res-book-btn" disabled={submitting || !selectedTableIds.length || !selectedFloorId || !isCapacityEnough} onClick={submitReservation}>{submitting ? t('Отправляем...', 'Yuborilmoqda...') : t('Забронировать', 'Band qilish')}</Button>
+                          <Button ref={detailsBookButtonRef} variant="primary" className="w-100 client-res-book-btn" disabled={submitting || !selectedTableIds.length || !selectedFloorId || !isCapacityEnough} onClick={submitReservation}>{submitting ? t('Отправляем...', 'Yuborilmoqda...') : t('Забронировать', 'Band qilish')}</Button>
                         </Card.Body>
                       </Card>
                     </Col>
@@ -1712,43 +1852,28 @@ function Reservations() {
         </Modal.Footer>
       </Modal>
       <Modal show={showPhotoModal} onHide={() => setShowPhotoModal(false)} centered><Modal.Header closeButton><Modal.Title>{t('Фото стола', 'Stol rasmi')}: {photoTableName}</Modal.Title></Modal.Header><Modal.Body className="p-2">{photoUrl ? <img src={photoUrl} alt={photoTableName} style={{ width: '100%', borderRadius: 10, maxHeight: '70vh', objectFit: 'contain' }} /> : <div className="text-muted p-3 text-center">{t('Фото не найдено', 'Rasm topilmadi')}</div>}</Modal.Body></Modal>
-      <Modal show={showOnboardingModal} onHide={handleOnboardingSkip} centered className="client-res-onboarding-modal">
-        <Modal.Header closeButton>
-          <Modal.Title>{t('Краткий урок по бронированию', 'Band qilish bo‘yicha qisqa yo‘riqnoma')}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <div className="client-res-onboarding-progress">
-            {Math.min(onboardingStep + 1, onboardingSteps.length)} / {onboardingSteps.length}
+      {isTutorialActive && (
+        <div className="client-res-tutorial-overlay" role="dialog" aria-live="polite" aria-label={t('Пошаговое обучение', 'Bosqichma-bosqich yo‘riqnoma')}>
+          {tutorialSpotlight ? (
+            <>
+              <div className="client-res-tutorial-mask" style={{ top: 0, left: 0, width: '100%', height: `${tutorialSpotlight.top}px` }} />
+              <div className="client-res-tutorial-mask" style={{ top: `${tutorialSpotlight.top}px`, left: 0, width: `${tutorialSpotlight.left}px`, height: `${tutorialSpotlight.height}px` }} />
+              <div className="client-res-tutorial-mask" style={{ top: `${tutorialSpotlight.top}px`, left: `${tutorialSpotlight.right}px`, width: `calc(100% - ${tutorialSpotlight.right}px)`, height: `${tutorialSpotlight.height}px` }} />
+              <div className="client-res-tutorial-mask" style={{ top: `${tutorialSpotlight.bottom}px`, left: 0, width: '100%', height: `calc(100% - ${tutorialSpotlight.bottom}px)` }} />
+              <div className="client-res-tutorial-focus" style={{ left: `${tutorialSpotlight.left}px`, top: `${tutorialSpotlight.top}px`, width: `${tutorialSpotlight.width}px`, height: `${tutorialSpotlight.height}px` }} />
+            </>
+          ) : (
+            <div className="client-res-tutorial-mask" style={{ inset: 0 }} />
+          )}
+          <div className="client-res-tutorial-card">
+            <div className="client-res-tutorial-step">{t('Шаг', 'Qadam')} {Math.min(tutorialStepIndex + 1, tutorialSteps.length)} / {tutorialSteps.length}</div>
+            <div className="client-res-tutorial-text">{currentTutorialStep?.text || ''}</div>
+            <button type="button" className="client-res-tutorial-skip-btn" onClick={() => stopTutorial(true)}>
+              {t('Пропустить обучение', 'Yo‘riqnomani o‘tkazib yuborish')}
+            </button>
           </div>
-          <div className="client-res-onboarding-title">{currentOnboardingStep?.title || ''}</div>
-          <div className="client-res-onboarding-description">{currentOnboardingStep?.description || ''}</div>
-          {Array.isArray(currentOnboardingStep?.bullets) && currentOnboardingStep.bullets.length > 0 && (
-            <ul className="client-res-onboarding-list">
-              {currentOnboardingStep.bullets.map((bullet, index) => (
-                <li key={`onboarding-bullet-${index}`}>{bullet}</li>
-              ))}
-            </ul>
-          )}
-          {Array.isArray(currentOnboardingStep?.tableTypes) && currentOnboardingStep.tableTypes.length > 0 && (
-            <div className="client-res-onboarding-tags">
-              {currentOnboardingStep.tableTypes.map((typeName) => (
-                <span key={`onboarding-type-${typeName}`} className="client-res-onboarding-tag">{typeName}</span>
-              ))}
-            </div>
-          )}
-        </Modal.Body>
-        <Modal.Footer className="client-res-onboarding-actions">
-          <Button variant="link" className="client-res-onboarding-skip-btn" onClick={handleOnboardingSkip}>
-            {t('Пропустить обучение', 'Yo‘riqnomani o‘tkazib yuborish')}
-          </Button>
-          <Button variant="outline-secondary" onClick={handleOnboardingPrev} disabled={onboardingStep === 0}>
-            {t('Назад', 'Orqaga')}
-          </Button>
-          <Button variant="primary" onClick={handleOnboardingNext}>
-            {onboardingStep >= onboardingSteps.length - 1 ? t('Понятно', 'Tushunarli') : t('Далее', 'Keyingi')}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

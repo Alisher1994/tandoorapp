@@ -2321,84 +2321,64 @@ h6 {
   cursor: default;
 }
 
-.client-res-onboarding-modal .modal-content {
-  border-radius: 16px;
+.client-res-tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  pointer-events: none;
+}
+
+.client-res-tutorial-mask {
+  position: fixed;
+  background: rgba(2, 6, 23, 0.74);
+  pointer-events: auto;
+}
+
+.client-res-tutorial-focus {
+  position: fixed;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);
+  pointer-events: none;
+}
+
+.client-res-tutorial-card {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px));
   border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.34);
+  padding: 10px 12px;
+  pointer-events: auto;
 }
 
-.client-res-onboarding-progress {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 52px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  border: 1px solid #d6deef;
-  color: #475569;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.2;
-  background: #f8fafc;
-}
-
-.client-res-onboarding-title {
-  margin-top: 10px;
-  color: #0f172a;
-  font-size: 1.02rem;
-  font-weight: 800;
-  line-height: 1.25;
-}
-
-.client-res-onboarding-description {
-  margin-top: 8px;
+.client-res-tutorial-step {
   color: #334155;
-  font-size: 0.92rem;
-  line-height: 1.4;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
-.client-res-onboarding-list {
-  margin: 10px 0 0;
-  padding-left: 20px;
-  color: #475569;
-  font-size: 0.86rem;
+.client-res-tutorial-text {
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 600;
   line-height: 1.35;
 }
 
-.client-res-onboarding-list li + li {
-  margin-top: 6px;
-}
-
-.client-res-onboarding-tags {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.client-res-onboarding-tag {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-  color: #312e81;
-  font-size: 0.78rem;
+.client-res-tutorial-skip-btn {
+  margin-top: 7px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.2;
-  padding: 4px 10px;
-}
-
-.client-res-onboarding-actions {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.client-res-onboarding-skip-btn {
-  margin-right: auto;
-  padding-left: 0;
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
 }
 
 @media (max-width: 991.98px) {
