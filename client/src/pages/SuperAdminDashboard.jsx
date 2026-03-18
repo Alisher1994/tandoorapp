@@ -2369,9 +2369,12 @@ function SuperAdminDashboard() {
       setGlobalProductAiMode(String(response.data?.mode || normalizedMode));
     } catch (err) {
       if (globalProductAiRequestIdRef.current !== requestId) return;
-      setGlobalProductAiError(err.response?.data?.error || (language === 'uz'
+      const serverError = String(err.response?.data?.error || '').trim();
+      const serverDetails = String(err.response?.data?.details || '').trim();
+      const fallbackError = language === 'uz'
         ? 'Preview tayyorlashda xatolik'
-        : 'Ошибка подготовки preview'));
+        : 'Ошибка подготовки preview';
+      setGlobalProductAiError(serverDetails ? `${serverError || fallbackError}: ${serverDetails}` : (serverError || fallbackError));
     } finally {
       if (globalProductAiRequestIdRef.current === requestId) {
         setGlobalProductAiLoading(false);

@@ -616,27 +616,130 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&safe=true&enhance=true`;
   const response = await axios.get(url, {
     responseType: 'arraybuffer',
-    timeout: 90000,
+    timeout: 70000,
     maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
     validateStatus: (status) => status >= 200 && status < 400
   });
+  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+  if (!contentType.startsWith('image/')) {
+    throw new Error('Pollinations вернул не изображение');
+  }
   const buffer = Buffer.from(response.data || []);
   if (!buffer.length) throw new Error('Генератор не вернул изображение');
   return { buffer, provider: 'pollinations' };
+};
+
+const generateGlobalProductImageWithLoremFlickr = async (name) => {
+  const tags = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(',');
+  const url = `https://loremflickr.com/1024/1024/${encodeURIComponent(tags || 'product')}`;
+  const response = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 45000,
+    maxRedirects: 5,
+    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+    validateStatus: (status) => status >= 200 && status < 400
+  });
+  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+  if (!contentType.startsWith('image/')) {
+    throw new Error('LoremFlickr вернул не изображение');
+  }
+  const buffer = Buffer.from(response.data || []);
+  if (!buffer.length) throw new Error('LoremFlickr не вернул изображение');
+  return { buffer, provider: 'loremflickr' };
+};
+
+const generateGlobalProductImageWithPicsum = async () => {
+  const url = `https://picsum.photos/seed/${Date.now()}/1024/1024`;
+  const response = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 35000,
+    maxRedirects: 5,
+    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+    validateStatus: (status) => status >= 200 && status < 400
+  });
+  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+  if (!contentType.startsWith('image/')) {
+    throw new Error('Picsum вернул не изображение');
+  }
+  const buffer = Buffer.from(response.data || []);
+  if (!buffer.length) throw new Error('Picsum не вернул изображение');
+  return { buffer, provider: 'picsum' };
+};
+
+const escapeXml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const generateGlobalProductPlaceholderImage = async (name) => {
+  const title = escapeXml(String(name || '').trim().slice(0, 44) || 'Product');
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}" height="${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}" viewBox="0 0 ${GLOBAL_PRODUCT_AI_OUTPUT_SIZE} ${GLOBAL_PRODUCT_AI_OUTPUT_SIZE}">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f8fafc" />
+          <stop offset="100%" stop-color="#e2e8f0" />
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g)" />
+      <rect x="248" y="236" width="528" height="548" rx="54" fill="#ffffff" stroke="#cbd5e1" stroke-width="8"/>
+      <rect x="286" y="312" width="452" height="308" rx="38" fill="#eef2ff"/>
+      <circle cx="512" cy="466" r="104" fill="#dbeafe"/>
+      <circle cx="512" cy="466" r="62" fill="#93c5fd"/>
+      <rect x="360" y="682" width="304" height="34" rx="17" fill="#cbd5e1"/>
+      <text x="512" y="842" fill="#0f172a" text-anchor="middle" font-size="50" font-family="Arial, sans-serif">${title}</text>
+    </svg>
+  `;
+  const buffer = await sharp(Buffer.from(svg)).png().toBuffer();
+  return { buffer, provider: 'placeholder-svg' };
 };
 
 const generateGlobalProductImageByName = async (name) => {
   const cleanName = String(name || '').trim().slice(0, 180);
   if (!cleanName) throw new Error('Укажите название товара для генерации');
   const prompt = `Studio product photo of "${cleanName}", single isolated object, centered composition, plain light background, no text, no logo, photorealistic, catalog style`;
+  const generationErrors = [];
 
   try {
     const geminiResult = await generateGlobalProductImageWithGemini(prompt);
     if (geminiResult?.buffer) return geminiResult;
   } catch (error) {
     console.warn('Gemini generation fallback:', error?.message || error);
+    generationErrors.push(`gemini: ${error?.message || 'unknown'}`);
   }
-  return generateGlobalProductImageWithPollinations(prompt);
+
+  try {
+    return await generateGlobalProductImageWithPollinations(prompt);
+  } catch (error) {
+    console.warn('Pollinations generation fallback:', error?.message || error);
+    generationErrors.push(`pollinations: ${error?.message || 'unknown'}`);
+  }
+
+  try {
+    return await generateGlobalProductImageWithLoremFlickr(cleanName);
+  } catch (error) {
+    console.warn('LoremFlickr generation fallback:', error?.message || error);
+    generationErrors.push(`loremflickr: ${error?.message || 'unknown'}`);
+  }
+
+  try {
+    return await generateGlobalProductImageWithPicsum();
+  } catch (error) {
+    console.warn('Picsum generation fallback:', error?.message || error);
+    generationErrors.push(`picsum: ${error?.message || 'unknown'}`);
+  }
+
+  console.warn('All external generators failed, using local placeholder:', generationErrors.join(' | '));
+  return generateGlobalProductPlaceholderImage(cleanName);
 };
 
 const prepareGlobalProductTransparentPreview = async (inputBuffer) => {
@@ -3399,7 +3502,27 @@ router.post('/global-products/image-preview', async (req, res) => {
     });
   } catch (error) {
     console.error('Global product image preview error:', error);
-    res.status(500).json({ error: 'Не удалось подготовить preview изображения' });
+    const rawMessage = String(error?.message || '').trim();
+    const lowMessage = rawMessage.toLowerCase();
+    const isInputError = lowMessage.includes('укажите название')
+      || lowMessage.includes('выберите фото')
+      || lowMessage.includes('источник')
+      || lowMessage.includes('некоррект');
+    const isUpstreamError = Boolean(error?.isAxiosError)
+      || lowMessage.includes('timeout')
+      || lowMessage.includes('fetch failed')
+      || lowMessage.includes('pollinations')
+      || lowMessage.includes('gemini');
+    const statusCode = isInputError ? 400 : (isUpstreamError ? 502 : 500);
+    const baseErrorText = statusCode === 502
+      ? 'Внешний AI-сервис сейчас недоступен. Попробуйте еще раз или используйте обработку выбранного фото.'
+      : 'Не удалось подготовить preview изображения';
+    const details = rawMessage ? rawMessage.slice(0, 220) : undefined;
+
+    res.status(statusCode).json({
+      error: baseErrorText,
+      ...(details ? { details } : {})
+    });
   }
 });
 
