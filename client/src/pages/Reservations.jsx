@@ -227,9 +227,12 @@ function Reservations() {
     const width = Number(floorImageMeta.width || 0);
     const height = Number(floorImageMeta.height || 0);
     if (width > 0 && height > 0) return clamp(width / height, 0.45, 2.8);
-    return 1.1;
+    return 2.05;
   }, [floorImageMeta.width, floorImageMeta.height]);
-  const planWorldHeight = useMemo(() => Math.max(560, Math.round(PLAN_WORLD_WIDTH / floorAspectRatio)), [floorAspectRatio]);
+  const planWorldHeight = useMemo(
+    () => clamp(Math.round(PLAN_WORLD_WIDTH / floorAspectRatio), 560, 760),
+    [floorAspectRatio]
+  );
   const bookingDurationOptions = useMemo(() => [60, 90, 120, 150, 180, 210, 240], []);
   const minDurationMinutes = useMemo(() => Math.min(...bookingDurationOptions), [bookingDurationOptions]);
   const bookingEndOptions = useMemo(
