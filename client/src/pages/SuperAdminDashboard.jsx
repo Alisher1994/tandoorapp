@@ -765,6 +765,7 @@ function SuperAdminDashboard() {
   const [securityEventsLoading, setSecurityEventsLoading] = useState(false);
   const [securityStatsLoading, setSecurityStatsLoading] = useState(false);
   const [securityEventStatusUpdatingId, setSecurityEventStatusUpdatingId] = useState(null);
+  const [securityDetailsRevealMap, setSecurityDetailsRevealMap] = useState({});
   const [activityTypes, setActivityTypes] = useState([]);
   const [activityTypesLoading, setActivityTypesLoading] = useState(false);
   const [showActivityTypeModal, setShowActivityTypeModal] = useState(false);
@@ -2058,6 +2059,7 @@ function SuperAdminDashboard() {
         params: securityFilter
       });
       const payload = response.data || {};
+      setSecurityDetailsRevealMap({});
       setSecurityEventsData({
         events: Array.isArray(payload.events) ? payload.events : [],
         total: Number(payload.total || 0),
@@ -3564,16 +3566,23 @@ function SuperAdminDashboard() {
     if (!parts.length) return language === 'uz' ? "Geoma'lumot yo'q" : 'Гео не определено';
     return parts.join(', ');
   };
-  const formatSecurityDetailsSummary = (details) => {
+  const formatSecurityDetailsSummary = (details, options = {}) => {
     if (!details || typeof details !== 'object') return '-';
+    const revealSensitive = Boolean(options?.revealSensitive);
+    const normalizedDetails = { ...details };
+    if (revealSensitive && String(details?.identifier_full || '').trim()) {
+      normalizedDetails.identifier = String(details.identifier_full || '').trim();
+    }
+    delete normalizedDetails.identifier_full;
+
     const preferredKeys = ['reason', 'origin', 'message', 'error', 'hint'];
     for (const key of preferredKeys) {
-      const value = details?.[key];
+      const value = normalizedDetails?.[key];
       if (value === undefined || value === null) continue;
       const text = String(value).trim();
       if (text) return text.slice(0, 160);
     }
-    const entries = Object.entries(details)
+    const entries = Object.entries(normalizedDetails)
       .filter(([key, value]) => key && value !== undefined && value !== null && String(value).trim() !== '')
       .slice(0, 2)
       .map(([key, value]) => `${key}: ${String(value)}`);
@@ -3595,10 +3604,13 @@ function SuperAdminDashboard() {
     if (normalized === 'customer') return 'в клиентский вход';
     return 'в систему';
   };
-  const formatSecurityHumanSummary = (eventItem) => {
+  const formatSecurityHumanSummary = (eventItem, options = {}) => {
     const type = String(eventItem?.event_type || '').trim().toLowerCase();
     const details = (eventItem?.details && typeof eventItem.details === 'object') ? eventItem.details : {};
-    const identifier = String(details?.identifier || '').trim();
+    const revealSensitive = Boolean(options?.revealSensitive);
+    const identifier = revealSensitive
+      ? String(details?.identifier_full || details?.identifier || '').trim()
+      : String(details?.identifier || '').trim();
     const portalLabel = formatSecurityPortalLabel(details?.portal || '');
     const targetPath = String(eventItem?.request_path || eventItem?.target || '').trim();
 
@@ -3651,6 +3663,20 @@ function SuperAdminDashboard() {
     return language === 'uz'
       ? 'Shubhali hodisa qayd etildi.'
       : 'Зафиксировано подозрительное событие.';
+  };
+  const hasSecurityRevealableIdentifier = (eventItem) => {
+    const details = (eventItem?.details && typeof eventItem.details === 'object') ? eventItem.details : {};
+    const full = String(details?.identifier_full || '').trim();
+    const masked = String(details?.identifier || '').trim();
+    return Boolean(full) && full !== masked;
+  };
+  const toggleSecurityDetailsReveal = (eventId) => {
+    const numericId = Number(eventId);
+    if (!Number.isFinite(numericId) || numericId <= 0) return;
+    setSecurityDetailsRevealMap((prev) => ({
+      ...prev,
+      [numericId]: !prev?.[numericId]
+    }));
   };
   const getPhoneTelHref = (value) => {
     const raw = String(value || '').trim();
@@ -10067,6 +10093,9 @@ function SuperAdminDashboard() {
                             const statusMeta = getSecurityStatusMeta(eventItem?.status);
                             const isResolved = String(eventItem?.status || '').toLowerCase() === 'resolved';
                             const isUpdating = Number(securityEventStatusUpdatingId) === Number(eventItem?.id);
+                            const isDetailsRevealed = Boolean(securityDetailsRevealMap?.[Number(eventItem?.id)]);
+                            const canRevealIdentifier = hasSecurityRevealableIdentifier(eventItem);
+                            const hasMaskedIdentifier = Boolean(String(eventItem?.details?.identifier || '').trim());
                             return (
                               <tr key={`security-event-${eventItem.id}`}>
                                 <td>
@@ -10106,11 +10135,33 @@ function SuperAdminDashboard() {
                                 </td>
                                 <td style={{ maxWidth: '280px' }}>
                                   <div className="small fw-semibold mb-1">
-                                    {formatSecurityHumanSummary(eventItem)}
+                                    {formatSecurityHumanSummary(eventItem, { revealSensitive: isDetailsRevealed })}
                                   </div>
-                                  <small className="text-muted" title={formatSecurityDetailsSummary(eventItem.details)}>
-                                    {formatSecurityDetailsSummary(eventItem.details)}
-                                  </small>
+                                  <div className="d-flex align-items-center gap-2">
+                                    <small className="text-muted" title={formatSecurityDetailsSummary(eventItem.details, { revealSensitive: isDetailsRevealed })}>
+                                      {formatSecurityDetailsSummary(eventItem.details, { revealSensitive: isDetailsRevealed })}
+                                    </small>
+                                    {canRevealIdentifier && (
+                                      <Button
+                                        size="sm"
+                                        variant="link"
+                                        className="p-0 text-decoration-none"
+                                        onClick={() => toggleSecurityDetailsReveal(eventItem.id)}
+                                        title={isDetailsRevealed
+                                          ? (language === 'uz' ? 'Yashirish' : 'Скрыть')
+                                          : (language === 'uz' ? "To'liq ko'rsatish" : 'Показать полностью')}
+                                      >
+                                        <i className={`bi ${isDetailsRevealed ? 'bi-eye-slash' : 'bi-eye'}`} />
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {!canRevealIdentifier && hasMaskedIdentifier && (
+                                    <small className="text-muted d-block mt-1">
+                                      {language === 'uz'
+                                        ? "To'liq qiymat faqat yangi hodisalar uchun mavjud"
+                                        : 'Полное значение доступно только для новых событий'}
+                                    </small>
+                                  )}
                                 </td>
                                 <td className="text-end">
                                   <Button

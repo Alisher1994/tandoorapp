@@ -20,6 +20,7 @@ const maskIdentifierForLogs = (value) => {
   if (raw.length <= 4) return `${raw.slice(0, 1)}***`;
   return `${raw.slice(0, 2)}***${raw.slice(-2)}`;
 };
+const normalizeIdentifierForSecurityDetails = (value) => String(value || '').trim().slice(0, 180);
 const loginRateLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 20,
@@ -250,6 +251,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         statusCode: 401,
         details: {
           identifier: maskIdentifierForLogs(identifier),
+          identifier_full: normalizeIdentifierForSecurityDetails(identifier),
           portal: requestedPortal || 'any'
         }
       });
@@ -310,6 +312,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
           statusCode: 403,
           details: {
             identifier: maskIdentifierForLogs(identifier),
+            identifier_full: normalizeIdentifierForSecurityDetails(identifier),
             portal: requestedPortal || 'any'
           }
         });
@@ -327,6 +330,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         statusCode: 401,
         details: {
           identifier: maskIdentifierForLogs(identifier),
+          identifier_full: normalizeIdentifierForSecurityDetails(identifier),
           portal: requestedPortal || 'any'
         }
       });
@@ -360,6 +364,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
           statusCode: 401,
           details: {
             identifier: maskIdentifierForLogs(identifier),
+            identifier_full: normalizeIdentifierForSecurityDetails(identifier),
             requested_account_user_id: requestedAccountUserId
           }
         });
