@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../database/connection');
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
+const axios = require('axios');
 const bcrypt = require('bcryptjs');
 const TelegramBot = require('node-telegram-bot-api');
 const { authenticate, requireSuperAdmin } = require('../middleware/auth');
@@ -62,6 +66,20 @@ let restaurantAdminCommentSchemaPromise = null;
 let globalProductsSchemaReady = false;
 let globalProductsSchemaPromise = null;
 const GLOBAL_PRODUCT_MAX_IMAGES = 5;
+const GLOBAL_PRODUCT_AI_OUTPUT_SIZE = 1024;
+const GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
+const GEMINI_IMAGE_MODEL_CANDIDATES = [
+  process.env.GEMINI_IMAGE_MODEL,
+  'gemini-2.0-flash-preview-image-generation',
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash'
+].filter(Boolean);
+const uploadsDir = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 const DEFAULT_ACTIVITY_TYPES = [
   'Ресторан',
@@ -445,6 +463,266 @@ const normalizeGlobalProductVariantOptions = (value) => {
     if (normalized.length >= 20) break;
   }
   return normalized;
+};
+
+const buildGlobalProductAiFilename = () => {
+  const stamp = Date.now();
+  const randomPart = Math.round(Math.random() * 1e9);
+  return `global-product-ai-${stamp}-${randomPart}.webp`;
+};
+
+const saveGlobalProductAiImage = async (buffer) => {
+  const filename = buildGlobalProductAiFilename();
+  const filePath = path.join(uploadsDir, filename);
+  await fs.promises.writeFile(filePath, buffer);
+  return `/uploads/${filename}`;
+};
+
+const resolveSameOriginHosts = () => {
+  const hosts = new Set();
+  const candidates = [process.env.FRONTEND_URL, process.env.BACKEND_URL, process.env.TELEGRAM_WEB_APP_URL];
+  for (const candidate of candidates) {
+    const raw = String(candidate || '').trim();
+    if (!raw) continue;
+    try {
+      hosts.add(String(new URL(raw).host || '').toLowerCase());
+    } catch (_) {
+      // ignore malformed env urls
+    }
+  }
+  return hosts;
+};
+
+const GLOBAL_PRODUCT_AI_ALLOWED_HOSTS = resolveSameOriginHosts();
+
+const isPrivateOrBlockedHost = (hostname) => {
+  const host = String(hostname || '').trim().toLowerCase();
+  if (!host) return true;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+  if (host.endsWith('.local')) return true;
+
+  const ipv4Match = host.match(/^(\d{1,3})(?:\.(\d{1,3})){3}$/);
+  if (!ipv4Match) return false;
+  const parts = host.split('.').map((part) => Number.parseInt(part, 10));
+  if (parts.some((part) => !Number.isFinite(part) || part < 0 || part > 255)) return true;
+  if (parts[0] === 10) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  return false;
+};
+
+const resolveGlobalProductAiImageSourceUrl = (rawValue, req) => {
+  const value = String(rawValue || '').trim();
+  if (!value) return '';
+  const requestHost = String(req.get('host') || '').toLowerCase();
+  if (value.startsWith('/uploads/')) {
+    return `${req.protocol}://${requestHost}${value}`;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch (_) {
+    return '';
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+
+  const host = String(parsed.host || '').toLowerCase();
+  if (!host) return '';
+  if (host === requestHost) return parsed.toString();
+  if (GLOBAL_PRODUCT_AI_ALLOWED_HOSTS.has(host)) return parsed.toString();
+  if (isPrivateOrBlockedHost(parsed.hostname)) return '';
+  return parsed.toString();
+};
+
+const downloadGlobalProductAiSourceImage = async (sourceUrl) => {
+  const response = await axios.get(sourceUrl, {
+    responseType: 'arraybuffer',
+    timeout: 45000,
+    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+    validateStatus: (status) => status >= 200 && status < 400
+  });
+  const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+  if (!contentType.startsWith('image/')) {
+    throw new Error('Источник должен быть изображением');
+  }
+  const buffer = Buffer.from(response.data || []);
+  if (!buffer.length) throw new Error('Источник изображения пустой');
+  if (buffer.length > GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES) {
+    throw new Error('Изображение слишком большое');
+  }
+  return buffer;
+};
+
+const extractGeminiInlineImageBuffer = (payload) => {
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+  for (const candidate of candidates) {
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+    for (const part of parts) {
+      const inlineData = part?.inlineData || part?.inline_data;
+      const data = inlineData?.data;
+      if (!data || typeof data !== 'string') continue;
+      try {
+        const buffer = Buffer.from(data, 'base64');
+        if (buffer.length > 0) return buffer;
+      } catch (_) {
+        // ignore malformed chunk
+      }
+    }
+  }
+  return null;
+};
+
+const generateGlobalProductImageWithGemini = async (prompt) => {
+  const apiKey = String(
+    process.env.GEMINI_API_KEY
+    || process.env.GOOGLE_GEMINI_API_KEY
+    || process.env.GOOGLE_AI_API_KEY
+    || ''
+  ).trim();
+  if (!apiKey) return null;
+
+  let lastError = null;
+  for (const model of GEMINI_IMAGE_MODEL_CANDIDATES) {
+    try {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+        },
+        {
+          timeout: 90000,
+          maxBodyLength: 6 * 1024 * 1024
+        }
+      );
+      const imageBuffer = extractGeminiInlineImageBuffer(response.data);
+      if (imageBuffer) {
+        return { buffer: imageBuffer, provider: `gemini:${model}` };
+      }
+      lastError = new Error('Gemini не вернул изображение');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) throw lastError;
+  return null;
+};
+
+const generateGlobalProductImageWithPollinations = async (prompt) => {
+  const seed = Date.now();
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&safe=true&enhance=true`;
+  const response = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 90000,
+    maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+    validateStatus: (status) => status >= 200 && status < 400
+  });
+  const buffer = Buffer.from(response.data || []);
+  if (!buffer.length) throw new Error('Генератор не вернул изображение');
+  return { buffer, provider: 'pollinations' };
+};
+
+const generateGlobalProductImageByName = async (name) => {
+  const cleanName = String(name || '').trim().slice(0, 180);
+  if (!cleanName) throw new Error('Укажите название товара для генерации');
+  const prompt = `Studio product photo of "${cleanName}", single isolated object, centered composition, plain light background, no text, no logo, photorealistic, catalog style`;
+
+  try {
+    const geminiResult = await generateGlobalProductImageWithGemini(prompt);
+    if (geminiResult?.buffer) return geminiResult;
+  } catch (error) {
+    console.warn('Gemini generation fallback:', error?.message || error);
+  }
+  return generateGlobalProductImageWithPollinations(prompt);
+};
+
+const prepareGlobalProductTransparentPreview = async (inputBuffer) => {
+  const normalizedBuffer = await sharp(inputBuffer, { failOnError: false })
+    .rotate()
+    .resize({
+      width: GLOBAL_PRODUCT_AI_OUTPUT_SIZE,
+      height: GLOBAL_PRODUCT_AI_OUTPUT_SIZE,
+      fit: 'inside',
+      withoutEnlargement: false,
+      fastShrinkOnLoad: true
+    })
+    .png()
+    .toBuffer();
+
+  const alphaMask = await sharp(normalizedBuffer, { failOnError: false })
+    .removeAlpha()
+    .greyscale()
+    .negate()
+    .normalise()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const maskRawBuffer = alphaMask.data;
+  const maskInfo = alphaMask.info;
+  const maskRgbaBuffer = Buffer.alloc(maskRawBuffer.length * 4);
+  for (let index = 0; index < maskRawBuffer.length; index += 1) {
+    const targetOffset = index * 4;
+    maskRgbaBuffer[targetOffset] = 255;
+    maskRgbaBuffer[targetOffset + 1] = 255;
+    maskRgbaBuffer[targetOffset + 2] = 255;
+    maskRgbaBuffer[targetOffset + 3] = maskRawBuffer[index];
+  }
+
+  const maskPng = await sharp(maskRgbaBuffer, {
+    raw: {
+      width: maskInfo.width,
+      height: maskInfo.height,
+      channels: 4
+    }
+  })
+    .png()
+    .toBuffer();
+
+  const imageWithMask = await sharp(normalizedBuffer, { failOnError: false })
+    .ensureAlpha()
+    .composite([{ input: maskPng, blend: 'dest-in' }])
+    .png()
+    .toBuffer();
+
+  const alphaStats = await sharp(imageWithMask, { failOnError: false })
+    .extractChannel(3)
+    .stats();
+  const alphaMean = Number(alphaStats?.channels?.[0]?.mean || 0);
+  const alphaLooksValid = alphaMean > 2;
+
+  const trimmedSource = alphaLooksValid
+    ? await sharp(imageWithMask, { failOnError: false }).trim({ threshold: 6 }).png().toBuffer()
+    : await sharp(normalizedBuffer, { failOnError: false }).ensureAlpha().png().toBuffer();
+
+  const fitted = await sharp(trimmedSource, { failOnError: false })
+    .resize({
+      width: 900,
+      height: 900,
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    })
+    .png()
+    .toBuffer();
+
+  return sharp({
+    create: {
+      width: GLOBAL_PRODUCT_AI_OUTPUT_SIZE,
+      height: GLOBAL_PRODUCT_AI_OUTPUT_SIZE,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
+    .composite([{ input: fitted, gravity: 'center' }])
+    .webp({
+      quality: 88,
+      alphaQuality: 90,
+      effort: 5,
+      smartSubsample: true
+    })
+    .toBuffer();
 };
 
 const normalizeInstructionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -3080,6 +3358,50 @@ router.get('/operators', async (req, res) => {
 // =====================================================
 // ГЛОБАЛЬНЫЕ ТОВАРЫ (шаблоны для магазинов)
 // =====================================================
+
+router.post('/global-products/image-preview', async (req, res) => {
+  try {
+    const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
+    const requestedMode = ['generate', 'process'].includes(modeRaw) ? modeRaw : 'auto';
+    const productName = toOptionalTrimmedText(req.body?.name || req.body?.name_ru || req.body?.name_uz).slice(0, 180);
+    const sourceImageUrl = toOptionalTrimmedText(req.body?.image_url);
+    const effectiveMode = requestedMode === 'auto'
+      ? (sourceImageUrl ? 'process' : 'generate')
+      : requestedMode;
+
+    let sourceBuffer;
+    let provider = 'source_upload';
+
+    if (effectiveMode === 'process') {
+      const resolvedSourceUrl = resolveGlobalProductAiImageSourceUrl(sourceImageUrl, req);
+      if (!resolvedSourceUrl) {
+        return res.status(400).json({
+          error: 'Для обработки сначала выберите фото товара (доступны только /uploads или доверенные http/https ссылки)'
+        });
+      }
+      sourceBuffer = await downloadGlobalProductAiSourceImage(resolvedSourceUrl);
+    } else {
+      if (!productName) {
+        return res.status(400).json({ error: 'Укажите название товара для генерации изображения' });
+      }
+      const generated = await generateGlobalProductImageByName(productName);
+      sourceBuffer = generated.buffer;
+      provider = generated.provider || 'generator';
+    }
+
+    const previewBuffer = await prepareGlobalProductTransparentPreview(sourceBuffer);
+    const previewUrl = await saveGlobalProductAiImage(previewBuffer);
+
+    res.json({
+      preview_url: previewUrl,
+      provider,
+      mode: effectiveMode
+    });
+  } catch (error) {
+    console.error('Global product image preview error:', error);
+    res.status(500).json({ error: 'Не удалось подготовить preview изображения' });
+  }
+});
 
 router.get('/global-products', async (req, res) => {
   try {
