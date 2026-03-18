@@ -1015,7 +1015,6 @@ function SuperAdminDashboard() {
   const [aiProvidersLoading, setAiProvidersLoading] = useState(false);
   const [aiProviderSavingId, setAiProviderSavingId] = useState(null);
   const [aiProviderDeletingId, setAiProviderDeletingId] = useState(null);
-  const [aiProviderActivatingId, setAiProviderActivatingId] = useState(null);
   const [aiUsageDays, setAiUsageDays] = useState(30);
   const [aiUsageLoading, setAiUsageLoading] = useState(false);
   const [aiUsageSummary, setAiUsageSummary] = useState({
@@ -2894,11 +2893,23 @@ function SuperAdminDashboard() {
   };
 
   const updateAiProviderDraft = (providerKey, patch) => {
-    setAiProviders((prev) => prev.map((item) => (
-      getAiProviderKey(item) === providerKey
-        ? { ...item, ...patch }
-        : item
-    )));
+    const nextPatch = { ...patch };
+    if (nextPatch.is_enabled === false) {
+      nextPatch.is_active = false;
+    }
+    const shouldSetExclusiveActive = Object.prototype.hasOwnProperty.call(nextPatch, 'is_active')
+      && nextPatch.is_active === true;
+
+    setAiProviders((prev) => prev.map((item) => {
+      const key = getAiProviderKey(item);
+      if (key === providerKey) {
+        return { ...item, ...nextPatch };
+      }
+      if (shouldSetExclusiveActive) {
+        return { ...item, is_active: false };
+      }
+      return item;
+    }));
   };
 
   const saveAiProvider = async (provider) => {
@@ -2937,23 +2948,6 @@ function SuperAdminDashboard() {
       setError(String(err?.response?.data?.error || 'Ошибка сохранения AI-провайдера'));
     } finally {
       setAiProviderSavingId(null);
-    }
-  };
-
-  const activateAiProvider = async (provider) => {
-    if (!provider?.id) {
-      setError('Сначала сохраните провайдера');
-      return;
-    }
-    try {
-      setAiProviderActivatingId(provider.id);
-      await axios.patch(`${API_URL}/superadmin/ai/providers/${provider.id}/activate`);
-      setSuccess('Активный AI-провайдер обновлён');
-      await loadAiProviders();
-    } catch (err) {
-      setError(String(err?.response?.data?.error || 'Ошибка активации AI-провайдера'));
-    } finally {
-      setAiProviderActivatingId(null);
     }
   };
 
@@ -10131,7 +10125,6 @@ function SuperAdminDashboard() {
                             const providerKey = getAiProviderKey(provider);
                             const isSaving = aiProviderSavingId === providerKey;
                             const isDeleting = provider.id && aiProviderDeletingId === provider.id;
-                            const isActivating = provider.id && aiProviderActivatingId === provider.id;
                             return (
                               <div key={providerKey} className="border rounded-3 p-3 mb-3 bg-light">
                                 <Row className="g-2 align-items-end">
@@ -10200,9 +10193,14 @@ function SuperAdminDashboard() {
                                     <Form.Check
                                       type="switch"
                                       id={`ai-provider-active-intent-${providerKey}`}
-                                      label="Сделать активным"
+                                      label="Активный"
                                       checked={provider.is_active === true}
-                                      onChange={(e) => updateAiProviderDraft(providerKey, { is_active: !!e.target.checked })}
+                                      onChange={(e) => {
+                                        const shouldActivate = !!e.target.checked;
+                                        updateAiProviderDraft(providerKey, shouldActivate
+                                          ? { is_active: true, is_enabled: true }
+                                          : { is_active: false });
+                                      }}
                                     />
                                   </Col>
                                   <Col md={7} className="d-flex flex-wrap gap-2 justify-content-md-end">
@@ -10211,25 +10209,16 @@ function SuperAdminDashboard() {
                                       size="sm"
                                       className="btn-primary-custom"
                                       onClick={() => saveAiProvider(provider)}
-                                      disabled={isSaving || isDeleting || isActivating}
+                                      disabled={isSaving || isDeleting}
                                     >
                                       {isSaving ? 'Сохранение...' : 'Сохранить'}
                                     </Button>
                                     <Button
                                       type="button"
                                       size="sm"
-                                      variant={provider.is_active ? 'success' : 'outline-success'}
-                                      onClick={() => activateAiProvider(provider)}
-                                      disabled={!provider.id || isSaving || isDeleting || isActivating}
-                                    >
-                                      {isActivating ? 'Активация...' : (provider.is_active ? 'Активный' : 'Активировать')}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
                                       variant="outline-danger"
                                       onClick={() => removeAiProvider(provider)}
-                                      disabled={isSaving || isDeleting || isActivating}
+                                      disabled={isSaving || isDeleting}
                                     >
                                       {isDeleting ? 'Удаление...' : 'Удалить'}
                                     </Button>
@@ -10242,7 +10231,8 @@ function SuperAdminDashboard() {
                       )}
 
                       <div className="small text-muted mt-2">
-                        Примечание: если выбран активный провайдер, AI запросы идут через него. ENV-ключи используются только когда активный провайдер не задан.
+                        Примечание: включите тумблер "Активный" у нужного провайдера и нажмите "Сохранить" — предыдущий активный выключится автоматически.
+                        ENV-ключи используются только когда активный провайдер не задан.
                       </div>
 
                       {Array.isArray(aiUsageSummary.by_provider) && aiUsageSummary.by_provider.length > 0 && (
