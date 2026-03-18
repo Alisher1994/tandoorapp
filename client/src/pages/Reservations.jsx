@@ -770,28 +770,37 @@ function Reservations() {
       ? Math.abs(forwardTargetTick.offsetLeft - referenceTick.offsetLeft)
       : Math.round(stepDistance * 4);
     const nudgeDistance = Math.min(520, Math.max(Math.round(stepDistance * 4), nudgeDistanceRaw));
+    const maxLeft = Math.max(0, ruler.scrollWidth - ruler.clientWidth);
+    const rightTargetLeft = clamp(initialLeft + nudgeDistance, 0, maxLeft);
+    const leftTargetLeft = clamp(initialLeft - nudgeDistance, 0, maxLeft);
+    const forwardLeft = Math.abs(rightTargetLeft - initialLeft) >= Math.abs(leftTargetLeft - initialLeft)
+      ? rightTargetLeft
+      : leftTargetLeft;
+    const hasVisibleNudge = Math.abs(forwardLeft - initialLeft) >= Math.max(8, stepDistance * 0.6);
     timeRulerAutoScrollRef.current = true;
 
     const timerForward = window.setTimeout(() => {
+      if (!hasVisibleNudge) return;
       if (typeof ruler.scrollTo === 'function') {
-        ruler.scrollTo({ left: initialLeft + nudgeDistance, behavior: 'smooth' });
+        ruler.scrollTo({ left: forwardLeft, behavior: 'smooth' });
       } else {
-        ruler.scrollLeft = initialLeft + nudgeDistance;
+        ruler.scrollLeft = forwardLeft;
       }
     }, 180);
 
     const timerBackward = window.setTimeout(() => {
+      if (!hasVisibleNudge) return;
       if (typeof ruler.scrollTo === 'function') {
         ruler.scrollTo({ left: initialLeft, behavior: 'smooth' });
       } else {
         ruler.scrollLeft = initialLeft;
       }
-    }, 640);
+    }, 980);
 
     const timerFinalize = window.setTimeout(() => {
       timeRulerAutoScrollRef.current = false;
       centerTimeSlot(startTime, 'smooth');
-    }, 980);
+    }, 1460);
 
     return () => {
       window.clearTimeout(timerForward);

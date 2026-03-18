@@ -20,6 +20,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
 const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
 const CATALOG_SEARCH_RESULTS_LIMIT = 80;
+const PENDING_PRODUCT_REVIEW_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
@@ -222,6 +223,13 @@ function Catalog() {
   useEffect(() => {
     if (!user?.id || user?.role !== 'customer' || !selectedRestaurant) return;
     if (pendingProductReviewsLoadedRef.current) return;
+
+    const snoozeUntil = getPendingReviewSnoozeUntil(user.id, selectedRestaurant);
+    if (snoozeUntil > Date.now()) {
+      pendingProductReviewsLoadedRef.current = true;
+      setShowPendingProductReviewModal(false);
+      return;
+    }
 
     pendingProductReviewsLoadedRef.current = true;
     let cancelled = false;
@@ -1855,6 +1863,31 @@ function Catalog() {
     `catalog_entry_popup_seen:${Number(restaurantId) || 0}:${Number(bannerId) || 0}`
   );
 
+  const getPendingReviewSnoozeKey = (customerId, restaurantId) => (
+    `catalog_pending_review_snooze_until:${Number(customerId) || 0}:${Number(restaurantId) || 0}`
+  );
+
+  const getPendingReviewSnoozeUntil = (customerId, restaurantId) => {
+    try {
+      const raw = localStorage.getItem(getPendingReviewSnoozeKey(customerId, restaurantId));
+      const timestamp = Number.parseInt(String(raw || ''), 10);
+      return Number.isFinite(timestamp) ? timestamp : 0;
+    } catch (e) {
+      return 0;
+    }
+  };
+
+  const setPendingReviewSnoozeUntil = (customerId, restaurantId, timestamp) => {
+    try {
+      localStorage.setItem(
+        getPendingReviewSnoozeKey(customerId, restaurantId),
+        String(Math.max(0, Number.parseInt(String(timestamp || 0), 10) || 0))
+      );
+    } catch (e) {
+      // ignore storage errors
+    }
+  };
+
   const hasSeenEntryPopupInSession = (restaurantId, bannerId) => {
     try {
       return sessionStorage.getItem(getEntryPopupSeenKey(restaurantId, bannerId)) === '1';
@@ -2608,6 +2641,13 @@ function Catalog() {
   const closePendingProductReviewModal = () => {
     setShowPendingProductReviewModal(false);
     setPendingProductReviewError('');
+  };
+
+  const deferPendingProductReviewModal = () => {
+    if (user?.id && selectedRestaurant) {
+      setPendingReviewSnoozeUntil(user.id, selectedRestaurant, Date.now() + PENDING_PRODUCT_REVIEW_SNOOZE_MS);
+    }
+    closePendingProductReviewModal();
   };
 
   const submitPendingProductReview = async () => {
@@ -3605,7 +3645,7 @@ function Catalog() {
         <Modal.Footer>
           <Button
             variant="light"
-            onClick={closePendingProductReviewModal}
+            onClick={deferPendingProductReviewModal}
             disabled={pendingProductReviewSubmitting}
           >
             {language === 'uz' ? 'Keyinroq' : 'Позже'}
