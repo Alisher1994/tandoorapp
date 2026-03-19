@@ -100,6 +100,16 @@ const OPENAI_TEXT_MODEL_CANDIDATES = [
   'gpt-4.1',
   'gpt-4o-mini'
 ].filter(Boolean);
+const OPENROUTER_IMAGE_MODEL_CANDIDATES = [
+  process.env.OPENROUTER_IMAGE_MODEL,
+  'google/gemini-2.5-flash-image-preview',
+  'black-forest-labs/flux.2-flex'
+].filter(Boolean);
+const OPENROUTER_TEXT_MODEL_CANDIDATES = [
+  process.env.OPENROUTER_TEXT_MODEL,
+  'openai/gpt-4.1-mini',
+  'google/gemini-2.5-flash'
+].filter(Boolean);
 const uploadsDir = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
   : path.join(__dirname, '../../uploads');
@@ -117,7 +127,7 @@ const DEFAULT_ACTIVITY_TYPES = [
   'Цветочные',
   'Продуктовый магазин'
 ];
-const AI_PROVIDER_TYPES = new Set(['gemini', 'openai', 'replicate', 'cloudflare', 'pollinations', 'custom']);
+const AI_PROVIDER_TYPES = new Set(['gemini', 'openai', 'openrouter', 'replicate', 'cloudflare', 'pollinations', 'custom']);
 const AI_PROVIDER_OPERATIONS = new Set(['image_generate', 'image_process', 'text_generate']);
 
 const normalizeTokenValue = (value) => {
@@ -853,10 +863,16 @@ const resolveOpenAiApiKeyFromEnv = () => String(
   || process.env.OPENAI_KEY
   || ''
 ).trim();
+const resolveOpenRouterApiKeyFromEnv = () => String(
+  process.env.OPENROUTER_API_KEY
+  || process.env.OPENROUTER_KEY
+  || ''
+).trim();
 const resolvePollinationsApiKeyFromEnv = () => String(
   process.env.POLLINATIONS_API_KEY
   || ''
 ).trim();
+const isLikelyOpenRouterApiKey = (value) => String(value || '').trim().toLowerCase().startsWith('sk-or-');
 const buildModelCandidates = (items = []) => {
   const seen = new Set();
   const normalized = [];
@@ -897,6 +913,9 @@ const formatAiProviderTestError = (error, providerType = 'gemini') => {
 
   if (providerType === 'pollinations') {
     return 'Недействительный API key Pollinations (401/403). Проверьте ключ или очистите поле API key и повторите тест.';
+  }
+  if (providerType === 'openrouter') {
+    return 'Недействительный API key OpenRouter (401/403) или модель недоступна для вашего тарифа.';
   }
   return 'Недействительный API key (401/403) или модель недоступна для вашего ключа.';
 };
@@ -1001,6 +1020,43 @@ const resolveOpenAiRuntimeConfig = async () => {
     textModelCandidates: OPENAI_TEXT_MODEL_CANDIDATES,
     providerRef: apiKey
       ? { id: null, name: 'Railway ENV OpenAI', provider_type: 'openai' }
+      : null
+  };
+};
+const resolveOpenRouterRuntimeConfig = async () => {
+  const activeProvider = await getActiveAiProviderRuntimeConfig();
+  if (activeProvider && activeProvider.provider_type === 'openrouter' && activeProvider.api_key) {
+    const imageCandidates = [
+      normalizeAiProviderModel(activeProvider.image_model),
+      ...OPENROUTER_IMAGE_MODEL_CANDIDATES
+    ].filter(Boolean);
+    const textCandidates = [
+      normalizeAiProviderModel(activeProvider.text_model),
+      ...OPENROUTER_TEXT_MODEL_CANDIDATES
+    ].filter(Boolean);
+    return {
+      apiKey: activeProvider.api_key,
+      imageModelCandidates: [...new Set(imageCandidates)],
+      textModelCandidates: [...new Set(textCandidates)],
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+  if (activeProvider) {
+    return {
+      apiKey: '',
+      imageModelCandidates: OPENROUTER_IMAGE_MODEL_CANDIDATES,
+      textModelCandidates: OPENROUTER_TEXT_MODEL_CANDIDATES,
+      providerRef: buildAiProviderRef(activeProvider)
+    };
+  }
+
+  const apiKey = resolveOpenRouterApiKeyFromEnv();
+  return {
+    apiKey,
+    imageModelCandidates: OPENROUTER_IMAGE_MODEL_CANDIDATES,
+    textModelCandidates: OPENROUTER_TEXT_MODEL_CANDIDATES,
+    providerRef: apiKey
+      ? { id: null, name: 'Railway ENV OpenRouter', provider_type: 'openrouter' }
       : null
   };
 };
@@ -1183,6 +1239,36 @@ const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false,
   return null;
 };
 
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const buildOpenRouterHeaders = (apiKey) => {
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json'
+  };
+  const referer = String(
+    process.env.OPENROUTER_HTTP_REFERER
+    || process.env.OPENROUTER_SITE_URL
+    || process.env.APP_URL
+    || ''
+  ).trim();
+  const title = String(process.env.OPENROUTER_APP_TITLE || 'Talablar Superadmin').trim();
+  if (referer) headers['HTTP-Referer'] = referer;
+  if (title) headers['X-Title'] = title;
+  return headers;
+};
+const parseImageBufferFromDataUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const match = raw.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/);
+  if (!match || !match[1]) return null;
+  try {
+    const buffer = Buffer.from(match[1], 'base64');
+    return buffer.length > 0 ? buffer : null;
+  } catch (_) {
+    return null;
+  }
+};
+
 const generateGlobalProductImageWithOpenAI = async (prompt, { runtimeOverride = null } = {}) => {
   const runtime = runtimeOverride || await resolveOpenAiRuntimeConfig();
   const apiKey = runtime.apiKey;
@@ -1273,6 +1359,133 @@ const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false,
         };
       }
       lastError = new Error('OpenAI не вернул текст');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+};
+
+const generateGlobalProductImageWithOpenRouter = async (prompt, { runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolveOpenRouterRuntimeConfig();
+  const apiKey = runtime.apiKey;
+  if (!apiKey) return null;
+
+  let lastError = null;
+  for (const model of runtime.imageModelCandidates) {
+    try {
+      const response = await axios.post(
+        `${OPENROUTER_BASE_URL}/chat/completions`,
+        {
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          modalities: ['image', 'text'],
+          image_config: {
+            aspect_ratio: '1:1',
+            image_size: '1K'
+          },
+          stream: false
+        },
+        {
+          timeout: 90000,
+          maxBodyLength: 6 * 1024 * 1024,
+          headers: buildOpenRouterHeaders(apiKey)
+        }
+      );
+      const images = Array.isArray(response?.data?.choices?.[0]?.message?.images)
+        ? response.data.choices[0].message.images
+        : [];
+      for (const image of images) {
+        const imageUrl = String(
+          image?.image_url?.url
+          || image?.imageUrl?.url
+          || image?.url
+          || ''
+        ).trim();
+        if (!imageUrl) continue;
+        const dataBuffer = parseImageBufferFromDataUrl(imageUrl);
+        if (dataBuffer) {
+          return {
+            buffer: dataBuffer,
+            provider: `openrouter:${model}`,
+            model,
+            providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' }
+          };
+        }
+        if (/^https?:\/\//i.test(imageUrl)) {
+          const imageResponse = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+            timeout: 90000
+          });
+          const httpBuffer = Buffer.from(imageResponse.data || '');
+          if (httpBuffer.length > 0) {
+            return {
+              buffer: httpBuffer,
+              provider: `openrouter:${model}`,
+              model,
+              providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' }
+            };
+          }
+        }
+      }
+      lastError = new Error('OpenRouter не вернул изображение');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+};
+
+const generateGlobalProductTextWithOpenRouter = async (prompt, { expectJson = false, runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolveOpenRouterRuntimeConfig();
+  const apiKey = runtime.apiKey;
+  if (!apiKey) return null;
+
+  let lastError = null;
+  for (const model of runtime.textModelCandidates) {
+    try {
+      const response = await axios.post(
+        `${OPENROUTER_BASE_URL}/chat/completions`,
+        {
+          model,
+          messages: [
+            {
+              role: 'system',
+              content: expectJson
+                ? 'Return only valid JSON with no markdown and no comments.'
+                : 'You are a helpful catalog assistant.'
+            },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.35,
+          ...(expectJson ? { response_format: { type: 'json_object' } } : {})
+        },
+        {
+          timeout: 65000,
+          maxBodyLength: 4 * 1024 * 1024,
+          headers: buildOpenRouterHeaders(apiKey)
+        }
+      );
+      const rawContent = response?.data?.choices?.[0]?.message?.content;
+      const text = Array.isArray(rawContent)
+        ? rawContent
+          .map((item) => (typeof item === 'string' ? item : String(item?.text || '').trim()))
+          .join('\n')
+          .trim()
+        : String(rawContent || '').trim();
+      if (text) {
+        return {
+          text,
+          provider: `openrouter:${model}`,
+          model,
+          providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' }
+        };
+      }
+      lastError = new Error('OpenRouter не вернул текст');
     } catch (error) {
       lastError = error;
     }
@@ -1412,6 +1625,13 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
         result = await generateGlobalProductTextWithOpenAI(prompt, { expectJson: true });
       } catch (error) {
         console.warn('OpenAI text generation fallback:', error?.message || error);
+      }
+    }
+    if (!result?.text) {
+      try {
+        result = await generateGlobalProductTextWithOpenRouter(prompt, { expectJson: true });
+      } catch (error) {
+        console.warn('OpenRouter text generation fallback:', error?.message || error);
       }
     }
     if (!result?.text) {
@@ -1634,6 +1854,14 @@ const generateGlobalProductImageByName = async (name, { categoryContextPath = []
   } catch (error) {
     console.warn('OpenAI generation fallback:', error?.message || error);
     generationErrors.push(`openai: ${error?.message || 'unknown'}`);
+  }
+
+  try {
+    const openRouterResult = await generateGlobalProductImageWithOpenRouter(prompt);
+    if (openRouterResult?.buffer) return openRouterResult;
+  } catch (error) {
+    console.warn('OpenRouter generation fallback:', error?.message || error);
+    generationErrors.push(`openrouter: ${error?.message || 'unknown'}`);
   }
 
   try {
@@ -7822,6 +8050,18 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       ].filter(Boolean))],
       providerRef
     };
+    const openRouterRuntimeOverride = {
+      apiKey,
+      imageModelCandidates: [...new Set([
+        normalizeAiProviderModel(requestedImageModel),
+        ...OPENROUTER_IMAGE_MODEL_CANDIDATES
+      ].filter(Boolean))],
+      textModelCandidates: [...new Set([
+        normalizeAiProviderModel(requestedTextModel),
+        ...OPENROUTER_TEXT_MODEL_CANDIDATES
+      ].filter(Boolean))],
+      providerRef
+    };
     const pollinationsRuntimeOverride = {
       apiKey: String(apiKey || '').trim(),
       imageModelCandidates: buildModelCandidates([
@@ -7854,13 +8094,21 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       imageResult = await generateGlobalProductImageWithGemini(imagePrompt, {
         runtimeOverride: geminiRuntimeOverride
       });
-    } else if (requestedProviderType === 'openai') {
+    } else if (requestedProviderType === 'openai' && !isLikelyOpenRouterApiKey(apiKey)) {
       textResult = await generateGlobalProductTextWithOpenAI(textPrompt, {
         expectJson: false,
         runtimeOverride: openAiRuntimeOverride
       });
       imageResult = await generateGlobalProductImageWithOpenAI(imagePrompt, {
         runtimeOverride: openAiRuntimeOverride
+      });
+    } else if (requestedProviderType === 'openrouter' || isLikelyOpenRouterApiKey(apiKey)) {
+      textResult = await generateGlobalProductTextWithOpenRouter(textPrompt, {
+        expectJson: false,
+        runtimeOverride: openRouterRuntimeOverride
+      });
+      imageResult = await generateGlobalProductImageWithOpenRouter(imagePrompt, {
+        runtimeOverride: openRouterRuntimeOverride
       });
     } else if (requestedProviderType === 'pollinations') {
       textResult = await generateGlobalProductTextWithPollinations(textPrompt, {

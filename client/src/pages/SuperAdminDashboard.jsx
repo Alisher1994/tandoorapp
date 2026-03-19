@@ -104,6 +104,7 @@ const CATALOG_ANIMATION_SEASON_OPTIONS = [
 const AI_PROVIDER_TYPE_OPTIONS = [
   { value: 'gemini', label: 'Gemini' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'openrouter', label: 'OpenRouter' },
   { value: 'replicate', label: 'Replicate' },
   { value: 'cloudflare', label: 'Cloudflare AI' },
   { value: 'pollinations', label: 'Pollinations' },
@@ -112,6 +113,7 @@ const AI_PROVIDER_TYPE_OPTIONS = [
 const AI_PROVIDER_TYPE_META = {
   gemini: { label: 'Gemini', icon: '/ai-providers/gemini.svg', badge: 'primary' },
   openai: { label: 'OpenAI', icon: '/ai-providers/openai.svg', badge: 'dark' },
+  openrouter: { label: 'OpenRouter', icon: '/ai-providers/openrouter.svg', badge: 'secondary' },
   replicate: { label: 'Replicate', icon: '/ai-providers/replicate.svg', badge: 'info' },
   cloudflare: { label: 'Cloudflare AI', icon: '/ai-providers/cloudflare.svg', badge: 'warning' },
   pollinations: { label: 'Pollinations', icon: '/ai-providers/pollinations.svg', badge: 'success' },
