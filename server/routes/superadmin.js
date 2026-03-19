@@ -1387,7 +1387,7 @@ const generateGlobalProductImageWithOpenRouter = async (prompt, { runtimeOverrid
         {
           model,
           messages: [{ role: 'user', content: prompt }],
-          modalities: ['image', 'text'],
+          modalities: ['image'],
           image_config: {
             aspect_ratio: '1:1',
             image_size: '1K'
