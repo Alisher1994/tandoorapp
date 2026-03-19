@@ -789,6 +789,22 @@ function SuperAdminDashboard() {
   const [showAdsFilterPanel, setShowAdsFilterPanel] = useState(false);
   const [showLogsFilterPanel, setShowLogsFilterPanel] = useState(false);
   const [showSecurityFilterPanel, setShowSecurityFilterPanel] = useState(false);
+  const superAdminHotkeyTabOrder = useMemo(() => ([
+    'analytics',
+    'restaurants',
+    'global_products',
+    'activity_types',
+    'reservation_templates',
+    'help_instructions',
+    'operators',
+    'customers',
+    'categories',
+    'ads',
+    'billing_transactions',
+    'billing',
+    'security',
+    'logs'
+  ]), []);
 
   // Data
   const [stats, setStats] = useState({});
@@ -1427,6 +1443,21 @@ function SuperAdminDashboard() {
       const target = event.target;
       const tagName = String(target?.tagName || '').toLowerCase();
       const isTypingField = target?.isContentEditable || ['input', 'textarea', 'select'].includes(tagName);
+      const isCtrlArrowHotkey = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey
+        && (event.key === 'ArrowRight' || event.key === 'ArrowLeft');
+      if (isCtrlArrowHotkey && !isTypingField) {
+        event.preventDefault();
+        const direction = event.key === 'ArrowRight' ? 1 : -1;
+        setActiveTab((prevTab) => {
+          if (!superAdminHotkeyTabOrder.length) return prevTab;
+          const currentIndex = superAdminHotkeyTabOrder.indexOf(prevTab);
+          if (currentIndex === -1) return superAdminHotkeyTabOrder[0];
+          const nextIndex = (currentIndex + direction + superAdminHotkeyTabOrder.length) % superAdminHotkeyTabOrder.length;
+          return superAdminHotkeyTabOrder[nextIndex];
+        });
+        return;
+      }
+
       const isCtrlSpaceHotkey = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey
         && (event.code === 'Space' || event.key === ' ');
       if (isCtrlSpaceHotkey && !isTypingField) {
@@ -1459,7 +1490,7 @@ function SuperAdminDashboard() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showHiddenOpsConsole, navigate]);
+  }, [showHiddenOpsConsole, navigate, superAdminHotkeyTabOrder]);
 
   useEffect(() => {
     if (!isHiddenOpsTelemetryEnabled || !hiddenOpsTelemetryExpiresAt) return;

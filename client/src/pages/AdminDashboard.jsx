@@ -1482,6 +1482,12 @@ function AdminDashboard() {
     normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
+  const operatorHotkeyTabOrder = useMemo(() => {
+    const tabs = ['dashboard', 'orders'];
+    if (isReservationModuleEnabled) tabs.push('reservations');
+    tabs.push('products', 'containers', 'feedback', 'clients', 'settings', 'help');
+    return tabs;
+  }, [isReservationModuleEnabled]);
   const orderStatusPillItems = [
     { value: 'all', label: t('allStatuses'), color: '#6b7280', emoji: '📋' },
     { value: 'new', label: t('statusNew'), color: '#3b82f6', emoji: '🆕' },
@@ -2261,6 +2267,29 @@ function AdminDashboard() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [navigate, user?.role]);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const target = event.target;
+      const tagName = String(target?.tagName || '').toLowerCase();
+      const isTypingField = target?.isContentEditable || ['input', 'textarea', 'select'].includes(tagName);
+      const isCtrlArrowHotkey = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey
+        && (event.key === 'ArrowRight' || event.key === 'ArrowLeft');
+      if (!isCtrlArrowHotkey || isTypingField) return;
+
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      setMainTab((prevTab) => {
+        if (!operatorHotkeyTabOrder.length) return prevTab;
+        const currentIndex = operatorHotkeyTabOrder.indexOf(prevTab);
+        if (currentIndex === -1) return operatorHotkeyTabOrder[0];
+        const nextIndex = (currentIndex + direction + operatorHotkeyTabOrder.length) % operatorHotkeyTabOrder.length;
+        return operatorHotkeyTabOrder[nextIndex];
+      });
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [operatorHotkeyTabOrder]);
 
   useEffect(() => {
     setProductsPage(1);
