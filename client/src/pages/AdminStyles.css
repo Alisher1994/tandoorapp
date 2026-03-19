@@ -808,9 +808,12 @@ body::-webkit-scrollbar,
 }
 
 .admin-tabs-shell-toggle-wrap {
+    order: 2;
     margin-bottom: 0;
     display: flex;
     justify-content: flex-end;
+    margin-top: auto;
+    padding-top: 10px;
 }
 
 .admin-tabs.admin-tabs-content-only {
@@ -873,6 +876,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-sidebar-column .admin-tabs.admin-tabs-sidebar {
+    order: 1;
     margin-bottom: 0 !important;
     border: none !important;
     border-radius: 0;
@@ -1010,7 +1014,7 @@ body::-webkit-scrollbar,
     min-width: 42px;
     height: 42px;
     padding: 0 !important;
-    display: inline-flex !important;
+    display: none !important;
     align-items: center;
     justify-content: center;
     background: rgba(255, 255, 255, 0.08) !important;
@@ -1018,6 +1022,12 @@ body::-webkit-scrollbar,
 
 .admin-sidebar-mobile-toggle:focus {
     box-shadow: none !important;
+}
+
+@media (max-width: 991.98px) {
+    .admin-sidebar-mobile-toggle {
+        display: inline-flex !important;
+    }
 }
 
 .admin-sidebar-mobile-modal .modal-dialog {
