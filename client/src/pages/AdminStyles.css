@@ -7502,6 +7502,24 @@ body::-webkit-scrollbar,
     font-size: 0.95rem;
 }
 
+.admin-lang-flag-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.admin-lang-flag-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
 .admin-product-main-fields-grid {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -7807,10 +7825,20 @@ body::-webkit-scrollbar,
 }
 
 .admin-variant-add-btn {
-    min-width: 42px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
     border-color: rgba(148, 163, 184, 0.55) !important;
     color: #334155 !important;
     background: #ffffff !important;
+    border-radius: 10px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    font-size: 1.05rem !important;
+    line-height: 1 !important;
 }
 
 .admin-variant-add-btn:hover,
@@ -7826,6 +7854,33 @@ body::-webkit-scrollbar,
     color: #94a3b8 !important;
     border-color: rgba(148, 163, 184, 0.4) !important;
     background: #f8fafc !important;
+}
+
+.admin-variant-remove-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    border-radius: 10px !important;
+    border: 1px solid rgba(148, 163, 184, 0.55) !important;
+    color: #64748b !important;
+    background: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0 !important;
+    font-size: 1.05rem !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+}
+
+.admin-variant-remove-btn:hover,
+.admin-variant-remove-btn:focus-visible,
+.admin-variant-remove-btn:active {
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    background: #fef2f2 !important;
+    box-shadow: none !important;
 }
 
 .admin-product-sort-input-wrap {
