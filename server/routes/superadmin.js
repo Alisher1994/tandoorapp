@@ -102,7 +102,7 @@ const OPENAI_TEXT_MODEL_CANDIDATES = [
 ].filter(Boolean);
 const OPENROUTER_IMAGE_MODEL_CANDIDATES = [
   process.env.OPENROUTER_IMAGE_MODEL,
-  'google/gemini-2.5-flash-image-preview',
+  'google/gemini-2.5-flash-image',
   'black-forest-labs/flux.2-flex'
 ].filter(Boolean);
 const OPENROUTER_TEXT_MODEL_CANDIDATES = [
@@ -892,6 +892,12 @@ const formatAiProviderTestError = (error, providerType = 'gemini') => {
     if (!data) return '';
     if (typeof data === 'string') return data;
     if (typeof data?.error === 'string') return data.error;
+    if (typeof data?.error?.message === 'string') return data.error.message;
+    if (Array.isArray(data?.errors) && data.errors.length) {
+      const firstError = data.errors[0];
+      if (typeof firstError === 'string') return firstError;
+      if (typeof firstError?.message === 'string') return firstError.message;
+    }
     if (typeof data?.message === 'string') return data.message;
     return '';
   })();
