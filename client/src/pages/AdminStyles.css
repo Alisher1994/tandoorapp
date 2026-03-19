@@ -4481,44 +4481,60 @@ body::-webkit-scrollbar,
 }
 
 /* AI providers compact row/table layout */
+.ai-settings-panel-card {
+    border: 1px solid var(--border-color) !important;
+    box-shadow: none !important;
+}
+
+.ai-provider-table-container {
+    border: 1px solid var(--border-color) !important;
+    box-shadow: none !important;
+    background: #ffffff;
+}
+
+.ai-provider-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
 .ai-provider-table thead th {
     white-space: nowrap;
-    padding: 0.7rem 0.75rem !important;
+    padding: 0.58rem 0.5rem !important;
 }
 
 .ai-provider-table tbody td {
-    padding: 0.56rem 0.75rem !important;
+    padding: 0.48rem 0.5rem !important;
     vertical-align: top;
 }
 
 .ai-provider-table .form-control,
 .ai-provider-table .form-select,
 .ai-provider-table .input-group-text {
-    font-size: 0.85rem;
+    font-size: 0.83rem;
 }
 
 .ai-provider-table .input-group-text {
-    min-height: 31px;
+    min-height: 32px;
 }
 
 .ai-provider-name-col {
-    min-width: 220px;
+    width: 14%;
 }
 
 .ai-provider-type-col {
-    min-width: 180px;
+    width: 12%;
 }
 
 .ai-provider-key-col {
-    min-width: 330px;
+    width: 17%;
 }
 
 .ai-provider-model-col {
-    min-width: 190px;
+    width: 13%;
 }
 
 .ai-provider-priority-col {
-    min-width: 110px;
+    width: 7%;
     text-align: center;
 }
 
@@ -4527,7 +4543,7 @@ body::-webkit-scrollbar,
 }
 
 .ai-provider-switch-col {
-    min-width: 86px;
+    width: 8%;
     text-align: center;
     vertical-align: middle !important;
 }
@@ -4537,7 +4553,7 @@ body::-webkit-scrollbar,
     justify-content: center;
     align-items: center;
     margin: 0 !important;
-    min-height: 31px;
+    min-height: 32px;
 }
 
 .ai-provider-row-switch .form-check-input {
@@ -4550,40 +4566,56 @@ body::-webkit-scrollbar,
 }
 
 .ai-provider-actions-col {
-    min-width: 132px;
+    width: 16%;
     text-align: right;
     vertical-align: middle !important;
 }
 
-.ai-provider-cell-note {
-    margin-top: 0.32rem;
-    font-size: 0.73rem;
-    line-height: 1.25;
+.ai-provider-action-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    flex: 0 0 34px;
 }
 
-@media (max-width: 991.98px) {
+.ai-provider-action-btn i {
+    font-size: 0.92rem;
+    line-height: 1;
+}
+
+.ai-provider-action-btn .spinner-border {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-width: 0.13em;
+}
+
+.ai-provider-cell-note {
+    margin-top: 0.22rem;
+    font-size: 0.69rem;
+    line-height: 1.2;
+}
+
+@media (max-width: 1199.98px) {
     .ai-provider-table thead th {
-        padding: 0.6rem 0.55rem !important;
+        padding: 0.5rem 0.42rem !important;
+        font-size: 0.68rem;
     }
 
     .ai-provider-table tbody td {
-        padding: 0.5rem 0.55rem !important;
+        padding: 0.44rem 0.42rem !important;
     }
 
-    .ai-provider-name-col {
-        min-width: 190px;
-    }
-
-    .ai-provider-type-col {
-        min-width: 160px;
-    }
-
-    .ai-provider-key-col {
-        min-width: 280px;
-    }
-
-    .ai-provider-model-col {
-        min-width: 165px;
+    .ai-provider-table .form-control,
+    .ai-provider-table .form-select,
+    .ai-provider-table .input-group-text {
+        font-size: 0.78rem;
     }
 }
 
