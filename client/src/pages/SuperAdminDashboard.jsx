@@ -8108,42 +8108,6 @@ function SuperAdminDashboard() {
           </div>
         </Card.Header>
         <Card.Body className="p-4">
-          <Row className="g-2 mb-3">
-            <Col md={3}>
-              <div className="small text-muted">Запросов ({aiUsageSummary.days} дн.)</div>
-              <div className="fw-bold">{Number(aiUsageSummary?.totals?.total_requests || 0)}</div>
-            </Col>
-            <Col md={3}>
-              <div className="small text-muted">Успех / Ошибки</div>
-              <div className="fw-bold">
-                {Number(aiUsageSummary?.totals?.success_requests || 0)} / {Number(aiUsageSummary?.totals?.failed_requests || 0)}
-              </div>
-            </Col>
-            <Col md={3}>
-              <div className="small text-muted">Ошибки квоты</div>
-              <div className="fw-bold">{Number(aiUsageSummary?.totals?.quota_related_errors || 0)}</div>
-            </Col>
-            <Col md={3}>
-              <div className="small text-muted">Оценка расходов (USD)</div>
-              <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
-            </Col>
-          </Row>
-
-          <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-            <Form.Select
-              style={{ width: 170 }}
-              value={aiUsageDays}
-              onChange={(e) => setAiUsageDays(Number(e.target.value) || 30)}
-            >
-              <option value={7}>7 дней</option>
-              <option value={14}>14 дней</option>
-              <option value={30}>30 дней</option>
-              <option value={60}>60 дней</option>
-              <option value={90}>90 дней</option>
-            </Form.Select>
-            {aiUsageLoading && <small className="text-muted">Загрузка статистики...</small>}
-          </div>
-
           {aiProvidersLoading ? (
             <div className="text-muted">Загрузка AI-провайдеров...</div>
           ) : (
@@ -8352,6 +8316,49 @@ function SuperAdminDashboard() {
             ENV-ключи используются только когда активный провайдер не задан.
             Для кнопки проверки провайдер должен быть активным, иначе будет ошибка.
           </div>
+        </Card.Body>
+      </Card>
+
+      <Card className="admin-card admin-section-panel ai-settings-panel-card mb-4">
+        <Card.Header className="admin-section-panel-header py-3">
+          <h6 className="mb-0 fw-bold">AI аналитика и фильтры</h6>
+        </Card.Header>
+        <Card.Body className="p-4">
+          <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <Form.Select
+              style={{ width: 170 }}
+              value={aiUsageDays}
+              onChange={(e) => setAiUsageDays(Number(e.target.value) || 30)}
+            >
+              <option value={7}>7 дней</option>
+              <option value={14}>14 дней</option>
+              <option value={30}>30 дней</option>
+              <option value={60}>60 дней</option>
+              <option value={90}>90 дней</option>
+            </Form.Select>
+            {aiUsageLoading && <small className="text-muted">Загрузка статистики...</small>}
+          </div>
+
+          <Row className="g-2 mb-3">
+            <Col md={3}>
+              <div className="small text-muted">Запросов ({aiUsageSummary.days} дн.)</div>
+              <div className="fw-bold">{Number(aiUsageSummary?.totals?.total_requests || 0)}</div>
+            </Col>
+            <Col md={3}>
+              <div className="small text-muted">Успех / Ошибки</div>
+              <div className="fw-bold">
+                {Number(aiUsageSummary?.totals?.success_requests || 0)} / {Number(aiUsageSummary?.totals?.failed_requests || 0)}
+              </div>
+            </Col>
+            <Col md={3}>
+              <div className="small text-muted">Ошибки квоты</div>
+              <div className="fw-bold">{Number(aiUsageSummary?.totals?.quota_related_errors || 0)}</div>
+            </Col>
+            <Col md={3}>
+              <div className="small text-muted">Оценка расходов (USD)</div>
+              <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
+            </Col>
+          </Row>
 
           {Array.isArray(aiUsageSummary.by_provider) && aiUsageSummary.by_provider.length > 0 && (
             <div className="mt-4">
