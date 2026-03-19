@@ -7509,6 +7509,10 @@ body::-webkit-scrollbar,
     margin-bottom: 0.5rem;
 }
 
+.admin-product-main-fields-grid.has-container-norm {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
 .admin-product-main-fields-grid .form-label {
     margin-bottom: 0.35rem;
 }

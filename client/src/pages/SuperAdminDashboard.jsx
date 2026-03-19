@@ -1732,7 +1732,7 @@ function SuperAdminDashboard() {
             <div class="cmp-kpi"><b>${Number(kpis.ordersCount || 0).toLocaleString('ru-RU')}</b><small>Заказы (доставлено)</small></div>
             <div class="cmp-kpi"><b>${Math.round(Number(kpis.averageCheck || 0)).toLocaleString('ru-RU')}</b><small>Средний чек, ${t('sum')}</small></div>
             <div class="cmp-kpi"><b>${Math.round(Number(kpis.serviceRevenue || 0)).toLocaleString('ru-RU')}</b><small>Сервис, ${t('sum')}</small></div>
-            <div class="cmp-kpi"><b>${Math.round(Number(kpis.containersRevenue || 0)).toLocaleString('ru-RU')}</b><small>Посуда/Пакеты, ${t('sum')}</small></div>
+            <div class="cmp-kpi"><b>${Math.round(Number(kpis.containersRevenue || 0)).toLocaleString('ru-RU')}</b><small>Фасовка, ${t('sum')}</small></div>
             <div class="cmp-kpi"><b>${startToOrder}%</b><small>Start -> Заказ</small></div>
           </div>
           <div class="cmp-row">
@@ -6302,7 +6302,7 @@ function SuperAdminDashboard() {
                 <div className="admin-analytics-kpi-header">
                   <h6 className="mb-0 admin-analytics-card-title">
                     <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🧺</span>
-                    {language === 'uz' ? 'Idish/paket' : 'Посуды/Пакеты'}
+                    {language === 'uz' ? 'Fasovka' : 'Фасовка'}
                   </h6>
                 </div>
                 <div className="admin-analytics-kpi-value">

@@ -6949,7 +6949,7 @@ function AdminDashboard() {
             <div className="admin-analytics-kpi-header">
               <h6 className="mb-0 admin-analytics-card-title">
                 <span className="admin-analytics-card-title-icon" style={{ color: '#8b5cf6', background: '#f5f3ff' }}>🧺</span>
-                {language === 'uz' ? 'Idish/paket' : 'Посуды/Пакеты'}
+                {language === 'uz' ? 'Fasovka' : 'Фасовка'}
               </h6>
             </div>
             <div className="admin-analytics-kpi-value">
@@ -7687,7 +7687,7 @@ function AdminDashboard() {
                                 {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(analytics.serviceRevenue)} {t('sum')}
                               </span>
                               <span className="admin-analytics-chip admin-analytics-chip-packaging">
-                                {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(analytics.containersRevenue)} {t('sum')}
+                                {language === 'uz' ? 'Fasovka' : 'Фасовка'}: {formatPrice(analytics.containersRevenue)} {t('sum')}
                               </span>
                             </div>
                           </div>
@@ -8172,7 +8172,7 @@ function AdminDashboard() {
                                     {language === 'uz' ? 'Servis' : 'Сервис'}: {formatPrice(yearlyFinancialStats.service)} {t('sum')}
                                   </span>
                                   <span className="admin-analytics-chip admin-analytics-chip-packaging">
-                                    {language === 'uz' ? 'Idish/paket' : 'Посуда/пакет'}: {formatPrice(yearlyFinancialStats.containers)} {t('sum')}
+                                    {language === 'uz' ? 'Fasovka' : 'Фасовка'}: {formatPrice(yearlyFinancialStats.containers)} {t('sum')}
                                   </span>
                                 </div>
                               </div>
@@ -9203,7 +9203,7 @@ function AdminDashboard() {
                         <th className="admin-product-col-price">{t('price')}</th>
                         <th className="admin-product-col-unit">Ед.изм</th>
                         <th className="admin-product-col-step">Шаг</th>
-                        <th className="admin-product-col-container">Пакет</th>
+                        <th className="admin-product-col-container">Фасовка</th>
                         <th className="admin-product-col-status">{t('status')}</th>
                         <th className="admin-product-col-actions">{t('actions')}</th>
                       </tr>
@@ -11334,7 +11334,7 @@ function AdminDashboard() {
                               </div>
                               {breakdown.containersTotal > 0 && (
                                 <div className="order-items-total-row">
-                                  <span className="order-items-total-label">Пакет / Посуда</span>
+                                  <span className="order-items-total-label">Фасовка</span>
                                   <span className="order-items-total-value">{formatPrice(breakdown.containersTotal)} {t('sum')}</span>
                                 </div>
                               )}
@@ -11432,7 +11432,7 @@ function AdminDashboard() {
                         return (
                           <div className="mt-2 text-end">
                             <div className="small text-muted">Товары: {formatPrice(breakdown.itemsSubtotal)} {t('sum')}</div>
-                            {breakdown.containersTotal > 0 && <div className="small text-muted">Пакет / Посуда: {formatPrice(breakdown.containersTotal)} {t('sum')}</div>}
+                            {breakdown.containersTotal > 0 && <div className="small text-muted">Фасовка: {formatPrice(breakdown.containersTotal)} {t('sum')}</div>}
                             {breakdown.serviceFee > 0 && <div className="small text-muted">Сервис: {formatPrice(breakdown.serviceFee)} {t('sum')}</div>}
                             {(breakdown.deliveryCost > 0 || breakdown.deliveryDistanceKm > 0) && (
                               <div className="small text-muted">
@@ -12812,7 +12812,7 @@ function AdminDashboard() {
                 </Row>
               )}
 
-              <div className="admin-product-main-fields-grid">
+              <div className={`admin-product-main-fields-grid ${productForm.container_id ? 'has-container-norm' : ''}`}>
                 <Form.Group className="mb-0">
                   <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
                   <Form.Control
@@ -12898,7 +12898,7 @@ function AdminDashboard() {
 
                 <Form.Group className="mb-0">
                   <Form.Label className="d-flex align-items-center gap-2">
-                    <span>{language === 'uz' ? 'Paket / Idish' : 'Пакет / Посуда'}</span>
+                    <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
                     <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish turlari" : 'Типы тары'}>
                       i
                       <span className="admin-container-help-tooltip">
@@ -12936,6 +12936,28 @@ function AdminDashboard() {
                     ))}
                   </Form.Select>
                 </Form.Group>
+
+                {productForm.container_id && (
+                  <Form.Group className="mb-0">
+                    <Form.Label className="d-flex align-items-center gap-2">
+                      <span>{t('containerNormLabel')}</span>
+                      <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish normasi izohi" : 'Подсказка по норме посуды'}>
+                        i
+                        <span className="admin-container-help-tooltip">
+                          {t('containerNormNote')}
+                        </span>
+                      </span>
+                    </Form.Label>
+                    <Form.Control
+                      className="admin-product-compact-field"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={productForm.container_norm}
+                      onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
+                    />
+                  </Form.Group>
+                )}
 
                 <Form.Group className="mb-0">
                   <Form.Label className="d-flex align-items-center gap-2">
@@ -13006,24 +13028,6 @@ function AdminDashboard() {
                   </Form.Text>
                 </div>
               )}
-
-              <Row className="g-3">
-                {productForm.container_id && (
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>{t('containerNormLabel')}</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={productForm.container_norm}
-                        onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
-                      />
-                      <Form.Text className="text-muted">{t('containerNormNote')}</Form.Text>
-                    </Form.Group>
-                  </Col>
-                )}
-              </Row>
 
               {!productForm.size_enabled && (
                 <Row>

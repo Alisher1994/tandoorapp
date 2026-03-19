@@ -1440,7 +1440,7 @@ function Cart() {
 
                 {containerTotal > 0 && (
                   <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">📦 {language === 'uz' ? 'Paket / Idish' : 'Пакет / Посуда'}:</span>
+                    <span className="text-muted">📦 {language === 'uz' ? 'Fasovka' : 'Фасовка'}:</span>
                     <span className="text-muted">{formatPrice(containerTotal)} {t('sum')}</span>
                   </div>
                 )}
@@ -1786,7 +1786,7 @@ function Cart() {
               </div>
               {containerTotal > 0 && (
                 <div className="d-flex justify-content-between">
-                  <span>📦 {language === 'uz' ? 'Paket / Idish' : 'Пакет / Посуда'}:</span>
+                  <span>📦 {language === 'uz' ? 'Fasovka' : 'Фасовка'}:</span>
                   <span>{formatPrice(containerTotal)} {t('sum')}</span>
                 </div>
               )}
