@@ -1386,9 +1386,9 @@ function AdminDashboard() {
     setLeafletMapProvider(fallbackProvider);
     saveMapProvider(fallbackProvider);
   }, [leafletMapProvider]);
-  const variantSupportContactName = String(billingInfo?.requisites?.card_holder || '').trim();
-  const variantSupportPhone = String(billingInfo?.requisites?.phone_number || '').trim();
-  const variantSupportTelegram = String(billingInfo?.requisites?.telegram_username || '').trim();
+  const variantSupportContactName = String(billingInfo?.requisites?.card_holder || '').trim() || 'Akromov Davron';
+  const variantSupportPhone = String(billingInfo?.requisites?.phone_number || '').trim() || '+998993025345';
+  const variantSupportTelegram = String(billingInfo?.requisites?.telegram_username || '').trim() || '@budavron';
   const variantSupportTelegramHandle = variantSupportTelegram.replace(/^@+/, '');
   const variantSupportTelegramLink = variantSupportTelegramHandle
     ? `https://t.me/${encodeURIComponent(variantSupportTelegramHandle)}`
@@ -12350,39 +12350,39 @@ function AdminDashboard() {
                 </Alert>
               )}
 
-              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                <div className="small text-muted">
-                  {language === 'uz'
-                    ? "Kamida bitta nom maydoni to'ldirilishi kerak: RU yoki UZ."
-                    : 'Обязательно заполните хотя бы одно название: RU или UZ.'}
-                </div>
-                <Button
-                  type="button"
-                  variant="light"
-                  className="admin-product-ai-generate-btn"
-                  title={language === 'uz'
-                    ? 'AI: RU/UZ nom va tavsifni generatsiya qilish'
-                    : 'AI: сгенерировать RU/UZ название и описание'}
-                  onClick={handleGenerateProductLocalizedText}
-                  disabled={isGeneratingProductLocalizedText}
-                >
-                  {isGeneratingProductLocalizedText ? (
-                    <Spinner animation="border" size="sm" />
-                  ) : (
-                    <i className="bi bi-stars" aria-hidden="true" />
-                  )}
-                </Button>
+              <div className="small text-muted mb-2">
+                {language === 'uz'
+                  ? "Kamida bitta nom maydoni to'ldirilishi kerak: RU yoki UZ."
+                  : 'Обязательно заполните хотя бы одно название: RU или UZ.'}
               </div>
 
               <Row className="g-3">
                 <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={productForm.name_ru}
-                      onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
-                    />
+                    <InputGroup>
+                      <Form.Control
+                        type="text"
+                        value={productForm.name_ru}
+                        onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
+                      />
+                      <Button
+                        type="button"
+                        variant="light"
+                        className="admin-product-ai-generate-inline-btn"
+                        title={language === 'uz'
+                          ? 'AI: RU/UZ nom va tavsifni generatsiya qilish'
+                          : 'AI: сгенерировать RU/UZ название и описание'}
+                        onClick={handleGenerateProductLocalizedText}
+                        disabled={isGeneratingProductLocalizedText}
+                      >
+                        {isGeneratingProductLocalizedText ? (
+                          <Spinner animation="border" size="sm" />
+                        ) : (
+                          <i className="bi bi-stars" aria-hidden="true" />
+                        )}
+                      </Button>
+                    </InputGroup>
                   </Form.Group>
                 </Col>
                 <Col md={6}>
@@ -12446,64 +12446,24 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
                 <Col md={6}>
-                  <div className="p-3 rounded-3 border bg-light d-flex flex-column gap-2 h-100">
+                  <div className="p-3 rounded-3 border bg-light d-flex flex-row flex-wrap align-items-center gap-4 h-100">
                     <Form.Check
                       className="admin-product-switch"
                       type="switch"
-                      label="Показывать как нет в наличии"
+                      label="Нет в наличии"
                       checked={!productForm.in_stock}
                       onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
                     />
                     <Form.Check
                       className="admin-product-switch"
                       type="switch"
-                      label="Полностью скрыть из каталога"
+                      label="Скрыть из каталога"
                       checked={!!productForm.is_hidden_catalog}
                       onChange={(e) => setProductForm({ ...productForm, is_hidden_catalog: e.target.checked })}
                     />
-                    <small className="text-muted mt-1">
-                      Этот режим скрывает товар из клиентского каталога полностью.
-                    </small>
                   </div>
                 </Col>
               </Row>
-
-              {!Boolean(restaurantSettings?.size_variants_enabled) && (
-                <Row className="g-3 mt-1">
-                  <Col xs={12}>
-                    <div className="p-2 rounded-3 border bg-light small admin-product-variant-support-line">
-                      <i className="bi bi-info-circle-fill text-primary me-2" />
-                      <span>
-                        {language === 'uz'
-                          ? "Agar mahsulot variantlarini yoqmoqchi bo'lsangiz, dastur ta'minotchisiga murojaat qiling."
-                          : 'Если хотите включить варианты товаров, обратитесь к поставщику программы.'}
-                      </span>
-                      <span className="mx-2 text-muted">|</span>
-                      <span>
-                        {language === 'uz' ? "Aloqa (superadmin):" : 'Контакты (суперадмин):'}
-                      </span>
-                      <span className="mx-2">
-                        <strong>{language === 'uz' ? 'Ism' : 'Имя'}:</strong>{' '}
-                        {variantSupportContactName || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
-                      </span>
-                      <span className="mx-2">
-                        <strong>{language === 'uz' ? 'Telefon' : 'Телефон'}:</strong>{' '}
-                        {variantSupportPhone || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
-                      </span>
-                      <span className="mx-2">
-                        <strong>Telegram:</strong>{' '}
-                        {variantSupportTelegramLink ? (
-                          <a href={variantSupportTelegramLink} target="_blank" rel="noreferrer">
-                            @{variantSupportTelegramHandle}
-                          </a>
-                        ) : (
-                          (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')
-                        )}
-                      </span>
-                    </div>
-                  </Col>
-                </Row>
-              )}
 
               {Boolean(restaurantSettings?.size_variants_enabled) && (
                 <Row className="g-3 mt-1">
@@ -12848,6 +12808,19 @@ function AdminDashboard() {
 
               <div className="admin-product-main-fields-grid">
                 <Form.Group className="mb-0">
+                  <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
+                  <Form.Control
+                    className="admin-product-compact-field"
+                    type="text"
+                    value={productForm.barcode}
+                    onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
+                    placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
+                    maxLength={120}
+                    disabled={Boolean(productForm.size_enabled)}
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-0">
                   <Form.Label>{t('sortOrderLabel')}</Form.Label>
                   <Form.Control
                     className="admin-product-compact-field"
@@ -12918,10 +12891,19 @@ function AdminDashboard() {
                 </Form.Group>
 
                 <Form.Group className="mb-0">
-                  <Form.Label>
-                    {t('containerLabel')}{' '}
-                    <span key={`container-word-${activeContainerLabelWord}`} className="admin-container-label-animated-word">
-                      {activeContainerLabelWord}
+                  <Form.Label className="d-flex align-items-center gap-2">
+                    <span>{language === 'uz' ? 'Paket / Idish' : 'Пакет / Посуда'}</span>
+                    <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish turlari" : 'Типы тары'}>
+                      i
+                      <span className="admin-container-help-tooltip">
+                        <span>{language === 'uz' ? 'Turlari:' : 'Варианты:'}</span>{' '}
+                        <span key={`container-word-${activeContainerLabelWord}`} className="admin-container-help-animated-word">
+                          {activeContainerLabelWord}
+                        </span>
+                        <span className="admin-container-help-tooltip-list">
+                          {' '}({containerLabelAnimatedWords.join(', ')})
+                        </span>
+                      </span>
                     </span>
                   </Form.Label>
                   <Form.Select
@@ -12943,7 +12925,9 @@ function AdminDashboard() {
                       </option>
                     ))}
                   </Form.Select>
-                  <Form.Text className="text-muted">{t('containerCostNote')}</Form.Text>
+                  <Form.Text className="text-muted">
+                    {language === 'uz' ? "Idish narxi buyurtmaga qo'shiladi." : 'Стоимость посуды добавится к заказу.'}
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-0">
@@ -12958,7 +12942,11 @@ function AdminDashboard() {
                     disabled={productForm.unit !== 'кг'}
                     placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
                   />
-                  <Form.Text className="text-muted">{t('orderStepNote')}</Form.Text>
+                  <Form.Text className="text-muted">
+                    {language === 'uz'
+                      ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
+                      : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
+                  </Form.Text>
                 </Form.Group>
               </div>
 
@@ -13008,21 +12996,6 @@ function AdminDashboard() {
               )}
 
               <Row className="g-3">
-                {!productForm.size_enabled && (
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={productForm.barcode}
-                        onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
-                        placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
-                        maxLength={120}
-                      />
-                    </Form.Group>
-                  </Col>
-                )}
-
                 {productForm.container_id && (
                   <Col md={6}>
                     <Form.Group className="mb-3">
@@ -13154,6 +13127,34 @@ function AdminDashboard() {
                         ⭐ - главное фото, ✕ - удалить, кнопка "Выбрать" - загрузка файла.
                       </Form.Text>
                     </Form.Group>
+                  </Col>
+                </Row>
+              )}
+
+              {!Boolean(restaurantSettings?.size_variants_enabled) && (
+                <Row className="g-3 mt-1">
+                  <Col xs={12}>
+                    <div className="p-2 rounded-3 border bg-light small admin-product-variant-support-line">
+                      <span>
+                        {language === 'uz'
+                          ? "Agar mahsulot variantlarini yoqmoqchi bo'lsangiz, dastur ta'minotchisiga murojaat qiling."
+                          : 'Если хотите включить варианты товаров, обратитесь к поставщику программы.'}
+                      </span>
+                      <span className="mx-2 text-muted">|</span>
+                      <span>{language === 'uz' ? 'Aloqa (superadmin):' : 'Контакты (суперадмин):'}</span>
+                      <span className="mx-2"><strong>{language === 'uz' ? 'Ism' : 'Имя'}:</strong> {variantSupportContactName}</span>
+                      <span className="mx-2"><strong>{language === 'uz' ? 'Telefon' : 'Телефон'}:</strong> {variantSupportPhone}</span>
+                      <span className="mx-2">
+                        <strong>Telegram:</strong>{' '}
+                        {variantSupportTelegramLink ? (
+                          <a href={variantSupportTelegramLink} target="_blank" rel="noreferrer">
+                            @{variantSupportTelegramHandle}
+                          </a>
+                        ) : (
+                          `@${variantSupportTelegramHandle}`
+                        )}
+                      </span>
+                    </div>
                   </Col>
                 </Row>
               )}
