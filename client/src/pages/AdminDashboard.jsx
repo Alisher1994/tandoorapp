@@ -41,8 +41,22 @@ import {
   normalizeMapProvider,
   saveMapProvider
 } from '../utils/mapTileProviders';
+import {
+  BookOpen,
+  Boxes,
+  CalendarDays,
+  Home,
+  MessageCircle,
+  Package,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  ShoppingCart,
+  Users
+} from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'admin_sidebar_collapsed_v1';
 const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
 const MILLENIUM_TAXI_URL_TEMPLATE = import.meta.env.VITE_MILLENIUM_TAXI_URL_TEMPLATE || '';
 const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxiapp://start?q={lat},{lng}';
@@ -1080,6 +1094,14 @@ function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  });
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
@@ -1473,6 +1495,35 @@ function AdminDashboard() {
     { value: 'kanban', icon: 'bi-columns-gap', label: 'Kanban' }
   ];
   const isOrdersKanbanMode = mainTab === 'orders' && ordersViewMode === 'kanban';
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY, isSidebarCollapsed ? '1' : '0');
+    } catch (_) {
+      // ignore localStorage failures
+    }
+  }, [isSidebarCollapsed]);
+  const adminSidebarTabsMeta = useMemo(() => ({
+    dashboard: { label: t('dashboard'), icon: Home },
+    orders: { label: t('orders'), icon: ShoppingCart },
+    reservations: { label: t('reservations'), icon: CalendarDays },
+    products: { label: t('products'), icon: Boxes },
+    containers: { label: t('containers'), icon: Package },
+    feedback: { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle },
+    clients: { label: t('clients'), icon: Users },
+    settings: { label: t('settings'), icon: Settings },
+    help: { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen }
+  }), [language, t]);
+  const renderAdminSidebarTabTitle = (key) => {
+    const meta = adminSidebarTabsMeta[key] || { label: key, icon: Home };
+    const Icon = meta.icon;
+    return (
+      <span className="admin-side-tab-title">
+        <Icon size={16} className="admin-side-tab-icon" />
+        <span className="admin-side-tab-label">{meta.label}</span>
+      </span>
+    );
+  };
   const effectiveOrdersStatusFilter = ordersViewMode === 'kanban' ? 'all' : statusFilter;
   const getKanbanColumnFilter = useCallback((columnKey) => ({
     ...KANBAN_COLUMN_FILTER_DEFAULT,
@@ -7126,13 +7177,32 @@ function AdminDashboard() {
 
         <Card className={`admin-card admin-main-card${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
           <Card.Body>
-            <Tabs
-              activeKey={mainTab}
-              onSelect={(k) => setMainTab(k || 'dashboard')}
-              className={`admin-tabs${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}`}
-            >
+            <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+              <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
+                <button
+                  type="button"
+                  className="admin-sidebar-toggle-btn"
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  title={isSidebarCollapsed
+                    ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                    : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                  aria-label={isSidebarCollapsed
+                    ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                    : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                >
+                  {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+                  <span className="sidebar-toggle-label">
+                    {language === 'uz' ? 'Menyu' : 'Меню'}
+                  </span>
+                </button>
+              </div>
+              <Tabs
+                activeKey={mainTab}
+                onSelect={(k) => setMainTab(k || 'dashboard')}
+                className={`admin-tabs admin-tabs-sidebar${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}${isSidebarCollapsed ? ' is-collapsed' : ''}`}
+              >
               {/* Dashboard Tab */}
-              <Tab eventKey="dashboard" title={t('dashboard')}>
+              <Tab eventKey="dashboard" title={renderAdminSidebarTabTitle('dashboard')}>
                 {renderAnalyticsDashboard()}
                 {false && (
                   <>
@@ -8048,7 +8118,7 @@ function AdminDashboard() {
 
               </Tab>
 
-              <Tab eventKey="orders" title={t('orders')}>
+              <Tab eventKey="orders" title={renderAdminSidebarTabTitle('orders')}>
 
                 <div className="d-flex justify-content-between align-items-center mb-3 gap-2 admin-order-toolbar">
                   {/* Status pill tabs */}
@@ -8470,7 +8540,7 @@ function AdminDashboard() {
               </Tab>
 
               {isReservationModuleEnabled && (
-              <Tab eventKey="reservations" title={t('reservations')}>
+              <Tab eventKey="reservations" title={renderAdminSidebarTabTitle('reservations')}>
                 <Card className="border-0 shadow-sm mb-3">
                   <Card.Body>
                     <div className="d-flex flex-wrap justify-content-between align-items-start gap-3">
@@ -8491,7 +8561,7 @@ function AdminDashboard() {
               </Tab>
               )}
 
-              <Tab eventKey="products" title={t('products')}>
+              <Tab eventKey="products" title={renderAdminSidebarTabTitle('products')}>
 
                 <div className="d-flex justify-content-between align-items-center mb-3 admin-product-toolbar">
                   <h5 className="mb-0 admin-mobile-section-title">{t('products')}</h5>
@@ -8888,7 +8958,7 @@ function AdminDashboard() {
 
               </Tab>
 
-              <Tab eventKey="containers" title={t('containers')}>
+              <Tab eventKey="containers" title={renderAdminSidebarTabTitle('containers')}>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="admin-mobile-section-title">{t('containers')}</h5>
@@ -8950,10 +9020,11 @@ function AdminDashboard() {
               </Tab>
 
               <Tab eventKey="feedback" title={
-                <span>
-                  {t('feedbackTab')}
+                <span className="admin-side-tab-title">
+                  <MessageCircle size={16} className="admin-side-tab-icon" />
+                  <span className="admin-side-tab-label">{t('feedbackTab')}</span>
                   {feedbackStats.new_count > 0 && (
-                    <Badge bg="danger" className="ms-2">{feedbackStats.new_count}</Badge>
+                    <Badge bg="danger" className="ms-1">{feedbackStats.new_count}</Badge>
                   )}
                 </span>
               }>
@@ -9064,7 +9135,7 @@ function AdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="clients" title={t('clients')}>
+              <Tab eventKey="clients" title={renderAdminSidebarTabTitle('clients')}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="admin-mobile-section-title mb-0">{t('clients')} ({customers.total || 0})</h5>
                   <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
@@ -9199,7 +9270,7 @@ function AdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="settings" title={<span>{t('settings')}</span>}>
+              <Tab eventKey="settings" title={renderAdminSidebarTabTitle('settings')}>
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
@@ -10179,7 +10250,7 @@ function AdminDashboard() {
                 </div>
               </Tab>
 
-              <Tab eventKey="help" title={language === 'uz' ? "Yo'riqnomalar" : 'Инструкции'}>
+              <Tab eventKey="help" title={renderAdminSidebarTabTitle('help')}>
                 <Card className="admin-help-shell border-0 rounded-4 overflow-hidden">
                   <Card.Body className="p-4 admin-help-body">
                     <div className="admin-help-header d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -10293,6 +10364,7 @@ function AdminDashboard() {
                 </Card>
               </Tab>
             </Tabs>
+            </div>
           </Card.Body>
         </Card>
 

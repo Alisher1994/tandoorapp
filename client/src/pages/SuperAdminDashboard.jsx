@@ -9,6 +9,24 @@ import {
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
   Toast, ToastContainer, Dropdown
 } from 'react-bootstrap';
+import {
+  BarChart3,
+  BookOpen,
+  FileText,
+  FolderTree,
+  Globe,
+  Megaphone,
+  Package,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Puzzle,
+  Receipt,
+  Shield,
+  Store,
+  UserCog,
+  Users,
+  Wallet
+} from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +47,7 @@ import {
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -749,6 +768,14 @@ function SuperAdminDashboard() {
 
   // State
   const [activeTab, setActiveTab] = useState('restaurants');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem(SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -7032,6 +7059,14 @@ function SuperAdminDashboard() {
     if (!nextLanguage || nextLanguage === language) return;
     setLanguage(nextLanguage);
   };
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY, isSidebarCollapsed ? '1' : '0');
+    } catch (_) {
+      // ignore localStorage failures
+    }
+  }, [isSidebarCollapsed]);
 
   const resetActiveTabFilters = () => {
     if (activeTab === 'restaurants') {
@@ -7262,6 +7297,33 @@ function SuperAdminDashboard() {
         previewStore: 'Магазин для превью',
         previewStorePlaceholder: 'Выберите магазин'
       };
+
+  const superAdminSidebarTabsMeta = useMemo(() => ({
+    analytics: { label: language === 'uz' ? 'Analitika' : 'Аналитика', icon: BarChart3 },
+    restaurants: { label: t('restaurants'), icon: Store },
+    global_products: { label: language === 'uz' ? 'Global mahsulotlar' : 'Глобальные товары', icon: Globe },
+    activity_types: { label: language === 'uz' ? 'Faoliyat turlari' : 'Виды деятельности', icon: Puzzle },
+    reservation_templates: { label: language === 'uz' ? 'Bron shablonlari' : 'Шаблоны брони', icon: Package },
+    help_instructions: { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen },
+    operators: { label: t('operators'), icon: UserCog },
+    customers: { label: t('clients'), icon: Users },
+    categories: { label: t('categories'), icon: FolderTree },
+    ads: { label: adI18n.tab, icon: Megaphone },
+    billing_transactions: { label: language === 'uz' ? "To'lovlar" : 'Поступления', icon: Receipt },
+    billing: { label: t('billingSettings'), icon: Wallet },
+    security: { label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность', icon: Shield },
+    logs: { label: t('logs'), icon: FileText }
+  }), [adI18n.tab, language, t]);
+  const renderSuperAdminSidebarTabTitle = (key) => {
+    const meta = superAdminSidebarTabsMeta[key] || { label: key, icon: FileText };
+    const Icon = meta.icon;
+    return (
+      <span className="admin-side-tab-title">
+        <Icon size={16} className="admin-side-tab-icon" />
+        <span className="admin-side-tab-label">{meta.label}</span>
+      </span>
+    );
+  };
 
   const mobileSheetI18n = language === 'uz'
     ? { title: 'Filtrlar', reset: 'Tozalash', apply: "Qo'llash" }
@@ -8062,13 +8124,36 @@ function SuperAdminDashboard() {
         {/* Main Content */}
         <Card className="admin-card border-0 shadow-sm">
           <Card.Body className="p-4">
-            <Tabs activeKey={activeTab} onSelect={setActiveTab} className="admin-tabs mb-4">
-              <Tab eventKey="analytics" title={`📈 ${language === 'uz' ? 'Analitika' : 'Аналитика'}`}>
+            <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+              <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
+                <button
+                  type="button"
+                  className="admin-sidebar-toggle-btn"
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  title={isSidebarCollapsed
+                    ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                    : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                  aria-label={isSidebarCollapsed
+                    ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                    : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                >
+                  {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+                  <span className="sidebar-toggle-label">
+                    {language === 'uz' ? 'Menyu' : 'Меню'}
+                  </span>
+                </button>
+              </div>
+              <Tabs
+                activeKey={activeTab}
+                onSelect={setActiveTab}
+                className={`admin-tabs admin-tabs-sidebar mb-4${isSidebarCollapsed ? ' is-collapsed' : ''}`}
+              >
+              <Tab eventKey="analytics" title={renderSuperAdminSidebarTabTitle('analytics')}>
                 {renderOverviewAnalyticsTab()}
               </Tab>
 
               {/* Restaurants Tab */}
-              <Tab eventKey="restaurants" title={`🏪 ${t('restaurants')}`}>
+              <Tab eventKey="restaurants" title={renderSuperAdminSidebarTabTitle('restaurants')}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageRestaurants')}</h5>
                   <div className="d-none d-lg-flex align-items-center gap-2">
@@ -8411,7 +8496,7 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="global_products" title={`🌐 ${language === 'uz' ? 'Global mahsulotlar' : 'Глобальные товары'}`}>
+              <Tab eventKey="global_products" title={renderSuperAdminSidebarTabTitle('global_products')}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
                     {language === 'uz' ? 'Global mahsulotlar katalogi' : 'Каталог глобальных товаров'}
@@ -8656,7 +8741,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Activity Types Tab */}
-              <Tab eventKey="activity_types" title="🧩 Виды деятельности">
+              <Tab eventKey="activity_types" title={renderSuperAdminSidebarTabTitle('activity_types')}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="fw-bold mb-0">Справочник видов деятельности</h5>
                   <div className="d-flex align-items-center gap-2">
@@ -8770,7 +8855,7 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="reservation_templates" title={`🪑 ${language === 'uz' ? 'Bron shablonlari' : 'Шаблоны брони'}`}>
+              <Tab eventKey="reservation_templates" title={renderSuperAdminSidebarTabTitle('reservation_templates')}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <div>
                     <h5 className="fw-bold mb-0">{language === 'uz' ? "Bron uchun element shablonlari" : 'Шаблоны элементов для бронирования'}</h5>
@@ -8879,7 +8964,7 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
 
-              <Tab eventKey="help_instructions" title={`🎬 ${language === 'uz' ? "Yo'riqnomalar" : 'Инструкции'}`}>
+              <Tab eventKey="help_instructions" title={renderSuperAdminSidebarTabTitle('help_instructions')}>
                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="fw-bold mb-0">
                     {language === 'uz' ? "Telegram va admin yo'riqnomalari" : 'Инструкции для Telegram и web-панели'}
@@ -8961,7 +9046,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Operators Tab */}
-              <Tab eventKey="operators" title={`👨‍💻 ${t('operators')}`}>
+              <Tab eventKey="operators" title={renderSuperAdminSidebarTabTitle('operators')}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageOperators')}</h5>
                   <div className="d-flex align-items-center gap-2">
@@ -9201,7 +9286,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Customers Tab */}
-              <Tab eventKey="customers" title={`👤 ${t('clients')}`}>
+              <Tab eventKey="customers" title={renderSuperAdminSidebarTabTitle('customers')}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
                     {t('saListCustomers')} ({isHiddenOpsTelemetryEnabled ? visibleCustomersRows.length : customers.total})
@@ -9421,7 +9506,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Categories Tab */}
-              <Tab eventKey="categories" title={`📁 ${t('categories')}`}>
+              <Tab eventKey="categories" title={renderSuperAdminSidebarTabTitle('categories')}>
                 <div className="d-flex justify-content-between align-items-center mb-4">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageCategories')}</h5>
                   <div className="d-flex align-items-center gap-2">
@@ -9573,7 +9658,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Ads Tab */}
-              <Tab eventKey="ads" title={`📢 ${adI18n.tab}`}>
+              <Tab eventKey="ads" title={renderSuperAdminSidebarTabTitle('ads')}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <div className="superadmin-mobile-hide-title">
                     <h5 className="fw-bold mb-1">{adI18n.title}</h5>
@@ -9830,7 +9915,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Billing Transactions Tab */}
-              <Tab eventKey="billing_transactions" title={`💸 ${language === 'uz' ? "To'lovlar" : 'Поступления'}`}>
+              <Tab eventKey="billing_transactions" title={renderSuperAdminSidebarTabTitle('billing_transactions')}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
                     {language === 'uz' ? "Do'konlardan to'lovlar jurnali" : 'Журнал оплат магазинов'}
@@ -9996,7 +10081,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Billing Settings Tab */}
-              <Tab eventKey="billing" title={`💰 ${t('billingSettings')}`}>
+              <Tab eventKey="billing" title={renderSuperAdminSidebarTabTitle('billing')}>
                 <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
                   <div className="d-flex justify-content-between align-items-center mb-4">
                     <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('billingGlobalSettings')}</h5>
@@ -10688,7 +10773,7 @@ function SuperAdminDashboard() {
                 </Form>
               </Tab>
 
-              <Tab eventKey="security" title={`🛡️ ${language === 'uz' ? 'Xavfsizlik' : 'Безопасность'}`}>
+              <Tab eventKey="security" title={renderSuperAdminSidebarTabTitle('security')}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
                     {language === 'uz' ? 'Tizim hujumlari monitori' : 'Мониторинг атак на систему'}
@@ -10992,7 +11077,7 @@ function SuperAdminDashboard() {
               </Tab>
 
               {/* Logs Tab */}
-              <Tab eventKey="logs" title={`📋 ${t('logs')}`}>
+              <Tab eventKey="logs" title={renderSuperAdminSidebarTabTitle('logs')}>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('activityLog')}</h5>
                   <Button variant="outline-secondary" className="btn-mobile-filter d-lg-none ms-auto" onClick={() => setShowMobileFiltersSheet(true)}>
@@ -11282,6 +11367,7 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
             </Tabs>
+            </div>
           </Card.Body>
         </Card>
       </Container>
