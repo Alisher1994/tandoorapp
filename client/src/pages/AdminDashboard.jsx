@@ -1518,17 +1518,25 @@ function AdminDashboard() {
     setMainTab(key);
     setIsMobileSidebarOpen(false);
   }, [mainTab]);
-  const adminSidebarTabsMeta = useMemo(() => ({
-    dashboard: { label: t('dashboard'), icon: Home },
-    orders: { label: t('orders'), icon: ShoppingCart },
-    reservations: { label: t('reservations'), icon: CalendarDays },
-    products: { label: t('products'), icon: Boxes },
-    containers: { label: t('containers'), icon: Package },
-    feedback: { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle },
-    clients: { label: t('clients'), icon: Users },
-    settings: { label: t('settings'), icon: Settings },
-    help: { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen }
-  }), [language, t]);
+  const adminSidebarTabsMeta = useMemo(() => {
+    const tabs = {
+      dashboard: { label: t('dashboard'), icon: Home },
+      orders: { label: t('orders'), icon: ShoppingCart }
+    };
+
+    if (isReservationModuleEnabled) {
+      tabs.reservations = { label: t('reservations'), icon: CalendarDays };
+    }
+
+    tabs.products = { label: t('products'), icon: Boxes };
+    tabs.containers = { label: t('containers'), icon: Package };
+    tabs.feedback = { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle };
+    tabs.clients = { label: t('clients'), icon: Users };
+    tabs.settings = { label: t('settings'), icon: Settings };
+    tabs.help = { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen };
+
+    return tabs;
+  }, [isReservationModuleEnabled, language, t]);
   const renderAdminSidebarTabTitle = (key) => {
     const meta = adminSidebarTabsMeta[key] || { label: key, icon: Home };
     const Icon = meta.icon;
