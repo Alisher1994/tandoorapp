@@ -869,6 +869,37 @@ const buildModelCandidates = (items = []) => {
   }
   return normalized;
 };
+const formatAiProviderTestError = (error, providerType = 'gemini') => {
+  const statusCode = Number(error?.response?.status || 0);
+  const payloadMessage = (() => {
+    const data = error?.response?.data;
+    if (!data) return '';
+    if (typeof data === 'string') return data;
+    if (typeof data?.error === 'string') return data.error;
+    if (typeof data?.message === 'string') return data.message;
+    return '';
+  })();
+  const rawMessage = String(
+    payloadMessage
+    || error?.message
+    || 'ошибка токена/модели'
+  ).trim();
+  const normalized = rawMessage.toLowerCase();
+  const isUnauthorized = [401, 403].includes(statusCode)
+    || normalized.includes('401')
+    || normalized.includes('403')
+    || normalized.includes('unauthorized')
+    || normalized.includes('forbidden');
+
+  if (!isUnauthorized) {
+    return rawMessage.slice(0, 240);
+  }
+
+  if (providerType === 'pollinations') {
+    return 'Недействительный API key Pollinations (401/403). Проверьте ключ или очистите поле API key и повторите тест.';
+  }
+  return 'Недействительный API key (401/403) или модель недоступна для вашего ключа.';
+};
 
 const getActiveAiProviderRuntimeConfig = async () => {
   await ensureAiProvidersSchema();
@@ -1074,8 +1105,8 @@ const ensureAiFeatureEnabled = async (res) => {
   }
 };
 
-const generateGlobalProductImageWithGemini = async (prompt) => {
-  const runtime = await resolveGeminiRuntimeConfig();
+const generateGlobalProductImageWithGemini = async (prompt, { runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolveGeminiRuntimeConfig();
   const apiKey = runtime.apiKey;
   if (!apiKey) return null;
 
@@ -1111,8 +1142,8 @@ const generateGlobalProductImageWithGemini = async (prompt) => {
   return null;
 };
 
-const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false } = {}) => {
-  const runtime = await resolveGeminiRuntimeConfig();
+const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false, runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolveGeminiRuntimeConfig();
   const apiKey = runtime.apiKey;
   if (!apiKey) return null;
 
@@ -1152,8 +1183,8 @@ const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false 
   return null;
 };
 
-const generateGlobalProductImageWithOpenAI = async (prompt) => {
-  const runtime = await resolveOpenAiRuntimeConfig();
+const generateGlobalProductImageWithOpenAI = async (prompt, { runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolveOpenAiRuntimeConfig();
   const apiKey = runtime.apiKey;
   if (!apiKey) return null;
 
@@ -1199,8 +1230,8 @@ const generateGlobalProductImageWithOpenAI = async (prompt) => {
   return null;
 };
 
-const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false } = {}) => {
-  const runtime = await resolveOpenAiRuntimeConfig();
+const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false, runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolveOpenAiRuntimeConfig();
   const apiKey = runtime.apiKey;
   if (!apiKey) return null;
 
@@ -1250,8 +1281,8 @@ const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false 
   if (lastError) throw lastError;
   return null;
 };
-const generateGlobalProductTextWithPollinations = async (prompt, { expectJson = false } = {}) => {
-  const runtime = await resolvePollinationsRuntimeConfig();
+const generateGlobalProductTextWithPollinations = async (prompt, { expectJson = false, runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolvePollinationsRuntimeConfig();
   let textPrompt = String(prompt || '').trim();
   if (!textPrompt) return null;
   if (expectJson) {
@@ -1415,8 +1446,8 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
   }
 };
 
-const generateGlobalProductImageWithPollinations = async (prompt) => {
-  const runtime = await resolvePollinationsRuntimeConfig();
+const generateGlobalProductImageWithPollinations = async (prompt, { runtimeOverride = null } = {}) => {
+  const runtime = runtimeOverride || await resolvePollinationsRuntimeConfig();
   const negativePrompt = [
     'multiple objects',
     'shelf',
@@ -7716,24 +7747,97 @@ router.post('/ai/providers/:id/test', async (req, res) => {
 
     const row = providerResult.rows[0];
     const provider = normalizeAiProviderDbRow(row);
-    const providerType = normalizeAiProviderType(provider.provider_type, 'gemini');
-    const apiKey = decryptAiSecret(row.api_key_encrypted);
+    const requestedProviderType = normalizeAiProviderType(
+      req.body?.provider_type,
+      normalizeAiProviderType(provider.provider_type, 'gemini')
+    );
+    const requestedImageModel = normalizeAiProviderModel(
+      req.body?.image_model === undefined ? provider.image_model : req.body?.image_model
+    );
+    const requestedTextModel = normalizeAiProviderModel(
+      req.body?.text_model === undefined ? provider.text_model : req.body?.text_model
+    );
+    const requestedName = normalizeAiProviderName(
+      req.body?.name === undefined ? provider.name : req.body?.name
+    ) || provider.name;
+    const requestedEnabled = normalizeBooleanFlag(
+      req.body?.is_enabled,
+      provider.is_enabled !== false
+    );
+    const requestedActive = normalizeBooleanFlag(
+      req.body?.is_active,
+      provider.is_active === true
+    );
+    const hasApiKeyField = Object.prototype.hasOwnProperty.call(req.body || {}, 'api_key');
+    const shouldClearApiKey = normalizeBooleanFlag(req.body?.clear_api_key, false);
+    const savedApiKey = decryptAiSecret(row.api_key_encrypted);
+    const requestedApiKeyRaw = hasApiKeyField ? String(req.body?.api_key || '').trim() : null;
+    const apiKey = shouldClearApiKey
+      ? ''
+      : (requestedApiKeyRaw !== null ? requestedApiKeyRaw : savedApiKey);
 
-    if (provider.is_enabled === false) {
+    if (requestedEnabled === false) {
       return res.status(400).json({
         error: 'Провайдер выключен. Включите его перед проверкой.'
       });
     }
-    if (provider.is_active !== true) {
+    if (requestedActive !== true) {
       return res.status(400).json({
         error: 'Провайдер не активирован. Активируйте и сохраните перед проверкой.'
       });
     }
-    if (!apiKey && providerType !== 'pollinations') {
+    if (!apiKey && requestedProviderType !== 'pollinations') {
       return res.status(400).json({
         error: 'У провайдера отсутствует API ключ. Проверьте токен.'
       });
     }
+
+    const providerRef = {
+      id: provider.id || null,
+      name: String(requestedName || provider.name || '').trim() || `Provider #${provider.id}`,
+      provider_type: requestedProviderType
+    };
+    const geminiRuntimeOverride = {
+      apiKey,
+      imageModelCandidates: [...new Set([
+        normalizeAiProviderModel(requestedImageModel),
+        ...GEMINI_IMAGE_MODEL_CANDIDATES
+      ].filter(Boolean))],
+      textModelCandidates: [...new Set([
+        normalizeAiProviderModel(requestedTextModel),
+        ...GEMINI_TEXT_MODEL_CANDIDATES
+      ].filter(Boolean))],
+      providerRef
+    };
+    const openAiRuntimeOverride = {
+      apiKey,
+      imageModelCandidates: [...new Set([
+        normalizeAiProviderModel(requestedImageModel),
+        ...OPENAI_IMAGE_MODEL_CANDIDATES
+      ].filter(Boolean))],
+      textModelCandidates: [...new Set([
+        normalizeAiProviderModel(requestedTextModel),
+        ...OPENAI_TEXT_MODEL_CANDIDATES
+      ].filter(Boolean))],
+      providerRef
+    };
+    const pollinationsRuntimeOverride = {
+      apiKey: String(apiKey || '').trim(),
+      imageModelCandidates: buildModelCandidates([
+        normalizeAiProviderModel(requestedImageModel),
+        'flux',
+        'turbo',
+        ''
+      ]),
+      textModelCandidates: buildModelCandidates([
+        normalizeAiProviderModel(requestedTextModel),
+        '',
+        'openai',
+        'claude',
+        'gemini'
+      ]),
+      providerRef
+    };
 
     const textPrompt = 'Напиши 1 короткое предложение: тест AI провайдера для каталога.';
     const imagePrompt = 'Single product photo of a fresh red apple on white background, studio light, high quality';
@@ -7741,18 +7845,33 @@ router.post('/ai/providers/:id/test', async (req, res) => {
     let textResult = null;
     let imageResult = null;
 
-    if (providerType === 'gemini') {
-      textResult = await generateGlobalProductTextWithGemini(textPrompt, { expectJson: false });
-      imageResult = await generateGlobalProductImageWithGemini(imagePrompt);
-    } else if (providerType === 'openai') {
-      textResult = await generateGlobalProductTextWithOpenAI(textPrompt, { expectJson: false });
-      imageResult = await generateGlobalProductImageWithOpenAI(imagePrompt);
-    } else if (providerType === 'pollinations') {
-      textResult = await generateGlobalProductTextWithPollinations(textPrompt, { expectJson: false });
-      imageResult = await generateGlobalProductImageWithPollinations(imagePrompt);
+    if (requestedProviderType === 'gemini') {
+      textResult = await generateGlobalProductTextWithGemini(textPrompt, {
+        expectJson: false,
+        runtimeOverride: geminiRuntimeOverride
+      });
+      imageResult = await generateGlobalProductImageWithGemini(imagePrompt, {
+        runtimeOverride: geminiRuntimeOverride
+      });
+    } else if (requestedProviderType === 'openai') {
+      textResult = await generateGlobalProductTextWithOpenAI(textPrompt, {
+        expectJson: false,
+        runtimeOverride: openAiRuntimeOverride
+      });
+      imageResult = await generateGlobalProductImageWithOpenAI(imagePrompt, {
+        runtimeOverride: openAiRuntimeOverride
+      });
+    } else if (requestedProviderType === 'pollinations') {
+      textResult = await generateGlobalProductTextWithPollinations(textPrompt, {
+        expectJson: false,
+        runtimeOverride: pollinationsRuntimeOverride
+      });
+      imageResult = await generateGlobalProductImageWithPollinations(imagePrompt, {
+        runtimeOverride: pollinationsRuntimeOverride
+      });
     } else {
       return res.status(400).json({
-        error: `Проверка для типа "${providerType}" пока не поддерживается`
+        error: `Проверка для типа "${requestedProviderType}" пока не поддерживается`
       });
     }
 
@@ -7767,8 +7886,8 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       success: true,
       provider: {
         id: provider.id,
-        name: provider.name,
-        provider_type: providerType
+        name: providerRef.name,
+        provider_type: requestedProviderType
       },
       text_test: {
         model: String(textResult.model || '').trim() || null,
@@ -7781,8 +7900,9 @@ router.post('/ai/providers/:id/test', async (req, res) => {
     });
   } catch (error) {
     console.error('AI provider test error:', error);
+    const fallbackProviderType = normalizeAiProviderType(req.body?.provider_type, 'gemini');
     res.status(502).json({
-      error: `Проверка не пройдена: ${String(error?.message || 'ошибка токена/модели').slice(0, 220)}`
+      error: `Проверка не пройдена: ${formatAiProviderTestError(error, fallbackProviderType)}`
     });
   }
 });

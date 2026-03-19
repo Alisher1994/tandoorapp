@@ -10,6 +10,7 @@ import {
   Toast, ToastContainer, Dropdown
 } from 'react-bootstrap';
 import {
+  Bot,
   BarChart3,
   BookOpen,
   FileText,
@@ -490,6 +491,28 @@ const FilterIcon = () => (
   </svg>
 );
 
+const DiagnosticsOkIcon = () => (
+  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <circle cx="10" cy="10" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+    <path d="m6.5 10.2 2.2 2.3 4.8-5.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const DiagnosticsErrorIcon = () => (
+  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <circle cx="10" cy="10" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M7.2 7.2 12.8 12.8M12.8 7.2 7.2 12.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const DiagnosticsWarningIcon = () => (
+  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path d="M9.2 3.3a1 1 0 0 1 1.6 0l6.1 9.1c.45.67-.03 1.58-.84 1.58H3.95c-.81 0-1.29-.91-.84-1.58l6.1-9.1Z" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M10 7.2v3.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="10" cy="12.9" r=".7" fill="currentColor" />
+  </svg>
+);
+
 const SearchableRestaurantFilter = ({
   t,
   value,
@@ -858,6 +881,7 @@ function SuperAdminDashboard() {
     'ads',
     'billing_transactions',
     'billing',
+    'ai_settings',
     'security',
     'logs'
   ]), []);
@@ -1374,6 +1398,9 @@ function SuperAdminDashboard() {
     if (activeTab === 'ads') loadAdBanners();
     if (activeTab === 'billing') {
       loadBillingSettings();
+    }
+    if (activeTab === 'ai_settings') {
+      loadBillingSettings();
       loadAiProviders();
       loadAiUsageSummary(aiUsageDays);
     }
@@ -1439,7 +1466,7 @@ function SuperAdminDashboard() {
   }, [activeTab, adBannerStatusFilter]);
 
   useEffect(() => {
-    if (activeTab !== 'billing') return;
+    if (activeTab !== 'ai_settings') return;
     loadAiUsageSummary(aiUsageDays);
   }, [activeTab, aiUsageDays]);
 
@@ -3068,6 +3095,21 @@ function SuperAdminDashboard() {
     }));
   };
 
+  const buildAiProviderPayload = (provider = {}) => ({
+    name: String(provider.name || '').trim(),
+    provider_type: String(provider.provider_type || 'gemini').trim().toLowerCase(),
+    api_key: String(provider.api_key || '').trim(),
+    clear_api_key: provider.clear_api_key === true,
+    image_model: String(provider.image_model || '').trim(),
+    text_model: String(provider.text_model || '').trim(),
+    priority: Number.isFinite(Number(provider.priority)) ? Number(provider.priority) : 100,
+    is_enabled: provider.is_enabled !== false,
+    is_active: provider.is_active === true,
+    config_json: provider.config_json && typeof provider.config_json === 'object' && !Array.isArray(provider.config_json)
+      ? provider.config_json
+      : {}
+  });
+
   const saveAiProvider = async (provider) => {
     const providerKey = getAiProviderKey(provider);
     const hasName = Boolean(String(provider?.name || '').trim());
@@ -3077,20 +3119,7 @@ function SuperAdminDashboard() {
     }
     try {
       setAiProviderSavingId(providerKey);
-      const payload = {
-        name: String(provider.name || '').trim(),
-        provider_type: String(provider.provider_type || 'gemini').trim().toLowerCase(),
-        api_key: String(provider.api_key || '').trim(),
-        clear_api_key: provider.clear_api_key === true,
-        image_model: String(provider.image_model || '').trim(),
-        text_model: String(provider.text_model || '').trim(),
-        priority: Number.isFinite(Number(provider.priority)) ? Number(provider.priority) : 100,
-        is_enabled: provider.is_enabled !== false,
-        is_active: provider.is_active === true,
-        config_json: provider.config_json && typeof provider.config_json === 'object' && !Array.isArray(provider.config_json)
-          ? provider.config_json
-          : {}
-      };
+      const payload = buildAiProviderPayload(provider);
 
       let savedProviderId = Number(provider?.id || 0) || null;
       if (provider.id) {
@@ -3139,7 +3168,7 @@ function SuperAdminDashboard() {
     }
     try {
       setAiProviderTestingId(provider.id);
-      const response = await axios.post(`${API_URL}/superadmin/ai/providers/${provider.id}/test`);
+      const response = await axios.post(`${API_URL}/superadmin/ai/providers/${provider.id}/test`, buildAiProviderPayload(provider));
       const textPreview = String(response?.data?.text_test?.preview || '').trim();
       const imageModel = String(response?.data?.image_test?.model || '').trim();
       const textModel = String(response?.data?.text_test?.model || '').trim();
@@ -7426,6 +7455,7 @@ function SuperAdminDashboard() {
     ads: { label: adI18n.tab, icon: Megaphone },
     billing_transactions: { label: language === 'uz' ? "To'lovlar" : 'Поступления', icon: Receipt },
     billing: { label: t('billingSettings'), icon: Wallet },
+    ai_settings: { label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки', icon: Bot },
     security: { label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность', icon: Shield },
     logs: { label: t('logs'), icon: FileText }
   }), [adI18n.tab, language, t]);
@@ -7979,6 +8009,417 @@ function SuperAdminDashboard() {
 
     return null;
   };
+
+  const renderAiSettingsPanel = () => (
+    <>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+          {language === 'uz' ? 'AI sozlamalari va provayderlar' : 'AI настройки и провайдеры'}
+        </h5>
+        <Button type="button" className="btn-primary-custom px-4" onClick={saveBillingSettings}>
+          <span className="d-none d-sm-inline">{language === 'uz' ? 'AI saqlash' : 'Сохранить AI'}</span>
+          <span className="d-sm-none">{language === 'uz' ? 'Saqlash' : 'Сохранить'}</span>
+        </Button>
+      </div>
+
+      <Alert
+        variant={isAiFeatureEnabled ? 'light' : 'warning'}
+        className="border-0 shadow-sm rounded-4 mb-4"
+        style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+      >
+        <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+          <div>
+            <div className="fw-bold">
+              {language === 'uz' ? 'AI funksiyalari' : 'AI функционал'}
+            </div>
+            <div className="small text-muted">
+              {language === 'uz'
+                ? "O'chirilsa, superadmin panelidagi AI matn va rasm preview tugmalari ishlamaydi."
+                : 'При выключении AI-кнопки генерации текста и preview изображений в суперадминке не работают.'}
+            </div>
+          </div>
+          <Form.Check
+            type="switch"
+            id="superadmin-ai-enabled-switch"
+            className="fw-semibold"
+            label={isAiFeatureEnabled
+              ? (language === 'uz' ? 'AI yoqilgan' : 'AI включен')
+              : (language === 'uz' ? "AI o'chirilgan" : 'AI выключен')}
+            checked={isAiFeatureEnabled}
+            onChange={(e) => setBillingSettings((prev) => ({
+              ...prev,
+              ai_enabled: !!e.target.checked
+            }))}
+          />
+        </div>
+      </Alert>
+
+      <Card className="admin-card admin-section-panel mb-4">
+        <Card.Header className="admin-section-panel-header py-3 d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-2">
+          <h6 className="mb-0 fw-bold">AI провайдеры и ключи</h6>
+          <div className="d-flex gap-2">
+            <Button
+              type="button"
+              variant="outline-secondary"
+              size="sm"
+              onClick={() => {
+                loadAiProviders();
+                loadAiUsageSummary(aiUsageDays);
+              }}
+              disabled={aiProvidersLoading || aiUsageLoading}
+            >
+              Обновить
+            </Button>
+            <Button
+              type="button"
+              className="btn-primary-custom"
+              size="sm"
+              onClick={addAiProviderDraft}
+            >
+              + Добавить
+            </Button>
+          </div>
+        </Card.Header>
+        <Card.Body className="p-4">
+          <Row className="g-2 mb-3">
+            <Col md={3}>
+              <div className="small text-muted">Запросов ({aiUsageSummary.days} дн.)</div>
+              <div className="fw-bold">{Number(aiUsageSummary?.totals?.total_requests || 0)}</div>
+            </Col>
+            <Col md={3}>
+              <div className="small text-muted">Успех / Ошибки</div>
+              <div className="fw-bold">
+                {Number(aiUsageSummary?.totals?.success_requests || 0)} / {Number(aiUsageSummary?.totals?.failed_requests || 0)}
+              </div>
+            </Col>
+            <Col md={3}>
+              <div className="small text-muted">Ошибки квоты</div>
+              <div className="fw-bold">{Number(aiUsageSummary?.totals?.quota_related_errors || 0)}</div>
+            </Col>
+            <Col md={3}>
+              <div className="small text-muted">Оценка расходов (USD)</div>
+              <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
+            </Col>
+          </Row>
+
+          <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <Form.Select
+              style={{ width: 170 }}
+              value={aiUsageDays}
+              onChange={(e) => setAiUsageDays(Number(e.target.value) || 30)}
+            >
+              <option value={7}>7 дней</option>
+              <option value={14}>14 дней</option>
+              <option value={30}>30 дней</option>
+              <option value={60}>60 дней</option>
+              <option value={90}>90 дней</option>
+            </Form.Select>
+            {aiUsageLoading && <small className="text-muted">Загрузка статистики...</small>}
+          </div>
+
+          {aiProvidersLoading ? (
+            <div className="text-muted">Загрузка AI-провайдеров...</div>
+          ) : (
+            <>
+              {aiProviders.length === 0 && (
+                <Alert variant="secondary" className="mb-3">
+                  Провайдеры не добавлены. Нажмите “+ Добавить”.
+                </Alert>
+              )}
+              {aiProviders.map((provider) => {
+                const providerKey = getAiProviderKey(provider);
+                const isSaving = aiProviderSavingId === providerKey;
+                const isDeleting = provider.id && aiProviderDeletingId === provider.id;
+                const isTesting = provider.id && aiProviderTestingId === provider.id;
+                const providerTypeMeta = getAiProviderTypeMeta(provider.provider_type);
+                const providerTitle = String(provider.name || '').trim() || 'Новый провайдер';
+                return (
+                  <div key={providerKey} className="border rounded-3 p-3 mb-3 bg-light">
+                    <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                      <div className="d-flex align-items-center gap-2">
+                        <img
+                          src={providerTypeMeta.icon}
+                          alt={providerTypeMeta.label}
+                          width={20}
+                          height={20}
+                          style={{ objectFit: 'contain', borderRadius: 4 }}
+                        />
+                        <span className="fw-semibold">{providerTitle}</span>
+                        <Badge
+                          bg={providerTypeMeta.badge}
+                          className={providerTypeMeta.badge === 'warning' ? 'text-dark' : undefined}
+                        >
+                          {providerTypeMeta.label}
+                        </Badge>
+                      </div>
+                      <div className="d-flex flex-wrap align-items-center gap-1">
+                        <Badge bg={provider.is_enabled !== false ? 'success' : 'secondary'}>
+                          {provider.is_enabled !== false ? 'Включен' : 'Выключен'}
+                        </Badge>
+                        <Badge bg={provider.is_active === true ? 'primary' : 'secondary'}>
+                          {provider.is_active === true ? 'Активный' : 'Не активный'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <Row className="g-2 align-items-end">
+                      <Col md={3}>
+                        <Form.Label className="small fw-semibold mb-1">Название</Form.Label>
+                        <Form.Control
+                          value={provider.name}
+                          onChange={(e) => updateAiProviderDraft(providerKey, { name: e.target.value })}
+                          placeholder="Например: Gemini Main"
+                        />
+                      </Col>
+                      <Col md={2}>
+                        <Form.Label className="small fw-semibold mb-1">Тип</Form.Label>
+                        <div className="input-group">
+                          <span className="input-group-text bg-white px-2">
+                            <img
+                              src={providerTypeMeta.icon}
+                              alt={providerTypeMeta.label}
+                              width={18}
+                              height={18}
+                              style={{ objectFit: 'contain' }}
+                            />
+                          </span>
+                          <Form.Select
+                            value={provider.provider_type}
+                            onChange={(e) => updateAiProviderDraft(providerKey, { provider_type: e.target.value })}
+                          >
+                            {AI_PROVIDER_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </Form.Select>
+                        </div>
+                      </Col>
+                      <Col md={3}>
+                        <Form.Label className="small fw-semibold mb-1">API key</Form.Label>
+                        <div className="d-flex gap-2">
+                          <Form.Control
+                            type="password"
+                            value={provider.api_key}
+                            onChange={(e) => updateAiProviderDraft(providerKey, {
+                              api_key: e.target.value,
+                              clear_api_key: false
+                            })}
+                            placeholder={provider.has_api_key ? `Сохранён: ${provider.api_key_masked || '••••'}` : 'Введите ключ'}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={provider.clear_api_key ? 'danger' : 'outline-secondary'}
+                            onClick={() => updateAiProviderDraft(providerKey, {
+                              api_key: '',
+                              clear_api_key: !provider.clear_api_key
+                            })}
+                            title="Очистить сохраненный ключ при следующем сохранении"
+                            disabled={isSaving || isDeleting || isTesting}
+                          >
+                            Очистить
+                          </Button>
+                        </div>
+                        {provider.clear_api_key ? (
+                          <div className="small text-danger mt-1">Ключ будет удален после нажатия “Сохранить”.</div>
+                        ) : (
+                          provider.provider_type === 'pollinations' && (
+                            <div className="small text-muted mt-1">Для Pollinations ключ можно оставить пустым.</div>
+                          )
+                        )}
+                      </Col>
+                      <Col md={2}>
+                        <Form.Label className="small fw-semibold mb-1">Image model</Form.Label>
+                        <Form.Control
+                          value={provider.image_model || ''}
+                          onChange={(e) => updateAiProviderDraft(providerKey, { image_model: e.target.value })}
+                          placeholder="gemini-2.5-flash-image"
+                        />
+                      </Col>
+                      <Col md={2}>
+                        <Form.Label className="small fw-semibold mb-1">Text model</Form.Label>
+                        <Form.Control
+                          value={provider.text_model || ''}
+                          onChange={(e) => updateAiProviderDraft(providerKey, { text_model: e.target.value })}
+                          placeholder="gemini-2.5-flash"
+                        />
+                      </Col>
+                      <Col md={2}>
+                        <Form.Label className="small fw-semibold mb-1">Приоритет</Form.Label>
+                        <Form.Control
+                          type="number"
+                          min="1"
+                          max="9999"
+                          value={provider.priority}
+                          onChange={(e) => updateAiProviderDraft(providerKey, { priority: e.target.value })}
+                        />
+                      </Col>
+                      <Col md={3} className="d-flex flex-wrap gap-3 align-items-center">
+                        <Form.Check
+                          type="switch"
+                          id={`ai-provider-enabled-${providerKey}`}
+                          label="Включен"
+                          checked={provider.is_enabled !== false}
+                          onChange={(e) => updateAiProviderDraft(providerKey, { is_enabled: !!e.target.checked })}
+                        />
+                        <Form.Check
+                          type="switch"
+                          id={`ai-provider-active-intent-${providerKey}`}
+                          label="Активный"
+                          checked={provider.is_active === true}
+                          onChange={(e) => {
+                            const shouldActivate = !!e.target.checked;
+                            updateAiProviderDraft(providerKey, shouldActivate
+                              ? { is_active: true, is_enabled: true }
+                              : { is_active: false });
+                          }}
+                        />
+                      </Col>
+                      <Col md={7} className="d-flex flex-wrap gap-2 justify-content-md-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => testAiProvider(provider)}
+                          disabled={!provider.id || isSaving || isDeleting || isTesting}
+                          title="Проверить токен и модели (текст + фото)"
+                          aria-label="Проверить токен и модели"
+                        >
+                          {isTesting ? (
+                            <>
+                              <Spinner animation="border" size="sm" className="me-1" />
+                              Проверка...
+                            </>
+                          ) : (
+                            <i className="bi bi-patch-check" aria-hidden="true" />
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="btn-primary-custom"
+                          onClick={() => saveAiProvider(provider)}
+                          disabled={isSaving || isDeleting || isTesting}
+                        >
+                          {isSaving ? 'Сохранение...' : 'Сохранить'}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline-danger"
+                          onClick={() => removeAiProvider(provider)}
+                          disabled={isSaving || isDeleting || isTesting}
+                        >
+                          {isDeleting ? 'Удаление...' : 'Удалить'}
+                        </Button>
+                      </Col>
+                    </Row>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          <div className="small text-muted mt-2">
+            Примечание: включите тумблер "Активный" у нужного провайдера и нажмите "Сохранить" — предыдущий активный выключится автоматически.
+            ENV-ключи используются только когда активный провайдер не задан.
+            Для кнопки проверки провайдер должен быть активным, иначе будет ошибка.
+          </div>
+
+          {Array.isArray(aiUsageSummary.by_provider) && aiUsageSummary.by_provider.length > 0 && (
+            <div className="mt-4">
+              <div className="fw-semibold mb-2">По провайдерам</div>
+              <div className="table-responsive">
+                <table className="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Провайдер</th>
+                      <th>Тип</th>
+                      <th className="text-end">Запросы</th>
+                      <th className="text-end">Успех</th>
+                      <th className="text-end">Ошибки</th>
+                      <th className="text-end">Оценка USD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiUsageSummary.by_provider.map((row, index) => {
+                      const rowTypeMeta = getAiProviderTypeMeta(row.provider_type);
+                      return (
+                        <tr key={`${row.provider_name || 'provider'}-${index}`}>
+                          <td>{row.provider_name || '-'}</td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2">
+                              <img
+                                src={rowTypeMeta.icon}
+                                alt={rowTypeMeta.label}
+                                width={16}
+                                height={16}
+                                style={{ objectFit: 'contain', borderRadius: 4 }}
+                              />
+                              <span>{rowTypeMeta.label}</span>
+                            </div>
+                          </td>
+                          <td className="text-end">{Number(row.requests || 0)}</td>
+                          <td className="text-end">{Number(row.success_requests || 0)}</td>
+                          <td className="text-end">{Number(row.failed_requests || 0)}</td>
+                          <td className="text-end">${Number(row.estimated_cost_usd || 0).toFixed(3)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(aiUsageSummary.recent_errors) && aiUsageSummary.recent_errors.length > 0 && (
+            <div className="mt-4">
+              <div className="fw-semibold mb-2">Последние ошибки AI</div>
+              <div className="table-responsive">
+                <table className="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Время</th>
+                      <th>Провайдер</th>
+                      <th>Операция</th>
+                      <th>Код / HTTP</th>
+                      <th>Сообщение</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiUsageSummary.recent_errors.slice(0, 10).map((row, index) => {
+                      const rowTypeMeta = getAiProviderTypeMeta(row.provider_type);
+                      return (
+                        <tr key={`ai-error-${index}`}>
+                          <td>{row.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '-'}</td>
+                          <td>
+                            <div className="d-flex align-items-center gap-2">
+                              <img
+                                src={rowTypeMeta.icon}
+                                alt={rowTypeMeta.label}
+                                width={16}
+                                height={16}
+                                style={{ objectFit: 'contain', borderRadius: 4 }}
+                              />
+                              <span>{row.provider_name || rowTypeMeta.label || '-'}</span>
+                            </div>
+                          </td>
+                          <td>{row.operation || '-'}</td>
+                          <td>
+                            {String(row.error_code || '').trim() || '-'}
+                            {row.http_status ? ` / ${row.http_status}` : ''}
+                          </td>
+                          <td>{String(row.error_message || '').trim().slice(0, 140) || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+    </>
+  );
 
   return (
     <div className={`min-vh-100 bg-light ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
@@ -10492,6 +10933,8 @@ function SuperAdminDashboard() {
                     </div>
                   </Alert>
 
+                  {false && (
+                    <>
                   <Alert
                     variant={isAiFeatureEnabled ? 'light' : 'warning'}
                     className="border-0 shadow-sm rounded-4 mb-4"
@@ -10888,6 +11331,8 @@ function SuperAdminDashboard() {
                       )}
                     </Card.Body>
                   </Card>
+                    </>
+                  )}
 
                   <Row className="g-4">
                     <Col md={7}>
@@ -11108,6 +11553,10 @@ function SuperAdminDashboard() {
                     </Col>
                   </Row>
                 </Form>
+              </Tab>
+
+              <Tab eventKey="ai_settings" title={renderSuperAdminSidebarTabTitle('ai_settings')}>
+                {renderAiSettingsPanel()}
               </Tab>
 
               <Tab eventKey="security" title={renderSuperAdminSidebarTabTitle('security')}>
@@ -14193,14 +14642,21 @@ function SuperAdminDashboard() {
         </Modal.Footer>
       </Modal>
 
-      <Modal show={showRestaurantIssuesModal} onHide={closeRestaurantIssuesModal} centered size="lg">
+      <Modal
+        show={showRestaurantIssuesModal}
+        onHide={closeRestaurantIssuesModal}
+        centered
+        size="lg"
+        className="sa-telegram-diagnostics-modal"
+        dialogClassName="sa-telegram-diagnostics-dialog"
+      >
         <Modal.Header closeButton>
           <Modal.Title>
             {language === 'uz' ? 'Telegram diagnostikasi' : 'Диагностика Telegram'}
             {restaurantIssuesTarget?.name ? `: ${restaurantIssuesTarget.name}` : ''}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body className="sa-telegram-diagnostics-body">
           {restaurantIssuesLoading ? (
             <div className="text-center py-4">
               <Spinner animation="border" size="sm" className="me-2" />
@@ -14212,126 +14668,149 @@ function SuperAdminDashboard() {
                 ? "Diagnostika ma'lumotlari yuklanmadi. Qayta tekshirib ko'ring."
                 : 'Данные диагностики не загружены. Нажмите «Перепроверить».'}
             </Alert>
-	          ) : (
-	            <>
-	              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-	                <div className="small text-muted">
-	                  {language === 'uz' ? 'Oxirgi tekshiruv' : 'Последняя проверка'}:{' '}
+          ) : (
+            <>
+              <div className="sa-telegram-diagnostics-top">
+                <div className="small text-muted">
+                  {language === 'uz' ? 'Oxirgi tekshiruv' : 'Последняя проверка'}:{' '}
                   <strong>{restaurantIssuesData?.checked_at ? formatBalanceOperationDate(restaurantIssuesData.checked_at) : '—'}</strong>
                 </div>
-                <Badge className={`badge-custom ${Number(restaurantIssuesData?.issue_count || 0) > 0 ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success'}`}>
-	                  {language === 'uz' ? 'Xatolar soni' : 'Ошибок'}: {Number(restaurantIssuesData?.issue_count || 0)}
-	                </Badge>
-	              </div>
+                <div className={`sa-telegram-diagnostics-summary ${Number(restaurantIssuesData?.issue_count || 0) > 0 ? 'is-error' : 'is-ok'}`}>
+                  <span className="sa-telegram-diagnostics-summary-icon" aria-hidden="true">
+                    {Number(restaurantIssuesData?.issue_count || 0) > 0 ? <DiagnosticsErrorIcon /> : <DiagnosticsOkIcon />}
+                  </span>
+                  <span>
+                    {language === 'uz' ? 'Xatolar soni' : 'Ошибок'}: {Number(restaurantIssuesData?.issue_count || 0)}
+                  </span>
+                </div>
+              </div>
 
-	              {(() => {
-	                const phoneValue = String(restaurantIssuesTarget?.phone || '').trim();
-	                const phoneHref = getPhoneTelHref(phoneValue);
-	                const telegramRaw = String(
-	                  restaurantIssuesTarget?.support_username ||
-	                  restaurantIssuesTarget?.telegram_bot_username ||
-	                  restaurantIssuesData?.bot_username ||
-	                  ''
-	                ).trim();
-	                const telegramLink = buildTelegramProfileLink(telegramRaw);
-	                const hasContacts = !!phoneValue || !!telegramLink;
+              {(() => {
+                const phoneValue = String(restaurantIssuesTarget?.phone || '').trim();
+                const phoneHref = getPhoneTelHref(phoneValue);
+                const telegramRaw = String(
+                  restaurantIssuesTarget?.support_username ||
+                  restaurantIssuesTarget?.telegram_bot_username ||
+                  restaurantIssuesData?.bot_username ||
+                  ''
+                ).trim();
+                const telegramLink = buildTelegramProfileLink(telegramRaw);
+                const hasContacts = !!phoneValue || !!telegramLink;
 
-	                if (!hasContacts) return null;
-	                return (
-	                  <div className="border rounded-3 p-3 mb-3 bg-light">
-	                    <div className="fw-semibold mb-2">
-	                      {language === 'uz' ? "Do'kon kontaktlari" : 'Контакты магазина'}
-	                    </div>
-	                    <Row className="g-2">
-	                      <Col md={6}>
-	                        <div className="small text-muted">{language === 'uz' ? 'Telefon' : 'Телефон'}</div>
-	                        {phoneValue ? (
-	                          phoneHref ? (
-	                          <a
-	                            href={phoneHref}
-	                            className="fw-semibold text-decoration-none"
-	                            style={{ color: 'var(--primary-color)' }}
-	                          >
-	                            {phoneValue}
-	                          </a>
-	                          ) : (
-	                            <div className="fw-semibold">{phoneValue}</div>
-	                          )
-	                        ) : (
-	                          <div className="fw-semibold">-</div>
-	                        )}
-	                      </Col>
-	                      <Col md={6}>
-	                        <div className="small text-muted">Telegram</div>
-	                        {telegramLink ? (
-	                          <a
-	                            href={telegramLink.href}
-	                            target="_blank"
-	                            rel="noreferrer"
-	                            className="fw-semibold text-decoration-none"
-	                            style={{ color: 'var(--primary-color)' }}
-	                          >
-	                            {telegramLink.label}
-	                          </a>
-	                        ) : (
-	                          <div className="fw-semibold">-</div>
-	                        )}
-	                      </Col>
-	                    </Row>
-	                  </div>
-	                );
-	              })()}
-
-	              {Number(restaurantIssuesData?.issue_count || 0) > 0 ? (
-	                <div className="d-flex flex-column gap-2 mb-4">
-                  {(restaurantIssuesData?.issues || []).map((issue, index) => (
-                    <div key={`${issue?.code || 'issue'}-${index}`} className="border rounded-3 p-3 bg-light">
-                      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
-                        <div className="fw-semibold">
-                          {index + 1}. {issue?.title || (language === 'uz' ? 'Muammo' : 'Проблема')}
-                        </div>
-                        <Badge className={`badge-custom ${String(issue?.severity || '') === 'warning' ? 'bg-warning bg-opacity-10 text-warning' : 'bg-danger bg-opacity-10 text-danger'}`}>
-                          {String(issue?.severity || '') === 'warning'
-                            ? (language === 'uz' ? 'Ogohlantirish' : 'Предупреждение')
-                            : (language === 'uz' ? 'Muhim' : 'Требует внимания')}
-                        </Badge>
-                      </div>
-                      <div className="small text-muted mb-2">
-                        {issue?.description || '—'}
-                      </div>
-                      <div className="small">
-                        <strong>{language === 'uz' ? 'Yechim:' : 'Решение:'}</strong> {issue?.solution || '—'}
-                      </div>
+                if (!hasContacts) return null;
+                return (
+                  <div className="sa-telegram-diagnostics-contacts">
+                    <div className="fw-semibold mb-2">
+                      {language === 'uz' ? "Do'kon kontaktlari" : 'Контакты магазина'}
                     </div>
-                  ))}
+                    <Row className="g-2">
+                      <Col md={6}>
+                        <div className="small text-muted">{language === 'uz' ? 'Telefon' : 'Телефон'}</div>
+                        {phoneValue ? (
+                          phoneHref ? (
+                            <a
+                              href={phoneHref}
+                              className="fw-semibold text-decoration-none"
+                              style={{ color: 'var(--primary-color)' }}
+                            >
+                              {phoneValue}
+                            </a>
+                          ) : (
+                            <div className="fw-semibold">{phoneValue}</div>
+                          )
+                        ) : (
+                          <div className="fw-semibold">-</div>
+                        )}
+                      </Col>
+                      <Col md={6}>
+                        <div className="small text-muted">Telegram</div>
+                        {telegramLink ? (
+                          <a
+                            href={telegramLink.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="fw-semibold text-decoration-none"
+                            style={{ color: 'var(--primary-color)' }}
+                          >
+                            {telegramLink.label}
+                          </a>
+                        ) : (
+                          <div className="fw-semibold">-</div>
+                        )}
+                      </Col>
+                    </Row>
+                  </div>
+                );
+              })()}
+
+              {Number(restaurantIssuesData?.issue_count || 0) > 0 ? (
+                <div className="sa-telegram-issues-list">
+                  {(restaurantIssuesData?.issues || []).map((issue, index) => {
+                    const isWarning = String(issue?.severity || '') === 'warning';
+                    return (
+                      <div key={`${issue?.code || 'issue'}-${index}`} className={`sa-telegram-issue-card ${isWarning ? 'is-warning' : 'is-error'}`}>
+                        <div className="sa-telegram-issue-head">
+                          <div className="sa-telegram-issue-title-wrap">
+                            <span className="sa-telegram-issue-icon" aria-hidden="true">
+                              {isWarning ? <DiagnosticsWarningIcon /> : <DiagnosticsErrorIcon />}
+                            </span>
+                            <div className="fw-semibold">
+                              {index + 1}. {issue?.title || (language === 'uz' ? 'Muammo' : 'Проблема')}
+                            </div>
+                          </div>
+                          <Badge className={`badge-custom ${isWarning ? 'bg-warning bg-opacity-10 text-warning' : 'bg-danger bg-opacity-10 text-danger'}`}>
+                            {isWarning
+                              ? (language === 'uz' ? 'Ogohlantirish' : 'Предупреждение')
+                              : (language === 'uz' ? 'Muhim' : 'Требует внимания')}
+                          </Badge>
+                        </div>
+                        <div className="small text-muted mb-2">
+                          {issue?.description || '—'}
+                        </div>
+                        <div className="small">
+                          <strong>{language === 'uz' ? 'Yechim:' : 'Решение:'}</strong> {issue?.solution || '—'}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
-                <Alert variant="success" className="mb-4">
-                  {language === 'uz'
-                    ? "Muammolar topilmadi. Telegram integratsiyasi joyida."
-                    : 'Проблем не найдено. Telegram-интеграция в порядке.'}
-                </Alert>
+                <div className="sa-telegram-diagnostics-ok">
+                  <span className="sa-telegram-diagnostics-ok-icon" aria-hidden="true">
+                    <DiagnosticsOkIcon />
+                  </span>
+                  <span>
+                    {language === 'uz'
+                      ? "Muammolar topilmadi. Telegram integratsiyasi joyida."
+                      : 'Проблем не найдено. Telegram-интеграция в порядке.'}
+                  </span>
+                </div>
               )}
 
               <div>
                 <div className="fw-semibold mb-2">
                   {language === 'uz' ? 'Chek-list' : 'Чеклист'}
                 </div>
-                <div className="d-flex flex-column gap-2">
+                <div className="sa-telegram-checklist">
                   {(restaurantIssuesData?.checks || []).map((checkItem, index) => (
                     <div
                       key={`${checkItem?.code || 'check'}-${index}`}
-                      className="d-flex align-items-start justify-content-between gap-3 border rounded-3 p-2"
+                      className={`sa-telegram-check-item ${checkItem?.ok ? 'is-ok' : 'is-error'}`}
                     >
-                      <div>
-                        <div className="small fw-semibold">{checkItem?.label || '—'}</div>
-                        {checkItem?.hint ? (
-                          <div className="small text-muted">{checkItem.hint}</div>
-                        ) : null}
+                      <div className="sa-telegram-check-main">
+                        <span className="sa-telegram-check-icon" aria-hidden="true">
+                          {checkItem?.ok ? <DiagnosticsOkIcon /> : <DiagnosticsErrorIcon />}
+                        </span>
+                        <div>
+                          <div className="small fw-semibold">{checkItem?.label || '—'}</div>
+                          {checkItem?.hint ? (
+                            <div className="small text-muted">{checkItem.hint}</div>
+                          ) : null}
+                        </div>
                       </div>
-                      <Badge className={`badge-custom ${checkItem?.ok ? 'bg-success bg-opacity-10 text-success' : 'bg-danger bg-opacity-10 text-danger'}`}>
+                      <span className={`sa-telegram-check-status ${checkItem?.ok ? 'is-ok' : 'is-error'}`}>
                         {checkItem?.ok ? 'OK' : (language === 'uz' ? 'Xato' : 'Ошибка')}
-                      </Badge>
+                      </span>
                     </div>
                   ))}
                 </div>
