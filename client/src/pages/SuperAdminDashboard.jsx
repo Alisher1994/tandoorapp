@@ -90,6 +90,27 @@ const AI_PROVIDER_TYPE_OPTIONS = [
   { value: 'pollinations', label: 'Pollinations' },
   { value: 'custom', label: 'Custom' }
 ];
+const AI_PROVIDER_TYPE_META = {
+  gemini: { label: 'Gemini', icon: '/ai-providers/gemini.svg', badge: 'primary' },
+  openai: { label: 'OpenAI', icon: '/ai-providers/openai.svg', badge: 'dark' },
+  replicate: { label: 'Replicate', icon: '/ai-providers/replicate.svg', badge: 'info' },
+  cloudflare: { label: 'Cloudflare AI', icon: '/ai-providers/cloudflare.svg', badge: 'warning' },
+  pollinations: { label: 'Pollinations', icon: '/ai-providers/pollinations.svg', badge: 'success' },
+  custom: { label: 'Custom', icon: '/ai-providers/custom.svg', badge: 'secondary' }
+};
+const getAiProviderTypeMeta = (providerType) => {
+  const normalized = String(providerType || '').trim().toLowerCase();
+  if (normalized && AI_PROVIDER_TYPE_META[normalized]) {
+    return AI_PROVIDER_TYPE_META[normalized];
+  }
+  if (normalized) {
+    return {
+      ...AI_PROVIDER_TYPE_META.custom,
+      label: normalized
+    };
+  }
+  return AI_PROVIDER_TYPE_META.custom;
+};
 const createEmptyAiProviderDraft = () => ({
   local_key: `draft-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
   id: null,
@@ -10155,8 +10176,36 @@ function SuperAdminDashboard() {
                             const isSaving = aiProviderSavingId === providerKey;
                             const isDeleting = provider.id && aiProviderDeletingId === provider.id;
                             const isTesting = provider.id && aiProviderTestingId === provider.id;
+                            const providerTypeMeta = getAiProviderTypeMeta(provider.provider_type);
+                            const providerTitle = String(provider.name || '').trim() || 'Новый провайдер';
                             return (
                               <div key={providerKey} className="border rounded-3 p-3 mb-3 bg-light">
+                                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                  <div className="d-flex align-items-center gap-2">
+                                    <img
+                                      src={providerTypeMeta.icon}
+                                      alt={providerTypeMeta.label}
+                                      width={20}
+                                      height={20}
+                                      style={{ objectFit: 'contain', borderRadius: 4 }}
+                                    />
+                                    <span className="fw-semibold">{providerTitle}</span>
+                                    <Badge
+                                      bg={providerTypeMeta.badge}
+                                      className={providerTypeMeta.badge === 'warning' ? 'text-dark' : undefined}
+                                    >
+                                      {providerTypeMeta.label}
+                                    </Badge>
+                                  </div>
+                                  <div className="d-flex flex-wrap align-items-center gap-1">
+                                    <Badge bg={provider.is_enabled !== false ? 'success' : 'secondary'}>
+                                      {provider.is_enabled !== false ? 'Включен' : 'Выключен'}
+                                    </Badge>
+                                    <Badge bg={provider.is_active === true ? 'primary' : 'secondary'}>
+                                      {provider.is_active === true ? 'Активный' : 'Не активный'}
+                                    </Badge>
+                                  </div>
+                                </div>
                                 <Row className="g-2 align-items-end">
                                   <Col md={3}>
                                     <Form.Label className="small fw-semibold mb-1">Название</Form.Label>
@@ -10168,14 +10217,25 @@ function SuperAdminDashboard() {
                                   </Col>
                                   <Col md={2}>
                                     <Form.Label className="small fw-semibold mb-1">Тип</Form.Label>
-                                    <Form.Select
-                                      value={provider.provider_type}
-                                      onChange={(e) => updateAiProviderDraft(providerKey, { provider_type: e.target.value })}
-                                    >
-                                      {AI_PROVIDER_TYPE_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </Form.Select>
+                                    <div className="input-group">
+                                      <span className="input-group-text bg-white px-2">
+                                        <img
+                                          src={providerTypeMeta.icon}
+                                          alt={providerTypeMeta.label}
+                                          width={18}
+                                          height={18}
+                                          style={{ objectFit: 'contain' }}
+                                        />
+                                      </span>
+                                      <Form.Select
+                                        value={provider.provider_type}
+                                        onChange={(e) => updateAiProviderDraft(providerKey, { provider_type: e.target.value })}
+                                      >
+                                        {AI_PROVIDER_TYPE_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                      </Form.Select>
+                                    </div>
                                   </Col>
                                   <Col md={3}>
                                     <Form.Label className="small fw-semibold mb-1">API key</Form.Label>
@@ -10300,16 +10360,30 @@ function SuperAdminDashboard() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {aiUsageSummary.by_provider.map((row, index) => (
-                                  <tr key={`${row.provider_name || 'provider'}-${index}`}>
-                                    <td>{row.provider_name || '-'}</td>
-                                    <td>{row.provider_type || '-'}</td>
-                                    <td className="text-end">{Number(row.requests || 0)}</td>
-                                    <td className="text-end">{Number(row.success_requests || 0)}</td>
-                                    <td className="text-end">{Number(row.failed_requests || 0)}</td>
-                                    <td className="text-end">${Number(row.estimated_cost_usd || 0).toFixed(3)}</td>
-                                  </tr>
-                                ))}
+                                {aiUsageSummary.by_provider.map((row, index) => {
+                                  const rowTypeMeta = getAiProviderTypeMeta(row.provider_type);
+                                  return (
+                                    <tr key={`${row.provider_name || 'provider'}-${index}`}>
+                                      <td>{row.provider_name || '-'}</td>
+                                      <td>
+                                        <div className="d-flex align-items-center gap-2">
+                                          <img
+                                            src={rowTypeMeta.icon}
+                                            alt={rowTypeMeta.label}
+                                            width={16}
+                                            height={16}
+                                            style={{ objectFit: 'contain', borderRadius: 4 }}
+                                          />
+                                          <span>{rowTypeMeta.label}</span>
+                                        </div>
+                                      </td>
+                                      <td className="text-end">{Number(row.requests || 0)}</td>
+                                      <td className="text-end">{Number(row.success_requests || 0)}</td>
+                                      <td className="text-end">{Number(row.failed_requests || 0)}</td>
+                                      <td className="text-end">${Number(row.estimated_cost_usd || 0).toFixed(3)}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -10331,18 +10405,32 @@ function SuperAdminDashboard() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {aiUsageSummary.recent_errors.slice(0, 10).map((row, index) => (
-                                  <tr key={`ai-error-${index}`}>
-                                    <td>{row.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '-'}</td>
-                                    <td>{row.provider_name || row.provider_type || '-'}</td>
-                                    <td>{row.operation || '-'}</td>
-                                    <td>
-                                      {String(row.error_code || '').trim() || '-'}
-                                      {row.http_status ? ` / ${row.http_status}` : ''}
-                                    </td>
-                                    <td>{String(row.error_message || '').trim().slice(0, 140) || '-'}</td>
-                                  </tr>
-                                ))}
+                                {aiUsageSummary.recent_errors.slice(0, 10).map((row, index) => {
+                                  const rowTypeMeta = getAiProviderTypeMeta(row.provider_type);
+                                  return (
+                                    <tr key={`ai-error-${index}`}>
+                                      <td>{row.created_at ? new Date(row.created_at).toLocaleString('ru-RU') : '-'}</td>
+                                      <td>
+                                        <div className="d-flex align-items-center gap-2">
+                                          <img
+                                            src={rowTypeMeta.icon}
+                                            alt={rowTypeMeta.label}
+                                            width={16}
+                                            height={16}
+                                            style={{ objectFit: 'contain', borderRadius: 4 }}
+                                          />
+                                          <span>{row.provider_name || rowTypeMeta.label || '-'}</span>
+                                        </div>
+                                      </td>
+                                      <td>{row.operation || '-'}</td>
+                                      <td>
+                                        {String(row.error_code || '').trim() || '-'}
+                                        {row.http_status ? ` / ${row.http_status}` : ''}
+                                      </td>
+                                      <td>{String(row.error_message || '').trim().slice(0, 140) || '-'}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
