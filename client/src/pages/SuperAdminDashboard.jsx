@@ -3202,7 +3202,11 @@ function SuperAdminDashboard() {
     }
     try {
       setAiProviderTestingId(provider.id);
-      const response = await axios.post(`${API_URL}/superadmin/ai/providers/${provider.id}/test`, buildAiProviderPayload(provider));
+      const testPayload = buildAiProviderPayload(provider);
+      if (!String(testPayload.api_key || '').trim()) {
+        delete testPayload.api_key;
+      }
+      const response = await axios.post(`${API_URL}/superadmin/ai/providers/${provider.id}/test`, testPayload);
       const textPreview = String(response?.data?.text_test?.preview || '').trim();
       const imageModel = String(response?.data?.image_test?.model || '').trim();
       const textModel = String(response?.data?.text_test?.model || '').trim();

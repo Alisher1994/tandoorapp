@@ -7772,9 +7772,10 @@ router.post('/ai/providers/:id/test', async (req, res) => {
     const shouldClearApiKey = normalizeBooleanFlag(req.body?.clear_api_key, false);
     const savedApiKey = decryptAiSecret(row.api_key_encrypted);
     const requestedApiKeyRaw = hasApiKeyField ? String(req.body?.api_key || '').trim() : null;
+    const hasExplicitApiKeyValue = requestedApiKeyRaw !== null && requestedApiKeyRaw !== '';
     const apiKey = shouldClearApiKey
       ? ''
-      : (requestedApiKeyRaw !== null ? requestedApiKeyRaw : savedApiKey);
+      : (hasExplicitApiKeyValue ? requestedApiKeyRaw : savedApiKey);
 
     if (requestedEnabled === false) {
       return res.status(400).json({
