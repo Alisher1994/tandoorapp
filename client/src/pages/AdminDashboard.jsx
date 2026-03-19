@@ -1664,6 +1664,48 @@ function AdminDashboard() {
       </div>
     </div>
   );
+  const renderAdminSidebarUtilityActions = () => (
+    <div className="admin-sidebar-footer-actions d-none d-lg-flex">
+      {isSuperAdmin() && (
+        <button
+          type="button"
+          className="admin-sidebar-utility-btn"
+          onClick={() => navigate('/superadmin')}
+          title={t('superAdmin')}
+          aria-label={t('superAdmin')}
+        >
+          <span className="admin-sidebar-utility-btn-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3 4 7l4 4" />
+              <path d="M4 7h16" />
+              <path d="m16 21 4-4-4-4" />
+              <path d="M20 17H4" />
+            </svg>
+          </span>
+          <span className="admin-sidebar-utility-btn-label">
+            {language === 'uz' ? 'Kabinetni almashtirish' : 'Сменить кабинет'}
+          </span>
+        </button>
+      )}
+
+      <button
+        type="button"
+        className="admin-sidebar-utility-btn is-danger"
+        onClick={handleLogout}
+        title={t('logout')}
+        aria-label={t('logout')}
+      >
+        <span className="admin-sidebar-utility-btn-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 12h11" />
+            <path d="m17 16 4-4-4-4" />
+            <path d="M21 6.344V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1.344" />
+          </svg>
+        </span>
+        <span className="admin-sidebar-utility-btn-label">{t('logout')}</span>
+      </button>
+    </div>
+  );
   const effectiveOrdersStatusFilter = ordersViewMode === 'kanban' ? 'all' : statusFilter;
   const getKanbanColumnFilter = useCallback((columnKey) => ({
     ...KANBAN_COLUMN_FILTER_DEFAULT,
@@ -7368,6 +7410,7 @@ function AdminDashboard() {
             >
               {renderAdminSidebarNavItems()}
             </Nav>
+            {renderAdminSidebarUtilityActions()}
           </div>
           <Card className={`admin-card admin-main-card admin-workspace-main${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
             <Card.Body>
