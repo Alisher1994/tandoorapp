@@ -1264,45 +1264,53 @@ const generateGlobalProductTextWithPollinations = async (prompt, { expectJson = 
   const modelCandidates = Array.isArray(runtime.textModelCandidates) && runtime.textModelCandidates.length
     ? runtime.textModelCandidates
     : [''];
+  const keyCandidates = buildModelCandidates(runtime.apiKey ? [runtime.apiKey, ''] : ['']);
   for (const model of modelCandidates) {
-    try {
-      const params = new URLSearchParams();
-      if (model) params.set('model', model);
-      if (runtime.apiKey) params.set('key', runtime.apiKey);
-      const query = params.toString();
-      const url = `https://gen.pollinations.ai/text/${encodeURIComponent(textPrompt)}${query ? `?${query}` : ''}`;
-      const response = await axios.get(url, {
-        timeout: 45000,
-        maxContentLength: 2 * 1024 * 1024,
-        headers: {
-          Accept: 'text/plain,application/json;q=0.9,*/*;q=0.8',
-          'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
-        },
-        validateStatus: (status) => status >= 200 && status < 400
-      });
+    for (const keyCandidate of keyCandidates) {
+      try {
+        const params = new URLSearchParams();
+        if (model) params.set('model', model);
+        if (keyCandidate) params.set('key', keyCandidate);
+        const query = params.toString();
+        const url = `https://gen.pollinations.ai/text/${encodeURIComponent(textPrompt)}${query ? `?${query}` : ''}`;
+        const response = await axios.get(url, {
+          timeout: 45000,
+          maxContentLength: 2 * 1024 * 1024,
+          headers: {
+            Accept: 'text/plain,application/json;q=0.9,*/*;q=0.8',
+            'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+          },
+          validateStatus: (status) => status >= 200 && status < 400
+        });
 
-      let text = '';
-      if (typeof response.data === 'string') {
-        text = response.data.trim();
-      } else if (response.data && typeof response.data === 'object') {
-        text = String(
-          response.data.text
-          || response.data.response
-          || response.data.output
-          || ''
-        ).trim();
+        let text = '';
+        if (typeof response.data === 'string') {
+          text = response.data.trim();
+        } else if (response.data && typeof response.data === 'object') {
+          text = String(
+            response.data.text
+            || response.data.response
+            || response.data.output
+            || ''
+          ).trim();
+        }
+        if (text) {
+          return {
+            text,
+            provider: model ? `pollinations:${model}` : 'pollinations',
+            model: model || '',
+            providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
+          };
+        }
+        lastError = new Error('Pollinations не вернул текст');
+      } catch (error) {
+        lastError = error;
+        const statusCode = Number(error?.response?.status || 0);
+        const canRetryWithoutKey = Boolean(keyCandidate) && [401, 403].includes(statusCode);
+        if (canRetryWithoutKey) {
+          continue;
+        }
       }
-      if (text) {
-        return {
-          text,
-          provider: model ? `pollinations:${model}` : 'pollinations',
-          model: model || '',
-          providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
-        };
-      }
-      lastError = new Error('Pollinations не вернул текст');
-    } catch (error) {
-      lastError = error;
     }
   }
 
@@ -1428,56 +1436,63 @@ const generateGlobalProductImageWithPollinations = async (prompt) => {
   const modelCandidates = Array.isArray(runtime.imageModelCandidates) && runtime.imageModelCandidates.length
     ? runtime.imageModelCandidates
     : ['flux', 'turbo', ''];
+  const keyCandidates = buildModelCandidates(runtime.apiKey ? [runtime.apiKey, ''] : ['']);
   let lastError = null;
 
   for (const model of modelCandidates) {
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const seed = Date.now() + Math.floor(Math.random() * 1000000);
-      const params = new URLSearchParams({
-        width: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
-        height: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
-        seed: String(seed),
-        nologo: 'true',
-        safe: 'true',
-        enhance: 'true',
-        negative: negativePrompt
-      });
-      if (model) params.set('model', model);
-      if (runtime.apiKey) params.set('key', runtime.apiKey);
-
-      const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${params.toString()}`;
-
-      try {
-        const response = await axios.get(url, {
-          responseType: 'arraybuffer',
-          timeout: 25000,
-          maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
-          maxRedirects: 3,
-          headers: {
-            Accept: 'image/*,*/*;q=0.8',
-            'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
-          },
-          validateStatus: (status) => status >= 200 && status < 400
+    for (const keyCandidate of keyCandidates) {
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const seed = Date.now() + Math.floor(Math.random() * 1000000);
+        const params = new URLSearchParams({
+          width: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
+          height: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
+          seed: String(seed),
+          nologo: 'true',
+          safe: 'true',
+          enhance: 'true',
+          negative: negativePrompt
         });
-        const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
-        if (!contentType.startsWith('image/')) {
-          throw new Error(`Pollinations вернул неподдерживаемый content-type: ${contentType || 'unknown'}`);
-        }
-        const buffer = Buffer.from(response.data || []);
-        if (!buffer.length) throw new Error('Pollinations вернул пустой ответ');
-        return {
-          buffer,
-          provider: model ? `pollinations:${model}` : 'pollinations',
-          model: model || '',
-          providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
-        };
-      } catch (error) {
-        lastError = error;
-        const statusCode = Number(error?.response?.status || 0);
-        const canRetry = attempt < 2 && [408, 425, 429, 500, 502, 503, 504].includes(statusCode);
-        if (canRetry) {
-          await wait(1200 * attempt);
-          continue;
+        if (model) params.set('model', model);
+        if (keyCandidate) params.set('key', keyCandidate);
+
+        const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${params.toString()}`;
+
+        try {
+          const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 25000,
+            maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+            maxRedirects: 3,
+            headers: {
+              Accept: 'image/*,*/*;q=0.8',
+              'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+            },
+            validateStatus: (status) => status >= 200 && status < 400
+          });
+          const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+          if (!contentType.startsWith('image/')) {
+            throw new Error(`Pollinations вернул неподдерживаемый content-type: ${contentType || 'unknown'}`);
+          }
+          const buffer = Buffer.from(response.data || []);
+          if (!buffer.length) throw new Error('Pollinations вернул пустой ответ');
+          return {
+            buffer,
+            provider: model ? `pollinations:${model}` : 'pollinations',
+            model: model || '',
+            providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
+          };
+        } catch (error) {
+          lastError = error;
+          const statusCode = Number(error?.response?.status || 0);
+          const canRetryWithoutKey = Boolean(keyCandidate) && [401, 403].includes(statusCode);
+          if (canRetryWithoutKey) {
+            break;
+          }
+          const canRetry = attempt < 2 && [408, 425, 429, 500, 502, 503, 504].includes(statusCode);
+          if (canRetry) {
+            await wait(1200 * attempt);
+            continue;
+          }
         }
       }
     }

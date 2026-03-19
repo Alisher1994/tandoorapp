@@ -117,6 +117,7 @@ const createEmptyAiProviderDraft = () => ({
   name: '',
   provider_type: 'gemini',
   api_key: '',
+  clear_api_key: false,
   api_key_masked: '',
   has_api_key: false,
   image_model: '',
@@ -2854,6 +2855,7 @@ function SuperAdminDashboard() {
       id: Number(item.id) || null,
       provider_type: String(item.provider_type || 'gemini').trim().toLowerCase() || 'gemini',
       api_key: '',
+      clear_api_key: false,
       api_key_masked: String(item.api_key_masked || '').trim(),
       has_api_key: Boolean(item.has_api_key),
       image_model: String(item.image_model || '').trim(),
@@ -2947,6 +2949,7 @@ function SuperAdminDashboard() {
         name: String(provider.name || '').trim(),
         provider_type: String(provider.provider_type || 'gemini').trim().toLowerCase(),
         api_key: String(provider.api_key || '').trim(),
+        clear_api_key: provider.clear_api_key === true,
         image_model: String(provider.image_model || '').trim(),
         text_model: String(provider.text_model || '').trim(),
         priority: Number.isFinite(Number(provider.priority)) ? Number(provider.priority) : 100,
@@ -10239,12 +10242,37 @@ function SuperAdminDashboard() {
                                   </Col>
                                   <Col md={3}>
                                     <Form.Label className="small fw-semibold mb-1">API key</Form.Label>
-                                    <Form.Control
-                                      type="password"
-                                      value={provider.api_key}
-                                      onChange={(e) => updateAiProviderDraft(providerKey, { api_key: e.target.value })}
-                                      placeholder={provider.has_api_key ? `Сохранён: ${provider.api_key_masked || '••••'}` : 'Введите ключ'}
-                                    />
+                                    <div className="d-flex gap-2">
+                                      <Form.Control
+                                        type="password"
+                                        value={provider.api_key}
+                                        onChange={(e) => updateAiProviderDraft(providerKey, {
+                                          api_key: e.target.value,
+                                          clear_api_key: false
+                                        })}
+                                        placeholder={provider.has_api_key ? `Сохранён: ${provider.api_key_masked || '••••'}` : 'Введите ключ'}
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={provider.clear_api_key ? 'danger' : 'outline-secondary'}
+                                        onClick={() => updateAiProviderDraft(providerKey, {
+                                          api_key: '',
+                                          clear_api_key: !provider.clear_api_key
+                                        })}
+                                        title="Очистить сохраненный ключ при следующем сохранении"
+                                        disabled={isSaving || isDeleting || isTesting}
+                                      >
+                                        Очистить
+                                      </Button>
+                                    </div>
+                                    {provider.clear_api_key ? (
+                                      <div className="small text-danger mt-1">Ключ будет удален после нажатия “Сохранить”.</div>
+                                    ) : (
+                                      provider.provider_type === 'pollinations' && (
+                                        <div className="small text-muted mt-1">Для Pollinations ключ можно оставить пустым.</div>
+                                      )
+                                    )}
                                   </Col>
                                   <Col md={2}>
                                     <Form.Label className="small fw-semibold mb-1">Image model</Form.Label>
