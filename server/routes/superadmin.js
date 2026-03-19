@@ -239,6 +239,36 @@ const estimateGeminiImageCostUsd = (model) => {
   if (normalized.includes('gemini-3.1-flash-image-preview')) return 0.067;
   return null;
 };
+const parseAiUsageUsdCost = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const normalizedRaw = String(value).replace(',', '.').trim();
+  if (!normalizedRaw) return null;
+  const matched = normalizedRaw.match(/-?\d+(?:\.\d+)?/);
+  if (!matched) return null;
+  const numeric = Number(matched[0]);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Math.round(numeric * 1_000_000) / 1_000_000;
+};
+const extractAiUsageCostUsd = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  return parseAiUsageUsdCost(
+    payload?.usage?.cost
+    ?? payload?.usage?.total_cost
+    ?? payload?.usage?.estimated_cost
+    ?? payload?.cost
+    ?? payload?.total_cost
+    ?? payload?.estimated_cost
+    ?? payload?.meta?.cost
+    ?? payload?.meta?.estimated_cost
+  );
+};
+const resolveAiUsageCostUsd = (...candidates) => {
+  for (const candidate of candidates) {
+    const parsed = parseAiUsageUsdCost(candidate);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+};
 const parseProviderTag = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return { type: '', model: '' };
@@ -1188,11 +1218,16 @@ const generateGlobalProductImageWithGemini = async (prompt, { runtimeOverride = 
       );
       const imageBuffer = extractGeminiInlineImageBuffer(response.data);
       if (imageBuffer) {
+        const estimatedCostUsd = resolveAiUsageCostUsd(
+          extractAiUsageCostUsd(response.data),
+          estimateGeminiImageCostUsd(model)
+        );
         return {
           buffer: imageBuffer,
           provider: `gemini:${model}`,
           model,
-          providerRef: runtime.providerRef || { id: null, name: 'Gemini', provider_type: 'gemini' }
+          providerRef: runtime.providerRef || { id: null, name: 'Gemini', provider_type: 'gemini' },
+          estimatedCostUsd
         };
       }
       lastError = new Error('Gemini не вернул изображение');
@@ -1232,7 +1267,8 @@ const generateGlobalProductTextWithGemini = async (prompt, { expectJson = false,
           text,
           provider: `gemini:${model}`,
           model,
-          providerRef: runtime.providerRef || { id: null, name: 'Gemini', provider_type: 'gemini' }
+          providerRef: runtime.providerRef || { id: null, name: 'Gemini', provider_type: 'gemini' },
+          estimatedCostUsd: extractAiUsageCostUsd(response.data)
         };
       }
       lastError = new Error('Gemini не вернул текст');
@@ -1308,7 +1344,8 @@ const generateGlobalProductImageWithOpenAI = async (prompt, { runtimeOverride = 
             buffer: imageBuffer,
             provider: `openai:${model}`,
             model,
-            providerRef: runtime.providerRef || { id: null, name: 'OpenAI', provider_type: 'openai' }
+            providerRef: runtime.providerRef || { id: null, name: 'OpenAI', provider_type: 'openai' },
+            estimatedCostUsd: extractAiUsageCostUsd(response.data)
           };
         }
       }
@@ -1361,7 +1398,8 @@ const generateGlobalProductTextWithOpenAI = async (prompt, { expectJson = false,
           text,
           provider: `openai:${model}`,
           model,
-          providerRef: runtime.providerRef || { id: null, name: 'OpenAI', provider_type: 'openai' }
+          providerRef: runtime.providerRef || { id: null, name: 'OpenAI', provider_type: 'openai' },
+          estimatedCostUsd: extractAiUsageCostUsd(response.data)
         };
       }
       lastError = new Error('OpenAI не вернул текст');
@@ -1403,6 +1441,7 @@ const generateGlobalProductImageWithOpenRouter = async (prompt, { runtimeOverrid
       const images = Array.isArray(response?.data?.choices?.[0]?.message?.images)
         ? response.data.choices[0].message.images
         : [];
+      const estimatedCostUsd = extractAiUsageCostUsd(response.data);
       for (const image of images) {
         const imageUrl = String(
           image?.image_url?.url
@@ -1417,7 +1456,8 @@ const generateGlobalProductImageWithOpenRouter = async (prompt, { runtimeOverrid
             buffer: dataBuffer,
             provider: `openrouter:${model}`,
             model,
-            providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' }
+            providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' },
+            estimatedCostUsd
           };
         }
         if (/^https?:\/\//i.test(imageUrl)) {
@@ -1431,7 +1471,8 @@ const generateGlobalProductImageWithOpenRouter = async (prompt, { runtimeOverrid
               buffer: httpBuffer,
               provider: `openrouter:${model}`,
               model,
-              providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' }
+              providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' },
+              estimatedCostUsd
             };
           }
         }
@@ -1488,7 +1529,8 @@ const generateGlobalProductTextWithOpenRouter = async (prompt, { expectJson = fa
           text,
           provider: `openrouter:${model}`,
           model,
-          providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' }
+          providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' },
+          estimatedCostUsd: extractAiUsageCostUsd(response.data)
         };
       }
       lastError = new Error('OpenRouter не вернул текст');
@@ -1664,7 +1706,9 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
       description_ru: normalizeCatalogText(parsed.description_ru || fallback.description_ru, 3000),
       description_uz: normalizeCatalogText(parsed.description_uz || fallback.description_uz, 3000),
       provider: result.provider || 'gemini',
-      providerRef: result.providerRef || null
+      model: String(result.model || '').trim(),
+      providerRef: result.providerRef || null,
+      estimatedCostUsd: resolveAiUsageCostUsd(result.estimatedCostUsd)
     };
   } catch (error) {
     console.warn('Global product description generation fallback:', error?.message || error);
@@ -4670,11 +4714,13 @@ router.post('/global-products/description-preview', async (req, res) => {
     const providerRef = generated.providerRef || (parsedProvider.type
       ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
       : null);
+    const usageModel = normalizeAiProviderModel(generated.model || parsedProvider.model || '');
     await logAiUsageEvent({
       providerRef,
       operation: 'text_generate',
-      model: parsedProvider.model,
+      model: usageModel,
       status: 'success',
+      estimatedCostUsd: resolveAiUsageCostUsd(generated.estimatedCostUsd),
       meta: { endpoint: 'global-products/description-preview' }
     });
     res.json({
@@ -4724,6 +4770,7 @@ router.post('/global-products/image-preview', async (req, res) => {
     let provider = 'source_upload';
     let providerRef = null;
     let resolvedModel = '';
+    let estimatedCostUsd = null;
 
     if (effectiveMode === 'process') {
       const resolvedSourceUrl = resolveGlobalProductAiImageSourceUrl(sourceImageUrl, req);
@@ -4747,6 +4794,7 @@ router.post('/global-products/image-preview', async (req, res) => {
       provider = generated.provider || 'generator';
       providerRef = generated.providerRef || null;
       resolvedModel = String(generated.model || '').trim();
+      estimatedCostUsd = resolveAiUsageCostUsd(generated.estimatedCostUsd);
     }
 
     const previewBuffer = await prepareGlobalProductTransparentPreview(sourceBuffer);
@@ -4756,12 +4804,16 @@ router.post('/global-products/image-preview', async (req, res) => {
       ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
       : null);
     const usageModel = resolvedModel || parsedProvider.model || '';
+    const usageCostUsd = resolveAiUsageCostUsd(
+      estimatedCostUsd,
+      parsedProvider.type === 'gemini' ? estimateGeminiImageCostUsd(usageModel) : null
+    );
     await logAiUsageEvent({
       providerRef: effectiveProviderRef,
       operation: usageOperation,
       model: usageModel,
       status: 'success',
-      estimatedCostUsd: parsedProvider.type === 'gemini' ? estimateGeminiImageCostUsd(usageModel) : 0,
+      estimatedCostUsd: usageCostUsd,
       meta: { endpoint: 'global-products/image-preview', mode: effectiveMode }
     });
 
@@ -4825,6 +4877,7 @@ router.post('/categories/image-preview', async (req, res) => {
     let provider = 'source_upload';
     let providerRef = null;
     let resolvedModel = '';
+    let estimatedCostUsd = null;
 
     if (effectiveMode === 'process') {
       const resolvedSourceUrl = resolveGlobalProductAiImageSourceUrl(sourceImageUrl, req);
@@ -4859,6 +4912,7 @@ router.post('/categories/image-preview', async (req, res) => {
       provider = generated.provider || 'generator';
       providerRef = generated.providerRef || null;
       resolvedModel = String(generated.model || '').trim();
+      estimatedCostUsd = resolveAiUsageCostUsd(generated.estimatedCostUsd);
     }
 
     const previewBuffer = await prepareGlobalProductTransparentPreview(sourceBuffer);
@@ -4868,12 +4922,16 @@ router.post('/categories/image-preview', async (req, res) => {
       ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
       : null);
     const usageModel = resolvedModel || parsedProvider.model || '';
+    const usageCostUsd = resolveAiUsageCostUsd(
+      estimatedCostUsd,
+      parsedProvider.type === 'gemini' ? estimateGeminiImageCostUsd(usageModel) : null
+    );
     await logAiUsageEvent({
       providerRef: effectiveProviderRef,
       operation: usageOperation,
       model: usageModel,
       status: 'success',
-      estimatedCostUsd: parsedProvider.type === 'gemini' ? estimateGeminiImageCostUsd(usageModel) : 0,
+      estimatedCostUsd: usageCostUsd,
       meta: { endpoint: 'categories/image-preview', mode: effectiveMode }
     });
 
@@ -7964,6 +8022,11 @@ router.post('/ai/providers/:id/test', async (req, res) => {
     return res.status(400).json({ error: 'Некорректный ID провайдера' });
   }
 
+  let usageProviderRef = null;
+  let usageProviderType = normalizeAiProviderType(req.body?.provider_type, 'gemini');
+  let failedOperation = 'text_generate';
+  let failedModel = '';
+
   try {
     await ensureAiProvidersSchema();
     const providerResult = await pool.query(`
@@ -7985,6 +8048,7 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       req.body?.provider_type,
       normalizeAiProviderType(provider.provider_type, 'gemini')
     );
+    usageProviderType = requestedProviderType;
     const requestedImageModel = normalizeAiProviderModel(
       req.body?.image_model === undefined ? provider.image_model : req.body?.image_model
     );
@@ -8032,6 +8096,7 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       name: String(requestedName || provider.name || '').trim() || `Provider #${provider.id}`,
       provider_type: requestedProviderType
     };
+    usageProviderRef = providerRef;
     const geminiRuntimeOverride = {
       apiKey,
       imageModelCandidates: [...new Set([
@@ -8093,34 +8158,50 @@ router.post('/ai/providers/:id/test', async (req, res) => {
     let imageResult = null;
 
     if (requestedProviderType === 'gemini') {
+      failedOperation = 'text_generate';
+      failedModel = requestedTextModel;
       textResult = await generateGlobalProductTextWithGemini(textPrompt, {
         expectJson: false,
         runtimeOverride: geminiRuntimeOverride
       });
+      failedOperation = 'image_generate';
+      failedModel = requestedImageModel;
       imageResult = await generateGlobalProductImageWithGemini(imagePrompt, {
         runtimeOverride: geminiRuntimeOverride
       });
     } else if (requestedProviderType === 'openai' && !isLikelyOpenRouterApiKey(apiKey)) {
+      failedOperation = 'text_generate';
+      failedModel = requestedTextModel;
       textResult = await generateGlobalProductTextWithOpenAI(textPrompt, {
         expectJson: false,
         runtimeOverride: openAiRuntimeOverride
       });
+      failedOperation = 'image_generate';
+      failedModel = requestedImageModel;
       imageResult = await generateGlobalProductImageWithOpenAI(imagePrompt, {
         runtimeOverride: openAiRuntimeOverride
       });
     } else if (requestedProviderType === 'openrouter' || isLikelyOpenRouterApiKey(apiKey)) {
+      failedOperation = 'text_generate';
+      failedModel = requestedTextModel;
       textResult = await generateGlobalProductTextWithOpenRouter(textPrompt, {
         expectJson: false,
         runtimeOverride: openRouterRuntimeOverride
       });
+      failedOperation = 'image_generate';
+      failedModel = requestedImageModel;
       imageResult = await generateGlobalProductImageWithOpenRouter(imagePrompt, {
         runtimeOverride: openRouterRuntimeOverride
       });
     } else if (requestedProviderType === 'pollinations') {
+      failedOperation = 'text_generate';
+      failedModel = requestedTextModel;
       textResult = await generateGlobalProductTextWithPollinations(textPrompt, {
         expectJson: false,
         runtimeOverride: pollinationsRuntimeOverride
       });
+      failedOperation = 'image_generate';
+      failedModel = requestedImageModel;
       imageResult = await generateGlobalProductImageWithPollinations(imagePrompt, {
         runtimeOverride: pollinationsRuntimeOverride
       });
@@ -8130,11 +8211,54 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       });
     }
 
+    const textModel = normalizeAiProviderModel(textResult?.model || requestedTextModel || '');
+    const imageModel = normalizeAiProviderModel(imageResult?.model || requestedImageModel || '');
     if (!textResult?.text || !imageResult?.buffer) {
+      const failedResultOperation = !textResult?.text ? 'text_generate' : 'image_generate';
+      const failedResultModel = failedResultOperation === 'text_generate' ? textModel : imageModel;
+      await logAiUsageEvent({
+        providerRef,
+        operation: failedResultOperation,
+        model: failedResultModel,
+        status: 'failed',
+        httpStatus: 502,
+        errorCode: 'invalid_response',
+        errorMessage: 'Проверка не пройдена: токен/модель не дали корректный ответ',
+        meta: {
+          endpoint: 'ai/providers/test',
+          provider_id: provider.id
+        }
+      });
       return res.status(502).json({
         error: 'Проверка не пройдена: токен/модель не дали корректный ответ'
       });
     }
+
+    await logAiUsageEvent({
+      providerRef,
+      operation: 'text_generate',
+      model: textModel,
+      status: 'success',
+      estimatedCostUsd: resolveAiUsageCostUsd(textResult?.estimatedCostUsd),
+      meta: {
+        endpoint: 'ai/providers/test',
+        provider_id: provider.id
+      }
+    });
+    await logAiUsageEvent({
+      providerRef,
+      operation: 'image_generate',
+      model: imageModel,
+      status: 'success',
+      estimatedCostUsd: resolveAiUsageCostUsd(
+        imageResult?.estimatedCostUsd,
+        requestedProviderType === 'gemini' ? estimateGeminiImageCostUsd(imageModel) : null
+      ),
+      meta: {
+        endpoint: 'ai/providers/test',
+        provider_id: provider.id
+      }
+    });
 
     const previewUrl = await saveGlobalProductAiImage(imageResult.buffer);
     res.json({
@@ -8145,19 +8269,37 @@ router.post('/ai/providers/:id/test', async (req, res) => {
         provider_type: requestedProviderType
       },
       text_test: {
-        model: String(textResult.model || '').trim() || null,
+        model: textModel || null,
         preview: String(textResult.text || '').trim().slice(0, 180)
       },
       image_test: {
-        model: String(imageResult.model || '').trim() || null,
+        model: imageModel || null,
         preview_url: previewUrl
       }
     });
   } catch (error) {
     console.error('AI provider test error:', error);
-    const fallbackProviderType = normalizeAiProviderType(req.body?.provider_type, 'gemini');
+    const formattedError = formatAiProviderTestError(error, usageProviderType);
+    await logAiUsageEvent({
+      providerRef: usageProviderRef,
+      operation: failedOperation,
+      model: normalizeAiProviderModel(failedModel),
+      status: 'failed',
+      httpStatus: Number(error?.response?.status || 0) || null,
+      errorCode: String(
+        error?.response?.data?.error?.status
+        || error?.response?.data?.error?.code
+        || error?.code
+        || ''
+      ).trim(),
+      errorMessage: String(formattedError || error?.message || '').trim(),
+      meta: {
+        endpoint: 'ai/providers/test',
+        provider_id: providerId
+      }
+    });
     res.status(502).json({
-      error: `Проверка не пройдена: ${formatAiProviderTestError(error, fallbackProviderType)}`
+      error: `Проверка не пройдена: ${formattedError}`
     });
   }
 });
@@ -8192,12 +8334,20 @@ router.get('/ai/usage/summary', async (req, res) => {
         COUNT(*)::int AS total_requests,
         COUNT(*) FILTER (WHERE status = 'success')::int AS success_requests,
         COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_requests,
+        COUNT(*) FILTER (WHERE operation = 'text_generate')::int AS text_requests,
+        COUNT(*) FILTER (WHERE operation = 'text_generate' AND status = 'success')::int AS text_success_requests,
+        COUNT(*) FILTER (WHERE operation = 'text_generate' AND status = 'failed')::int AS text_failed_requests,
+        COUNT(*) FILTER (WHERE operation IN ('image_generate', 'image_process'))::int AS image_requests,
+        COUNT(*) FILTER (WHERE operation IN ('image_generate', 'image_process') AND status = 'success')::int AS image_success_requests,
+        COUNT(*) FILTER (WHERE operation IN ('image_generate', 'image_process') AND status = 'failed')::int AS image_failed_requests,
         COUNT(*) FILTER (
           WHERE (error_code = 'RESOURCE_EXHAUSTED')
              OR (COALESCE(error_message, '') ILIKE '%quota%')
              OR (COALESCE(error_message, '') ILIKE '%rate limit%')
         )::int AS quota_related_errors,
-        COALESCE(SUM(estimated_cost_usd), 0)::numeric(14,6) AS estimated_cost_usd
+        COALESCE(SUM(estimated_cost_usd), 0)::numeric(14,6) AS estimated_cost_usd,
+        COALESCE(SUM(estimated_cost_usd) FILTER (WHERE operation = 'text_generate'), 0)::numeric(14,6) AS text_estimated_cost_usd,
+        COALESCE(SUM(estimated_cost_usd) FILTER (WHERE operation IN ('image_generate', 'image_process')), 0)::numeric(14,6) AS image_estimated_cost_usd
       FROM ai_provider_usage
       WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
     `, [days]);
@@ -8207,9 +8357,13 @@ router.get('/ai/usage/summary', async (req, res) => {
         COALESCE(NULLIF(provider_name, ''), 'Unknown provider') AS provider_name,
         COALESCE(NULLIF(provider_type, ''), 'unknown') AS provider_type,
         COUNT(*)::int AS requests,
+        COUNT(*) FILTER (WHERE operation = 'text_generate')::int AS text_requests,
+        COUNT(*) FILTER (WHERE operation IN ('image_generate', 'image_process'))::int AS image_requests,
         COUNT(*) FILTER (WHERE status = 'success')::int AS success_requests,
         COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_requests,
         COALESCE(SUM(estimated_cost_usd), 0)::numeric(14,6) AS estimated_cost_usd,
+        COALESCE(SUM(estimated_cost_usd) FILTER (WHERE operation = 'text_generate'), 0)::numeric(14,6) AS text_estimated_cost_usd,
+        COALESCE(SUM(estimated_cost_usd) FILTER (WHERE operation IN ('image_generate', 'image_process')), 0)::numeric(14,6) AS image_estimated_cost_usd,
         MAX(created_at) AS last_event_at
       FROM ai_provider_usage
       WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
@@ -8241,8 +8395,16 @@ router.get('/ai/usage/summary', async (req, res) => {
         total_requests: 0,
         success_requests: 0,
         failed_requests: 0,
+        text_requests: 0,
+        text_success_requests: 0,
+        text_failed_requests: 0,
+        image_requests: 0,
+        image_success_requests: 0,
+        image_failed_requests: 0,
         quota_related_errors: 0,
-        estimated_cost_usd: 0
+        estimated_cost_usd: 0,
+        text_estimated_cost_usd: 0,
+        image_estimated_cost_usd: 0
       },
       by_provider: byProviderResult.rows || [],
       recent_errors: recentErrorsResult.rows || []

@@ -1171,8 +1171,16 @@ function SuperAdminDashboard() {
       total_requests: 0,
       success_requests: 0,
       failed_requests: 0,
+      text_requests: 0,
+      text_success_requests: 0,
+      text_failed_requests: 0,
+      image_requests: 0,
+      image_success_requests: 0,
+      image_failed_requests: 0,
       quota_related_errors: 0,
-      estimated_cost_usd: 0
+      estimated_cost_usd: 0,
+      text_estimated_cost_usd: 0,
+      image_estimated_cost_usd: 0
     },
     by_provider: [],
     recent_errors: []
@@ -3094,10 +3102,30 @@ function SuperAdminDashboard() {
           total_requests: Number(payload?.totals?.total_requests || 0),
           success_requests: Number(payload?.totals?.success_requests || 0),
           failed_requests: Number(payload?.totals?.failed_requests || 0),
+          text_requests: Number(payload?.totals?.text_requests || 0),
+          text_success_requests: Number(payload?.totals?.text_success_requests || 0),
+          text_failed_requests: Number(payload?.totals?.text_failed_requests || 0),
+          image_requests: Number(payload?.totals?.image_requests || 0),
+          image_success_requests: Number(payload?.totals?.image_success_requests || 0),
+          image_failed_requests: Number(payload?.totals?.image_failed_requests || 0),
           quota_related_errors: Number(payload?.totals?.quota_related_errors || 0),
-          estimated_cost_usd: Number(payload?.totals?.estimated_cost_usd || 0)
+          estimated_cost_usd: Number(payload?.totals?.estimated_cost_usd || 0),
+          text_estimated_cost_usd: Number(payload?.totals?.text_estimated_cost_usd || 0),
+          image_estimated_cost_usd: Number(payload?.totals?.image_estimated_cost_usd || 0)
         },
-        by_provider: Array.isArray(payload.by_provider) ? payload.by_provider : [],
+        by_provider: Array.isArray(payload.by_provider)
+          ? payload.by_provider.map((row) => ({
+            ...row,
+            requests: Number(row?.requests || 0),
+            text_requests: Number(row?.text_requests || 0),
+            image_requests: Number(row?.image_requests || 0),
+            success_requests: Number(row?.success_requests || 0),
+            failed_requests: Number(row?.failed_requests || 0),
+            estimated_cost_usd: Number(row?.estimated_cost_usd || 0),
+            text_estimated_cost_usd: Number(row?.text_estimated_cost_usd || 0),
+            image_estimated_cost_usd: Number(row?.image_estimated_cost_usd || 0)
+          }))
+          : [],
         recent_errors: Array.isArray(payload.recent_errors) ? payload.recent_errors : []
       });
     } catch (err) {
@@ -8346,23 +8374,39 @@ function SuperAdminDashboard() {
           </div>
 
           <Row className="g-2 mb-3">
-            <Col md={3}>
+            <Col xs={6} md={3}>
               <div className="small text-muted">Запросов ({aiUsageSummary.days} дн.)</div>
               <div className="fw-bold">{Number(aiUsageSummary?.totals?.total_requests || 0)}</div>
             </Col>
-            <Col md={3}>
+            <Col xs={6} md={3}>
               <div className="small text-muted">Успех / Ошибки</div>
               <div className="fw-bold">
                 {Number(aiUsageSummary?.totals?.success_requests || 0)} / {Number(aiUsageSummary?.totals?.failed_requests || 0)}
               </div>
             </Col>
-            <Col md={3}>
+            <Col xs={6} md={3}>
+              <div className="small text-muted">Текст (шт)</div>
+              <div className="fw-bold">{Number(aiUsageSummary?.totals?.text_requests || 0)}</div>
+            </Col>
+            <Col xs={6} md={3}>
+              <div className="small text-muted">Фото (шт)</div>
+              <div className="fw-bold">{Number(aiUsageSummary?.totals?.image_requests || 0)}</div>
+            </Col>
+            <Col xs={6} md={3}>
+              <div className="small text-muted">USD всего</div>
+              <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
+            </Col>
+            <Col xs={6} md={3}>
+              <div className="small text-muted">USD текст</div>
+              <div className="fw-bold">${Number(aiUsageSummary?.totals?.text_estimated_cost_usd || 0).toFixed(3)}</div>
+            </Col>
+            <Col xs={6} md={3}>
+              <div className="small text-muted">USD фото</div>
+              <div className="fw-bold">${Number(aiUsageSummary?.totals?.image_estimated_cost_usd || 0).toFixed(3)}</div>
+            </Col>
+            <Col xs={6} md={3}>
               <div className="small text-muted">Ошибки квоты</div>
               <div className="fw-bold">{Number(aiUsageSummary?.totals?.quota_related_errors || 0)}</div>
-            </Col>
-            <Col md={3}>
-              <div className="small text-muted">Оценка расходов (USD)</div>
-              <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
             </Col>
           </Row>
 
@@ -8375,10 +8419,14 @@ function SuperAdminDashboard() {
                     <tr>
                       <th>Провайдер</th>
                       <th>Тип</th>
-                      <th className="text-end">Запросы</th>
+                      <th className="text-end">Всего</th>
+                      <th className="text-end">Текст</th>
+                      <th className="text-end">Фото</th>
                       <th className="text-end">Успех</th>
                       <th className="text-end">Ошибки</th>
-                      <th className="text-end">Оценка USD</th>
+                      <th className="text-end">USD всего</th>
+                      <th className="text-end">USD текст</th>
+                      <th className="text-end">USD фото</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8400,9 +8448,13 @@ function SuperAdminDashboard() {
                             </div>
                           </td>
                           <td className="text-end">{Number(row.requests || 0)}</td>
+                          <td className="text-end">{Number(row.text_requests || 0)}</td>
+                          <td className="text-end">{Number(row.image_requests || 0)}</td>
                           <td className="text-end">{Number(row.success_requests || 0)}</td>
                           <td className="text-end">{Number(row.failed_requests || 0)}</td>
                           <td className="text-end">${Number(row.estimated_cost_usd || 0).toFixed(3)}</td>
+                          <td className="text-end">${Number(row.text_estimated_cost_usd || 0).toFixed(3)}</td>
+                          <td className="text-end">${Number(row.image_estimated_cost_usd || 0).toFixed(3)}</td>
                         </tr>
                       );
                     })}
@@ -11037,23 +11089,39 @@ function SuperAdminDashboard() {
                     </Card.Header>
                     <Card.Body className="p-4">
                       <Row className="g-2 mb-3">
-                        <Col md={3}>
+                        <Col xs={6} md={3}>
                           <div className="small text-muted">Запросов ({aiUsageSummary.days} дн.)</div>
                           <div className="fw-bold">{Number(aiUsageSummary?.totals?.total_requests || 0)}</div>
                         </Col>
-                        <Col md={3}>
+                        <Col xs={6} md={3}>
                           <div className="small text-muted">Успех / Ошибки</div>
                           <div className="fw-bold">
                             {Number(aiUsageSummary?.totals?.success_requests || 0)} / {Number(aiUsageSummary?.totals?.failed_requests || 0)}
                           </div>
                         </Col>
-                        <Col md={3}>
+                        <Col xs={6} md={3}>
+                          <div className="small text-muted">Текст (шт)</div>
+                          <div className="fw-bold">{Number(aiUsageSummary?.totals?.text_requests || 0)}</div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="small text-muted">Фото (шт)</div>
+                          <div className="fw-bold">{Number(aiUsageSummary?.totals?.image_requests || 0)}</div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="small text-muted">USD всего</div>
+                          <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="small text-muted">USD текст</div>
+                          <div className="fw-bold">${Number(aiUsageSummary?.totals?.text_estimated_cost_usd || 0).toFixed(3)}</div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="small text-muted">USD фото</div>
+                          <div className="fw-bold">${Number(aiUsageSummary?.totals?.image_estimated_cost_usd || 0).toFixed(3)}</div>
+                        </Col>
+                        <Col xs={6} md={3}>
                           <div className="small text-muted">Ошибки квоты</div>
                           <div className="fw-bold">{Number(aiUsageSummary?.totals?.quota_related_errors || 0)}</div>
-                        </Col>
-                        <Col md={3}>
-                          <div className="small text-muted">Оценка расходов (USD)</div>
-                          <div className="fw-bold">${Number(aiUsageSummary?.totals?.estimated_cost_usd || 0).toFixed(3)}</div>
                         </Col>
                       </Row>
 
@@ -11288,10 +11356,14 @@ function SuperAdminDashboard() {
                                 <tr>
                                   <th>Провайдер</th>
                                   <th>Тип</th>
-                                  <th className="text-end">Запросы</th>
+                                  <th className="text-end">Всего</th>
+                                  <th className="text-end">Текст</th>
+                                  <th className="text-end">Фото</th>
                                   <th className="text-end">Успех</th>
                                   <th className="text-end">Ошибки</th>
-                                  <th className="text-end">Оценка USD</th>
+                                  <th className="text-end">USD всего</th>
+                                  <th className="text-end">USD текст</th>
+                                  <th className="text-end">USD фото</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -11313,9 +11385,13 @@ function SuperAdminDashboard() {
                                         </div>
                                       </td>
                                       <td className="text-end">{Number(row.requests || 0)}</td>
+                                      <td className="text-end">{Number(row.text_requests || 0)}</td>
+                                      <td className="text-end">{Number(row.image_requests || 0)}</td>
                                       <td className="text-end">{Number(row.success_requests || 0)}</td>
                                       <td className="text-end">{Number(row.failed_requests || 0)}</td>
                                       <td className="text-end">${Number(row.estimated_cost_usd || 0).toFixed(3)}</td>
+                                      <td className="text-end">${Number(row.text_estimated_cost_usd || 0).toFixed(3)}</td>
+                                      <td className="text-end">${Number(row.image_estimated_cost_usd || 0).toFixed(3)}</td>
                                     </tr>
                                   );
                                 })}
