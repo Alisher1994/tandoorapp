@@ -7204,42 +7204,42 @@ function AdminDashboard() {
           </Alert>
         )}
 
-        <Card className={`admin-card admin-main-card${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
-          <Card.Body>
-            <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-              <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-                <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
-                  <button
-                    type="button"
-                    className="admin-sidebar-toggle-btn"
-                    onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                    title={isSidebarCollapsed
-                      ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                      : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-                    aria-label={isSidebarCollapsed
-                      ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                      : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-                  >
-                    {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                    <span className="sidebar-toggle-label">
-                      {language === 'uz' ? 'Menyu' : 'Меню'}
-                    </span>
-                  </button>
-                </div>
-                <Nav
-                  activeKey={mainTab}
-                  onSelect={(key) => setMainTab(key || 'dashboard')}
-                  className={`admin-tabs admin-tabs-sidebar${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}${isSidebarCollapsed ? ' is-collapsed' : ''}`}
-                >
-                  {Object.keys(adminSidebarTabsMeta).map((key) => (
-                    <Nav.Item key={`admin-sidebar-${key}`}>
-                      <Nav.Link eventKey={key}>
-                        {renderAdminSidebarTabTitle(key)}
-                      </Nav.Link>
-                    </Nav.Item>
-                  ))}
-                </Nav>
-              </div>
+        <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+            <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
+              <button
+                type="button"
+                className="admin-sidebar-toggle-btn"
+                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                title={isSidebarCollapsed
+                  ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                  : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                aria-label={isSidebarCollapsed
+                  ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                  : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+              >
+                {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+                <span className="sidebar-toggle-label">
+                  {language === 'uz' ? 'Menyu' : 'Меню'}
+                </span>
+              </button>
+            </div>
+            <Nav
+              activeKey={mainTab}
+              onSelect={(key) => setMainTab(key || 'dashboard')}
+              className={`admin-tabs admin-tabs-sidebar${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}${isSidebarCollapsed ? ' is-collapsed' : ''}`}
+            >
+              {Object.keys(adminSidebarTabsMeta).map((key) => (
+                <Nav.Item key={`admin-sidebar-${key}`}>
+                  <Nav.Link eventKey={key}>
+                    {renderAdminSidebarTabTitle(key)}
+                  </Nav.Link>
+                </Nav.Item>
+              ))}
+            </Nav>
+          </div>
+          <Card className={`admin-card admin-main-card admin-workspace-main${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
+            <Card.Body>
               <div className="admin-tab-content-shell">
               <Tabs
                 activeKey={mainTab}
@@ -10410,9 +10410,9 @@ function AdminDashboard() {
               </Tab>
             </Tabs>
             </div>
-            </div>
           </Card.Body>
         </Card>
+        </div>
 
         <Modal
           show={showCustomerOrdersModal}
