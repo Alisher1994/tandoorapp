@@ -17,8 +17,6 @@ import {
   Globe,
   Megaphone,
   Package,
-  PanelLeftClose,
-  PanelLeftOpen,
   Puzzle,
   Receipt,
   Shield,
@@ -7080,7 +7078,7 @@ function SuperAdminDashboard() {
     {
       code: 'uz',
       shortLabel: 'UZ',
-      label: "O'zbekcha",
+      label: "O'zbek",
       flag: 'https://flagcdn.com/w20/uz.png'
     }
   ]), []);
@@ -7101,6 +7099,11 @@ function SuperAdminDashboard() {
   }, [isSidebarCollapsed]);
   const handleSidebarTabSelect = (key) => {
     if (!key) return;
+    const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
+    if (isDesktopSidebar && key === activeTab) {
+      setIsSidebarCollapsed((prev) => !prev);
+      return;
+    }
     setActiveTab(key);
     setIsMobileSidebarOpen(false);
   };
@@ -7908,7 +7911,7 @@ function SuperAdminDashboard() {
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <Container className="admin-navbar-container">
           <Navbar.Brand className="d-flex align-items-center py-1">
-            <div className="admin-brand-logo-shell admin-brand-logo-shell-horizontal">
+            <div className="admin-brand-logo-shell admin-brand-logo-shell-horizontal admin-brand-logo-shell-plain">
               <img src="/talablar.svg" alt="Talablar" className="admin-brand-logo" />
             </div>
           </Navbar.Brand>
@@ -8319,24 +8322,6 @@ function SuperAdminDashboard() {
         {/* Main Content */}
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
           <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-            <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
-              <button
-                type="button"
-                className="admin-sidebar-toggle-btn"
-                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                title={isSidebarCollapsed
-                  ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                  : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-                aria-label={isSidebarCollapsed
-                  ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                  : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-              >
-                {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                <span className="sidebar-toggle-label">
-                  {language === 'uz' ? 'Menyu' : 'Меню'}
-                </span>
-              </button>
-            </div>
             <Nav
               activeKey={activeTab}
               onSelect={handleSidebarTabSelect}

@@ -48,8 +48,6 @@ import {
   Home,
   MessageCircle,
   Package,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   ShoppingCart,
   Users
@@ -1394,7 +1392,7 @@ function AdminDashboard() {
     {
       code: 'uz',
       shortLabel: 'UZ',
-      label: "O'zbekcha",
+      label: "O'zbek",
       flag: 'https://flagcdn.com/w20/uz.png'
     }
   ]), []);
@@ -1511,9 +1509,15 @@ function AdminDashboard() {
     }
   }, [isSidebarCollapsed]);
   const handleSidebarTabSelect = useCallback((key) => {
-    setMainTab(key || 'dashboard');
+    if (!key) return;
+    const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
+    if (isDesktopSidebar && key === mainTab) {
+      setIsSidebarCollapsed((prev) => !prev);
+      return;
+    }
+    setMainTab(key);
     setIsMobileSidebarOpen(false);
-  }, []);
+  }, [mainTab]);
   const adminSidebarTabsMeta = useMemo(() => ({
     dashboard: { label: t('dashboard'), icon: Home },
     orders: { label: t('orders'), icon: ShoppingCart },
@@ -7433,24 +7437,6 @@ function AdminDashboard() {
 
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
           <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-            <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
-              <button
-                type="button"
-                className="admin-sidebar-toggle-btn"
-                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                title={isSidebarCollapsed
-                  ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                  : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-                aria-label={isSidebarCollapsed
-                  ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                  : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-              >
-                {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                <span className="sidebar-toggle-label">
-                  {language === 'uz' ? 'Menyu' : 'Меню'}
-                </span>
-              </button>
-            </div>
             <Nav
               activeKey={mainTab}
               onSelect={handleSidebarTabSelect}
