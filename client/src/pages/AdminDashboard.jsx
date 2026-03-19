@@ -1102,6 +1102,7 @@ function AdminDashboard() {
       return false;
     }
   });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
@@ -1509,6 +1510,10 @@ function AdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
+  const handleSidebarTabSelect = useCallback((key) => {
+    setMainTab(key || 'dashboard');
+    setIsMobileSidebarOpen(false);
+  }, []);
   const adminSidebarTabsMeta = useMemo(() => ({
     dashboard: { label: t('dashboard'), icon: Home },
     orders: { label: t('orders'), icon: ShoppingCart },
@@ -6852,7 +6857,10 @@ function AdminDashboard() {
               </span>
             </div>
           </Navbar.Brand>
-          <Navbar.Toggle className="admin-navbar-toggle">
+          <Navbar.Toggle
+            className="admin-navbar-toggle admin-sidebar-mobile-toggle"
+            onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" />
             </svg>
@@ -7205,7 +7213,7 @@ function AdminDashboard() {
         )}
 
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}${isMobileSidebarOpen ? ' is-mobile-open' : ''}`}>
             <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
               <button
                 type="button"
@@ -7226,7 +7234,7 @@ function AdminDashboard() {
             </div>
             <Nav
               activeKey={mainTab}
-              onSelect={(key) => setMainTab(key || 'dashboard')}
+              onSelect={handleSidebarTabSelect}
               className={`admin-tabs admin-tabs-sidebar${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}${isSidebarCollapsed ? ' is-collapsed' : ''}`}
             >
               {Object.keys(adminSidebarTabsMeta).map((key) => (
@@ -7243,7 +7251,7 @@ function AdminDashboard() {
               <div className="admin-tab-content-shell">
               <Tabs
                 activeKey={mainTab}
-                onSelect={(k) => setMainTab(k || 'dashboard')}
+                onSelect={handleSidebarTabSelect}
                 className="admin-tabs admin-tabs-content-only"
               >
               {/* Dashboard Tab */}

@@ -776,6 +776,7 @@ function SuperAdminDashboard() {
       return false;
     }
   });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -7098,6 +7099,11 @@ function SuperAdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
+  const handleSidebarTabSelect = (key) => {
+    if (!key) return;
+    setActiveTab(key);
+    setIsMobileSidebarOpen(false);
+  };
 
   const resetActiveTabFilters = () => {
     if (activeTab === 'restaurants') {
@@ -7751,7 +7757,10 @@ function SuperAdminDashboard() {
               <img src="/talablar.svg" alt="Talablar" className="admin-brand-logo" />
             </div>
           </Navbar.Brand>
-          <Navbar.Toggle className="admin-navbar-toggle">
+          <Navbar.Toggle
+            className="admin-navbar-toggle admin-sidebar-mobile-toggle"
+            onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" />
             </svg>
@@ -8154,7 +8163,7 @@ function SuperAdminDashboard() {
 
         {/* Main Content */}
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}${isMobileSidebarOpen ? ' is-mobile-open' : ''}`}>
             <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
               <button
                 type="button"
@@ -8175,7 +8184,7 @@ function SuperAdminDashboard() {
             </div>
             <Nav
               activeKey={activeTab}
-              onSelect={(key) => key && setActiveTab(key)}
+              onSelect={handleSidebarTabSelect}
               className={`admin-tabs admin-tabs-sidebar mb-0${isSidebarCollapsed ? ' is-collapsed' : ''}`}
             >
               {Object.keys(superAdminSidebarTabsMeta).map((key) => (
@@ -8192,7 +8201,7 @@ function SuperAdminDashboard() {
               <div className="admin-tab-content-shell">
               <Tabs
                 activeKey={activeTab}
-                onSelect={(key) => key && setActiveTab(key)}
+                onSelect={handleSidebarTabSelect}
                 className="admin-tabs admin-tabs-content-only"
               >
               <Tab eventKey="analytics" title={renderSuperAdminSidebarTabTitle('analytics')}>
