@@ -35,6 +35,7 @@ import DeliveryZonePicker from '../components/DeliveryZonePicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
 import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
+import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import {
   getLeafletTileLayerConfig,
   getSavedMapProvider,
@@ -445,6 +446,10 @@ const normalizeYouTubeEmbedUrl = (value) => {
   }
 
   return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
+};
+const getYouTubeThumbnailUrl = (value, quality = 'mqdefault') => {
+  const videoId = extractYouTubeVideoId(value);
+  return videoId ? `https://i.ytimg.com/vi/${videoId}/${quality}.jpg` : '';
 };
 const toNumericValue = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -7041,6 +7046,7 @@ function AdminDashboard() {
     <>
       <div className={actionButtonsVisible ? '' : 'action-buttons-hidden'}>
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
+        <HeaderGlowBackground />
         <Container
           fluid={isOrdersKanbanMode}
           className={`admin-navbar-container${isOrdersKanbanMode ? ' admin-navbar-container-kanban-focus' : ''}`}
@@ -10551,6 +10557,7 @@ function AdminDashboard() {
                                 : (item.title_ru || item.title_uz || '—');
                               const rawUrl = String(item.youtube_url || '').trim();
                               const hasReadableUrl = /^https?:\/\//i.test(rawUrl);
+                              const thumbnailUrl = getYouTubeThumbnailUrl(rawUrl);
                               return (
                                 <button
                                   key={`admin-help-${item.id}`}
@@ -10558,11 +10565,35 @@ function AdminDashboard() {
                                   className={`btn text-start admin-help-list-item ${isActive ? 'is-active' : ''}`}
                                   onClick={() => setSelectedHelpInstruction(item)}
                                 >
-                                  <div className="fw-semibold admin-help-item-title">
-                                    {title}
-                                  </div>
-                                  <div className="small text-muted admin-help-item-url">
-                                    {hasReadableUrl ? rawUrl : (language === 'uz' ? "Havola qo'shilmagan" : 'Ссылка не добавлена')}
+                                  <div className="admin-help-item-layout">
+                                    <div className={`admin-help-item-thumb-shell${thumbnailUrl ? '' : ' is-empty'}`} aria-hidden="true">
+                                      {thumbnailUrl ? (
+                                        <>
+                                          <img
+                                            src={thumbnailUrl}
+                                            alt=""
+                                            loading="lazy"
+                                            className="admin-help-item-thumb"
+                                          />
+                                          <span className="admin-help-item-thumb-badge">
+                                            <i className="bi bi-play-fill" aria-hidden="true"></i>
+                                            <span>YouTube</span>
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <div className="admin-help-item-thumb-placeholder">
+                                          <i className="bi bi-play-btn-fill" aria-hidden="true"></i>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="admin-help-item-copy">
+                                      <div className="fw-semibold admin-help-item-title">
+                                        {title}
+                                      </div>
+                                      <div className="small text-muted admin-help-item-url">
+                                        {hasReadableUrl ? rawUrl : (language === 'uz' ? "Havola qo'shilmagan" : 'Ссылка не добавлена')}
+                                      </div>
+                                    </div>
                                   </div>
                                 </button>
                               );

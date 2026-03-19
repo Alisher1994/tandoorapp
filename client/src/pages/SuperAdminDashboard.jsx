@@ -34,6 +34,7 @@ import YandexLocationPicker from '../components/YandexLocationPicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
+import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import {
   getLeafletTileLayerConfig,
   getSavedMapProvider,
@@ -155,6 +156,41 @@ const createEmptyHelpInstructionForm = () => ({
   youtube_url: '',
   sort_order: ''
 });
+const extractYouTubeVideoId = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const idLikeRaw = raw.match(/^[a-zA-Z0-9_-]{11}$/);
+  if (idLikeRaw) return raw;
+
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    let videoId = '';
+
+    if (host === 'youtu.be') {
+      videoId = parsed.pathname.replace(/\//g, '');
+    } else if (host.includes('youtube.com') || host.includes('youtube-nocookie.com')) {
+      if (parsed.pathname.startsWith('/watch')) {
+        videoId = parsed.searchParams.get('v') || '';
+      } else if (parsed.pathname.startsWith('/embed/')) {
+        videoId = parsed.pathname.split('/embed/')[1] || '';
+      } else if (parsed.pathname.startsWith('/shorts/')) {
+        videoId = parsed.pathname.split('/shorts/')[1] || '';
+      } else if (parsed.pathname.startsWith('/live/')) {
+        videoId = parsed.pathname.split('/live/')[1] || '';
+      }
+    }
+
+    return String(videoId).split(/[?&/]/)[0];
+  } catch (error) {
+    return '';
+  }
+};
+const getYouTubeThumbnailUrl = (value, quality = 'mqdefault') => {
+  const videoId = extractYouTubeVideoId(value);
+  return videoId ? `https://i.ytimg.com/vi/${videoId}/${quality}.jpg` : '';
+};
 const RESERVATION_TEMPLATE_SHAPE_OPTIONS = [
   { value: 'round', ru: 'Круглый', uz: 'Dumaloq' },
   { value: 'square', ru: 'Квадратный', uz: 'Kvadrat' },
@@ -7909,6 +7945,7 @@ function SuperAdminDashboard() {
     <div className={`min-vh-100 bg-light ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
       {/* Header */}
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
+        <HeaderGlowBackground />
         <Container className="admin-navbar-container">
           <Navbar.Brand className="d-flex align-items-center py-1">
             <div className="admin-brand-logo-shell admin-brand-logo-shell-horizontal admin-brand-logo-shell-plain">
@@ -9190,9 +9227,43 @@ function SuperAdminDashboard() {
                             <td>{item.title_uz || '—'}</td>
                             <td style={{ maxWidth: 320 }}>
                               {item.youtube_url ? (
-                                <a href={item.youtube_url} target="_blank" rel="noreferrer" className="small text-decoration-none">
-                                  {item.youtube_url}
-                                </a>
+                                (() => {
+                                  const thumbnailUrl = getYouTubeThumbnailUrl(item.youtube_url);
+                                  return (
+                                    <div className="admin-help-item-layout admin-help-item-layout--table">
+                                      <div className={`admin-help-item-thumb-shell admin-help-item-thumb-shell--table${thumbnailUrl ? '' : ' is-empty'}`} aria-hidden="true">
+                                        {thumbnailUrl ? (
+                                          <>
+                                            <img
+                                              src={thumbnailUrl}
+                                              alt=""
+                                              loading="lazy"
+                                              className="admin-help-item-thumb"
+                                            />
+                                            <span className="admin-help-item-thumb-badge">
+                                              <i className="bi bi-play-fill" aria-hidden="true"></i>
+                                              <span>YouTube</span>
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <div className="admin-help-item-thumb-placeholder">
+                                            <i className="bi bi-play-btn-fill" aria-hidden="true"></i>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="admin-help-item-copy">
+                                        <a
+                                          href={item.youtube_url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="small text-decoration-none d-block admin-help-item-url-link"
+                                        >
+                                          {item.youtube_url}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <span className="text-muted small">—</span>
                               )}
