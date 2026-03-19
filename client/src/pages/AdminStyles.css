@@ -5237,44 +5237,68 @@ body::-webkit-scrollbar,
 .category-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .category-action-btn {
-    width: 30px !important;
-    min-width: 30px !important;
-    height: 30px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    flex: 0 0 34px !important;
+    aspect-ratio: 1 / 1;
     padding: 0 !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     border: 1px solid #cbd5e1 !important;
-    background: #ffffff !important;
+    background: #f8fafc !important;
     color: #64748b !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     transition: all 0.15s ease;
+    box-shadow: none !important;
 }
 
 .category-action-btn i {
-    font-size: 13px !important;
+    font-size: 14px !important;
     line-height: 1 !important;
 }
 
+.category-action-btn:hover {
+    background: #eef2f7 !important;
+    border-color: #bfcde0 !important;
+    color: #334155 !important;
+}
+
+.category-action-btn:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.2) !important;
+}
+
+.category-action-btn--edit {
+    background: rgba(var(--bs-primary-rgb), 0.08) !important;
+    border-color: rgba(var(--bs-primary-rgb), 0.28) !important;
+    color: var(--primary-color) !important;
+}
+
 .category-action-btn--edit:hover {
-    background: #eef2ff !important;
-    border-color: #c7d2fe !important;
-    color: #4338ca !important;
+    background: rgba(var(--bs-primary-rgb), 0.15) !important;
+    border-color: rgba(var(--bs-primary-rgb), 0.42) !important;
+    color: var(--primary-hover) !important;
 }
 
 .category-action-btn--delete {
-    color: #dc2626 !important;
-    border-color: #fecaca !important;
+    background: rgba(148, 163, 184, 0.08) !important;
+    border-color: rgba(148, 163, 184, 0.35) !important;
+    color: #475569 !important;
 }
 
 .category-action-btn--delete:hover {
-    background: #fef2f2 !important;
-    border-color: #fca5a5 !important;
-    color: #b91c1c !important;
+    background: rgba(148, 163, 184, 0.18) !important;
+    border-color: rgba(100, 116, 139, 0.45) !important;
+    color: #334155 !important;
 }
 
 @media (max-width: 1199.98px) {
