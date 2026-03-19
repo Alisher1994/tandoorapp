@@ -1544,6 +1544,126 @@ function AdminDashboard() {
       </Nav.Item>
     ))
   );
+  const renderAdminMobileMenuExtras = () => (
+    <div className="admin-sidebar-mobile-extra-section">
+      <div className="admin-sidebar-mobile-divider" />
+      <div className="admin-sidebar-mobile-extra-list">
+        <button
+          type="button"
+          className="admin-sidebar-mobile-action"
+          onClick={() => {
+            setIsMobileSidebarOpen(false);
+            setShowBroadcastModal(true);
+          }}
+        >
+          <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+            <i className="bi bi-megaphone-fill"></i>
+          </span>
+          <span className="admin-sidebar-mobile-action-copy">
+            <span className="admin-sidebar-mobile-action-title">{t('broadcast')}</span>
+            <span className="admin-sidebar-mobile-action-subtitle">
+              {language === 'uz' ? 'Mijozlarga xabar yuborish' : 'Рассылка клиентам'}
+            </span>
+          </span>
+        </button>
+
+        {isReservationModuleEnabled && (
+          <button
+            type="button"
+            className="admin-sidebar-mobile-action"
+            onClick={() => {
+              setIsMobileSidebarOpen(false);
+              navigate('/admin/reservations');
+            }}
+          >
+            <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+              <i className="bi bi-calendar2-week-fill"></i>
+            </span>
+            <span className="admin-sidebar-mobile-action-copy">
+              <span className="admin-sidebar-mobile-action-title">{t('reservations')}</span>
+              <span className="admin-sidebar-mobile-action-subtitle">
+                {language === 'uz' ? 'Bronlarni boshqarish' : 'Управление бронями'}
+              </span>
+            </span>
+          </button>
+        )}
+
+        <div className="admin-sidebar-mobile-action admin-sidebar-mobile-action-card">
+          <div className="admin-sidebar-mobile-action-head">
+            <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+              <img src={activeLanguageOption?.flag} width="16" height="12" alt={activeLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+            </span>
+            <span className="admin-sidebar-mobile-action-copy">
+              <span className="admin-sidebar-mobile-action-title">
+                {language === 'uz' ? 'Tizim tili' : 'Язык системы'}
+              </span>
+              <span className="admin-sidebar-mobile-action-subtitle">
+                {activeLanguageOption?.label || 'Русский'}
+              </span>
+            </span>
+          </div>
+          <div className="admin-sidebar-mobile-language-switcher">
+            {languageOptions.map((option) => (
+              <button
+                key={`admin-mobile-language-${option.code}`}
+                type="button"
+                className={`admin-sidebar-mobile-language-chip${language === option.code ? ' is-active' : ''}`}
+                onClick={() => handleLanguageSelect(option.code)}
+              >
+                <img src={option.flag} width="16" height="12" alt={option.shortLabel} className="rounded-1" />
+                <span>{option.shortLabel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="admin-sidebar-mobile-action"
+          onClick={() => {
+            setIsMobileSidebarOpen(false);
+            setShowMobileAccountSheet(true);
+          }}
+        >
+          <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+            <span className="admin-sidebar-mobile-avatar-mini">
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
+            </span>
+          </span>
+          <span className="admin-sidebar-mobile-action-copy">
+            <span className="admin-sidebar-mobile-action-title">
+              {language === 'uz' ? 'Akkount' : 'Аккаунт'}
+            </span>
+            <span className="admin-sidebar-mobile-action-subtitle">
+              {user?.full_name || user?.username || 'Administrator'}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="admin-sidebar-mobile-action"
+          onClick={() => {
+            setIsMobileSidebarOpen(false);
+            fetchBillingInfo();
+            setShowBalanceModal(true);
+          }}
+        >
+          <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+            <i className="bi bi-receipt"></i>
+          </span>
+          <span className="admin-sidebar-mobile-action-copy">
+            <span className="admin-sidebar-mobile-action-title">
+              {language === 'uz' ? 'Cheklar' : 'Чеки'}
+            </span>
+            <span className="admin-sidebar-mobile-action-subtitle">
+              {checksAvailableLabel}: {formatChecksCount(balanceChecksCount)} {checksCountLabel}
+            </span>
+          </span>
+        </button>
+      </div>
+    </div>
+  );
   const effectiveOrdersStatusFilter = ordersViewMode === 'kanban' ? 'all' : statusFilter;
   const getKanbanColumnFilter = useCallback((columnKey) => ({
     ...KANBAN_COLUMN_FILTER_DEFAULT,
@@ -6874,8 +6994,8 @@ function AdminDashboard() {
               <line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" />
             </svg>
           </Navbar.Toggle>
-          <Navbar.Collapse className="justify-content-end">
-            <Nav className="align-items-lg-center gap-lg-1">
+          <Navbar.Collapse className="justify-content-end d-none d-lg-flex">
+            <Nav className="d-none d-lg-flex align-items-lg-center gap-lg-1">
               {/* Broadcast */}
               <Nav.Link
                 onClick={() => setShowBroadcastModal(true)}
@@ -10444,6 +10564,7 @@ function AdminDashboard() {
             >
               {renderAdminSidebarNavItems()}
             </Nav>
+            {renderAdminMobileMenuExtras()}
           </Modal.Body>
         </Modal>
 

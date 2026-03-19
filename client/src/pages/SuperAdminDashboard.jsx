@@ -7370,6 +7370,64 @@ function SuperAdminDashboard() {
       </Nav.Item>
     ))
   );
+  const renderSuperAdminMobileMenuExtras = () => (
+    <div className="admin-sidebar-mobile-extra-section">
+      <div className="admin-sidebar-mobile-divider" />
+      <div className="admin-sidebar-mobile-extra-list">
+        <div className="admin-sidebar-mobile-action admin-sidebar-mobile-action-card">
+          <div className="admin-sidebar-mobile-action-head">
+            <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+              <img src={activeHeaderLanguageOption?.flag} width="16" height="12" alt={activeHeaderLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+            </span>
+            <span className="admin-sidebar-mobile-action-copy">
+              <span className="admin-sidebar-mobile-action-title">
+                {language === 'uz' ? 'Tizim tili' : 'Язык системы'}
+              </span>
+              <span className="admin-sidebar-mobile-action-subtitle">
+                {activeHeaderLanguageOption?.label || 'Русский'}
+              </span>
+            </span>
+          </div>
+          <div className="admin-sidebar-mobile-language-switcher">
+            {headerLanguageOptions.map((option) => (
+              <button
+                key={`superadmin-mobile-language-${option.code}`}
+                type="button"
+                className={`admin-sidebar-mobile-language-chip${language === option.code ? ' is-active' : ''}`}
+                onClick={() => handleHeaderLanguageSelect(option.code)}
+              >
+                <img src={option.flag} width="16" height="12" alt={option.shortLabel} className="rounded-1" />
+                <span>{option.shortLabel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="admin-sidebar-mobile-action"
+          onClick={() => {
+            setIsMobileSidebarOpen(false);
+            setShowMobileAccountSheet(true);
+          }}
+        >
+          <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
+            <span className="admin-sidebar-mobile-avatar-mini">
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
+            </span>
+          </span>
+          <span className="admin-sidebar-mobile-action-copy">
+            <span className="admin-sidebar-mobile-action-title">
+              {language === 'uz' ? 'Akkount' : 'Аккаунт'}
+            </span>
+            <span className="admin-sidebar-mobile-action-subtitle">
+              {user?.full_name || user?.username || 'Super Administrator'}
+            </span>
+          </span>
+        </button>
+      </div>
+    </div>
+  );
 
   const mobileSheetI18n = language === 'uz'
     ? { title: 'Filtrlar', reset: 'Tozalash', apply: "Qo'llash" }
@@ -7774,8 +7832,8 @@ function SuperAdminDashboard() {
               <line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" />
             </svg>
           </Navbar.Toggle>
-          <Navbar.Collapse className="justify-content-end">
-            <Nav className="align-items-lg-center gap-lg-1">
+          <Navbar.Collapse className="justify-content-end d-none d-lg-flex">
+            <Nav className="d-none d-lg-flex align-items-lg-center gap-lg-1">
               <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
                 <Dropdown align="end" className="admin-header-lang-dropdown">
                   <Dropdown.Toggle
@@ -11450,6 +11508,7 @@ function SuperAdminDashboard() {
             >
               {renderSuperAdminSidebarNavItems()}
             </Nav>
+            {renderSuperAdminMobileMenuExtras()}
           </Modal.Body>
         </Modal>
       </Container>
