@@ -8101,7 +8101,7 @@ function SuperAdminDashboard() {
 
       <Alert
         variant={isAiFeatureEnabled ? 'light' : 'warning'}
-        className="border-0 shadow-sm rounded-4 mb-4"
+        className="superadmin-setting-surface mb-4"
         style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
       >
         <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
