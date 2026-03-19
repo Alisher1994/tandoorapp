@@ -29,6 +29,7 @@ const {
   resolveNextSortOrder,
   createHelpInstruction,
   updateHelpInstruction,
+  incrementHelpInstructionViewCount,
   deleteHelpInstruction
 } = require('../services/helpInstructions');
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
@@ -8011,6 +8012,26 @@ router.get('/help-instructions', async (req, res) => {
   } catch (error) {
     console.error('Get help instructions error:', error);
     res.status(500).json({ error: 'Ошибка загрузки инструкций' });
+  }
+});
+
+router.post('/help-instructions/:id/view', async (req, res) => {
+  try {
+    await ensureHelpInstructionsSchema();
+    const instructionId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID инструкции' });
+    }
+
+    const updated = await incrementHelpInstructionViewCount(instructionId);
+    if (!updated) {
+      return res.status(404).json({ error: 'Инструкция не найдена' });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Increment help instruction views error:', error);
+    res.status(500).json({ error: 'Ошибка обновления просмотров инструкции' });
   }
 });
 

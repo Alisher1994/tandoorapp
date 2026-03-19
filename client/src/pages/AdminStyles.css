@@ -2445,6 +2445,12 @@ body::-webkit-scrollbar,
     min-width: 0;
 }
 
+.admin-help-thumb-link {
+    color: inherit;
+    text-decoration: none;
+    display: block;
+}
+
 .admin-help-item-url-link {
     word-break: break-word;
     overflow-wrap: anywhere;
@@ -2461,6 +2467,26 @@ body::-webkit-scrollbar,
     word-break: break-word;
     line-height: 1.25;
     color: #0f172a;
+}
+
+.admin-help-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+}
+
+.admin-help-item-views {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.admin-help-item-status {
+    color: #64748b;
 }
 
 .admin-help-item-url {
@@ -2540,6 +2566,16 @@ body::-webkit-scrollbar,
 .admin-help-preview-title {
     color: #0f172a;
     font-size: 1.05rem;
+}
+
+.admin-help-preview-meta {
+    margin-top: 0.3rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+    font-size: 0.84rem;
+    font-weight: 600;
 }
 
 .admin-help-open-btn {
@@ -4442,6 +4478,53 @@ body::-webkit-scrollbar,
 
 .admin-table tbody tr:hover {
     background-color: #f8fafc !important;
+}
+
+.sa-shop-balance-stack {
+    display: grid;
+    gap: 4px;
+    min-width: 188px;
+}
+
+.sa-shop-balance-item {
+    display: grid;
+    grid-template-columns: 16px auto 1fr;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    color: #64748b;
+}
+
+.sa-shop-balance-item.is-main {
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.sa-shop-balance-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    color: #6366f1;
+    opacity: 0.95;
+}
+
+.sa-shop-balance-label {
+    color: inherit;
+    white-space: nowrap;
+}
+
+.sa-shop-balance-value {
+    justify-self: end;
+    text-align: right;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.sa-shop-balance-item.is-main .sa-shop-balance-value {
+    color: #4f46e5;
+    font-weight: 700;
 }
 
 .sa-operator-stores-btn {

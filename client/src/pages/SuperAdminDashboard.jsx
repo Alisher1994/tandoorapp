@@ -191,6 +191,27 @@ const getYouTubeThumbnailUrl = (value, quality = 'mqdefault') => {
   const videoId = extractYouTubeVideoId(value);
   return videoId ? `https://i.ytimg.com/vi/${videoId}/${quality}.jpg` : '';
 };
+const getRussianViewsLabel = (count) => {
+  const absCount = Math.abs(Number.parseInt(count, 10) || 0) % 100;
+  const lastDigit = absCount % 10;
+  if (absCount > 10 && absCount < 20) return 'просмотров';
+  if (lastDigit === 1) return 'просмотр';
+  if (lastDigit >= 2 && lastDigit <= 4) return 'просмотра';
+  return 'просмотров';
+};
+const formatHelpInstructionViews = (value, language = 'ru') => {
+  const views = Math.max(0, Number.parseInt(value, 10) || 0);
+  const locale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
+  const formattedNumber = views >= 1000
+    ? new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(views)
+    : new Intl.NumberFormat(locale).format(views);
+
+  if (language === 'uz') {
+    return `${formattedNumber} ko'rish`;
+  }
+
+  return `${formattedNumber} ${getRussianViewsLabel(views)}`;
+};
 const RESERVATION_TEMPLATE_SHAPE_OPTIONS = [
   { value: 'round', ru: 'Круглый', uz: 'Dumaloq' },
   { value: 'square', ru: 'Квадратный', uz: 'Kvadrat' },
@@ -2016,6 +2037,24 @@ function SuperAdminDashboard() {
       }
     } finally {
       setHelpInstructionsLoading(false);
+    }
+  };
+
+  const applyHelpInstructionUpdate = (updatedInstruction) => {
+    if (!updatedInstruction?.id) return;
+    setHelpInstructions((prev) => prev.map((item) => (
+      Number(item.id) === Number(updatedInstruction.id)
+        ? { ...item, ...updatedInstruction }
+        : item
+    )));
+  };
+
+  const incrementHelpInstructionViews = async (instructionId) => {
+    try {
+      const response = await axios.post(`${API_URL}/superadmin/help-instructions/${instructionId}/view`);
+      applyHelpInstructionUpdate(response.data);
+    } catch (error) {
+      console.error('Increment help instruction views error:', error);
     }
   };
 
@@ -8607,16 +8646,43 @@ function SuperAdminDashboard() {
                               <td>
                                 {(() => {
                                   const currencyLabel = getCurrencyLabelByCode(r.currency_code || countryCurrency?.code);
+                                  const checksCount = formatChecksCount(r.balance || 0, r.order_cost || 0, r.is_free_tier);
                                   return (
-                                    <>
-                                      <div className="fw-bold text-primary">{formatBalanceAmount(r.balance || 0)} {currencyLabel}</div>
-                                      <small className="text-muted d-block">
-                                        {language === 'uz' ? "Qolgan cheklar" : 'Доступно чеков'}: {formatChecksCount(r.balance || 0, r.order_cost || 0, r.is_free_tier)} {language === 'uz' ? 'ta' : 'шт'}
-                                      </small>
-                                      <small className="text-muted">
-                                        {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'}: {formatBalanceAmount(r.order_cost || 0)} {currencyLabel}
-                                      </small>
-                                    </>
+                                    <div className="sa-shop-balance-stack">
+                                      <div className="sa-shop-balance-item is-main">
+                                        <span className="sa-shop-balance-icon" aria-hidden="true">
+                                          <i className="bi bi-wallet2" />
+                                        </span>
+                                        <span className="sa-shop-balance-label">
+                                          {language === 'uz' ? 'Balans' : 'Баланс'}
+                                        </span>
+                                        <span className="sa-shop-balance-value">
+                                          {formatBalanceAmount(r.balance || 0)} {currencyLabel}
+                                        </span>
+                                      </div>
+                                      <div className="sa-shop-balance-item">
+                                        <span className="sa-shop-balance-icon" aria-hidden="true">
+                                          <i className="bi bi-receipt-cutoff" />
+                                        </span>
+                                        <span className="sa-shop-balance-label">
+                                          {language === 'uz' ? 'Cheklar' : 'Чеки'}
+                                        </span>
+                                        <span className="sa-shop-balance-value">
+                                          {checksCount} {language === 'uz' ? 'ta' : 'шт'}
+                                        </span>
+                                      </div>
+                                      <div className="sa-shop-balance-item">
+                                        <span className="sa-shop-balance-icon" aria-hidden="true">
+                                          <i className="bi bi-coin" />
+                                        </span>
+                                        <span className="sa-shop-balance-label">
+                                          {language === 'uz' ? '1 chek' : '1 чек'}
+                                        </span>
+                                        <span className="sa-shop-balance-value">
+                                          {formatBalanceAmount(r.order_cost || 0)} {currencyLabel}
+                                        </span>
+                                      </div>
+                                    </div>
                                   );
                                 })()}
                               </td>
@@ -9214,7 +9280,7 @@ function SuperAdminDashboard() {
                           <th>ID</th>
                           <th>RU</th>
                           <th>UZ</th>
-                          <th>YouTube URL</th>
+                          <th>{language === 'uz' ? 'Video' : 'Видео'}</th>
                           <th>{language === 'uz' ? 'Tartib' : 'Порядок'}</th>
                           <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
                         </tr>
@@ -9231,41 +9297,50 @@ function SuperAdminDashboard() {
                                   const thumbnailUrl = getYouTubeThumbnailUrl(item.youtube_url);
                                   return (
                                     <div className="admin-help-item-layout admin-help-item-layout--table">
-                                      <div className={`admin-help-item-thumb-shell admin-help-item-thumb-shell--table${thumbnailUrl ? '' : ' is-empty'}`} aria-hidden="true">
-                                        {thumbnailUrl ? (
-                                          <>
-                                            <img
-                                              src={thumbnailUrl}
-                                              alt=""
-                                              loading="lazy"
-                                              className="admin-help-item-thumb"
-                                            />
-                                            <span className="admin-help-item-thumb-badge">
-                                              <i className="bi bi-play-fill" aria-hidden="true"></i>
-                                              <span>YouTube</span>
-                                            </span>
-                                          </>
-                                        ) : (
-                                          <div className="admin-help-item-thumb-placeholder">
-                                            <i className="bi bi-play-btn-fill" aria-hidden="true"></i>
-                                          </div>
-                                        )}
-                                      </div>
+                                      <a
+                                        href={item.youtube_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="admin-help-thumb-link"
+                                        onClick={() => incrementHelpInstructionViews(item.id)}
+                                        aria-label={language === 'uz' ? "Videoni ochish" : 'Открыть видео'}
+                                      >
+                                        <div className={`admin-help-item-thumb-shell admin-help-item-thumb-shell--table${thumbnailUrl ? '' : ' is-empty'}`} aria-hidden="true">
+                                          {thumbnailUrl ? (
+                                            <>
+                                              <img
+                                                src={thumbnailUrl}
+                                                alt=""
+                                                loading="lazy"
+                                                className="admin-help-item-thumb"
+                                              />
+                                              <span className="admin-help-item-thumb-badge">
+                                                <i className="bi bi-play-fill" aria-hidden="true"></i>
+                                                <span>YouTube</span>
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <div className="admin-help-item-thumb-placeholder">
+                                              <i className="bi bi-play-btn-fill" aria-hidden="true"></i>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </a>
                                       <div className="admin-help-item-copy">
-                                        <a
-                                          href={item.youtube_url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="small text-decoration-none d-block admin-help-item-url-link"
-                                        >
-                                          {item.youtube_url}
-                                        </a>
+                                        <div className="small text-muted admin-help-item-meta">
+                                          <span className="admin-help-item-views">
+                                            <i className="bi bi-eye-fill" aria-hidden="true"></i>
+                                            <span>{formatHelpInstructionViews(item.view_count, language)}</span>
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                   );
                                 })()
                               ) : (
-                                <span className="text-muted small">—</span>
+                                <span className="text-muted small">
+                                  {language === 'uz' ? "Video qo'shilmagan" : 'Видео не добавлено'}
+                                </span>
                               )}
                             </td>
                             <td>{item.sort_order ?? 0}</td>

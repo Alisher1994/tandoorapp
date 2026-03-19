@@ -111,6 +111,7 @@ const ensureHelpInstructionsSchema = async () => {
         title_ru VARCHAR(255) NOT NULL,
         title_uz VARCHAR(255) NOT NULL,
         youtube_url TEXT DEFAULT '',
+        view_count INTEGER DEFAULT 0,
         sort_order INTEGER DEFAULT 0,
         is_default BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -122,10 +123,12 @@ const ensureHelpInstructionsSchema = async () => {
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS title_ru VARCHAR(255) NOT NULL DEFAULT ''`);
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS title_uz VARCHAR(255) NOT NULL DEFAULT ''`);
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS youtube_url TEXT DEFAULT ''`);
+    await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
     await pool.query(`ALTER TABLE help_instructions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    await pool.query(`UPDATE help_instructions SET view_count = 0 WHERE view_count IS NULL`);
 
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_help_instructions_code ON help_instructions (code) WHERE code IS NOT NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_instructions_sort ON help_instructions (sort_order, id)`);
@@ -173,7 +176,7 @@ const ensureHelpInstructionsSchema = async () => {
 const listHelpInstructions = async () => {
   await ensureHelpInstructionsSchema();
   const result = await pool.query(`
-    SELECT id, code, title_ru, title_uz, youtube_url, sort_order, is_default, created_at, updated_at
+    SELECT id, code, title_ru, title_uz, youtube_url, view_count, sort_order, is_default, created_at, updated_at
     FROM help_instructions
     ORDER BY sort_order ASC, id ASC
   `);
@@ -186,7 +189,7 @@ const getHelpInstructionByCode = async (code) => {
   if (!normalizedCode) return null;
 
   const result = await pool.query(
-    `SELECT id, code, title_ru, title_uz, youtube_url, sort_order, is_default, created_at, updated_at
+    `SELECT id, code, title_ru, title_uz, youtube_url, view_count, sort_order, is_default, created_at, updated_at
      FROM help_instructions
      WHERE code = $1
      LIMIT 1`,
@@ -238,7 +241,7 @@ const createHelpInstruction = async (payload = {}) => {
   const result = await pool.query(
     `INSERT INTO help_instructions (title_ru, title_uz, youtube_url, sort_order, is_default)
      VALUES ($1, $2, $3, $4, false)
-     RETURNING id, code, title_ru, title_uz, youtube_url, sort_order, is_default, created_at, updated_at`,
+     RETURNING id, code, title_ru, title_uz, youtube_url, view_count, sort_order, is_default, created_at, updated_at`,
     [titleRu, titleUz, youtubeUrl, sortOrder]
   );
   return result.rows[0];
@@ -274,8 +277,21 @@ const updateHelpInstruction = async (id, payload = {}) => {
          sort_order = $4,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $5
-     RETURNING id, code, title_ru, title_uz, youtube_url, sort_order, is_default, created_at, updated_at`,
+     RETURNING id, code, title_ru, title_uz, youtube_url, view_count, sort_order, is_default, created_at, updated_at`,
     [titleRu, titleUz, youtubeUrl, sortOrder, id]
+  );
+  return result.rows[0] || null;
+};
+
+const incrementHelpInstructionViewCount = async (id) => {
+  await ensureHelpInstructionsSchema();
+  const result = await pool.query(
+    `UPDATE help_instructions
+     SET view_count = COALESCE(view_count, 0) + 1,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+     RETURNING id, code, title_ru, title_uz, youtube_url, view_count, sort_order, is_default, created_at, updated_at`,
+    [id]
   );
   return result.rows[0] || null;
 };
@@ -301,7 +317,7 @@ const deleteHelpInstruction = async (id) => {
   const result = await pool.query(
     `DELETE FROM help_instructions
      WHERE id = $1
-     RETURNING id, code, title_ru, title_uz, youtube_url, sort_order, is_default`,
+     RETURNING id, code, title_ru, title_uz, youtube_url, view_count, sort_order, is_default`,
     [id]
   );
   return result.rows[0] || null;
@@ -316,5 +332,6 @@ module.exports = {
   resolveNextSortOrder,
   createHelpInstruction,
   updateHelpInstruction,
+  incrementHelpInstructionViewCount,
   deleteHelpInstruction
 };

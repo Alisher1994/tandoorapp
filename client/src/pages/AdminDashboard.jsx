@@ -451,6 +451,27 @@ const getYouTubeThumbnailUrl = (value, quality = 'mqdefault') => {
   const videoId = extractYouTubeVideoId(value);
   return videoId ? `https://i.ytimg.com/vi/${videoId}/${quality}.jpg` : '';
 };
+const getRussianViewsLabel = (count) => {
+  const absCount = Math.abs(Number.parseInt(count, 10) || 0) % 100;
+  const lastDigit = absCount % 10;
+  if (absCount > 10 && absCount < 20) return 'просмотров';
+  if (lastDigit === 1) return 'просмотр';
+  if (lastDigit >= 2 && lastDigit <= 4) return 'просмотра';
+  return 'просмотров';
+};
+const formatHelpInstructionViews = (value, language = 'ru') => {
+  const views = Math.max(0, Number.parseInt(value, 10) || 0);
+  const locale = language === 'uz' ? 'uz-UZ' : 'ru-RU';
+  const formattedNumber = views >= 1000
+    ? new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(views)
+    : new Intl.NumberFormat(locale).format(views);
+
+  if (language === 'uz') {
+    return `${formattedNumber} ko'rish`;
+  }
+
+  return `${formattedNumber} ${getRussianViewsLabel(views)}`;
+};
 const toNumericValue = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -1295,6 +1316,7 @@ function AdminDashboard() {
   const [helpInstructions, setHelpInstructions] = useState([]);
   const [loadingHelpInstructions, setLoadingHelpInstructions] = useState(false);
   const [selectedHelpInstruction, setSelectedHelpInstruction] = useState(null);
+  const lastTrackedHelpInstructionIdRef = useRef(null);
   const [testingBot, setTestingBot] = useState(false);
   const [testedBotInfo, setTestedBotInfo] = useState(null);
   const [botProfileLookupLoading, setBotProfileLookupLoading] = useState(false);
@@ -2429,6 +2451,20 @@ function AdminDashboard() {
     if (mainTab !== 'dashboard') return;
     fetchAnalyticsProductReviews();
   }, [mainTab, fetchAnalyticsProductReviews]);
+
+  useEffect(() => {
+    const instructionId = Number.parseInt(selectedHelpInstruction?.id, 10);
+    const youtubeUrl = String(selectedHelpInstruction?.youtube_url || '').trim();
+
+    if (!Number.isFinite(instructionId) || instructionId <= 0 || !youtubeUrl) {
+      lastTrackedHelpInstructionIdRef.current = null;
+      return;
+    }
+
+    if (lastTrackedHelpInstructionIdRef.current === instructionId) return;
+    lastTrackedHelpInstructionIdRef.current = instructionId;
+    incrementHelpInstructionViews(instructionId);
+  }, [selectedHelpInstruction?.id, selectedHelpInstruction?.youtube_url]);
 
   useEffect(() => {
     if (!user?.active_restaurant_id) {
@@ -3879,6 +3915,29 @@ function AdminDashboard() {
       setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки инструкций' });
     } finally {
       setLoadingHelpInstructions(false);
+    }
+  };
+
+  const applyHelpInstructionUpdate = (updatedInstruction) => {
+    if (!updatedInstruction?.id) return;
+    setHelpInstructions((prev) => prev.map((item) => (
+      Number(item.id) === Number(updatedInstruction.id)
+        ? { ...item, ...updatedInstruction }
+        : item
+    )));
+    setSelectedHelpInstruction((prev) => (
+      prev && Number(prev.id) === Number(updatedInstruction.id)
+        ? { ...prev, ...updatedInstruction }
+        : prev
+    ));
+  };
+
+  const incrementHelpInstructionViews = async (instructionId) => {
+    try {
+      const response = await axios.post(`${API_URL}/admin/help-instructions/${instructionId}/view`);
+      applyHelpInstructionUpdate(response.data);
+    } catch (error) {
+      console.error('Increment help instruction views error:', error);
     }
   };
 
@@ -10556,7 +10615,7 @@ function AdminDashboard() {
                                 ? (item.title_uz || item.title_ru || '—')
                                 : (item.title_ru || item.title_uz || '—');
                               const rawUrl = String(item.youtube_url || '').trim();
-                              const hasReadableUrl = /^https?:\/\//i.test(rawUrl);
+                              const hasVideo = Boolean(rawUrl);
                               const thumbnailUrl = getYouTubeThumbnailUrl(rawUrl);
                               return (
                                 <button
@@ -10590,8 +10649,17 @@ function AdminDashboard() {
                                       <div className="fw-semibold admin-help-item-title">
                                         {title}
                                       </div>
-                                      <div className="small text-muted admin-help-item-url">
-                                        {hasReadableUrl ? rawUrl : (language === 'uz' ? "Havola qo'shilmagan" : 'Ссылка не добавлена')}
+                                      <div className="small text-muted admin-help-item-meta">
+                                        {hasVideo ? (
+                                          <span className="admin-help-item-views">
+                                            <i className="bi bi-eye-fill" aria-hidden="true"></i>
+                                            <span>{formatHelpInstructionViews(item.view_count, language)}</span>
+                                          </span>
+                                        ) : (
+                                          <span className="admin-help-item-status">
+                                            {language === 'uz' ? "Video qo'shilmagan" : 'Видео не добавлено'}
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -10606,10 +10674,16 @@ function AdminDashboard() {
                             <Card className="admin-help-preview-card border-0 h-100">
                               <Card.Body className="p-3 p-lg-4">
                                 <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 admin-help-preview-head">
-                                  <div className="fw-semibold admin-help-preview-title">
-                                    {language === 'uz'
-                                      ? (selectedHelpInstruction.title_uz || selectedHelpInstruction.title_ru || '—')
-                                      : (selectedHelpInstruction.title_ru || selectedHelpInstruction.title_uz || '—')}
+                                  <div>
+                                    <div className="fw-semibold admin-help-preview-title">
+                                      {language === 'uz'
+                                        ? (selectedHelpInstruction.title_uz || selectedHelpInstruction.title_ru || '—')
+                                        : (selectedHelpInstruction.title_ru || selectedHelpInstruction.title_uz || '—')}
+                                    </div>
+                                    <div className="admin-help-preview-meta">
+                                      <i className="bi bi-eye-fill" aria-hidden="true"></i>
+                                      <span>{formatHelpInstructionViews(selectedHelpInstruction.view_count, language)}</span>
+                                    </div>
                                   </div>
                                   <a
                                     href={selectedHelpInstruction.youtube_url}
