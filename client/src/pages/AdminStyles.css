@@ -766,12 +766,12 @@ body::-webkit-scrollbar,
 
 .admin-tabs-shell {
     display: block;
-    --admin-sidebar-width-expanded: 260px;
+    --admin-sidebar-width-expanded: 244px;
     --admin-sidebar-width-collapsed: 72px;
-    --admin-sidebar-gap: 16px;
-    --admin-sidebar-toggle-top: 88px;
-    --admin-sidebar-nav-top: 136px;
-    --admin-sidebar-bottom-gap: 16px;
+    --admin-sidebar-gap: 18px;
+    --admin-sidebar-toggle-top: 86px;
+    --admin-sidebar-nav-top: 126px;
+    --admin-sidebar-bottom-gap: 14px;
     --admin-sidebar-left: calc((100vw - var(--admin-workspace-max-width)) / 2 + clamp(10px, 1.2vw, 18px));
     --admin-sidebar-current-width: var(--admin-sidebar-width-expanded);
 }
@@ -785,24 +785,26 @@ body::-webkit-scrollbar,
 }
 
 .admin-sidebar-toggle-btn {
-    border: 1px solid var(--border-color);
+    border: 1px solid #b9c7ef;
     background: #fff;
-    color: #0f172a;
-    border-radius: 10px;
+    color: #111827;
+    border-radius: 11px;
     min-height: 38px;
-    padding: 0 12px;
+    padding: 0 11px;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.85rem;
+    font-size: 0.92rem;
     font-weight: 600;
     line-height: 1;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.1);
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .admin-sidebar-toggle-btn:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
+    background: #f8faff;
+    border-color: #9fb4ec;
+    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.16);
 }
 
 .admin-side-tab-title {
@@ -847,14 +849,14 @@ body::-webkit-scrollbar,
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar {
         margin-bottom: 0 !important;
-        border: 1px solid var(--border-color) !important;
+        border: 1px solid #bdcbf1 !important;
         border-radius: 14px;
         background: #fff;
-        padding: 8px;
-        gap: 6px;
+        padding: 8px 7px;
+        gap: 2px;
         width: var(--admin-sidebar-current-width);
-        max-height: calc(100vh - var(--admin-sidebar-nav-top) - var(--admin-sidebar-bottom-gap));
-        overflow-y: auto;
+        max-height: none;
+        overflow-y: hidden;
         overflow-x: hidden;
         position: fixed;
         left: var(--admin-sidebar-left);
@@ -862,12 +864,13 @@ body::-webkit-scrollbar,
         z-index: 1035;
         display: flex;
         flex-direction: column;
-        scrollbar-width: thin;
+        box-shadow: 0 12px 30px rgba(71, 85, 105, 0.08);
+        scrollbar-width: none;
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+        width: 0;
+        height: 0;
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar::-webkit-scrollbar-thumb {
@@ -882,22 +885,25 @@ body::-webkit-scrollbar,
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar .nav-link {
         width: 100%;
         margin-right: 0;
-        padding: 10px 12px;
+        padding: 9px 11px;
         border-radius: 10px;
         display: flex;
         align-items: center;
         opacity: 1;
-        font-weight: 600;
-        color: #334155;
+        font-weight: 500;
+        font-size: 1.01rem;
+        color: #536278;
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar .nav-link:hover {
         background: #f8fafc !important;
+        color: #334155;
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar .nav-link.active {
-        background: #eef2ff !important;
+        background: #edf1fb !important;
         color: #111827 !important;
+        font-weight: 700;
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar .nav-link.active::after {
@@ -925,6 +931,19 @@ body::-webkit-scrollbar,
 
     .admin-tabs-shell.is-collapsed .admin-sidebar-toggle-btn .sidebar-toggle-label {
         display: none;
+    }
+}
+
+@media (min-width: 992px) and (max-height: 820px) {
+    .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar {
+        max-height: calc(100vh - var(--admin-sidebar-nav-top) - var(--admin-sidebar-bottom-gap));
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+
+    .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
     }
 }
 
