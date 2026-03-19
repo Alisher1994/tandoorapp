@@ -792,7 +792,7 @@ body::-webkit-scrollbar,
     border: 1px solid #bdcbf1;
     border-radius: 18px;
     box-shadow: 0 12px 30px rgba(71, 85, 105, 0.08);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .admin-tab-content-shell {
@@ -821,62 +821,101 @@ body::-webkit-scrollbar,
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding-top: 10px;
+    padding-top: 6px;
     margin-top: 10px;
-    border-top: 1px solid rgba(189, 203, 241, 0.75);
 }
 
-.admin-sidebar-utility-btn {
+.admin-sidebar-footer-dropdown {
     width: 100%;
-    min-height: 44px;
-    border: 1px solid #d7e1fb;
+}
+
+.admin-sidebar-footer-dropdown .dropdown-toggle::after {
+    display: none !important;
+}
+
+.admin-sidebar-footer-control {
+    width: 100%;
+    min-height: 50px;
+    border: none !important;
     border-radius: 14px;
-    background: #f8fbff;
+    background: #edf1fb;
     color: #243041;
     display: inline-flex;
     align-items: center;
     justify-content: flex-start;
     gap: 10px;
-    padding: 0 12px;
+    padding: 10px 12px;
     text-align: left;
-    transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+    box-shadow: none !important;
+    transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
 }
 
-.admin-sidebar-utility-btn:hover {
-    background: #ffffff;
-    border-color: #b9c7ef;
+.admin-sidebar-footer-control:hover,
+.admin-sidebar-footer-control:focus-visible,
+.admin-sidebar-footer-dropdown.show .admin-sidebar-footer-control {
+    background: #e7eefc;
     color: #111827;
-    box-shadow: 0 8px 18px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 8px 18px rgba(99, 102, 241, 0.08) !important;
 }
 
-.admin-sidebar-utility-btn.is-danger {
-    color: #c2410c;
-    background: #fff7ed;
-    border-color: #fed7aa;
-}
-
-.admin-sidebar-utility-btn.is-danger:hover {
-    color: #9a3412;
-    background: #fff1e8;
-    border-color: #fdba74;
-}
-
-.admin-sidebar-utility-btn-icon {
-    width: 20px;
-    min-width: 20px;
-    height: 20px;
+.admin-sidebar-footer-iconbox {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.9);
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    box-shadow: inset 0 0 0 1px rgba(191, 203, 241, 0.7);
 }
 
-.admin-sidebar-utility-btn-label {
+.admin-sidebar-footer-iconbox-avatar {
+    background: transparent;
+    box-shadow: none;
+}
+
+.admin-sidebar-footer-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.admin-sidebar-footer-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.admin-sidebar-footer-title {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.admin-sidebar-footer-subtitle {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.76rem;
+    color: #64748b;
+}
+
+.admin-sidebar-footer-menu {
+    z-index: 2055;
 }
 
 .admin-tabs.admin-tabs-content-only {
@@ -952,18 +991,15 @@ body::-webkit-scrollbar,
     overflow-x: hidden;
     overflow-y: auto;
     box-shadow: none;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     box-sizing: border-box;
 }
 
 .admin-sidebar-column .admin-tabs.admin-tabs-sidebar::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-}
-
-.admin-sidebar-column .admin-tabs.admin-tabs-sidebar::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.7);
-    border-radius: 999px;
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 .admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-item {
@@ -1047,7 +1083,11 @@ body::-webkit-scrollbar,
     gap: 10px;
 }
 
-.admin-sidebar-column.is-collapsed .admin-sidebar-utility-btn {
+.admin-sidebar-column.is-collapsed .admin-sidebar-footer-dropdown {
+    width: auto;
+}
+
+.admin-sidebar-column.is-collapsed .admin-sidebar-footer-control {
     width: 52px;
     min-width: 52px;
     height: 52px;
@@ -1057,7 +1097,7 @@ body::-webkit-scrollbar,
     border-radius: 16px;
 }
 
-.admin-sidebar-column.is-collapsed .admin-sidebar-utility-btn-label {
+.admin-sidebar-column.is-collapsed .admin-sidebar-footer-copy {
     display: none;
 }
 

@@ -7430,42 +7430,90 @@ function SuperAdminDashboard() {
   );
   const renderSuperAdminSidebarUtilityActions = () => (
     <div className="admin-sidebar-footer-actions d-none d-lg-flex">
-      <button
-        type="button"
-        className="admin-sidebar-utility-btn"
-        onClick={() => navigate('/admin')}
-        title={t('operatorPanel')}
-        aria-label={t('operatorPanel')}
-      >
-        <span className="admin-sidebar-utility-btn-icon" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 3 4 7l4 4" />
-            <path d="M4 7h16" />
-            <path d="m16 21 4-4-4-4" />
-            <path d="M20 17H4" />
-          </svg>
-        </span>
-        <span className="admin-sidebar-utility-btn-label">
-          {language === 'uz' ? 'Kabinetni almashtirish' : 'Сменить кабинет'}
-        </span>
-      </button>
+      <Dropdown align="end" className="admin-sidebar-footer-dropdown admin-header-lang-dropdown">
+        <Dropdown.Toggle
+          variant="link"
+          bsPrefix="p-0"
+          className="admin-sidebar-footer-control"
+          title={activeHeaderLanguageOption?.label || activeHeaderLanguageOption?.shortLabel || 'RU'}
+        >
+          <span className="admin-sidebar-footer-iconbox" aria-hidden="true">
+            <img src={activeHeaderLanguageOption?.flag} width="16" height="12" alt={activeHeaderLanguageOption?.shortLabel || 'LANG'} className="rounded-1" />
+          </span>
+          <span className="admin-sidebar-footer-copy">
+            <span className="admin-sidebar-footer-title">
+              {language === 'uz' ? 'Tizim tili' : 'Язык системы'}
+            </span>
+            <span className="admin-sidebar-footer-subtitle">
+              {activeHeaderLanguageOption?.label || 'Русский'}
+            </span>
+          </span>
+        </Dropdown.Toggle>
+        <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-lang-dropdown-menu admin-sidebar-footer-menu">
+          {headerLanguageOptions.map((option) => (
+            <Dropdown.Item
+              key={`superadmin-sidebar-language-${option.code}`}
+              onClick={() => handleHeaderLanguageSelect(option.code)}
+              className={`d-flex align-items-center justify-content-between gap-3 py-2 rounded-3 admin-lang-dropdown-item${language === option.code ? ' is-active' : ''}`}
+            >
+              <span className="d-inline-flex align-items-center gap-2">
+                <img src={option.flag} width="18" height="13" alt={option.shortLabel} className="rounded-1" />
+                <span>{option.label}</span>
+              </span>
+              {language === option.code && <i className="bi bi-check2 text-primary" aria-hidden="true"></i>}
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown>
 
-      <button
-        type="button"
-        className="admin-sidebar-utility-btn is-danger"
-        onClick={handleLogout}
-        title={t('logout')}
-        aria-label={t('logout')}
-      >
-        <span className="admin-sidebar-utility-btn-icon" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10 12h11" />
-            <path d="m17 16 4-4-4-4" />
-            <path d="M21 6.344V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1.344" />
-          </svg>
-        </span>
-        <span className="admin-sidebar-utility-btn-label">{t('logout')}</span>
-      </button>
+      <Dropdown align="end" className="admin-sidebar-footer-dropdown">
+        <Dropdown.Toggle
+          variant="link"
+          bsPrefix="p-0"
+          className="admin-sidebar-footer-control"
+          title={user?.full_name || user?.username || 'Super Administrator'}
+        >
+          <span className="admin-sidebar-footer-iconbox admin-sidebar-footer-iconbox-avatar" aria-hidden="true">
+            <span className="admin-sidebar-footer-avatar">
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
+            </span>
+          </span>
+          <span className="admin-sidebar-footer-copy">
+            <span className="admin-sidebar-footer-title">
+              {language === 'uz' ? 'Akkount' : 'Аккаунт'}
+            </span>
+            <span className="admin-sidebar-footer-subtitle">
+              {user?.full_name || user?.username || 'Super Administrator'}
+            </span>
+          </span>
+        </Dropdown.Toggle>
+        <Dropdown.Menu className="shadow-lg border-0 mt-2 rounded-4 admin-dropdown-menu-wide admin-sidebar-footer-menu">
+          <div className="px-3 py-3 border-bottom mb-2 bg-light rounded-top-4">
+            <div className="fw-bold text-dark">{user?.full_name || user?.username || 'Super Administrator'}</div>
+            <div className="text-muted small">Administrator</div>
+          </div>
+
+          <Dropdown.Item onClick={() => navigate('/admin')} className="d-flex align-items-center gap-2 py-2 rounded-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3 4 7l4 4" />
+              <path d="M4 7h16" />
+              <path d="m16 21 4-4-4-4" />
+              <path d="M20 17H4" />
+            </svg>
+            <span>{language === 'uz' ? 'Kabinetni almashtirish' : 'Сменить кабинет'}</span>
+          </Dropdown.Item>
+
+          <Dropdown.Divider className="mx-2" />
+          <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2 rounded-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 12h11" />
+              <path d="m17 16 4-4-4-4" />
+              <path d="M21 6.344V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1.344" />
+            </svg>
+            <span>{t('logout')}</span>
+          </Dropdown.Item>
+        </Dropdown.Menu>
+      </Dropdown>
     </div>
   );
 
@@ -7874,7 +7922,7 @@ function SuperAdminDashboard() {
           </Navbar.Toggle>
           <Navbar.Collapse className="justify-content-end d-none d-lg-flex">
             <Nav className="d-none d-lg-flex align-items-lg-center gap-lg-1">
-              <div className="d-flex align-items-stretch gap-2 ms-lg-2 admin-header-pill-group">
+              <div className="d-none">
                 <Dropdown align="end" className="admin-header-lang-dropdown">
                   <Dropdown.Toggle
                     variant="link"
