@@ -4480,6 +4480,113 @@ body::-webkit-scrollbar,
     background-color: #f8fafc !important;
 }
 
+/* AI providers compact row/table layout */
+.ai-provider-table thead th {
+    white-space: nowrap;
+    padding: 0.7rem 0.75rem !important;
+}
+
+.ai-provider-table tbody td {
+    padding: 0.56rem 0.75rem !important;
+    vertical-align: top;
+}
+
+.ai-provider-table .form-control,
+.ai-provider-table .form-select,
+.ai-provider-table .input-group-text {
+    font-size: 0.85rem;
+}
+
+.ai-provider-table .input-group-text {
+    min-height: 31px;
+}
+
+.ai-provider-name-col {
+    min-width: 220px;
+}
+
+.ai-provider-type-col {
+    min-width: 180px;
+}
+
+.ai-provider-key-col {
+    min-width: 330px;
+}
+
+.ai-provider-model-col {
+    min-width: 190px;
+}
+
+.ai-provider-priority-col {
+    min-width: 110px;
+    text-align: center;
+}
+
+.ai-provider-priority-col .form-control {
+    text-align: center;
+}
+
+.ai-provider-switch-col {
+    min-width: 86px;
+    text-align: center;
+    vertical-align: middle !important;
+}
+
+.ai-provider-row-switch {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 !important;
+    min-height: 31px;
+}
+
+.ai-provider-row-switch .form-check-input {
+    float: none;
+    margin: 0;
+}
+
+.ai-provider-row-switch .form-check-label {
+    display: none;
+}
+
+.ai-provider-actions-col {
+    min-width: 132px;
+    text-align: right;
+    vertical-align: middle !important;
+}
+
+.ai-provider-cell-note {
+    margin-top: 0.32rem;
+    font-size: 0.73rem;
+    line-height: 1.25;
+}
+
+@media (max-width: 991.98px) {
+    .ai-provider-table thead th {
+        padding: 0.6rem 0.55rem !important;
+    }
+
+    .ai-provider-table tbody td {
+        padding: 0.5rem 0.55rem !important;
+    }
+
+    .ai-provider-name-col {
+        min-width: 190px;
+    }
+
+    .ai-provider-type-col {
+        min-width: 160px;
+    }
+
+    .ai-provider-key-col {
+        min-width: 280px;
+    }
+
+    .ai-provider-model-col {
+        min-width: 165px;
+    }
+}
+
 .sa-shop-balance-stack {
     display: grid;
     gap: 4px;

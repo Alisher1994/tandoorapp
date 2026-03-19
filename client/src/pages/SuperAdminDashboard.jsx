@@ -8121,205 +8121,220 @@ function SuperAdminDashboard() {
             <div className="text-muted">Загрузка AI-провайдеров...</div>
           ) : (
             <>
-              {aiProviders.length === 0 && (
+              {aiProviders.length === 0 ? (
                 <Alert variant="secondary" className="mb-3">
                   Провайдеры не добавлены. Нажмите “+ Добавить”.
                 </Alert>
-              )}
-              {aiProviders.map((provider) => {
-                const providerKey = getAiProviderKey(provider);
-                const isSaving = aiProviderSavingId === providerKey;
-                const isDeleting = provider.id && aiProviderDeletingId === provider.id;
-                const isTesting = provider.id && aiProviderTestingId === provider.id;
-                const providerTypeMeta = getAiProviderTypeMeta(provider.provider_type);
-                const providerTitle = String(provider.name || '').trim() || 'Новый провайдер';
-                return (
-                  <div key={providerKey} className="border rounded-3 p-3 mb-3 bg-light">
-                    <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                      <div className="d-flex align-items-center gap-2">
-                        <img
-                          src={providerTypeMeta.icon}
-                          alt={providerTypeMeta.label}
-                          width={20}
-                          height={20}
-                          style={{ objectFit: 'contain', borderRadius: 4 }}
-                        />
-                        <span className="fw-semibold">{providerTitle}</span>
-                        <Badge
-                          bg={providerTypeMeta.badge}
-                          className={providerTypeMeta.badge === 'warning' ? 'text-dark' : undefined}
-                        >
-                          {providerTypeMeta.label}
-                        </Badge>
-                      </div>
-                      <div className="d-flex flex-wrap align-items-center gap-1">
-                        <Badge bg={provider.is_enabled !== false ? 'success' : 'secondary'}>
-                          {provider.is_enabled !== false ? 'Включен' : 'Выключен'}
-                        </Badge>
-                        <Badge bg={provider.is_active === true ? 'primary' : 'secondary'}>
-                          {provider.is_active === true ? 'Активный' : 'Не активный'}
-                        </Badge>
-                      </div>
-                    </div>
-                    <Row className="g-2 align-items-end">
-                      <Col md={3}>
-                        <Form.Label className="small fw-semibold mb-1">Название</Form.Label>
-                        <Form.Control
-                          value={provider.name}
-                          onChange={(e) => updateAiProviderDraft(providerKey, { name: e.target.value })}
-                          placeholder="Например: Gemini Main"
-                        />
-                      </Col>
-                      <Col md={2}>
-                        <Form.Label className="small fw-semibold mb-1">Тип</Form.Label>
-                        <div className="input-group">
-                          <span className="input-group-text bg-white px-2">
-                            <img
-                              src={providerTypeMeta.icon}
-                              alt={providerTypeMeta.label}
-                              width={18}
-                              height={18}
-                              style={{ objectFit: 'contain' }}
-                            />
-                          </span>
-                          <Form.Select
-                            value={provider.provider_type}
-                            onChange={(e) => updateAiProviderDraft(providerKey, { provider_type: e.target.value })}
-                          >
-                            {AI_PROVIDER_TYPE_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </Form.Select>
-                        </div>
-                      </Col>
-                      <Col md={3}>
-                        <Form.Label className="small fw-semibold mb-1">API key</Form.Label>
-                        <div className="d-flex gap-2">
-                          <Form.Control
-                            type="password"
-                            value={provider.api_key}
-                            onChange={(e) => updateAiProviderDraft(providerKey, {
-                              api_key: e.target.value,
-                              clear_api_key: false
-                            })}
-                            placeholder={provider.has_api_key ? `Сохранён: ${provider.api_key_masked || '••••'}` : 'Введите ключ'}
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={provider.clear_api_key ? 'danger' : 'outline-secondary'}
-                            onClick={() => updateAiProviderDraft(providerKey, {
-                              api_key: '',
-                              clear_api_key: !provider.clear_api_key
-                            })}
-                            title="Очистить сохраненный ключ при следующем сохранении"
-                            disabled={isSaving || isDeleting || isTesting}
-                          >
-                            Очистить
-                          </Button>
-                        </div>
-                        {provider.clear_api_key ? (
-                          <div className="small text-danger mt-1">Ключ будет удален после нажатия “Сохранить”.</div>
-                        ) : (
-                          provider.provider_type === 'pollinations' && (
-                            <div className="small text-muted mt-1">Для Pollinations ключ можно оставить пустым.</div>
-                          )
-                        )}
-                      </Col>
-                      <Col md={2}>
-                        <Form.Label className="small fw-semibold mb-1">Image model</Form.Label>
-                        <Form.Control
-                          value={provider.image_model || ''}
-                          onChange={(e) => updateAiProviderDraft(providerKey, { image_model: e.target.value })}
-                          placeholder="gemini-2.5-flash-image"
-                        />
-                      </Col>
-                      <Col md={2}>
-                        <Form.Label className="small fw-semibold mb-1">Text model</Form.Label>
-                        <Form.Control
-                          value={provider.text_model || ''}
-                          onChange={(e) => updateAiProviderDraft(providerKey, { text_model: e.target.value })}
-                          placeholder="gemini-2.5-flash"
-                        />
-                      </Col>
-                      <Col md={2}>
-                        <Form.Label className="small fw-semibold mb-1">Приоритет</Form.Label>
-                        <Form.Control
-                          type="number"
-                          min="1"
-                          max="9999"
-                          value={provider.priority}
-                          onChange={(e) => updateAiProviderDraft(providerKey, { priority: e.target.value })}
-                        />
-                      </Col>
-                      <Col md={3} className="d-flex flex-wrap gap-3 align-items-center">
-                        <Form.Check
-                          type="switch"
-                          id={`ai-provider-enabled-${providerKey}`}
-                          label="Включен"
-                          checked={provider.is_enabled !== false}
-                          onChange={(e) => updateAiProviderDraft(providerKey, { is_enabled: !!e.target.checked })}
-                        />
-                        <Form.Check
-                          type="switch"
-                          id={`ai-provider-active-intent-${providerKey}`}
-                          label="Активный"
-                          checked={provider.is_active === true}
-                          onChange={(e) => {
-                            const shouldActivate = !!e.target.checked;
-                            updateAiProviderDraft(providerKey, shouldActivate
-                              ? { is_active: true, is_enabled: true }
-                              : { is_active: false });
-                          }}
-                        />
-                      </Col>
-                      <Col md={7} className="d-flex flex-wrap gap-2 justify-content-md-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline-secondary"
-                          onClick={() => testAiProvider(provider)}
-                          disabled={!provider.id || isSaving || isDeleting || isTesting}
-                          title="Проверить токен и модели (текст + фото)"
-                          aria-label="Проверить токен и модели"
-                        >
-                          {isTesting ? (
-                            <>
-                              <Spinner animation="border" size="sm" className="me-1" />
-                              Проверка...
-                            </>
-                          ) : (
-                            <i className="bi bi-patch-check" aria-hidden="true" />
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="btn-primary-custom"
-                          onClick={() => saveAiProvider(provider)}
-                          disabled={isSaving || isDeleting || isTesting}
-                        >
-                          {isSaving ? 'Сохранение...' : 'Сохранить'}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline-danger"
-                          onClick={() => removeAiProvider(provider)}
-                          disabled={isSaving || isDeleting || isTesting}
-                        >
-                          {isDeleting ? 'Удаление...' : 'Удалить'}
-                        </Button>
-                      </Col>
-                    </Row>
+              ) : (
+                <div className="admin-table-container ai-provider-table-container">
+                  <div className="table-responsive">
+                    <Table className="admin-table ai-provider-table align-middle mb-0">
+                      <thead>
+                        <tr>
+                          <th className="ai-provider-name-col">Название</th>
+                          <th className="ai-provider-type-col">Тип</th>
+                          <th className="ai-provider-key-col">API key</th>
+                          <th className="ai-provider-model-col">Image model</th>
+                          <th className="ai-provider-model-col">Text model</th>
+                          <th className="ai-provider-priority-col text-center">Приоритет</th>
+                          <th className="ai-provider-switch-col text-center">Вкл</th>
+                          <th className="ai-provider-switch-col text-center">Актив</th>
+                          <th className="ai-provider-actions-col text-end">Действия</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aiProviders.map((provider) => {
+                          const providerKey = getAiProviderKey(provider);
+                          const isSaving = aiProviderSavingId === providerKey;
+                          const isDeleting = provider.id && aiProviderDeletingId === provider.id;
+                          const isTesting = provider.id && aiProviderTestingId === provider.id;
+                          const providerTypeMeta = getAiProviderTypeMeta(provider.provider_type);
+                          const providerTitle = String(provider.name || '').trim() || 'Новый провайдер';
+                          const providerEnabled = provider.is_enabled !== false;
+                          const providerActive = provider.is_active === true;
+                          return (
+                            <tr key={providerKey}>
+                              <td className="ai-provider-name-col">
+                                <Form.Control
+                                  size="sm"
+                                  value={provider.name}
+                                  onChange={(e) => updateAiProviderDraft(providerKey, { name: e.target.value })}
+                                  placeholder="Например: Gemini Main"
+                                />
+                              </td>
+                              <td className="ai-provider-type-col">
+                                <div className="input-group input-group-sm">
+                                  <span className="input-group-text bg-white px-2">
+                                    <img
+                                      src={providerTypeMeta.icon}
+                                      alt={providerTypeMeta.label}
+                                      width={16}
+                                      height={16}
+                                      style={{ objectFit: 'contain' }}
+                                    />
+                                  </span>
+                                  <Form.Select
+                                    size="sm"
+                                    value={provider.provider_type}
+                                    onChange={(e) => updateAiProviderDraft(providerKey, { provider_type: e.target.value })}
+                                  >
+                                    {AI_PROVIDER_TYPE_OPTIONS.map((option) => (
+                                      <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                  </Form.Select>
+                                </div>
+                              </td>
+                              <td className="ai-provider-key-col">
+                                <div className="d-flex gap-1">
+                                  <Form.Control
+                                    size="sm"
+                                    type="password"
+                                    value={provider.api_key}
+                                    onChange={(e) => updateAiProviderDraft(providerKey, {
+                                      api_key: e.target.value,
+                                      clear_api_key: false
+                                    })}
+                                    placeholder={provider.has_api_key ? `Сохранён: ${provider.api_key_masked || '••••'}` : 'Введите ключ'}
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="action-btn"
+                                    variant={provider.clear_api_key ? 'danger' : 'outline-secondary'}
+                                    onClick={() => updateAiProviderDraft(providerKey, {
+                                      api_key: '',
+                                      clear_api_key: !provider.clear_api_key
+                                    })}
+                                    title="Очистить сохраненный ключ при следующем сохранении"
+                                    aria-label={`Очистить ключ провайдера ${providerTitle}`}
+                                    disabled={isSaving || isDeleting || isTesting}
+                                  >
+                                    <i className={`bi ${provider.clear_api_key ? 'bi-eraser-fill' : 'bi-eraser'}`} aria-hidden="true" />
+                                  </Button>
+                                </div>
+                                {provider.clear_api_key ? (
+                                  <div className="ai-provider-cell-note text-danger">Ключ будет удалён после сохранения.</div>
+                                ) : (
+                                  provider.provider_type === 'pollinations' && (
+                                    <div className="ai-provider-cell-note text-muted">Для Pollinations ключ можно оставить пустым.</div>
+                                  )
+                                )}
+                              </td>
+                              <td className="ai-provider-model-col">
+                                <Form.Control
+                                  size="sm"
+                                  value={provider.image_model || ''}
+                                  onChange={(e) => updateAiProviderDraft(providerKey, { image_model: e.target.value })}
+                                  placeholder="gemini-2.5-flash-image"
+                                />
+                              </td>
+                              <td className="ai-provider-model-col">
+                                <Form.Control
+                                  size="sm"
+                                  value={provider.text_model || ''}
+                                  onChange={(e) => updateAiProviderDraft(providerKey, { text_model: e.target.value })}
+                                  placeholder="gemini-2.5-flash"
+                                />
+                              </td>
+                              <td className="ai-provider-priority-col">
+                                <Form.Control
+                                  size="sm"
+                                  type="number"
+                                  min="1"
+                                  max="9999"
+                                  value={provider.priority}
+                                  onChange={(e) => updateAiProviderDraft(providerKey, { priority: e.target.value })}
+                                />
+                              </td>
+                              <td className="ai-provider-switch-col">
+                                <Form.Check
+                                  type="switch"
+                                  id={`ai-provider-enabled-${providerKey}`}
+                                  className="ai-provider-row-switch"
+                                  checked={providerEnabled}
+                                  onChange={(e) => updateAiProviderDraft(providerKey, { is_enabled: !!e.target.checked })}
+                                  aria-label={`Включить провайдера ${providerTitle}`}
+                                />
+                              </td>
+                              <td className="ai-provider-switch-col">
+                                <Form.Check
+                                  type="switch"
+                                  id={`ai-provider-active-intent-${providerKey}`}
+                                  className="ai-provider-row-switch"
+                                  checked={providerActive}
+                                  onChange={(e) => {
+                                    const shouldActivate = !!e.target.checked;
+                                    updateAiProviderDraft(providerKey, shouldActivate
+                                      ? { is_active: true, is_enabled: true }
+                                      : { is_active: false });
+                                  }}
+                                  aria-label={`Сделать провайдера ${providerTitle} активным`}
+                                />
+                              </td>
+                              <td className="ai-provider-actions-col">
+                                <div className="d-flex justify-content-end gap-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="action-btn"
+                                    variant="outline-secondary"
+                                    onClick={() => testAiProvider(provider)}
+                                    disabled={!provider.id || isSaving || isDeleting || isTesting}
+                                    title="Проверить токен и модели (текст + фото)"
+                                    aria-label={`Проверить провайдера ${providerTitle}`}
+                                  >
+                                    {isTesting ? (
+                                      <Spinner animation="border" size="sm" />
+                                    ) : (
+                                      <i className="bi bi-patch-check" aria-hidden="true" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="btn-primary-custom action-btn"
+                                    onClick={() => saveAiProvider(provider)}
+                                    disabled={isSaving || isDeleting || isTesting}
+                                    title="Сохранить"
+                                    aria-label={`Сохранить провайдера ${providerTitle}`}
+                                  >
+                                    {isSaving ? (
+                                      <Spinner animation="border" size="sm" />
+                                    ) : (
+                                      <i className="bi bi-check2" aria-hidden="true" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="action-btn"
+                                    variant="outline-danger"
+                                    onClick={() => removeAiProvider(provider)}
+                                    disabled={isSaving || isDeleting || isTesting}
+                                    title="Удалить"
+                                    aria-label={`Удалить провайдера ${providerTitle}`}
+                                  >
+                                    {isDeleting ? (
+                                      <Spinner animation="border" size="sm" />
+                                    ) : (
+                                      <i className="bi bi-trash" aria-hidden="true" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </Table>
                   </div>
-                );
-              })}
+                </div>
+              )}
             </>
           )}
 
           <div className="small text-muted mt-2">
-            Примечание: включите тумблер "Активный" у нужного провайдера и нажмите "Сохранить" — предыдущий активный выключится автоматически.
+            Примечание: включите тумблер "Актив" у нужного провайдера и нажмите кнопку сохранения в этой же строке — предыдущий активный выключится автоматически.
             ENV-ключи используются только когда активный провайдер не задан.
             Для кнопки проверки провайдер должен быть активным, иначе будет ошибка.
           </div>
