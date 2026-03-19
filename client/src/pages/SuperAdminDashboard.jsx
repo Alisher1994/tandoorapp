@@ -7361,6 +7361,15 @@ function SuperAdminDashboard() {
       </span>
     );
   };
+  const renderSuperAdminSidebarNavItems = () => (
+    Object.keys(superAdminSidebarTabsMeta).map((key) => (
+      <Nav.Item key={`superadmin-sidebar-${key}`}>
+        <Nav.Link eventKey={key}>
+          {renderSuperAdminSidebarTabTitle(key)}
+        </Nav.Link>
+      </Nav.Item>
+    ))
+  );
 
   const mobileSheetI18n = language === 'uz'
     ? { title: 'Filtrlar', reset: 'Tozalash', apply: "Qo'llash" }
@@ -7758,7 +7767,7 @@ function SuperAdminDashboard() {
             </div>
           </Navbar.Brand>
           <Navbar.Toggle
-            className="admin-navbar-toggle admin-sidebar-mobile-toggle"
+            className="admin-navbar-toggle admin-sidebar-mobile-toggle d-lg-none"
             onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -8163,7 +8172,7 @@ function SuperAdminDashboard() {
 
         {/* Main Content */}
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}${isMobileSidebarOpen ? ' is-mobile-open' : ''}`}>
+          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
             <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
               <button
                 type="button"
@@ -8187,13 +8196,7 @@ function SuperAdminDashboard() {
               onSelect={handleSidebarTabSelect}
               className={`admin-tabs admin-tabs-sidebar mb-0${isSidebarCollapsed ? ' is-collapsed' : ''}`}
             >
-              {Object.keys(superAdminSidebarTabsMeta).map((key) => (
-                <Nav.Item key={`superadmin-sidebar-${key}`}>
-                  <Nav.Link eventKey={key}>
-                    {renderSuperAdminSidebarTabTitle(key)}
-                  </Nav.Link>
-                </Nav.Item>
-              ))}
+              {renderSuperAdminSidebarNavItems()}
             </Nav>
           </div>
           <Card className="admin-card admin-workspace-main border-0 shadow-sm">
@@ -11427,6 +11430,28 @@ function SuperAdminDashboard() {
           </Card.Body>
         </Card>
         </div>
+
+        <Modal
+          show={isMobileSidebarOpen}
+          onHide={() => setIsMobileSidebarOpen(false)}
+          centered
+          className="admin-sidebar-mobile-modal d-lg-none"
+          dialogClassName="admin-sidebar-mobile-modal-dialog"
+          contentClassName="admin-sidebar-mobile-modal-content"
+        >
+          <Modal.Header closeButton className="admin-sidebar-mobile-modal-header">
+            <Modal.Title>{language === 'uz' ? 'Menyu' : 'Меню'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="admin-sidebar-mobile-modal-body">
+            <Nav
+              activeKey={activeTab}
+              onSelect={handleSidebarTabSelect}
+              className="admin-tabs admin-tabs-sidebar admin-sidebar-mobile-nav"
+            >
+              {renderSuperAdminSidebarNavItems()}
+            </Nav>
+          </Modal.Body>
+        </Modal>
       </Container>
 
       <Modal

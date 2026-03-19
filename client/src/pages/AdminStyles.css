@@ -1020,6 +1020,73 @@ body::-webkit-scrollbar,
     box-shadow: none !important;
 }
 
+.admin-sidebar-mobile-modal .modal-dialog {
+    max-width: min(380px, calc(100vw - 24px));
+    margin: 16px auto;
+}
+
+.admin-sidebar-mobile-modal-content {
+    border: 1px solid #d7e1fb !important;
+    border-radius: 24px !important;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(71, 85, 105, 0.18);
+}
+
+.admin-sidebar-mobile-modal-header {
+    border-bottom: 1px solid rgba(189, 203, 241, 0.7) !important;
+    padding: 14px 16px !important;
+}
+
+.admin-sidebar-mobile-modal-header .modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.admin-sidebar-mobile-modal-body {
+    padding: 12px !important;
+}
+
+.admin-sidebar-mobile-nav {
+    margin-bottom: 0 !important;
+    border: none !important;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: visible !important;
+}
+
+.admin-sidebar-mobile-nav .nav-item {
+    width: 100%;
+}
+
+.admin-sidebar-mobile-nav .nav-link {
+    width: 100%;
+    margin-right: 0;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    color: #536278;
+}
+
+.admin-sidebar-mobile-nav .nav-link:hover {
+    background: #f8fafc !important;
+    color: #334155;
+}
+
+.admin-sidebar-mobile-nav .nav-link.active {
+    background: #edf1fb !important;
+    color: #111827 !important;
+}
+
+.admin-sidebar-mobile-nav .nav-link.active::after {
+    display: none;
+}
+
 .admin-settings-pill-tabs {
     display: flex;
     flex-wrap: nowrap;
@@ -2501,10 +2568,6 @@ body::-webkit-scrollbar,
     .admin-sidebar-column {
         display: none;
         padding: 12px;
-    }
-
-    .admin-sidebar-column.is-mobile-open {
-        display: flex;
     }
 
     .admin-sidebar-column .admin-tabs.admin-tabs-sidebar {

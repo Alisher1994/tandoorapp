@@ -1535,6 +1535,15 @@ function AdminDashboard() {
       </span>
     );
   };
+  const renderAdminSidebarNavItems = () => (
+    Object.keys(adminSidebarTabsMeta).map((key) => (
+      <Nav.Item key={`admin-sidebar-${key}`}>
+        <Nav.Link eventKey={key}>
+          {renderAdminSidebarTabTitle(key)}
+        </Nav.Link>
+      </Nav.Item>
+    ))
+  );
   const effectiveOrdersStatusFilter = ordersViewMode === 'kanban' ? 'all' : statusFilter;
   const getKanbanColumnFilter = useCallback((columnKey) => ({
     ...KANBAN_COLUMN_FILTER_DEFAULT,
@@ -6858,7 +6867,7 @@ function AdminDashboard() {
             </div>
           </Navbar.Brand>
           <Navbar.Toggle
-            className="admin-navbar-toggle admin-sidebar-mobile-toggle"
+            className="admin-navbar-toggle admin-sidebar-mobile-toggle d-lg-none"
             onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -7213,7 +7222,7 @@ function AdminDashboard() {
         )}
 
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}${isMobileSidebarOpen ? ' is-mobile-open' : ''}`}>
+          <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
             <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
               <button
                 type="button"
@@ -7237,13 +7246,7 @@ function AdminDashboard() {
               onSelect={handleSidebarTabSelect}
               className={`admin-tabs admin-tabs-sidebar${isOrdersKanbanMode ? ' admin-tabs-kanban-focus' : ''}${isSidebarCollapsed ? ' is-collapsed' : ''}`}
             >
-              {Object.keys(adminSidebarTabsMeta).map((key) => (
-                <Nav.Item key={`admin-sidebar-${key}`}>
-                  <Nav.Link eventKey={key}>
-                    {renderAdminSidebarTabTitle(key)}
-                  </Nav.Link>
-                </Nav.Item>
-              ))}
+              {renderAdminSidebarNavItems()}
             </Nav>
           </div>
           <Card className={`admin-card admin-main-card admin-workspace-main${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
@@ -10421,6 +10424,28 @@ function AdminDashboard() {
           </Card.Body>
         </Card>
         </div>
+
+        <Modal
+          show={isMobileSidebarOpen}
+          onHide={() => setIsMobileSidebarOpen(false)}
+          centered
+          className="admin-sidebar-mobile-modal d-lg-none"
+          dialogClassName="admin-sidebar-mobile-modal-dialog"
+          contentClassName="admin-sidebar-mobile-modal-content"
+        >
+          <Modal.Header closeButton className="admin-sidebar-mobile-modal-header">
+            <Modal.Title>{language === 'uz' ? 'Menyu' : 'Меню'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="admin-sidebar-mobile-modal-body">
+            <Nav
+              activeKey={mainTab}
+              onSelect={handleSidebarTabSelect}
+              className="admin-tabs admin-tabs-sidebar admin-sidebar-mobile-nav"
+            >
+              {renderAdminSidebarNavItems()}
+            </Nav>
+          </Modal.Body>
+        </Modal>
 
         <Modal
           show={showCustomerOrdersModal}
