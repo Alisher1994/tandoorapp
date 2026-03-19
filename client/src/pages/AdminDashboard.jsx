@@ -108,6 +108,10 @@ const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
 const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
 const MAX_ORDER_RATING = 5;
+const CONTAINER_LABEL_WORDS_BY_LANGUAGE = Object.freeze({
+  ru: ['Пакет', 'Посуда', 'Коробка', 'Мешок'],
+  uz: ['Paket', 'Idish', 'Quti', 'Qop']
+});
 const createEmptyProductReviewAnalytics = () => ({
   period: 'daily',
   date: '',
@@ -1173,6 +1177,8 @@ function AdminDashboard() {
     container_norm: 1
   });
   const [productSizeCustomInput, setProductSizeCustomInput] = useState('');
+  const [productContainerLabelWordIndex, setProductContainerLabelWordIndex] = useState(0);
+  const [isGeneratingProductLocalizedText, setIsGeneratingProductLocalizedText] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
@@ -1387,6 +1393,12 @@ function AdminDashboard() {
   const variantSupportTelegramLink = variantSupportTelegramHandle
     ? `https://t.me/${encodeURIComponent(variantSupportTelegramHandle)}`
     : '';
+  const containerLabelAnimatedWords = useMemo(() => (
+    CONTAINER_LABEL_WORDS_BY_LANGUAGE[language] || CONTAINER_LABEL_WORDS_BY_LANGUAGE.ru
+  ), [language]);
+  const activeContainerLabelWord = containerLabelAnimatedWords[
+    productContainerLabelWordIndex % Math.max(containerLabelAnimatedWords.length, 1)
+  ] || (language === 'uz' ? 'Idish' : 'Посуда');
   const allSubcategoriesLabel = language === 'uz' ? 'Barcha subkategoriyalar' : 'Все подкатегории';
   const allThirdCategoriesLabel = language === 'uz' ? 'Barcha 3-daraja kategoriyalari' : 'Все категории 3 уровня';
   const thirdCategoryLabel = language === 'uz' ? '3-daraja kategoriya' : 'Категория 3';
@@ -1430,6 +1442,16 @@ function AdminDashboard() {
     if (!nextLanguage || nextLanguage === language) return;
     setLanguage(nextLanguage);
   }, [language, setLanguage]);
+  useEffect(() => {
+    if (!showProductModal) return undefined;
+    setProductContainerLabelWordIndex(0);
+    const intervalId = window.setInterval(() => {
+      setProductContainerLabelWordIndex((prev) => (
+        (prev + 1) % Math.max(containerLabelAnimatedWords.length, 1)
+      ));
+    }, 1700);
+    return () => window.clearInterval(intervalId);
+  }, [showProductModal, containerLabelAnimatedWords.length]);
   const selectedRestaurantCurrencyOption = useMemo(() => {
     const nextCode = String(
       restaurantSettings?.currency_code
@@ -4430,6 +4452,8 @@ function AdminDashboard() {
       });
     }
     setProductSizeCustomInput('');
+    setIsGeneratingProductLocalizedText(false);
+    setProductContainerLabelWordIndex(0);
     setShowProductModal(true);
   };
 
@@ -4681,12 +4705,60 @@ function AdminDashboard() {
       };
     });
   };
+  const handleGenerateProductLocalizedText = async () => {
+    const sourceNameRu = String(productForm.name_ru || '').trim();
+    const sourceNameUz = String(productForm.name_uz || '').trim();
+
+    if (!sourceNameRu && !sourceNameUz) {
+      alert(
+        language === 'uz'
+          ? "AI generatsiya uchun kamida bitta nom kiriting: RU yoki UZ."
+          : 'Для AI-генерации заполните хотя бы одно название: RU или UZ.'
+      );
+      return;
+    }
+
+    setIsGeneratingProductLocalizedText(true);
+    try {
+      const response = await axios.post(`${API_URL}/admin/products/description-preview`, {
+        name_ru: sourceNameRu,
+        name_uz: sourceNameUz
+      });
+      const generated = response?.data || {};
+      setProductForm((prev) => ({
+        ...prev,
+        name_ru: String(generated.name_ru || '').trim() || String(prev.name_ru || '').trim() || String(prev.name_uz || '').trim(),
+        name_uz: String(generated.name_uz || '').trim() || String(prev.name_uz || '').trim() || String(prev.name_ru || '').trim(),
+        description_ru: String(generated.description_ru || '').trim() || String(prev.description_ru || '').trim(),
+        description_uz: String(generated.description_uz || '').trim() || String(prev.description_uz || '').trim()
+      }));
+    } catch (error) {
+      alert(
+        language === 'uz'
+          ? `AI generatsiya xatosi: ${error?.response?.data?.error || error.message}`
+          : `Ошибка AI-генерации: ${error?.response?.data?.error || error.message}`
+      );
+    } finally {
+      setIsGeneratingProductLocalizedText(false);
+    }
+  };
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
 
     if (isTopLevelCategorySelection(productForm.category_id)) {
       alert('Товар нельзя добавлять в категорию 1-го уровня. Выберите субкатегорию.');
+      return;
+    }
+
+    const normalizedNameRu = String(productForm.name_ru || '').trim();
+    const normalizedNameUz = String(productForm.name_uz || '').trim();
+    if (!normalizedNameRu && !normalizedNameUz) {
+      alert(
+        language === 'uz'
+          ? "Kamida bitta nomni kiriting: RU yoki UZ."
+          : 'Укажите название товара хотя бы на одном языке: RU или UZ.'
+      );
       return;
     }
 
@@ -4724,8 +4796,14 @@ function AdminDashboard() {
       }
       const normalizedImages = serializeProductImageSlots(productForm.product_images);
       const mainImage = normalizedImages[0] || { url: '', thumb_url: '' };
+      const effectiveNameRu = normalizedNameRu || normalizedNameUz;
+      const effectiveNameUz = normalizedNameUz || normalizedNameRu;
       const productData = {
         ...productForm,
+        name_ru: effectiveNameRu,
+        name_uz: effectiveNameUz,
+        description_ru: String(productForm.description_ru || '').trim(),
+        description_uz: String(productForm.description_uz || '').trim(),
         image_url: mainImage.url || '',
         thumb_url: mainImage.thumb_url || '',
         product_images: normalizedImages,
@@ -12158,7 +12236,7 @@ function AdminDashboard() {
 
         {/* Product Modal */}
         <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl" dialogClassName="admin-product-modal-dialog">
-          <Modal.Header closeButton>
+          <Modal.Header closeButton className="admin-product-modal-header">
             <Modal.Title>
               {selectedProduct ? t('editProduct') : t('addProduct')}
             </Modal.Title>
@@ -12233,12 +12311,12 @@ function AdminDashboard() {
                             <Button
                               variant="outline-secondary"
                               type="button"
-                              className="px-2 py-1 lh-1"
+                              className="admin-product-clear-category-btn"
                               title="Снять выбор субкатегории"
                               aria-label="Снять выбор субкатегории"
                               onClick={() => handleSelect('')}
                             >
-                              ×
+                              ✕
                             </Button>
                           )}
                         </div>
@@ -12272,12 +12350,35 @@ function AdminDashboard() {
                 </Alert>
               )}
 
+              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <div className="small text-muted">
+                  {language === 'uz'
+                    ? "Kamida bitta nom maydoni to'ldirilishi kerak: RU yoki UZ."
+                    : 'Обязательно заполните хотя бы одно название: RU или UZ.'}
+                </div>
+                <Button
+                  type="button"
+                  variant="light"
+                  className="admin-product-ai-generate-btn"
+                  title={language === 'uz'
+                    ? 'AI: RU/UZ nom va tavsifni generatsiya qilish'
+                    : 'AI: сгенерировать RU/UZ название и описание'}
+                  onClick={handleGenerateProductLocalizedText}
+                  disabled={isGeneratingProductLocalizedText}
+                >
+                  {isGeneratingProductLocalizedText ? (
+                    <Spinner animation="border" size="sm" />
+                  ) : (
+                    <i className="bi bi-stars" aria-hidden="true" />
+                  )}
+                </Button>
+              </div>
+
               <Row className="g-3">
                 <Col md={6}>
                   <Form.Group className="mb-3">
-                    <Form.Label>{t('nameRu')}</Form.Label>
+                    <Form.Label>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</Form.Label>
                     <Form.Control
-                      required
                       type="text"
                       value={productForm.name_ru}
                       onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
@@ -12286,7 +12387,7 @@ function AdminDashboard() {
                 </Col>
                 <Col md={6}>
                   <Form.Group className="mb-3">
-                    <Form.Label>{t('nameUz')}</Form.Label>
+                    <Form.Label>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</Form.Label>
                     <Form.Control
                       type="text"
                       value={productForm.name_uz}
@@ -12370,40 +12471,35 @@ function AdminDashboard() {
               {!Boolean(restaurantSettings?.size_variants_enabled) && (
                 <Row className="g-3 mt-1">
                   <Col xs={12}>
-                    <div className="p-3 rounded-3 border bg-light">
-                      <div className="d-flex align-items-start gap-2">
-                        <i className="bi bi-info-circle-fill text-primary mt-1" />
-                        <div className="small">
-                          <div className="fw-semibold mb-1">
-                            {language === 'uz'
-                              ? "Agar mahsulot variantlarini yoqmoqchi bo'lsangiz, dastur ta'minotchisiga murojaat qiling."
-                              : 'Если хотите включить варианты товаров, обратитесь к поставщику программы.'}
-                          </div>
-                          <div className="text-muted">
-                            {language === 'uz' ? "Aloqa (superadmin):" : 'Контакты (суперадмин):'}
-                          </div>
-                          <div className="d-flex flex-wrap gap-3 mt-1">
-                            <span>
-                              <strong>{language === 'uz' ? 'Ism' : 'Имя'}:</strong>{' '}
-                              {variantSupportContactName || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
-                            </span>
-                            <span>
-                              <strong>{language === 'uz' ? 'Telefon' : 'Телефон'}:</strong>{' '}
-                              {variantSupportPhone || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
-                            </span>
-                            <span>
-                              <strong>Telegram:</strong>{' '}
-                              {variantSupportTelegramLink ? (
-                                <a href={variantSupportTelegramLink} target="_blank" rel="noreferrer">
-                                  @{variantSupportTelegramHandle}
-                                </a>
-                              ) : (
-                                (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="p-2 rounded-3 border bg-light small admin-product-variant-support-line">
+                      <i className="bi bi-info-circle-fill text-primary me-2" />
+                      <span>
+                        {language === 'uz'
+                          ? "Agar mahsulot variantlarini yoqmoqchi bo'lsangiz, dastur ta'minotchisiga murojaat qiling."
+                          : 'Если хотите включить варианты товаров, обратитесь к поставщику программы.'}
+                      </span>
+                      <span className="mx-2 text-muted">|</span>
+                      <span>
+                        {language === 'uz' ? "Aloqa (superadmin):" : 'Контакты (суперадмин):'}
+                      </span>
+                      <span className="mx-2">
+                        <strong>{language === 'uz' ? 'Ism' : 'Имя'}:</strong>{' '}
+                        {variantSupportContactName || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
+                      </span>
+                      <span className="mx-2">
+                        <strong>{language === 'uz' ? 'Telefon' : 'Телефон'}:</strong>{' '}
+                        {variantSupportPhone || (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')}
+                      </span>
+                      <span className="mx-2">
+                        <strong>Telegram:</strong>{' '}
+                        {variantSupportTelegramLink ? (
+                          <a href={variantSupportTelegramLink} target="_blank" rel="noreferrer">
+                            @{variantSupportTelegramHandle}
+                          </a>
+                        ) : (
+                          (language === 'uz' ? 'Ko‘rsatilmagan' : 'Не указано')
+                        )}
+                      </span>
                     </div>
                   </Col>
                 </Row>
@@ -12750,30 +12846,170 @@ function AdminDashboard() {
                 </Row>
               )}
 
-              <Row>
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('priceSum')}</Form.Label>
-                    <Form.Control
-                      required={!productForm.size_enabled}
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={productForm.price}
-                      onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                      disabled={Boolean(productForm.size_enabled)}
-                    />
-                    {productForm.size_enabled && (
-                      <Form.Text className="text-muted">
-                        {language === 'uz'
-                          ? "Narx tanlangan variantdan olinadi."
-                          : 'Цена берется из выбранного варианта.'}
-                      </Form.Text>
-                    )}
-                  </Form.Group>
-                </Col>
+              <div className="admin-product-main-fields-grid">
+                <Form.Group className="mb-0">
+                  <Form.Label>{t('sortOrderLabel')}</Form.Label>
+                  <Form.Control
+                    className="admin-product-compact-field"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={productForm.sort_order}
+                    onChange={(e) => setProductForm({
+                      ...productForm,
+                      sort_order: Number.parseInt(e.target.value, 10) || 0
+                    })}
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-0">
+                  <Form.Label>{t('priceSum')}</Form.Label>
+                  <Form.Control
+                    className="admin-product-compact-field"
+                    required={!productForm.size_enabled}
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                    disabled={Boolean(productForm.size_enabled)}
+                  />
+                  {productForm.size_enabled && (
+                    <Form.Text className="text-muted">
+                      {language === 'uz'
+                        ? "Narx tanlangan variantdan olinadi."
+                        : 'Цена берется из выбранного варианта.'}
+                    </Form.Text>
+                  )}
+                </Form.Group>
+
+                <Form.Group className="mb-0">
+                  <Form.Label>{t('unit')}</Form.Label>
+                  <Form.Select
+                    className="admin-product-compact-field"
+                    required
+                    value={productForm.unit}
+                    onChange={(e) => {
+                      const nextUnit = e.target.value;
+                      setProductForm({
+                        ...productForm,
+                        unit: nextUnit,
+                        order_step: nextUnit === 'кг' ? productForm.order_step : ''
+                      });
+                    }}
+                  >
+                    <option value="шт">{t('unitPcs')}</option>
+                    <option value="порция">{t('unitPortion')}</option>
+                    <option value="кг">{t('unitKg')}</option>
+                    <option value="л">{t('unitL')}</option>
+                    <option value="г">{t('unitG')}</option>
+                    <option value="мл">{t('unitMl')}</option>
+                    <option value="Стакан">{t('unitCup')}</option>
+                    <option value="Банка">{t('unitJar')}</option>
+                    <option value="Пачка">{t('unitPack')}</option>
+                    <option value="Блок">{t('unitBlock')}</option>
+                    <option value="см">{t('unitCm')}</option>
+                    <option value="м">{t('unitM')}</option>
+                    <option value="м2">{t('unitM2')}</option>
+                    <option value="м3">{t('unitM3')}</option>
+                    <option value="км">{t('unitKm')}</option>
+                    <option value="т">{t('unitT')}</option>
+                  </Form.Select>
+                </Form.Group>
+
+                <Form.Group className="mb-0">
+                  <Form.Label>
+                    {t('containerLabel')}{' '}
+                    <span key={`container-word-${activeContainerLabelWord}`} className="admin-container-label-animated-word">
+                      {activeContainerLabelWord}
+                    </span>
+                  </Form.Label>
+                  <Form.Select
+                    className="admin-product-compact-field"
+                    value={productForm.container_id}
+                    onChange={(e) => {
+                      const nextContainerId = e.target.value;
+                      setProductForm({
+                        ...productForm,
+                        container_id: nextContainerId,
+                        container_norm: nextContainerId ? productForm.container_norm : 1
+                      });
+                    }}
+                  >
+                    <option value="">{t('noContainer')}</option>
+                    {containers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} (+{formatPrice(c.price)} {t('sum')})
+                      </option>
+                    ))}
+                  </Form.Select>
+                  <Form.Text className="text-muted">{t('containerCostNote')}</Form.Text>
+                </Form.Group>
+
+                <Form.Group className="mb-0">
+                  <Form.Label>{t('orderStepLabel')}</Form.Label>
+                  <Form.Control
+                    className="admin-product-compact-field"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={productForm.order_step}
+                    onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
+                    disabled={productForm.unit !== 'кг'}
+                    placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
+                  />
+                  <Form.Text className="text-muted">{t('orderStepNote')}</Form.Text>
+                </Form.Group>
+              </div>
+
+              {productSortOrderHints.hasCategory && (
+                <div className="admin-product-sort-hints mt-2 mb-3">
+                  <div className={`small ${productSortOrderHints.isCurrentFree ? 'text-success' : 'text-danger'}`}>
+                    {productSortOrderHints.isCurrentFree
+                      ? (
+                        language === 'uz'
+                          ? "Joriy raqam bo'sh."
+                          : 'Текущий номер свободен.'
+                      )
+                      : (
+                        language === 'uz'
+                          ? "Joriy raqam band. Erkin raqamni tanlang."
+                          : 'Текущий номер занят. Выберите свободный.'
+                      )}
+                  </div>
+                  <div className="small text-muted">
+                    {language === 'uz'
+                      ? `Eng kichik bo'sh: ${productSortOrderHints.smallestFree}, eng yaqin bo'sh: ${productSortOrderHints.closestFree}`
+                      : `Минимальный свободный: ${productSortOrderHints.smallestFree}, ближайший: ${productSortOrderHints.closestFree}`}
+                  </div>
+                  <div className="d-flex flex-wrap gap-2 mt-2">
+                    {productSortOrderHints.suggestions.map((value) => {
+                      const isActive = Number(productForm.sort_order || 0) === value;
+                      return (
+                        <Button
+                          key={`sort-order-hint-${value}`}
+                          type="button"
+                          size="sm"
+                          variant="light"
+                          className={`admin-product-sort-hint-btn ${isActive ? 'is-active' : ''}`}
+                          onClick={() => setProductForm((prev) => ({ ...prev, sort_order: value }))}
+                        >
+                          {value}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Form.Text className="text-muted mt-2 d-block">
+                    {language === 'uz'
+                      ? "Bir xil kategoriyada kichik raqam birinchi ko'rsatiladi."
+                      : 'Внутри категории сначала показываются меньшие номера.'}
+                  </Form.Text>
+                </div>
+              )}
+
+              <Row className="g-3">
                 {!productForm.size_enabled && (
-                  <Col md={3}>
+                  <Col md={6}>
                     <Form.Group className="mb-3">
                       <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
                       <Form.Control
@@ -12786,144 +13022,9 @@ function AdminDashboard() {
                     </Form.Group>
                   </Col>
                 )}
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('sortOrderLabel')}</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={productForm.sort_order}
-                      onChange={(e) => setProductForm({
-                        ...productForm,
-                        sort_order: Number.parseInt(e.target.value, 10) || 0
-                      })}
-                    />
-                    {productSortOrderHints.hasCategory && (
-                      <div className="admin-product-sort-hints mt-2">
-                        <div className={`small ${productSortOrderHints.isCurrentFree ? 'text-success' : 'text-danger'}`}>
-                          {productSortOrderHints.isCurrentFree
-                            ? (
-                              language === 'uz'
-                                ? "Joriy raqam bo'sh."
-                                : 'Текущий номер свободен.'
-                            )
-                            : (
-                              language === 'uz'
-                                ? "Joriy raqam band. Erkin raqamni tanlang."
-                                : 'Текущий номер занят. Выберите свободный.'
-                            )}
-                        </div>
-                        <div className="small text-muted">
-                          {language === 'uz'
-                            ? `Eng kichik bo'sh: ${productSortOrderHints.smallestFree}, eng yaqin bo'sh: ${productSortOrderHints.closestFree}`
-                            : `Минимальный свободный: ${productSortOrderHints.smallestFree}, ближайший: ${productSortOrderHints.closestFree}`}
-                        </div>
-                        <div className="d-flex flex-wrap gap-2 mt-2">
-                          {productSortOrderHints.suggestions.map((value) => {
-                            const isActive = Number(productForm.sort_order || 0) === value;
-                            return (
-                              <Button
-                                key={`sort-order-hint-${value}`}
-                                type="button"
-                                size="sm"
-                                variant="light"
-                                className={`admin-product-sort-hint-btn ${isActive ? 'is-active' : ''}`}
-                                onClick={() => setProductForm((prev) => ({ ...prev, sort_order: value }))}
-                              >
-                                {value}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    <Form.Text className="text-muted">
-                      {language === 'uz'
-                        ? "Bir xil kategoriyada kichik raqam birinchi ko'rsatiladi."
-                        : 'Внутри категории сначала показываются меньшие номера.'}
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('unit')}</Form.Label>
-                    <Form.Select
-                      required
-                      value={productForm.unit}
-                      onChange={(e) => {
-                        const nextUnit = e.target.value;
-                        setProductForm({
-                          ...productForm,
-                          unit: nextUnit,
-                          order_step: nextUnit === 'кг' ? productForm.order_step : ''
-                        });
-                      }}
-                    >
-                      <option value="шт">{t('unitPcs')}</option>
-                      <option value="порция">{t('unitPortion')}</option>
-                      <option value="кг">{t('unitKg')}</option>
-                      <option value="л">{t('unitL')}</option>
-                      <option value="г">{t('unitG')}</option>
-                      <option value="мл">{t('unitMl')}</option>
-                      <option value="Стакан">{t('unitCup')}</option>
-                      <option value="Банка">{t('unitJar')}</option>
-                      <option value="Пачка">{t('unitPack')}</option>
-                      <option value="Блок">{t('unitBlock')}</option>
-                      <option value="см">{t('unitCm')}</option>
-                      <option value="м">{t('unitM')}</option>
-                      <option value="м2">{t('unitM2')}</option>
-                      <option value="м3">{t('unitM3')}</option>
-                      <option value="км">{t('unitKm')}</option>
-                      <option value="т">{t('unitT')}</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-                {productForm.unit === 'кг' && (
-                  <Col md={3}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>{t('orderStepLabel')}</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={productForm.order_step}
-                        onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
-                      />
-                      <Form.Text className="text-muted">
-                        {t('orderStepNote')}
-                      </Form.Text>
-                    </Form.Group>
-                  </Col>
-                )}
-                <Col md={3}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{t('containerLabel')}</Form.Label>
-                    <Form.Select
-                      value={productForm.container_id}
-                      onChange={(e) => {
-                        const nextContainerId = e.target.value;
-                        setProductForm({
-                          ...productForm,
-                          container_id: nextContainerId,
-                          container_norm: nextContainerId ? productForm.container_norm : 1
-                        });
-                      }}
-                    >
-                      <option value="">{t('noContainer')}</option>
-                      {containers.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} (+{formatPrice(c.price)} {t('sum')})
-                        </option>
-                      ))}
-                    </Form.Select>
-                    <Form.Text className="text-muted">
-                      {t('containerCostNote')}
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
+
                 {productForm.container_id && (
-                  <Col md={3}>
+                  <Col md={6}>
                     <Form.Group className="mb-3">
                       <Form.Label>{t('containerNormLabel')}</Form.Label>
                       <Form.Control
@@ -12933,9 +13034,7 @@ function AdminDashboard() {
                         value={productForm.container_norm}
                         onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
                       />
-                      <Form.Text className="text-muted">
-                        {t('containerNormNote')}
-                      </Form.Text>
+                      <Form.Text className="text-muted">{t('containerNormNote')}</Form.Text>
                     </Form.Group>
                   </Col>
                 )}

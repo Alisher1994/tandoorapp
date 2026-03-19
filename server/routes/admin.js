@@ -23,8 +23,10 @@ const {
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureBroadcastSchema } = require('../services/broadcastSchema');
+const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
+const generateGlobalProductLocalizedText = superadminRoutes.generateGlobalProductLocalizedText;
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
@@ -58,6 +60,24 @@ const normalizeProductOrderStep = (value, unit, fallback = null) => {
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
+const normalizeProductLocalizedNames = (nameRuValue, nameUzValue) => {
+  const normalizedNameRu = toOptionalTrimmedText(nameRuValue).slice(0, 255);
+  const normalizedNameUz = toOptionalTrimmedText(nameUzValue).slice(0, 255);
+  if (!normalizedNameRu && !normalizedNameUz) {
+    return {
+      valid: false,
+      nameRu: '',
+      nameUz: ''
+    };
+  }
+  const effectiveNameRu = (normalizedNameRu || normalizedNameUz).slice(0, 255);
+  const effectiveNameUz = (normalizedNameUz || normalizedNameRu).slice(0, 255);
+  return {
+    valid: true,
+    nameRu: effectiveNameRu,
+    nameUz: effectiveNameUz
+  };
+};
 const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) => {
   let source = value;
   if (typeof source === 'string') {
@@ -2492,6 +2512,38 @@ router.post('/help-instructions/:id/view', async (req, res) => {
 // =====================================================
 // ТОВАРЫ
 // =====================================================
+router.post('/products/description-preview', async (req, res) => {
+  try {
+    if (typeof generateGlobalProductLocalizedText !== 'function') {
+      return res.status(503).json({ error: 'AI-генератор временно недоступен' });
+    }
+
+    const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
+    const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+
+    if (!nameRu && !nameUz) {
+      return res.status(400).json({
+        error: 'Укажите название товара хотя бы на одном языке (RU или UZ)'
+      });
+    }
+
+    const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz });
+    res.json({
+      name_ru: toOptionalTrimmedText(generated?.name_ru || nameRu || nameUz).slice(0, 255),
+      name_uz: toOptionalTrimmedText(generated?.name_uz || nameUz || nameRu).slice(0, 255),
+      description_ru: toOptionalTrimmedText(generated?.description_ru).slice(0, 1500),
+      description_uz: toOptionalTrimmedText(generated?.description_uz).slice(0, 1500),
+      provider: toOptionalTrimmedText(generated?.provider || 'local-template')
+    });
+  } catch (error) {
+    console.error('Admin product description preview error:', error);
+    const message = toOptionalTrimmedText(error?.message || '');
+    const isValidationError = message.toLowerCase().includes('укажите');
+    res.status(isValidationError ? 400 : 500).json({
+      error: isValidationError ? message : 'Не удалось сгенерировать название и описание товара'
+    });
+  }
+});
 
 // Получить товары (фильтруются по активному ресторану)
 router.get('/products', async (req, res) => {
@@ -2567,9 +2619,12 @@ router.post('/products', async (req, res) => {
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
       : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
-    if (!name_ru || normalizedPrice === null) {
-      return res.status(400).json({ error: 'Название и цена обязательны' });
+    const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
+    if (!normalizedNames.valid || normalizedPrice === null) {
+      return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
     }
+    const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
+    const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
     const mediaPayload = resolveProductMediaPayload({
       productImages: product_images,
       imageUrl: image_url,
@@ -2584,7 +2639,7 @@ router.post('/products', async (req, res) => {
   ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
 RETURNING *
   `, [
-      restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
+      restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions)
@@ -2658,9 +2713,12 @@ router.post('/products/upsert', async (req, res) => {
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
       : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
-    if (!name_ru || normalizedPrice === null) {
-      return res.status(400).json({ error: 'Название и цена обязательны' });
+    const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
+    if (!normalizedNames.valid || normalizedPrice === null) {
+      return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
     }
+    const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
+    const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
     const hasContainerNorm = container_norm !== undefined && container_norm !== null && String(container_norm).trim() !== '';
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = resolveProductMediaPayload({
@@ -2677,14 +2735,14 @@ router.post('/products/upsert', async (req, res) => {
         WHERE restaurant_id = $1 
           AND category_id = $2 
           AND LOWER(name_ru) = LOWER($3)
-  `, [restaurantId, normalizedCategoryId, name_ru]);
+  `, [restaurantId, normalizedCategoryId, normalizedNames.nameRu]);
     } else {
       // Если категория не указана, ищем по названию в любой категории
       existingProduct = await pool.query(`
         SELECT id FROM products 
         WHERE restaurant_id = $1 
           AND LOWER(name_ru) = LOWER($2)
-  `, [restaurantId, name_ru]);
+  `, [restaurantId, normalizedNames.nameRu]);
     }
 
     let result;
@@ -2693,28 +2751,23 @@ router.post('/products/upsert', async (req, res) => {
     if (existingProduct.rows.length > 0) {
       // Обновляем существующий товар
       isUpdate = true;
-      const updateFields = ['price = $1', 'unit = $2', 'order_step = $3'];
-      const updateValues = [normalizedPrice, unit || 'шт', normalizedOrderStep];
-      let paramIndex = 4;
+      const updateFields = ['price = $1', 'unit = $2', 'order_step = $3', 'name_ru = $4', 'name_uz = $5'];
+      const updateValues = [normalizedPrice, unit || 'шт', normalizedOrderStep, normalizedNames.nameRu, normalizedNames.nameUz];
+      let paramIndex = 6;
 
-      if (name_uz) {
-        updateFields.push(`name_uz = $${paramIndex} `);
-        updateValues.push(name_uz);
-        paramIndex++;
-      }
       if (normalizedCategoryId) {
         updateFields.push(`category_id = $${paramIndex} `);
         updateValues.push(normalizedCategoryId);
         paramIndex++;
       }
-      if (description_ru) {
+      if (description_ru !== undefined) {
         updateFields.push(`description_ru = $${paramIndex} `);
-        updateValues.push(description_ru);
+        updateValues.push(normalizedDescriptionRu);
         paramIndex++;
       }
-      if (description_uz) {
+      if (description_uz !== undefined) {
         updateFields.push(`description_uz = $${paramIndex} `);
-        updateValues.push(description_uz);
+        updateValues.push(normalizedDescriptionUz);
         paramIndex++;
       }
       if (hasIncomingMediaFields) {
@@ -2787,7 +2840,7 @@ RETURNING *
   ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
 RETURNING *
   `, [
-        restaurantId, normalizedCategoryId, name_ru, name_uz, description_ru, description_uz,
+        restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
         normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
@@ -2874,6 +2927,14 @@ router.put('/products/:id', async (req, res) => {
     if (normalizedPrice === null) {
       return res.status(400).json({ error: 'Цена должна быть больше 0' });
     }
+    const resolvedNameRuSource = name_ru === undefined ? oldProduct.name_ru : name_ru;
+    const resolvedNameUzSource = name_uz === undefined ? oldProduct.name_uz : name_uz;
+    const normalizedNames = normalizeProductLocalizedNames(resolvedNameRuSource, resolvedNameUzSource);
+    if (!normalizedNames.valid) {
+      return res.status(400).json({ error: 'Укажите название товара хотя бы на одном языке (RU или UZ)' });
+    }
+    const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
+    const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
     const nextUnit = unit === undefined ? (oldProduct.unit || 'шт') : unit;
     const fallbackOrderStep = normalizeProductOrderStep(oldProduct.order_step, nextUnit, null);
     const normalizedOrderStep = order_step === undefined
@@ -2900,7 +2961,7 @@ category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_u
       WHERE id = $21
 RETURNING *
   `, [
-      category_id, name_ru, name_uz, description_ru, description_uz,
+      category_id, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), req.params.id

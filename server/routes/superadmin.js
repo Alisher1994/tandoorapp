@@ -8730,4 +8730,5 @@ router.delete('/help-instructions/:id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.generateGlobalProductLocalizedText = generateGlobalProductLocalizedText;
 
