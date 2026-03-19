@@ -10978,77 +10978,79 @@ function SuperAdminDashboard() {
                     </Button>
                   </div>
 
-                  <Alert
-                    variant={actionButtonsVisible ? 'warning' : 'secondary'}
-                    className="border-0 shadow-sm rounded-4 mb-4"
-                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
-                  >
-                    <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
-                      <div>
-                        <div className="fw-bold">Безопасный режим кнопок действий</div>
-                        <div className="small text-muted">
-                          Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение действует 10 минут.
-                          {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
+                  <div className="superadmin-billing-settings-grid mb-4">
+                    <Alert
+                      variant={actionButtonsVisible ? 'warning' : 'secondary'}
+                      className="superadmin-setting-surface mb-0"
+                      style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                    >
+                      <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+                        <div>
+                          <div className="fw-bold">Безопасный режим кнопок действий</div>
+                          <div className="small text-muted">
+                            Кнопки “Изменить/Удалить” скрыты по умолчанию. Включение действует 10 минут.
+                            {actionButtonsVisible ? ` Осталось: ${actionButtonsRemainingLabel}` : ''}
+                          </div>
                         </div>
+                        <Form.Check
+                          type="switch"
+                          id="superadmin-action-buttons-visibility-switch"
+                          className="fw-semibold"
+                          label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
+                          checked={actionButtonsVisible}
+                          onChange={(e) => setActionButtonsVisible(e.target.checked)}
+                        />
                       </div>
-                      <Form.Check
-                        type="switch"
-                        id="superadmin-action-buttons-visibility-switch"
-                        className="fw-semibold"
-                        label={actionButtonsVisible ? 'Кнопки действий видимы' : 'Показать кнопки действий на 10 минут'}
-                        checked={actionButtonsVisible}
-                        onChange={(e) => setActionButtonsVisible(e.target.checked)}
-                      />
-                    </div>
-                  </Alert>
+                    </Alert>
 
-                  <Alert
-                    variant="light"
-                    className="border-0 shadow-sm rounded-4 mb-4"
-                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
-                  >
-                    <div className="d-flex flex-column gap-3">
-                      <div>
-                        <div className="fw-bold">Сезонная анимация каталога для клиентов</div>
+                    <Alert
+                      variant="light"
+                      className="superadmin-setting-surface mb-0"
+                      style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+                    >
+                      <div className="d-flex flex-column gap-3">
+                        <div>
+                          <div className="fw-bold">Сезонная анимация каталога для клиентов</div>
+                          <div className="small text-muted">
+                            Можно включить только один сезон. Если выключить активный переключатель, останется режим "Все выключено".
+                          </div>
+                        </div>
+                        <Row className="g-2">
+                          {CATALOG_ANIMATION_SEASON_OPTIONS.map((option) => (
+                            <Col xs={12} md={6} key={option.value}>
+                              <Form.Check
+                                type="switch"
+                                id={`catalog-animation-season-${option.value}`}
+                                className="fw-semibold"
+                                label={option.label}
+                                checked={billingSettings.catalog_animation_season === option.value}
+                                onChange={(e) => {
+                                  const isChecked = !!e.target.checked;
+                                  setBillingSettings((prev) => ({
+                                    ...prev,
+                                    catalog_animation_season: isChecked ? option.value : 'off'
+                                  }));
+                                }}
+                              />
+                            </Col>
+                          ))}
+                        </Row>
                         <div className="small text-muted">
-                          Можно включить только один сезон. Если выключить активный переключатель, останется режим "Все выключено".
+                          Текущий режим: <strong>{billingSettings.catalog_animation_season === 'off'
+                            ? 'Все выключено'
+                            : (CATALOG_ANIMATION_SEASON_OPTIONS.find((item) => item.value === billingSettings.catalog_animation_season)?.label || 'Все выключено')}</strong>
                         </div>
                       </div>
-                      <Row className="g-2">
-                        {CATALOG_ANIMATION_SEASON_OPTIONS.map((option) => (
-                          <Col xs={12} md={6} key={option.value}>
-                            <Form.Check
-                              type="switch"
-                              id={`catalog-animation-season-${option.value}`}
-                              className="fw-semibold"
-                              label={option.label}
-                              checked={billingSettings.catalog_animation_season === option.value}
-                              onChange={(e) => {
-                                const isChecked = !!e.target.checked;
-                                setBillingSettings((prev) => ({
-                                  ...prev,
-                                  catalog_animation_season: isChecked ? option.value : 'off'
-                                }));
-                              }}
-                            />
-                          </Col>
-                        ))}
-                      </Row>
-                      <div className="small text-muted">
-                        Текущий режим: <strong>{billingSettings.catalog_animation_season === 'off'
-                          ? 'Все выключено'
-                          : (CATALOG_ANIMATION_SEASON_OPTIONS.find((item) => item.value === billingSettings.catalog_animation_season)?.label || 'Все выключено')}</strong>
-                      </div>
-                    </div>
-                  </Alert>
+                    </Alert>
+                  </div>
 
                   {false && (
                     <>
-                  <Alert
-                    variant={isAiFeatureEnabled ? 'light' : 'warning'}
-                    className="border-0 shadow-sm rounded-4 mb-4"
-                    style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
-                  >
+      <Alert
+        variant={isAiFeatureEnabled ? 'light' : 'warning'}
+        className="superadmin-setting-surface mb-4"
+        style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+      >
                     <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
                       <div>
                         <div className="fw-bold">
