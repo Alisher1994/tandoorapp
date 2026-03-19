@@ -766,6 +766,18 @@ body::-webkit-scrollbar,
 
 .admin-tabs-shell {
     display: block;
+    --admin-sidebar-width-expanded: 260px;
+    --admin-sidebar-width-collapsed: 72px;
+    --admin-sidebar-gap: 16px;
+    --admin-sidebar-toggle-top: 88px;
+    --admin-sidebar-nav-top: 136px;
+    --admin-sidebar-bottom-gap: 16px;
+    --admin-sidebar-left: calc((100vw - var(--admin-workspace-max-width)) / 2 + clamp(10px, 1.2vw, 18px));
+    --admin-sidebar-current-width: var(--admin-sidebar-width-expanded);
+}
+
+.admin-tabs-shell.is-collapsed {
+    --admin-sidebar-current-width: var(--admin-sidebar-width-collapsed);
 }
 
 .admin-tabs-shell-toggle-wrap {
@@ -815,33 +827,39 @@ body::-webkit-scrollbar,
 
 @media (min-width: 992px) {
     .admin-tabs-shell {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        column-gap: 16px;
-        align-items: start;
+        position: relative;
+        padding-left: calc(var(--admin-sidebar-current-width) + var(--admin-sidebar-gap));
+        min-height: calc(100vh - var(--admin-sidebar-toggle-top) - 24px);
     }
 
     .admin-tabs-shell-toggle-wrap {
-        grid-column: 1;
-        position: sticky;
-        top: 16px;
-        z-index: 2;
+        margin-bottom: 0;
+        position: fixed;
+        left: var(--admin-sidebar-left);
+        top: var(--admin-sidebar-toggle-top);
+        width: var(--admin-sidebar-current-width);
+        z-index: 1040;
+    }
+
+    .admin-tabs-shell-toggle-wrap .admin-sidebar-toggle-btn {
+        width: 100%;
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar {
-        grid-column: 1;
         margin-bottom: 0 !important;
         border: 1px solid var(--border-color) !important;
         border-radius: 14px;
         background: #fff;
         padding: 8px;
         gap: 6px;
-        width: 260px;
-        max-height: calc(100vh - 128px);
+        width: var(--admin-sidebar-current-width);
+        max-height: calc(100vh - var(--admin-sidebar-nav-top) - var(--admin-sidebar-bottom-gap));
         overflow-y: auto;
         overflow-x: hidden;
-        position: sticky;
-        top: 64px;
+        position: fixed;
+        left: var(--admin-sidebar-left);
+        top: var(--admin-sidebar-nav-top);
+        z-index: 1035;
         display: flex;
         flex-direction: column;
         scrollbar-width: thin;
@@ -887,13 +905,8 @@ body::-webkit-scrollbar,
     }
 
     .admin-tabs-shell>.admin-tabs.admin-tabs-sidebar+.tab-content {
-        grid-column: 2;
         min-width: 0;
         padding-top: 0;
-    }
-
-    .admin-tabs-shell.is-collapsed>.admin-tabs.admin-tabs-sidebar {
-        width: 72px;
     }
 
     .admin-tabs-shell.is-collapsed>.admin-tabs.admin-tabs-sidebar .nav-link {
@@ -907,7 +920,6 @@ body::-webkit-scrollbar,
 
     .admin-tabs-shell.is-collapsed .admin-sidebar-toggle-btn {
         padding: 0;
-        width: 40px;
         justify-content: center;
     }
 
