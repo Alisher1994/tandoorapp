@@ -787,11 +787,12 @@ body::-webkit-scrollbar,
     width: 100%;
     min-width: 0;
     margin-bottom: 0;
-    padding: 10px;
+    padding: 8px;
     background: rgba(255, 255, 255, 0.94);
     border: 1px solid #bdcbf1;
     border-radius: 18px;
     box-shadow: 0 12px 30px rgba(71, 85, 105, 0.08);
+    overflow: hidden;
 }
 
 .admin-tab-content-shell {
@@ -931,13 +932,16 @@ body::-webkit-scrollbar,
 }
 
 .admin-sidebar-column.is-collapsed .admin-tabs.admin-tabs-sidebar {
-    padding: 10px 8px;
+    padding: 4px 0 0;
     align-items: center;
+    overflow-x: hidden !important;
+    scrollbar-width: none;
 }
 
 .admin-sidebar-column.is-collapsed .admin-tabs.admin-tabs-sidebar .nav-item {
     display: flex;
     justify-content: center;
+    width: auto;
 }
 
 .admin-sidebar-column.is-collapsed .admin-tabs.admin-tabs-sidebar .nav-link {
@@ -946,7 +950,7 @@ body::-webkit-scrollbar,
     height: 52px;
     min-height: 52px;
     padding: 0;
-    margin-inline: auto;
+    margin: 0;
     justify-content: center;
     border-radius: 16px;
 }
@@ -971,6 +975,11 @@ body::-webkit-scrollbar,
     border-radius: 16px;
 }
 
+.admin-sidebar-column.is-collapsed .admin-tabs.admin-tabs-sidebar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
 @media (min-width: 992px) {
     .admin-tabs-shell {
         display: grid;
@@ -983,8 +992,8 @@ body::-webkit-scrollbar,
         position: sticky;
         top: var(--admin-sidebar-sticky-top);
         align-self: start;
-        height: calc(100vh - (var(--admin-sidebar-sticky-top) * 2));
-        min-height: calc(100vh - (var(--admin-sidebar-sticky-top) * 2));
+        height: calc(100vh - var(--admin-sidebar-sticky-top) - var(--admin-sidebar-gap));
+        min-height: calc(100vh - var(--admin-sidebar-sticky-top) - var(--admin-sidebar-gap));
     }
 
     .admin-sidebar-column .admin-tabs.admin-tabs-sidebar {
