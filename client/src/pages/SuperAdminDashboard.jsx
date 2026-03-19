@@ -3245,7 +3245,20 @@ function SuperAdminDashboard() {
       );
       await loadAiUsageSummary(aiUsageDays);
     } catch (err) {
-      setError(String(err?.response?.data?.error || 'Проверка не пройдена: токен/модель не работают'));
+      const responseData = err?.response?.data;
+      const detailedErrorMessage = (() => {
+        if (typeof responseData?.error === 'string') return responseData.error;
+        if (typeof responseData?.error?.message === 'string') return responseData.error.message;
+        if (typeof responseData?.message === 'string') return responseData.message;
+        if (Array.isArray(responseData?.errors) && responseData.errors.length > 0) {
+          const firstError = responseData.errors[0];
+          if (typeof firstError === 'string') return firstError;
+          if (typeof firstError?.message === 'string') return firstError.message;
+        }
+        if (typeof err?.message === 'string' && err.message.trim()) return err.message.trim();
+        return 'Проверка не пройдена: токен/модель не работают';
+      })();
+      setError(String(detailedErrorMessage));
     } finally {
       setAiProviderTestingId(null);
     }
@@ -10379,7 +10392,7 @@ function SuperAdminDashboard() {
 
               {/* Categories Tab */}
               <Tab eventKey="categories" title={renderSuperAdminSidebarTabTitle('categories')}>
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-4 superadmin-categories-toolbar">
                   <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageCategories')}</h5>
                   <div className="d-flex align-items-center gap-2">
                     <input
@@ -10418,7 +10431,6 @@ function SuperAdminDashboard() {
                       display: 'grid',
                       gridTemplateColumns: `repeat(${CATEGORY_LEVEL_COUNT}, minmax(0, 1fr))`,
                       gap: '12px',
-                      minHeight: '450px',
                       width: '100%'
                     }}
                   >
@@ -10439,7 +10451,7 @@ function SuperAdminDashboard() {
                       return (
                         <Card
                           key={levelIndex}
-                          className={`admin-card admin-section-panel ${!isVisible ? 'opacity-50' : ''}`}
+                          className={`admin-card admin-section-panel category-level-card ${!isVisible ? 'opacity-50' : ''}`}
                           style={{ minWidth: 0, width: '100%', background: isVisible ? '#fff' : '#f8fafc' }}
                         >
                           <Card.Header className="admin-card-header admin-section-panel-header d-flex justify-content-between align-items-center py-3">
@@ -10459,7 +10471,7 @@ function SuperAdminDashboard() {
                               +
                             </Button>
                           </Card.Header>
-                          <Card.Body className="p-0 custom-scrollbar" style={{ height: '400px', overflowY: 'auto' }}>
+                          <Card.Body className="p-0 custom-scrollbar category-level-card-body" style={{ overflowY: 'auto' }}>
                             {!isVisible ? (
                               <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
                                 <span style={{ fontSize: '2rem' }}>👈</span>
@@ -10498,15 +10510,18 @@ function SuperAdminDashboard() {
                                     </div>
                                     <div className="category-actions flex-shrink-0 ms-2">
                                       <Button
-                                        variant="link"
-                                        className="p-0 text-muted hover-primary me-1"
+                                        type="button"
+                                        variant="light"
+                                        className="category-action-btn category-action-btn--edit"
+                                        title="Редактировать категорию"
                                         onClick={(e) => { e.stopPropagation(); openCategoryModal(levelIndex, null, cat); }}
                                       >
-                                        <i className="bi bi-pencil" style={{ fontSize: '11px' }}></i>
+                                        <i className="bi bi-pencil" aria-hidden="true"></i>
                                       </Button>
                                       <Button
-                                        variant="link"
-                                        className="p-0 text-danger"
+                                        type="button"
+                                        variant="light"
+                                        className="category-action-btn category-action-btn--delete"
                                         title={
                                           canDeleteCategory(cat)
                                             ? 'Удалить категорию'
@@ -10514,7 +10529,7 @@ function SuperAdminDashboard() {
                                         }
                                         onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }}
                                       >
-                                        <i className="bi bi-trash" style={{ fontSize: '11px' }}></i>
+                                        <i className="bi bi-trash" aria-hidden="true"></i>
                                       </Button>
                                     </div>
                                   </div>

@@ -903,6 +903,16 @@ const resolvePollinationsApiKeyFromEnv = () => String(
   || ''
 ).trim();
 const isLikelyOpenRouterApiKey = (value) => String(value || '').trim().toLowerCase().startsWith('sk-or-');
+const buildPollinationsHeaders = (apiKey = '') => {
+  const normalizedKey = String(apiKey || '').trim();
+  const headers = {
+    'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+  };
+  if (normalizedKey) {
+    headers.Authorization = `Bearer ${normalizedKey}`;
+  }
+  return headers;
+};
 const buildModelCandidates = (items = []) => {
   const seen = new Set();
   const normalized = [];
@@ -1097,8 +1107,8 @@ const resolveOpenRouterRuntimeConfig = async () => {
   };
 };
 const resolvePollinationsRuntimeConfig = async () => {
-  const defaultImageCandidates = ['flux', 'turbo', ''];
-  const defaultTextCandidates = ['', 'openai', 'claude', 'gemini'];
+  const defaultImageCandidates = ['flux', 'flux-2-dev', 'zimage', ''];
+  const defaultTextCandidates = ['openai', 'gemini-fast', 'mistral', ''];
   const activeProvider = await getActiveAiProviderRuntimeConfig();
   if (activeProvider && activeProvider.provider_type === 'pollinations') {
     const imageCandidates = buildModelCandidates([
@@ -1571,7 +1581,7 @@ const generateGlobalProductTextWithPollinations = async (prompt, { expectJson = 
           maxContentLength: 2 * 1024 * 1024,
           headers: {
             Accept: 'text/plain,application/json;q=0.9,*/*;q=0.8',
-            'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
+            ...buildPollinationsHeaders(keyCandidate)
           },
           validateStatus: (status) => status >= 200 && status < 400
         });
@@ -1737,7 +1747,7 @@ const generateGlobalProductImageWithPollinations = async (prompt, { runtimeOverr
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const modelCandidates = Array.isArray(runtime.imageModelCandidates) && runtime.imageModelCandidates.length
     ? runtime.imageModelCandidates
-    : ['flux', 'turbo', ''];
+    : ['flux', 'flux-2-dev', 'zimage', ''];
   const keyCandidates = buildModelCandidates(runtime.apiKey ? [runtime.apiKey, ''] : ['']);
   let lastError = null;
 
@@ -1745,57 +1755,86 @@ const generateGlobalProductImageWithPollinations = async (prompt, { runtimeOverr
     for (const keyCandidate of keyCandidates) {
       for (let attempt = 1; attempt <= 2; attempt += 1) {
         const seed = Date.now() + Math.floor(Math.random() * 1000000);
-        const params = new URLSearchParams({
-          width: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
-          height: String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE),
-          seed: String(seed),
-          nologo: 'true',
-          safe: 'true',
-          enhance: 'true',
-          negative: negativePrompt
-        });
-        if (model) params.set('model', model);
-        if (keyCandidate) params.set('key', keyCandidate);
+        const requestProfiles = [
+          { withSize: true, withLegacyHints: true },
+          { withSize: true, withLegacyHints: false },
+          { withSize: false, withLegacyHints: false }
+        ];
+        let shouldRetryAttempt = false;
+        let shouldBreakKeyLoop = false;
 
-        const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${params.toString()}`;
-
-        try {
-          const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            timeout: 25000,
-            maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
-            maxRedirects: 3,
-            headers: {
-              Accept: 'image/*,*/*;q=0.8',
-              'User-Agent': 'TalablarBot/1.0 (+https://talablar.up.railway.app)'
-            },
-            validateStatus: (status) => status >= 200 && status < 400
-          });
-          const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
-          if (!contentType.startsWith('image/')) {
-            throw new Error(`Pollinations вернул неподдерживаемый content-type: ${contentType || 'unknown'}`);
+        for (let profileIndex = 0; profileIndex < requestProfiles.length; profileIndex += 1) {
+          const profile = requestProfiles[profileIndex];
+          const params = new URLSearchParams();
+          if (profile.withSize) {
+            params.set('width', String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE));
+            params.set('height', String(GLOBAL_PRODUCT_AI_OUTPUT_SIZE));
+            params.set('seed', String(seed));
           }
-          const buffer = Buffer.from(response.data || []);
-          if (!buffer.length) throw new Error('Pollinations вернул пустой ответ');
-          return {
-            buffer,
-            provider: model ? `pollinations:${model}` : 'pollinations',
-            model: model || '',
-            providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
-          };
-        } catch (error) {
-          lastError = error;
-          const statusCode = Number(error?.response?.status || 0);
-          const canRetryWithoutKey = Boolean(keyCandidate) && [401, 403].includes(statusCode);
-          if (canRetryWithoutKey) {
+          if (profile.withLegacyHints) {
+            params.set('nologo', 'true');
+            params.set('safe', 'true');
+            params.set('enhance', 'true');
+            params.set('negative', negativePrompt);
+          }
+          if (model) params.set('model', model);
+          if (keyCandidate) params.set('key', keyCandidate);
+
+          const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${params.toString()}`;
+
+          try {
+            const response = await axios.get(url, {
+              responseType: 'arraybuffer',
+              timeout: 25000,
+              maxContentLength: GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES,
+              maxRedirects: 3,
+              headers: {
+                Accept: 'image/*,*/*;q=0.8',
+                ...buildPollinationsHeaders(keyCandidate)
+              },
+              validateStatus: (status) => status >= 200 && status < 400
+            });
+            const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+            if (!contentType.startsWith('image/')) {
+              throw new Error(`Pollinations вернул неподдерживаемый content-type: ${contentType || 'unknown'}`);
+            }
+            const buffer = Buffer.from(response.data || []);
+            if (!buffer.length) throw new Error('Pollinations вернул пустой ответ');
+            return {
+              buffer,
+              provider: model ? `pollinations:${model}` : 'pollinations',
+              model: model || '',
+              providerRef: runtime.providerRef || { id: null, name: 'Pollinations', provider_type: 'pollinations' }
+            };
+          } catch (error) {
+            lastError = error;
+            const statusCode = Number(error?.response?.status || 0);
+            const hasMoreProfiles = profileIndex < requestProfiles.length - 1;
+
+            if (statusCode === 400 && hasMoreProfiles) {
+              // Pollinations API может отвергать часть query-параметров; пробуем более совместимый профиль.
+              continue;
+            }
+            const canRetryWithoutKey = Boolean(keyCandidate) && [401, 403].includes(statusCode);
+            if (canRetryWithoutKey) {
+              shouldBreakKeyLoop = true;
+              break;
+            }
+            const canRetry = attempt < 2 && [408, 425, 429, 500, 502, 503, 504].includes(statusCode);
+            if (canRetry) {
+              shouldRetryAttempt = true;
+            }
             break;
           }
-          const canRetry = attempt < 2 && [408, 425, 429, 500, 502, 503, 504].includes(statusCode);
-          if (canRetry) {
-            await wait(1200 * attempt);
-            continue;
-          }
         }
+        if (shouldBreakKeyLoop) {
+          break;
+        }
+        if (shouldRetryAttempt) {
+          await wait(1200 * attempt);
+          continue;
+        }
+        break;
       }
     }
   }
@@ -8138,15 +8177,16 @@ router.post('/ai/providers/:id/test', async (req, res) => {
       imageModelCandidates: buildModelCandidates([
         normalizeAiProviderModel(requestedImageModel),
         'flux',
-        'turbo',
+        'flux-2-dev',
+        'zimage',
         ''
       ]),
       textModelCandidates: buildModelCandidates([
         normalizeAiProviderModel(requestedTextModel),
-        '',
         'openai',
-        'claude',
-        'gemini'
+        'gemini-fast',
+        'mistral',
+        ''
       ]),
       providerRef
     };
