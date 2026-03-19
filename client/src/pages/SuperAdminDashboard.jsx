@@ -8156,28 +8156,44 @@ function SuperAdminDashboard() {
         <Card className="admin-card border-0 shadow-sm">
           <Card.Body className="p-4">
             <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
-              <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
-                <button
-                  type="button"
-                  className="admin-sidebar-toggle-btn"
-                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                  title={isSidebarCollapsed
-                    ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                    : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
-                  aria-label={isSidebarCollapsed
-                    ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
-                    : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+              <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+                <div className="admin-tabs-shell-toggle-wrap d-none d-lg-flex">
+                  <button
+                    type="button"
+                    className="admin-sidebar-toggle-btn"
+                    onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                    title={isSidebarCollapsed
+                      ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                      : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                    aria-label={isSidebarCollapsed
+                      ? (language === 'uz' ? 'Yon panelni ochish' : 'Развернуть меню')
+                      : (language === 'uz' ? 'Yon panelni yig‘ish' : 'Свернуть меню')}
+                  >
+                    {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+                    <span className="sidebar-toggle-label">
+                      {language === 'uz' ? 'Menyu' : 'Меню'}
+                    </span>
+                  </button>
+                </div>
+                <Nav
+                  activeKey={activeTab}
+                  onSelect={(key) => key && setActiveTab(key)}
+                  className={`admin-tabs admin-tabs-sidebar mb-0${isSidebarCollapsed ? ' is-collapsed' : ''}`}
                 >
-                  {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
-                  <span className="sidebar-toggle-label">
-                    {language === 'uz' ? 'Menyu' : 'Меню'}
-                  </span>
-                </button>
+                  {Object.keys(superAdminSidebarTabsMeta).map((key) => (
+                    <Nav.Item key={`superadmin-sidebar-${key}`}>
+                      <Nav.Link eventKey={key}>
+                        {renderSuperAdminSidebarTabTitle(key)}
+                      </Nav.Link>
+                    </Nav.Item>
+                  ))}
+                </Nav>
               </div>
+              <div className="admin-tab-content-shell">
               <Tabs
                 activeKey={activeTab}
-                onSelect={setActiveTab}
-                className={`admin-tabs admin-tabs-sidebar mb-4${isSidebarCollapsed ? ' is-collapsed' : ''}`}
+                onSelect={(key) => key && setActiveTab(key)}
+                className="admin-tabs admin-tabs-content-only"
               >
               <Tab eventKey="analytics" title={renderSuperAdminSidebarTabTitle('analytics')}>
                 {renderOverviewAnalyticsTab()}
@@ -11398,6 +11414,7 @@ function SuperAdminDashboard() {
                 )}
               </Tab>
             </Tabs>
+            </div>
             </div>
           </Card.Body>
         </Card>
