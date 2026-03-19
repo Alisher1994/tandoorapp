@@ -1179,6 +1179,7 @@ function AdminDashboard() {
   const [productSizeCustomInput, setProductSizeCustomInput] = useState('');
   const [productContainerLabelWordIndex, setProductContainerLabelWordIndex] = useState(0);
   const [isGeneratingProductLocalizedText, setIsGeneratingProductLocalizedText] = useState(false);
+  const [isProductSortHintsPopupOpen, setIsProductSortHintsPopupOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
@@ -1249,6 +1250,7 @@ function AdminDashboard() {
   // Image preview modal
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const productSortHintsRef = useRef(null);
 
   // Product selection for bulk operations
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -5857,7 +5859,7 @@ function AdminDashboard() {
 
     const suggestionSet = new Set([smallestFree, closestFree]);
     let probe = 0;
-    while (suggestionSet.size < 5 && probe < 2000) {
+    while (suggestionSet.size < 30 && probe < 5000) {
       if (!usedSortOrders.has(probe)) suggestionSet.add(probe);
       probe += 1;
     }
@@ -5871,6 +5873,24 @@ function AdminDashboard() {
       suggestions
     };
   }, [products, productForm?.category_id, productForm?.sort_order, selectedProduct?.id]);
+
+  useEffect(() => {
+    if (!isProductSortHintsPopupOpen) return undefined;
+    const handleDocumentMouseDown = (event) => {
+      if (!productSortHintsRef.current) return;
+      if (productSortHintsRef.current.contains(event.target)) return;
+      setIsProductSortHintsPopupOpen(false);
+    };
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+  }, [isProductSortHintsPopupOpen]);
+
+  useEffect(() => {
+    if (!productSortOrderHints.hasCategory) {
+      setIsProductSortHintsPopupOpen(false);
+    }
+  }, [productSortOrderHints.hasCategory]);
+
   const paymentPlaceholders = useMemo(
     () => normalizePaymentPlaceholders(restaurantSettings?.payment_placeholders),
     [restaurantSettings?.payment_placeholders]
@@ -12831,17 +12851,84 @@ function AdminDashboard() {
 
                 <Form.Group className="mb-0">
                   <Form.Label>{t('sortOrderLabel')}</Form.Label>
-                  <Form.Control
-                    className="admin-product-compact-field"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={productForm.sort_order}
-                    onChange={(e) => setProductForm({
-                      ...productForm,
-                      sort_order: Number.parseInt(e.target.value, 10) || 0
-                    })}
-                  />
+                  <div className="admin-product-sort-input-wrap" ref={productSortHintsRef}>
+                    <Form.Control
+                      className="admin-product-compact-field admin-product-sort-input-field"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={productForm.sort_order}
+                      onChange={(e) => setProductForm({
+                        ...productForm,
+                        sort_order: Number.parseInt(e.target.value, 10) || 0
+                      })}
+                    />
+                    {productSortOrderHints.hasCategory && (
+                      <button
+                        type="button"
+                        className="admin-product-sort-popup-trigger"
+                        aria-label={language === 'uz' ? "Bo'sh tartib raqamlarini ko'rsatish" : 'Показать свободные номера сортировки'}
+                        title={language === 'uz' ? "Bo'sh tartib raqamlari" : 'Свободные номера сортировки'}
+                        onClick={() => setIsProductSortHintsPopupOpen((prev) => !prev)}
+                      >
+                        <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+                          <path
+                            d="M4 4h12v2H4V4zm0 5h8v2H4V9zm0 5h12v2H4v-2zm10-4 2 2 4-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                    {isProductSortHintsPopupOpen && productSortOrderHints.hasCategory && (
+                      <div className="admin-product-sort-popup">
+                        <div className={`small ${productSortOrderHints.isCurrentFree ? 'text-success' : 'text-danger'}`}>
+                          {productSortOrderHints.isCurrentFree
+                            ? (
+                              language === 'uz'
+                                ? "Joriy raqam bo'sh."
+                                : 'Текущий номер свободен.'
+                            )
+                            : (
+                              language === 'uz'
+                                ? "Joriy raqam band. Erkin raqamni tanlang."
+                                : 'Текущий номер занят. Выберите свободный.'
+                            )}
+                        </div>
+                        <div className="small text-muted mt-1">
+                          {language === 'uz'
+                            ? `Eng kichik bo'sh: ${productSortOrderHints.smallestFree}, eng yaqin bo'sh: ${productSortOrderHints.closestFree}`
+                            : `Минимальный свободный: ${productSortOrderHints.smallestFree}, ближайший: ${productSortOrderHints.closestFree}`}
+                        </div>
+                        <div className="admin-product-sort-popup-list">
+                          {productSortOrderHints.suggestions.map((value) => {
+                            const isActive = Number(productForm.sort_order || 0) === value;
+                            return (
+                              <button
+                                key={`sort-order-hint-popup-${value}`}
+                                type="button"
+                                className={`admin-product-sort-popup-value ${isActive ? 'is-active' : ''}`}
+                                onClick={() => {
+                                  setProductForm((prev) => ({ ...prev, sort_order: value }));
+                                  setIsProductSortHintsPopupOpen(false);
+                                }}
+                              >
+                                {value}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="small text-muted mt-2">
+                          {language === 'uz'
+                            ? "Bir xil kategoriyada kichik raqam birinchi ko'rsatiladi."
+                            : 'Внутри категории сначала показываются меньшие номера.'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </Form.Group>
 
                 <Form.Group className="mb-0">
@@ -12986,51 +13073,6 @@ function AdminDashboard() {
                   />
                 </Form.Group>
               </div>
-
-              {productSortOrderHints.hasCategory && (
-                <div className="admin-product-sort-hints mt-2 mb-3">
-                  <div className={`small ${productSortOrderHints.isCurrentFree ? 'text-success' : 'text-danger'}`}>
-                    {productSortOrderHints.isCurrentFree
-                      ? (
-                        language === 'uz'
-                          ? "Joriy raqam bo'sh."
-                          : 'Текущий номер свободен.'
-                      )
-                      : (
-                        language === 'uz'
-                          ? "Joriy raqam band. Erkin raqamni tanlang."
-                          : 'Текущий номер занят. Выберите свободный.'
-                      )}
-                  </div>
-                  <div className="small text-muted">
-                    {language === 'uz'
-                      ? `Eng kichik bo'sh: ${productSortOrderHints.smallestFree}, eng yaqin bo'sh: ${productSortOrderHints.closestFree}`
-                      : `Минимальный свободный: ${productSortOrderHints.smallestFree}, ближайший: ${productSortOrderHints.closestFree}`}
-                  </div>
-                  <div className="d-flex flex-wrap gap-2 mt-2">
-                    {productSortOrderHints.suggestions.map((value) => {
-                      const isActive = Number(productForm.sort_order || 0) === value;
-                      return (
-                        <Button
-                          key={`sort-order-hint-${value}`}
-                          type="button"
-                          size="sm"
-                          variant="light"
-                          className={`admin-product-sort-hint-btn ${isActive ? 'is-active' : ''}`}
-                          onClick={() => setProductForm((prev) => ({ ...prev, sort_order: value }))}
-                        >
-                          {value}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  <Form.Text className="text-muted mt-2 d-block">
-                    {language === 'uz'
-                      ? "Bir xil kategoriyada kichik raqam birinchi ko'rsatiladi."
-                      : 'Внутри категории сначала показываются меньшие номера.'}
-                  </Form.Text>
-                </div>
-              )}
 
               {!productForm.size_enabled && (
                 <Row>
