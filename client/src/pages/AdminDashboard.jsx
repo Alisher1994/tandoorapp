@@ -12360,15 +12360,16 @@ function AdminDashboard() {
                 <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</Form.Label>
-                    <InputGroup>
+                    <div className="admin-product-name-ai-wrap">
                       <Form.Control
                         type="text"
+                        className="admin-product-name-ai-input"
                         value={productForm.name_ru}
                         onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
                       />
                       <Button
                         type="button"
-                        variant="light"
+                        variant="link"
                         className="admin-product-ai-generate-inline-btn"
                         title={language === 'uz'
                           ? 'AI: RU/UZ nom va tavsifni generatsiya qilish'
@@ -12382,7 +12383,7 @@ function AdminDashboard() {
                           <i className="bi bi-stars" aria-hidden="true" />
                         )}
                       </Button>
-                    </InputGroup>
+                    </div>
                   </Form.Group>
                 </Col>
                 <Col md={6}>
@@ -12429,7 +12430,15 @@ function AdminDashboard() {
               <Row>
                 <Col md={6}>
                   <Form.Group className="mb-3">
-                    <Form.Label>Сезонность товара</Form.Label>
+                    <Form.Label className="d-flex align-items-center gap-2">
+                      <span>Сезонность товара</span>
+                      <span className="admin-container-help-trigger" tabIndex={0} aria-label="Подсказка по сезонности">
+                        i
+                        <span className="admin-container-help-tooltip">
+                          В каталоге товар показывается только в выбранный сезон (или круглый год для всесезонного).
+                        </span>
+                      </span>
+                    </Form.Label>
                     <Form.Select
                       value={productForm.season_scope || 'all'}
                       onChange={(e) => setProductForm({ ...productForm, season_scope: e.target.value })}
@@ -12440,13 +12449,10 @@ function AdminDashboard() {
                       <option value="autumn">Осень</option>
                       <option value="winter">Зима</option>
                     </Form.Select>
-                    <Form.Text className="text-muted">
-                      В каталоге товар показывается только в выбранный сезон (или круглый год для всесезонного).
-                    </Form.Text>
                   </Form.Group>
                 </Col>
                 <Col md={6}>
-                  <div className="p-3 rounded-3 border bg-light d-flex flex-row flex-wrap align-items-center gap-4 h-100">
+                  <div className="admin-product-switch-inline-shell">
                     <Form.Check
                       className="admin-product-switch"
                       type="switch"
@@ -12903,6 +12909,10 @@ function AdminDashboard() {
                         <span className="admin-container-help-tooltip-list">
                           {' '}({containerLabelAnimatedWords.join(', ')})
                         </span>
+                        <br />
+                        <span>
+                          {language === 'uz' ? "Idish narxi buyurtmaga qo'shiladi." : 'Стоимость посуды добавится к заказу.'}
+                        </span>
                       </span>
                     </span>
                   </Form.Label>
@@ -12925,13 +12935,20 @@ function AdminDashboard() {
                       </option>
                     ))}
                   </Form.Select>
-                  <Form.Text className="text-muted">
-                    {language === 'uz' ? "Idish narxi buyurtmaga qo'shiladi." : 'Стоимость посуды добавится к заказу.'}
-                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-0">
-                  <Form.Label>{t('orderStepLabel')}</Form.Label>
+                  <Form.Label className="d-flex align-items-center gap-2">
+                    <span>{t('orderStepLabel')}</span>
+                    <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Qadam bo'yicha izoh" : 'Подсказка по шагу заказа'}>
+                      i
+                      <span className="admin-container-help-tooltip">
+                        {language === 'uz'
+                          ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
+                          : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
+                      </span>
+                    </span>
+                  </Form.Label>
                   <Form.Control
                     className="admin-product-compact-field"
                     type="number"
@@ -12942,11 +12959,6 @@ function AdminDashboard() {
                     disabled={productForm.unit !== 'кг'}
                     placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
                   />
-                  <Form.Text className="text-muted">
-                    {language === 'uz'
-                      ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
-                      : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
-                  </Form.Text>
                 </Form.Group>
               </div>
 
