@@ -12452,22 +12452,25 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
                 <Col md={6}>
-                  <div className="admin-product-switch-inline-shell">
-                    <Form.Check
-                      className="admin-product-switch"
-                      type="switch"
-                      label="Нет в наличии"
-                      checked={!productForm.in_stock}
-                      onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
-                    />
-                    <Form.Check
-                      className="admin-product-switch"
-                      type="switch"
-                      label="Скрыть из каталога"
-                      checked={!!productForm.is_hidden_catalog}
-                      onChange={(e) => setProductForm({ ...productForm, is_hidden_catalog: e.target.checked })}
-                    />
-                  </div>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{language === 'uz' ? "Mahsulot ko'rinishi" : 'Отображение товара'}</Form.Label>
+                    <div className="admin-product-switch-inline-shell">
+                      <Form.Check
+                        className="admin-product-switch"
+                        type="switch"
+                        label="Нет в наличии"
+                        checked={!productForm.in_stock}
+                        onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
+                      />
+                      <Form.Check
+                        className="admin-product-switch"
+                        type="switch"
+                        label="Скрыть из каталога"
+                        checked={!!productForm.is_hidden_catalog}
+                        onChange={(e) => setProductForm({ ...productForm, is_hidden_catalog: e.target.checked })}
+                      />
+                    </div>
+                  </Form.Group>
                 </Col>
               </Row>
 
