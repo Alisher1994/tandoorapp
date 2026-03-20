@@ -12620,8 +12620,8 @@ function AdminDashboard() {
               {Boolean(restaurantSettings?.size_variants_enabled) && productForm.size_enabled && (
                 <Row className="g-3 mt-1">
                   <Col xs={12}>
-                    <Form.Group className="mb-3 p-3 rounded-3 border bg-light">
-                      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <Form.Group className="mb-3 admin-variants-simple-wrap">
+                      <div className="d-flex align-items-center justify-content-between gap-2 admin-variants-simple-toolbar">
                         <Form.Label className="mb-0">
                           {language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
                         </Form.Label>
@@ -12636,12 +12636,20 @@ function AdminDashboard() {
                           +
                         </Button>
                       </div>
+                      <div className="admin-variants-simple-head">
+                        <span>{language === 'uz' ? 'Nomi' : 'Название варианта'}</span>
+                        <span>Описание RU</span>
+                        <span>Описание UZ</span>
+                        <span>{language === 'uz' ? 'Narxi' : 'Цена'}</span>
+                        <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
+                        <span className="text-center">{language === 'uz' ? 'Amal' : 'Действие'}</span>
+                      </div>
 
                       {(() => {
                         const fallbackPrice = normalizeProductPriceValue(productForm.price, NaN);
                         const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, { fallbackPrice });
                         return (
-                          <div className="d-flex flex-column gap-2">
+                          <div className="admin-variants-simple-body">
                             {currentVariants.map((variant, index) => {
                                         const variantImageSlots = createVariantImageSlots(
                                           variant.product_images,
@@ -12649,9 +12657,9 @@ function AdminDashboard() {
                                           variant.thumb_url
                                         );
                                         return (
-                                          <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row p-2 rounded-2 border bg-white">
-                                            <Row className="g-2 align-items-start">
-                                              <Col xl={2} md={6}>
+                                          <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row admin-variants-simple-row">
+                                            <Row className="g-0 align-items-start admin-variant-table-input-row">
+                                              <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   value={variant.name || ''}
@@ -12660,7 +12668,7 @@ function AdminDashboard() {
                                                   maxLength={60}
                                                 />
                                               </Col>
-                                              <Col xl={2} md={6}>
+                                              <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   value={variant.description_ru || ''}
@@ -12669,7 +12677,7 @@ function AdminDashboard() {
                                                   maxLength={1500}
                                                 />
                                               </Col>
-                                              <Col xl={2} md={6}>
+                                              <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   value={variant.description_uz || ''}
@@ -12678,7 +12686,7 @@ function AdminDashboard() {
                                                   maxLength={1500}
                                                 />
                                               </Col>
-                                              <Col xl={2} md={4}>
+                                              <Col xl={2} md={4} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   type="number"
@@ -12689,7 +12697,7 @@ function AdminDashboard() {
                                                   placeholder={language === 'uz' ? 'Narxi' : 'Цена'}
                                                 />
                                               </Col>
-                                              <Col xl={3} md={6}>
+                                              <Col xl={3} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   type="text"
@@ -12699,7 +12707,7 @@ function AdminDashboard() {
                                                   maxLength={120}
                                                 />
                                               </Col>
-                                              <Col xl={1} md={2} className="d-flex justify-content-end">
+                                              <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-actions d-flex justify-content-end">
                                                 <Button
                                                   type="button"
                                                   variant="light"
@@ -12712,7 +12720,7 @@ function AdminDashboard() {
                                               </Col>
                                             </Row>
                                             <div
-                                              className="admin-product-variant-images-shell mt-2"
+                                              className="admin-product-variant-images-shell admin-product-variant-images-shell-flat"
                                               tabIndex={0}
                                               onClick={(e) => {
                                                 if (e.target === e.currentTarget) {
