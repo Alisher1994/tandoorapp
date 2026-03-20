@@ -266,12 +266,44 @@ const createInitialFoundersAnalyticsState = () => ({
     start_date: null,
     end_date: null
   },
+  modules_config: [],
+  available_currencies: [],
   shares_config: [],
   totals_by_currency: [],
   module_totals: [],
+  module_monthly_totals: [],
+  founder_module_totals: [],
   founder_totals: [],
+  founder_monthly_totals: [],
+  founder_monthly_module_totals: [],
   generated_at: null
 });
+const FOUNDERS_MODULE_UI_ORDER = [
+  { key: 'orders', labelRu: 'Заказы', labelUz: 'Buyurtmalar' },
+  { key: 'reservations', labelRu: 'Бронирования', labelUz: 'Bronlar' },
+  { key: 'delivery', labelRu: 'Доставки', labelUz: 'Yetkazib berish' },
+  { key: 'ads', labelRu: 'Рекламы', labelUz: 'Reklamalar' },
+  { key: 'superapp', labelRu: 'Superapp', labelUz: 'Superapp' }
+];
+const FOUNDERS_CHART_COLORS = {
+  admin: '#4f46e5',
+  davron: '#0ea5e9',
+  mirzaolim: '#22c55e'
+};
+const CURRENCY_FLAG_CODE_MAP = {
+  uz: 'uz',
+  ru: 'ru',
+  kz: 'kz',
+  tm: 'tm',
+  tj: 'tj',
+  kg: 'kg',
+  af: 'af'
+};
+const resolveCurrencyFlagSvgUrl = (currencyCode) => {
+  const normalized = String(currencyCode || '').trim().toLowerCase();
+  const countryCode = CURRENCY_FLAG_CODE_MAP[normalized];
+  return countryCode ? `https://flagcdn.com/${countryCode}.svg` : '';
+};
 const getNextFreeSortOrderClient = (items = [], excludeId = null) => {
   const taken = new Set(
     (Array.isArray(items) ? items : [])
@@ -1241,6 +1273,7 @@ function SuperAdminDashboard() {
   const [showFoundersAccessModal, setShowFoundersAccessModal] = useState(false);
   const [foundersAccessGranted, setFoundersAccessGranted] = useState(false);
   const [foundersAccessError, setFoundersAccessError] = useState('');
+  const [foundersChartsCurrency, setFoundersChartsCurrency] = useState('');
 
   // Customer order history modal
   const [showOrderHistoryModal, setShowOrderHistoryModal] = useState(false);
@@ -2877,13 +2910,27 @@ function SuperAdminDashboard() {
         }
       });
       const payload = response.data || {};
+      const currencies = Array.isArray(payload.available_currencies) ? payload.available_currencies : [];
       setFoundersAnalyticsData({
         period: payload.period || { start_date: null, end_date: null },
+        modules_config: Array.isArray(payload.modules_config) ? payload.modules_config : [],
+        available_currencies: currencies,
         shares_config: Array.isArray(payload.shares_config) ? payload.shares_config : [],
         totals_by_currency: Array.isArray(payload.totals_by_currency) ? payload.totals_by_currency : [],
         module_totals: Array.isArray(payload.module_totals) ? payload.module_totals : [],
+        module_monthly_totals: Array.isArray(payload.module_monthly_totals) ? payload.module_monthly_totals : [],
+        founder_module_totals: Array.isArray(payload.founder_module_totals) ? payload.founder_module_totals : [],
         founder_totals: Array.isArray(payload.founder_totals) ? payload.founder_totals : [],
+        founder_monthly_totals: Array.isArray(payload.founder_monthly_totals) ? payload.founder_monthly_totals : [],
+        founder_monthly_module_totals: Array.isArray(payload.founder_monthly_module_totals) ? payload.founder_monthly_module_totals : [],
         generated_at: payload.generated_at || null
+      });
+      setFoundersChartsCurrency((prev) => {
+        const normalizedPrev = String(prev || '').trim().toLowerCase();
+        if (normalizedPrev && currencies.map((item) => String(item || '').trim().toLowerCase()).includes(normalizedPrev)) {
+          return normalizedPrev;
+        }
+        return String(currencies[0] || '').trim().toLowerCase();
       });
       setFoundersAccessPassword(resolvedPassword);
       setFoundersAccessGranted(true);
@@ -2893,6 +2940,7 @@ function SuperAdminDashboard() {
       if (Number(err?.response?.status) === 403) {
         setFoundersAccessGranted(false);
         setFoundersAccessPassword('');
+        setFoundersChartsCurrency('');
         setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
         setFoundersAccessError(language === 'uz'
           ? "Parol noto'g'ri. Qayta urinib ko'ring."
@@ -2930,6 +2978,7 @@ function SuperAdminDashboard() {
   const requestFoundersReauth = () => {
     setFoundersAccessGranted(false);
     setFoundersAccessPassword('');
+    setFoundersChartsCurrency('');
     setFoundersPasswordInput('');
     setFoundersAccessError('');
     setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
@@ -4288,48 +4337,212 @@ function SuperAdminDashboard() {
       ? foundersAnalyticsData.totals_by_currency
       : []
   ), [foundersAnalyticsData]);
-  const foundersModuleTotals = useMemo(() => (
-    Array.isArray(foundersAnalyticsData?.module_totals)
-      ? foundersAnalyticsData.module_totals
+  const foundersFounderModuleTotals = useMemo(() => (
+    Array.isArray(foundersAnalyticsData?.founder_module_totals)
+      ? foundersAnalyticsData.founder_module_totals
       : []
   ), [foundersAnalyticsData]);
-  const foundersTotalsByPerson = useMemo(() => {
-    const source = Array.isArray(foundersAnalyticsData?.founder_totals)
-      ? foundersAnalyticsData.founder_totals
+  const foundersMonthlyTotals = useMemo(() => (
+    Array.isArray(foundersAnalyticsData?.founder_monthly_totals)
+      ? foundersAnalyticsData.founder_monthly_totals
+      : []
+  ), [foundersAnalyticsData]);
+  const foundersSharesConfig = useMemo(() => (
+    Array.isArray(foundersAnalyticsData?.shares_config)
+      ? foundersAnalyticsData.shares_config
+      : []
+  ), [foundersAnalyticsData]);
+  const foundersAvailableCurrencies = useMemo(() => {
+    const fromApi = Array.isArray(foundersAnalyticsData?.available_currencies)
+      ? foundersAnalyticsData.available_currencies
       : [];
-    const grouped = new Map();
-    for (const row of source) {
-      const key = `${row?.founder_key || 'unknown'}__${row?.currency_code || 'uz'}`;
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          founder_key: row?.founder_key || 'unknown',
-          founder_name: row?.founder_name || '—',
-          currency_code: row?.currency_code || 'uz',
-          order_percent: Number(row?.order_percent || 0),
-          reservation_percent: Number(row?.reservation_percent || 0),
-          orders_amount: 0,
-          reservations_amount: 0,
-          total_amount: 0
-        });
-      }
-      const target = grouped.get(key);
-      target.orders_amount += Number(row?.orders_amount || 0);
-      target.reservations_amount += Number(row?.reservations_amount || 0);
-      target.total_amount += Number(row?.total_amount || 0);
+    const set = new Set(
+      fromApi
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (!set.size) {
+      foundersTotalsByCurrency.forEach((row) => {
+        const code = String(row?.currency_code || '').trim().toLowerCase();
+        if (code) set.add(code);
+      });
+      foundersFounderModuleTotals.forEach((row) => {
+        const code = String(row?.currency_code || '').trim().toLowerCase();
+        if (code) set.add(code);
+      });
     }
-    return Array.from(grouped.values())
+    return Array.from(set).sort((left, right) => left.localeCompare(right, 'ru'));
+  }, [foundersAnalyticsData?.available_currencies, foundersTotalsByCurrency, foundersFounderModuleTotals]);
+  const foundersModulesConfig = useMemo(() => {
+    const fallbackMap = new Map(
+      FOUNDERS_MODULE_UI_ORDER.map((item) => ([
+        item.key,
+        {
+          key: item.key,
+          label: language === 'uz' ? item.labelUz : item.labelRu
+        }
+      ]))
+    );
+    const apiItems = Array.isArray(foundersAnalyticsData?.modules_config)
+      ? foundersAnalyticsData.modules_config
+      : [];
+
+    const ordered = [];
+    for (const fallbackItem of FOUNDERS_MODULE_UI_ORDER) {
+      const fromApi = apiItems.find((item) => String(item?.key || '').trim().toLowerCase() === fallbackItem.key);
+      if (fromApi) {
+        ordered.push({
+          key: fallbackItem.key,
+          label: String(fromApi?.label || '').trim() || fallbackMap.get(fallbackItem.key)?.label || fallbackItem.labelRu
+        });
+      } else {
+        ordered.push(fallbackMap.get(fallbackItem.key));
+      }
+    }
+
+    for (const apiItem of apiItems) {
+      const key = String(apiItem?.key || '').trim().toLowerCase();
+      if (!key || ordered.some((item) => item.key === key)) continue;
+      ordered.push({
+        key,
+        label: String(apiItem?.label || key).trim()
+      });
+    }
+    return ordered.filter(Boolean);
+  }, [foundersAnalyticsData?.modules_config, language]);
+  const foundersCardsData = useMemo(() => {
+    const foundersSource = foundersSharesConfig.length
+      ? foundersSharesConfig
+      : Array.from(
+        new Map(
+          (Array.isArray(foundersAnalyticsData?.founder_totals) ? foundersAnalyticsData.founder_totals : [])
+            .map((row) => [String(row?.founder_key || '').trim().toLowerCase(), row])
+            .filter(([key]) => key)
+        ).values()
+      );
+    const moduleMap = new Map(
+      foundersFounderModuleTotals.map((row) => {
+        const founderKey = String(row?.founder_key || '').trim().toLowerCase();
+        const moduleKey = String(row?.module_key || '').trim().toLowerCase();
+        const currencyCode = String(row?.currency_code || '').trim().toLowerCase();
+        return [`${founderKey}__${moduleKey}__${currencyCode}`, row];
+      })
+    );
+
+    return foundersSource.map((founder, founderIndex) => {
+      const founderKey = String(founder?.key || founder?.founder_key || '').trim().toLowerCase();
+      const founderName = String(founder?.name || founder?.founder_name || `Founder ${founderIndex + 1}`).trim();
+
+      const modules = foundersModulesConfig.map((moduleItem) => {
+        const amountsByCurrency = foundersAvailableCurrencies.map((currencyCode) => {
+          const item = moduleMap.get(`${founderKey}__${moduleItem.key}__${currencyCode}`);
+          return {
+            currency_code: currencyCode,
+            founder_amount: Number(item?.founder_amount || 0),
+            founder_percent: Number(item?.founder_percent || 0)
+          };
+        });
+        const moduleTotal = amountsByCurrency.reduce((acc, item) => acc + Number(item.founder_amount || 0), 0);
+        return {
+          module_key: moduleItem.key,
+          module_label: moduleItem.label,
+          amounts_by_currency: amountsByCurrency,
+          total_amount: Math.round((moduleTotal + Number.EPSILON) * 100) / 100
+        };
+      });
+
+      const totalByCurrency = foundersAvailableCurrencies.map((currencyCode) => {
+        const amount = modules.reduce((acc, moduleItem) => {
+          const currencyLine = moduleItem.amounts_by_currency.find((line) => line.currency_code === currencyCode);
+          return acc + Number(currencyLine?.founder_amount || 0);
+        }, 0);
+        return {
+          currency_code: currencyCode,
+          amount: Math.round((amount + Number.EPSILON) * 100) / 100
+        };
+      });
+      const founderTotal = totalByCurrency.reduce((acc, row) => acc + Number(row.amount || 0), 0);
+
+      return {
+        founder_key: founderKey,
+        founder_name: founderName,
+        modules,
+        total_by_currency: totalByCurrency,
+        total_amount: Math.round((founderTotal + Number.EPSILON) * 100) / 100
+      };
+    });
+  }, [
+    foundersSharesConfig,
+    foundersAnalyticsData?.founder_totals,
+    foundersFounderModuleTotals,
+    foundersModulesConfig,
+    foundersAvailableCurrencies
+  ]);
+  const foundersChartCurrencyResolved = useMemo(() => {
+    const normalized = String(foundersChartsCurrency || '').trim().toLowerCase();
+    if (normalized && foundersAvailableCurrencies.includes(normalized)) return normalized;
+    return String(foundersAvailableCurrencies[0] || '').trim().toLowerCase();
+  }, [foundersChartsCurrency, foundersAvailableCurrencies]);
+  useEffect(() => {
+    const normalized = String(foundersChartsCurrency || '').trim().toLowerCase();
+    const resolved = String(foundersChartCurrencyResolved || '').trim().toLowerCase();
+    if (normalized === resolved) return;
+    setFoundersChartsCurrency(resolved);
+  }, [foundersChartsCurrency, foundersChartCurrencyResolved]);
+  const foundersMonthlyChartData = useMemo(() => {
+    const currencyCode = foundersChartCurrencyResolved;
+    if (!currencyCode) return [];
+    const foundersOrder = foundersCardsData.map((item) => item.founder_key);
+    const grouped = new Map();
+    foundersMonthlyTotals
+      .filter((row) => String(row?.currency_code || '').trim().toLowerCase() === currencyCode)
+      .forEach((row) => {
+        const monthKey = String(row?.month_key || '').trim();
+        if (!monthKey) return;
+        if (!grouped.has(monthKey)) {
+          grouped.set(monthKey, {
+            month_key: monthKey,
+            month_label: String(row?.month_label || monthKey).trim(),
+            values: {}
+          });
+        }
+        const target = grouped.get(monthKey);
+        const founderKey = String(row?.founder_key || '').trim().toLowerCase();
+        target.values[founderKey] = Number(row?.total_amount || 0);
+      });
+    const rows = Array.from(grouped.values())
+      .sort((left, right) => String(left.month_key || '').localeCompare(String(right.month_key || ''), 'ru'))
+      .slice(-12)
       .map((row) => ({
         ...row,
-        orders_amount: Math.round((row.orders_amount + Number.EPSILON) * 100) / 100,
-        reservations_amount: Math.round((row.reservations_amount + Number.EPSILON) * 100) / 100,
-        total_amount: Math.round((row.total_amount + Number.EPSILON) * 100) / 100
-      }))
-      .sort((left, right) => {
-        const nameDiff = String(left.founder_name || '').localeCompare(String(right.founder_name || ''), 'ru');
-        if (nameDiff !== 0) return nameDiff;
-        return String(left.currency_code || '').localeCompare(String(right.currency_code || ''), 'ru');
-      });
-  }, [foundersAnalyticsData]);
+        values: foundersOrder.reduce((acc, founderKey) => {
+          acc[founderKey] = Number(row.values?.[founderKey] || 0);
+          return acc;
+        }, {})
+      }));
+    return rows;
+  }, [foundersMonthlyTotals, foundersChartCurrencyResolved, foundersCardsData]);
+  const foundersHorizontalBars = useMemo(() => {
+    const currencyCode = foundersChartCurrencyResolved;
+    if (!currencyCode) return [];
+    return foundersCardsData.map((founderItem) => {
+      const currencyTotal = founderItem.total_by_currency.find((item) => item.currency_code === currencyCode);
+      return {
+        founder_key: founderItem.founder_key,
+        founder_name: founderItem.founder_name,
+        amount: Number(currencyTotal?.amount || 0)
+      };
+    });
+  }, [foundersCardsData, foundersChartCurrencyResolved]);
+  const foundersMonthlyChartMax = useMemo(() => {
+    const values = foundersMonthlyChartData.flatMap((row) => Object.values(row.values || {}).map((value) => Number(value || 0)));
+    const max = Math.max(0, ...values);
+    return max > 0 ? max : 1;
+  }, [foundersMonthlyChartData]);
+  const foundersHorizontalMax = useMemo(() => {
+    const max = Math.max(0, ...foundersHorizontalBars.map((item) => Number(item.amount || 0)));
+    return max > 0 ? max : 1;
+  }, [foundersHorizontalBars]);
   const foundersGeneratedAtLabel = useMemo(() => {
     const raw = foundersAnalyticsData?.generated_at;
     if (!raw) return '';
@@ -12504,7 +12717,7 @@ function SuperAdminDashboard() {
                           ? 'Ta’sischilar analitikasi yuklanmoqda'
                           : 'Загрузка аналитики учредителей'}
                       />
-                    ) : foundersTotalsByCurrency.length === 0 ? (
+                    ) : foundersCardsData.length === 0 ? (
                       <Alert variant="secondary" className="mb-0">
                         {language === 'uz'
                           ? "Tanlangan davr bo'yicha taqsimlanadigan tushum topilmadi."
@@ -12512,7 +12725,7 @@ function SuperAdminDashboard() {
                       </Alert>
                     ) : (
                       <>
-                        <Row className="g-3 mb-3">
+                        <Row className="g-3 mb-4">
                           {foundersTotalsByCurrency.map((row) => (
                             <Col xs={12} md={6} xl={4} key={`founders-total-${row.currency_code}`}>
                               <Card className="admin-card border-0 h-100">
@@ -12537,69 +12750,215 @@ function SuperAdminDashboard() {
                           ))}
                         </Row>
 
-                        <Card className="admin-card border-0 mb-3">
-                          <Card.Body className="p-0">
-                            <div className="admin-table-container">
-                              <Table responsive hover className="admin-table mb-0">
-                                <thead>
-                                  <tr>
-                                    <th>{language === 'uz' ? 'Ta’sischi' : 'Учредитель'}</th>
-                                    <th>{language === 'uz' ? 'Valyuta' : 'Валюта'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Buyurtma ulushi' : 'Доля заказов'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Bron ulushi' : 'Доля брони'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Jami' : 'Итого'}</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {foundersTotalsByPerson.map((row) => (
-                                    <tr key={`founder-row-${row.founder_key}-${row.currency_code}`}>
-                                      <td>
-                                        <strong>{row.founder_name || '—'}</strong>
-                                      </td>
-                                      <td>{getCurrencyLabelByCode(row.currency_code)}</td>
-                                      <td className="text-end">
-                                        {formatBalanceAmount(row.orders_amount || 0)}{' '}
-                                        <span className="text-muted">({row.order_percent || 0}%)</span>
-                                      </td>
-                                      <td className="text-end">
-                                        {formatBalanceAmount(row.reservations_amount || 0)}{' '}
-                                        <span className="text-muted">({row.reservation_percent || 0}%)</span>
-                                      </td>
-                                      <td className="text-end fw-bold">
-                                        {formatBalanceAmount(row.total_amount || 0)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </Table>
-                            </div>
-                          </Card.Body>
-                        </Card>
+                        <Row className="g-3 mb-4">
+                          {foundersCardsData.map((founderItem, founderIndex) => (
+                            <Col xs={12} lg={4} key={`founders-card-${founderItem.founder_key || founderIndex}`}>
+                              <Card className="admin-card border-0 h-100 sa-founders-founder-card">
+                                <Card.Body className="p-0">
+                                  <div className="sa-founders-founder-head">
+                                    <div className="sa-founders-founder-caption">
+                                      {language === 'uz' ? 'Ta’sischi F.I.Sh.' : 'ФИО учредителя'}
+                                    </div>
+                                    <div className="sa-founders-founder-name">{founderItem.founder_name || '—'}</div>
+                                  </div>
+                                  <div className="admin-table-container">
+                                    <Table responsive className="admin-table mb-0 sa-founders-founder-table">
+                                      <thead>
+                                        <tr>
+                                          <th style={{ width: '34%' }}>{language === 'uz' ? 'Modul' : 'Модуль'}</th>
+                                          <th>{language === 'uz' ? 'Valyutalar bo‘yicha summa' : 'Сумма по валютам'}</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {founderItem.modules.map((moduleItem) => (
+                                          <tr key={`founder-module-${founderItem.founder_key}-${moduleItem.module_key}`}>
+                                            <td className="fw-semibold">{moduleItem.module_label}</td>
+                                            <td>
+                                              {foundersAvailableCurrencies.length === 0 ? (
+                                                <span className="text-muted">—</span>
+                                              ) : (
+                                                <div className="sa-founders-currency-stack">
+                                                  {moduleItem.amounts_by_currency.map((line) => {
+                                                    const flagUrl = resolveCurrencyFlagSvgUrl(line.currency_code);
+                                                    return (
+                                                      <div className="sa-founders-currency-line" key={`line-${moduleItem.module_key}-${line.currency_code}`}>
+                                                        {flagUrl ? (
+                                                          <img
+                                                            src={flagUrl}
+                                                            alt={line.currency_code?.toUpperCase() || 'CUR'}
+                                                            className="sa-founders-currency-flag"
+                                                          />
+                                                        ) : (
+                                                          <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
+                                                            {String(line.currency_code || '').toUpperCase().slice(0, 2)}
+                                                          </span>
+                                                        )}
+                                                        <span className="sa-founders-currency-label">{getCurrencyLabelByCode(line.currency_code)}</span>
+                                                        <span className="sa-founders-currency-amount">{formatBalanceAmount(line.founder_amount || 0)}</span>
+                                                        {Number(line.founder_percent || 0) > 0 && (
+                                                          <span className="text-muted small">({Number(line.founder_percent || 0)}%)</span>
+                                                        )}
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                        <tr className="sa-founders-total-row">
+                                          <td className="fw-bold">{language === 'uz' ? 'Jami' : 'Итого'}</td>
+                                          <td>
+                                            {foundersAvailableCurrencies.length === 0 ? (
+                                              <span className="text-muted">—</span>
+                                            ) : (
+                                              <div className="sa-founders-currency-stack">
+                                                {founderItem.total_by_currency.map((line) => {
+                                                  const flagUrl = resolveCurrencyFlagSvgUrl(line.currency_code);
+                                                  return (
+                                                    <div className="sa-founders-currency-line" key={`total-line-${founderItem.founder_key}-${line.currency_code}`}>
+                                                      {flagUrl ? (
+                                                        <img
+                                                          src={flagUrl}
+                                                          alt={line.currency_code?.toUpperCase() || 'CUR'}
+                                                          className="sa-founders-currency-flag"
+                                                        />
+                                                      ) : (
+                                                        <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
+                                                          {String(line.currency_code || '').toUpperCase().slice(0, 2)}
+                                                        </span>
+                                                      )}
+                                                      <span className="sa-founders-currency-label">{getCurrencyLabelByCode(line.currency_code)}</span>
+                                                      <span className="sa-founders-currency-amount">{formatBalanceAmount(line.amount || 0)}</span>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      </tbody>
+                                    </Table>
+                                  </div>
+                                </Card.Body>
+                              </Card>
+                            </Col>
+                          ))}
+                        </Row>
 
                         <Card className="admin-card border-0">
-                          <Card.Body className="p-0">
-                            <div className="admin-table-container">
-                              <Table responsive hover className="admin-table mb-0">
-                                <thead>
-                                  <tr>
-                                    <th>{language === 'uz' ? 'Modul' : 'Модуль'}</th>
-                                    <th>{language === 'uz' ? 'Valyuta' : 'Валюта'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Tranzaksiyalar' : 'Транзакций'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Jami tushum' : 'Сумма'}</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {foundersModuleTotals.map((row, index) => (
-                                    <tr key={`founders-module-${row.module_key}-${row.currency_code}-${index}`}>
-                                      <td>{row.module_label || row.module_key || '—'}</td>
-                                      <td>{getCurrencyLabelByCode(row.currency_code)}</td>
-                                      <td className="text-end">{row.transactions_count || 0}</td>
-                                      <td className="text-end fw-semibold">{formatBalanceAmount(row.amount || 0)}</td>
-                                    </tr>
+                          <Card.Body className="p-3 p-lg-4">
+                            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                              <div className="fw-semibold">
+                                {language === 'uz' ? "Ta’sischilar bo'yicha diagrammalar" : 'Диаграммы по учредителям'}
+                              </div>
+                              <div className="d-flex align-items-center gap-2">
+                                <span className="small text-muted">{language === 'uz' ? 'Valyuta:' : 'Валюта:'}</span>
+                                <Form.Select
+                                  size="sm"
+                                  className="form-control-custom"
+                                  style={{ minWidth: 150 }}
+                                  value={foundersChartCurrencyResolved}
+                                  onChange={(e) => setFoundersChartsCurrency(String(e.target.value || '').trim().toLowerCase())}
+                                >
+                                  {foundersAvailableCurrencies.map((currencyCode) => (
+                                    <option key={`founders-chart-currency-${currencyCode}`} value={currencyCode}>
+                                      {getCurrencyLabelByCode(currencyCode)}
+                                    </option>
                                   ))}
-                                </tbody>
-                              </Table>
+                                </Form.Select>
+                              </div>
                             </div>
+
+                            <Row className="g-3">
+                              <Col xs={12} xl={8}>
+                                <div className="sa-founders-chart-card">
+                                  <div className="sa-founders-chart-title">
+                                    {language === 'uz' ? 'Oylik dinamika (3 ta’sischi)' : 'Помесячная динамика (3 учредителя)'}
+                                  </div>
+                                  {foundersMonthlyChartData.length === 0 ? (
+                                    <div className="text-muted small py-4 text-center">
+                                      {language === 'uz' ? "Diagramma uchun ma'lumot yo'q" : 'Нет данных для диаграммы'}
+                                    </div>
+                                  ) : (
+                                    <div className="sa-founders-monthly-chart">
+                                      {foundersMonthlyChartData.map((monthItem) => (
+                                        <div className="sa-founders-monthly-group" key={`month-${monthItem.month_key}`}>
+                                          <div className="sa-founders-monthly-bars">
+                                            {foundersCardsData.map((founderItem, founderIndex) => {
+                                              const founderKey = founderItem.founder_key;
+                                              const value = Number(monthItem.values?.[founderKey] || 0);
+                                              const heightPercent = Math.max(4, (value / foundersMonthlyChartMax) * 100);
+                                              const color = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
+                                              return (
+                                                <div className="sa-founders-monthly-bar-wrap" key={`month-bar-${monthItem.month_key}-${founderKey}`}>
+                                                  <div className="sa-founders-monthly-value" title={formatBalanceAmount(value)}>
+                                                    {formatBalanceAmount(value)}
+                                                  </div>
+                                                  <div
+                                                    className="sa-founders-monthly-bar"
+                                                    style={{ height: `${heightPercent}%`, backgroundColor: color }}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="sa-founders-monthly-label" title={monthItem.month_label}>
+                                            {monthItem.month_label}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="sa-founders-chart-legend">
+                                    {foundersCardsData.map((founderItem, founderIndex) => {
+                                      const founderKey = founderItem.founder_key;
+                                      const color = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
+                                      return (
+                                        <span key={`legend-${founderKey}`} className="sa-founders-legend-item">
+                                          <span className="sa-founders-legend-dot" style={{ backgroundColor: color }} />
+                                          {founderItem.founder_name}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </Col>
+
+                              <Col xs={12} xl={4}>
+                                <div className="sa-founders-chart-card">
+                                  <div className="sa-founders-chart-title">
+                                    {language === 'uz' ? 'Ta’sischilar bo‘yicha jami' : 'Сумма по учредителям'}
+                                  </div>
+                                  {foundersHorizontalBars.length === 0 ? (
+                                    <div className="text-muted small py-4 text-center">
+                                      {language === 'uz' ? "Diagramma uchun ma'lumot yo'q" : 'Нет данных для диаграммы'}
+                                    </div>
+                                  ) : (
+                                    <div className="sa-founders-horizontal-chart">
+                                      {foundersHorizontalBars.map((item, index) => {
+                                        const color = FOUNDERS_CHART_COLORS[item.founder_key] || ['#4f46e5', '#0ea5e9', '#22c55e'][index % 3];
+                                        const widthPercent = Math.max(6, (Number(item.amount || 0) / foundersHorizontalMax) * 100);
+                                        return (
+                                          <div className="sa-founders-horizontal-row" key={`founders-horizontal-${item.founder_key || index}`}>
+                                            <div className="sa-founders-horizontal-name">{item.founder_name}</div>
+                                            <div className="sa-founders-horizontal-track">
+                                              <div
+                                                className="sa-founders-horizontal-bar"
+                                                style={{ width: `${widthPercent}%`, backgroundColor: color }}
+                                              />
+                                            </div>
+                                            <div className="sa-founders-horizontal-value">
+                                              {formatBalanceAmount(item.amount || 0)}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </Col>
+                            </Row>
                           </Card.Body>
                         </Card>
                       </>

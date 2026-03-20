@@ -135,23 +135,83 @@ const FOUNDER_SHARE_CONFIG = [
     key: 'admin',
     name: 'Admin',
     order_percent: 10,
-    reservation_percent: 80
+    reservation_percent: 80,
+    module_shares: {
+      orders: 10,
+      reservations: 80,
+      delivery: 0,
+      ads: 0,
+      superapp: 0
+    }
   },
   {
     key: 'davron',
     name: 'Davron',
     order_percent: 50,
-    reservation_percent: 10
+    reservation_percent: 10,
+    module_shares: {
+      orders: 50,
+      reservations: 10,
+      delivery: 0,
+      ads: 0,
+      superapp: 0
+    }
   },
   {
     key: 'mirzaolim',
     name: 'Mirzaolim',
     order_percent: 40,
-    reservation_percent: 10
+    reservation_percent: 10,
+    module_shares: {
+      orders: 40,
+      reservations: 10,
+      delivery: 0,
+      ads: 0,
+      superapp: 0
+    }
   }
 ];
-const BILLING_ORDER_WITHDRAWAL_PATTERN = `%за заказ #%`;
-const BILLING_RESERVATION_WITHDRAWAL_PATTERNS = [`%за бронь #%`, `%за бронирование #%`];
+const FOUNDERS_MODULE_DEFINITIONS = [
+  {
+    key: 'orders',
+    label: 'Заказы',
+    patterns: [`%за заказ #%`]
+  },
+  {
+    key: 'reservations',
+    label: 'Бронирования',
+    patterns: [`%за бронь #%`, `%за бронирование #%`]
+  },
+  {
+    key: 'delivery',
+    label: 'Доставки',
+    patterns: [`%за доставк%`, `%доставка%`, `%delivery%`]
+  },
+  {
+    key: 'ads',
+    label: 'Рекламы',
+    patterns: [`%реклам%`, `%advert%`, `%ads%`]
+  },
+  {
+    key: 'superapp',
+    label: 'Superapp',
+    patterns: [`%superapp%`, `%super app%`, `%суперапп%`, `%супер апп%`]
+  }
+];
+const FOUNDERS_MODULE_LABEL_MAP = Object.fromEntries(
+  FOUNDERS_MODULE_DEFINITIONS.map((item) => [item.key, item.label])
+);
+const FOUNDER_CONFIG_BY_KEY = Object.fromEntries(
+  FOUNDER_SHARE_CONFIG.map((item) => [item.key, item])
+);
+const getFounderModuleSharePercent = (founderKey, moduleKey) => {
+  const founder = FOUNDER_CONFIG_BY_KEY[String(founderKey || '').trim().toLowerCase()];
+  if (!founder) return 0;
+  const shares = founder.module_shares || {};
+  const value = Number(shares[moduleKey]);
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+};
 
 const normalizeTokenValue = (value) => {
   const normalized = value ? String(value).trim() : '';
@@ -3879,15 +3939,26 @@ router.get('/founders/analytics', async (req, res) => {
 
     const startDate = parseDateRangeFilterValue(req.query.start_date);
     const endDate = parseDateRangeFilterValue(req.query.end_date);
-    const params = [
-      BILLING_ORDER_WITHDRAWAL_PATTERN,
-      BILLING_RESERVATION_WITHDRAWAL_PATTERNS[0],
-      BILLING_RESERVATION_WITHDRAWAL_PATTERNS[1]
-    ];
+    const modulePatterns = FOUNDERS_MODULE_DEFINITIONS.flatMap((moduleItem) => (
+      (moduleItem.patterns || []).map((pattern) => ({
+        module_key: moduleItem.key,
+        pattern
+      }))
+    ));
+    const params = modulePatterns.map((item) => item.pattern);
+    const patternOrConditions = modulePatterns.map((_, index) => `bt.description ILIKE $${index + 1}`);
+    const moduleCaseBranches = FOUNDERS_MODULE_DEFINITIONS.map((moduleItem) => {
+      const indexes = modulePatterns
+        .map((patternItem, index) => (patternItem.module_key === moduleItem.key ? index + 1 : null))
+        .filter(Boolean);
+      if (!indexes.length) return null;
+      const condition = indexes.map((idx) => `bt.description ILIKE $${idx}`).join(' OR ');
+      return `WHEN ${condition} THEN '${moduleItem.key}'`;
+    }).filter(Boolean);
     const whereParts = [
       `bt.type = 'withdrawal'`,
       `bt.amount < 0`,
-      `(bt.description ILIKE $1 OR bt.description ILIKE $2 OR bt.description ILIKE $3)`
+      patternOrConditions.length ? `(${patternOrConditions.join(' OR ')})` : 'FALSE'
     ];
 
     if (startDate) {
@@ -3899,83 +3970,261 @@ router.get('/founders/analytics', async (req, res) => {
       whereParts.push(`bt.created_at::date <= $${params.length}`);
     }
 
-    const summaryResult = await pool.query(
+    const whereSql = whereParts.join(' AND ');
+    const moduleCaseSql = moduleCaseBranches.join('\n          ');
+    const moduleTotalsResult = await pool.query(
       `
+      WITH classified AS (
+        SELECT
+          COALESCE(NULLIF(BTRIM(r.currency_code), ''), 'uz') AS currency_code,
+          CASE
+          ${moduleCaseSql}
+            ELSE NULL
+          END AS module_key,
+          ABS(bt.amount)::numeric AS amount
+        FROM billing_transactions bt
+        INNER JOIN restaurants r ON r.id = bt.restaurant_id
+        WHERE ${whereSql}
+      )
       SELECT
-        COALESCE(NULLIF(BTRIM(r.currency_code), ''), 'uz') AS currency_code,
-        COUNT(*) FILTER (WHERE bt.description ILIKE $1)::int AS orders_count,
-        COALESCE(SUM(CASE WHEN bt.description ILIKE $1 THEN ABS(bt.amount) ELSE 0 END), 0)::numeric AS orders_total,
-        COUNT(*) FILTER (WHERE bt.description ILIKE $2 OR bt.description ILIKE $3)::int AS reservations_count,
-        COALESCE(SUM(CASE WHEN bt.description ILIKE $2 OR bt.description ILIKE $3 THEN ABS(bt.amount) ELSE 0 END), 0)::numeric AS reservations_total
-      FROM billing_transactions bt
-      INNER JOIN restaurants r ON r.id = bt.restaurant_id
-      WHERE ${whereParts.join(' AND ')}
-      GROUP BY currency_code
-      ORDER BY currency_code ASC
+        currency_code,
+        module_key,
+        COUNT(*)::int AS transactions_count,
+        COALESCE(SUM(amount), 0)::numeric AS amount
+      FROM classified
+      WHERE module_key IS NOT NULL
+      GROUP BY currency_code, module_key
+      ORDER BY currency_code ASC, module_key ASC
+      `,
+      params
+    );
+    const monthlyModuleTotalsResult = await pool.query(
+      `
+      WITH classified AS (
+        SELECT
+          date_trunc('month', bt.created_at)::date AS month_start,
+          to_char(date_trunc('month', bt.created_at), 'YYYY-MM') AS month_key,
+          to_char(date_trunc('month', bt.created_at), 'MM.YYYY') AS month_label,
+          COALESCE(NULLIF(BTRIM(r.currency_code), ''), 'uz') AS currency_code,
+          CASE
+          ${moduleCaseSql}
+            ELSE NULL
+          END AS module_key,
+          ABS(bt.amount)::numeric AS amount
+        FROM billing_transactions bt
+        INNER JOIN restaurants r ON r.id = bt.restaurant_id
+        WHERE ${whereSql}
+      )
+      SELECT
+        month_start,
+        month_key,
+        month_label,
+        currency_code,
+        module_key,
+        COUNT(*)::int AS transactions_count,
+        COALESCE(SUM(amount), 0)::numeric AS amount
+      FROM classified
+      WHERE module_key IS NOT NULL
+      GROUP BY month_start, month_key, month_label, currency_code, module_key
+      ORDER BY month_start ASC, currency_code ASC, module_key ASC
       `,
       params
     );
 
-    const totalsByCurrency = (summaryResult.rows || []).map((row) => {
-      const ordersTotal = roundMoneyValue(row.orders_total);
-      const reservationsTotal = roundMoneyValue(row.reservations_total);
-      const ordersCount = Number.parseInt(row.orders_count, 10) || 0;
-      const reservationsCount = Number.parseInt(row.reservations_count, 10) || 0;
-      return {
-        currency_code: String(row.currency_code || 'uz').toLowerCase(),
-        orders_count: ordersCount,
-        orders_total: ordersTotal,
-        reservations_count: reservationsCount,
-        reservations_total: reservationsTotal,
-        transactions_count: ordersCount + reservationsCount,
-        total_distributable: roundMoneyValue(ordersTotal + reservationsTotal)
-      };
-    });
+    const rawModuleTotals = (moduleTotalsResult.rows || []).map((row) => ({
+      currency_code: String(row.currency_code || 'uz').toLowerCase(),
+      module_key: String(row.module_key || '').trim().toLowerCase(),
+      transactions_count: Number.parseInt(row.transactions_count, 10) || 0,
+      amount: roundMoneyValue(row.amount)
+    }));
+    const rawMonthlyModuleTotals = (monthlyModuleTotalsResult.rows || []).map((row) => ({
+      month_start: row.month_start || null,
+      month_key: String(row.month_key || '').trim(),
+      month_label: String(row.month_label || '').trim(),
+      currency_code: String(row.currency_code || 'uz').toLowerCase(),
+      module_key: String(row.module_key || '').trim().toLowerCase(),
+      transactions_count: Number.parseInt(row.transactions_count, 10) || 0,
+      amount: roundMoneyValue(row.amount)
+    }));
 
-    const moduleTotals = totalsByCurrency.flatMap((row) => ([
-      {
-        module_key: 'orders',
-        module_label: 'Заказы товаров',
-        currency_code: row.currency_code,
-        transactions_count: row.orders_count,
-        amount: row.orders_total
-      },
-      {
-        module_key: 'reservations',
-        module_label: 'Бронирования',
-        currency_code: row.currency_code,
-        transactions_count: row.reservations_count,
-        amount: row.reservations_total
-      }
-    ]));
+    const currencySet = new Set();
+    for (const row of rawModuleTotals) currencySet.add(row.currency_code);
+    for (const row of rawMonthlyModuleTotals) currencySet.add(row.currency_code);
+    const availableCurrencies = Array.from(currencySet).sort((left, right) => left.localeCompare(right, 'ru'));
 
-    const founderTotals = [];
-    for (const row of totalsByCurrency) {
-      for (const founder of FOUNDER_SHARE_CONFIG) {
-        const ordersAmount = roundMoneyValue((row.orders_total * Number(founder.order_percent || 0)) / 100);
-        const reservationsAmount = roundMoneyValue((row.reservations_total * Number(founder.reservation_percent || 0)) / 100);
-        founderTotals.push({
-          founder_key: founder.key,
-          founder_name: founder.name,
-          currency_code: row.currency_code,
-          order_percent: Number(founder.order_percent || 0),
-          reservation_percent: Number(founder.reservation_percent || 0),
-          orders_amount: ordersAmount,
-          reservations_amount: reservationsAmount,
-          total_amount: roundMoneyValue(ordersAmount + reservationsAmount)
+    const moduleRowMap = new Map(
+      rawModuleTotals.map((row) => [`${row.currency_code}__${row.module_key}`, row])
+    );
+    const moduleTotals = [];
+    for (const currencyCode of availableCurrencies) {
+      for (const moduleItem of FOUNDERS_MODULE_DEFINITIONS) {
+        const row = moduleRowMap.get(`${currencyCode}__${moduleItem.key}`);
+        moduleTotals.push({
+          module_key: moduleItem.key,
+          module_label: moduleItem.label,
+          currency_code: currencyCode,
+          transactions_count: row?.transactions_count || 0,
+          amount: roundMoneyValue(row?.amount || 0)
         });
       }
     }
+
+    const totalsByCurrency = availableCurrencies.map((currencyCode) => {
+      const rows = moduleTotals.filter((item) => item.currency_code === currencyCode);
+      const getRow = (moduleKey) => rows.find((item) => item.module_key === moduleKey) || null;
+      const ordersRow = getRow('orders');
+      const reservationsRow = getRow('reservations');
+      const deliveryRow = getRow('delivery');
+      const adsRow = getRow('ads');
+      const superappRow = getRow('superapp');
+      const transactionsCount = rows.reduce((acc, item) => acc + Number(item.transactions_count || 0), 0);
+      const totalDistributable = rows.reduce((acc, item) => acc + Number(item.amount || 0), 0);
+      return {
+        currency_code: currencyCode,
+        orders_count: Number(ordersRow?.transactions_count || 0),
+        orders_total: roundMoneyValue(ordersRow?.amount || 0),
+        reservations_count: Number(reservationsRow?.transactions_count || 0),
+        reservations_total: roundMoneyValue(reservationsRow?.amount || 0),
+        delivery_count: Number(deliveryRow?.transactions_count || 0),
+        delivery_total: roundMoneyValue(deliveryRow?.amount || 0),
+        ads_count: Number(adsRow?.transactions_count || 0),
+        ads_total: roundMoneyValue(adsRow?.amount || 0),
+        superapp_count: Number(superappRow?.transactions_count || 0),
+        superapp_total: roundMoneyValue(superappRow?.amount || 0),
+        transactions_count: transactionsCount,
+        total_distributable: roundMoneyValue(totalDistributable)
+      };
+    });
+
+    const founderModuleTotals = [];
+    const founderTotalsMap = new Map();
+    const founderOrderMap = new Map(FOUNDER_SHARE_CONFIG.map((item, index) => [item.key, index]));
+    for (const founder of FOUNDER_SHARE_CONFIG) {
+      for (const currencyCode of availableCurrencies) {
+        const founderTotalKey = `${founder.key}__${currencyCode}`;
+        if (!founderTotalsMap.has(founderTotalKey)) {
+          const baseEntry = {
+            founder_key: founder.key,
+            founder_name: founder.name,
+            currency_code: currencyCode,
+            order_percent: Number(founder.order_percent || 0),
+            reservation_percent: Number(founder.reservation_percent || 0),
+            total_amount: 0
+          };
+          for (const moduleItem of FOUNDERS_MODULE_DEFINITIONS) {
+            baseEntry[`${moduleItem.key}_amount`] = 0;
+          }
+          founderTotalsMap.set(founderTotalKey, baseEntry);
+        }
+
+        for (const moduleItem of FOUNDERS_MODULE_DEFINITIONS) {
+          const moduleRow = moduleTotals.find((item) => (
+            item.currency_code === currencyCode && item.module_key === moduleItem.key
+          )) || {
+            amount: 0,
+            transactions_count: 0
+          };
+          const founderPercent = getFounderModuleSharePercent(founder.key, moduleItem.key);
+          const founderAmount = roundMoneyValue((Number(moduleRow.amount || 0) * founderPercent) / 100);
+          founderModuleTotals.push({
+            founder_key: founder.key,
+            founder_name: founder.name,
+            module_key: moduleItem.key,
+            module_label: moduleItem.label,
+            currency_code: currencyCode,
+            transactions_count: Number(moduleRow.transactions_count || 0),
+            module_total_amount: roundMoneyValue(moduleRow.amount || 0),
+            founder_percent: founderPercent,
+            founder_amount: founderAmount
+          });
+
+          const founderTotalEntry = founderTotalsMap.get(founderTotalKey);
+          founderTotalEntry[`${moduleItem.key}_amount`] = roundMoneyValue(
+            Number(founderTotalEntry[`${moduleItem.key}_amount`] || 0) + founderAmount
+          );
+          founderTotalEntry.total_amount = roundMoneyValue(
+            Number(founderTotalEntry.total_amount || 0) + founderAmount
+          );
+        }
+      }
+    }
+
+    const founderTotals = Array.from(founderTotalsMap.values()).sort((left, right) => {
+      const leftOrder = founderOrderMap.has(left.founder_key) ? founderOrderMap.get(left.founder_key) : Number.MAX_SAFE_INTEGER;
+      const rightOrder = founderOrderMap.has(right.founder_key) ? founderOrderMap.get(right.founder_key) : Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return String(left.currency_code || '').localeCompare(String(right.currency_code || ''), 'ru');
+    });
+
+    const founderMonthlyTotalsMap = new Map();
+    const founderMonthlyModuleTotals = [];
+    for (const monthRow of rawMonthlyModuleTotals) {
+      const moduleLabel = FOUNDERS_MODULE_LABEL_MAP[monthRow.module_key] || monthRow.module_key || '—';
+      for (const founder of FOUNDER_SHARE_CONFIG) {
+        const founderPercent = getFounderModuleSharePercent(founder.key, monthRow.module_key);
+        const founderAmount = roundMoneyValue((Number(monthRow.amount || 0) * founderPercent) / 100);
+        founderMonthlyModuleTotals.push({
+          founder_key: founder.key,
+          founder_name: founder.name,
+          month_key: monthRow.month_key,
+          month_label: monthRow.month_label,
+          month_start: monthRow.month_start,
+          currency_code: monthRow.currency_code,
+          module_key: monthRow.module_key,
+          module_label: moduleLabel,
+          founder_percent: founderPercent,
+          founder_amount: founderAmount
+        });
+
+        const monthlyKey = [
+          founder.key,
+          monthRow.month_key,
+          monthRow.currency_code
+        ].join('__');
+        if (!founderMonthlyTotalsMap.has(monthlyKey)) {
+          founderMonthlyTotalsMap.set(monthlyKey, {
+            founder_key: founder.key,
+            founder_name: founder.name,
+            month_key: monthRow.month_key,
+            month_label: monthRow.month_label,
+            month_start: monthRow.month_start,
+            currency_code: monthRow.currency_code,
+            total_amount: 0
+          });
+        }
+        const entry = founderMonthlyTotalsMap.get(monthlyKey);
+        entry.total_amount = roundMoneyValue(Number(entry.total_amount || 0) + founderAmount);
+      }
+    }
+
+    const founderMonthlyTotals = Array.from(founderMonthlyTotalsMap.values()).sort((left, right) => {
+      if (String(left.month_key || '') !== String(right.month_key || '')) {
+        return String(left.month_key || '').localeCompare(String(right.month_key || ''), 'ru');
+      }
+      const leftOrder = founderOrderMap.has(left.founder_key) ? founderOrderMap.get(left.founder_key) : Number.MAX_SAFE_INTEGER;
+      const rightOrder = founderOrderMap.has(right.founder_key) ? founderOrderMap.get(right.founder_key) : Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return String(left.currency_code || '').localeCompare(String(right.currency_code || ''), 'ru');
+    });
 
     res.json({
       period: {
         start_date: startDate,
         end_date: endDate
       },
+      modules_config: FOUNDERS_MODULE_DEFINITIONS.map((item) => ({ key: item.key, label: item.label })),
+      available_currencies: availableCurrencies,
       shares_config: FOUNDER_SHARE_CONFIG,
       totals_by_currency: totalsByCurrency,
       module_totals: moduleTotals,
+      module_monthly_totals: rawMonthlyModuleTotals.map((item) => ({
+        ...item,
+        module_label: FOUNDERS_MODULE_LABEL_MAP[item.module_key] || item.module_key || '—'
+      })),
+      founder_module_totals: founderModuleTotals,
       founder_totals: founderTotals,
+      founder_monthly_totals: founderMonthlyTotals,
+      founder_monthly_module_totals: founderMonthlyModuleTotals,
       generated_at: new Date().toISOString()
     });
   } catch (error) {

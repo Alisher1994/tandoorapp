@@ -9135,3 +9135,235 @@ body::-webkit-scrollbar,
         pointer-events: auto;
     }
 }
+
+.sa-founders-founder-card {
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
+.sa-founders-founder-head {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: #f8fafc;
+}
+
+.sa-founders-founder-caption {
+    font-size: 0.73rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 2px;
+}
+
+.sa-founders-founder-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.sa-founders-founder-table th,
+.sa-founders-founder-table td {
+    padding-top: 0.56rem !important;
+    padding-bottom: 0.56rem !important;
+    font-size: 0.84rem !important;
+    vertical-align: top;
+}
+
+.sa-founders-currency-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sa-founders-currency-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    line-height: 1.22;
+}
+
+.sa-founders-currency-flag {
+    width: 16px;
+    height: 11px;
+    border-radius: 2px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+
+.sa-founders-currency-flag-placeholder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef2f7;
+    color: #64748b;
+    font-size: 0.62rem;
+    font-weight: 700;
+}
+
+.sa-founders-currency-label {
+    color: #475569;
+    min-width: 52px;
+}
+
+.sa-founders-currency-amount {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.sa-founders-total-row td {
+    background: #f8fafc;
+    border-top: 1px solid var(--border-color) !important;
+}
+
+.sa-founders-chart-card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    background: #ffffff;
+    min-height: 100%;
+}
+
+.sa-founders-chart-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 10px;
+}
+
+.sa-founders-monthly-chart {
+    min-height: 240px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 8px 8px;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    overflow-x: auto;
+}
+
+.sa-founders-monthly-group {
+    min-width: 72px;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.sa-founders-monthly-bars {
+    width: 100%;
+    height: 186px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+}
+
+.sa-founders-monthly-bar-wrap {
+    width: calc(33.333% - 3px);
+    min-width: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    gap: 4px;
+}
+
+.sa-founders-monthly-value {
+    font-size: 0.6rem;
+    color: #64748b;
+    line-height: 1.1;
+    white-space: nowrap;
+    transform: rotate(-58deg);
+    transform-origin: center center;
+    margin-bottom: 5px;
+}
+
+.sa-founders-monthly-bar {
+    width: 100%;
+    min-height: 4px;
+    border-radius: 7px 7px 0 0;
+}
+
+.sa-founders-monthly-label {
+    font-size: 0.7rem;
+    color: #475569;
+    text-align: center;
+}
+
+.sa-founders-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 10px;
+}
+
+.sa-founders-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.74rem;
+    color: #475569;
+}
+
+.sa-founders-legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    flex: 0 0 auto;
+}
+
+.sa-founders-horizontal-chart {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sa-founders-horizontal-row {
+    display: grid;
+    grid-template-columns: minmax(84px, 1fr) minmax(140px, 3fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.sa-founders-horizontal-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.sa-founders-horizontal-track {
+    position: relative;
+    height: 11px;
+    border-radius: 999px;
+    background: #eef2f7;
+    overflow: hidden;
+}
+
+.sa-founders-horizontal-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 999px;
+}
+
+.sa-founders-horizontal-value {
+    font-size: 0.77rem;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+@media (max-width: 1199px) {
+    .sa-founders-monthly-group {
+        min-width: 64px;
+    }
+}
