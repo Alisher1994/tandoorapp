@@ -6094,6 +6094,131 @@ router.get('/customers/:id/orders', async (req, res) => {
 });
 
 // =====================================================
+// РАССЫЛКА ДЛЯ СУПЕРАДМИНА
+// =====================================================
+router.post('/broadcast', async (req, res) => {
+  try {
+    const { message, image_url, video_url, roles } = req.body || {};
+    const normalizedMessage = toOptionalTrimmedText(message);
+    const normalizedImageUrl = toOptionalTrimmedText(image_url) || null;
+    const normalizedVideoUrl = toOptionalTrimmedText(video_url) || null;
+    const roleCandidates = Array.isArray(roles) ? roles : [roles];
+    const normalizedRoles = Array.from(new Set(
+      roleCandidates
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter((item) => item === 'operator' || item === 'customer')
+    ));
+
+    if (!normalizedMessage) {
+      return res.status(400).json({ error: 'Текст сообщения обязателен' });
+    }
+    if (normalizedImageUrl && normalizedVideoUrl) {
+      return res.status(400).json({ error: 'Можно выбрать только один тип медиа: фото или видео' });
+    }
+    if (!normalizedRoles.length) {
+      return res.status(400).json({ error: 'Выберите хотя бы одну роль получателей' });
+    }
+
+    const bot = getBot();
+    if (!bot) {
+      return res.status(400).json({ error: 'Центральный Telegram-бот не запущен. Проверьте BOT_TOKEN.' });
+    }
+
+    const recipientsResult = await pool.query(
+      `
+        SELECT DISTINCT ON (u.telegram_id)
+          u.id,
+          u.full_name,
+          u.username,
+          u.role,
+          u.telegram_id
+        FROM users u
+        WHERE u.is_active = true
+          AND u.telegram_id IS NOT NULL
+          AND u.role = ANY($1::text[])
+        ORDER BY u.telegram_id, u.id ASC
+      `,
+      [normalizedRoles]
+    );
+    const recipients = recipientsResult.rows || [];
+    if (!recipients.length) {
+      return res.status(400).json({ error: 'Нет получателей с Telegram ID по выбранным ролям' });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
+    const roleStats = { operator: 0, customer: 0 };
+    const broadcastMessage = `📢 <b>SuperAdmin</b>\n\n${normalizedMessage}`;
+
+    for (const recipient of recipients) {
+      try {
+        if (normalizedVideoUrl) {
+          await bot.sendVideo(recipient.telegram_id, normalizedVideoUrl, {
+            caption: broadcastMessage,
+            parse_mode: 'HTML'
+          });
+        } else if (normalizedImageUrl) {
+          await bot.sendPhoto(recipient.telegram_id, normalizedImageUrl, {
+            caption: broadcastMessage,
+            parse_mode: 'HTML'
+          });
+        } else {
+          await bot.sendMessage(recipient.telegram_id, broadcastMessage, {
+            parse_mode: 'HTML'
+          });
+        }
+        sent += 1;
+        if (recipient.role === 'operator') roleStats.operator += 1;
+        if (recipient.role === 'customer') roleStats.customer += 1;
+        await new Promise((resolve) => setTimeout(resolve, 35));
+      } catch (err) {
+        failed += 1;
+        errors.push({
+          user: recipient.full_name || recipient.username || `ID ${recipient.id}`,
+          role: recipient.role,
+          error: err?.message || 'Unknown error'
+        });
+      }
+    }
+
+    await logActivity({
+      userId: req.user.id,
+      actionType: 'broadcast',
+      entityType: 'notification',
+      entityId: null,
+      entityName: 'Superadmin broadcast',
+      newValues: {
+        roles: normalizedRoles,
+        message: normalizedMessage,
+        image_url: normalizedImageUrl,
+        video_url: normalizedVideoUrl,
+        sent,
+        failed,
+        total: recipients.length,
+        roleStats,
+        errors: errors.slice(0, 20)
+      },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    res.json({
+      message: 'Рассылка завершена',
+      roles: normalizedRoles,
+      sent,
+      failed,
+      total: recipients.length,
+      role_stats: roleStats,
+      errors: errors.slice(0, 5)
+    });
+  } catch (error) {
+    console.error('Superadmin broadcast error:', error);
+    res.status(500).json({ error: 'Ошибка рассылки: ' + error.message });
+  }
+});
+
+// =====================================================
 // ЛОГИ АКТИВНОСТИ
 // =====================================================
 

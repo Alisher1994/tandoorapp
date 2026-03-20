@@ -877,6 +877,7 @@ function SuperAdminDashboard() {
     'activity_types',
     'reservation_templates',
     'help_instructions',
+    'broadcast',
     'operators',
     'customers',
     'categories',
@@ -916,6 +917,15 @@ function SuperAdminDashboard() {
     device: ''
   });
   const [customers, setCustomers] = useState({ customers: [], total: 0 });
+  const [superadminBroadcastForm, setSuperadminBroadcastForm] = useState({
+    message: '',
+    image_url: '',
+    video_url: '',
+    roles: ['customer']
+  });
+  const [superadminBroadcastUploading, setSuperadminBroadcastUploading] = useState(false);
+  const [superadminBroadcastSending, setSuperadminBroadcastSending] = useState(false);
+  const [superadminBroadcastResult, setSuperadminBroadcastResult] = useState(null);
   const [logs, setLogs] = useState({ logs: [], total: 0 });
   const [securityEventsData, setSecurityEventsData] = useState({ events: [], total: 0, page: 1, limit: 20 });
   const [securityStats, setSecurityStats] = useState({
@@ -2227,6 +2237,74 @@ function SuperAdminDashboard() {
       setError('Ошибка загрузки клиентов');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSuperadminBroadcastMediaUpload = async (file) => {
+    if (!file) return;
+    if (!file.type?.startsWith('image/') && !file.type?.startsWith('video/')) {
+      setError('Поддерживаются только фото и видео');
+      return;
+    }
+
+    const formData = new FormData();
+    const isVideo = file.type.startsWith('video/');
+    formData.append(isVideo ? 'video' : 'image', file);
+    setSuperadminBroadcastUploading(true);
+    try {
+      const endpoint = isVideo ? 'video' : 'image';
+      const response = await axios.post(`${API_URL}/upload/${endpoint}`, formData);
+      const sourceUrl = String(response?.data?.url || response?.data?.imageUrl || response?.data?.videoUrl || '').trim();
+      if (!sourceUrl) throw new Error('upload url missing');
+      const fullUrl = sourceUrl.startsWith('http') ? sourceUrl : `${window.location.origin}${sourceUrl}`;
+      setSuperadminBroadcastForm((prev) => ({
+        ...prev,
+        image_url: isVideo ? '' : fullUrl,
+        video_url: isVideo ? fullUrl : ''
+      }));
+    } catch (error) {
+      setError(error.response?.data?.error || 'Ошибка загрузки медиа');
+    } finally {
+      setSuperadminBroadcastUploading(false);
+    }
+  };
+
+  const handleSuperadminBroadcastRoleToggle = (role) => {
+    setSuperadminBroadcastForm((prev) => {
+      const hasRole = prev.roles.includes(role);
+      const nextRoles = hasRole ? prev.roles.filter((item) => item !== role) : [...prev.roles, role];
+      return { ...prev, roles: nextRoles };
+    });
+  };
+
+  const sendSuperadminBroadcast = async () => {
+    const message = String(superadminBroadcastForm.message || '').trim();
+    if (!message) {
+      setError('Введите текст сообщения');
+      return;
+    }
+    if (!superadminBroadcastForm.roles.length) {
+      setError('Выберите хотя бы одну роль');
+      return;
+    }
+    if (!window.confirm('Отправить рассылку выбранным ролям?')) return;
+
+    setSuperadminBroadcastSending(true);
+    setSuperadminBroadcastResult(null);
+    try {
+      const response = await axios.post(`${API_URL}/superadmin/broadcast`, {
+        message,
+        image_url: superadminBroadcastForm.image_url || null,
+        video_url: superadminBroadcastForm.video_url || null,
+        roles: superadminBroadcastForm.roles
+      });
+      const payload = response.data || {};
+      setSuperadminBroadcastResult(payload);
+      setSuccess(`Рассылка завершена: отправлено ${payload.sent || 0}, ошибок ${payload.failed || 0}`);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка отправки рассылки');
+    } finally {
+      setSuperadminBroadcastSending(false);
     }
   };
 
@@ -7530,6 +7608,7 @@ function SuperAdminDashboard() {
     activity_types: { label: language === 'uz' ? 'Faoliyat turlari' : 'Виды деятельности', icon: Puzzle },
     reservation_templates: { label: language === 'uz' ? 'Bron shablonlari' : 'Шаблоны брони', icon: Package },
     help_instructions: { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen },
+    broadcast: { label: language === 'uz' ? 'Xabar tarqatish' : 'Рассылка', icon: Megaphone },
     operators: { label: t('operators'), icon: UserCog },
     customers: { label: t('clients'), icon: Users },
     categories: { label: t('categories'), icon: FolderTree },
@@ -9928,6 +10007,113 @@ function SuperAdminDashboard() {
                     </Table>
                   </div>
                 )}
+              </Tab>
+
+              <Tab eventKey="broadcast" title={renderSuperAdminSidebarTabTitle('broadcast')}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="fw-bold mb-0">{language === 'uz' ? 'Superadmin xabar tarqatish' : 'Рассылка от суперадмина'}</h5>
+                </div>
+
+                <Row className="g-3">
+                  <Col lg={8}>
+                    <Card className="border-0 shadow-sm">
+                      <Card.Body>
+                        <Form.Group className="mb-3">
+                          <Form.Label className="fw-semibold">{language === 'uz' ? 'Qabul qiluvchi rollar' : 'Роли получателей'}</Form.Label>
+                          <div className="d-flex gap-3 flex-wrap">
+                            <Form.Check
+                              type="checkbox"
+                              id="sa-broadcast-role-customer"
+                              label={language === 'uz' ? 'Mijozlar' : 'Клиенты'}
+                              checked={superadminBroadcastForm.roles.includes('customer')}
+                              onChange={() => handleSuperadminBroadcastRoleToggle('customer')}
+                            />
+                            <Form.Check
+                              type="checkbox"
+                              id="sa-broadcast-role-operator"
+                              label={language === 'uz' ? 'Operatorlar' : 'Операторы'}
+                              checked={superadminBroadcastForm.roles.includes('operator')}
+                              onChange={() => handleSuperadminBroadcastRoleToggle('operator')}
+                            />
+                          </div>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                          <Form.Label className="fw-semibold">{language === 'uz' ? 'Xabar matni' : 'Текст сообщения'}</Form.Label>
+                          <Form.Control
+                            as="textarea"
+                            rows={6}
+                            value={superadminBroadcastForm.message}
+                            onChange={(e) => setSuperadminBroadcastForm((prev) => ({ ...prev, message: e.target.value }))}
+                            placeholder={language === 'uz' ? 'Xabar matnini kiriting...' : 'Введите текст рассылки...'}
+                          />
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                          <Form.Label className="fw-semibold">{language === 'uz' ? 'Media (ixtiyoriy)' : 'Медиа (необязательно)'}</Form.Label>
+                          <div className="d-flex gap-2 align-items-center flex-wrap">
+                            <Form.Control
+                              type="file"
+                              accept="image/*,video/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                handleSuperadminBroadcastMediaUpload(file);
+                              }}
+                              disabled={superadminBroadcastUploading || superadminBroadcastSending}
+                            />
+                            {superadminBroadcastForm.image_url && (
+                              <Button variant="outline-danger" size="sm" onClick={() => setSuperadminBroadcastForm((prev) => ({ ...prev, image_url: '' }))}>
+                                {language === 'uz' ? "Rasmni o'chirish" : 'Удалить фото'}
+                              </Button>
+                            )}
+                            {superadminBroadcastForm.video_url && (
+                              <Button variant="outline-danger" size="sm" onClick={() => setSuperadminBroadcastForm((prev) => ({ ...prev, video_url: '' }))}>
+                                {language === 'uz' ? "Videoni o'chirish" : 'Удалить видео'}
+                              </Button>
+                            )}
+                          </div>
+                          {(superadminBroadcastForm.image_url || superadminBroadcastForm.video_url) && (
+                            <div className="small text-muted mt-2 text-break">
+                              {superadminBroadcastForm.image_url || superadminBroadcastForm.video_url}
+                            </div>
+                          )}
+                        </Form.Group>
+
+                        <Button
+                          className="btn-primary-custom"
+                          onClick={sendSuperadminBroadcast}
+                          disabled={superadminBroadcastSending || superadminBroadcastUploading || !String(superadminBroadcastForm.message || '').trim()}
+                        >
+                          {superadminBroadcastSending
+                            ? (language === 'uz' ? "Yuborilmoqda..." : 'Отправка...')
+                            : (language === 'uz' ? 'Tanlangan rollarga yuborish' : 'Отправить выбранным ролям')}
+                        </Button>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                  <Col lg={4}>
+                    <Card className="border-0 shadow-sm h-100">
+                      <Card.Body>
+                        <h6 className="fw-bold">{language === 'uz' ? 'Natija' : 'Результат'}</h6>
+                        {superadminBroadcastResult ? (
+                          <div className="small">
+                            <div>{language === 'uz' ? 'Jami' : 'Всего'}: <strong>{Number(superadminBroadcastResult.total || 0)}</strong></div>
+                            <div>{language === 'uz' ? 'Yuborildi' : 'Отправлено'}: <strong>{Number(superadminBroadcastResult.sent || 0)}</strong></div>
+                            <div>{language === 'uz' ? 'Xatolar' : 'Ошибки'}: <strong>{Number(superadminBroadcastResult.failed || 0)}</strong></div>
+                            <hr />
+                            <div>{language === 'uz' ? 'Operatorlar' : 'Операторы'}: <strong>{Number(superadminBroadcastResult?.role_stats?.operator || 0)}</strong></div>
+                            <div>{language === 'uz' ? 'Mijozlar' : 'Клиенты'}: <strong>{Number(superadminBroadcastResult?.role_stats?.customer || 0)}</strong></div>
+                          </div>
+                        ) : (
+                          <div className="text-muted small">
+                            {language === 'uz' ? "Hozircha yuborilmadi" : 'Пока не отправляли в этой сессии'}
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
               </Tab>
 
               {/* Operators Tab */}
