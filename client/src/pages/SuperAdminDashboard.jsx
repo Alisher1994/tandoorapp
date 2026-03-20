@@ -1000,6 +1000,7 @@ function SuperAdminDashboard() {
   const [isImportingGlobalProductsExcel, setIsImportingGlobalProductsExcel] = useState(false);
   const [isApplyingGlobalProductsExcelImport, setIsApplyingGlobalProductsExcelImport] = useState(false);
   const [showGlobalProductsImportReviewModal, setShowGlobalProductsImportReviewModal] = useState(false);
+  const [showGlobalProductsImportTemplateModal, setShowGlobalProductsImportTemplateModal] = useState(false);
   const [globalProductsImportRows, setGlobalProductsImportRows] = useState([]);
   const [globalProductsImportSourceFileName, setGlobalProductsImportSourceFileName] = useState('');
   const [globalProductsPage, setGlobalProductsPage] = useState(1);
@@ -1397,6 +1398,78 @@ function SuperAdminDashboard() {
     globalProductsCategoryLevel2Filter !== 'all' ||
     globalProductsCategoryLevel3Filter !== 'all'
   );
+  const globalProductsImportTemplateColumns = useMemo(() => ([
+    {
+      index: 1,
+      header: 'Название (RU)',
+      required: true,
+      description: language === 'uz' ? 'Mahsulot nomi rus tilida' : 'Название товара на русском',
+      sample: 'Шахматы'
+    },
+    {
+      index: 2,
+      header: 'Название (UZ)',
+      required: false,
+      description: language === 'uz' ? 'Mahsulot nomi o‘zbek tilida' : 'Название товара на узбекском',
+      sample: 'Shaxmat'
+    },
+    {
+      index: 3,
+      header: 'Описание (RU)',
+      required: false,
+      description: language === 'uz' ? 'Rus tilidagi tavsif' : 'Описание на русском',
+      sample: 'Настольная игра'
+    },
+    {
+      index: 4,
+      header: 'Описание (UZ)',
+      required: false,
+      description: language === 'uz' ? 'O‘zbek tilidagi tavsif' : 'Описание на узбекском',
+      sample: "Stol o'yini"
+    },
+    {
+      index: 5,
+      header: 'Штрихкод',
+      required: false,
+      description: language === 'uz' ? 'Shtrixkod (raqamlar)' : 'Штрихкод (цифры)',
+      sample: '1234567890123'
+    },
+    {
+      index: 6,
+      header: 'ИКПУ',
+      required: false,
+      description: language === 'uz' ? 'IKPU kodi' : 'Код ИКПУ',
+      sample: '12345678901234'
+    },
+    {
+      index: 7,
+      header: 'Единица',
+      required: false,
+      description: language === 'uz' ? "O'lchov birligi (bo'sh bo'lsa: шт)" : 'Единица измерения (если пусто: шт)',
+      sample: 'шт'
+    },
+    {
+      index: 8,
+      header: 'Рекомендуемая категория ID',
+      required: false,
+      description: language === 'uz' ? 'Kategoriya ID (eng aniq usul)' : 'ID категории (приоритетный способ)',
+      sample: '125'
+    },
+    {
+      index: 9,
+      header: 'Рекомендуемая категория путь',
+      required: false,
+      description: language === 'uz' ? 'Kategoriya to‘liq yo‘li (aniq mos kelishi kerak)' : 'Полный путь категории (строгое совпадение)',
+      sample: 'Продукты > Бакалея > Шахматы'
+    },
+    {
+      index: 10,
+      header: 'Рекомендуемая категория',
+      required: false,
+      description: language === 'uz' ? 'Kategoriya nomi (faqat noyob nom bo‘lsa)' : 'Название категории (если имя уникальное)',
+      sample: 'Шахматы'
+    }
+  ]), [language]);
   const dismissScamPrankModal = () => setShowScamPrankModal(false);
   const handleScamPrankButtonsShuffle = () => {
     setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
@@ -5088,6 +5161,62 @@ function SuperAdminDashboard() {
     setShowGlobalProductsImportReviewModal(false);
     setGlobalProductsImportRows([]);
     setGlobalProductsImportSourceFileName('');
+  };
+
+  const handleDownloadGlobalProductsImportTemplate = () => {
+    try {
+      const headers = globalProductsImportTemplateColumns.map((item) => item.header);
+      const exampleRow = globalProductsImportTemplateColumns.map((item) => item.sample || '');
+      const templateSheet = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+      const templateSheetRange = XLSX.utils.decode_range(templateSheet['!ref'] || 'A1');
+      templateSheet['!autofilter'] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: 0, c: templateSheetRange.s.c },
+          e: { r: 0, c: templateSheetRange.e.c }
+        })
+      };
+      templateSheet['!cols'] = globalProductsImportTemplateColumns.map((item) => ({
+        wch: Math.max(18, String(item.header || '').length + 6)
+      }));
+
+      const guideRows = globalProductsImportTemplateColumns.map((item) => ({
+        '№': item.index,
+        'Заголовок столбца': item.header,
+        'Что заполнять': item.description,
+        'Обязательно': item.required ? 'Да' : 'Нет',
+        'Пример': item.sample || ''
+      }));
+      guideRows.push({
+        '№': '',
+        'Заголовок столбца': 'Категория: приоритет',
+        'Что заполнять': 'Сначала ID, если его нет — путь, если и его нет — название',
+        'Обязательно': '',
+        'Пример': 'ID > Путь > Название'
+      });
+      const guideSheet = XLSX.utils.json_to_sheet(guideRows);
+      guideSheet['!cols'] = [
+        { wch: 6 },
+        { wch: 30 },
+        { wch: 70 },
+        { wch: 14 },
+        { wch: 28 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, templateSheet, 'Шаблон');
+      XLSX.utils.book_append_sheet(workbook, guideSheet, 'Памятка');
+
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      XLSX.writeFile(workbook, `global_products_import_template_${stamp}.xlsx`);
+      setSuccess(language === 'uz'
+        ? 'Global mahsulotlar uchun шаблон yuklab olindi'
+        : 'Шаблон импорта глобальных товаров скачан');
+    } catch (error) {
+      setError(language === 'uz'
+        ? "Shablonni yaratishda xatolik"
+        : 'Ошибка генерации шаблона');
+    }
   };
 
   const resolveCategoryForGlobalProductImport = ({ categoryIdRaw, categoryPathRaw, categoryNameRaw }, lookups = {}) => {
@@ -10027,6 +10156,12 @@ function SuperAdminDashboard() {
                       <FilterIcon />
                     </Button>
                     <Button
+                      variant="outline-secondary"
+                      onClick={() => setShowGlobalProductsImportTemplateModal(true)}
+                    >
+                      {language === 'uz' ? 'Shablon' : 'Шаблон'}
+                    </Button>
+                    <Button
                       variant="outline-primary"
                       onClick={() => globalProductsImportInputRef.current?.click()}
                       disabled={isImportingGlobalProductsExcel}
@@ -14309,6 +14444,68 @@ function SuperAdminDashboard() {
               : (editingActivityType
                 ? (language === 'uz' ? 'Saqlash' : 'Сохранить')
                 : (language === 'uz' ? "Qo'shish" : 'Добавить'))}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showGlobalProductsImportTemplateModal}
+        onHide={() => setShowGlobalProductsImportTemplateModal(false)}
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz'
+              ? "Global mahsulotlar importi: ustunlar shabloni"
+              : 'Импорт глобальных товаров: структура колонок'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info" className="mb-3">
+            {language === 'uz'
+              ? "Kategoriya uchun ustunlar ustuvorligi: avval ID, keyin yo'l, undan keyin nom."
+              : 'Для категории приоритет такой: сначала ID, затем путь, затем название.'}
+          </Alert>
+          <div className="table-responsive">
+            <Table bordered hover size="sm" className="mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th style={{ width: 60 }}>№</th>
+                  <th style={{ minWidth: 230 }}>
+                    {language === 'uz' ? 'Ustun nomi' : 'Название столбца'}
+                  </th>
+                  <th style={{ minWidth: 320 }}>
+                    {language === 'uz' ? "Nimani to'ldirish" : 'Что заполнять'}
+                  </th>
+                  <th style={{ width: 120 }}>
+                    {language === 'uz' ? 'Majburiy' : 'Обязательно'}
+                  </th>
+                  <th style={{ minWidth: 180 }}>
+                    {language === 'uz' ? 'Misol' : 'Пример'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {globalProductsImportTemplateColumns.map((item) => (
+                  <tr key={`global-import-template-col-${item.index}`}>
+                    <td>{item.index}</td>
+                    <td><code>{item.header}</code></td>
+                    <td>{item.description}</td>
+                    <td>{item.required ? (language === 'uz' ? 'Ha' : 'Да') : (language === 'uz' ? "Yo'q" : 'Нет')}</td>
+                    <td>{item.sample || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowGlobalProductsImportTemplateModal(false)}>
+            {language === 'uz' ? 'Yopish' : 'Закрыть'}
+          </Button>
+          <Button className="btn-primary-custom" onClick={handleDownloadGlobalProductsImportTemplate}>
+            {language === 'uz' ? 'Excel shablonni yuklab olish' : 'Скачать Excel-шаблон'}
           </Button>
         </Modal.Footer>
       </Modal>
