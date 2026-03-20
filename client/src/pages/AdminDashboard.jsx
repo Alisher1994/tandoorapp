@@ -5726,8 +5726,12 @@ function AdminDashboard() {
               category_label: categoryResolved.category?.path || '',
               name_ru: String(row['Название (RU)'] || row['Название'] || row.name_ru || '').trim(),
               name_uz: String(row['Название (UZ)'] || row.name_uz || '').trim(),
+              description_ru: String(row['Описание (RU)'] || row['Описание RU'] || row.description_ru || '').trim(),
+              description_uz: String(row['Описание (UZ)'] || row['Описание UZ'] || row.description_uz || '').trim(),
               price: normalizeProductPriceValue(row['Цена'] ?? row.price, 0),
-              unit: String(row['Единица'] || row.unit || 'шт').trim() || 'шт',
+              unit: String(row['Единица'] || row['Ед. изм.'] || row['Ед.изм.'] || row.unit || 'шт').trim() || 'шт',
+              barcode: String(row['Штрихкод'] || row['Баркод'] || row.barcode || '').replace(/\s+/g, '').slice(0, 120),
+              ikpu: String(row['ИКПУ'] || row['Код ИКПУ'] || row.ikpu || '').replace(/\s+/g, ' ').trim().slice(0, 64),
               in_stock: parseYesNoForImport(row['В наличии'] ?? row.in_stock, true),
               season_scope: parseSeasonScopeForImport(row['Сезонность'] ?? row.season_scope),
               is_hidden_catalog: parseYesNoForImport(row['Скрыть из каталога'] ?? row.is_hidden_catalog, undefined),
@@ -5796,8 +5800,12 @@ function AdminDashboard() {
             category_id: row.category_id,
             name_ru: row.name_ru,
             name_uz: row.name_uz,
+            description_ru: row.description_ru,
+            description_uz: row.description_uz,
             price: row.price,
             unit: row.unit || 'шт',
+            barcode: row.barcode,
+            ikpu: row.ikpu,
             in_stock: row.in_stock,
             season_scope: row.season_scope,
             is_hidden_catalog: row.is_hidden_catalog
@@ -14050,10 +14058,17 @@ function AdminDashboard() {
               • <code>Категория путь</code> — полный путь категории (строгое совпадение)<br />
               • <code>Категория</code> — название конечной категории (работает только при уникальном имени)<br />
               • <code>Название (UZ)</code> — название на узбекском<br />
+              • <code>Описание (RU)</code> — описание товара на русском<br />
+              • <code>Описание (UZ)</code> — описание товара на узбекском<br />
               • <code>Единица</code> — единица измерения (шт, кг, порция и т.д.)<br />
+              • <code>Штрихкод</code> — штрихкод товара<br />
+              • <code>ИКПУ</code> — код ИКПУ<br />
               • <code>В наличии</code> — Да/Нет<br />
               • <code>Сезонность</code> — Всесезонный / Весна / Лето / Осень / Зима<br />
-              • <code>Скрыть из каталога</code> — Да/Нет
+              • <code>Скрыть из каталога</code> — Да/Нет<br />
+              <span className="text-muted">
+                Фасовка и шаг заказа при импорте не заполняются: оператор задаёт их вручную.
+              </span>
             </Alert>
 
             <Form.Group className="mb-3">
@@ -14136,6 +14151,7 @@ function AdminDashboard() {
                     <th style={{ minWidth: '70px' }}>Строка</th>
                     <th style={{ minWidth: '180px' }}>Название</th>
                     <th style={{ minWidth: '110px' }}>Цена</th>
+                    <th style={{ minWidth: '170px' }}>Штрихкод / ИКПУ</th>
                     <th style={{ minWidth: '360px' }}>Категория (выбор из системы)</th>
                     <th style={{ minWidth: '260px' }}>Данные из файла</th>
                     <th style={{ minWidth: '190px' }}>Статус</th>
@@ -14147,6 +14163,10 @@ function AdminDashboard() {
                       <td>{row.rowNo}</td>
                       <td>{row.name_ru || '-'}</td>
                       <td>{Number.isFinite(row.price) ? row.price : '-'}</td>
+                      <td>
+                        <div className="small">{row.barcode || '-'}</div>
+                        <div className="small text-muted">{row.ikpu || '-'}</div>
+                      </td>
                       <td>
                         <Dropdown>
                           <Dropdown.Toggle as={CustomToggle} id={`import-category-${row.rowNo}`} className="form-select-sm">

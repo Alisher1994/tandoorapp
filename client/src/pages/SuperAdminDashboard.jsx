@@ -306,6 +306,19 @@ const validateSpreadsheetImportFile = (file) => {
   }
   return '';
 };
+const normalizeGlobalProductImportNameKey = (value) => (
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+);
+const normalizeSpreadsheetCellText = (value, maxLength = 3000) => (
+  String(value === undefined || value === null ? '' : value)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+);
+const toSpreadsheetRowNumber = (index) => (Number(index) + 2);
 const buildRatingStarsText = (value) => {
   const normalized = normalizeOrderRatingValue(value);
   return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, MAX_ORDER_RATING - normalized))}`;
@@ -984,6 +997,11 @@ function SuperAdminDashboard() {
   const [isImportingCategories, setIsImportingCategories] = useState(false);
   const [globalProducts, setGlobalProducts] = useState({ items: [], total: 0, page: 1, limit: 15 });
   const [globalProductsLoading, setGlobalProductsLoading] = useState(false);
+  const [isImportingGlobalProductsExcel, setIsImportingGlobalProductsExcel] = useState(false);
+  const [isApplyingGlobalProductsExcelImport, setIsApplyingGlobalProductsExcelImport] = useState(false);
+  const [showGlobalProductsImportReviewModal, setShowGlobalProductsImportReviewModal] = useState(false);
+  const [globalProductsImportRows, setGlobalProductsImportRows] = useState([]);
+  const [globalProductsImportSourceFileName, setGlobalProductsImportSourceFileName] = useState('');
   const [globalProductsPage, setGlobalProductsPage] = useState(1);
   const [globalProductsLimit, setGlobalProductsLimit] = useState(15);
   const [globalProductsSearch, setGlobalProductsSearch] = useState('');
@@ -1008,6 +1026,7 @@ function SuperAdminDashboard() {
   const [globalProductAiError, setGlobalProductAiError] = useState('');
   const [globalProductTextLoading, setGlobalProductTextLoading] = useState(false);
   const categoryImportInputRef = useRef(null);
+  const globalProductsImportInputRef = useRef(null);
   const globalProductImageInputRef = useRef(null);
   const categoryAiRequestIdRef = useRef(0);
   const globalProductAiRequestIdRef = useRef(0);
@@ -1322,6 +1341,44 @@ function SuperAdminDashboard() {
     if (!Number.isInteger(level2Id) || level2Id <= 0) return [];
     return sortCategoryOptions((categories || []).filter((cat) => Number(cat.parent_id) === level2Id));
   }, [categories, globalProductsCategoryLevel2Filter, sortCategoryOptions]);
+  const globalImportCategoryPathById = useMemo(() => {
+    const map = new Map();
+    (categories || []).forEach((category) => {
+      const pathIds = getGlobalProductCategoryPathIds(category?.id);
+      const pathRu = pathIds
+        .map((pathId) => categoryLookupById.get(Number(pathId)))
+        .filter(Boolean)
+        .map((node) => String(node?.name_ru || node?.name_uz || '').trim())
+        .filter(Boolean)
+        .join(' > ');
+      if (pathRu) {
+        map.set(String(category.id), pathRu);
+      }
+    });
+    return map;
+  }, [categories, categoryLookupById, getGlobalProductCategoryPathIds]);
+  const globalImportCategoryByPath = useMemo(() => {
+    const map = new Map();
+    for (const category of (categories || [])) {
+      const pathRu = String(globalImportCategoryPathById.get(String(category.id)) || '').trim();
+      if (!pathRu) continue;
+      map.set(pathRu.toLowerCase(), category);
+    }
+    return map;
+  }, [categories, globalImportCategoryPathById]);
+  const globalImportCategoryByUniqueName = useMemo(() => {
+    const collisions = new Map();
+    for (const category of (categories || [])) {
+      const key = String(category?.name_ru || category?.name_uz || '').trim().toLowerCase();
+      if (!key) continue;
+      if (!collisions.has(key)) {
+        collisions.set(key, category);
+        continue;
+      }
+      collisions.set(key, null);
+    }
+    return collisions;
+  }, [categories]);
 
   const resetGlobalProductsFilters = () => {
     setGlobalProductsSearch('');
@@ -5023,6 +5080,489 @@ function SuperAdminDashboard() {
       setError(err.response?.data?.error || err.message || 'Ошибка импорта категорий');
     } finally {
       setIsImportingCategories(false);
+    }
+  };
+
+  const closeGlobalProductsImportReviewModal = (force = false) => {
+    if (isApplyingGlobalProductsExcelImport && !force) return;
+    setShowGlobalProductsImportReviewModal(false);
+    setGlobalProductsImportRows([]);
+    setGlobalProductsImportSourceFileName('');
+  };
+
+  const resolveCategoryForGlobalProductImport = ({ categoryIdRaw, categoryPathRaw, categoryNameRaw }, lookups = {}) => {
+    const categoryByIdLookup = lookups.byId || categoryLookupById;
+    const categoryByPathLookup = lookups.byPath || globalImportCategoryByPath;
+    const categoryByUniqueNameLookup = lookups.byUniqueName || globalImportCategoryByUniqueName;
+    const categoryIdStr = String(categoryIdRaw ?? '').trim();
+    if (categoryIdStr) {
+      const byId = categoryByIdLookup.get(Number.parseInt(categoryIdStr, 10));
+      if (byId) {
+        return {
+          category: byId,
+          message: ''
+        };
+      }
+      return {
+        category: null,
+        message: language === 'uz'
+          ? 'Kategoriya ID topilmadi'
+          : 'Категория ID не найдена'
+      };
+    }
+
+    const categoryPathStr = String(categoryPathRaw ?? '').trim().toLowerCase();
+    if (categoryPathStr) {
+      const byPath = categoryByPathLookup.get(categoryPathStr);
+      if (byPath) {
+        return {
+          category: byPath,
+          message: ''
+        };
+      }
+      return {
+        category: null,
+        message: language === 'uz'
+          ? 'Kategoriya yo‘li topilmadi'
+          : 'Путь категории не найден'
+      };
+    }
+
+    const categoryNameStr = String(categoryNameRaw ?? '').trim().toLowerCase();
+    if (categoryNameStr) {
+      const byUniqueName = categoryByUniqueNameLookup.get(categoryNameStr);
+      if (byUniqueName) {
+        return {
+          category: byUniqueName,
+          message: ''
+        };
+      }
+      if (byUniqueName === null) {
+        return {
+          category: null,
+          message: language === 'uz'
+            ? 'Kategoriya nomi bir nechta, aniqlang'
+            : 'Название категории неоднозначно, выберите точнее'
+        };
+      }
+      return {
+        category: null,
+        message: language === 'uz'
+          ? 'Kategoriya nomi topilmadi'
+          : 'Название категории не найдено'
+      };
+    }
+
+    return {
+      category: null,
+      message: ''
+    };
+  };
+
+  const handleImportGlobalProductsFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const fileValidationError = validateSpreadsheetImportFile(file);
+    if (fileValidationError) {
+      setError(fileValidationError);
+      return;
+    }
+
+    setIsImportingGlobalProductsExcel(true);
+    try {
+      let categoriesForImport = Array.isArray(categories) ? categories : [];
+      if (!categoriesForImport.length) {
+        const categoriesResponse = await axios.get(`${API_URL}/superadmin/categories`);
+        categoriesForImport = Array.isArray(categoriesResponse.data) ? categoriesResponse.data : [];
+        if (categoriesForImport.length > 0) {
+          setCategories(categoriesForImport);
+        }
+      }
+
+      const categoryByIdLookup = new Map();
+      (categoriesForImport || []).forEach((category) => {
+        const categoryId = Number(category?.id);
+        if (Number.isFinite(categoryId)) {
+          categoryByIdLookup.set(categoryId, category);
+        }
+      });
+
+      const getCategoryPathIds = (categoryId) => {
+        const normalizedId = Number.parseInt(categoryId, 10);
+        if (!Number.isFinite(normalizedId)) return [];
+
+        const path = [];
+        const visited = new Set();
+        let current = categoryByIdLookup.get(normalizedId);
+        while (current && !visited.has(current.id)) {
+          path.unshift(Number(current.id));
+          visited.add(current.id);
+          if (!current.parent_id) break;
+          current = categoryByIdLookup.get(Number(current.parent_id));
+        }
+        return path;
+      };
+
+      const categoryPathByIdLookup = new Map();
+      (categoriesForImport || []).forEach((category) => {
+        const pathIds = getCategoryPathIds(category?.id);
+        const pathRu = pathIds
+          .map((pathId) => categoryByIdLookup.get(Number(pathId)))
+          .filter(Boolean)
+          .map((node) => String(node?.name_ru || node?.name_uz || '').trim())
+          .filter(Boolean)
+          .join(' > ');
+        if (pathRu) {
+          categoryPathByIdLookup.set(String(category.id), pathRu);
+        }
+      });
+
+      const categoryByPathLookup = new Map();
+      for (const category of (categoriesForImport || [])) {
+        const pathRu = String(categoryPathByIdLookup.get(String(category.id)) || '').trim();
+        if (!pathRu) continue;
+        categoryByPathLookup.set(pathRu.toLowerCase(), category);
+      }
+
+      const categoryByUniqueNameLookup = new Map();
+      for (const category of (categoriesForImport || [])) {
+        const key = String(category?.name_ru || category?.name_uz || '').trim().toLowerCase();
+        if (!key) continue;
+        if (!categoryByUniqueNameLookup.has(key)) {
+          categoryByUniqueNameLookup.set(key, category);
+          continue;
+        }
+        categoryByUniqueNameLookup.set(key, null);
+      }
+      const categoryLookups = {
+        byId: categoryByIdLookup,
+        byPath: categoryByPathLookup,
+        byUniqueName: categoryByUniqueNameLookup
+      };
+
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+      const jsonRows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
+
+      if (!Array.isArray(jsonRows) || jsonRows.length === 0) {
+        setError(language === 'uz' ? 'Fayl bo‘sh' : 'Файл пустой');
+        return;
+      }
+
+      const pickCellValue = (rowMap, aliases = []) => {
+        for (const alias of aliases) {
+          const key = String(alias || '').trim().toLowerCase();
+          if (!key) continue;
+          if (!rowMap.has(key)) continue;
+          const value = rowMap.get(key);
+          if (value === undefined || value === null) continue;
+          if (String(value).trim() === '') continue;
+          return value;
+        }
+        return '';
+      };
+
+      const mappedRows = [];
+      for (let index = 0; index < jsonRows.length; index += 1) {
+        const rawRow = jsonRows[index] || {};
+        const rowMap = new Map();
+        Object.entries(rawRow).forEach(([key, value]) => {
+          rowMap.set(String(key || '').trim().toLowerCase(), value);
+        });
+        const hasAnyValue = [...rowMap.values()].some((value) => String(value ?? '').trim() !== '');
+        if (!hasAnyValue) continue;
+
+        const nameRu = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'название (ru)',
+          'название ru',
+          'название',
+          'name_ru',
+          'name ru',
+          'name'
+        ]), 255);
+        const nameUz = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'название (uz)',
+          'название uz',
+          'name_uz',
+          'name uz'
+        ]), 255);
+        const descriptionRu = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'описание (ru)',
+          'описание ru',
+          'description_ru',
+          'description ru'
+        ]), 3000);
+        const descriptionUz = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'описание (uz)',
+          'описание uz',
+          'description_uz',
+          'description uz'
+        ]), 3000);
+        const barcode = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'штрихкод',
+          'barcode',
+          'bar code',
+          'баркод'
+        ]), 120).replace(/\s+/g, '');
+        const ikpu = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'икпу',
+          'код икпу',
+          'ikpu'
+        ]), 64);
+        const unit = normalizeSpreadsheetCellText(pickCellValue(rowMap, [
+          'единица',
+          'ед. изм.',
+          'ед.изм.',
+          'единица измерения',
+          'unit'
+        ]), 32) || 'шт';
+        const categoryResolved = resolveCategoryForGlobalProductImport({
+          categoryIdRaw: pickCellValue(rowMap, ['рекомендуемая категория id', 'категория id', 'recommended_category_id', 'category_id']),
+          categoryPathRaw: pickCellValue(rowMap, ['рекомендуемая категория путь', 'путь категории', 'категория путь', 'recommended_category_path', 'category_path']),
+          categoryNameRaw: pickCellValue(rowMap, ['рекомендуемая категория', 'категория', 'recommended_category', 'category'])
+        }, categoryLookups);
+
+        const rowNo = toSpreadsheetRowNumber(index);
+        const rowError = !nameRu
+          ? (language === 'uz' ? 'RU nomi majburiy' : 'Название (RU) обязательно')
+          : '';
+        const categoryLabel = categoryResolved.category
+          ? (categoryPathByIdLookup.get(String(categoryResolved.category.id))
+            || categoryResolved.category.name_ru
+            || categoryResolved.category.name_uz
+            || `#${categoryResolved.category.id}`)
+          : '';
+
+        mappedRows.push({
+          row_no: rowNo,
+          name_ru: nameRu,
+          name_uz: nameUz,
+          description_ru: descriptionRu,
+          description_uz: descriptionUz,
+          barcode,
+          ikpu,
+          unit,
+          recommended_category_id: categoryResolved.category?.id || null,
+          recommended_category_label: categoryLabel,
+          category_note: categoryResolved.message,
+          conflict_matches: [],
+          conflict_action: 'create',
+          conflict_target_id: '',
+          is_valid: !rowError,
+          error: rowError,
+          status: 'pending',
+          status_message: ''
+        });
+      }
+
+      if (!mappedRows.length) {
+        setError(language === 'uz'
+          ? "Import uchun mos qator topilmadi"
+          : 'Не найдено строк для импорта');
+        return;
+      }
+
+      const nameKeys = [...new Set(
+        mappedRows
+          .map((row) => normalizeGlobalProductImportNameKey(row.name_ru))
+          .filter(Boolean)
+      )];
+
+      const matchResponse = await axios.post(`${API_URL}/superadmin/global-products/match-names`, {
+        names: nameKeys
+      });
+      const matchesMap = matchResponse.data?.matches || {};
+
+      const rowsWithConflicts = mappedRows.map((row) => {
+        const key = normalizeGlobalProductImportNameKey(row.name_ru);
+        const rowMatches = Array.isArray(matchesMap[key]) ? matchesMap[key] : [];
+        if (!rowMatches.length) return row;
+        return {
+          ...row,
+          conflict_matches: rowMatches,
+          conflict_action: 'replace',
+          conflict_target_id: String(rowMatches[0]?.id || '')
+        };
+      });
+
+      setGlobalProductsImportSourceFileName(String(file.name || '').trim());
+      setGlobalProductsImportRows(rowsWithConflicts);
+      setShowGlobalProductsImportReviewModal(true);
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || (language === 'uz'
+        ? "Global mahsulotlar importida xatolik"
+        : 'Ошибка импорта глобальных товаров'));
+    } finally {
+      setIsImportingGlobalProductsExcel(false);
+    }
+  };
+
+  const updateGlobalProductsImportRow = (rowNo, patch) => {
+    const numericRowNo = Number(rowNo);
+    if (!Number.isFinite(numericRowNo)) return;
+    setGlobalProductsImportRows((prevRows) => prevRows.map((row) => {
+      if (Number(row.row_no) !== numericRowNo) return row;
+      return {
+        ...row,
+        ...(typeof patch === 'function' ? patch(row) : patch)
+      };
+    }));
+  };
+
+  const applyGlobalProductsExcelImport = async () => {
+    if (!globalProductsImportRows.length) return;
+    setIsApplyingGlobalProductsExcelImport(true);
+    try {
+      const usedNameKeys = new Set();
+      globalProductsImportRows.forEach((row) => {
+        (row.conflict_matches || []).forEach((match) => {
+          const matchKey = normalizeGlobalProductImportNameKey(match?.name_ru || '');
+          if (matchKey) usedNameKeys.add(matchKey);
+        });
+      });
+
+      let createdCount = 0;
+      let replacedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
+      const nextRows = [];
+
+      const getNextSuffixedName = (baseName) => {
+        const cleanBase = normalizeSpreadsheetCellText(baseName, 255) || 'Товар';
+        let suffix = 1;
+        while (suffix < 10000) {
+          const candidate = `${cleanBase} (${suffix})`.slice(0, 255);
+          const candidateKey = normalizeGlobalProductImportNameKey(candidate);
+          if (!usedNameKeys.has(candidateKey)) {
+            usedNameKeys.add(candidateKey);
+            return candidate;
+          }
+          suffix += 1;
+        }
+        const fallback = `${cleanBase} (${Date.now()})`.slice(0, 255);
+        usedNameKeys.add(normalizeGlobalProductImportNameKey(fallback));
+        return fallback;
+      };
+
+      for (const row of globalProductsImportRows) {
+        const current = { ...row, status: 'pending', status_message: '' };
+        if (!current.is_valid) {
+          skippedCount += 1;
+          nextRows.push({
+            ...current,
+            status: 'skipped',
+            status_message: current.error || (language === 'uz' ? 'Noto‘g‘ri qator' : 'Невалидная строка')
+          });
+          continue;
+        }
+
+        const action = String(current.conflict_action || 'create').trim();
+        if (action === 'skip') {
+          skippedCount += 1;
+          nextRows.push({
+            ...current,
+            status: 'skipped',
+            status_message: language === 'uz' ? 'Operator tomonidan o‘tkazildi' : 'Пропущено оператором'
+          });
+          continue;
+        }
+
+        let finalNameRu = current.name_ru;
+        if (action === 'add_suffix') {
+          finalNameRu = getNextSuffixedName(current.name_ru);
+        } else {
+          const key = normalizeGlobalProductImportNameKey(finalNameRu);
+          if (key) usedNameKeys.add(key);
+        }
+
+        const payload = {
+          name_ru: finalNameRu,
+          name_uz: String(current.name_uz || '').trim(),
+          description_ru: String(current.description_ru || '').trim(),
+          description_uz: String(current.description_uz || '').trim(),
+          barcode: String(current.barcode || '').trim(),
+          ikpu: String(current.ikpu || '').trim(),
+          image_url: null,
+          thumb_url: null,
+          product_images: [],
+          recommended_category_id: current.recommended_category_id || null,
+          unit: String(current.unit || '').trim() || 'шт',
+          order_step: null,
+          size_enabled: false,
+          size_options: [],
+          is_active: true
+        };
+
+        try {
+          if (action === 'replace') {
+            const fallbackTargetId = Number.parseInt(current.conflict_matches?.[0]?.id, 10);
+            const targetIdRaw = Number.parseInt(current.conflict_target_id, 10);
+            const targetId = Number.isFinite(targetIdRaw) && targetIdRaw > 0
+              ? targetIdRaw
+              : fallbackTargetId;
+            if (!Number.isFinite(targetId) || targetId <= 0) {
+              throw new Error(language === 'uz'
+                ? 'Almashtirish uchun mavjud tovar tanlanmagan'
+                : 'Не выбран товар для замены');
+            }
+            await axios.put(`${API_URL}/superadmin/global-products/${targetId}`, payload);
+            replacedCount += 1;
+            nextRows.push({
+              ...current,
+              status: 'success',
+              status_message: language === 'uz' ? `Yangilandi #${targetId}` : `Обновлен #${targetId}`
+            });
+          } else {
+            const createResp = await axios.post(`${API_URL}/superadmin/global-products`, payload);
+            const createdId = Number(createResp?.data?.id || 0);
+            createdCount += 1;
+            nextRows.push({
+              ...current,
+              status: 'success',
+              status_message: language === 'uz'
+                ? `Qo‘shildi${createdId > 0 ? ` #${createdId}` : ''}`
+                : `Добавлен${createdId > 0 ? ` #${createdId}` : ''}`,
+              name_ru: finalNameRu
+            });
+          }
+        } catch (err) {
+          errorCount += 1;
+          nextRows.push({
+            ...current,
+            status: 'error',
+            status_message: String(err?.response?.data?.error || err?.message || (language === 'uz'
+              ? 'Saqlashda xatolik'
+              : 'Ошибка сохранения')).slice(0, 240)
+          });
+        }
+      }
+
+      setGlobalProductsImportRows(nextRows);
+
+      let summary = language === 'uz' ? 'Import yakunlandi.' : 'Импорт завершен.';
+      summary += language === 'uz'
+        ? ` Qo‘shildi: ${createdCount}. Yangilandi: ${replacedCount}. O‘tkazildi: ${skippedCount}.`
+        : ` Добавлено: ${createdCount}. Обновлено: ${replacedCount}. Пропущено: ${skippedCount}.`;
+      if (errorCount > 0) {
+        summary += language === 'uz'
+          ? ` Xatolar: ${errorCount}.`
+          : ` Ошибок: ${errorCount}.`;
+      }
+
+      if (errorCount > 0) {
+        setError(summary);
+      } else {
+        setSuccess(summary);
+        closeGlobalProductsImportReviewModal(true);
+      }
+
+      await loadGlobalProducts();
+    } finally {
+      setIsApplyingGlobalProductsExcelImport(false);
     }
   };
 
@@ -9468,6 +10008,13 @@ function SuperAdminDashboard() {
                     {language === 'uz' ? 'Global mahsulotlar katalogi' : 'Каталог глобальных товаров'}
                   </h5>
                   <div className="d-flex align-items-center gap-2 ms-auto">
+                    <input
+                      ref={globalProductsImportInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="d-none"
+                      onChange={handleImportGlobalProductsFile}
+                    />
                     <Button
                       type="button"
                       variant="outline-secondary"
@@ -9478,6 +10025,15 @@ function SuperAdminDashboard() {
                       aria-expanded={showGlobalProductsFilterPanel}
                     >
                       <FilterIcon />
+                    </Button>
+                    <Button
+                      variant="outline-primary"
+                      onClick={() => globalProductsImportInputRef.current?.click()}
+                      disabled={isImportingGlobalProductsExcel}
+                    >
+                      {isImportingGlobalProductsExcel
+                        ? (language === 'uz' ? 'Import...' : 'Импорт...')
+                        : (language === 'uz' ? 'Excel import' : 'Импорт Excel')}
                     </Button>
                     <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
                       {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
@@ -13753,6 +14309,190 @@ function SuperAdminDashboard() {
               : (editingActivityType
                 ? (language === 'uz' ? 'Saqlash' : 'Сохранить')
                 : (language === 'uz' ? "Qo'shish" : 'Добавить'))}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showGlobalProductsImportReviewModal}
+        onHide={closeGlobalProductsImportReviewModal}
+        size="xl"
+        centered
+      >
+        <Modal.Header closeButton={!isApplyingGlobalProductsExcelImport}>
+          <Modal.Title>
+            {language === 'uz'
+              ? "Global mahsulotlar importini tekshirish"
+              : 'Проверка импорта глобальных товаров'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="secondary" className="mb-3">
+            <div className="d-flex flex-wrap gap-3 align-items-center">
+              <span>
+                {language === 'uz' ? 'Jami satrlar:' : 'Всего строк:'}{' '}
+                <strong>{globalProductsImportRows.length}</strong>
+              </span>
+              <span>
+                {language === 'uz' ? 'Yaroqli:' : 'Валидных:'}{' '}
+                <strong>{globalProductsImportRows.filter((row) => row.is_valid).length}</strong>
+              </span>
+              <span>
+                {language === 'uz' ? 'Dublikat bilan:' : 'С дублями:'}{' '}
+                <strong>{globalProductsImportRows.filter((row) => (row.conflict_matches || []).length > 0).length}</strong>
+              </span>
+              <span>
+                {language === 'uz' ? 'Fayl:' : 'Файл:'}{' '}
+                <strong>{globalProductsImportSourceFileName || '—'}</strong>
+              </span>
+            </div>
+          </Alert>
+
+          <div className="table-responsive" style={{ maxHeight: '68vh', overflow: 'auto' }}>
+            <Table bordered hover size="sm" className="mb-0">
+              <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                <tr>
+                  <th style={{ minWidth: 70 }}>{language === 'uz' ? 'Satr' : 'Строка'}</th>
+                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
+                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
+                  <th style={{ minWidth: 150 }}>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</th>
+                  <th style={{ minWidth: 140 }}>{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
+                  <th style={{ minWidth: 120 }}>{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
+                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Kategoriya' : 'Категория'}</th>
+                  <th style={{ minWidth: 300 }}>{language === 'uz' ? 'Mavjud dublikatlar' : 'Найденные дубли'}</th>
+                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Amal' : 'Действие'}</th>
+                  <th style={{ minWidth: 180 }}>{language === 'uz' ? 'Holat' : 'Статус'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {globalProductsImportRows.map((row) => {
+                  const hasConflict = (row.conflict_matches || []).length > 0;
+                  const action = String(row.conflict_action || (hasConflict ? 'replace' : 'create')).trim();
+                  return (
+                    <tr key={`global-import-row-${row.row_no}`} className={!row.is_valid ? 'table-danger' : ''}>
+                      <td>{row.row_no}</td>
+                      <td>{row.name_ru || '—'}</td>
+                      <td>{row.name_uz || '—'}</td>
+                      <td>{row.barcode || '—'}</td>
+                      <td>{row.ikpu || '—'}</td>
+                      <td>{row.unit || 'шт'}</td>
+                      <td>
+                        <div>{row.recommended_category_label || '—'}</div>
+                        {row.category_note && (
+                          <div className="small text-warning">{row.category_note}</div>
+                        )}
+                      </td>
+                      <td>
+                        {!hasConflict ? (
+                          <span className="text-muted small">
+                            {language === 'uz' ? 'Dublikat topilmadi' : 'Дубли не найдены'}
+                          </span>
+                        ) : (
+                          <div className="d-flex flex-column gap-1">
+                            {row.conflict_matches.map((match) => (
+                              <div key={`global-import-match-${row.row_no}-${match.id}`} className="small">
+                                <strong>#{match.id}</strong> {match.name_ru || '—'}
+                                {match.barcode ? ` • ${match.barcode}` : ''}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="d-flex flex-column gap-2">
+                          <Form.Select
+                            size="sm"
+                            value={action}
+                            onChange={(e) => {
+                              const nextAction = String(e.target.value || '').trim();
+                              updateGlobalProductsImportRow(row.row_no, (current) => ({
+                                conflict_action: nextAction,
+                                conflict_target_id: nextAction === 'replace'
+                                  ? (String(current.conflict_target_id || current.conflict_matches?.[0]?.id || '').trim())
+                                  : String(current.conflict_target_id || '').trim()
+                              }));
+                            }}
+                            disabled={!row.is_valid || isApplyingGlobalProductsExcelImport}
+                          >
+                            {hasConflict ? (
+                              <>
+                                <option value="replace">{language === 'uz' ? 'Mavjudini yangilash' : 'Заменить существующий'}</option>
+                                <option value="add_suffix">{language === 'uz' ? 'Yangi qo‘shish (+ (n))' : 'Добавить с суффиксом (n)'}</option>
+                                <option value="skip">{language === 'uz' ? "O'tkazib yuborish" : 'Не добавлять'}</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="create">{language === 'uz' ? "Yangi qo'shish" : 'Добавить новый'}</option>
+                                <option value="skip">{language === 'uz' ? "O'tkazib yuborish" : 'Не добавлять'}</option>
+                              </>
+                            )}
+                          </Form.Select>
+                          {hasConflict && action === 'replace' && (
+                            <Form.Select
+                              size="sm"
+                              value={String(row.conflict_target_id || row.conflict_matches?.[0]?.id || '')}
+                              onChange={(e) => updateGlobalProductsImportRow(row.row_no, { conflict_target_id: String(e.target.value || '').trim() })}
+                              disabled={!row.is_valid || isApplyingGlobalProductsExcelImport}
+                            >
+                              {(row.conflict_matches || []).map((match) => (
+                                <option key={`global-import-target-${row.row_no}-${match.id}`} value={String(match.id)}>
+                                  #{match.id} {match.name_ru || '—'}{match.barcode ? ` • ${match.barcode}` : ''}
+                                </option>
+                              ))}
+                            </Form.Select>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {!row.is_valid ? (
+                          <>
+                            <Badge bg="danger">{language === 'uz' ? 'Xatolik' : 'Ошибка'}</Badge>
+                            <div className="small text-danger mt-1">
+                              {row.error || (language === 'uz' ? "Majburiy maydonlar to'ldirilmagan" : 'Не заполнены обязательные поля')}
+                            </div>
+                          </>
+                        ) : row.status === 'success' ? (
+                          <>
+                            <Badge bg="success">{language === 'uz' ? 'Bajarildi' : 'Успех'}</Badge>
+                            {row.status_message && <div className="small text-success mt-1">{row.status_message}</div>}
+                          </>
+                        ) : row.status === 'error' ? (
+                          <>
+                            <Badge bg="danger">{language === 'uz' ? 'Xato' : 'Ошибка'}</Badge>
+                            {row.status_message && <div className="small text-danger mt-1">{row.status_message}</div>}
+                          </>
+                        ) : row.status === 'skipped' ? (
+                          <>
+                            <Badge bg="secondary">{language === 'uz' ? "O'tkazildi" : 'Пропущено'}</Badge>
+                            {row.status_message && <div className="small text-muted mt-1">{row.status_message}</div>}
+                          </>
+                        ) : (
+                          <Badge bg="light" text="dark">{language === 'uz' ? 'Kutilmoqda' : 'Ожидает'}</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={closeGlobalProductsImportReviewModal}
+            disabled={isApplyingGlobalProductsExcelImport}
+          >
+            {language === 'uz' ? 'Yopish' : 'Закрыть'}
+          </Button>
+          <Button
+            className="btn-primary-custom"
+            onClick={applyGlobalProductsExcelImport}
+            disabled={isApplyingGlobalProductsExcelImport || !globalProductsImportRows.some((row) => row.is_valid)}
+          >
+            {isApplyingGlobalProductsExcelImport
+              ? (language === 'uz' ? 'Import qilinmoqda...' : 'Импорт...')
+              : (language === 'uz' ? 'Importni qo‘llash' : 'Применить импорт')}
           </Button>
         </Modal.Footer>
       </Modal>

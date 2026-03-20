@@ -622,6 +622,11 @@ const normalizeRestaurantAdminChecklist = (value) => {
 const toOptionalTrimmedText = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
+const normalizeGlobalProductNameKey = (value) => (
+  toOptionalTrimmedText(value)
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+);
 const normalizeBarcodeValue = (value) => String(value || '').replace(/\D/g, '').slice(0, 120);
 const findGlobalProductByBarcode = async (barcode, excludeId = null) => {
   const normalizedBarcode = normalizeBarcodeValue(barcode);
@@ -5095,6 +5100,71 @@ router.get('/global-products', async (req, res) => {
   } catch (error) {
     console.error('Get global products error:', error);
     res.status(500).json({ error: 'Ошибка получения глобальных товаров' });
+  }
+});
+
+router.post('/global-products/match-names', async (req, res) => {
+  try {
+    await ensureGlobalProductsSchema();
+    const requestedNames = Array.isArray(req.body?.names) ? req.body.names : [];
+    const normalizedNames = [...new Set(
+      requestedNames
+        .map((name) => normalizeGlobalProductNameKey(name))
+        .filter(Boolean)
+    )].slice(0, 1200);
+
+    if (!normalizedNames.length) {
+      return res.json({ matches: {} });
+    }
+
+    const result = await pool.query(
+      `
+        WITH requested(name_key) AS (
+          SELECT UNNEST($1::text[])
+        )
+        SELECT
+          r.name_key,
+          gp.id,
+          gp.name_ru,
+          gp.name_uz,
+          gp.barcode,
+          gp.ikpu,
+          gp.is_active,
+          gp.updated_at,
+          c.name_ru AS recommended_category_name_ru,
+          c.name_uz AS recommended_category_name_uz
+        FROM requested r
+        INNER JOIN global_products gp
+          ON LOWER(REGEXP_REPLACE(BTRIM(COALESCE(gp.name_ru, '')), '\\s+', ' ', 'g')) = r.name_key
+        LEFT JOIN categories c ON c.id = gp.recommended_category_id
+        ORDER BY r.name_key ASC, gp.updated_at DESC, gp.id DESC
+      `,
+      [normalizedNames]
+    );
+
+    const matches = {};
+    for (const row of result.rows || []) {
+      const key = String(row?.name_key || '').trim();
+      if (!key) continue;
+      if (!Array.isArray(matches[key])) matches[key] = [];
+      if (matches[key].length >= 20) continue;
+      matches[key].push({
+        id: Number(row.id),
+        name_ru: row.name_ru || '',
+        name_uz: row.name_uz || '',
+        barcode: row.barcode || '',
+        ikpu: row.ikpu || '',
+        is_active: row.is_active !== false,
+        updated_at: row.updated_at || null,
+        recommended_category_name_ru: row.recommended_category_name_ru || '',
+        recommended_category_name_uz: row.recommended_category_name_uz || ''
+      });
+    }
+
+    res.json({ matches });
+  } catch (error) {
+    console.error('Match global products by names error:', error);
+    res.status(500).json({ error: 'Ошибка поиска дублей глобальных товаров' });
   }
 });
 
