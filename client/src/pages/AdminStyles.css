@@ -7669,6 +7669,10 @@ body::-webkit-scrollbar,
     grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
+.admin-product-main-fields-grid.variants-mode {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .admin-product-main-fields-grid .form-label {
     margin-bottom: 0.35rem;
 }
@@ -7883,13 +7887,17 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     background: transparent;
     overflow-x: auto;
-    --variants-min-width: 980px;
-    --variants-name-col: 18%;
-    --variants-ru-col: 18%;
-    --variants-uz-col: 18%;
-    --variants-price-col: 13%;
+    --variants-min-width: 1560px;
+    --variants-name-col: 13%;
+    --variants-ru-col: 12%;
+    --variants-uz-col: 12%;
+    --variants-price-col: 8%;
+    --variants-barcode-col: 12%;
+    --variants-ikpu-col: 10%;
+    --variants-container-col: 13%;
+    --variants-container-norm-col: 8%;
+    --variants-step-col: 8%;
     --variants-actions-col: 60px;
-    --variants-barcode-min: 190px;
 }
 
 .admin-variants-simple-toolbar {
@@ -7900,7 +7908,17 @@ body::-webkit-scrollbar,
 
 .admin-variants-simple-head {
     display: grid;
-    grid-template-columns: var(--variants-name-col) var(--variants-ru-col) var(--variants-uz-col) var(--variants-price-col) 1fr var(--variants-actions-col);
+    grid-template-columns:
+        var(--variants-name-col)
+        var(--variants-ru-col)
+        var(--variants-uz-col)
+        var(--variants-price-col)
+        var(--variants-barcode-col)
+        var(--variants-ikpu-col)
+        var(--variants-container-col)
+        var(--variants-container-norm-col)
+        var(--variants-step-col)
+        var(--variants-actions-col);
     border-bottom: 1px solid var(--border-color);
     color: var(--text-muted);
     font-size: 0.72rem;
@@ -7966,11 +7984,36 @@ body::-webkit-scrollbar,
 }
 
 .admin-variant-table-col:nth-child(5) {
-    flex: 1 1 auto;
-    min-width: var(--variants-barcode-min);
+    flex: 0 0 var(--variants-barcode-col);
+    max-width: var(--variants-barcode-col);
+    min-width: 170px;
 }
 
 .admin-variant-table-col:nth-child(6) {
+    flex: 0 0 var(--variants-ikpu-col);
+    max-width: var(--variants-ikpu-col);
+    min-width: 140px;
+}
+
+.admin-variant-table-col:nth-child(7) {
+    flex: 0 0 var(--variants-container-col);
+    max-width: var(--variants-container-col);
+    min-width: 170px;
+}
+
+.admin-variant-table-col:nth-child(8) {
+    flex: 0 0 var(--variants-container-norm-col);
+    max-width: var(--variants-container-norm-col);
+    min-width: 120px;
+}
+
+.admin-variant-table-col:nth-child(9) {
+    flex: 0 0 var(--variants-step-col);
+    max-width: var(--variants-step-col);
+    min-width: 120px;
+}
+
+.admin-variant-table-col:nth-child(10) {
     flex: 0 0 var(--variants-actions-col);
     max-width: var(--variants-actions-col);
     min-width: var(--variants-actions-col);
@@ -8145,24 +8188,14 @@ body::-webkit-scrollbar,
 
 @media (max-width: 1399.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 940px;
-        --variants-name-col: 17.5%;
-        --variants-ru-col: 17.5%;
-        --variants-uz-col: 17.5%;
-        --variants-price-col: 12%;
-        --variants-barcode-min: 180px;
+        --variants-min-width: 1480px;
         --variants-actions-col: 56px;
     }
 }
 
 @media (max-width: 1199.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 860px;
-        --variants-name-col: 18%;
-        --variants-ru-col: 18%;
-        --variants-uz-col: 18%;
-        --variants-price-col: 13%;
-        --variants-barcode-min: 160px;
+        --variants-min-width: 1360px;
         --variants-actions-col: 54px;
     }
 
@@ -8178,12 +8211,7 @@ body::-webkit-scrollbar,
 
 @media (max-width: 991.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 760px;
-        --variants-name-col: 20%;
-        --variants-ru-col: 20%;
-        --variants-uz-col: 20%;
-        --variants-price-col: 14%;
-        --variants-barcode-min: 140px;
+        --variants-min-width: 1260px;
         --variants-actions-col: 52px;
     }
 
@@ -8195,12 +8223,7 @@ body::-webkit-scrollbar,
 
 @media (max-width: 767.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 700px;
-        --variants-name-col: 21%;
-        --variants-ru-col: 21%;
-        --variants-uz-col: 21%;
-        --variants-price-col: 15%;
-        --variants-barcode-min: 130px;
+        --variants-min-width: 1180px;
         --variants-actions-col: 50px;
     }
 
@@ -8396,6 +8419,10 @@ body::-webkit-scrollbar,
 
 @media (max-width: 575.98px) {
     .admin-product-main-fields-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-product-main-fields-grid.variants-mode {
         grid-template-columns: 1fr;
     }
 

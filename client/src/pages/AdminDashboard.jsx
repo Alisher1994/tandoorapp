@@ -855,7 +855,29 @@ const createVariantImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl 
   createProductImageSlots(value, fallbackImageUrl, fallbackThumbUrl).slice(0, VARIANT_IMAGE_SLOTS_COUNT)
 );
 const serializeVariantImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, VARIANT_IMAGE_SLOTS_COUNT);
-const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => {
+const normalizeProductVariantContainerNormValue = (value, fallback = 1) => {
+  const normalized = String(value ?? '').trim().replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+const normalizeProductVariantOrderStepValue = (value, unit = 'шт', fallback = '') => {
+  if (String(unit || '').trim() !== 'кг') return '';
+  const normalized = String(value ?? '').trim().replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.round((parsed + Number.EPSILON) * 100) / 100;
+};
+const normalizeProductVariantOptions = (
+  value,
+  {
+    fallbackPrice = NaN,
+    fallbackIkpu = '',
+    fallbackContainerId = '',
+    fallbackContainerNorm = 1,
+    fallbackOrderStep = '',
+    unit = 'шт'
+  } = {}
+) => {
   let source = value;
   if (typeof source === 'string') {
     try {
@@ -880,6 +902,10 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => 
     let imageUrl = '';
     let thumbUrl = '';
     let variantImages = [];
+    let ikpu = '';
+    let containerId = '';
+    let containerNormRaw = '';
+    let orderStepRaw = '';
 
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       name = String(item.name || item.value || item.label || '').trim();
@@ -887,6 +913,10 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => 
       descriptionUz = String(item.description_uz || item.descriptionUz || '').trim();
       priceRaw = item.price ?? fallbackPrice;
       barcode = String(item.barcode || '').trim();
+      ikpu = String(item.ikpu || '').trim();
+      containerId = String(item.container_id ?? item.containerId ?? '').trim();
+      containerNormRaw = item.container_norm ?? item.containerNorm;
+      orderStepRaw = item.order_step ?? item.orderStep;
       variantImages = serializeVariantImageSlots(
         createVariantImageSlots(item.product_images, item.image_url, item.thumb_url)
       );
@@ -902,12 +932,34 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => 
     if (unique.has(key)) continue;
     unique.add(key);
     const normalizedPrice = normalizeProductPriceValue(priceRaw, NaN);
+    const normalizedContainerId = (containerId || String(fallbackContainerId || '').trim()).slice(0, 64);
+    const fallbackContainerNormValue = normalizeProductVariantContainerNormValue(fallbackContainerNorm, 1);
+    const normalizedContainerNorm = normalizedContainerId
+      ? normalizeProductVariantContainerNormValue(
+        (containerNormRaw !== undefined && containerNormRaw !== null && String(containerNormRaw).trim() !== '')
+          ? containerNormRaw
+          : fallbackContainerNormValue,
+        fallbackContainerNormValue
+      )
+      : 1;
+    const fallbackOrderStepValue = normalizeProductVariantOrderStepValue(fallbackOrderStep, unit, '');
+    const normalizedOrderStep = normalizeProductVariantOrderStepValue(
+      (orderStepRaw !== undefined && orderStepRaw !== null && String(orderStepRaw).trim() !== '')
+        ? orderStepRaw
+        : fallbackOrderStepValue,
+      unit,
+      ''
+    );
     normalized.push({
       name,
       description_ru: descriptionRu.slice(0, 1500),
       description_uz: descriptionUz.slice(0, 1500),
       price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
       barcode: barcode.slice(0, 120),
+      ikpu: (ikpu || String(fallbackIkpu || '').trim()).slice(0, 64),
+      container_id: normalizedContainerId,
+      container_norm: normalizedContainerNorm,
+      order_step: normalizedOrderStep,
       image_url: imageUrl,
       thumb_url: thumbUrl,
       product_images: variantImages
@@ -916,9 +968,13 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => 
   }
   return normalized;
 };
-const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false) => {
+const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false, defaults = {}) => {
   const normalizedName = String(name || '').trim();
   const normalizedPrice = normalizeProductPriceValue(fallbackPrice, NaN);
+  const normalizedContainerId = String(defaults.container_id || '').trim().slice(0, 64);
+  const normalizedContainerNorm = normalizedContainerId
+    ? normalizeProductVariantContainerNormValue(defaults.container_norm, 1)
+    : 1;
   return {
     __key: `variant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: normalizedName,
@@ -926,6 +982,10 @@ const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false) =
     description_uz: '',
     price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
     barcode: '',
+    ikpu: String(defaults.ikpu || '').trim().slice(0, 64),
+    container_id: normalizedContainerId,
+    container_norm: normalizedContainerNorm,
+    order_step: normalizeProductVariantOrderStepValue(defaults.order_step, defaults.unit || 'шт', ''),
     image_url: '',
     thumb_url: '',
     product_images: [],
@@ -933,7 +993,7 @@ const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false) =
   };
 };
 
-const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } = {}) => {
+const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, unit = 'шт' } = {}) => {
   let source = value;
   if (typeof source === 'string') {
     try {
@@ -954,6 +1014,12 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } 
     const descriptionUz = String(item.description_uz || item.descriptionUz || '').slice(0, 1500);
     const priceRaw = item.price ?? fallbackPrice;
     const barcode = String(item.barcode || '').slice(0, 120);
+    const ikpu = String(item.ikpu || '').slice(0, 64);
+    const containerId = String(item.container_id ?? item.containerId ?? '').trim().slice(0, 64);
+    const containerNorm = containerId
+      ? normalizeProductVariantContainerNormValue(item.container_norm ?? item.containerNorm, 1)
+      : 1;
+    const orderStep = normalizeProductVariantOrderStepValue(item.order_step ?? item.orderStep, unit, '');
     const variantImages = serializeVariantImageSlots(
       createVariantImageSlots(item.product_images, item.image_url, item.thumb_url)
     );
@@ -970,6 +1036,9 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } 
       || descriptionRu.trim()
       || descriptionUz.trim()
       || barcode.trim()
+      || ikpu.trim()
+      || containerId
+      || orderStep
       || imageUrl
       || thumbUrl
       || variantImages.some((variantImage) => String(variantImage?.url || '').trim())
@@ -990,6 +1059,10 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } 
       description_uz: descriptionUz,
       price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
       barcode,
+      ikpu,
+      container_id: containerId,
+      container_norm: containerNorm,
+      order_step: orderStep,
       image_url: imageUrl,
       thumb_url: thumbUrl,
       product_images: variantImages,
@@ -4485,12 +4558,28 @@ function AdminDashboard() {
       const imageSlots = createProductImageSlots(product.product_images, product.image_url, product.thumb_url);
       const mainImage = imageSlots[0] || { url: '', thumb_url: '' };
       const fallbackBasePrice = normalizeProductPriceValue(product.price, NaN);
-      const normalizedVariantOptions = normalizeProductVariantOptions(product.size_options, { fallbackPrice: fallbackBasePrice });
+      const variantFallbackUnit = String(product.unit || 'шт').trim() || 'шт';
+      const fallbackContainerNorm = normalizeProductVariantContainerNormValue(product.container_norm, 1);
+      const fallbackOrderStep = Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '';
+      const normalizedVariantOptions = normalizeProductVariantOptions(product.size_options, {
+        fallbackPrice: fallbackBasePrice,
+        fallbackIkpu: product.ikpu || '',
+        fallbackContainerId: product.container_id || '',
+        fallbackContainerNorm,
+        fallbackOrderStep,
+        unit: variantFallbackUnit
+      });
       const hasVariants = normalizedVariantOptions.length > 0;
       const initialEditorVariants = hasVariants
         ? normalizedVariantOptions.map((variant) => ({ ...variant, __draft: false }))
         : (product.size_enabled === true
-          ? [createProductVariantDraft('', fallbackBasePrice, true)]
+          ? [createProductVariantDraft('', fallbackBasePrice, true, {
+            ikpu: product.ikpu || '',
+            container_id: product.container_id || '',
+            container_norm: fallbackContainerNorm,
+            order_step: fallbackOrderStep,
+            unit: variantFallbackUnit
+          })]
           : []);
       setSelectedProduct(product);
       setProductForm({
@@ -4513,7 +4602,10 @@ function AdminDashboard() {
         is_hidden_catalog: !!product.is_hidden_catalog,
         size_enabled: product.size_enabled === true,
         variant_options: initialEditorVariants,
-        size_options: normalizeProductVariantOptions(initialEditorVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name),
+        size_options: normalizeProductVariantOptions(initialEditorVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: variantFallbackUnit
+        }).map((variant) => variant.name),
         container_id: product.container_id || '',
         container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
       });
@@ -4615,43 +4707,68 @@ function AdminDashboard() {
   const toggleProductVariantsEnabled = (isEnabled) => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
-      const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       const enablingFromDisabled = isEnabled && !prev.size_enabled;
       const nextVariants = enablingFromDisabled
-        ? [createProductVariantDraft('', fallbackBasePrice, true)]
+        ? [createProductVariantDraft('', fallbackBasePrice, true, {
+          ikpu: prev.ikpu || '',
+          container_id: prev.container_id || '',
+          container_norm: prev.container_norm,
+          order_step: prev.order_step,
+          unit: prev.unit || 'шт'
+        })]
         : currentVariants;
       return {
         ...prev,
         size_enabled: isEnabled,
         variant_options: nextVariants,
-        size_options: normalizeProductVariantOptions(nextVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name)
+        size_options: normalizeProductVariantOptions(nextVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
       };
     });
   };
   const addEmptyProductVariantRow = () => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
-      const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       if (currentVariants.length >= MAX_PRODUCT_SIZE_OPTIONS) return prev;
       const cleanedVariants = currentVariants.filter((variant) => (
         String(variant.name || '').trim()
         || String(variant.description_ru || '').trim()
         || String(variant.description_uz || '').trim()
         || String(variant.barcode || '').trim()
+        || String(variant.ikpu || '').trim()
+        || Number.isFinite(normalizeProductPriceValue(variant.price, NaN))
+        || (String(variant.container_id || '').trim() && Number.parseFloat(variant.container_norm) > 0)
+        || (prev.unit === 'кг' && Number.parseFloat(variant.order_step) > 0)
         || (Array.isArray(variant.product_images) && variant.product_images.some((img) => String(img?.url || '').trim()))
       ));
       const nextVariants = [...cleanedVariants, createProductVariantDraft('', fallbackBasePrice, true)];
       return {
         ...prev,
         variant_options: nextVariants,
-        size_options: normalizeProductVariantOptions(nextVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name)
+        size_options: normalizeProductVariantOptions(nextVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
       };
     });
   };
   const updateProductVariantOption = (index, field, value) => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
-      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       if (index < 0 || index >= variants.length) return prev;
 
       const nextVariants = variants.map((variant, variantIndex) => {
@@ -4677,6 +4794,34 @@ function AdminDashboard() {
             barcode: String(value || '').slice(0, 120)
           };
         }
+        if (field === 'ikpu') {
+          return {
+            ...variant,
+            ikpu: String(value || '').slice(0, 64)
+          };
+        }
+        if (field === 'container_id') {
+          const nextContainerId = String(value || '').trim();
+          return {
+            ...variant,
+            container_id: nextContainerId,
+            container_norm: nextContainerId
+              ? normalizeProductVariantContainerNormValue(variant.container_norm, 1)
+              : 1
+          };
+        }
+        if (field === 'container_norm') {
+          return {
+            ...variant,
+            container_norm: normalizeProductVariantContainerNormValue(value, 1)
+          };
+        }
+        if (field === 'order_step') {
+          return {
+            ...variant,
+            order_step: normalizeProductVariantOrderStepValue(value, prev.unit || 'шт', '')
+          };
+        }
         if (field === 'description_ru' || field === 'description_uz') {
           return {
             ...variant,
@@ -4686,18 +4831,27 @@ function AdminDashboard() {
         return variant;
       });
 
-      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, { fallbackPrice: fallbackBasePrice });
+      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       return {
         ...prev,
         variant_options: normalizedVariants,
-        size_options: normalizeProductVariantOptions(normalizedVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name)
+        size_options: normalizeProductVariantOptions(normalizedVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
       };
     });
   };
   const updateProductVariantImageSlot = (variantIndex, slotIndex, nextUrl, nextThumbUrl = '') => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
-      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       if (variantIndex < 0 || variantIndex >= variants.length) return prev;
 
       const nextVariants = variants.map((variant, currentVariantIndex) => {
@@ -4727,11 +4881,17 @@ function AdminDashboard() {
         };
       });
 
-      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, { fallbackPrice: fallbackBasePrice });
+      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       return {
         ...prev,
         variant_options: normalizedVariants,
-        size_options: normalizeProductVariantOptions(normalizedVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name)
+        size_options: normalizeProductVariantOptions(normalizedVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
       };
     });
   };
@@ -4741,7 +4901,10 @@ function AdminDashboard() {
   const setMainProductVariantImageSlot = (variantIndex, slotIndex) => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
-      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       if (variantIndex < 0 || variantIndex >= variants.length) return prev;
 
       const nextVariants = variants.map((variant, currentVariantIndex) => {
@@ -4760,17 +4923,26 @@ function AdminDashboard() {
         };
       });
 
-      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, { fallbackPrice: fallbackBasePrice });
+      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       return {
         ...prev,
         variant_options: normalizedVariants,
-        size_options: normalizeProductVariantOptions(normalizedVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name)
+        size_options: normalizeProductVariantOptions(normalizedVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
       };
     });
   };
   const handlePasteToVariantImageSlot = (variantIndex, e) => {
     const fallbackBasePrice = normalizeProductPriceValue(productForm.price, NaN);
-    const variants = normalizeProductVariantOptionsForEditor(productForm.variant_options, { fallbackPrice: fallbackBasePrice });
+    const variants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+      fallbackPrice: fallbackBasePrice,
+      unit: productForm.unit || 'шт'
+    });
     const variant = variants[variantIndex];
     if (!variant) return;
     const variantSlots = createVariantImageSlots(variant.product_images, variant.image_url, variant.thumb_url);
@@ -4790,17 +4962,32 @@ function AdminDashboard() {
   const removeProductVariantOption = (index) => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
-      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
+      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       if (index < 0 || index >= variants.length) return prev;
       const nextVariantsRaw = variants.filter((_, variantIndex) => variantIndex !== index);
       const nextVariants = nextVariantsRaw.length === 0 && prev.size_enabled
-        ? [createProductVariantDraft('', fallbackBasePrice, true)]
+        ? [createProductVariantDraft('', fallbackBasePrice, true, {
+          ikpu: prev.ikpu || '',
+          container_id: prev.container_id || '',
+          container_norm: prev.container_norm,
+          order_step: prev.order_step,
+          unit: prev.unit || 'шт'
+        })]
         : nextVariantsRaw;
-      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, { fallbackPrice: fallbackBasePrice });
+      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
       return {
         ...prev,
         variant_options: normalizedVariants,
-        size_options: normalizeProductVariantOptions(normalizedVariants, { fallbackPrice: fallbackBasePrice }).map((variant) => variant.name)
+        size_options: normalizeProductVariantOptions(normalizedVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
       };
     });
   };
@@ -4864,7 +5051,12 @@ function AdminDashboard() {
     try {
       const normalizedPrice = normalizeProductPriceValue(productForm.price);
       const normalizedVariantOptions = normalizeProductVariantOptions(productForm.variant_options, {
-        fallbackPrice: normalizedPrice
+        fallbackPrice: normalizedPrice,
+        fallbackIkpu: productForm.ikpu || '',
+        fallbackContainerId: productForm.container_id || '',
+        fallbackContainerNorm: productForm.container_norm,
+        fallbackOrderStep: productForm.order_step,
+        unit: productForm.unit || 'шт'
       });
       const isVariantsMode = Boolean(productForm.size_enabled);
       if (isVariantsMode) {
@@ -5181,12 +5373,28 @@ function AdminDashboard() {
   const duplicateProduct = (product) => {
     setSelectedProduct(null);
     const duplicateImageSlots = createProductImageSlots([]);
+    const duplicateVariantUnit = String(product.unit || 'шт').trim() || 'шт';
+    const duplicateContainerNorm = normalizeProductVariantContainerNormValue(product.container_norm, 1);
+    const duplicateOrderStep = Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '';
     const sourceVariantOptions = normalizeProductVariantOptions(product.size_options, {
-      fallbackPrice: normalizeProductPriceValue(product.price, NaN)
+      fallbackPrice: normalizeProductPriceValue(product.price, NaN),
+      fallbackIkpu: product.ikpu || '',
+      fallbackContainerId: product.container_id || '',
+      fallbackContainerNorm: duplicateContainerNorm,
+      fallbackOrderStep: duplicateOrderStep,
+      unit: duplicateVariantUnit
     });
     const duplicateVariantOptions = sourceVariantOptions.length
       ? sourceVariantOptions.map((variant) => ({ ...variant, __draft: false }))
-      : (product.size_enabled === true ? [createProductVariantDraft('', normalizeProductPriceValue(product.price, NaN), true)] : []);
+      : (product.size_enabled === true
+        ? [createProductVariantDraft('', normalizeProductPriceValue(product.price, NaN), true, {
+          ikpu: product.ikpu || '',
+          container_id: product.container_id || '',
+          container_norm: duplicateContainerNorm,
+          order_step: duplicateOrderStep,
+          unit: duplicateVariantUnit
+        })]
+        : []);
     setProductForm({
       category_id: product.category_id || '',
       name_ru: product.name_ru || '',
@@ -5208,7 +5416,8 @@ function AdminDashboard() {
       size_enabled: product.size_enabled === true,
       variant_options: duplicateVariantOptions,
       size_options: normalizeProductVariantOptions(duplicateVariantOptions, {
-        fallbackPrice: normalizeProductPriceValue(product.price, NaN)
+        fallbackPrice: normalizeProductPriceValue(product.price, NaN),
+        unit: duplicateVariantUnit
       }).map((variant) => variant.name),
       container_id: product.container_id || '',
       container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
@@ -5248,7 +5457,12 @@ function AdminDashboard() {
         is_hidden_catalog: !!product.is_hidden_catalog,
         size_enabled: product.size_enabled === true,
         size_options: normalizeProductVariantOptions(product.size_options, {
-          fallbackPrice: normalizeProductPriceValue(product.price, NaN)
+          fallbackPrice: normalizeProductPriceValue(product.price, NaN),
+          fallbackIkpu: product.ikpu || '',
+          fallbackContainerId: product.container_id || '',
+          fallbackContainerNorm: product.container_norm,
+          fallbackOrderStep: product.order_step,
+          unit: product.unit || 'шт'
         })
       };
 
@@ -12631,7 +12845,10 @@ function AdminDashboard() {
                           className="admin-variant-add-btn"
                           title={language === 'uz' ? "Yana bir variant qo'shish" : 'Добавить еще вариант'}
                           onClick={addEmptyProductVariantRow}
-                          disabled={normalizeProductVariantOptionsForEditor(productForm.variant_options, { fallbackPrice: normalizeProductPriceValue(productForm.price, NaN) }).length >= MAX_PRODUCT_SIZE_OPTIONS}
+                          disabled={normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+                            fallbackPrice: normalizeProductPriceValue(productForm.price, NaN),
+                            unit: productForm.unit || 'шт'
+                          }).length >= MAX_PRODUCT_SIZE_OPTIONS}
                         >
                           +
                         </Button>
@@ -12642,12 +12859,19 @@ function AdminDashboard() {
                         <span>Описание UZ</span>
                         <span>{language === 'uz' ? 'Narxi' : 'Цена'}</span>
                         <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
+                        <span>ИКПУ</span>
+                        <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
+                        <span>{language === 'uz' ? 'Idish normasi' : 'Норма посуды'}</span>
+                        <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>
                         <span className="text-center">{language === 'uz' ? 'Amal' : 'Действие'}</span>
                       </div>
 
                       {(() => {
                         const fallbackPrice = normalizeProductPriceValue(productForm.price, NaN);
-                        const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, { fallbackPrice });
+                        const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+                          fallbackPrice,
+                          unit: productForm.unit || 'шт'
+                        });
                         return (
                           <div className="admin-variants-simple-body">
                             {currentVariants.map((variant, index) => {
@@ -12705,6 +12929,53 @@ function AdminDashboard() {
                                                   onChange={(event) => updateProductVariantOption(index, 'barcode', event.target.value)}
                                                   placeholder={language === 'uz' ? 'Shtrix-kod varianti' : 'Штрихкод варианта'}
                                                   maxLength={120}
+                                                />
+                                              </Col>
+                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Control
+                                                  className="form-control-custom"
+                                                  type="text"
+                                                  value={variant.ikpu || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'ikpu', event.target.value)}
+                                                  placeholder="ИКПУ"
+                                                  maxLength={64}
+                                                />
+                                              </Col>
+                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Select
+                                                  className="form-control-custom"
+                                                  value={variant.container_id || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'container_id', event.target.value)}
+                                                >
+                                                  <option value="">{t('noContainer')}</option>
+                                                  {containers.map((container) => (
+                                                    <option key={`variant-container-${container.id}`} value={container.id}>
+                                                      {container.name} (+{formatPrice(container.price)} {t('sum')})
+                                                    </option>
+                                                  ))}
+                                                </Form.Select>
+                                              </Col>
+                                              <Col xl={1} md={4} className="admin-variant-table-col">
+                                                <Form.Control
+                                                  className="form-control-custom"
+                                                  type="number"
+                                                  min="1"
+                                                  step="1"
+                                                  value={variant.container_norm}
+                                                  onChange={(event) => updateProductVariantOption(index, 'container_norm', event.target.value)}
+                                                  disabled={!variant.container_id}
+                                                />
+                                              </Col>
+                                              <Col xl={1} md={4} className="admin-variant-table-col">
+                                                <Form.Control
+                                                  className="form-control-custom"
+                                                  type="number"
+                                                  min="0.01"
+                                                  step="0.01"
+                                                  value={variant.order_step || ''}
+                                                  onChange={(event) => updateProductVariantOption(index, 'order_step', event.target.value)}
+                                                  disabled={productForm.unit !== 'кг'}
+                                                  placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
                                                 />
                                               </Col>
                                               <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-actions d-flex justify-content-end">
@@ -12856,31 +13127,34 @@ function AdminDashboard() {
                 </Row>
               )}
 
-              <div className={`admin-product-main-fields-grid ${productForm.container_id ? 'has-container-norm' : ''}`}>
-                <Form.Group className="mb-0">
-                  <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
-                  <Form.Control
-                    className="admin-product-compact-field"
-                    type="text"
-                    value={productForm.barcode}
-                    onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
-                    placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
-                    maxLength={120}
-                    disabled={Boolean(productForm.size_enabled)}
-                  />
-                </Form.Group>
+              <div className={`admin-product-main-fields-grid ${productForm.size_enabled ? 'variants-mode' : (productForm.container_id ? 'has-container-norm' : '')}`}>
+                {!productForm.size_enabled && (
+                  <Form.Group className="mb-0">
+                    <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
+                    <Form.Control
+                      className="admin-product-compact-field"
+                      type="text"
+                      value={productForm.barcode}
+                      onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
+                      placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
+                      maxLength={120}
+                    />
+                  </Form.Group>
+                )}
 
-                <Form.Group className="mb-0">
-                  <Form.Label>ИКПУ</Form.Label>
-                  <Form.Control
-                    className="admin-product-compact-field"
-                    type="text"
-                    value={productForm.ikpu || ''}
-                    onChange={(e) => setProductForm({ ...productForm, ikpu: e.target.value.slice(0, 64) })}
-                    placeholder="Необязательно"
-                    maxLength={64}
-                  />
-                </Form.Group>
+                {!productForm.size_enabled && (
+                  <Form.Group className="mb-0">
+                    <Form.Label>ИКПУ</Form.Label>
+                    <Form.Control
+                      className="admin-product-compact-field"
+                      type="text"
+                      value={productForm.ikpu || ''}
+                      onChange={(e) => setProductForm({ ...productForm, ikpu: e.target.value.slice(0, 64) })}
+                      placeholder="Необязательно"
+                      maxLength={64}
+                    />
+                  </Form.Group>
+                )}
 
                 <Form.Group className="mb-0">
                   <Form.Label>{t('sortOrderLabel')}</Form.Label>
@@ -12964,26 +13238,20 @@ function AdminDashboard() {
                   </div>
                 </Form.Group>
 
-                <Form.Group className="mb-0">
-                  <Form.Label>{t('priceSum')}</Form.Label>
-                  <Form.Control
-                    className="admin-product-compact-field"
-                    required={!productForm.size_enabled}
-                    type="number"
-                    step="1"
-                    min="0"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    disabled={Boolean(productForm.size_enabled)}
-                  />
-                  {productForm.size_enabled && (
-                    <Form.Text className="text-muted">
-                      {language === 'uz'
-                        ? "Narx tanlangan variantdan olinadi."
-                        : 'Цена берется из выбранного варианта.'}
-                    </Form.Text>
-                  )}
-                </Form.Group>
+                {!productForm.size_enabled && (
+                  <Form.Group className="mb-0">
+                    <Form.Label>{t('priceSum')}</Form.Label>
+                    <Form.Control
+                      className="admin-product-compact-field"
+                      required
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={productForm.price}
+                      onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                    />
+                  </Form.Group>
+                )}
 
                 <Form.Group className="mb-0">
                   <Form.Label>{t('unit')}</Form.Label>
@@ -12993,10 +13261,22 @@ function AdminDashboard() {
                     value={productForm.unit}
                     onChange={(e) => {
                       const nextUnit = e.target.value;
-                      setProductForm({
-                        ...productForm,
-                        unit: nextUnit,
-                        order_step: nextUnit === 'кг' ? productForm.order_step : ''
+                      setProductForm((prev) => {
+                        const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
+                        const normalizedVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+                          fallbackPrice: fallbackBasePrice,
+                          unit: nextUnit
+                        });
+                        return {
+                          ...prev,
+                          unit: nextUnit,
+                          order_step: nextUnit === 'кг' ? prev.order_step : '',
+                          variant_options: normalizedVariants,
+                          size_options: normalizeProductVariantOptions(normalizedVariants, {
+                            fallbackPrice: fallbackBasePrice,
+                            unit: nextUnit
+                          }).map((variant) => variant.name)
+                        };
                       });
                     }}
                   >
@@ -13019,92 +13299,96 @@ function AdminDashboard() {
                   </Form.Select>
                 </Form.Group>
 
-                <Form.Group className="mb-0">
-                  <Form.Label className="d-flex align-items-center gap-2">
-                    <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
-                    <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish turlari" : 'Типы тары'}>
-                      i
-                      <span className="admin-container-help-tooltip">
-                        <span>{language === 'uz' ? 'Turlari:' : 'Варианты:'}</span>{' '}
-                        <span key={`container-word-${activeContainerLabelWord}`} className="admin-container-help-animated-word">
-                          {activeContainerLabelWord}
+                {!productForm.size_enabled && (
+                  <>
+                    <Form.Group className="mb-0">
+                      <Form.Label className="d-flex align-items-center gap-2">
+                        <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
+                        <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish turlari" : 'Типы тары'}>
+                          i
+                          <span className="admin-container-help-tooltip">
+                            <span>{language === 'uz' ? 'Turlari:' : 'Варианты:'}</span>{' '}
+                            <span key={`container-word-${activeContainerLabelWord}`} className="admin-container-help-animated-word">
+                              {activeContainerLabelWord}
+                            </span>
+                            <span className="admin-container-help-tooltip-list">
+                              {' '}({containerLabelAnimatedWords.join(', ')})
+                            </span>
+                            <br />
+                            <span>
+                              {language === 'uz' ? "Idish narxi buyurtmaga qo'shiladi." : 'Стоимость посуды добавится к заказу.'}
+                            </span>
+                          </span>
                         </span>
-                        <span className="admin-container-help-tooltip-list">
-                          {' '}({containerLabelAnimatedWords.join(', ')})
-                        </span>
-                        <br />
-                        <span>
-                          {language === 'uz' ? "Idish narxi buyurtmaga qo'shiladi." : 'Стоимость посуды добавится к заказу.'}
-                        </span>
-                      </span>
-                    </span>
-                  </Form.Label>
-                  <Form.Select
-                    className="admin-product-compact-field"
-                    value={productForm.container_id}
-                    onChange={(e) => {
-                      const nextContainerId = e.target.value;
-                      setProductForm({
-                        ...productForm,
-                        container_id: nextContainerId,
-                        container_norm: nextContainerId ? productForm.container_norm : 1
-                      });
-                    }}
-                  >
-                    <option value="">{t('noContainer')}</option>
-                    {containers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} (+{formatPrice(c.price)} {t('sum')})
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
+                      </Form.Label>
+                      <Form.Select
+                        className="admin-product-compact-field"
+                        value={productForm.container_id}
+                        onChange={(e) => {
+                          const nextContainerId = e.target.value;
+                          setProductForm({
+                            ...productForm,
+                            container_id: nextContainerId,
+                            container_norm: nextContainerId ? productForm.container_norm : 1
+                          });
+                        }}
+                      >
+                        <option value="">{t('noContainer')}</option>
+                        {containers.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} (+{formatPrice(c.price)} {t('sum')})
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
 
-                {productForm.container_id && (
-                  <Form.Group className="mb-0">
-                    <Form.Label className="d-flex align-items-center gap-2">
-                      <span>{t('containerNormLabel')}</span>
-                      <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish normasi izohi" : 'Подсказка по норме посуды'}>
-                        i
-                        <span className="admin-container-help-tooltip">
-                          {t('containerNormNote')}
+                    {productForm.container_id && (
+                      <Form.Group className="mb-0">
+                        <Form.Label className="d-flex align-items-center gap-2">
+                          <span>{t('containerNormLabel')}</span>
+                          <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish normasi izohi" : 'Подсказка по норме посуды'}>
+                            i
+                            <span className="admin-container-help-tooltip">
+                              {t('containerNormNote')}
+                            </span>
+                          </span>
+                        </Form.Label>
+                        <Form.Control
+                          className="admin-product-compact-field"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={productForm.container_norm}
+                          onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
+                        />
+                      </Form.Group>
+                    )}
+
+                    <Form.Group className="mb-0">
+                      <Form.Label className="d-flex align-items-center gap-2">
+                        <span>{t('orderStepLabel')}</span>
+                        <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Qadam bo'yicha izoh" : 'Подсказка по шагу заказа'}>
+                          i
+                          <span className="admin-container-help-tooltip">
+                            {language === 'uz'
+                              ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
+                              : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
+                          </span>
                         </span>
-                      </span>
-                    </Form.Label>
-                    <Form.Control
-                      className="admin-product-compact-field"
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={productForm.container_norm}
-                      onChange={(e) => setProductForm({ ...productForm, container_norm: e.target.value })}
-                    />
-                  </Form.Group>
+                      </Form.Label>
+                      <Form.Control
+                        className="admin-product-compact-field"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={productForm.order_step}
+                        onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
+                        disabled={productForm.unit !== 'кг'}
+                        placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
+                      />
+                    </Form.Group>
+                  </>
                 )}
-
-                <Form.Group className="mb-0">
-                  <Form.Label className="d-flex align-items-center gap-2">
-                    <span>{t('orderStepLabel')}</span>
-                    <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Qadam bo'yicha izoh" : 'Подсказка по шагу заказа'}>
-                      i
-                      <span className="admin-container-help-tooltip">
-                        {language === 'uz'
-                          ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
-                          : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
-                      </span>
-                    </span>
-                  </Form.Label>
-                  <Form.Control
-                    className="admin-product-compact-field"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={productForm.order_step}
-                    onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
-                    disabled={productForm.unit !== 'кг'}
-                    placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
-                  />
-                </Form.Group>
               </div>
 
               {!productForm.size_enabled && (

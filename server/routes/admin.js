@@ -80,7 +80,17 @@ const normalizeProductLocalizedNames = (nameRuValue, nameUzValue) => {
     nameUz: effectiveNameUz
   };
 };
-const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) => {
+const normalizeProductVariantOptions = (
+  value,
+  {
+    fallbackPrice = null,
+    fallbackIkpu = '',
+    fallbackContainerId = '',
+    fallbackContainerNorm = 1,
+    fallbackOrderStep = null,
+    unit = 'шт'
+  } = {}
+) => {
   let source = value;
   if (typeof source === 'string') {
     try {
@@ -105,6 +115,10 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) =>
     let imageUrl = '';
     let thumbUrl = '';
     let variantImages = [];
+    let ikpu = '';
+    let containerId = '';
+    let containerNormRaw = fallbackContainerNorm;
+    let orderStepRaw = fallbackOrderStep;
 
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       name = toOptionalTrimmedText(item.name || item.value || item.label);
@@ -112,6 +126,10 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) =>
       descriptionUz = toOptionalTrimmedText(item.description_uz || item.descriptionUz);
       priceRaw = item.price ?? fallbackPrice;
       barcode = toOptionalTrimmedText(item.barcode).slice(0, 120);
+      ikpu = toOptionalTrimmedText(item.ikpu).slice(0, 64);
+      containerId = toOptionalTrimmedText(item.container_id || item.containerId).slice(0, 64);
+      containerNormRaw = item.container_norm ?? item.containerNorm ?? fallbackContainerNorm;
+      orderStepRaw = item.order_step ?? item.orderStep ?? fallbackOrderStep;
 
       const normalizedVariantImages = normalizeProductImages(item.product_images).slice(0, MAX_PRODUCT_VARIANT_IMAGES);
       const fallbackVariantImageUrl = toOptionalTrimmedText(item.image_url || item.imageUrl);
@@ -134,12 +152,34 @@ const normalizeProductVariantOptions = (value, { fallbackPrice = null } = {}) =>
     const key = name.toLowerCase();
     if (unique.has(key)) continue;
     unique.add(key);
+    const normalizedContainerId = (containerId || toOptionalTrimmedText(fallbackContainerId)).slice(0, 64);
+    const fallbackVariantContainerNorm = normalizeContainerNorm(fallbackContainerNorm, 1);
+    const normalizedVariantContainerNorm = normalizedContainerId
+      ? normalizeContainerNorm(
+        (containerNormRaw !== undefined && containerNormRaw !== null && String(containerNormRaw).trim() !== '')
+          ? containerNormRaw
+          : fallbackVariantContainerNorm,
+        fallbackVariantContainerNorm
+      )
+      : 1;
+    const fallbackVariantOrderStep = normalizeProductOrderStep(fallbackOrderStep, unit, null);
+    const normalizedVariantOrderStep = normalizeProductOrderStep(
+      (orderStepRaw !== undefined && orderStepRaw !== null && String(orderStepRaw).trim() !== '')
+        ? orderStepRaw
+        : fallbackVariantOrderStep,
+      unit,
+      null
+    );
     normalized.push({
       name,
       description_ru: descriptionRu.slice(0, 1500),
       description_uz: descriptionUz.slice(0, 1500),
       price: normalizeProductPrice(priceRaw, fallbackPrice),
       barcode,
+      ikpu: (ikpu || toOptionalTrimmedText(fallbackIkpu)).slice(0, 64),
+      container_id: normalizedContainerId,
+      container_norm: normalizedVariantContainerNorm,
+      order_step: normalizedVariantOrderStep,
       image_url: imageUrl,
       thumb_url: thumbUrl,
       product_images: variantImages
@@ -2451,7 +2491,15 @@ router.post('/global-products/import', async (req, res) => {
       const mediaImageUrl = mainImage?.url || fallbackImageUrl || null;
       const mediaThumbUrl = mainImage?.thumb_url || fallbackThumbUrl || null;
 
-      const globalVariants = normalizeProductVariantOptions(globalProduct.size_options, { fallbackPrice: item.price });
+      const unit = toOptionalTrimmedText(globalProduct.unit) || 'шт';
+      const globalVariants = normalizeProductVariantOptions(globalProduct.size_options, {
+        fallbackPrice: item.price,
+        fallbackIkpu: globalProduct.ikpu,
+        fallbackContainerId: globalProduct.container_id,
+        fallbackContainerNorm: globalProduct.container_norm,
+        fallbackOrderStep: globalProduct.order_step,
+        unit
+      });
       const sizeEnabled = globalProduct.size_enabled === true && globalVariants.length > 0;
       const normalizedVariants = sizeEnabled
         ? globalVariants.map((variant) => ({
@@ -2459,7 +2507,6 @@ router.post('/global-products/import', async (req, res) => {
           price: item.price
         }))
         : [];
-      const unit = toOptionalTrimmedText(globalProduct.unit) || 'шт';
       const normalizedOrderStep = normalizeProductOrderStep(globalProduct.order_step, unit, null);
 
       const insertResult = await client.query(
@@ -2625,11 +2672,17 @@ router.post('/products', async (req, res) => {
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
-    const normalizedOrderStep = normalizeProductOrderStep(order_step, unit || 'шт', null);
+    const normalizedUnit = unit || 'шт';
+    const normalizedOrderStep = normalizeProductOrderStep(order_step, normalizedUnit, null);
     const normalizedSizeEnabled = normalizeOptionalBoolean(size_enabled) === true;
     const normalizedBasePrice = normalizeProductPrice(price, null);
     const normalizedSizeOptions = normalizeProductVariantOptions(size_options, {
-      fallbackPrice: normalizedBasePrice
+      fallbackPrice: normalizedBasePrice,
+      fallbackIkpu: ikpu,
+      fallbackContainerId: container_id,
+      fallbackContainerNorm: normalizedContainerNorm,
+      fallbackOrderStep: normalizedOrderStep,
+      unit: normalizedUnit
     });
     if (normalizedSizeEnabled) {
       if (normalizedSizeOptions.length === 0) {
@@ -2666,7 +2719,7 @@ RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
+      normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu
     ]);
 
@@ -2719,13 +2772,19 @@ router.post('/products/upsert', async (req, res) => {
 
     const normalizedSeasonScope = normalizeProductSeasonScope(season_scope, 'all');
     const normalizedContainerNorm = normalizeContainerNorm(container_norm, 1);
-    const normalizedOrderStep = normalizeProductOrderStep(order_step, unit || 'шт', null);
+    const normalizedUnit = unit || 'шт';
+    const normalizedOrderStep = normalizeProductOrderStep(order_step, normalizedUnit, null);
     const hasSizeEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_enabled');
     const hasSizeOptionsField = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_options');
     const normalizedSizeEnabled = normalizeOptionalBoolean(size_enabled) === true;
     const normalizedBasePrice = normalizeProductPrice(price, null);
     const normalizedSizeOptions = normalizeProductVariantOptions(size_options, {
-      fallbackPrice: normalizedBasePrice
+      fallbackPrice: normalizedBasePrice,
+      fallbackIkpu: ikpu,
+      fallbackContainerId: container_id,
+      fallbackContainerNorm: normalizedContainerNorm,
+      fallbackOrderStep: normalizedOrderStep,
+      unit: normalizedUnit
     });
     if (normalizedSizeEnabled) {
       if (normalizedSizeOptions.length === 0) {
@@ -2779,7 +2838,7 @@ router.post('/products/upsert', async (req, res) => {
       // Обновляем существующий товар
       isUpdate = true;
       const updateFields = ['price = $1', 'unit = $2', 'order_step = $3', 'name_ru = $4', 'name_uz = $5'];
-      const updateValues = [normalizedPrice, unit || 'шт', normalizedOrderStep, normalizedNames.nameRu, normalizedNames.nameUz];
+      const updateValues = [normalizedPrice, normalizedUnit, normalizedOrderStep, normalizedNames.nameRu, normalizedNames.nameUz];
       let paramIndex = 6;
 
       if (normalizedCategoryId) {
@@ -2874,7 +2933,7 @@ RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-        normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
+        normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
         normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu
       ]);
@@ -2939,12 +2998,36 @@ router.put('/products/:id', async (req, res) => {
     const normalizedSizeEnabled = hasSizeEnabledField
       ? normalizeOptionalBoolean(size_enabled) === true
       : (oldProduct.size_enabled === true);
+    const nextUnit = unit === undefined ? (oldProduct.unit || 'шт') : unit;
+    const fallbackOrderStep = normalizeProductOrderStep(oldProduct.order_step, nextUnit, null);
+    const normalizedOrderStep = order_step === undefined
+      ? fallbackOrderStep
+      : normalizeProductOrderStep(order_step, nextUnit, null);
     const basePriceFallback = price === undefined
       ? normalizeProductPrice(oldProduct.price, null)
       : normalizeProductPrice(price, null);
+    const fallbackVariantContainerNorm = container_norm === undefined
+      ? normalizeContainerNorm(oldProduct.container_norm, 1)
+      : normalizedContainerNorm;
+    const fallbackVariantContainerId = container_id === undefined ? oldProduct.container_id : container_id;
+    const fallbackVariantIkpu = ikpu === undefined ? oldProduct.ikpu : ikpu;
     const normalizedSizeOptions = hasSizeOptionsField
-      ? normalizeProductVariantOptions(size_options, { fallbackPrice: basePriceFallback })
-      : normalizeProductVariantOptions(oldProduct.size_options, { fallbackPrice: basePriceFallback });
+      ? normalizeProductVariantOptions(size_options, {
+        fallbackPrice: basePriceFallback,
+        fallbackIkpu: fallbackVariantIkpu,
+        fallbackContainerId: fallbackVariantContainerId,
+        fallbackContainerNorm: fallbackVariantContainerNorm,
+        fallbackOrderStep: normalizedOrderStep,
+        unit: nextUnit
+      })
+      : normalizeProductVariantOptions(oldProduct.size_options, {
+        fallbackPrice: basePriceFallback,
+        fallbackIkpu: fallbackVariantIkpu,
+        fallbackContainerId: fallbackVariantContainerId,
+        fallbackContainerNorm: fallbackVariantContainerNorm,
+        fallbackOrderStep: normalizedOrderStep,
+        unit: nextUnit
+      });
     if (normalizedSizeEnabled) {
       if (normalizedSizeOptions.length === 0) {
         return res.status(400).json({ error: 'Добавьте минимум один вариант товара' });
@@ -2969,11 +3052,6 @@ router.put('/products/:id', async (req, res) => {
     const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
     const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
     const normalizedIkpu = toOptionalTrimmedText(ikpu).slice(0, 64) || null;
-    const nextUnit = unit === undefined ? (oldProduct.unit || 'шт') : unit;
-    const fallbackOrderStep = normalizeProductOrderStep(oldProduct.order_step, nextUnit, null);
-    const normalizedOrderStep = order_step === undefined
-      ? fallbackOrderStep
-      : normalizeProductOrderStep(order_step, nextUnit, null);
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = hasIncomingMediaFields
       ? resolveProductMediaPayload({
