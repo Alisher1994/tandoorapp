@@ -4613,8 +4613,9 @@ function AdminDashboard() {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
       const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
-      const nextVariants = isEnabled
-        ? (currentVariants.length ? currentVariants : [createProductVariantDraft('', fallbackBasePrice, true)])
+      const enablingFromDisabled = isEnabled && !prev.size_enabled;
+      const nextVariants = enablingFromDisabled
+        ? [createProductVariantDraft('', fallbackBasePrice, true)]
         : currentVariants;
       return {
         ...prev,
