@@ -8205,6 +8205,13 @@ body::-webkit-scrollbar,
     gap: 0.12rem;
     border: 0;
     background: transparent;
+    box-shadow: none !important;
+    transition: none !important;
+}
+
+.admin-product-image-slot-variant-inline.is-main {
+    border-color: transparent !important;
+    box-shadow: none !important;
 }
 
 .admin-product-image-dropzone-variant-inline {
@@ -8214,6 +8221,14 @@ body::-webkit-scrollbar,
     border-style: solid;
     border-color: rgba(148, 163, 184, 0.3);
     background: #ffffff;
+    transition: none !important;
+}
+
+.admin-product-image-dropzone-variant-inline:hover,
+.admin-product-image-dropzone-variant-inline:focus-visible,
+.admin-product-image-dropzone-variant-inline.has-image {
+    border-color: rgba(148, 163, 184, 0.3) !important;
+    background: #ffffff !important;
 }
 
 .admin-product-image-slot-variant-inline .admin-product-image-placeholder-icon {
