@@ -7934,6 +7934,113 @@ body::-webkit-scrollbar,
     background: rgba(148, 163, 184, 0.74);
 }
 
+.sa-global-import-review-modal .modal-dialog {
+    width: min(98vw, 1760px);
+    max-width: min(98vw, 1760px);
+    height: 92vh;
+    margin: 2vh auto;
+}
+
+.sa-global-import-review-modal .modal-content {
+    height: 100%;
+}
+
+.sa-global-import-review-modal .modal-header {
+    padding: 0.75rem 1rem;
+}
+
+.sa-global-import-review-modal .modal-footer {
+    padding: 0.6rem 1rem;
+}
+
+.sa-global-import-review-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.65rem 1rem;
+}
+
+.sa-global-import-review-summary {
+    padding: 0.45rem 0.55rem;
+    font-size: 0.79rem;
+}
+
+.sa-global-import-review-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+    overflow: auto !important;
+    scrollbar-gutter: stable both-edges;
+}
+
+.sa-global-import-review-scroll.admin-thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.sa-global-import-review-scroll.admin-thin-scrollbar::-webkit-scrollbar {
+    height: 2px;
+    width: 2px;
+}
+
+.sa-global-import-review-scroll.admin-thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sa-global-import-review-scroll.admin-thin-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+}
+
+.sa-global-import-review-scroll.admin-thin-scrollbar.is-scrolling,
+.sa-global-import-review-scroll.admin-thin-scrollbar:hover,
+.sa-global-import-review-scroll.admin-thin-scrollbar:focus-within {
+    scrollbar-color: rgba(203, 213, 225, 0.72) transparent;
+}
+
+.sa-global-import-review-scroll.admin-thin-scrollbar.is-scrolling::-webkit-scrollbar-thumb,
+.sa-global-import-review-scroll.admin-thin-scrollbar:hover::-webkit-scrollbar-thumb,
+.sa-global-import-review-scroll.admin-thin-scrollbar:focus-within::-webkit-scrollbar-thumb {
+    background: rgba(203, 213, 225, 0.72);
+}
+
+.sa-global-import-review-table {
+    font-size: 0.78rem;
+    line-height: 1.12;
+}
+
+.sa-global-import-review-table thead th {
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+    padding: 0.32rem 0.34rem;
+}
+
+.sa-global-import-review-table tbody td {
+    padding: 0.26rem 0.32rem;
+    vertical-align: middle;
+}
+
+.sa-global-import-review-table .small {
+    font-size: 0.69rem !important;
+}
+
+.sa-global-import-review-table .form-select.form-select-sm {
+    min-height: 1.68rem;
+    font-size: 0.72rem;
+    padding-top: 0.16rem;
+    padding-bottom: 0.16rem;
+    padding-left: 0.48rem;
+    line-height: 1.2;
+}
+
+.sa-global-import-row-duplicate > td {
+    background: #fff8f8 !important;
+}
+
+.sa-global-import-row-duplicate:hover > td {
+    background: #fff4f4 !important;
+}
+
 .admin-variants-simple-toolbar {
     padding: 0.32rem 0.45rem;
     border-bottom: 1px solid var(--border-color);

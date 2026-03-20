@@ -1067,6 +1067,7 @@ function SuperAdminDashboard() {
   const [globalProductsLoading, setGlobalProductsLoading] = useState(false);
   const [isImportingGlobalProductsExcel, setIsImportingGlobalProductsExcel] = useState(false);
   const [isApplyingGlobalProductsExcelImport, setIsApplyingGlobalProductsExcelImport] = useState(false);
+  const [isGlobalImportReviewScrolling, setIsGlobalImportReviewScrolling] = useState(false);
   const [showGlobalProductsPasteModal, setShowGlobalProductsPasteModal] = useState(false);
   const [globalProductsPasteRows, setGlobalProductsPasteRows] = useState([]);
   const [globalProductsPasteError, setGlobalProductsPasteError] = useState('');
@@ -1100,6 +1101,7 @@ function SuperAdminDashboard() {
   const categoryImportInputRef = useRef(null);
   const globalProductsImportInputRef = useRef(null);
   const globalProductsPasteInputRef = useRef(null);
+  const globalImportReviewScrollHideTimeoutRef = useRef(null);
   const globalProductImageInputRef = useRef(null);
   const categoryAiRequestIdRef = useRef(0);
   const globalProductAiRequestIdRef = useRef(0);
@@ -1549,6 +1551,23 @@ function SuperAdminDashboard() {
     }, 80);
     return () => clearTimeout(timer);
   }, [showGlobalProductsPasteModal]);
+  const handleGlobalImportReviewScroll = React.useCallback(() => {
+    setIsGlobalImportReviewScrolling((prev) => (prev ? prev : true));
+    if (globalImportReviewScrollHideTimeoutRef.current) {
+      clearTimeout(globalImportReviewScrollHideTimeoutRef.current);
+    }
+    globalImportReviewScrollHideTimeoutRef.current = setTimeout(() => {
+      setIsGlobalImportReviewScrolling(false);
+      globalImportReviewScrollHideTimeoutRef.current = null;
+    }, 700);
+  }, []);
+
+  useEffect(() => () => {
+    if (globalImportReviewScrollHideTimeoutRef.current) {
+      clearTimeout(globalImportReviewScrollHideTimeoutRef.current);
+      globalImportReviewScrollHideTimeoutRef.current = null;
+    }
+  }, []);
   const dismissScamPrankModal = () => setShowScamPrankModal(false);
   const handleScamPrankButtonsShuffle = () => {
     setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
@@ -5240,6 +5259,11 @@ function SuperAdminDashboard() {
     setShowGlobalProductsImportReviewModal(false);
     setGlobalProductsImportRows([]);
     setGlobalProductsImportSourceFileName('');
+    setIsGlobalImportReviewScrolling(false);
+    if (globalImportReviewScrollHideTimeoutRef.current) {
+      clearTimeout(globalImportReviewScrollHideTimeoutRef.current);
+      globalImportReviewScrollHideTimeoutRef.current = null;
+    }
   };
 
   const handleDownloadGlobalProductsImportTemplate = () => {
@@ -14795,6 +14819,7 @@ function SuperAdminDashboard() {
         show={showGlobalProductsImportReviewModal}
         onHide={closeGlobalProductsImportReviewModal}
         size="xl"
+        className="sa-global-import-review-modal"
         centered
       >
         <Modal.Header closeButton={!isApplyingGlobalProductsExcelImport}>
@@ -14805,7 +14830,7 @@ function SuperAdminDashboard() {
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Alert variant="secondary" className="mb-3">
+          <Alert variant="secondary" className="mb-2 sa-global-import-review-summary">
             <div className="d-flex flex-wrap gap-3 align-items-center">
               <span>
                 {language === 'uz' ? 'Jami satrlar:' : 'Всего строк:'}{' '}
@@ -14826,8 +14851,11 @@ function SuperAdminDashboard() {
             </div>
           </Alert>
 
-          <div className="table-responsive" style={{ maxHeight: '68vh', overflow: 'auto' }}>
-            <Table bordered hover size="sm" className="mb-0">
+          <div
+            className={`table-responsive sa-global-import-review-scroll admin-thin-scrollbar${isGlobalImportReviewScrolling ? ' is-scrolling' : ''}`}
+            onScroll={handleGlobalImportReviewScroll}
+          >
+            <Table bordered hover size="sm" className="mb-0 sa-global-import-review-table">
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
                   <th style={{ minWidth: 70 }}>{language === 'uz' ? 'Satr' : 'Строка'}</th>
@@ -14846,8 +14874,11 @@ function SuperAdminDashboard() {
                 {globalProductsImportRows.map((row) => {
                   const hasConflict = (row.conflict_matches || []).length > 0;
                   const action = String(row.conflict_action || (hasConflict ? 'replace' : 'create')).trim();
+                  const rowClassName = !row.is_valid
+                    ? 'table-danger'
+                    : (hasConflict ? 'sa-global-import-row-duplicate' : '');
                   return (
-                    <tr key={`global-import-row-${row.row_no}`} className={!row.is_valid ? 'table-danger' : ''}>
+                    <tr key={`global-import-row-${row.row_no}`} className={rowClassName}>
                       <td>{row.row_no}</td>
                       <td>{row.name_ru || '—'}</td>
                       <td>{row.name_uz || '—'}</td>
