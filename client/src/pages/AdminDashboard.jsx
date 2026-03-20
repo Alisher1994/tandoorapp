@@ -1255,6 +1255,7 @@ function AdminDashboard() {
     sort_order: 0,
     order_step: '',
     barcode: '',
+    ikpu: '',
     in_stock: true,
     season_scope: 'all',
     is_hidden_catalog: false,
@@ -4506,6 +4507,7 @@ function AdminDashboard() {
         sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
         barcode: product.barcode || '',
+        ikpu: product.ikpu || '',
         in_stock: product.in_stock !== false,
         season_scope: product.season_scope || 'all',
         is_hidden_catalog: !!product.is_hidden_catalog,
@@ -4531,6 +4533,7 @@ function AdminDashboard() {
         sort_order: 0,
         order_step: '',
         barcode: '',
+        ikpu: '',
         in_stock: true,
         season_scope: 'all',
         is_hidden_catalog: false,
@@ -4910,6 +4913,7 @@ function AdminDashboard() {
             return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
           })()
           : null,
+        ikpu: String(productForm.ikpu || '').trim().slice(0, 64),
         container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1),
         size_enabled: Boolean(productForm.size_enabled),
         variant_options: normalizedVariantOptions,
@@ -5197,6 +5201,7 @@ function AdminDashboard() {
       sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
       order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
       barcode: '',
+      ikpu: product.ikpu || '',
       in_stock: true,
       season_scope: product.season_scope || 'all',
       is_hidden_catalog: !!product.is_hidden_catalog,
@@ -5234,6 +5239,7 @@ function AdminDashboard() {
         unit: product.unit || 'шт',
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : null,
         barcode: product.barcode || '',
+        ikpu: product.ikpu || '',
         in_stock: nextInStock,
         sort_order: Number(product.sort_order || 0),
         container_id: product.container_id || null,
@@ -12853,6 +12859,18 @@ function AdminDashboard() {
                     placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
                     maxLength={120}
                     disabled={Boolean(productForm.size_enabled)}
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-0">
+                  <Form.Label>ИКПУ</Form.Label>
+                  <Form.Control
+                    className="admin-product-compact-field"
+                    type="text"
+                    value={productForm.ikpu || ''}
+                    onChange={(e) => setProductForm({ ...productForm, ikpu: e.target.value.slice(0, 64) })}
+                    placeholder="Необязательно"
+                    maxLength={64}
                   />
                 </Form.Group>
 

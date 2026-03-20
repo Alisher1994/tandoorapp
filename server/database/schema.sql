@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS products (
   unit VARCHAR(20) DEFAULT 'шт',
   order_step DECIMAL(10, 2),
   barcode VARCHAR(100),
+  ikpu VARCHAR(64),
   in_stock BOOLEAN DEFAULT true,
   season_scope VARCHAR(16) DEFAULT 'all',
   is_hidden_catalog BOOLEAN DEFAULT false,

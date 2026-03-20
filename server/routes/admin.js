@@ -35,6 +35,8 @@ const MAX_PRODUCT_VARIANT_IMAGES = 4;
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
 let globalProductsSchemaReady = false;
 let globalProductsSchemaPromise = null;
+let productsIkpuSchemaReady = false;
+let productsIkpuSchemaPromise = null;
 const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
   return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
@@ -325,6 +327,25 @@ const ensureGlobalProductsSchema = async () => {
     await globalProductsSchemaPromise;
   } finally {
     globalProductsSchemaPromise = null;
+  }
+};
+const ensureProductsIkpuSchema = async () => {
+  if (productsIkpuSchemaReady) return;
+  if (productsIkpuSchemaPromise) {
+    await productsIkpuSchemaPromise;
+    return;
+  }
+
+  productsIkpuSchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ikpu VARCHAR(64)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_ikpu ON products(ikpu)`).catch(() => {});
+    productsIkpuSchemaReady = true;
+  })();
+
+  try {
+    await productsIkpuSchemaPromise;
+  } finally {
+    productsIkpuSchemaPromise = null;
   }
 };
 const normalizeCardReceiptTarget = (value, fallback = 'bot') => {
@@ -2343,6 +2364,7 @@ router.get('/global-products', async (req, res) => {
 router.post('/global-products/import', async (req, res) => {
   const client = await pool.connect();
   try {
+    await ensureProductsIkpuSchema();
     await ensureGlobalProductsSchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) {
@@ -2445,11 +2467,11 @@ router.post('/global-products/import', async (req, res) => {
           INSERT INTO products(
             restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
             image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order,
-            container_id, container_norm, season_scope, is_hidden_catalog, size_enabled, size_options
+            container_id, container_norm, season_scope, is_hidden_catalog, size_enabled, size_options, ikpu
           ) VALUES(
             $1, $2, $3, $4, $5, $6,
             $7, $8, $9::jsonb, $10, $11, $12, $13, true, 0,
-            NULL, 1, 'all', false, $14, $15::jsonb
+            NULL, 1, 'all', false, $14, $15::jsonb, $16
           )
           RETURNING id, name_ru
         `,
@@ -2468,7 +2490,8 @@ router.post('/global-products/import', async (req, res) => {
           normalizedOrderStep,
           toOptionalTrimmedText(globalProduct.barcode) || null,
           sizeEnabled,
-          JSON.stringify(normalizedVariants)
+          JSON.stringify(normalizedVariants),
+          toOptionalTrimmedText(globalProduct.ikpu).slice(0, 64) || null
         ]
       );
       createdProducts.push(insertResult.rows[0]);
@@ -2578,9 +2601,10 @@ router.get('/products', async (req, res) => {
 // Создать товар
 router.post('/products', async (req, res) => {
   try {
+    await ensureProductsIkpuSchema();
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm,
+      image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options
     } = req.body;
 
@@ -2625,6 +2649,7 @@ router.post('/products', async (req, res) => {
     }
     const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
     const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
+    const normalizedIkpu = toOptionalTrimmedText(ikpu).slice(0, 64) || null;
     const mediaPayload = resolveProductMediaPayload({
       productImages: product_images,
       imageUrl: image_url,
@@ -2635,14 +2660,14 @@ router.post('/products', async (req, res) => {
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
+    size_enabled, size_options, ikpu
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions)
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu
     ]);
 
     const product = result.rows[0];
@@ -2670,9 +2695,10 @@ RETURNING *
 // Upsert товар (создать или обновить по категории и названию)
 router.post('/products/upsert', async (req, res) => {
   try {
+    await ensureProductsIkpuSchema();
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm,
+      image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options
     } = req.body;
 
@@ -2719,6 +2745,7 @@ router.post('/products/upsert', async (req, res) => {
     }
     const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
     const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
+    const normalizedIkpu = toOptionalTrimmedText(ikpu).slice(0, 64) || null;
     const hasContainerNorm = container_norm !== undefined && container_norm !== null && String(container_norm).trim() !== '';
     const hasIncomingMediaFields = product_images !== undefined || image_url !== undefined || thumb_url !== undefined;
     const mediaPayload = resolveProductMediaPayload({
@@ -2786,6 +2813,11 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(barcode);
         paramIndex++;
       }
+      if (ikpu !== undefined) {
+        updateFields.push(`ikpu = $${paramIndex} `);
+        updateValues.push(normalizedIkpu);
+        paramIndex++;
+      }
       if (hasContainerNorm) {
         updateFields.push(`container_norm = $${paramIndex} `);
         updateValues.push(normalizedContainerNorm);
@@ -2836,15 +2868,15 @@ RETURNING *
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
+    size_enabled, size_options, ikpu
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
         normalizedPrice, unit || 'шт', normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
-        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions)
+        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu
       ]);
     }
 
@@ -2873,9 +2905,10 @@ RETURNING *
 // Обновить товар
 router.put('/products/:id', async (req, res) => {
   try {
+    await ensureProductsIkpuSchema();
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
-      image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm,
+      image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options
     } = req.body;
 
@@ -2935,6 +2968,7 @@ router.put('/products/:id', async (req, res) => {
     }
     const normalizedDescriptionRu = toOptionalTrimmedText(description_ru).slice(0, 1500);
     const normalizedDescriptionUz = toOptionalTrimmedText(description_uz).slice(0, 1500);
+    const normalizedIkpu = toOptionalTrimmedText(ikpu).slice(0, 64) || null;
     const nextUnit = unit === undefined ? (oldProduct.unit || 'шт') : unit;
     const fallbackOrderStep = normalizeProductOrderStep(oldProduct.order_step, nextUnit, null);
     const normalizedOrderStep = order_step === undefined
@@ -2957,14 +2991,14 @@ router.put('/products/:id', async (req, res) => {
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
-  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $21
+  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $22
 RETURNING *
   `, [
       category_id, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), req.params.id
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, req.params.id
     ]);
 
     const product = result.rows[0];
