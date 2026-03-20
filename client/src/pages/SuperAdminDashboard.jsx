@@ -18,6 +18,7 @@ import {
   Globe,
   Megaphone,
   Package,
+  PieChart,
   Puzzle,
   Receipt,
   Shield,
@@ -259,6 +260,17 @@ const createInitialSuperadminBroadcastForm = () => ({
   image_url: '',
   video_url: '',
   roles: ['customer']
+});
+const createInitialFoundersAnalyticsState = () => ({
+  period: {
+    start_date: null,
+    end_date: null
+  },
+  shares_config: [],
+  totals_by_currency: [],
+  module_totals: [],
+  founder_totals: [],
+  generated_at: null
 });
 const getNextFreeSortOrderClient = (items = [], excludeId = null) => {
   const taken = new Set(
@@ -970,6 +982,7 @@ function SuperAdminDashboard() {
     'categories',
     'ads',
     'billing_transactions',
+    'founders',
     'billing',
     'ai_settings',
     'security',
@@ -1108,6 +1121,7 @@ function SuperAdminDashboard() {
   const hiddenOpsConsoleInputRef = useRef(null);
   const hiddenOpsHotkeyLastPressedRef = useRef(0);
   const superadminBroadcastFileInputRef = useRef(null);
+  const foundersPasswordInputRef = useRef(null);
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
@@ -1216,6 +1230,17 @@ function SuperAdminDashboard() {
   const [hiddenOpsInsightsLoading, setHiddenOpsInsightsLoading] = useState(false);
   const [hiddenOpsInsightsError, setHiddenOpsInsightsError] = useState('');
   const [hiddenOpsInsightsHours, setHiddenOpsInsightsHours] = useState(24);
+  const [foundersAnalyticsFilter, setFoundersAnalyticsFilter] = useState({
+    start_date: '',
+    end_date: ''
+  });
+  const [foundersAnalyticsData, setFoundersAnalyticsData] = useState(createInitialFoundersAnalyticsState);
+  const [foundersAnalyticsLoading, setFoundersAnalyticsLoading] = useState(false);
+  const [foundersAccessPassword, setFoundersAccessPassword] = useState('');
+  const [foundersPasswordInput, setFoundersPasswordInput] = useState('');
+  const [showFoundersAccessModal, setShowFoundersAccessModal] = useState(false);
+  const [foundersAccessGranted, setFoundersAccessGranted] = useState(false);
+  const [foundersAccessError, setFoundersAccessError] = useState('');
 
   // Customer order history modal
   const [showOrderHistoryModal, setShowOrderHistoryModal] = useState(false);
@@ -1661,6 +1686,9 @@ function SuperAdminDashboard() {
     if (activeTab === 'global_products') {
       if (!categories.length) loadCategories();
     }
+    if (activeTab === 'founders' && (!foundersAccessGranted || !foundersAccessPassword)) {
+      setShowFoundersAccessModal(true);
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -1708,6 +1736,18 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'billing_transactions') loadBillingTransactions();
   }, [activeTab, billingOpsFilter]);
+
+  useEffect(() => {
+    if (activeTab !== 'founders') return;
+    if (!foundersAccessGranted || !foundersAccessPassword) return;
+    loadFoundersAnalytics();
+  }, [
+    activeTab,
+    foundersAccessGranted,
+    foundersAccessPassword,
+    foundersAnalyticsFilter.start_date,
+    foundersAnalyticsFilter.end_date
+  ]);
 
   useEffect(() => {
     if (!isHiddenOpsTelemetryEnabled) return;
@@ -1774,6 +1814,14 @@ function SuperAdminDashboard() {
     }, 40);
     return () => clearTimeout(timer);
   }, [showHiddenOpsConsole]);
+
+  useEffect(() => {
+    if (!showFoundersAccessModal) return;
+    const timer = setTimeout(() => {
+      foundersPasswordInputRef.current?.focus();
+    }, 40);
+    return () => clearTimeout(timer);
+  }, [showFoundersAccessModal]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -2814,6 +2862,78 @@ function SuperAdminDashboard() {
     } catch (err) {
       setError(err.response?.data?.error || (language === 'uz' ? "Eksportda xatolik" : 'Ошибка экспорта'));
     }
+  };
+
+  const loadFoundersAnalytics = async (passwordOverride = null) => {
+    const resolvedPassword = String(passwordOverride ?? foundersAccessPassword ?? '').trim();
+    if (!resolvedPassword) return false;
+
+    setFoundersAnalyticsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/founders/analytics`, {
+        params: foundersAnalyticsFilter,
+        headers: {
+          'x-founders-password': resolvedPassword
+        }
+      });
+      const payload = response.data || {};
+      setFoundersAnalyticsData({
+        period: payload.period || { start_date: null, end_date: null },
+        shares_config: Array.isArray(payload.shares_config) ? payload.shares_config : [],
+        totals_by_currency: Array.isArray(payload.totals_by_currency) ? payload.totals_by_currency : [],
+        module_totals: Array.isArray(payload.module_totals) ? payload.module_totals : [],
+        founder_totals: Array.isArray(payload.founder_totals) ? payload.founder_totals : [],
+        generated_at: payload.generated_at || null
+      });
+      setFoundersAccessPassword(resolvedPassword);
+      setFoundersAccessGranted(true);
+      setFoundersAccessError('');
+      return true;
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        setFoundersAccessGranted(false);
+        setFoundersAccessPassword('');
+        setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
+        setFoundersAccessError(language === 'uz'
+          ? "Parol noto'g'ri. Qayta urinib ko'ring."
+          : 'Неверный пароль. Попробуйте снова.');
+        if (activeTab === 'founders') {
+          setShowFoundersAccessModal(true);
+        }
+        return false;
+      }
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Ta'sischilar analitikasini yuklab bo'lmadi"
+        : 'Ошибка загрузки аналитики учредителей'));
+      return false;
+    } finally {
+      setFoundersAnalyticsLoading(false);
+    }
+  };
+
+  const handleFoundersAccessSubmit = async (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    const trimmedPassword = String(foundersPasswordInput || '').trim();
+    if (!trimmedPassword) {
+      setFoundersAccessError(language === 'uz'
+        ? 'Parolni kiriting'
+        : 'Введите пароль');
+      return;
+    }
+    const isSuccess = await loadFoundersAnalytics(trimmedPassword);
+    if (!isSuccess) return;
+    setShowFoundersAccessModal(false);
+    setFoundersPasswordInput('');
+    setFoundersAccessError('');
+  };
+
+  const requestFoundersReauth = () => {
+    setFoundersAccessGranted(false);
+    setFoundersAccessPassword('');
+    setFoundersPasswordInput('');
+    setFoundersAccessError('');
+    setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
+    setShowFoundersAccessModal(true);
   };
 
   const loadHiddenOpsInsights = async (hoursOverride = null) => {
@@ -4163,6 +4283,60 @@ function SuperAdminDashboard() {
 
     return [selected, ...filtered];
   }, [allRestaurants, billingOpsRestaurantSearch, billingOpsFilter.restaurant_id]);
+  const foundersTotalsByCurrency = useMemo(() => (
+    Array.isArray(foundersAnalyticsData?.totals_by_currency)
+      ? foundersAnalyticsData.totals_by_currency
+      : []
+  ), [foundersAnalyticsData]);
+  const foundersModuleTotals = useMemo(() => (
+    Array.isArray(foundersAnalyticsData?.module_totals)
+      ? foundersAnalyticsData.module_totals
+      : []
+  ), [foundersAnalyticsData]);
+  const foundersTotalsByPerson = useMemo(() => {
+    const source = Array.isArray(foundersAnalyticsData?.founder_totals)
+      ? foundersAnalyticsData.founder_totals
+      : [];
+    const grouped = new Map();
+    for (const row of source) {
+      const key = `${row?.founder_key || 'unknown'}__${row?.currency_code || 'uz'}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          founder_key: row?.founder_key || 'unknown',
+          founder_name: row?.founder_name || '—',
+          currency_code: row?.currency_code || 'uz',
+          order_percent: Number(row?.order_percent || 0),
+          reservation_percent: Number(row?.reservation_percent || 0),
+          orders_amount: 0,
+          reservations_amount: 0,
+          total_amount: 0
+        });
+      }
+      const target = grouped.get(key);
+      target.orders_amount += Number(row?.orders_amount || 0);
+      target.reservations_amount += Number(row?.reservations_amount || 0);
+      target.total_amount += Number(row?.total_amount || 0);
+    }
+    return Array.from(grouped.values())
+      .map((row) => ({
+        ...row,
+        orders_amount: Math.round((row.orders_amount + Number.EPSILON) * 100) / 100,
+        reservations_amount: Math.round((row.reservations_amount + Number.EPSILON) * 100) / 100,
+        total_amount: Math.round((row.total_amount + Number.EPSILON) * 100) / 100
+      }))
+      .sort((left, right) => {
+        const nameDiff = String(left.founder_name || '').localeCompare(String(right.founder_name || ''), 'ru');
+        if (nameDiff !== 0) return nameDiff;
+        return String(left.currency_code || '').localeCompare(String(right.currency_code || ''), 'ru');
+      });
+  }, [foundersAnalyticsData]);
+  const foundersGeneratedAtLabel = useMemo(() => {
+    const raw = foundersAnalyticsData?.generated_at;
+    if (!raw) return '';
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
+  }, [foundersAnalyticsData?.generated_at, language]);
 
   const securityEventTypeOptions = useMemo(() => {
     const uniqueTypes = new Set();
@@ -8250,6 +8424,13 @@ function SuperAdminDashboard() {
       setIsSidebarCollapsed((prev) => !prev);
       return;
     }
+    if (key === 'founders' && (!foundersAccessGranted || !foundersAccessPassword)) {
+      setActiveTab(key);
+      setFoundersAccessError('');
+      setShowFoundersAccessModal(true);
+      setIsMobileSidebarOpen(false);
+      return;
+    }
     setActiveTab(key);
     setIsMobileSidebarOpen(false);
   };
@@ -8307,6 +8488,13 @@ function SuperAdminDashboard() {
         limit: 20
       });
       setBillingOpsRestaurantSearch('');
+      return;
+    }
+    if (activeTab === 'founders') {
+      setFoundersAnalyticsFilter({
+        start_date: '',
+        end_date: ''
+      });
       return;
     }
     if (activeTab === 'security') {
@@ -8497,6 +8685,7 @@ function SuperAdminDashboard() {
     categories: { label: t('categories'), icon: FolderTree },
     ads: { label: adI18n.tab, icon: Megaphone },
     billing_transactions: { label: language === 'uz' ? "To'lovlar" : 'Поступления', icon: Receipt },
+    founders: { label: language === 'uz' ? 'Ta’sischilar' : 'Учредители', icon: PieChart },
     billing: { label: t('billingSettings'), icon: Wallet },
     ai_settings: { label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки', icon: Bot },
     security: { label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность', icon: Shield },
@@ -12207,6 +12396,214 @@ function SuperAdminDashboard() {
                       onLimitChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, limit: val, page: 1 }))}
                       limitOptions={[15, 20, 30, 50]}
                     />
+                  </>
+                )}
+              </Tab>
+
+              {/* Founders Tab */}
+              <Tab eventKey="founders" title={renderSuperAdminSidebarTabTitle('founders')}>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? 'Ta’sischilar ulushi analitikasi' : 'Аналитика долей учредителей'}
+                  </h5>
+                  <div className="d-flex align-items-center gap-2 ms-auto">
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => loadFoundersAnalytics()}
+                      disabled={foundersAnalyticsLoading || !foundersAccessGranted}
+                    >
+                      <i className="bi bi-arrow-clockwise me-2" />
+                      {language === 'uz' ? 'Yangilash' : 'Обновить'}
+                    </Button>
+                    <Button
+                      variant="outline-secondary"
+                      onClick={requestFoundersReauth}
+                    >
+                      <i className="bi bi-key me-2" />
+                      {language === 'uz' ? 'Parolni almashtirish' : 'Сменить пароль'}
+                    </Button>
+                  </div>
+                </div>
+
+                {!foundersAccessGranted ? (
+                  <Card className="admin-card border-0">
+                    <Card.Body className="p-4">
+                      <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                        <div>
+                          <div className="fw-bold mb-1">
+                            {language === 'uz' ? 'Kirish cheklangan' : 'Доступ ограничен'}
+                          </div>
+                          <div className="text-muted small">
+                            {language === 'uz'
+                              ? 'Ushbu bo‘lim uchun alohida parol talab qilinadi.'
+                              : 'Для этого раздела требуется отдельный пароль.'}
+                          </div>
+                        </div>
+                        <Button className="btn-primary-custom" onClick={() => setShowFoundersAccessModal(true)}>
+                          <i className="bi bi-unlock me-2" />
+                          {language === 'uz' ? 'Kirish' : 'Войти'}
+                        </Button>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                ) : (
+                  <>
+                    <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+                      <Form.Control
+                        type="date"
+                        className="form-control-custom"
+                        style={{ width: '170px' }}
+                        value={foundersAnalyticsFilter.start_date}
+                        onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, start_date: e.target.value }))}
+                      />
+                      <Form.Control
+                        type="date"
+                        className="form-control-custom"
+                        style={{ width: '170px' }}
+                        value={foundersAnalyticsFilter.end_date}
+                        onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, end_date: e.target.value }))}
+                      />
+                      <Button
+                        className="btn-primary-custom"
+                        onClick={() => loadFoundersAnalytics()}
+                        disabled={foundersAnalyticsLoading}
+                      >
+                        {language === 'uz' ? "Ko'rsatish" : 'Показать'}
+                      </Button>
+                      <Button
+                        variant="light"
+                        className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
+                        style={{ height: '38px', padding: '0 15px' }}
+                        onClick={() => setFoundersAnalyticsFilter({ start_date: '', end_date: '' })}
+                        disabled={!foundersAnalyticsFilter.start_date && !foundersAnalyticsFilter.end_date}
+                      >
+                        {language === 'uz' ? 'Tozalash' : 'Сброс'}
+                      </Button>
+                    </div>
+
+                    <div className="small text-muted mb-3 d-flex flex-wrap gap-3">
+                      <span>
+                        {language === 'uz' ? 'Yangilangan:' : 'Обновлено:'}{' '}
+                        <strong>{foundersGeneratedAtLabel || '—'}</strong>
+                      </span>
+                      <span>
+                        {language === 'uz' ? 'Tanlangan period:' : 'Выбранный период:'}{' '}
+                        <strong>
+                          {foundersAnalyticsFilter.start_date || (language === 'uz' ? 'boshlanishdan' : 'с начала')}
+                          {' — '}
+                          {foundersAnalyticsFilter.end_date || (language === 'uz' ? 'hozirgacha' : 'по сегодня')}
+                        </strong>
+                      </span>
+                    </div>
+
+                    {foundersAnalyticsLoading ? (
+                      <TableSkeleton
+                        rows={8}
+                        columns={5}
+                        label={language === 'uz'
+                          ? 'Ta’sischilar analitikasi yuklanmoqda'
+                          : 'Загрузка аналитики учредителей'}
+                      />
+                    ) : foundersTotalsByCurrency.length === 0 ? (
+                      <Alert variant="secondary" className="mb-0">
+                        {language === 'uz'
+                          ? "Tanlangan davr bo'yicha taqsimlanadigan tushum topilmadi."
+                          : 'За выбранный период распределяемых поступлений не найдено.'}
+                      </Alert>
+                    ) : (
+                      <>
+                        <Row className="g-3 mb-3">
+                          {foundersTotalsByCurrency.map((row) => (
+                            <Col xs={12} md={6} xl={4} key={`founders-total-${row.currency_code}`}>
+                              <Card className="admin-card border-0 h-100">
+                                <Card.Body className="p-3">
+                                  <div className="small text-muted mb-1">
+                                    {language === 'uz' ? 'Umumiy taqsimlanadigan tushum' : 'Всего к распределению'}
+                                  </div>
+                                  <div className="fw-bold fs-5 mb-1">
+                                    {formatBalanceAmount(row.total_distributable || 0)} {getCurrencyLabelByCode(row.currency_code)}
+                                  </div>
+                                  <div className="small text-muted">
+                                    {language === 'uz' ? 'Buyurtmalar:' : 'Заказы:'}{' '}
+                                    {formatBalanceAmount(row.orders_total || 0)} ({row.orders_count || 0})
+                                  </div>
+                                  <div className="small text-muted">
+                                    {language === 'uz' ? 'Bronlar:' : 'Брони:'}{' '}
+                                    {formatBalanceAmount(row.reservations_total || 0)} ({row.reservations_count || 0})
+                                  </div>
+                                </Card.Body>
+                              </Card>
+                            </Col>
+                          ))}
+                        </Row>
+
+                        <Card className="admin-card border-0 mb-3">
+                          <Card.Body className="p-0">
+                            <div className="admin-table-container">
+                              <Table responsive hover className="admin-table mb-0">
+                                <thead>
+                                  <tr>
+                                    <th>{language === 'uz' ? 'Ta’sischi' : 'Учредитель'}</th>
+                                    <th>{language === 'uz' ? 'Valyuta' : 'Валюта'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Buyurtma ulushi' : 'Доля заказов'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Bron ulushi' : 'Доля брони'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Jami' : 'Итого'}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {foundersTotalsByPerson.map((row) => (
+                                    <tr key={`founder-row-${row.founder_key}-${row.currency_code}`}>
+                                      <td>
+                                        <strong>{row.founder_name || '—'}</strong>
+                                      </td>
+                                      <td>{getCurrencyLabelByCode(row.currency_code)}</td>
+                                      <td className="text-end">
+                                        {formatBalanceAmount(row.orders_amount || 0)}{' '}
+                                        <span className="text-muted">({row.order_percent || 0}%)</span>
+                                      </td>
+                                      <td className="text-end">
+                                        {formatBalanceAmount(row.reservations_amount || 0)}{' '}
+                                        <span className="text-muted">({row.reservation_percent || 0}%)</span>
+                                      </td>
+                                      <td className="text-end fw-bold">
+                                        {formatBalanceAmount(row.total_amount || 0)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </Table>
+                            </div>
+                          </Card.Body>
+                        </Card>
+
+                        <Card className="admin-card border-0">
+                          <Card.Body className="p-0">
+                            <div className="admin-table-container">
+                              <Table responsive hover className="admin-table mb-0">
+                                <thead>
+                                  <tr>
+                                    <th>{language === 'uz' ? 'Modul' : 'Модуль'}</th>
+                                    <th>{language === 'uz' ? 'Valyuta' : 'Валюта'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Tranzaksiyalar' : 'Транзакций'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Jami tushum' : 'Сумма'}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {foundersModuleTotals.map((row, index) => (
+                                    <tr key={`founders-module-${row.module_key}-${row.currency_code}-${index}`}>
+                                      <td>{row.module_label || row.module_key || '—'}</td>
+                                      <td>{getCurrencyLabelByCode(row.currency_code)}</td>
+                                      <td className="text-end">{row.transactions_count || 0}</td>
+                                      <td className="text-end fw-semibold">{formatBalanceAmount(row.amount || 0)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </Table>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      </>
+                    )}
                   </>
                 )}
               </Tab>
@@ -17130,6 +17527,63 @@ function SuperAdminDashboard() {
           </div>
         </div>
       )}
+
+      <Modal
+        show={showFoundersAccessModal}
+        onHide={() => {
+          setShowFoundersAccessModal(false);
+          setFoundersAccessError('');
+        }}
+        centered
+      >
+        <Form onSubmit={handleFoundersAccessSubmit}>
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {language === 'uz' ? 'Ta’sischilar bo‘limiga kirish' : 'Вход во вкладку учредителей'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group>
+              <Form.Label>
+                {language === 'uz' ? 'Alohida parol' : 'Отдельный пароль'}
+              </Form.Label>
+              <Form.Control
+                ref={foundersPasswordInputRef}
+                type="password"
+                value={foundersPasswordInput}
+                onChange={(e) => {
+                  setFoundersPasswordInput(e.target.value);
+                  if (foundersAccessError) setFoundersAccessError('');
+                }}
+                placeholder={language === 'uz' ? 'Parolni kiriting' : 'Введите пароль'}
+                autoComplete="off"
+              />
+            </Form.Group>
+            {foundersAccessError && (
+              <Alert variant="danger" className="mt-3 mb-0 py-2">
+                {foundersAccessError}
+              </Alert>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowFoundersAccessModal(false);
+                setFoundersAccessError('');
+              }}
+              disabled={foundersAnalyticsLoading}
+            >
+              {language === 'uz' ? 'Yopish' : 'Закрыть'}
+            </Button>
+            <Button type="submit" className="btn-primary-custom" disabled={foundersAnalyticsLoading}>
+              {foundersAnalyticsLoading
+                ? (language === 'uz' ? 'Tekshirilmoqda...' : 'Проверка...')
+                : (language === 'uz' ? 'Kirish' : 'Войти')}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
 
       {/* Topup Modal */}
       <Modal show={showTopupModal} onHide={closeTopupModal} centered className="admin-modal">

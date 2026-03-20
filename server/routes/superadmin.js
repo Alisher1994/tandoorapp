@@ -129,6 +129,29 @@ const DEFAULT_ACTIVITY_TYPES = [
 ];
 const AI_PROVIDER_TYPES = new Set(['gemini', 'openai', 'openrouter', 'replicate', 'cloudflare', 'pollinations', 'custom']);
 const AI_PROVIDER_OPERATIONS = new Set(['image_generate', 'image_process', 'text_generate']);
+const FOUNDERS_ACCESS_PASSWORD = String(process.env.FOUNDERS_ACCESS_PASSWORD || '01012026').trim();
+const FOUNDER_SHARE_CONFIG = [
+  {
+    key: 'admin',
+    name: 'Admin',
+    order_percent: 10,
+    reservation_percent: 80
+  },
+  {
+    key: 'davron',
+    name: 'Davron',
+    order_percent: 50,
+    reservation_percent: 10
+  },
+  {
+    key: 'mirzaolim',
+    name: 'Mirzaolim',
+    order_percent: 40,
+    reservation_percent: 10
+  }
+];
+const BILLING_ORDER_WITHDRAWAL_PATTERN = `%за заказ #%`;
+const BILLING_RESERVATION_WITHDRAWAL_PATTERNS = [`%за бронь #%`, `%за бронирование #%`];
 
 const normalizeTokenValue = (value) => {
   const normalized = value ? String(value).trim() : '';
@@ -278,6 +301,16 @@ const parseProviderTag = (value) => {
     type: raw.slice(0, separator).trim().toLowerCase(),
     model: raw.slice(separator + 1).trim()
   };
+};
+const parseDateRangeFilterValue = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  return raw;
+};
+const roundMoneyValue = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.round((numeric + Number.EPSILON) * 100) / 100;
 };
 
 const ensureActivityTypesSchema = async () => {
@@ -3834,6 +3867,120 @@ router.get('/billing/transactions', async (req, res) => {
   } catch (error) {
     console.error('Billing transactions list error:', error);
     res.status(500).json({ error: 'Ошибка получения журнала операций' });
+  }
+});
+
+router.get('/founders/analytics', async (req, res) => {
+  try {
+    const providedPassword = String(req.get('x-founders-password') || req.query.password || '').trim();
+    if (!providedPassword || providedPassword !== FOUNDERS_ACCESS_PASSWORD) {
+      return res.status(403).json({ error: 'Неверный пароль доступа к вкладке учредителей' });
+    }
+
+    const startDate = parseDateRangeFilterValue(req.query.start_date);
+    const endDate = parseDateRangeFilterValue(req.query.end_date);
+    const params = [
+      BILLING_ORDER_WITHDRAWAL_PATTERN,
+      BILLING_RESERVATION_WITHDRAWAL_PATTERNS[0],
+      BILLING_RESERVATION_WITHDRAWAL_PATTERNS[1]
+    ];
+    const whereParts = [
+      `bt.type = 'withdrawal'`,
+      `bt.amount < 0`,
+      `(bt.description ILIKE $1 OR bt.description ILIKE $2 OR bt.description ILIKE $3)`
+    ];
+
+    if (startDate) {
+      params.push(startDate);
+      whereParts.push(`bt.created_at::date >= $${params.length}`);
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereParts.push(`bt.created_at::date <= $${params.length}`);
+    }
+
+    const summaryResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(BTRIM(r.currency_code), ''), 'uz') AS currency_code,
+        COUNT(*) FILTER (WHERE bt.description ILIKE $1)::int AS orders_count,
+        COALESCE(SUM(CASE WHEN bt.description ILIKE $1 THEN ABS(bt.amount) ELSE 0 END), 0)::numeric AS orders_total,
+        COUNT(*) FILTER (WHERE bt.description ILIKE $2 OR bt.description ILIKE $3)::int AS reservations_count,
+        COALESCE(SUM(CASE WHEN bt.description ILIKE $2 OR bt.description ILIKE $3 THEN ABS(bt.amount) ELSE 0 END), 0)::numeric AS reservations_total
+      FROM billing_transactions bt
+      INNER JOIN restaurants r ON r.id = bt.restaurant_id
+      WHERE ${whereParts.join(' AND ')}
+      GROUP BY currency_code
+      ORDER BY currency_code ASC
+      `,
+      params
+    );
+
+    const totalsByCurrency = (summaryResult.rows || []).map((row) => {
+      const ordersTotal = roundMoneyValue(row.orders_total);
+      const reservationsTotal = roundMoneyValue(row.reservations_total);
+      const ordersCount = Number.parseInt(row.orders_count, 10) || 0;
+      const reservationsCount = Number.parseInt(row.reservations_count, 10) || 0;
+      return {
+        currency_code: String(row.currency_code || 'uz').toLowerCase(),
+        orders_count: ordersCount,
+        orders_total: ordersTotal,
+        reservations_count: reservationsCount,
+        reservations_total: reservationsTotal,
+        transactions_count: ordersCount + reservationsCount,
+        total_distributable: roundMoneyValue(ordersTotal + reservationsTotal)
+      };
+    });
+
+    const moduleTotals = totalsByCurrency.flatMap((row) => ([
+      {
+        module_key: 'orders',
+        module_label: 'Заказы товаров',
+        currency_code: row.currency_code,
+        transactions_count: row.orders_count,
+        amount: row.orders_total
+      },
+      {
+        module_key: 'reservations',
+        module_label: 'Бронирования',
+        currency_code: row.currency_code,
+        transactions_count: row.reservations_count,
+        amount: row.reservations_total
+      }
+    ]));
+
+    const founderTotals = [];
+    for (const row of totalsByCurrency) {
+      for (const founder of FOUNDER_SHARE_CONFIG) {
+        const ordersAmount = roundMoneyValue((row.orders_total * Number(founder.order_percent || 0)) / 100);
+        const reservationsAmount = roundMoneyValue((row.reservations_total * Number(founder.reservation_percent || 0)) / 100);
+        founderTotals.push({
+          founder_key: founder.key,
+          founder_name: founder.name,
+          currency_code: row.currency_code,
+          order_percent: Number(founder.order_percent || 0),
+          reservation_percent: Number(founder.reservation_percent || 0),
+          orders_amount: ordersAmount,
+          reservations_amount: reservationsAmount,
+          total_amount: roundMoneyValue(ordersAmount + reservationsAmount)
+        });
+      }
+    }
+
+    res.json({
+      period: {
+        start_date: startDate,
+        end_date: endDate
+      },
+      shares_config: FOUNDER_SHARE_CONFIG,
+      totals_by_currency: totalsByCurrency,
+      module_totals: moduleTotals,
+      founder_totals: founderTotals,
+      generated_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Get founders analytics error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки аналитики учредителей' });
   }
 });
 
