@@ -173,6 +173,82 @@ const validateSpreadsheetImportFile = (file) => {
   }
   return '';
 };
+const parseClipboardTableMatrix = (rawText) => {
+  const normalizedText = String(rawText || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+  const lines = normalizedText
+    .split('\n')
+    .map((line) => String(line || '').replace(/\u0000/g, ''))
+    .filter((line) => line.trim() !== '');
+  if (!lines.length) return [];
+
+  const delimiters = ['\t', ';', ','];
+  let selectedDelimiter = '\t';
+  let bestScore = -1;
+  for (const delimiter of delimiters) {
+    const score = lines.reduce((acc, line) => acc + (line.split(delimiter).length - 1), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      selectedDelimiter = delimiter;
+    }
+  }
+
+  return lines.map((line) => line.split(selectedDelimiter).map((cell) => String(cell || '').trim()));
+};
+const isOperatorProductsPasteHeaderRow = (cells = []) => {
+  const joined = String((cells || []).join(' ') || '').toLowerCase();
+  if (!joined) return false;
+  return (
+    joined.includes('категор')
+    || joined.includes('category')
+    || joined.includes('название')
+    || joined.includes('name')
+    || joined.includes('описание')
+    || joined.includes('description')
+    || joined.includes('цена')
+    || joined.includes('price')
+    || joined.includes('единиц')
+    || joined.includes('unit')
+    || joined.includes('штрих')
+    || joined.includes('barcode')
+    || joined.includes('икпу')
+    || joined.includes('ikpu')
+    || joined.includes('сезон')
+    || joined.includes('hidden')
+  );
+};
+const mapOperatorProductsPasteMatrixRows = (matrix = []) => {
+  if (!Array.isArray(matrix) || matrix.length === 0) return [];
+  const sourceRows = isOperatorProductsPasteHeaderRow(matrix[0]) ? matrix.slice(1) : matrix;
+  const rows = [];
+
+  sourceRows.forEach((cells = [], index) => {
+    const normalizedCells = Array.from({ length: 14 }, (_, colIndex) => String(cells[colIndex] || '').trim());
+    const hasAnyValue = normalizedCells.some((value) => value !== '');
+    if (!hasAnyValue) return;
+
+    rows.push({
+      rowNo: index + 1,
+      sourceCategoryId: normalizedCells[0],
+      sourceCategoryPath: normalizedCells[1],
+      sourceCategoryName: normalizedCells[2],
+      name_ru: normalizedCells[3],
+      name_uz: normalizedCells[4],
+      description_ru: normalizedCells[5],
+      description_uz: normalizedCells[6],
+      price_raw: normalizedCells[7],
+      unit: normalizedCells[8] || 'шт',
+      barcode: normalizedCells[9],
+      ikpu: normalizedCells[10],
+      in_stock_raw: normalizedCells[11],
+      season_scope_raw: normalizedCells[12],
+      is_hidden_catalog_raw: normalizedCells[13]
+    });
+  });
+
+  return rows;
+};
 const padDatePart = (value) => String(value).padStart(2, '0');
 const toLocalDateKey = (rawDate) => {
   const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
@@ -5579,14 +5655,25 @@ function AdminDashboard() {
   const [excelFile, setExcelFile] = useState(null);
   const [excelPreview, setExcelPreview] = useState([]);
   const [importingExcel, setImportingExcel] = useState(false);
+  const [showPasteImportModal, setShowPasteImportModal] = useState(false);
+  const [pastedImportRows, setPastedImportRows] = useState([]);
+  const [pasteImportError, setPasteImportError] = useState('');
   const [showImportReviewModal, setShowImportReviewModal] = useState(false);
   const [preparedImportRows, setPreparedImportRows] = useState([]);
   const [savingImportRows, setSavingImportRows] = useState(false);
+  const pasteImportInputRef = useRef(null);
 
   const closeExcelImportModal = () => {
     setShowExcelModal(false);
     setExcelFile(null);
     setExcelPreview([]);
+  };
+
+  const closePasteImportModal = () => {
+    if (importingExcel) return;
+    setShowPasteImportModal(false);
+    setPastedImportRows([]);
+    setPasteImportError('');
   };
 
   const closeImportReviewModal = () => {
@@ -5651,6 +5738,100 @@ function AdminDashboard() {
     return { ...row, isValid: true, error: '' };
   };
 
+  useEffect(() => {
+    if (!showPasteImportModal) return;
+    const timer = setTimeout(() => {
+      pasteImportInputRef.current?.focus();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [showPasteImportModal]);
+
+  const buildPreparedImportRows = (jsonData = [], rowNumberOffset = 2) => (
+    (Array.isArray(jsonData) ? jsonData : []).map((row, index) => {
+      const rowNo = index + rowNumberOffset;
+      const categoryIdRaw = row['Категория ID'] ?? row.category_id;
+      const categoryPathRaw = row['Категория путь'] ?? row['Путь категории'] ?? row.category_path;
+      const categoryNameRaw = row['Категория'] ?? row.category_name;
+      const categoryResolved = resolveCategoryForImport({
+        categoryIdRaw,
+        categoryPathRaw,
+        categoryNameRaw
+      });
+
+      const mappedRow = {
+        rowNo,
+        sourceCategoryId: String(categoryIdRaw ?? '').trim(),
+        sourceCategoryPath: String(categoryPathRaw ?? '').trim(),
+        sourceCategoryName: String(categoryNameRaw ?? '').trim(),
+        category_id: categoryResolved.category?.id || '',
+        category_label: categoryResolved.category?.path || '',
+        name_ru: String(row['Название (RU)'] || row['Название'] || row.name_ru || '').trim(),
+        name_uz: String(row['Название (UZ)'] || row.name_uz || '').trim(),
+        description_ru: String(row['Описание (RU)'] || row['Описание RU'] || row.description_ru || '').trim(),
+        description_uz: String(row['Описание (UZ)'] || row['Описание UZ'] || row.description_uz || '').trim(),
+        price: normalizeProductPriceValue(row['Цена'] ?? row.price, 0),
+        unit: String(row['Единица'] || row['Ед. изм.'] || row['Ед.изм.'] || row.unit || 'шт').trim() || 'шт',
+        barcode: String(row['Штрихкод'] || row['Баркод'] || row.barcode || '').replace(/\s+/g, '').slice(0, 120),
+        ikpu: String(row['ИКПУ'] || row['Код ИКПУ'] || row.ikpu || '').replace(/\s+/g, ' ').trim().slice(0, 64),
+        in_stock: parseYesNoForImport(row['В наличии'] ?? row.in_stock, true),
+        season_scope: parseSeasonScopeForImport(row['Сезонность'] ?? row.season_scope),
+        is_hidden_catalog: parseYesNoForImport(row['Скрыть из каталога'] ?? row.is_hidden_catalog, undefined),
+        error: categoryResolved.error,
+        isValid: false
+      };
+
+      return validatePreparedImportRow(mappedRow);
+    })
+  );
+
+  const handleProductsPasteImport = (event) => {
+    const clipboardText = event?.clipboardData?.getData('text/plain') || '';
+    if (!clipboardText.trim()) return;
+    event.preventDefault();
+
+    const matrix = parseClipboardTableMatrix(clipboardText);
+    const mappedRows = mapOperatorProductsPasteMatrixRows(matrix);
+    if (!mappedRows.length) {
+      setPastedImportRows([]);
+      setPasteImportError('В буфере не найдено подходящих строк для импорта');
+      return;
+    }
+
+    setPastedImportRows(mappedRows);
+    setPasteImportError('');
+  };
+
+  const continuePasteImportToReview = () => {
+    if (!pastedImportRows.length) {
+      setPasteImportError('Сначала вставьте данные через Ctrl+V');
+      return;
+    }
+
+    const jsonRows = pastedImportRows.map((row) => ({
+      'Категория ID': row.sourceCategoryId,
+      'Категория путь': row.sourceCategoryPath,
+      'Категория': row.sourceCategoryName,
+      'Название (RU)': row.name_ru,
+      'Название (UZ)': row.name_uz,
+      'Описание (RU)': row.description_ru,
+      'Описание (UZ)': row.description_uz,
+      'Цена': row.price_raw,
+      'Единица': row.unit,
+      'Штрихкод': row.barcode,
+      'ИКПУ': row.ikpu,
+      'В наличии': row.in_stock_raw,
+      'Сезонность': row.season_scope_raw,
+      'Скрыть из каталога': row.is_hidden_catalog_raw
+    }));
+
+    const preparedRows = buildPreparedImportRows(jsonRows, 2);
+    setPreparedImportRows(preparedRows);
+    setShowPasteImportModal(false);
+    setPastedImportRows([]);
+    setPasteImportError('');
+    setShowImportReviewModal(true);
+  };
+
   const handleExcelFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -5705,42 +5886,7 @@ function AdminDashboard() {
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-          const preparedRows = jsonData.map((row, index) => {
-            const rowNo = index + 2;
-            const categoryIdRaw = row['Категория ID'] ?? row.category_id;
-            const categoryPathRaw = row['Категория путь'] ?? row['Путь категории'] ?? row.category_path;
-            const categoryNameRaw = row['Категория'] ?? row.category_name;
-            const categoryResolved = resolveCategoryForImport({
-              categoryIdRaw,
-              categoryPathRaw,
-              categoryNameRaw
-            });
-
-            const mappedRow = {
-              rowNo,
-              sourceCategoryId: String(categoryIdRaw ?? '').trim(),
-              sourceCategoryPath: String(categoryPathRaw ?? '').trim(),
-              sourceCategoryName: String(categoryNameRaw ?? '').trim(),
-              category_id: categoryResolved.category?.id || '',
-              category_label: categoryResolved.category?.path || '',
-              name_ru: String(row['Название (RU)'] || row['Название'] || row.name_ru || '').trim(),
-              name_uz: String(row['Название (UZ)'] || row.name_uz || '').trim(),
-              description_ru: String(row['Описание (RU)'] || row['Описание RU'] || row.description_ru || '').trim(),
-              description_uz: String(row['Описание (UZ)'] || row['Описание UZ'] || row.description_uz || '').trim(),
-              price: normalizeProductPriceValue(row['Цена'] ?? row.price, 0),
-              unit: String(row['Единица'] || row['Ед. изм.'] || row['Ед.изм.'] || row.unit || 'шт').trim() || 'шт',
-              barcode: String(row['Штрихкод'] || row['Баркод'] || row.barcode || '').replace(/\s+/g, '').slice(0, 120),
-              ikpu: String(row['ИКПУ'] || row['Код ИКПУ'] || row.ikpu || '').replace(/\s+/g, ' ').trim().slice(0, 64),
-              in_stock: parseYesNoForImport(row['В наличии'] ?? row.in_stock, true),
-              season_scope: parseSeasonScopeForImport(row['Сезонность'] ?? row.season_scope),
-              is_hidden_catalog: parseYesNoForImport(row['Скрыть из каталога'] ?? row.is_hidden_catalog, undefined),
-              error: categoryResolved.error,
-              isValid: false
-            };
-
-            return validatePreparedImportRow(mappedRow);
-          });
+          const preparedRows = buildPreparedImportRows(jsonData, 2);
 
           setPreparedImportRows(preparedRows);
           setShowExcelModal(false);
@@ -9606,6 +9752,10 @@ function AdminDashboard() {
                       <Button variant="dark" className="btn-primary-custom" onClick={() => setShowExcelModal(true)}>
                         <span className="d-none d-md-inline">{t('importExcel')}</span>
                         <span className="d-md-none">Импорт</span>
+                      </Button>
+                      <Button variant="outline-dark" className="btn-primary-custom" onClick={() => setShowPasteImportModal(true)}>
+                        <span className="d-none d-md-inline">Вставка Ctrl+V</span>
+                        <span className="d-md-none">Вставка</span>
                       </Button>
                     </div>
                   </Col>
@@ -14039,6 +14189,137 @@ function AdminDashboard() {
                 {broadcastLoading ? '...' : isScheduled ? '📅 Запланировать' : '🚀 Отправить всем'}
               </Button>
             )}
+          </Modal.Footer>
+        </Modal>
+
+        {/* Paste Import Modal */}
+        <Modal show={showPasteImportModal} onHide={closePasteImportModal} size="xl">
+          <Modal.Header closeButton>
+            <Modal.Title>Массовая вставка товаров (Ctrl+V)</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="info" className="mb-3">
+              Скопируйте строки из Excel и вставьте через <strong>Ctrl+V</strong> в поле ниже.
+              Каждая строка — один товар, варианты для этих товаров не создаются (добавляются вручную в редактировании).
+            </Alert>
+
+            <div className="table-responsive mb-3">
+              <Table bordered size="sm" className="mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ width: 60 }}>№</th>
+                    <th style={{ minWidth: 190 }}>Колонка</th>
+                    <th>Что вставлять</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['1', 'Категория ID', 'ID конечной категории (приоритет)'],
+                    ['2', 'Категория путь', 'Полный путь категории'],
+                    ['3', 'Категория', 'Название категории (если уникальное)'],
+                    ['4', 'Название (RU)', 'Название товара (обязательно)'],
+                    ['5', 'Название (UZ)', 'Название на узбекском'],
+                    ['6', 'Описание (RU)', 'Описание на русском'],
+                    ['7', 'Описание (UZ)', 'Описание на узбекском'],
+                    ['8', 'Цена', 'Цена товара'],
+                    ['9', 'Единица', 'Ед. измерения (шт, кг...)'],
+                    ['10', 'Штрихкод', 'Штрихкод'],
+                    ['11', 'ИКПУ', 'Код ИКПУ'],
+                    ['12', 'В наличии', 'Да/Нет'],
+                    ['13', 'Сезонность', 'Всесезонный/Весна/Лето/Осень/Зима'],
+                    ['14', 'Скрыть из каталога', 'Да/Нет']
+                  ].map((item) => (
+                    <tr key={`paste-import-column-${item[0]}`}>
+                      <td>{item[0]}</td>
+                      <td><code>{item[1]}</code></td>
+                      <td>{item[2]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Поле для вставки</Form.Label>
+              <Form.Control
+                ref={pasteImportInputRef}
+                as="textarea"
+                rows={4}
+                placeholder="Нажмите сюда и вставьте данные из Excel (Ctrl+V)"
+                onPaste={handleProductsPasteImport}
+              />
+            </Form.Group>
+
+            {pasteImportError && (
+              <Alert variant="warning" className="mb-3">
+                {pasteImportError}
+              </Alert>
+            )}
+
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <strong>Распознано строк: {pastedImportRows.length}</strong>
+              <Button
+                variant="outline-danger"
+                size="sm"
+                onClick={() => {
+                  setPastedImportRows([]);
+                  setPasteImportError('');
+                }}
+                disabled={pastedImportRows.length === 0}
+              >
+                Очистить
+              </Button>
+            </div>
+
+            <div className="table-responsive" style={{ maxHeight: '40vh', overflow: 'auto' }}>
+              <Table bordered hover size="sm" className="mb-0">
+                <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                  <tr>
+                    <th style={{ minWidth: '70px' }}>№</th>
+                    <th style={{ minWidth: '220px' }}>Название (RU)</th>
+                    <th style={{ minWidth: '220px' }}>Название (UZ)</th>
+                    <th style={{ minWidth: '120px' }}>Цена</th>
+                    <th style={{ minWidth: '260px' }}>Категория (из буфера)</th>
+                    <th style={{ minWidth: '170px' }}>Штрихкод / ИКПУ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pastedImportRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center text-muted py-4">
+                        Пока нет вставленных строк
+                      </td>
+                    </tr>
+                  ) : (
+                    pastedImportRows.map((row) => (
+                      <tr key={`pasted-import-row-${row.rowNo}`}>
+                        <td>{row.rowNo}</td>
+                        <td>{row.name_ru || '-'}</td>
+                        <td>{row.name_uz || '-'}</td>
+                        <td>{row.price_raw || '-'}</td>
+                        <td>{row.sourceCategoryId || row.sourceCategoryPath || row.sourceCategoryName || '-'}</td>
+                        <td>
+                          <div>{row.barcode || '-'}</div>
+                          <div className="small text-muted">{row.ikpu || '-'}</div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closePasteImportModal}>
+              Отмена
+            </Button>
+            <Button
+              variant="success"
+              onClick={continuePasteImportToReview}
+              disabled={pastedImportRows.length === 0}
+            >
+              Далее на проверку
+            </Button>
           </Modal.Footer>
         </Modal>
 

@@ -319,6 +319,74 @@ const normalizeSpreadsheetCellText = (value, maxLength = 3000) => (
     .slice(0, maxLength)
 );
 const toSpreadsheetRowNumber = (index) => (Number(index) + 2);
+const parseClipboardTableMatrix = (rawText) => {
+  const normalizedText = String(rawText || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+  const lines = normalizedText
+    .split('\n')
+    .map((line) => String(line || '').replace(/\u0000/g, ''))
+    .filter((line) => line.trim() !== '');
+  if (!lines.length) return [];
+
+  const delimiters = ['\t', ';', ','];
+  let selectedDelimiter = '\t';
+  let bestScore = -1;
+  for (const delimiter of delimiters) {
+    const score = lines.reduce((acc, line) => acc + (line.split(delimiter).length - 1), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      selectedDelimiter = delimiter;
+    }
+  }
+
+  return lines.map((line) => line.split(selectedDelimiter).map((cell) => String(cell || '').trim()));
+};
+const isGlobalProductsPasteHeaderRow = (cells = []) => {
+  const joined = String((cells || []).join(' ') || '').toLowerCase();
+  if (!joined) return false;
+  return (
+    joined.includes('название')
+    || joined.includes('name')
+    || joined.includes('описание')
+    || joined.includes('description')
+    || joined.includes('штрих')
+    || joined.includes('barcode')
+    || joined.includes('икпу')
+    || joined.includes('ikpu')
+    || joined.includes('единиц')
+    || joined.includes('unit')
+    || joined.includes('категор')
+    || joined.includes('category')
+  );
+};
+const mapGlobalProductsPasteMatrixRows = (matrix = []) => {
+  if (!Array.isArray(matrix) || matrix.length === 0) return [];
+  const sourceRows = isGlobalProductsPasteHeaderRow(matrix[0]) ? matrix.slice(1) : matrix;
+  const rows = [];
+
+  sourceRows.forEach((cells = [], index) => {
+    const normalizedCells = Array.from({ length: 10 }, (_, colIndex) => String(cells[colIndex] || '').trim());
+    const hasAnyValue = normalizedCells.some((value) => value !== '');
+    if (!hasAnyValue) return;
+
+    rows.push({
+      row_no: index + 1,
+      name_ru: normalizeSpreadsheetCellText(normalizedCells[0], 255),
+      name_uz: normalizeSpreadsheetCellText(normalizedCells[1], 255),
+      description_ru: normalizeSpreadsheetCellText(normalizedCells[2], 3000),
+      description_uz: normalizeSpreadsheetCellText(normalizedCells[3], 3000),
+      barcode: normalizeSpreadsheetCellText(normalizedCells[4], 120).replace(/\s+/g, ''),
+      ikpu: normalizeSpreadsheetCellText(normalizedCells[5], 64),
+      unit: normalizeSpreadsheetCellText(normalizedCells[6], 32) || 'шт',
+      category_id_raw: normalizeSpreadsheetCellText(normalizedCells[7], 50),
+      category_path_raw: normalizeSpreadsheetCellText(normalizedCells[8], 255),
+      category_name_raw: normalizeSpreadsheetCellText(normalizedCells[9], 255)
+    });
+  });
+
+  return rows;
+};
 const buildRatingStarsText = (value) => {
   const normalized = normalizeOrderRatingValue(value);
   return `${'★'.repeat(normalized)}${'☆'.repeat(Math.max(0, MAX_ORDER_RATING - normalized))}`;
@@ -999,6 +1067,9 @@ function SuperAdminDashboard() {
   const [globalProductsLoading, setGlobalProductsLoading] = useState(false);
   const [isImportingGlobalProductsExcel, setIsImportingGlobalProductsExcel] = useState(false);
   const [isApplyingGlobalProductsExcelImport, setIsApplyingGlobalProductsExcelImport] = useState(false);
+  const [showGlobalProductsPasteModal, setShowGlobalProductsPasteModal] = useState(false);
+  const [globalProductsPasteRows, setGlobalProductsPasteRows] = useState([]);
+  const [globalProductsPasteError, setGlobalProductsPasteError] = useState('');
   const [showGlobalProductsImportReviewModal, setShowGlobalProductsImportReviewModal] = useState(false);
   const [showGlobalProductsImportTemplateModal, setShowGlobalProductsImportTemplateModal] = useState(false);
   const [globalProductsImportRows, setGlobalProductsImportRows] = useState([]);
@@ -1028,6 +1099,7 @@ function SuperAdminDashboard() {
   const [globalProductTextLoading, setGlobalProductTextLoading] = useState(false);
   const categoryImportInputRef = useRef(null);
   const globalProductsImportInputRef = useRef(null);
+  const globalProductsPasteInputRef = useRef(null);
   const globalProductImageInputRef = useRef(null);
   const categoryAiRequestIdRef = useRef(0);
   const globalProductAiRequestIdRef = useRef(0);
@@ -1470,6 +1542,13 @@ function SuperAdminDashboard() {
       sample: 'Шахматы'
     }
   ]), [language]);
+  useEffect(() => {
+    if (!showGlobalProductsPasteModal) return;
+    const timer = setTimeout(() => {
+      globalProductsPasteInputRef.current?.focus();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [showGlobalProductsPasteModal]);
   const dismissScamPrankModal = () => setShowScamPrankModal(false);
   const handleScamPrankButtonsShuffle = () => {
     setScamPrankButtonsOrder((prev) => (prev[0] === 'ha' ? ['yoq', 'ha'] : ['ha', 'yoq']));
@@ -5288,17 +5367,7 @@ function SuperAdminDashboard() {
     };
   };
 
-  const handleImportGlobalProductsFile = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    const fileValidationError = validateSpreadsheetImportFile(file);
-    if (fileValidationError) {
-      setError(fileValidationError);
-      return;
-    }
-
+  const prepareGlobalProductsImportFromJsonRows = async (jsonRows, sourceLabel = '') => {
     setIsImportingGlobalProductsExcel(true);
     try {
       let categoriesForImport = Array.isArray(categories) ? categories : [];
@@ -5371,15 +5440,9 @@ function SuperAdminDashboard() {
         byUniqueName: categoryByUniqueNameLookup
       };
 
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[firstSheetName];
-      const jsonRows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
-
       if (!Array.isArray(jsonRows) || jsonRows.length === 0) {
         setError(language === 'uz' ? 'Fayl bo‘sh' : 'Файл пустой');
-        return;
+        return false;
       }
 
       const pickCellValue = (rowMap, aliases = []) => {
@@ -5492,7 +5555,7 @@ function SuperAdminDashboard() {
         setError(language === 'uz'
           ? "Import uchun mos qator topilmadi"
           : 'Не найдено строк для импорта');
-        return;
+        return false;
       }
 
       const nameKeys = [...new Set(
@@ -5518,15 +5581,97 @@ function SuperAdminDashboard() {
         };
       });
 
-      setGlobalProductsImportSourceFileName(String(file.name || '').trim());
+      setGlobalProductsImportSourceFileName(String(sourceLabel || '').trim());
       setGlobalProductsImportRows(rowsWithConflicts);
+      setShowGlobalProductsPasteModal(false);
+      setGlobalProductsPasteRows([]);
+      setGlobalProductsPasteError('');
       setShowGlobalProductsImportReviewModal(true);
+      return true;
     } catch (err) {
       setError(err?.response?.data?.error || err?.message || (language === 'uz'
         ? "Global mahsulotlar importida xatolik"
         : 'Ошибка импорта глобальных товаров'));
+      return false;
     } finally {
       setIsImportingGlobalProductsExcel(false);
+    }
+  };
+
+  const closeGlobalProductsPasteModal = () => {
+    if (isImportingGlobalProductsExcel) return;
+    setShowGlobalProductsPasteModal(false);
+    setGlobalProductsPasteRows([]);
+    setGlobalProductsPasteError('');
+  };
+
+  const handleGlobalProductsPaste = (event) => {
+    const clipboardText = event?.clipboardData?.getData('text/plain') || '';
+    if (!clipboardText.trim()) return;
+    event.preventDefault();
+
+    const matrix = parseClipboardTableMatrix(clipboardText);
+    const mappedRows = mapGlobalProductsPasteMatrixRows(matrix);
+    if (!mappedRows.length) {
+      setGlobalProductsPasteRows([]);
+      setGlobalProductsPasteError(language === 'uz'
+        ? "Buferda import uchun mos satr topilmadi"
+        : 'В буфере не найдено подходящих строк для импорта');
+      return;
+    }
+    setGlobalProductsPasteRows(mappedRows);
+    setGlobalProductsPasteError('');
+  };
+
+  const continueGlobalProductsPasteToReview = async () => {
+    if (!globalProductsPasteRows.length) {
+      setGlobalProductsPasteError(language === 'uz'
+        ? "Avval Ctrl+V orqali ma'lumot kiriting"
+        : 'Сначала вставьте данные через Ctrl+V');
+      return;
+    }
+
+    const jsonRows = globalProductsPasteRows.map((row) => ({
+      'Название (RU)': row.name_ru,
+      'Название (UZ)': row.name_uz,
+      'Описание (RU)': row.description_ru,
+      'Описание (UZ)': row.description_uz,
+      'Штрихкод': row.barcode,
+      'ИКПУ': row.ikpu,
+      'Единица': row.unit,
+      'Рекомендуемая категория ID': row.category_id_raw,
+      'Рекомендуемая категория путь': row.category_path_raw,
+      'Рекомендуемая категория': row.category_name_raw
+    }));
+
+    await prepareGlobalProductsImportFromJsonRows(
+      jsonRows,
+      language === 'uz' ? 'Буфер обмена' : 'Буфер обмена'
+    );
+  };
+
+  const handleImportGlobalProductsFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const fileValidationError = validateSpreadsheetImportFile(file);
+    if (fileValidationError) {
+      setError(fileValidationError);
+      return;
+    }
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheetName];
+      const jsonRows = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
+      await prepareGlobalProductsImportFromJsonRows(jsonRows, String(file.name || '').trim());
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || (language === 'uz'
+        ? "Global mahsulotlar importida xatolik"
+        : 'Ошибка импорта глобальных товаров'));
     }
   };
 
@@ -10163,12 +10308,12 @@ function SuperAdminDashboard() {
                     </Button>
                     <Button
                       variant="outline-primary"
-                      onClick={() => globalProductsImportInputRef.current?.click()}
+                      onClick={() => setShowGlobalProductsPasteModal(true)}
                       disabled={isImportingGlobalProductsExcel}
                     >
                       {isImportingGlobalProductsExcel
                         ? (language === 'uz' ? 'Import...' : 'Импорт...')
-                        : (language === 'uz' ? 'Excel import' : 'Импорт Excel')}
+                        : (language === 'uz' ? 'Import / Paste' : 'Импорт / Вставка')}
                     </Button>
                     <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
                       {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
@@ -14444,6 +14589,142 @@ function SuperAdminDashboard() {
               : (editingActivityType
                 ? (language === 'uz' ? 'Saqlash' : 'Сохранить')
                 : (language === 'uz' ? "Qo'shish" : 'Добавить'))}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showGlobalProductsPasteModal}
+        onHide={closeGlobalProductsPasteModal}
+        size="xl"
+        centered
+      >
+        <Modal.Header closeButton={!isImportingGlobalProductsExcel}>
+          <Modal.Title>
+            {language === 'uz'
+              ? 'Global mahsulotlar: import / paste'
+              : 'Глобальные товары: импорт / вставка'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info" className="mb-3">
+            {language === 'uz'
+              ? "Excel'dan satrlarni nusxa oling va shu oynada Ctrl+V qiling. Har bir satr = bitta товар."
+              : 'Скопируйте строки из Excel и нажмите Ctrl+V в этом окне. Каждая строка = один товар.'}
+          </Alert>
+
+          <div className="d-flex flex-wrap gap-2 mb-3">
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={() => setShowGlobalProductsImportTemplateModal(true)}
+            >
+              {language === 'uz' ? "Ustunlar bo'yicha yo'riqnoma" : 'Памятка по колонкам'}
+            </Button>
+            <Button
+              variant="outline-primary"
+              size="sm"
+              onClick={() => globalProductsImportInputRef.current?.click()}
+              disabled={isImportingGlobalProductsExcel}
+            >
+              {language === 'uz' ? 'Excel faylni tanlash' : 'Выбрать Excel-файл'}
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={() => {
+                setGlobalProductsPasteRows([]);
+                setGlobalProductsPasteError('');
+              }}
+              disabled={isImportingGlobalProductsExcel || globalProductsPasteRows.length === 0}
+            >
+              {language === 'uz' ? 'Tozalash' : 'Очистить'}
+            </Button>
+          </div>
+
+          <Form.Group className="mb-3">
+            <Form.Label>{language === 'uz' ? 'Ctrl+V uchun maydon' : 'Поле для Ctrl+V'}</Form.Label>
+            <Form.Control
+              ref={globalProductsPasteInputRef}
+              as="textarea"
+              rows={4}
+              placeholder={language === 'uz'
+                ? "Excel'dan nusxa oling va shu yerga Ctrl+V qiling"
+                : 'Скопируйте данные из Excel и вставьте сюда через Ctrl+V'}
+              onPaste={handleGlobalProductsPaste}
+            />
+          </Form.Group>
+
+          {globalProductsPasteError && (
+            <Alert variant="warning" className="mb-3">
+              {globalProductsPasteError}
+            </Alert>
+          )}
+
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <strong>
+              {language === 'uz' ? 'Aniqlangan satrlar:' : 'Распознано строк:'}{' '}
+              {globalProductsPasteRows.length}
+            </strong>
+          </div>
+
+          <div className="table-responsive" style={{ maxHeight: '45vh', overflow: 'auto' }}>
+            <Table bordered hover size="sm" className="mb-0">
+              <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                <tr>
+                  <th style={{ minWidth: 70 }}>№</th>
+                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
+                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
+                  <th style={{ minWidth: 260 }}>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</th>
+                  <th style={{ minWidth: 180 }}>{language === 'uz' ? 'Shtrixkod' : 'Штрихкод'}</th>
+                  <th style={{ minWidth: 160 }}>{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
+                  <th style={{ minWidth: 120 }}>{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
+                  <th style={{ minWidth: 180 }}>{language === 'uz' ? 'Категория ID' : 'Категория ID'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {globalProductsPasteRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center text-muted py-4">
+                      {language === 'uz'
+                        ? "Hali ma'lumot kiritilmadi"
+                        : 'Пока нет вставленных данных'}
+                    </td>
+                  </tr>
+                ) : (
+                  globalProductsPasteRows.map((row) => (
+                    <tr key={`global-products-paste-row-${row.row_no}`}>
+                      <td>{row.row_no}</td>
+                      <td>{row.name_ru || '—'}</td>
+                      <td>{row.name_uz || '—'}</td>
+                      <td>{row.description_ru || '—'}</td>
+                      <td>{row.barcode || '—'}</td>
+                      <td>{row.ikpu || '—'}</td>
+                      <td>{row.unit || 'шт'}</td>
+                      <td>{row.category_id_raw || '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </Table>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={closeGlobalProductsPasteModal}
+            disabled={isImportingGlobalProductsExcel}
+          >
+            {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+          <Button
+            className="btn-primary-custom"
+            onClick={continueGlobalProductsPasteToReview}
+            disabled={isImportingGlobalProductsExcel || globalProductsPasteRows.length === 0}
+          >
+            {isImportingGlobalProductsExcel
+              ? (language === 'uz' ? 'Tayyorlanmoqda...' : 'Подготовка...')
+              : (language === 'uz' ? 'Keyingi: dublikatlarni tekshirish' : 'Далее: проверка дублей')}
           </Button>
         </Modal.Footer>
       </Modal>
