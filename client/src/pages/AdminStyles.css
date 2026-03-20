@@ -7886,8 +7886,8 @@ body::-webkit-scrollbar,
     border: 1px solid var(--border-color);
     border-radius: 12px;
     background: transparent;
-    overflow-x: auto;
-    --variants-min-width: 1780px;
+    overflow: hidden;
+    --variants-min-width: 1880px;
     --variants-number-col: 52px;
     --variants-name-col: 12%;
     --variants-ru-col: 11%;
@@ -7898,41 +7898,56 @@ body::-webkit-scrollbar,
     --variants-container-col: 10%;
     --variants-container-norm-col: 7%;
     --variants-step-col: 7%;
-    --variants-photo-col: 12%;
+    --variants-photo-col: 220px;
     --variants-actions-col: 56px;
 }
 
-.admin-thin-scrollbar,
-.admin-variants-simple-wrap,
-.admin-product-variant-inline-images-shell {
+.admin-thin-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.85) transparent;
+    scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable both-edges;
 }
 
-.admin-thin-scrollbar::-webkit-scrollbar,
-.admin-variants-simple-wrap::-webkit-scrollbar,
-.admin-product-variant-inline-images-shell::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
+.admin-thin-scrollbar::-webkit-scrollbar {
+    height: 3px;
+    width: 3px;
 }
 
-.admin-thin-scrollbar::-webkit-scrollbar-track,
-.admin-variants-simple-wrap::-webkit-scrollbar-track,
-.admin-product-variant-inline-images-shell::-webkit-scrollbar-track {
+.admin-thin-scrollbar::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.admin-thin-scrollbar::-webkit-scrollbar-thumb,
-.admin-variants-simple-wrap::-webkit-scrollbar-thumb,
-.admin-product-variant-inline-images-shell::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.85);
+.admin-thin-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
     border-radius: 999px;
+    transition: background-color 0.2s ease;
+}
+
+.admin-thin-scrollbar.is-scrolling,
+.admin-thin-scrollbar:hover,
+.admin-thin-scrollbar:focus-within {
+    scrollbar-color: rgba(148, 163, 184, 0.74) transparent;
+}
+
+.admin-thin-scrollbar.is-scrolling::-webkit-scrollbar-thumb,
+.admin-thin-scrollbar:hover::-webkit-scrollbar-thumb,
+.admin-thin-scrollbar:focus-within::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.74);
 }
 
 .admin-variants-simple-toolbar {
     padding: 0.32rem 0.45rem;
     border-bottom: 1px solid var(--border-color);
     background: transparent;
+    position: sticky;
+    left: 0;
+    z-index: 4;
+}
+
+.admin-variants-simple-table-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: stable both-edges;
 }
 
 .admin-variants-simple-head {
@@ -7943,6 +7958,8 @@ body::-webkit-scrollbar,
     letter-spacing: 0.03em;
     text-transform: uppercase;
     min-width: var(--variants-min-width);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
 }
 
 .admin-variants-simple-head.is-kg {
@@ -7993,6 +8010,8 @@ body::-webkit-scrollbar,
     flex-direction: column;
     gap: 0;
     min-width: var(--variants-min-width);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
 }
 
 .admin-variants-simple-row {
@@ -8004,14 +8023,16 @@ body::-webkit-scrollbar,
     margin: 0 !important;
     min-width: var(--variants-min-width);
     flex-wrap: nowrap !important;
+    align-items: stretch !important;
 }
 
 .admin-variant-table-col {
-    padding: 0.24rem 0.3rem;
+    padding: 0.16rem 0.22rem;
     border-right: 1px solid var(--border-color);
     min-width: 0;
     display: flex;
     align-items: center;
+    box-sizing: border-box;
 }
 
 .admin-variant-table-col > .form-control-custom,
@@ -8099,7 +8120,7 @@ body::-webkit-scrollbar,
 .admin-variant-table-col-images {
     flex: 0 0 var(--variants-photo-col);
     max-width: var(--variants-photo-col);
-    min-width: 210px;
+    min-width: var(--variants-photo-col);
 }
 
 .admin-variant-table-col:last-child {
@@ -8121,85 +8142,85 @@ body::-webkit-scrollbar,
 
 .admin-product-variant-inline-images-shell {
     width: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 8px;
+    border: 0;
+    border-radius: 0;
     background: transparent;
-    padding: 0.14rem 0.18rem;
-    overflow-x: auto;
+    padding: 0;
+    overflow: hidden;
     outline: none;
 }
 
 .admin-product-variant-inline-images-shell:focus-visible {
-    border-color: rgba(71, 85, 105, 0.44);
+    outline: none;
 }
 
 .admin-product-variant-inline-images-row {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 0.24rem;
-    min-width: max-content;
+    gap: 0.16rem;
+    min-width: 0;
 }
 
 .admin-product-variant-inline-image-item {
-    flex: 0 0 44px;
-    width: 44px;
+    flex: 0 0 28px;
+    width: 28px;
 }
 
 .admin-product-image-slot-variant-inline {
-    padding: 0.12rem;
-    border-radius: 7px;
-    gap: 0.2rem;
-    border-color: rgba(148, 163, 184, 0.36);
-    background: rgba(255, 255, 255, 0.72);
+    padding: 0;
+    border-radius: 6px;
+    gap: 0.12rem;
+    border: 0;
+    background: transparent;
 }
 
 .admin-product-image-dropzone-variant-inline {
-    height: 34px;
-    min-height: 34px;
-    border-radius: 6px;
+    height: 28px;
+    min-height: 28px;
+    border-radius: 5px;
     border-style: solid;
-    border-color: rgba(148, 163, 184, 0.42);
-    background: rgba(255, 255, 255, 0.88);
+    border-color: rgba(148, 163, 184, 0.3);
+    background: #ffffff;
 }
 
 .admin-product-image-slot-variant-inline .admin-product-image-placeholder-icon {
-    font-size: 0.82rem;
+    font-size: 0.68rem;
 }
 
 .admin-product-image-slot-variant-inline .admin-product-image-slot-btn {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    min-height: 16px;
-    font-size: 0.55rem;
+    width: 13px;
+    height: 13px;
+    min-width: 13px;
+    min-height: 13px;
+    font-size: 0.5rem;
 }
 
 .admin-product-image-slot-variant-inline .admin-product-image-slot-btn-top-right {
-    top: 0.13rem;
-    right: 0.13rem;
+    top: 0.08rem;
+    right: 0.08rem;
 }
 
 .admin-product-image-select-btn-variant-inline {
-    min-width: 40px;
-    height: 16px;
-    padding: 0 0.28rem;
-    font-size: 0.54rem;
+    min-width: 28px;
+    height: 13px;
+    padding: 0 0.2rem;
+    font-size: 0.48rem;
 }
 
 .admin-product-variant-inline-add-slot {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
-    border: 1px solid rgba(148, 163, 184, 0.42);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.72);
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 6px;
+    background: #ffffff;
     color: #475569;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 0.88rem;
     line-height: 1;
     padding: 0;
 }
@@ -8294,30 +8315,32 @@ body::-webkit-scrollbar,
 }
 
 .admin-variants-simple-body .form-control-custom {
-    border-color: rgba(148, 163, 184, 0.45) !important;
+    border: 0 !important;
+    box-shadow: none !important;
     background: transparent !important;
-    border-radius: 7px !important;
-    min-height: 32px !important;
-    height: 32px !important;
+    border-radius: 0 !important;
+    min-height: 30px !important;
+    height: 30px !important;
     font-size: 0.82rem !important;
-    padding: 0.22rem 0.42rem !important;
+    padding: 0.18rem 0.38rem !important;
 }
 
 .admin-variants-simple-body .form-control-custom:focus {
-    border-color: var(--primary-color) !important;
-    box-shadow: 0 0 0 0.15rem rgba(236, 72, 153, 0.12) !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #f8fafc !important;
 }
 
 @media (max-width: 1399.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1680px;
+        --variants-min-width: 1780px;
         --variants-actions-col: 56px;
     }
 }
 
 @media (max-width: 1199.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1540px;
+        --variants-min-width: 1660px;
         --variants-actions-col: 54px;
     }
 
@@ -8327,13 +8350,13 @@ body::-webkit-scrollbar,
 
     .admin-variants-simple-head > span,
     .admin-variant-table-col {
-        padding: 0.24rem 0.28rem;
+        padding: 0.14rem 0.2rem;
     }
 }
 
 @media (max-width: 991.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1420px;
+        --variants-min-width: 1540px;
         --variants-actions-col: 52px;
     }
 
@@ -8345,7 +8368,7 @@ body::-webkit-scrollbar,
 
 @media (max-width: 767.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1320px;
+        --variants-min-width: 1440px;
         --variants-actions-col: 50px;
     }
 
@@ -8514,13 +8537,13 @@ body::-webkit-scrollbar,
     }
 
     .admin-product-variant-inline-image-item {
-        flex: 0 0 40px;
-        width: 40px;
+        flex: 0 0 26px;
+        width: 26px;
     }
 
     .admin-product-image-dropzone-variant-inline {
-        height: 30px;
-        min-height: 30px;
+        height: 26px;
+        min-height: 26px;
     }
 
     .admin-global-import-arrows {

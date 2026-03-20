@@ -1546,7 +1546,9 @@ function AdminDashboard() {
   const tokenCountdownArmedRef = useRef(false);
   const rowDoubleTapRef = useRef({ key: '', at: 0 });
   const kanbanScrollTimeoutsRef = useRef({});
+  const variantsTableScrollHideTimeoutRef = useRef(null);
   const [kanbanScrollingColumns, setKanbanScrollingColumns] = useState({});
+  const [isVariantsTableScrolling, setIsVariantsTableScrolling] = useState(false);
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
   const [kanbanTimingNowMs, setKanbanTimingNowMs] = useState(() => Date.now());
@@ -2757,6 +2759,13 @@ function AdminDashboard() {
   useEffect(() => () => {
     Object.values(kanbanScrollTimeoutsRef.current).forEach((timerId) => clearTimeout(timerId));
     kanbanScrollTimeoutsRef.current = {};
+  }, []);
+
+  useEffect(() => () => {
+    if (variantsTableScrollHideTimeoutRef.current) {
+      clearTimeout(variantsTableScrollHideTimeoutRef.current);
+      variantsTableScrollHideTimeoutRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -6072,6 +6081,17 @@ function AdminDashboard() {
         return next;
       });
       delete kanbanScrollTimeoutsRef.current[columnKey];
+    }, 700);
+  }, []);
+
+  const handleVariantsTableScroll = useCallback(() => {
+    setIsVariantsTableScrolling((prev) => (prev ? prev : true));
+    if (variantsTableScrollHideTimeoutRef.current) {
+      clearTimeout(variantsTableScrollHideTimeoutRef.current);
+    }
+    variantsTableScrollHideTimeoutRef.current = setTimeout(() => {
+      setIsVariantsTableScrolling(false);
+      variantsTableScrollHideTimeoutRef.current = null;
     }, 700);
   }, []);
 
@@ -12938,31 +12958,35 @@ function AdminDashboard() {
                           +
                         </Button>
                       </div>
-                      <div className={`admin-variants-simple-head ${productForm.unit === 'кг' ? 'is-kg' : 'is-not-kg'}`}>
-                        <span>№</span>
-                        <span>{language === 'uz' ? 'Nomi' : 'Название варианта'}</span>
-                        <span>Описание RU</span>
-                        <span>Описание UZ</span>
-                        <span>{language === 'uz' ? 'Narxi' : 'Цена'}</span>
-                        <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
-                        <span>ИКПУ</span>
-                        <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
-                        <span>{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</span>
-                        {productForm.unit === 'кг' && <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>}
-                        <span>{language === 'uz' ? 'Foto' : 'Фото'}</span>
-                        <span className="text-center">{language === 'uz' ? 'Amal' : 'Действие'}</span>
-                      </div>
+                      <div
+                        className={`admin-variants-simple-table-scroll admin-thin-scrollbar${isVariantsTableScrolling ? ' is-scrolling' : ''}`}
+                        onScroll={handleVariantsTableScroll}
+                      >
+                        <div className={`admin-variants-simple-head ${productForm.unit === 'кг' ? 'is-kg' : 'is-not-kg'}`}>
+                          <span>№</span>
+                          <span>{language === 'uz' ? 'Nomi' : 'Название варианта'}</span>
+                          <span>Описание RU</span>
+                          <span>Описание UZ</span>
+                          <span>{language === 'uz' ? 'Narxi' : 'Цена'}</span>
+                          <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
+                          <span>ИКПУ</span>
+                          <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
+                          <span>{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</span>
+                          {productForm.unit === 'кг' && <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>}
+                          <span>{language === 'uz' ? 'Foto' : 'Фото'}</span>
+                          <span className="text-center">{language === 'uz' ? 'Amal' : 'Действие'}</span>
+                        </div>
 
-                      {(() => {
-                        const fallbackPrice = normalizeProductPriceValue(productForm.price, NaN);
-                        const isKgUnit = productForm.unit === 'кг';
-                        const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
-                          fallbackPrice,
-                          unit: productForm.unit || 'шт'
-                        });
-                        return (
-                          <div className="admin-variants-simple-body">
-                            {currentVariants.map((variant, index) => {
+                        {(() => {
+                          const fallbackPrice = normalizeProductPriceValue(productForm.price, NaN);
+                          const isKgUnit = productForm.unit === 'кг';
+                          const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+                            fallbackPrice,
+                            unit: productForm.unit || 'шт'
+                          });
+                          return (
+                            <div className="admin-variants-simple-body">
+                              {currentVariants.map((variant, index) => {
                                         const visibleSlotsCount = resolveVariantVisibleSlotsCount(variant);
                                         const variantImageSlots = createVariantImageSlots(
                                           variant.product_images,
@@ -12972,7 +12996,7 @@ function AdminDashboard() {
                                         const canAddImageSlot = visibleSlotsCount < VARIANT_IMAGE_SLOTS_COUNT;
                                         return (
                                           <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row admin-variants-simple-row">
-                                            <Row className={`g-0 align-items-start admin-variant-table-input-row ${isKgUnit ? 'is-kg' : 'is-not-kg'}`}>
+                                            <Row className={`g-0 align-items-stretch admin-variant-table-input-row ${isKgUnit ? 'is-kg' : 'is-not-kg'}`}>
                                               <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-number">
                                                 <span className="admin-variant-row-number">{index + 1}</span>
                                               </Col>
@@ -13075,7 +13099,7 @@ function AdminDashboard() {
                                               )}
                                               <Col xl={3} md={8} className="admin-variant-table-col admin-variant-table-col-images">
                                                 <div
-                                                  className="admin-product-variant-inline-images-shell admin-thin-scrollbar"
+                                                  className="admin-product-variant-inline-images-shell"
                                                   tabIndex={0}
                                                   onPaste={(e) => handlePasteToVariantImageSlot(index, e)}
                                                   title={language === 'uz'
@@ -13205,10 +13229,11 @@ function AdminDashboard() {
                                             </Row>
                                           </div>
                                         );
-                            })}
-                          </div>
-                        );
-                      })()}
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </Form.Group>
                   </Col>
                 </Row>
