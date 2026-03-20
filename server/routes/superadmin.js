@@ -6218,6 +6218,79 @@ router.post('/broadcast', async (req, res) => {
   }
 });
 
+router.get('/broadcast/history', async (req, res) => {
+  try {
+    const requestedLimit = Number.parseInt(req.query?.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 50;
+    const requestedPage = Number.parseInt(req.query?.page, 10);
+    const page = Number.isFinite(requestedPage) ? Math.max(requestedPage, 1) : 1;
+    const offset = (page - 1) * limit;
+
+    const historyResult = await pool.query(
+      `
+        SELECT
+          al.id,
+          al.created_at,
+          al.new_values,
+          COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), CONCAT('ID ', al.user_id::text)) AS sender_name,
+          u.username AS sender_username
+        FROM activity_logs al
+        LEFT JOIN users u ON u.id = al.user_id
+        WHERE al.action_type = 'broadcast'
+          AND al.entity_type = 'notification'
+        ORDER BY al.created_at DESC, al.id DESC
+        LIMIT $1 OFFSET $2
+      `,
+      [limit, offset]
+    );
+    const countResult = await pool.query(`
+      SELECT COUNT(*)::int AS total
+      FROM activity_logs al
+      WHERE al.action_type = 'broadcast'
+        AND al.entity_type = 'notification'
+    `);
+
+    const items = (historyResult.rows || []).map((row) => {
+      const payload = row?.new_values && typeof row.new_values === 'object' ? row.new_values : {};
+      const rolesRaw = Array.isArray(payload.roles) ? payload.roles : [];
+      const roles = Array.from(new Set(
+        rolesRaw
+          .map((item) => String(item || '').trim().toLowerCase())
+          .filter((item) => item === 'operator' || item === 'customer')
+      ));
+      const roleStats = payload?.roleStats && typeof payload.roleStats === 'object' ? payload.roleStats : {};
+
+      return {
+        id: Number(row.id || 0),
+        created_at: row.created_at || null,
+        sender_name: row.sender_name || null,
+        sender_username: row.sender_username || null,
+        message: toOptionalTrimmedText(payload.message),
+        image_url: toOptionalTrimmedText(payload.image_url),
+        video_url: toOptionalTrimmedText(payload.video_url),
+        roles,
+        sent: Number.parseInt(payload.sent, 10) || 0,
+        failed: Number.parseInt(payload.failed, 10) || 0,
+        total: Number.parseInt(payload.total, 10) || 0,
+        role_stats: {
+          operator: Number.parseInt(roleStats.operator, 10) || 0,
+          customer: Number.parseInt(roleStats.customer, 10) || 0
+        }
+      };
+    });
+
+    res.json({
+      items,
+      total: Number(countResult.rows?.[0]?.total || 0),
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Superadmin broadcast history error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки истории рассылок' });
+  }
+});
+
 // =====================================================
 // ЛОГИ АКТИВНОСТИ
 // =====================================================
