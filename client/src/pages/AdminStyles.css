@@ -7883,6 +7883,13 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     background: transparent;
     overflow-x: auto;
+    --variants-min-width: 980px;
+    --variants-name-col: 18%;
+    --variants-ru-col: 18%;
+    --variants-uz-col: 18%;
+    --variants-price-col: 13%;
+    --variants-actions-col: 60px;
+    --variants-barcode-min: 190px;
 }
 
 .admin-variants-simple-toolbar {
@@ -7893,13 +7900,13 @@ body::-webkit-scrollbar,
 
 .admin-variants-simple-head {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 0.9fr 1fr 60px;
+    grid-template-columns: var(--variants-name-col) var(--variants-ru-col) var(--variants-uz-col) var(--variants-price-col) 1fr var(--variants-actions-col);
     border-bottom: 1px solid var(--border-color);
     color: var(--text-muted);
     font-size: 0.72rem;
     letter-spacing: 0.03em;
     text-transform: uppercase;
-    min-width: 980px;
+    min-width: var(--variants-min-width);
 }
 
 .admin-variants-simple-head > span {
@@ -7918,7 +7925,7 @@ body::-webkit-scrollbar,
     display: flex;
     flex-direction: column;
     gap: 0;
-    min-width: 980px;
+    min-width: var(--variants-min-width);
 }
 
 .admin-variants-simple-row {
@@ -7928,7 +7935,7 @@ body::-webkit-scrollbar,
 .admin-variant-table-input-row {
     border-bottom: 1px solid var(--border-color);
     margin: 0 !important;
-    min-width: 980px;
+    min-width: var(--variants-min-width);
     flex-wrap: nowrap !important;
 }
 
@@ -7938,27 +7945,35 @@ body::-webkit-scrollbar,
     min-width: 0;
 }
 
-.admin-variant-table-col:nth-child(1),
-.admin-variant-table-col:nth-child(2),
+.admin-variant-table-col:nth-child(1) {
+    flex: 0 0 var(--variants-name-col);
+    max-width: var(--variants-name-col);
+}
+
+.admin-variant-table-col:nth-child(2) {
+    flex: 0 0 var(--variants-ru-col);
+    max-width: var(--variants-ru-col);
+}
+
 .admin-variant-table-col:nth-child(3) {
-    flex: 0 0 18%;
-    max-width: 18%;
+    flex: 0 0 var(--variants-uz-col);
+    max-width: var(--variants-uz-col);
 }
 
 .admin-variant-table-col:nth-child(4) {
-    flex: 0 0 13%;
-    max-width: 13%;
+    flex: 0 0 var(--variants-price-col);
+    max-width: var(--variants-price-col);
 }
 
 .admin-variant-table-col:nth-child(5) {
     flex: 1 1 auto;
-    min-width: 190px;
+    min-width: var(--variants-barcode-min);
 }
 
 .admin-variant-table-col:nth-child(6) {
-    flex: 0 0 60px;
-    max-width: 60px;
-    min-width: 60px;
+    flex: 0 0 var(--variants-actions-col);
+    max-width: var(--variants-actions-col);
+    min-width: var(--variants-actions-col);
 }
 
 .admin-variant-table-col:last-child {
@@ -8126,6 +8141,72 @@ body::-webkit-scrollbar,
 .admin-variants-simple-body .form-control-custom:focus {
     border-color: var(--primary-color) !important;
     box-shadow: 0 0 0 0.15rem rgba(236, 72, 153, 0.12) !important;
+}
+
+@media (max-width: 1399.98px) {
+    .admin-variants-simple-wrap {
+        --variants-min-width: 940px;
+        --variants-name-col: 17.5%;
+        --variants-ru-col: 17.5%;
+        --variants-uz-col: 17.5%;
+        --variants-price-col: 12%;
+        --variants-barcode-min: 180px;
+        --variants-actions-col: 56px;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .admin-variants-simple-wrap {
+        --variants-min-width: 860px;
+        --variants-name-col: 18%;
+        --variants-ru-col: 18%;
+        --variants-uz-col: 18%;
+        --variants-price-col: 13%;
+        --variants-barcode-min: 160px;
+        --variants-actions-col: 54px;
+    }
+
+    .admin-variants-simple-head {
+        font-size: 0.68rem;
+    }
+
+    .admin-variants-simple-head > span,
+    .admin-variant-table-col {
+        padding: 0.38rem 0.4rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .admin-variants-simple-wrap {
+        --variants-min-width: 760px;
+        --variants-name-col: 20%;
+        --variants-ru-col: 20%;
+        --variants-uz-col: 20%;
+        --variants-price-col: 14%;
+        --variants-barcode-min: 140px;
+        --variants-actions-col: 52px;
+    }
+
+    .admin-variants-simple-head {
+        font-size: 0.65rem;
+        letter-spacing: 0.02em;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .admin-variants-simple-wrap {
+        --variants-min-width: 700px;
+        --variants-name-col: 21%;
+        --variants-ru-col: 21%;
+        --variants-uz-col: 21%;
+        --variants-price-col: 15%;
+        --variants-barcode-min: 130px;
+        --variants-actions-col: 50px;
+    }
+
+    .admin-variants-simple-toolbar {
+        padding: 0.4rem 0.45rem;
+    }
 }
 
 .admin-product-sort-input-wrap {
