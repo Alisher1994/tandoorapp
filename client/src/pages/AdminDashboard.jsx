@@ -920,6 +920,7 @@ const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false) =
   const normalizedName = String(name || '').trim();
   const normalizedPrice = normalizeProductPriceValue(fallbackPrice, NaN);
   return {
+    __key: `variant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: normalizedName,
     description_ru: '',
     description_uz: '',
@@ -961,6 +962,8 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } 
     const thumbUrl = String(mainVariantImage.thumb_url || '').trim();
     const normalizedPrice = normalizeProductPriceValue(priceRaw, NaN);
     const isDraft = Boolean(item.__draft) || !name;
+    const explicitPriceRaw = item.price;
+    const hasExplicitPrice = ![undefined, null, ''].includes(explicitPriceRaw) && Number.isFinite(normalizedPrice);
 
     const hasAnyContent = Boolean(
       name
@@ -970,7 +973,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } 
       || imageUrl
       || thumbUrl
       || variantImages.some((variantImage) => String(variantImage?.url || '').trim())
-      || Number.isFinite(normalizedPrice)
+      || hasExplicitPrice
     );
     if (!hasAnyContent && !isDraft) continue;
 
@@ -981,6 +984,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN } 
     }
 
     normalized.push({
+      __key: String(item.__key || `variant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
       name,
       description_ru: descriptionRu,
       description_uz: descriptionUz,
@@ -4625,7 +4629,14 @@ function AdminDashboard() {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
       const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, { fallbackPrice: fallbackBasePrice });
       if (currentVariants.length >= MAX_PRODUCT_SIZE_OPTIONS) return prev;
-      const nextVariants = [...currentVariants, createProductVariantDraft('', fallbackBasePrice, true)];
+      const cleanedVariants = currentVariants.filter((variant) => (
+        String(variant.name || '').trim()
+        || String(variant.description_ru || '').trim()
+        || String(variant.description_uz || '').trim()
+        || String(variant.barcode || '').trim()
+        || (Array.isArray(variant.product_images) && variant.product_images.some((img) => String(img?.url || '').trim()))
+      ));
+      const nextVariants = [...cleanedVariants, createProductVariantDraft('', fallbackBasePrice, true)];
       return {
         ...prev,
         variant_options: nextVariants,
@@ -12631,10 +12642,11 @@ function AdminDashboard() {
                                           variant.thumb_url
                                         );
                                         return (
-                                          <div key={`variant-row-${index}-${variant.name || 'new'}`} className="p-2 rounded-2 border bg-white">
+                                          <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row p-2 rounded-2 border bg-white">
                                             <Row className="g-2 align-items-start">
                                               <Col xl={2} md={6}>
                                                 <Form.Control
+                                                  className="form-control-custom"
                                                   value={variant.name || ''}
                                                   onChange={(event) => updateProductVariantOption(index, 'name', event.target.value)}
                                                   placeholder={language === 'uz' ? 'Variant nomi' : 'Название варианта'}
@@ -12643,6 +12655,7 @@ function AdminDashboard() {
                                               </Col>
                                               <Col xl={2} md={6}>
                                                 <Form.Control
+                                                  className="form-control-custom"
                                                   value={variant.description_ru || ''}
                                                   onChange={(event) => updateProductVariantOption(index, 'description_ru', event.target.value)}
                                                   placeholder="Описание RU"
@@ -12651,6 +12664,7 @@ function AdminDashboard() {
                                               </Col>
                                               <Col xl={2} md={6}>
                                                 <Form.Control
+                                                  className="form-control-custom"
                                                   value={variant.description_uz || ''}
                                                   onChange={(event) => updateProductVariantOption(index, 'description_uz', event.target.value)}
                                                   placeholder="Описание UZ"
@@ -12659,6 +12673,7 @@ function AdminDashboard() {
                                               </Col>
                                               <Col xl={2} md={4}>
                                                 <Form.Control
+                                                  className="form-control-custom"
                                                   type="number"
                                                   min="0"
                                                   step="1"
@@ -12669,6 +12684,7 @@ function AdminDashboard() {
                                               </Col>
                                               <Col xl={3} md={6}>
                                                 <Form.Control
+                                                  className="form-control-custom"
                                                   type="text"
                                                   value={variant.barcode || ''}
                                                   onChange={(event) => updateProductVariantOption(index, 'barcode', event.target.value)}

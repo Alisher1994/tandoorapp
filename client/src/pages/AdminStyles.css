@@ -7863,13 +7863,14 @@ body::-webkit-scrollbar,
     min-height: 38px;
     border-radius: 10px !important;
     border: 1px solid rgba(148, 163, 184, 0.55) !important;
-    color: #64748b !important;
+    color: #475569 !important;
     background: #ffffff !important;
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
     padding: 0 !important;
-    font-size: 1.05rem !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
     line-height: 1 !important;
     box-shadow: none !important;
 }
@@ -7877,10 +7878,20 @@ body::-webkit-scrollbar,
 .admin-variant-remove-btn:hover,
 .admin-variant-remove-btn:focus-visible,
 .admin-variant-remove-btn:active {
-    border-color: #ef4444 !important;
-    color: #ef4444 !important;
-    background: #fef2f2 !important;
+    border-color: rgba(239, 68, 68, 0.65) !important;
+    color: #dc2626 !important;
+    background: rgba(254, 242, 242, 0.95) !important;
     box-shadow: none !important;
+}
+
+.admin-variant-row .form-control-custom {
+    border-color: rgba(148, 163, 184, 0.45) !important;
+    background: #ffffff !important;
+}
+
+.admin-variant-row .form-control-custom:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 0.2rem rgba(236, 72, 153, 0.14) !important;
 }
 
 .admin-product-sort-input-wrap {
