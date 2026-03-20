@@ -31,7 +31,7 @@ const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' 
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
 const MAX_PRODUCT_IMAGES = 5;
-const MAX_PRODUCT_VARIANT_IMAGES = 4;
+const MAX_PRODUCT_VARIANT_IMAGES = 5;
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
 let globalProductsSchemaReady = false;
 let globalProductsSchemaPromise = null;
@@ -51,7 +51,7 @@ const normalizeProductPrice = (value, fallback = null) => {
   const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.round(parsed);
+  return Math.round((parsed + Number.EPSILON) * 100) / 100;
 };
 const normalizeProductOrderStep = (value, unit, fallback = null) => {
   if (String(unit || '').trim() !== 'кг') return null;

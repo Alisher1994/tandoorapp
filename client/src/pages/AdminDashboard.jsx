@@ -88,7 +88,7 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
 };
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
-const VARIANT_IMAGE_SLOTS_COUNT = 4;
+const VARIANT_IMAGE_SLOTS_COUNT = 5;
 const MAX_PRODUCT_SIZE_OPTIONS = 20;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -484,7 +484,30 @@ const normalizeProductPriceValue = (value, fallback = NaN) => {
   const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.round(parsed);
+  return Math.round((parsed + Number.EPSILON) * 100) / 100;
+};
+const sanitizeProductPriceInputValue = (value) => {
+  const raw = String(value ?? '').replace(/\s+/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  if (!raw) return '';
+  const endsWithDot = raw.endsWith('.');
+  const [rawInteger = '', ...rawFractionParts] = raw.split('.');
+  const integerPart = (rawInteger.replace(/^0+(?=\d)/, '') || '0').slice(0, 14);
+  const fractionPart = rawFractionParts.join('').replace(/\./g, '').slice(0, 2);
+  if (rawFractionParts.length > 0 || endsWithDot) {
+    return fractionPart.length > 0 ? `${integerPart}.${fractionPart}` : `${integerPart}.`;
+  }
+  return integerPart;
+};
+const formatProductPriceInputValue = (value) => {
+  const normalized = sanitizeProductPriceInputValue(value);
+  if (!normalized) return '';
+  const hasDot = normalized.includes('.');
+  const endsWithDot = normalized.endsWith('.');
+  const [integerPartRaw = '', fractionPart = ''] = normalized.split('.');
+  const integerPart = integerPartRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  if (!hasDot) return integerPart;
+  if (endsWithDot) return `${integerPart}.`;
+  return `${integerPart}.${fractionPart}`;
 };
 const isPickupOrderForAnalytics = (order) => {
   const fulfillmentType = String(order?.fulfillment_type || '').trim().toLowerCase();
@@ -855,6 +878,22 @@ const createVariantImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl 
   createProductImageSlots(value, fallbackImageUrl, fallbackThumbUrl).slice(0, VARIANT_IMAGE_SLOTS_COUNT)
 );
 const serializeVariantImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, VARIANT_IMAGE_SLOTS_COUNT);
+const clampVariantVisibleSlotsCount = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(VARIANT_IMAGE_SLOTS_COUNT, Math.max(1, parsed));
+};
+const resolveVariantVisibleSlotsCount = (variant) => {
+  const explicitValue = variant?.__slots_count ?? variant?.__slot_count;
+  if (explicitValue !== undefined && explicitValue !== null && String(explicitValue).trim() !== '') {
+    return clampVariantVisibleSlotsCount(explicitValue);
+  }
+  const slots = createVariantImageSlots(variant?.product_images, variant?.image_url, variant?.thumb_url);
+  const lastFilledSlotIndex = slots.reduce((maxIndex, slot, slotIndex) => (
+    String(slot?.url || '').trim() ? slotIndex : maxIndex
+  ), -1);
+  return clampVariantVisibleSlotsCount(lastFilledSlotIndex + 1);
+};
 const normalizeProductVariantContainerNormValue = (value, fallback = 1) => {
   const normalized = String(value ?? '').trim().replace(',', '.');
   const parsed = Number.parseFloat(normalized);
@@ -989,6 +1028,7 @@ const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false, d
     image_url: '',
     thumb_url: '',
     product_images: [],
+    __slots_count: 1,
     __draft: isDraft || !normalizedName
   };
 };
@@ -1026,6 +1066,12 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
     const mainVariantImage = variantImages[0] || { url: '', thumb_url: '' };
     const imageUrl = String(mainVariantImage.url || '').trim();
     const thumbUrl = String(mainVariantImage.thumb_url || '').trim();
+    const visibleSlotsCount = resolveVariantVisibleSlotsCount({
+      ...item,
+      product_images: variantImages,
+      image_url: imageUrl,
+      thumb_url: thumbUrl
+    });
     const normalizedPrice = normalizeProductPriceValue(priceRaw, NaN);
     const isDraft = Boolean(item.__draft) || !name;
     const explicitPriceRaw = item.price;
@@ -1041,6 +1087,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       || orderStep
       || imageUrl
       || thumbUrl
+      || visibleSlotsCount > 1
       || variantImages.some((variantImage) => String(variantImage?.url || '').trim())
       || hasExplicitPrice
     );
@@ -1066,6 +1113,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       image_url: imageUrl,
       thumb_url: thumbUrl,
       product_images: variantImages,
+      __slots_count: visibleSlotsCount,
       __draft: isDraft
     });
     if (normalized.length >= MAX_PRODUCT_SIZE_OPTIONS) break;
@@ -4774,10 +4822,9 @@ function AdminDashboard() {
       const nextVariants = variants.map((variant, variantIndex) => {
         if (variantIndex !== index) return variant;
         if (field === 'price') {
-          const normalizedPrice = normalizeProductPriceValue(value, NaN);
           return {
             ...variant,
-            price: Number.isFinite(normalizedPrice) ? normalizedPrice : ''
+            price: sanitizeProductPriceInputValue(value)
           };
         }
         if (field === 'name') {
@@ -4858,6 +4905,7 @@ function AdminDashboard() {
         if (currentVariantIndex !== variantIndex) return variant;
         const slots = createVariantImageSlots(variant.product_images, variant.image_url, variant.thumb_url);
         if (slotIndex < 0 || slotIndex >= VARIANT_IMAGE_SLOTS_COUNT) return variant;
+        const currentVisibleSlotsCount = resolveVariantVisibleSlotsCount(variant);
 
         const normalizedUrl = String(nextUrl || '').trim();
         slots[slotIndex] = normalizedUrl
@@ -4877,7 +4925,44 @@ function AdminDashboard() {
           ...variant,
           image_url: mainSlot.url || '',
           thumb_url: mainSlot.thumb_url || '',
-          product_images: normalizedSlots
+          product_images: normalizedSlots,
+          __slots_count: clampVariantVisibleSlotsCount(
+            slotIndex >= currentVisibleSlotsCount
+              ? slotIndex + 1
+              : currentVisibleSlotsCount
+          )
+        };
+      });
+
+      const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
+      return {
+        ...prev,
+        variant_options: normalizedVariants,
+        size_options: normalizeProductVariantOptions(normalizedVariants, {
+          fallbackPrice: fallbackBasePrice,
+          unit: prev.unit || 'шт'
+        }).map((variant) => variant.name)
+      };
+    });
+  };
+  const addProductVariantImageSlot = (variantIndex) => {
+    setProductForm((prev) => {
+      const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
+      const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+        fallbackPrice: fallbackBasePrice,
+        unit: prev.unit || 'шт'
+      });
+      if (variantIndex < 0 || variantIndex >= variants.length) return prev;
+
+      const nextVariants = variants.map((variant, currentVariantIndex) => {
+        if (currentVariantIndex !== variantIndex) return variant;
+        const currentVisibleSlotsCount = resolveVariantVisibleSlotsCount(variant);
+        return {
+          ...variant,
+          __slots_count: clampVariantVisibleSlotsCount(currentVisibleSlotsCount + 1)
         };
       });
 
@@ -12853,7 +12938,8 @@ function AdminDashboard() {
                           +
                         </Button>
                       </div>
-                      <div className="admin-variants-simple-head">
+                      <div className={`admin-variants-simple-head ${productForm.unit === 'кг' ? 'is-kg' : 'is-not-kg'}`}>
+                        <span>№</span>
                         <span>{language === 'uz' ? 'Nomi' : 'Название варианта'}</span>
                         <span>Описание RU</span>
                         <span>Описание UZ</span>
@@ -12861,13 +12947,15 @@ function AdminDashboard() {
                         <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
                         <span>ИКПУ</span>
                         <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
-                        <span>{language === 'uz' ? 'Idish normasi' : 'Норма посуды'}</span>
-                        <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>
+                        <span>{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</span>
+                        {productForm.unit === 'кг' && <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>}
+                        <span>{language === 'uz' ? 'Foto' : 'Фото'}</span>
                         <span className="text-center">{language === 'uz' ? 'Amal' : 'Действие'}</span>
                       </div>
 
                       {(() => {
                         const fallbackPrice = normalizeProductPriceValue(productForm.price, NaN);
+                        const isKgUnit = productForm.unit === 'кг';
                         const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
                           fallbackPrice,
                           unit: productForm.unit || 'шт'
@@ -12875,14 +12963,19 @@ function AdminDashboard() {
                         return (
                           <div className="admin-variants-simple-body">
                             {currentVariants.map((variant, index) => {
+                                        const visibleSlotsCount = resolveVariantVisibleSlotsCount(variant);
                                         const variantImageSlots = createVariantImageSlots(
                                           variant.product_images,
                                           variant.image_url,
                                           variant.thumb_url
-                                        );
+                                        ).slice(0, visibleSlotsCount);
+                                        const canAddImageSlot = visibleSlotsCount < VARIANT_IMAGE_SLOTS_COUNT;
                                         return (
                                           <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row admin-variants-simple-row">
-                                            <Row className="g-0 align-items-start admin-variant-table-input-row">
+                                            <Row className={`g-0 align-items-start admin-variant-table-input-row ${isKgUnit ? 'is-kg' : 'is-not-kg'}`}>
+                                              <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-number">
+                                                <span className="admin-variant-row-number">{index + 1}</span>
+                                              </Col>
                                               <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -12913,10 +13006,9 @@ function AdminDashboard() {
                                               <Col xl={2} md={4} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
-                                                  type="number"
-                                                  min="0"
-                                                  step="1"
-                                                  value={variant.price}
+                                                  type="text"
+                                                  inputMode="decimal"
+                                                  value={formatProductPriceInputValue(variant.price)}
                                                   onChange={(event) => updateProductVariantOption(index, 'price', event.target.value)}
                                                   placeholder={language === 'uz' ? 'Narxi' : 'Цена'}
                                                 />
@@ -12956,27 +13048,148 @@ function AdminDashboard() {
                                                 </Form.Select>
                                               </Col>
                                               <Col xl={1} md={4} className="admin-variant-table-col">
-                                                <Form.Control
-                                                  className="form-control-custom"
-                                                  type="number"
-                                                  min="1"
-                                                  step="1"
-                                                  value={variant.container_norm}
-                                                  onChange={(event) => updateProductVariantOption(index, 'container_norm', event.target.value)}
-                                                  disabled={!variant.container_id}
-                                                />
+                                                {variant.container_id ? (
+                                                  <Form.Control
+                                                    className="form-control-custom"
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value={variant.container_norm}
+                                                    onChange={(event) => updateProductVariantOption(index, 'container_norm', event.target.value)}
+                                                  />
+                                                ) : (
+                                                  <span className="admin-variant-empty-cell">—</span>
+                                                )}
                                               </Col>
-                                              <Col xl={1} md={4} className="admin-variant-table-col">
-                                                <Form.Control
-                                                  className="form-control-custom"
-                                                  type="number"
-                                                  min="0.01"
-                                                  step="0.01"
-                                                  value={variant.order_step || ''}
-                                                  onChange={(event) => updateProductVariantOption(index, 'order_step', event.target.value)}
-                                                  disabled={productForm.unit !== 'кг'}
-                                                  placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
-                                                />
+                                              {isKgUnit && (
+                                                <Col xl={1} md={4} className="admin-variant-table-col">
+                                                  <Form.Control
+                                                    className="form-control-custom"
+                                                    type="number"
+                                                    min="0.01"
+                                                    step="0.01"
+                                                    value={variant.order_step || ''}
+                                                    onChange={(event) => updateProductVariantOption(index, 'order_step', event.target.value)}
+                                                  />
+                                                </Col>
+                                              )}
+                                              <Col xl={3} md={8} className="admin-variant-table-col admin-variant-table-col-images">
+                                                <div
+                                                  className="admin-product-variant-inline-images-shell admin-thin-scrollbar"
+                                                  tabIndex={0}
+                                                  onPaste={(e) => handlePasteToVariantImageSlot(index, e)}
+                                                  title={language === 'uz'
+                                                    ? "Ctrl+V bilan birinchi bo'sh slotga rasm qo'ying"
+                                                    : 'Нажмите Ctrl+V, чтобы вставить фото в первый свободный слот'}
+                                                >
+                                                  <div className="admin-product-variant-inline-images-row">
+                                                    {variantImageSlots.map((slot, slotIndex) => (
+                                                      <div key={`variant-image-slot-${index}-${slotIndex}`} className="admin-product-variant-inline-image-item">
+                                                        <div className={`admin-product-image-slot admin-product-image-slot-variant-inline ${slotIndex === 0 ? 'is-main' : ''}`}>
+                                                          <div
+                                                            className={`admin-product-image-dropzone admin-product-image-dropzone-variant-inline ${slot.url ? 'has-image' : ''}`}
+                                                            tabIndex={0}
+                                                            onPaste={(e) => handlePaste(
+                                                              e,
+                                                              (url, meta) => updateProductVariantImageSlot(
+                                                                index,
+                                                                slotIndex,
+                                                                url,
+                                                                meta?.thumbUrl || meta?.thumb_url || ''
+                                                              ),
+                                                              { preset: 'product' }
+                                                            )}
+                                                            onDrop={(e) => {
+                                                              e.preventDefault();
+                                                              const file = e.dataTransfer.files[0];
+                                                              if (file) {
+                                                                handleImageUpload(
+                                                                  file,
+                                                                  (url, meta) => updateProductVariantImageSlot(
+                                                                    index,
+                                                                    slotIndex,
+                                                                    url,
+                                                                    meta?.thumbUrl || meta?.thumb_url || ''
+                                                                  ),
+                                                                  { preset: 'product' }
+                                                                );
+                                                              }
+                                                            }}
+                                                            onDragOver={(e) => e.preventDefault()}
+                                                          >
+                                                            {slot.url ? (
+                                                              <img
+                                                                src={slot.url}
+                                                                alt={`Variant ${index + 1} ${slotIndex + 1}`}
+                                                                className="admin-product-image-preview"
+                                                              />
+                                                            ) : (
+                                                              <div className="admin-product-image-placeholder">
+                                                                <div className="admin-product-image-placeholder-icon">📷</div>
+                                                              </div>
+                                                            )}
+                                                            <div className="admin-product-image-slot-overlay">
+                                                              <Button
+                                                                type="button"
+                                                                variant="light"
+                                                                size="sm"
+                                                                className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
+                                                                title="Удалить фото варианта"
+                                                                onClick={(e) => {
+                                                                  e.preventDefault();
+                                                                  e.stopPropagation();
+                                                                  clearProductVariantImageSlot(index, slotIndex);
+                                                                }}
+                                                                disabled={!slot.url}
+                                                              >
+                                                                ✕
+                                                              </Button>
+                                                              <label
+                                                                htmlFor={`product-variant-image-file-input-${index}-${slotIndex}`}
+                                                                className={`admin-product-image-select-btn admin-product-image-select-btn-variant-inline ${uploadingImage ? 'is-disabled' : ''}`}
+                                                              >
+                                                                {language === 'uz' ? 'Tanlash' : 'Выбрать файл'}
+                                                              </label>
+                                                            </div>
+                                                          </div>
+                                                          <Form.Control
+                                                            className="admin-product-image-file-input"
+                                                            id={`product-variant-image-file-input-${index}-${slotIndex}`}
+                                                            type="file"
+                                                            accept="image/*"
+                                                            onChange={(e) => {
+                                                              const file = e.target.files[0];
+                                                              if (file) {
+                                                                handleImageUpload(
+                                                                  file,
+                                                                  (url, meta) => updateProductVariantImageSlot(
+                                                                    index,
+                                                                    slotIndex,
+                                                                    url,
+                                                                    meta?.thumbUrl || meta?.thumb_url || ''
+                                                                  ),
+                                                                  { preset: 'product' }
+                                                                );
+                                                                e.target.value = '';
+                                                              }
+                                                            }}
+                                                            disabled={uploadingImage}
+                                                          />
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                    {canAddImageSlot && (
+                                                      <button
+                                                        type="button"
+                                                        className="admin-product-variant-inline-add-slot"
+                                                        onClick={() => addProductVariantImageSlot(index)}
+                                                        title={language === 'uz' ? "Foto slot qo'shish" : 'Добавить фото-слот'}
+                                                      >
+                                                        +
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                </div>
                                               </Col>
                                               <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-actions d-flex justify-content-end">
                                                 <Button
@@ -12990,132 +13203,6 @@ function AdminDashboard() {
                                                 </Button>
                                               </Col>
                                             </Row>
-                                            <div
-                                              className="admin-product-variant-images-shell admin-product-variant-images-shell-flat"
-                                              tabIndex={0}
-                                              onClick={(e) => {
-                                                if (e.target === e.currentTarget) {
-                                                  e.currentTarget.focus();
-                                                }
-                                              }}
-                                              onPaste={(e) => handlePasteToVariantImageSlot(index, e)}
-                                              title={language === 'uz'
-                                                ? "Ctrl+V bilan birinchi bo'sh slotga rasm qo'ying"
-                                                : 'Нажмите Ctrl+V, чтобы вставить фото в первый свободный слот'}
-                                            >
-                                              <div className="admin-product-variant-images-row">
-                                                {variantImageSlots.map((slot, slotIndex) => (
-                                                  <div key={`variant-image-slot-${index}-${slotIndex}`} className="admin-product-variant-image-item">
-                                                    <div className={`admin-product-image-slot admin-product-image-slot-compact ${slotIndex === 0 ? 'is-main' : ''}`}>
-                                                      <div
-                                                        className={`admin-product-image-dropzone admin-product-image-dropzone-compact ${slot.url ? 'has-image' : ''}`}
-                                                        tabIndex={0}
-                                                        onPaste={(e) => handlePaste(
-                                                          e,
-                                                          (url, meta) => updateProductVariantImageSlot(
-                                                            index,
-                                                            slotIndex,
-                                                            url,
-                                                            meta?.thumbUrl || meta?.thumb_url || ''
-                                                          ),
-                                                          { preset: 'product' }
-                                                        )}
-                                                        onDrop={(e) => {
-                                                          e.preventDefault();
-                                                          const file = e.dataTransfer.files[0];
-                                                          if (file) {
-                                                            handleImageUpload(
-                                                              file,
-                                                              (url, meta) => updateProductVariantImageSlot(
-                                                                index,
-                                                                slotIndex,
-                                                                url,
-                                                                meta?.thumbUrl || meta?.thumb_url || ''
-                                                              ),
-                                                              { preset: 'product' }
-                                                            );
-                                                          }
-                                                        }}
-                                                        onDragOver={(e) => e.preventDefault()}
-                                                      >
-                                                        {slot.url ? (
-                                                          <img
-                                                            src={slot.url}
-                                                            alt={`Variant ${index + 1} ${slotIndex + 1}`}
-                                                            className="admin-product-image-preview"
-                                                          />
-                                                        ) : (
-                                                          <div className="admin-product-image-placeholder">
-                                                            <div className="admin-product-image-placeholder-icon">📷</div>
-                                                          </div>
-                                                        )}
-                                                        <div className="admin-product-image-slot-overlay">
-                                                          <Button
-                                                            type="button"
-                                                            variant="light"
-                                                            size="sm"
-                                                            className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''} admin-product-image-slot-btn-top-left`}
-                                                            title={slotIndex === 0 ? 'Главное фото варианта' : 'Сделать главным фото варианта'}
-                                                            onClick={(e) => {
-                                                              e.preventDefault();
-                                                              e.stopPropagation();
-                                                              setMainProductVariantImageSlot(index, slotIndex);
-                                                            }}
-                                                            disabled={!slot.url}
-                                                          >
-                                                            ★
-                                                          </Button>
-                                                          <Button
-                                                            type="button"
-                                                            variant="light"
-                                                            size="sm"
-                                                            className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
-                                                            title="Удалить фото варианта"
-                                                            onClick={(e) => {
-                                                              e.preventDefault();
-                                                              e.stopPropagation();
-                                                              clearProductVariantImageSlot(index, slotIndex);
-                                                            }}
-                                                            disabled={!slot.url}
-                                                          >
-                                                            ✕
-                                                          </Button>
-                                                          <label
-                                                            htmlFor={`product-variant-image-file-input-${index}-${slotIndex}`}
-                                                            className={`admin-product-image-select-btn ${uploadingImage ? 'is-disabled' : ''}`}
-                                                          >
-                                                            {language === 'uz' ? 'Tanlash' : 'Выбрать'}
-                                                          </label>
-                                                        </div>
-                                                      </div>
-                                                      <Form.Control
-                                                        className="admin-product-image-file-input"
-                                                        id={`product-variant-image-file-input-${index}-${slotIndex}`}
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={(e) => {
-                                                          const file = e.target.files[0];
-                                                          if (file) {
-                                                            handleImageUpload(
-                                                              file,
-                                                              (url, meta) => updateProductVariantImageSlot(
-                                                                index,
-                                                                slotIndex,
-                                                                url,
-                                                                meta?.thumbUrl || meta?.thumb_url || ''
-                                                              ),
-                                                              { preset: 'product' }
-                                                            );
-                                                            e.target.value = '';
-                                                          }
-                                                        }}
-                                                        disabled={uploadingImage}
-                                                      />
-                                                    </div>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
                                           </div>
                                         );
                             })}
@@ -13244,11 +13331,10 @@ function AdminDashboard() {
                     <Form.Control
                       className="admin-product-compact-field"
                       required
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={productForm.price}
-                      onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                      type="text"
+                      inputMode="decimal"
+                      value={formatProductPriceInputValue(productForm.price)}
+                      onChange={(e) => setProductForm({ ...productForm, price: sanitizeProductPriceInputValue(e.target.value) })}
                     />
                   </Form.Group>
                 )}
@@ -13345,7 +13431,7 @@ function AdminDashboard() {
                     {productForm.container_id && (
                       <Form.Group className="mb-0">
                         <Form.Label className="d-flex align-items-center gap-2">
-                          <span>{t('containerNormLabel')}</span>
+                          <span>{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</span>
                           <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Idish normasi izohi" : 'Подсказка по норме посуды'}>
                             i
                             <span className="admin-container-help-tooltip">
@@ -13364,29 +13450,29 @@ function AdminDashboard() {
                       </Form.Group>
                     )}
 
-                    <Form.Group className="mb-0">
-                      <Form.Label className="d-flex align-items-center gap-2">
-                        <span>{t('orderStepLabel')}</span>
-                        <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Qadam bo'yicha izoh" : 'Подсказка по шагу заказа'}>
-                          i
-                          <span className="admin-container-help-tooltip">
-                            {language === 'uz'
-                              ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
-                              : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
+                    {productForm.unit === 'кг' && (
+                      <Form.Group className="mb-0">
+                        <Form.Label className="d-flex align-items-center gap-2">
+                          <span>{t('orderStepLabel')}</span>
+                          <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Qadam bo'yicha izoh" : 'Подсказка по шагу заказа'}>
+                            i
+                            <span className="admin-container-help-tooltip">
+                              {language === 'uz'
+                                ? "Agar 0,25 kiritsangiz, mijoz bir bosishda 0,25 kg qo'shadi."
+                                : 'Если указать 0,25, клиент будет добавлять товар по 0,25 кг за одно нажатие.'}
+                            </span>
                           </span>
-                        </span>
-                      </Form.Label>
-                      <Form.Control
-                        className="admin-product-compact-field"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={productForm.order_step}
-                        onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
-                        disabled={productForm.unit !== 'кг'}
-                        placeholder={productForm.unit === 'кг' ? '' : (language === 'uz' ? "Faqat 'kg'" : "Только для 'кг'")}
-                      />
-                    </Form.Group>
+                        </Form.Label>
+                        <Form.Control
+                          className="admin-product-compact-field"
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={productForm.order_step}
+                          onChange={(e) => setProductForm({ ...productForm, order_step: e.target.value })}
+                        />
+                      </Form.Group>
+                    )}
                   </>
                 )}
               </div>
