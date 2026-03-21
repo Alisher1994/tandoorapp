@@ -4938,7 +4938,9 @@ router.get('/founders/expenses', async (req, res) => {
         c.code AS category_code,
         c.name_ru AS category_name_ru,
         c.name_uz AS category_name_uz,
-        COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Система') AS actor_name
+        COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Система') AS actor_name,
+        NULLIF(BTRIM(u.username), '') AS actor_username,
+        NULLIF(BTRIM(u.phone), '') AS actor_phone
       FROM organization_expenses oe
       INNER JOIN organization_expense_categories c ON c.id = oe.category_id
       LEFT JOIN users u ON u.id = oe.created_by
@@ -4976,6 +4978,8 @@ router.get('/founders/expenses', async (req, res) => {
         category_name_ru: String(row.category_name_ru || '').trim(),
         category_name_uz: String(row.category_name_uz || '').trim(),
         actor_name: String(row.actor_name || '').trim() || 'Система',
+        actor_username: String(row.actor_username || '').trim(),
+        actor_phone: String(row.actor_phone || '').trim(),
         created_at: row.created_at || null,
         updated_at: row.updated_at || null
       })),

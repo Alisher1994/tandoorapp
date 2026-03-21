@@ -27,16 +27,20 @@ import {
   Bot,
   BarChart3,
   BookOpen,
+  ChevronDown,
+  ChevronUp,
   FileText,
   FolderTree,
   Globe,
   Megaphone,
   Package,
+  Pencil,
   PieChart,
   Puzzle,
   Receipt,
   Shield,
   Store,
+  Trash2,
   UserCog,
   Users,
   Wallet
@@ -358,6 +362,41 @@ const resolvePreferredFoundersCurrencyCode = (availableCurrencies = [], fallback
     if (normalizedList.includes(code)) return code;
   }
   return normalizedList[0];
+};
+const formatCompactDateTime = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '—';
+
+  const dateOnlyMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    return `${dateOnlyMatch[3]}.${dateOnlyMatch[2]}.${dateOnlyMatch[1]} 00:00`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+  const hours = String(parsed.getHours()).padStart(2, '0');
+  const minutes = String(parsed.getMinutes()).padStart(2, '0');
+  return `${day}.${month}.${year} ${hours}:${minutes}`;
+};
+const resolveFounderActorDisplayName = (actorName, actorUsername = '', actorPhone = '') => {
+  const haystack = [
+    actorName,
+    actorUsername,
+    actorPhone
+  ]
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter(Boolean)
+    .join(' ');
+
+  if (!haystack) return '—';
+  if (haystack.includes('mirza') || haystack.includes('мирза') || haystack.includes('998900922261') || haystack.includes('0922261')) return 'Mirzaolim';
+  if (haystack.includes('davron') || haystack.includes('даврон') || haystack.includes('998770304477')) return 'Davron';
+  if (haystack.includes('alisher') || haystack.includes('алишер') || haystack.includes('admin')) return 'Alisher';
+  return String(actorName || actorUsername || '—').trim() || '—';
 };
 const createInitialOrganizationExpenseForm = () => ({
   id: null,
@@ -5086,6 +5125,14 @@ function SuperAdminDashboard() {
   const organizationExpenseCategoryOptions = useMemo(() => (
     [...(Array.isArray(organizationExpenseCategories) ? organizationExpenseCategories : [])]
       .sort((left, right) => String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru'))
+  ), [organizationExpenseCategories]);
+  const organizationExpenseCategoryRowsById = useMemo(() => (
+    [...(Array.isArray(organizationExpenseCategories) ? organizationExpenseCategories : [])]
+      .sort((left, right) => {
+        const leftId = Number(left?.id || 0);
+        const rightId = Number(right?.id || 0);
+        return leftId - rightId;
+      })
   ), [organizationExpenseCategories]);
   const organizationExpensesCurrencyOptions = useMemo(() => {
     const set = new Set();
@@ -13219,6 +13266,7 @@ function SuperAdminDashboard() {
                   </Card>
                 ) : (
                   <>
+                    <div className="sa-founders-workspace">
                     <Nav
                       variant="tabs"
                       className="sa-founders-inner-tabs mb-3"
@@ -13440,7 +13488,8 @@ function SuperAdminDashboard() {
                                             ...priorityModules,
                                             ...fallbackModules.slice(0, Math.max(0, 2 - priorityModules.length))
                                           ];
-                                          const shownModules = foundersExpandedModulesMap[founderItem.founder_key]
+                                          const isExpanded = Boolean(foundersExpandedModulesMap[founderItem.founder_key]);
+                                          const shownModules = isExpanded
                                             ? founderItem.modules
                                             : defaultModules;
                                           const hiddenCount = Math.max(0, founderItem.modules.length - defaultModules.length);
@@ -13480,31 +13529,49 @@ function SuperAdminDashboard() {
                                             </td>
                                           </tr>
                                               ))}
-                                              {hiddenCount > 0 && (
-                                                <tr>
-                                                  <td colSpan={2} className="text-center py-2">
-                                                    <Button
-                                                      size="sm"
-                                                      variant="outline-secondary"
-                                                      onClick={() => {
-                                                        setFoundersExpandedModulesMap((prev) => ({
-                                                          ...prev,
-                                                          [founderItem.founder_key]: !prev[founderItem.founder_key]
-                                                        }));
-                                                      }}
-                                                    >
-                                                      {foundersExpandedModulesMap[founderItem.founder_key]
-                                                        ? (language === 'uz' ? 'Yopish' : 'Свернуть')
-                                                        : (language === 'uz' ? `Yana ${hiddenCount}` : `Ещё ${hiddenCount}`)}
-                                                    </Button>
-                                                  </td>
-                                                </tr>
-                                              )}
                                             </>
                                           );
                                         })()}
                                         <tr className="sa-founders-total-row">
-                                          <td className="fw-bold">{language === 'uz' ? 'Jami' : 'Итого'}</td>
+                                          <td className="fw-bold">
+                                            <div className="sa-founders-total-row-label">
+                                              <span>{language === 'uz' ? 'Jami' : 'Итого'}</span>
+                                              {(() => {
+                                                const priorityKeys = ['orders', 'reservations'];
+                                                const priorityModules = founderItem.modules.filter((moduleItem) => priorityKeys.includes(moduleItem.module_key));
+                                                const fallbackModules = founderItem.modules.filter((moduleItem) => !priorityKeys.includes(moduleItem.module_key));
+                                                const defaultModules = [
+                                                  ...priorityModules,
+                                                  ...fallbackModules.slice(0, Math.max(0, 2 - priorityModules.length))
+                                                ];
+                                                const hiddenCount = Math.max(0, founderItem.modules.length - defaultModules.length);
+                                                if (hiddenCount <= 0) return null;
+                                                const isExpanded = Boolean(foundersExpandedModulesMap[founderItem.founder_key]);
+                                                return (
+                                                  <button
+                                                    type="button"
+                                                    className="sa-founders-more-btn"
+                                                    onClick={() => {
+                                                      setFoundersExpandedModulesMap((prev) => ({
+                                                        ...prev,
+                                                        [founderItem.founder_key]: !prev[founderItem.founder_key]
+                                                      }));
+                                                    }}
+                                                    aria-label={isExpanded
+                                                      ? (language === 'uz' ? 'Ro‘yxatni yig‘ish' : 'Свернуть список')
+                                                      : (language === 'uz' ? `Yana ${hiddenCount} modulni ko‘rsatish` : `Показать ещё ${hiddenCount}`)}
+                                                  >
+                                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                    <span>
+                                                      {isExpanded
+                                                        ? (language === 'uz' ? 'Yopish' : 'Свернуть')
+                                                        : (language === 'uz' ? `Yana ${hiddenCount}` : `Ещё ${hiddenCount}`)}
+                                                    </span>
+                                                  </button>
+                                                );
+                                              })()}
+                                            </div>
+                                          </td>
                                           <td>
                                             {foundersAvailableCurrencies.length === 0 ? (
                                               <span className="text-muted">—</span>
@@ -13827,19 +13894,19 @@ function SuperAdminDashboard() {
                                 <Table responsive className="admin-table mb-0">
                                   <thead>
                                     <tr>
-                                      <th style={{ width: 120 }}>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                                      <th style={{ width: 172 }}>{language === 'uz' ? 'Sana va vaqt' : 'Дата и время'}</th>
                                       <th>{language === 'uz' ? 'Maqola' : 'Статья расхода'}</th>
                                       <th style={{ width: 140 }}>{language === 'uz' ? 'Valyuta' : 'Валюта'}</th>
                                       <th className="text-end" style={{ width: 160 }}>{language === 'uz' ? 'Summa' : 'Сумма'}</th>
                                       <th>{language === 'uz' ? 'Izoh' : 'Описание'}</th>
-                                      <th style={{ width: 170 }}>{language === 'uz' ? 'Kim kiritdi' : 'Кто добавил'}</th>
-                                      <th className="text-end" style={{ width: 140 }}>{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                                      <th style={{ width: 190 }}>{language === 'uz' ? 'Kim kiritdi' : 'Кто добавил'}</th>
+                                      <th className="text-end" style={{ width: 120 }}>{language === 'uz' ? 'Amallar' : 'Действия'}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {(organizationExpensesData.items || []).map((item) => (
                                       <tr key={`expense-item-${item.id}`}>
-                                        <td>{item.expense_date || '—'}</td>
+                                        <td>{formatCompactDateTime(item.created_at || item.expense_date)}</td>
                                         <td>
                                           <div className="fw-semibold">
                                             {language === 'uz'
@@ -13855,22 +13922,26 @@ function SuperAdminDashboard() {
                                           {formatBalanceAmount(item.amount || 0)}
                                         </td>
                                         <td>{item.description || '—'}</td>
-                                        <td>{item.actor_name || '—'}</td>
+                                        <td>{resolveFounderActorDisplayName(item.actor_name, item.actor_username, item.actor_phone)}</td>
                                         <td className="text-end">
-                                          <div className="d-inline-flex gap-1">
+                                          <div className="sa-founders-row-actions">
                                             <Button
-                                              size="sm"
-                                              variant="outline-secondary"
+                                              type="button"
+                                              className="sa-founders-icon-btn"
                                               onClick={() => openEditOrganizationExpenseModal(item)}
+                                              title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                              aria-label={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                             >
-                                              {language === 'uz' ? 'Tahrir' : 'Изм.'}
+                                              <Pencil size={15} />
                                             </Button>
                                             <Button
-                                              size="sm"
-                                              variant="outline-danger"
+                                              type="button"
+                                              className="sa-founders-icon-btn is-danger"
                                               onClick={() => deleteOrganizationExpense(item)}
+                                              title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                              aria-label={language === 'uz' ? "O'chirish" : 'Удалить'}
                                             >
-                                              {language === 'uz' ? "O'chir" : 'Удал.'}
+                                              <Trash2 size={15} />
                                             </Button>
                                           </div>
                                         </td>
@@ -13928,9 +13999,9 @@ function SuperAdminDashboard() {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {organizationExpenseCategoryOptions.map((item) => (
+                                    {organizationExpenseCategoryRowsById.map((item) => (
                                       <tr key={`expense-category-row-${item.id}`}>
-                                        <td>#{item.id}</td>
+                                        <td>{item.id}</td>
                                         <td>{item.name_ru || '—'}</td>
                                         <td>{item.name_uz || '—'}</td>
                                         <td>
@@ -13942,27 +14013,31 @@ function SuperAdminDashboard() {
                                         </td>
                                         <td>{item.expenses_count || 0}</td>
                                         <td className="text-end">
-                                          <div className="d-inline-flex gap-1">
+                                          <div className="sa-founders-row-actions">
                                             <Button
-                                              size="sm"
-                                              variant="outline-secondary"
+                                              type="button"
+                                              className="sa-founders-icon-btn"
                                               onClick={() => openEditExpenseCategoryModal(item)}
+                                              title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                              aria-label={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                             >
-                                              {language === 'uz' ? 'Tahrir' : 'Изм.'}
+                                              <Pencil size={15} />
                                             </Button>
                                             <Button
-                                              size="sm"
-                                              variant="outline-danger"
+                                              type="button"
+                                              className="sa-founders-icon-btn is-danger"
                                               onClick={() => deleteExpenseCategory(item)}
                                               disabled={item.is_system || Number(item.expenses_count || 0) > 0}
+                                              title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                              aria-label={language === 'uz' ? "O'chirish" : 'Удалить'}
                                             >
-                                              {language === 'uz' ? "O'chir" : 'Удал.'}
+                                              <Trash2 size={15} />
                                             </Button>
                                           </div>
                                         </td>
                                       </tr>
                                     ))}
-                                    {organizationExpenseCategoryOptions.length === 0 && (
+                                    {organizationExpenseCategoryRowsById.length === 0 && (
                                       <tr>
                                         <td colSpan={6} className="text-center py-5 text-muted">
                                           {language === 'uz' ? "Maqolalar topilmadi" : 'Статьи расходов пока не добавлены'}
@@ -13977,6 +14052,7 @@ function SuperAdminDashboard() {
                         </Card>
                       </>
                     )}
+                    </div>
                   </>
                 )}
               </Tab>
