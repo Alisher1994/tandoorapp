@@ -781,7 +781,8 @@ const SuperAdminShopsClusteredMarkers = ({ points = [], language = 'ru' }) => {
   const clusteredItems = useMemo(() => {
     if (!map || !Array.isArray(points) || points.length === 0) return [];
     const safeZoom = Number.isFinite(zoom) ? zoom : Number(map.getZoom()) || ANALYTICS_DEFAULT_MAP_ZOOM;
-    const shouldCluster = safeZoom <= 11;
+    // For current scale (tens of stores), exact pins are more reliable than clustering.
+    const shouldCluster = points.length > 120 && safeZoom <= 9;
     if (!shouldCluster) {
       return points.map((point) => ({
         type: 'point',
@@ -5395,8 +5396,10 @@ function SuperAdminDashboard() {
         const botUsername = String(restaurant?.telegram_bot_username || '').trim();
         const productsCount = Math.max(0, Number(restaurant?.products_count || 0));
         const ordersCount = Math.max(0, Number(restaurant?.orders_count || 0));
-        // Keep only operational stores on the map to avoid noisy test points with stale coordinates.
-        if (productsCount <= 0 && ordersCount <= 0) return null;
+        const isTashkentArea = lat >= 40.95 && lat <= 41.45 && lng >= 68.9 && lng <= 69.65;
+        const hasOperationalActivity = productsCount > 0 || ordersCount > 0;
+        // Keep all active Tashkent stores (for manual checks) + operational stores in other regions.
+        if (!isTashkentArea && !hasOperationalActivity) return null;
         const quickIssueCount = (!token || botMetaError || !botUsername) ? 1 : 0;
         const issuesCount = Number.isFinite(mappedIssueCount)
           ? Math.max(0, mappedIssueCount)
