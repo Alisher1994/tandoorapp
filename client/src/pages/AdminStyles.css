@@ -9175,6 +9175,12 @@ body::-webkit-scrollbar,
     color: #0f172a;
 }
 
+.sa-founders-founder-percents {
+    margin-top: 3px;
+    font-size: 0.74rem;
+    color: #64748b;
+}
+
 .sa-founders-founder-table th,
 .sa-founders-founder-table td {
     padding-top: 0.56rem !important;
@@ -9244,6 +9250,19 @@ body::-webkit-scrollbar,
     font-weight: 700;
     color: #0f172a;
     margin-bottom: 10px;
+}
+
+.sa-founders-recharts-wrap {
+    width: 100%;
+    height: 292px;
+}
+
+.sa-founders-recharts-wrap-modules {
+    height: 312px;
+}
+
+.sa-founders-recharts-wrap-founders {
+    height: 292px;
 }
 
 .sa-founders-monthly-chart {

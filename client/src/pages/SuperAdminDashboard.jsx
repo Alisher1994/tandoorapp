@@ -5,6 +5,20 @@ import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+  BarChart,
+  Bar,
+  Cell,
+  LabelList
+} from 'recharts';
+import {
   Container, Row, Col, Card, Table, Button, Form, Modal,
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
   Toast, ToastContainer, Dropdown
@@ -314,6 +328,13 @@ const FOUNDERS_CHART_COLORS = {
   admin: '#4f46e5',
   davron: '#0ea5e9',
   mirzaolim: '#22c55e'
+};
+const FOUNDERS_MODULE_CHART_COLORS = {
+  orders: '#fb923c',
+  reservations: '#ef4444',
+  delivery: '#14b8a6',
+  ads: '#8b5cf6',
+  superapp: '#f59e0b'
 };
 const CURRENCY_FLAG_CODE_MAP = {
   uz: 'uz',
@@ -1299,6 +1320,7 @@ function SuperAdminDashboard() {
   const [foundersAccessGranted, setFoundersAccessGranted] = useState(false);
   const [foundersAccessError, setFoundersAccessError] = useState('');
   const [foundersChartsCurrency, setFoundersChartsCurrency] = useState('');
+  const [foundersExpandedModulesMap, setFoundersExpandedModulesMap] = useState({});
   const [foundersInnerTab, setFoundersInnerTab] = useState('analytics');
   const [organizationExpenseCategories, setOrganizationExpenseCategories] = useState([]);
   const [organizationExpenseCategoriesLoading, setOrganizationExpenseCategoriesLoading] = useState(false);
@@ -3015,6 +3037,7 @@ function SuperAdminDashboard() {
         setFoundersAccessGranted(false);
         setFoundersAccessPassword('');
         setFoundersChartsCurrency('');
+        setFoundersExpandedModulesMap({});
         setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
         setFoundersInnerTab('analytics');
         setOrganizationExpenseCategories([]);
@@ -3062,6 +3085,7 @@ function SuperAdminDashboard() {
     setFoundersAccessGranted(false);
     setFoundersAccessPassword('');
     setFoundersChartsCurrency('');
+    setFoundersExpandedModulesMap({});
     setFoundersPasswordInput('');
     setFoundersAccessError('');
     setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
@@ -4819,6 +4843,8 @@ function SuperAdminDashboard() {
       return {
         founder_key: founderKey,
         founder_name: founderName,
+        order_percent: Number(founder?.order_percent || founder?.orderPercent || 0),
+        reservation_percent: Number(founder?.reservation_percent || founder?.reservationPercent || 0),
         modules,
         total_by_currency: totalByCurrency,
         total_amount: Math.round((founderTotal + Number.EPSILON) * 100) / 100
@@ -4842,7 +4868,7 @@ function SuperAdminDashboard() {
     if (normalized === resolved) return;
     setFoundersChartsCurrency(resolved);
   }, [foundersChartsCurrency, foundersChartCurrencyResolved]);
-  const foundersMonthlyChartData = useMemo(() => {
+  const foundersMonthlyAreaChartData = useMemo(() => {
     const currencyCode = foundersChartCurrencyResolved;
     if (!currencyCode) return [];
     const foundersOrder = foundersCardsData.map((item) => item.founder_key);
@@ -4855,47 +4881,74 @@ function SuperAdminDashboard() {
         if (!grouped.has(monthKey)) {
           grouped.set(monthKey, {
             month_key: monthKey,
-            month_label: String(row?.month_label || monthKey).trim(),
-            values: {}
+            month_label: String(row?.month_label || monthKey).trim()
           });
         }
         const target = grouped.get(monthKey);
         const founderKey = String(row?.founder_key || '').trim().toLowerCase();
-        target.values[founderKey] = Number(row?.total_amount || 0);
+        target[founderKey] = Number(row?.total_amount || 0);
       });
-    const rows = Array.from(grouped.values())
+
+    return Array.from(grouped.values())
       .sort((left, right) => String(left.month_key || '').localeCompare(String(right.month_key || ''), 'ru'))
       .slice(-12)
-      .map((row) => ({
-        ...row,
-        values: foundersOrder.reduce((acc, founderKey) => {
-          acc[founderKey] = Number(row.values?.[founderKey] || 0);
-          return acc;
-        }, {})
-      }));
-    return rows;
+      .map((row) => {
+        const target = { ...row };
+        foundersOrder.forEach((founderKey) => {
+          target[founderKey] = Number(row?.[founderKey] || 0);
+        });
+        return target;
+      });
   }, [foundersMonthlyTotals, foundersChartCurrencyResolved, foundersCardsData]);
-  const foundersHorizontalBars = useMemo(() => {
+  const foundersMonthlyModulesChartData = useMemo(() => {
     const currencyCode = foundersChartCurrencyResolved;
     if (!currencyCode) return [];
-    return foundersCardsData.map((founderItem) => {
+    const rows = Array.isArray(foundersAnalyticsData?.module_monthly_totals)
+      ? foundersAnalyticsData.module_monthly_totals
+      : [];
+    const grouped = new Map();
+    rows
+      .filter((row) => String(row?.currency_code || '').trim().toLowerCase() === currencyCode)
+      .forEach((row) => {
+        const monthKey = String(row?.month_key || '').trim();
+        if (!monthKey) return;
+        const moduleKey = String(row?.module_key || '').trim().toLowerCase();
+        if (!moduleKey) return;
+        if (!grouped.has(monthKey)) {
+          grouped.set(monthKey, {
+            month_key: monthKey,
+            month_label: String(row?.month_label || monthKey).trim()
+          });
+        }
+        const target = grouped.get(monthKey);
+        target[moduleKey] = Number(row?.amount || 0);
+      });
+
+    return Array.from(grouped.values())
+      .sort((left, right) => String(left.month_key || '').localeCompare(String(right.month_key || ''), 'ru'))
+      .slice(-12)
+      .map((row) => {
+        const target = { ...row };
+        foundersModulesConfig.forEach((moduleItem) => {
+          target[moduleItem.key] = Number(row?.[moduleItem.key] || 0);
+        });
+        return target;
+      });
+  }, [foundersAnalyticsData?.module_monthly_totals, foundersChartCurrencyResolved, foundersModulesConfig]);
+  const foundersFoundersBarChartData = useMemo(() => {
+    const currencyCode = foundersChartCurrencyResolved;
+    if (!currencyCode) return [];
+    return foundersCardsData.map((founderItem, index) => {
       const currencyTotal = founderItem.total_by_currency.find((item) => item.currency_code === currencyCode);
       return {
         founder_key: founderItem.founder_key,
         founder_name: founderItem.founder_name,
-        amount: Number(currencyTotal?.amount || 0)
+        founder_percent_label: `${Number(founderItem.order_percent || 0)}% / ${Number(founderItem.reservation_percent || 0)}%`,
+        amount: Number(currencyTotal?.amount || 0),
+        fill: FOUNDERS_CHART_COLORS[founderItem.founder_key] || ['#4f46e5', '#0ea5e9', '#22c55e'][index % 3]
       };
     });
   }, [foundersCardsData, foundersChartCurrencyResolved]);
-  const foundersMonthlyChartMax = useMemo(() => {
-    const values = foundersMonthlyChartData.flatMap((row) => Object.values(row.values || {}).map((value) => Number(value || 0)));
-    const max = Math.max(0, ...values);
-    return max > 0 ? max : 1;
-  }, [foundersMonthlyChartData]);
-  const foundersHorizontalMax = useMemo(() => {
-    const max = Math.max(0, ...foundersHorizontalBars.map((item) => Number(item.amount || 0)));
-    return max > 0 ? max : 1;
-  }, [foundersHorizontalBars]);
   const foundersGeneratedAtLabel = useMemo(() => {
     const raw = foundersAnalyticsData?.generated_at;
     if (!raw) return '';
@@ -13234,8 +13287,9 @@ function SuperAdminDashboard() {
                                                     {String(currencyLine.currency_code || '').toUpperCase().slice(0, 2)}
                                                   </span>
                                                 )}
-                                                <span className="sa-founders-currency-label">{getCurrencyLabelByCode(currencyLine.currency_code)}</span>
-                                                <span className="sa-founders-currency-amount">{formatBalanceAmount(currencyLine.amount || 0)}</span>
+                                                <span className="sa-founders-currency-amount">
+                                                  {formatBalanceAmount(currencyLine.amount || 0)} {getCurrencyLabelByCode(currencyLine.currency_code)}
+                                                </span>
                                                 <span className="text-muted small">({currencyLine.records_count || 0})</span>
                                               </div>
                                             );
@@ -13269,6 +13323,11 @@ function SuperAdminDashboard() {
                                       {language === 'uz' ? 'Ta’sischi F.I.Sh.' : 'ФИО учредителя'}
                                     </div>
                                     <div className="sa-founders-founder-name">{founderItem.founder_name || '—'}</div>
+                                    <div className="sa-founders-founder-percents">
+                                      {language === 'uz'
+                                        ? `Buyurtma: ${Number(founderItem.order_percent || 0)}% • Bron: ${Number(founderItem.reservation_percent || 0)}%`
+                                        : `Заказы: ${Number(founderItem.order_percent || 0)}% • Бронирование: ${Number(founderItem.reservation_percent || 0)}%`}
+                                    </div>
                                   </div>
                                   <div className="admin-table-container">
                                     <Table responsive className="admin-table mb-0 sa-founders-founder-table">
@@ -13279,7 +13338,21 @@ function SuperAdminDashboard() {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {founderItem.modules.map((moduleItem) => (
+                                        {(() => {
+                                          const priorityKeys = ['orders', 'reservations'];
+                                          const priorityModules = founderItem.modules.filter((moduleItem) => priorityKeys.includes(moduleItem.module_key));
+                                          const fallbackModules = founderItem.modules.filter((moduleItem) => !priorityKeys.includes(moduleItem.module_key));
+                                          const defaultModules = [
+                                            ...priorityModules,
+                                            ...fallbackModules.slice(0, Math.max(0, 2 - priorityModules.length))
+                                          ];
+                                          const shownModules = foundersExpandedModulesMap[founderItem.founder_key]
+                                            ? founderItem.modules
+                                            : defaultModules;
+                                          const hiddenCount = Math.max(0, founderItem.modules.length - defaultModules.length);
+                                          return (
+                                            <>
+                                              {shownModules.map((moduleItem) => (
                                           <tr key={`founder-module-${founderItem.founder_key}-${moduleItem.module_key}`}>
                                             <td className="fw-semibold">{moduleItem.module_label}</td>
                                             <td>
@@ -13298,15 +13371,13 @@ function SuperAdminDashboard() {
                                                             className="sa-founders-currency-flag"
                                                           />
                                                         ) : (
-                                                          <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
-                                                            {String(line.currency_code || '').toUpperCase().slice(0, 2)}
-                                                          </span>
-                                                        )}
-                                                        <span className="sa-founders-currency-label">{getCurrencyLabelByCode(line.currency_code)}</span>
-                                                        <span className="sa-founders-currency-amount">{formatBalanceAmount(line.founder_amount || 0)}</span>
-                                                        {Number(line.founder_percent || 0) > 0 && (
-                                                          <span className="text-muted small">({Number(line.founder_percent || 0)}%)</span>
-                                                        )}
+                                                        <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
+                                                          {String(line.currency_code || '').toUpperCase().slice(0, 2)}
+                                                        </span>
+                                                      )}
+                                                      <span className="sa-founders-currency-amount">
+                                                        {formatBalanceAmount(line.founder_amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
+                                                      </span>
                                                       </div>
                                                     );
                                                   })}
@@ -13314,7 +13385,30 @@ function SuperAdminDashboard() {
                                               )}
                                             </td>
                                           </tr>
-                                        ))}
+                                              ))}
+                                              {hiddenCount > 0 && (
+                                                <tr>
+                                                  <td colSpan={2} className="text-center py-2">
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline-secondary"
+                                                      onClick={() => {
+                                                        setFoundersExpandedModulesMap((prev) => ({
+                                                          ...prev,
+                                                          [founderItem.founder_key]: !prev[founderItem.founder_key]
+                                                        }));
+                                                      }}
+                                                    >
+                                                      {foundersExpandedModulesMap[founderItem.founder_key]
+                                                        ? (language === 'uz' ? 'Yopish' : 'Свернуть')
+                                                        : (language === 'uz' ? `Yana ${hiddenCount}` : `Ещё ${hiddenCount}`)}
+                                                    </Button>
+                                                  </td>
+                                                </tr>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
                                         <tr className="sa-founders-total-row">
                                           <td className="fw-bold">{language === 'uz' ? 'Jami' : 'Итого'}</td>
                                           <td>
@@ -13337,8 +13431,9 @@ function SuperAdminDashboard() {
                                                           {String(line.currency_code || '').toUpperCase().slice(0, 2)}
                                                         </span>
                                                       )}
-                                                      <span className="sa-founders-currency-label">{getCurrencyLabelByCode(line.currency_code)}</span>
-                                                      <span className="sa-founders-currency-amount">{formatBalanceAmount(line.amount || 0)}</span>
+                                                      <span className="sa-founders-currency-amount">
+                                                        {formatBalanceAmount(line.amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
+                                                      </span>
                                                       <span className="text-muted small">
                                                         {language === 'uz'
                                                           ? `Kirim ${formatBalanceAmount(line.gross_amount || 0)} • Chiqim ${formatBalanceAmount(line.expense_amount || 0)}`
@@ -13385,57 +13480,104 @@ function SuperAdminDashboard() {
                             </div>
 
                             <Row className="g-3">
-                              <Col xs={12} xl={8}>
+                              <Col xs={12}>
                                 <div className="sa-founders-chart-card">
                                   <div className="sa-founders-chart-title">
-                                    {language === 'uz' ? 'Oylik dinamika (3 ta’sischi)' : 'Помесячная динамика (3 учредителя)'}
+                                    {language === 'uz' ? 'Modullar bo‘yicha oylik grafika' : 'Помесячно по модулям'}
                                   </div>
-                                  {foundersMonthlyChartData.length === 0 ? (
+                                  {foundersMonthlyModulesChartData.length === 0 ? (
                                     <div className="text-muted small py-4 text-center">
                                       {language === 'uz' ? "Diagramma uchun ma'lumot yo'q" : 'Нет данных для диаграммы'}
                                     </div>
                                   ) : (
-                                    <div className="sa-founders-monthly-chart">
-                                      {foundersMonthlyChartData.map((monthItem) => (
-                                        <div className="sa-founders-monthly-group" key={`month-${monthItem.month_key}`}>
-                                          <div className="sa-founders-monthly-bars">
-                                            {foundersCardsData.map((founderItem, founderIndex) => {
-                                              const founderKey = founderItem.founder_key;
-                                              const value = Number(monthItem.values?.[founderKey] || 0);
-                                              const heightPercent = Math.max(4, (value / foundersMonthlyChartMax) * 100);
-                                              const color = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
-                                              return (
-                                                <div className="sa-founders-monthly-bar-wrap" key={`month-bar-${monthItem.month_key}-${founderKey}`}>
-                                                  <div className="sa-founders-monthly-value" title={formatBalanceAmount(value)}>
-                                                    {formatBalanceAmount(value)}
-                                                  </div>
-                                                  <div
-                                                    className="sa-founders-monthly-bar"
-                                                    style={{ height: `${heightPercent}%`, backgroundColor: color }}
-                                                  />
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                          <div className="sa-founders-monthly-label" title={monthItem.month_label}>
-                                            {monthItem.month_label}
-                                          </div>
-                                        </div>
-                                      ))}
+                                    <div className="sa-founders-recharts-wrap sa-founders-recharts-wrap-modules">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={foundersMonthlyModulesChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                          <XAxis dataKey="month_label" tick={{ fill: '#64748b', fontSize: 12 }} />
+                                          <YAxis
+                                            tick={{ fill: '#64748b', fontSize: 12 }}
+                                            tickFormatter={(value) => formatBalanceAmount(value)}
+                                          />
+                                          <RechartsTooltip
+                                            formatter={(value) => `${formatBalanceAmount(value)} ${getCurrencyLabelByCode(foundersChartCurrencyResolved)}`}
+                                            labelFormatter={(label) => `${language === 'uz' ? 'Oy' : 'Месяц'}: ${label}`}
+                                          />
+                                          <Legend />
+                                          {foundersModulesConfig.map((moduleItem) => (
+                                            <Bar
+                                              key={`founders-modules-chart-bar-${moduleItem.key}`}
+                                              dataKey={moduleItem.key}
+                                              name={moduleItem.label}
+                                              stackId="module-stack"
+                                              fill={FOUNDERS_MODULE_CHART_COLORS[moduleItem.key] || '#94a3b8'}
+                                              radius={[4, 4, 0, 0]}
+                                            />
+                                          ))}
+                                        </BarChart>
+                                      </ResponsiveContainer>
                                     </div>
                                   )}
-                                  <div className="sa-founders-chart-legend">
-                                    {foundersCardsData.map((founderItem, founderIndex) => {
-                                      const founderKey = founderItem.founder_key;
-                                      const color = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
-                                      return (
-                                        <span key={`legend-${founderKey}`} className="sa-founders-legend-item">
-                                          <span className="sa-founders-legend-dot" style={{ backgroundColor: color }} />
-                                          {founderItem.founder_name}
-                                        </span>
-                                      );
-                                    })}
+                                </div>
+                              </Col>
+
+                              <Col xs={12} xl={8}>
+                                <div className="sa-founders-chart-card">
+                                  <div className="sa-founders-chart-title">
+                                    {language === 'uz' ? 'Ta’sischilar: diagramma (area)' : 'Диаграмма с областями'}
                                   </div>
+                                  {foundersMonthlyAreaChartData.length === 0 ? (
+                                    <div className="text-muted small py-4 text-center">
+                                      {language === 'uz' ? "Diagramma uchun ma'lumot yo'q" : 'Нет данных для диаграммы'}
+                                    </div>
+                                  ) : (
+                                    <div className="sa-founders-recharts-wrap">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={foundersMonthlyAreaChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                                          <defs>
+                                            {foundersCardsData.map((founderItem, founderIndex) => {
+                                              const founderKey = founderItem.founder_key;
+                                              const color = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
+                                              return (
+                                                <linearGradient key={`founders-area-gradient-${founderKey}`} id={`founders-area-gradient-${founderKey}`} x1="0" y1="0" x2="0" y2="1">
+                                                  <stop offset="5%" stopColor={color} stopOpacity={0.45} />
+                                                  <stop offset="95%" stopColor={color} stopOpacity={0.04} />
+                                                </linearGradient>
+                                              );
+                                            })}
+                                          </defs>
+                                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                          <XAxis dataKey="month_label" tick={{ fill: '#64748b', fontSize: 12 }} />
+                                          <YAxis
+                                            tick={{ fill: '#64748b', fontSize: 12 }}
+                                            tickFormatter={(value) => formatBalanceAmount(value)}
+                                          />
+                                          <RechartsTooltip
+                                            formatter={(value) => `${formatBalanceAmount(value)} ${getCurrencyLabelByCode(foundersChartCurrencyResolved)}`}
+                                            labelFormatter={(label) => `${language === 'uz' ? 'Oy' : 'Месяц'}: ${label}`}
+                                          />
+                                          <Legend />
+                                          {foundersCardsData.map((founderItem, founderIndex) => {
+                                            const founderKey = founderItem.founder_key;
+                                            const color = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
+                                            return (
+                                              <Area
+                                                key={`founders-area-${founderKey}`}
+                                                type="monotone"
+                                                dataKey={founderKey}
+                                                name={founderItem.founder_name}
+                                                stroke={color}
+                                                fill={`url(#founders-area-gradient-${founderKey})`}
+                                                strokeWidth={2.2}
+                                                dot={{ r: 2 }}
+                                                activeDot={{ r: 4 }}
+                                              />
+                                            );
+                                          })}
+                                        </AreaChart>
+                                      </ResponsiveContainer>
+                                    </div>
+                                  )}
                                 </div>
                               </Col>
 
@@ -13444,30 +13586,47 @@ function SuperAdminDashboard() {
                                   <div className="sa-founders-chart-title">
                                     {language === 'uz' ? 'Ta’sischilar bo‘yicha jami' : 'Сумма по учредителям'}
                                   </div>
-                                  {foundersHorizontalBars.length === 0 ? (
+                                  {foundersFoundersBarChartData.length === 0 ? (
                                     <div className="text-muted small py-4 text-center">
                                       {language === 'uz' ? "Diagramma uchun ma'lumot yo'q" : 'Нет данных для диаграммы'}
                                     </div>
                                   ) : (
-                                    <div className="sa-founders-horizontal-chart">
-                                      {foundersHorizontalBars.map((item, index) => {
-                                        const color = FOUNDERS_CHART_COLORS[item.founder_key] || ['#4f46e5', '#0ea5e9', '#22c55e'][index % 3];
-                                        const widthPercent = Math.max(6, (Number(item.amount || 0) / foundersHorizontalMax) * 100);
-                                        return (
-                                          <div className="sa-founders-horizontal-row" key={`founders-horizontal-${item.founder_key || index}`}>
-                                            <div className="sa-founders-horizontal-name">{item.founder_name}</div>
-                                            <div className="sa-founders-horizontal-track">
-                                              <div
-                                                className="sa-founders-horizontal-bar"
-                                                style={{ width: `${widthPercent}%`, backgroundColor: color }}
-                                              />
-                                            </div>
-                                            <div className="sa-founders-horizontal-value">
-                                              {formatBalanceAmount(item.amount || 0)}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                                    <div className="sa-founders-recharts-wrap sa-founders-recharts-wrap-founders">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                          data={foundersFoundersBarChartData}
+                                          layout="vertical"
+                                          margin={{ top: 8, right: 24, left: 4, bottom: 0 }}
+                                        >
+                                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                          <XAxis
+                                            type="number"
+                                            tick={{ fill: '#64748b', fontSize: 11 }}
+                                            tickFormatter={(value) => formatBalanceAmount(value)}
+                                          />
+                                          <YAxis
+                                            type="category"
+                                            dataKey="founder_name"
+                                            width={88}
+                                            tick={{ fill: '#334155', fontSize: 12 }}
+                                          />
+                                          <RechartsTooltip
+                                            formatter={(value) => `${formatBalanceAmount(value)} ${getCurrencyLabelByCode(foundersChartCurrencyResolved)}`}
+                                            labelFormatter={(label) => `${language === 'uz' ? 'Ta’sischi' : 'Учредитель'}: ${label}`}
+                                          />
+                                          <Bar dataKey="amount" radius={[0, 6, 6, 0]}>
+                                            {foundersFoundersBarChartData.map((entry) => (
+                                              <Cell key={`founders-sum-cell-${entry.founder_key}`} fill={entry.fill} />
+                                            ))}
+                                            <LabelList
+                                              dataKey="amount"
+                                              position="right"
+                                              formatter={(value) => `${formatBalanceAmount(value)} ${getCurrencyLabelByCode(foundersChartCurrencyResolved)}`}
+                                              style={{ fill: '#0f172a', fontSize: 11, fontWeight: 600 }}
+                                            />
+                                          </Bar>
+                                        </BarChart>
+                                      </ResponsiveContainer>
                                     </div>
                                   )}
                                 </div>
