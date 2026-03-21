@@ -8152,6 +8152,24 @@ function SuperAdminDashboard() {
           data: normalizedRevenueTimeline.map((item) => Number(item.value || 0)),
           lineStyle: { width: 2.5 },
           itemStyle: { color: '#6366f1' },
+          label: {
+            show: true,
+            position: 'top',
+            distance: 6,
+            color: '#475569',
+            fontSize: 10,
+            formatter: ({ value }) => formatAnalyticsAxisValue(value, 'currency')
+          },
+          markPoint: {
+            symbolSize: 40,
+            label: {
+              show: true,
+              color: '#1e293b',
+              fontSize: 10,
+              formatter: ({ value }) => formatAnalyticsAxisValue(value, 'currency')
+            },
+            data: [{ type: 'max', name: 'max' }]
+          },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: 'rgba(99,102,241,0.28)' },
@@ -8200,6 +8218,24 @@ function SuperAdminDashboard() {
           data: normalizedOrdersTimeline.map((item) => Number(item.value || 0)),
           lineStyle: { width: 2.5 },
           itemStyle: { color: '#f43f5e' },
+          label: {
+            show: true,
+            position: 'top',
+            distance: 6,
+            color: '#475569',
+            fontSize: 10,
+            formatter: ({ value }) => Math.round(Number(value || 0)).toLocaleString('ru-RU')
+          },
+          markPoint: {
+            symbolSize: 38,
+            label: {
+              show: true,
+              color: '#1e293b',
+              fontSize: 10,
+              formatter: ({ value }) => Math.round(Number(value || 0)).toLocaleString('ru-RU')
+            },
+            data: [{ type: 'max', name: 'max' }]
+          },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: 'rgba(244,63,94,0.24)' },
