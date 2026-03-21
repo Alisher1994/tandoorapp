@@ -125,6 +125,7 @@ function YandexShopsMap({
   const geoCollectionRef = useRef(null);
   const markerLayoutRef = useRef(null);
   const [loadError, setLoadError] = useState('');
+  const [mapReady, setMapReady] = useState(false);
   const boundsSignatureRef = useRef('');
 
   const normalizedPoints = useMemo(
@@ -156,6 +157,8 @@ function YandexShopsMap({
         const geoCollection = new ymaps.GeoObjectCollection({}, {});
         geoCollectionRef.current = geoCollection;
         map.geoObjects.add(geoCollection);
+        setMapReady(true);
+        map.container.fitToViewport();
       } catch (error) {
         if (!destroyed) {
           const message = error?.message || 'Не удалось загрузить карту Yandex';
@@ -181,7 +184,7 @@ function YandexShopsMap({
     const map = mapRef.current;
     const ymaps = typeof window !== 'undefined' ? window.ymaps : null;
     const geoCollection = geoCollectionRef.current;
-    if (!map || !ymaps || !geoCollection) return;
+    if (!map || !ymaps || !geoCollection || !mapReady) return;
 
     geoCollection.removeAll();
 
@@ -241,7 +244,7 @@ function YandexShopsMap({
     else if (spreadKm > 30) zoom = 10;
 
     map.setCenter([centerLat, centerLng], zoom, { duration: 250 });
-  }, [normalizedPoints, language]);
+  }, [normalizedPoints, language, mapReady]);
 
   if (loadError) {
     return (
