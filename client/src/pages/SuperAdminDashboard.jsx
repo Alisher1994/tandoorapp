@@ -1727,8 +1727,9 @@ function SuperAdminDashboard() {
     return `${year}-${month}-${day}`;
   });
   const [overviewMapProvider, setOverviewMapProvider] = useState(() => getSavedMapProvider());
-  const [showOverviewClientsOnMap, setShowOverviewClientsOnMap] = useState(true);
-  const [showOverviewShopsOnMap, setShowOverviewShopsOnMap] = useState(true);
+  const [overviewMapViewMode, setOverviewMapViewMode] = useState('clients');
+  const showOverviewClientsOnMap = overviewMapViewMode === 'clients';
+  const showOverviewShopsOnMap = overviewMapViewMode === 'shops';
   const [selectedOverviewOrderLocation, setSelectedOverviewOrderLocation] = useState(null);
   const [overviewMapSelectionLocked, setOverviewMapSelectionLocked] = useState(false);
   const overviewAnalyticsTabOpenedRef = useRef(false);
@@ -7859,6 +7860,17 @@ function SuperAdminDashboard() {
     () => [...overviewVisibleOrderLocations, ...overviewVisibleShopPoints],
     [overviewVisibleOrderLocations, overviewVisibleShopPoints]
   );
+  const overviewShopsListForPanel = useMemo(() => (
+    [...overviewVisibleShopPoints].sort((left, right) => {
+      const leftName = String(left?.name || '').trim();
+      const rightName = String(right?.name || '').trim();
+      if (leftName && rightName) {
+        return leftName.localeCompare(rightName, language === 'uz' ? 'uz' : 'ru');
+      }
+      if (leftName || rightName) return leftName ? -1 : 1;
+      return Number(left?.id || 0) - Number(right?.id || 0);
+    })
+  ), [overviewVisibleShopPoints, language]);
   const handleSelectOverviewOrderLocation = React.useCallback((location) => {
     if (!location) return;
     setSelectedOverviewOrderLocation(location);
@@ -8770,24 +8782,28 @@ function SuperAdminDashboard() {
                           </option>
                         ))}
                       </Form.Select>
-                      <Form.Check
-                        inline
-                        type="switch"
-                        id="sa-overview-map-clients-switch"
-                        className="mb-0"
-                        label={language === 'uz' ? 'Mijozlar' : 'Клиенты'}
-                        checked={showOverviewClientsOnMap}
-                        onChange={(e) => setShowOverviewClientsOnMap(e.target.checked)}
-                      />
-                      <Form.Check
-                        inline
-                        type="switch"
-                        id="sa-overview-map-shops-switch"
-                        className="mb-0"
-                        label={language === 'uz' ? "Do'konlar" : 'Магазины'}
-                        checked={showOverviewShopsOnMap}
-                        onChange={(e) => setShowOverviewShopsOnMap(e.target.checked)}
-                      />
+                      <div
+                        className="admin-analytics-period-tabs admin-analytics-map-view-tabs"
+                        role="tablist"
+                        aria-label={language === 'uz' ? "Xarita rejimi" : 'Режим карты'}
+                      >
+                        <button
+                          type="button"
+                          className={`admin-analytics-period-btn admin-analytics-map-view-btn${showOverviewClientsOnMap ? ' is-active' : ''}`}
+                          onClick={() => setOverviewMapViewMode('clients')}
+                          aria-pressed={showOverviewClientsOnMap}
+                        >
+                          {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
+                        </button>
+                        <button
+                          type="button"
+                          className={`admin-analytics-period-btn admin-analytics-map-view-btn${showOverviewShopsOnMap ? ' is-active' : ''}`}
+                          onClick={() => setOverviewMapViewMode('shops')}
+                          aria-pressed={showOverviewShopsOnMap}
+                        >
+                          {language === 'uz' ? "Do'konlar" : 'Магазины'}
+                        </button>
+                      </div>
                     </div>
                   </Card.Header>
                   <Card.Body className="p-0">
@@ -8856,70 +8872,117 @@ function SuperAdminDashboard() {
                       </Col>
                       <Col lg={4} xl={3} className="border-start bg-white">
                         <div className="p-3 h-100 admin-custom-scrollbar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
-                          <div className="small text-uppercase text-muted fw-semibold mb-2">
-                            {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
-                          </div>
-                          <div className="table-responsive admin-analytics-map-table-wrap">
-                            {overviewAnalyticsOrderLocations.length === 0 ? (
-                              <div className="text-muted small">{t('noDataForPeriod')}</div>
-                            ) : (
-                              <Table hover size="sm" className="mb-0 admin-analytics-map-table">
-                                <thead>
-                                  <tr>
-                                    <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
-                                    <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Buyurtma' : 'Заказ'}</th>
-                                    <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
-                                    <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
-                                    <th>{language === 'uz' ? 'Manzil' : 'Адрес'}</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {overviewAnalyticsOrderLocations.map((location) => {
-                                    const locationKey = getOverviewOrderLocationKey(location);
-                                    const isSelected = selectedOverviewOrderLocation
-                                      && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
-                                    return (
-                                      <tr
-                                        key={`sa-overview-map-list-${locationKey}`}
-                                        className={isSelected ? 'is-active' : ''}
-                                        onClick={() => handleSelectOverviewOrderLocation(location)}
-                                        style={{ cursor: 'pointer' }}
-                                      >
-                                        <td className="fw-semibold text-truncate" title={location.customerName || 'Клиент'}>
-                                          {location.customerName || 'Клиент'}
-                                        </td>
-                                        <td className="text-muted text-truncate" title={location.restaurantName || 'Магазин'}>
-                                          {location.restaurantName || 'Магазин'}
-                                        </td>
-                                        <td className="text-end text-nowrap">
-                                          №{location.orderNumber || '—'}
-                                        </td>
-                                        <td className="text-end text-nowrap fw-semibold">
-                                          {formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}
-                                        </td>
-                                        <td className="text-nowrap">
-                                          {location.createdAt ? new Date(location.createdAt).toLocaleString('ru-RU') : '—'}
-                                        </td>
-                                        <td className="text-truncate" title={location.deliveryAddress || '—'}>
-                                          {location.deliveryAddress || '—'}
-                                        </td>
+                          {showOverviewClientsOnMap ? (
+                            <>
+                              <div className="small text-uppercase text-muted fw-semibold mb-2">
+                                {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
+                              </div>
+                              <div className="table-responsive admin-analytics-map-table-wrap">
+                                {overviewVisibleOrderLocations.length === 0 ? (
+                                  <div className="text-muted small">{t('noDataForPeriod')}</div>
+                                ) : (
+                                  <Table hover size="sm" className="mb-0 admin-analytics-map-table">
+                                    <thead>
+                                      <tr>
+                                        <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
+                                        <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                                        <th className="text-end">{language === 'uz' ? 'Buyurtma' : 'Заказ'}</th>
+                                        <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                                        <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                                        <th>{language === 'uz' ? 'Manzil' : 'Адрес'}</th>
                                       </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </Table>
-                            )}
-                          </div>
+                                    </thead>
+                                    <tbody>
+                                      {overviewVisibleOrderLocations.map((location) => {
+                                        const locationKey = getOverviewOrderLocationKey(location);
+                                        const isSelected = selectedOverviewOrderLocation
+                                          && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
+                                        return (
+                                          <tr
+                                            key={`sa-overview-map-list-${locationKey}`}
+                                            className={isSelected ? 'is-active' : ''}
+                                            onClick={() => handleSelectOverviewOrderLocation(location)}
+                                            style={{ cursor: 'pointer' }}
+                                          >
+                                            <td className="fw-semibold text-truncate" title={location.customerName || 'Клиент'}>
+                                              {location.customerName || 'Клиент'}
+                                            </td>
+                                            <td className="text-muted text-truncate" title={location.restaurantName || 'Магазин'}>
+                                              {location.restaurantName || 'Магазин'}
+                                            </td>
+                                            <td className="text-end text-nowrap">
+                                              №{location.orderNumber || '—'}
+                                            </td>
+                                            <td className="text-end text-nowrap fw-semibold">
+                                              {formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}
+                                            </td>
+                                            <td className="text-nowrap">
+                                              {location.createdAt ? new Date(location.createdAt).toLocaleString('ru-RU') : '—'}
+                                            </td>
+                                            <td className="text-truncate" title={location.deliveryAddress || '—'}>
+                                              {location.deliveryAddress || '—'}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </Table>
+                                )}
+                              </div>
 
-                          {selectedOverviewOrderLocation ? (
-                            <div className="mt-3 p-2 rounded border bg-white">
-                              <div className="small"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedOverviewOrderLocation.orderNumber || '—'}</div>
-                              <div className="small"><strong>{t('amount')}:</strong> {formatAnalyticsMoney(selectedOverviewOrderLocation.totalAmount || 0)} {t('sum')}</div>
-                              <div className="small"><strong>{t('date')}:</strong> {selectedOverviewOrderLocation.createdAt ? new Date(selectedOverviewOrderLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
-                              <div className="small"><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedOverviewOrderLocation.deliveryAddress || '—'}</div>
-                            </div>
-                          ) : null}
+                              {selectedOverviewOrderLocation ? (
+                                <div className="mt-3 p-2 rounded border bg-white">
+                                  <div className="small"><strong>{language === 'uz' ? 'Buyurtma' : 'Заказ'}:</strong> №{selectedOverviewOrderLocation.orderNumber || '—'}</div>
+                                  <div className="small"><strong>{t('amount')}:</strong> {formatAnalyticsMoney(selectedOverviewOrderLocation.totalAmount || 0)} {t('sum')}</div>
+                                  <div className="small"><strong>{t('date')}:</strong> {selectedOverviewOrderLocation.createdAt ? new Date(selectedOverviewOrderLocation.createdAt).toLocaleString('ru-RU') : '—'}</div>
+                                  <div className="small"><strong>{language === 'uz' ? 'Manzil' : 'Адрес'}:</strong> {selectedOverviewOrderLocation.deliveryAddress || '—'}</div>
+                                </div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              <div className="small text-uppercase text-muted fw-semibold mb-2">
+                                {language === 'uz' ? "Do'konlar" : 'Магазины'}
+                              </div>
+                              <div className="table-responsive admin-analytics-map-table-wrap">
+                                {overviewShopsListForPanel.length === 0 ? (
+                                  <div className="text-muted small">{t('noDataForPeriod')}</div>
+                                ) : (
+                                  <Table hover size="sm" className="mb-0 admin-analytics-map-table">
+                                    <thead>
+                                      <tr>
+                                        <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                                        <th>{language === 'uz' ? 'Operator' : 'Оператор'}</th>
+                                        <th>{language === 'uz' ? 'Telefon' : 'Телефон'}</th>
+                                        <th className="text-end">{language === 'uz' ? 'Balans' : 'Баланс'}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {overviewShopsListForPanel.map((shop, idx) => {
+                                        const currencyLabel = getCurrencyLabelByCode(shop.currencyCode || 'uz');
+                                        return (
+                                          <tr key={`sa-overview-shop-list-${shop.id || idx}`}>
+                                            <td className="fw-semibold text-truncate" title={shop.name || 'Магазин'}>
+                                              {shop.name || (language === 'uz' ? "Do'kon" : 'Магазин')}
+                                            </td>
+                                            <td className="text-truncate" title={shop.operatorName || '—'}>
+                                              {shop.operatorName || '—'}
+                                            </td>
+                                            <td className="text-truncate" title={shop.operatorPhone || shop.phone || '—'}>
+                                              {shop.operatorPhone || shop.phone || '—'}
+                                            </td>
+                                            <td className="text-end text-nowrap">
+                                              {formatAnalyticsMoney(shop.balance || 0)} {currencyLabel}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </Table>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </Col>
                     </Row>

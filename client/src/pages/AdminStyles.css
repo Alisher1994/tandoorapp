@@ -3471,6 +3471,14 @@ body::-webkit-scrollbar,
     box-shadow: var(--admin-segment-active-shadow);
 }
 
+.admin-analytics-map-view-tabs {
+    flex-wrap: nowrap;
+}
+
+.admin-analytics-map-view-btn {
+    min-width: 108px;
+}
+
 .admin-analytics-filters-area {
     display: flex;
     gap: 16px;
