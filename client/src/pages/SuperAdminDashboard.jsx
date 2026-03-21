@@ -138,6 +138,33 @@ const AI_PROVIDER_TYPE_META = {
   pollinations: { label: 'Pollinations', icon: '/ai-providers/pollinations.svg', badge: 'success' },
   custom: { label: 'Custom', icon: '/ai-providers/custom.svg', badge: 'secondary' }
 };
+const OPENROUTER_FREE_TEXT_MODEL = 'stepfun/step-3.5-flash:free';
+const OPENROUTER_FREE_IMAGE_MODEL = 'minimax/minimax-m2.5:free';
+const getAiModelPlaceholdersByProviderType = (providerType) => {
+  const normalizedType = String(providerType || '').trim().toLowerCase();
+  if (normalizedType === 'openrouter') {
+    return {
+      image: OPENROUTER_FREE_IMAGE_MODEL,
+      text: OPENROUTER_FREE_TEXT_MODEL
+    };
+  }
+  if (normalizedType === 'openai') {
+    return {
+      image: 'gpt-image-1',
+      text: 'gpt-4.1-mini'
+    };
+  }
+  if (normalizedType === 'pollinations') {
+    return {
+      image: 'flux',
+      text: 'openai'
+    };
+  }
+  return {
+    image: 'gemini-2.5-flash-image',
+    text: 'gemini-2.5-flash'
+  };
+};
 const getAiProviderTypeMeta = (providerType) => {
   const normalized = String(providerType || '').trim().toLowerCase();
   if (normalized && AI_PROVIDER_TYPE_META[normalized]) {
@@ -4268,6 +4295,15 @@ function SuperAdminDashboard() {
       }
       return item;
     }));
+  };
+  const applyOpenRouterFreePreset = (providerKey, provider) => {
+    const currentName = String(provider?.name || '').trim();
+    updateAiProviderDraft(providerKey, {
+      provider_type: 'openrouter',
+      text_model: OPENROUTER_FREE_TEXT_MODEL,
+      image_model: OPENROUTER_FREE_IMAGE_MODEL,
+      name: currentName || 'OpenRouter Free'
+    });
   };
 
   const buildAiProviderPayload = (provider = {}) => ({
@@ -10443,6 +10479,7 @@ function SuperAdminDashboard() {
                         const isDeleting = provider.id && aiProviderDeletingId === provider.id;
                         const isTesting = provider.id && aiProviderTestingId === provider.id;
                         const providerTypeMeta = getAiProviderTypeMeta(provider.provider_type);
+                        const modelPlaceholders = getAiModelPlaceholdersByProviderType(provider.provider_type);
                         const providerTitle = String(provider.name || '').trim() || 'Новый провайдер';
                         const providerActive = provider.is_active === true;
                         return (
@@ -10518,7 +10555,7 @@ function SuperAdminDashboard() {
                                 size="sm"
                                 value={provider.image_model || ''}
                                 onChange={(e) => updateAiProviderDraft(providerKey, { image_model: e.target.value })}
-                                placeholder="gemini-2.5-flash-image"
+                                placeholder={modelPlaceholders.image}
                               />
                             </td>
                             <td className="ai-provider-model-col">
@@ -10526,7 +10563,7 @@ function SuperAdminDashboard() {
                                 size="sm"
                                 value={provider.text_model || ''}
                                 onChange={(e) => updateAiProviderDraft(providerKey, { text_model: e.target.value })}
-                                placeholder="gemini-2.5-flash"
+                                placeholder={modelPlaceholders.text}
                               />
                             </td>
                             <td className="ai-provider-priority-col">
@@ -10556,6 +10593,18 @@ function SuperAdminDashboard() {
                             </td>
                             <td className="ai-provider-actions-col">
                               <div className="d-flex justify-content-end gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="ai-provider-action-btn"
+                                  variant="outline-info"
+                                  onClick={() => applyOpenRouterFreePreset(providerKey, provider)}
+                                  disabled={isSaving || isDeleting || isTesting}
+                                  title="Заполнить OpenRouter Free (StepFun + Minimax)"
+                                  aria-label={`Заполнить OpenRouter Free пресет для ${providerTitle}`}
+                                >
+                                  <i className="bi bi-stars" aria-hidden="true" />
+                                </Button>
                                 <Button
                                   type="button"
                                   size="sm"
@@ -10620,6 +10669,7 @@ function SuperAdminDashboard() {
             Примечание: включите тумблер "Актив" у нужного провайдера и нажмите кнопку сохранения в этой же строке — предыдущий активный выключится автоматически.
             ENV-ключи используются только когда активный провайдер не задан.
             Для кнопки проверки провайдер должен быть активным, иначе будет ошибка.
+            Кнопка со звёздочкой заполняет OpenRouter Free пресет: StepFun (text) + Minimax (image).
           </div>
         </Card.Body>
       </Card>

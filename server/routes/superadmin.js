@@ -104,11 +104,13 @@ const OPENAI_TEXT_MODEL_CANDIDATES = [
 ].filter(Boolean);
 const OPENROUTER_IMAGE_MODEL_CANDIDATES = [
   process.env.OPENROUTER_IMAGE_MODEL,
+  'minimax/minimax-m2.5:free',
   'google/gemini-2.5-flash-image',
   'black-forest-labs/flux.2-flex'
 ].filter(Boolean);
 const OPENROUTER_TEXT_MODEL_CANDIDATES = [
   process.env.OPENROUTER_TEXT_MODEL,
+  'stepfun/step-3.5-flash:free',
   'openai/gpt-4.1-mini',
   'google/gemini-2.5-flash'
 ].filter(Boolean);
@@ -1613,6 +1615,77 @@ const parseImageBufferFromDataUrl = (value) => {
     return null;
   }
 };
+const parseImageBufferFromBase64String = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (raw.length < 80) return null;
+  if (/[^A-Za-z0-9+/=]/.test(raw)) return null;
+  try {
+    const buffer = Buffer.from(raw, 'base64');
+    return buffer.length > 0 ? buffer : null;
+  } catch (_) {
+    return null;
+  }
+};
+const extractOpenRouterImageCandidates = (payload) => {
+  const urls = [];
+  const addCandidate = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return;
+    urls.push(normalized);
+  };
+
+  const firstChoice = payload?.choices?.[0] || {};
+  const message = firstChoice?.message || {};
+  const images = Array.isArray(message?.images) ? message.images : [];
+  images.forEach((image) => {
+    addCandidate(image?.image_url?.url || image?.imageUrl?.url || image?.url || image?.b64_json || image?.base64 || '');
+  });
+
+  const rawContent = message?.content;
+  if (Array.isArray(rawContent)) {
+    rawContent.forEach((item) => {
+      addCandidate(
+        item?.image_url?.url
+        || item?.image_url
+        || item?.url
+        || item?.b64_json
+        || item?.base64
+        || item?.image?.url
+        || ''
+      );
+    });
+  } else if (rawContent && typeof rawContent === 'object') {
+    addCandidate(
+      rawContent?.image_url?.url
+      || rawContent?.image_url
+      || rawContent?.url
+      || rawContent?.b64_json
+      || rawContent?.base64
+      || ''
+    );
+  }
+
+  const topLevelData = Array.isArray(payload?.data) ? payload.data : [];
+  topLevelData.forEach((item) => {
+    addCandidate(item?.url || item?.b64_json || item?.base64 || '');
+  });
+
+  const topLevelImages = Array.isArray(payload?.images) ? payload.images : [];
+  topLevelImages.forEach((item) => {
+    addCandidate(item?.url || item?.image_url?.url || item?.b64_json || item?.base64 || '');
+  });
+
+  const unique = [];
+  const seen = new Set();
+  urls.forEach((item) => {
+    const key = item.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    unique.push(item);
+  });
+  return unique;
+};
 
 const generateGlobalProductImageWithOpenAI = async (prompt, { runtimeOverride = null } = {}) => {
   const runtime = runtimeOverride || await resolveOpenAiRuntimeConfig();
@@ -1741,22 +1814,25 @@ const generateGlobalProductImageWithOpenRouter = async (prompt, { runtimeOverrid
           headers: buildOpenRouterHeaders(apiKey)
         }
       );
-      const images = Array.isArray(response?.data?.choices?.[0]?.message?.images)
-        ? response.data.choices[0].message.images
-        : [];
+      const imageCandidates = extractOpenRouterImageCandidates(response?.data);
       const estimatedCostUsd = extractAiUsageCostUsd(response.data);
-      for (const image of images) {
-        const imageUrl = String(
-          image?.image_url?.url
-          || image?.imageUrl?.url
-          || image?.url
-          || ''
-        ).trim();
+      for (const candidate of imageCandidates) {
+        const imageUrl = String(candidate || '').trim();
         if (!imageUrl) continue;
         const dataBuffer = parseImageBufferFromDataUrl(imageUrl);
         if (dataBuffer) {
           return {
             buffer: dataBuffer,
+            provider: `openrouter:${model}`,
+            model,
+            providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' },
+            estimatedCostUsd
+          };
+        }
+        const rawBase64Buffer = parseImageBufferFromBase64String(imageUrl);
+        if (rawBase64Buffer) {
+          return {
+            buffer: rawBase64Buffer,
             provider: `openrouter:${model}`,
             model,
             providerRef: runtime.providerRef || { id: null, name: 'OpenRouter', provider_type: 'openrouter' },
