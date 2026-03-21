@@ -23,6 +23,8 @@ import Alert from 'react-bootstrap/Alert';
 import InputGroup from 'react-bootstrap/InputGroup';
 import Pagination from 'react-bootstrap/Pagination';
 import Spinner from 'react-bootstrap/Spinner';
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import Popover from 'react-bootstrap/Popover';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
@@ -1365,6 +1367,24 @@ const AdminListPagination = ({ current, total, limit, onPageChange, onLimitChang
     </div>
   );
 };
+
+/** Заголовки столбцов Excel для массовой вставки товаров (порядок как при импорте) */
+const OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS = [
+  'Категория ID',
+  'Категория путь',
+  'Категория',
+  'Название (RU)',
+  'Название (UZ)',
+  'Описание (RU)',
+  'Описание (UZ)',
+  'Цена',
+  'Единица',
+  'Штрихкод',
+  'ИКПУ',
+  'В наличии',
+  'Сезонность',
+  'Скрыть из каталога'
+];
 
 function AdminDashboard() {
   const normalizeAdminOrderForUI = (order) => ({
@@ -5746,6 +5766,21 @@ function AdminDashboard() {
     return () => clearTimeout(timer);
   }, [showPasteImportModal]);
 
+  const operatorPasteImportDemoRows = useMemo(() => {
+    if (language === 'uz') {
+      return [
+        ['100', '', '', 'Namuna «A»', 'Sample A', 'Tavsif matni', '', '1500', 'шт', '4600000000001', '12345678901234', 'Ha', 'Hammasi', "Yo'q"],
+        ['', 'Ichimliklar > Suv > Mineral', '', 'Namuna «B»', '', '', '', '89', 'шт', '4600000000002', '98765432109876', 'Ha', 'Yoz', "Yo'q"],
+        ['', '', 'Noyob kategoriya', 'Namuna «C»', 'Sample C', '', '', '200', 'кг', '', '', "Yo'q", 'Kuz', 'Ha']
+      ];
+    }
+    return [
+      ['100', '', '', 'Товар-пример «Альфа»', 'Alpha sample', 'Текст описания', '', '1500', 'шт', '4600000000001', '12345678901234', 'Да', 'Всесезонный', 'Нет'],
+      ['', 'Напитки > Вода > Минеральная', '', 'Товар-пример «Бета»', '', '', '', '89', 'шт', '4600000000002', '98765432109876', 'Да', 'Лето', 'Нет'],
+      ['', '', 'Уникальная категория', 'Товар-пример «Гамма»', 'Gamma sample', '', '', '200', 'кг', '', '', 'Нет', 'Осень', 'Да']
+    ];
+  }, [language]);
+
   const buildPreparedImportRows = (jsonData = [], rowNumberOffset = 2) => (
     (Array.isArray(jsonData) ? jsonData : []).map((row, index) => {
       const rowNo = index + rowNumberOffset;
@@ -9587,6 +9622,16 @@ function AdminDashboard() {
                       </span>
                       <span className="d-md-none">Global</span>
                     </Button>
+                    <Button
+                      variant="outline-dark"
+                      className="btn-primary-custom"
+                      onClick={() => setShowPasteImportModal(true)}
+                    >
+                      <span className="d-none d-md-inline">
+                        {language === 'uz' ? 'Ctrl+V bilan qo‘shish' : 'Вставка Ctrl+V'}
+                      </span>
+                      <span className="d-md-none">Ctrl+V</span>
+                    </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={() => openProductModal()}>
                       <span className="d-none d-md-inline">{t('addProduct')}</span>
                       <span className="d-md-none">Добавить</span>
@@ -9752,10 +9797,6 @@ function AdminDashboard() {
                       <Button variant="dark" className="btn-primary-custom" onClick={() => setShowExcelModal(true)}>
                         <span className="d-none d-md-inline">{t('importExcel')}</span>
                         <span className="d-md-none">Импорт</span>
-                      </Button>
-                      <Button variant="outline-dark" className="btn-primary-custom" onClick={() => setShowPasteImportModal(true)}>
-                        <span className="d-none d-md-inline">Вставка Ctrl+V</span>
-                        <span className="d-md-none">Вставка</span>
                       </Button>
                     </div>
                   </Col>
@@ -12596,15 +12637,17 @@ function AdminDashboard() {
           show={showGlobalImportModal}
           onHide={closeGlobalImportModal}
           size="xl"
+          centered
+          className="admin-global-import-modal"
           dialogClassName="admin-global-import-modal-dialog"
         >
-          <Modal.Header closeButton>
-            <Modal.Title>
+          <Modal.Header closeButton className="admin-global-import-modal-header">
+            <Modal.Title className="sa-global-products-modal-title h6 mb-0">
               {language === 'uz' ? "Global mahsulotni do'konga qo'shish" : 'Добавить глобальный товар в магазин'}
             </Modal.Title>
           </Modal.Header>
-          <Modal.Body>
-            <Row className="g-3">
+          <Modal.Body className="admin-global-import-modal-body">
+            <Row className="g-2 align-items-stretch">
               <Col lg={5}>
                 <div className="admin-global-import-panel">
                   <div className="admin-global-import-panel-head">
@@ -12631,11 +12674,11 @@ function AdminDashboard() {
                   </Row>
                   <div className="admin-global-import-list">
                     {globalCatalogLoading ? (
-                      <div className="text-muted small py-4 text-center">
+                      <div className="text-muted small py-3 text-center admin-global-import-empty-hint">
                         {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
                       </div>
                     ) : globalCatalogProducts.length === 0 ? (
-                      <div className="text-muted small py-4 text-center">
+                      <div className="text-muted small py-3 text-center admin-global-import-empty-hint">
                         {language === 'uz' ? "Global mahsulotlar topilmadi" : 'Глобальные товары не найдены'}
                       </div>
                     ) : (
@@ -12704,7 +12747,7 @@ function AdminDashboard() {
                 </div>
               </Col>
 
-              <Col lg={2} className="d-flex align-items-center justify-content-center">
+              <Col lg={2} className="d-flex align-items-center justify-content-center py-1 admin-global-import-arrows-col">
                 <div className="admin-global-import-arrows">
                   <Button
                     type="button"
@@ -12733,7 +12776,7 @@ function AdminDashboard() {
                   </div>
                   <div className="admin-global-import-list admin-global-import-list-right">
                     {globalImportItems.length === 0 ? (
-                      <div className="text-muted small py-4 text-center">
+                      <div className="text-muted small py-3 text-center admin-global-import-empty-hint">
                         {language === 'uz'
                           ? "Hozircha tanlangan mahsulotlar yo'q"
                           : 'Пока нет выбранных товаров'}
@@ -12815,8 +12858,8 @@ function AdminDashboard() {
               </Col>
             </Row>
           </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={closeGlobalImportModal} disabled={globalImportSaving}>
+          <Modal.Footer className="admin-global-import-modal-footer">
+            <Button variant="outline-secondary" onClick={closeGlobalImportModal} disabled={globalImportSaving}>
               {t('cancel')}
             </Button>
             <Button
@@ -14193,132 +14236,184 @@ function AdminDashboard() {
         </Modal>
 
         {/* Paste Import Modal */}
-        <Modal show={showPasteImportModal} onHide={closePasteImportModal} size="xl">
-          <Modal.Header closeButton>
-            <Modal.Title>Массовая вставка товаров (Ctrl+V)</Modal.Title>
+        <Modal
+          show={showPasteImportModal}
+          onHide={closePasteImportModal}
+          size="xl"
+          centered
+          className="sa-global-products-paste-modal admin-operator-paste-modal"
+          dialogClassName="sa-global-products-paste-dialog"
+        >
+          <Modal.Header closeButton className="sa-global-products-paste-header">
+            <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap w-100 me-1">
+              <Modal.Title className="sa-global-products-modal-title h6 mb-0">
+                {language === 'uz' ? 'Mahsulotlarni Ctrl+V bilan qo‘shish' : 'Массовая вставка товаров (Ctrl+V)'}
+              </Modal.Title>
+              <OverlayTrigger
+                trigger="click"
+                rootClose
+                placement="bottom"
+                overlay={(
+                  <Popover id="admin-paste-import-hint" className="sa-global-products-hint-popover">
+                    <Popover.Body className="small mb-0">
+                      {language === 'uz'
+                        ? "Excel'dan satrlarni nusxa oling va shu oynada Ctrl+V qiling. Har bir satr — bitta mahsulot; variantlar yaratilmaydi (tahrirdan keyin qo'lda)."
+                        : 'Скопируйте строки из Excel и вставьте через Ctrl+V в этом окне. Каждая строка — один товар; варианты не создаются (их можно добавить вручную в карточке товара).'}
+                    </Popover.Body>
+                  </Popover>
+                )}
+              >
+                <Button
+                  type="button"
+                  variant="outline-secondary"
+                  size="sm"
+                  className="sa-global-products-paste-info-btn"
+                  aria-label={language === 'uz' ? 'Yo‘riqnoma' : 'Справка по вставке'}
+                >
+                  i
+                </Button>
+              </OverlayTrigger>
+            </div>
           </Modal.Header>
-          <Modal.Body>
-            <Alert variant="info" className="mb-3">
-              Скопируйте строки из Excel и вставьте через <strong>Ctrl+V</strong> в поле ниже.
-              Каждая строка — один товар, варианты для этих товаров не создаются (добавляются вручную в редактировании).
+          <Modal.Body className="sa-global-products-paste-body">
+            <Alert variant="info" className="sa-global-products-info-alert mb-0 d-flex gap-2 align-items-start">
+              <span className="sa-global-products-info-icon" aria-hidden>ⓘ</span>
+              <span>
+                {language === 'uz'
+                  ? "Kategoriya: avvalo ID, keyin to‘liq yo‘l, keyin nom (noyob bo‘lsa)."
+                  : 'Категория: сначала ID, затем полный путь, затем название (если оно уникально).'}
+              </span>
             </Alert>
-
-            <div className="table-responsive mb-3">
-              <Table bordered size="sm" className="mb-0">
+            <p className="small text-muted mb-0">
+              {language === 'uz'
+                ? 'Exceldagi tartibda 3 ta namuna qator (ustunlar yuqoridagi kabi):'
+                : 'Три примера строк в том же порядке столбцов, что в Excel:'}
+            </p>
+            <div className="sa-global-products-template-table-wrap admin-thin-scrollbar">
+              <Table
+                bordered
+                hover
+                size="sm"
+                className="mb-0 sa-global-products-template-table sa-global-products-template-demo-table admin-operator-paste-demo-table"
+              >
                 <thead className="table-light">
                   <tr>
-                    <th style={{ width: 60 }}>№</th>
-                    <th style={{ minWidth: 190 }}>Колонка</th>
-                    <th>Что вставлять</th>
+                    {OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS.map((h) => (
+                      <th key={`op-paste-h-${h}`}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    ['1', 'Категория ID', 'ID конечной категории (приоритет)'],
-                    ['2', 'Категория путь', 'Полный путь категории'],
-                    ['3', 'Категория', 'Название категории (если уникальное)'],
-                    ['4', 'Название (RU)', 'Название товара (обязательно)'],
-                    ['5', 'Название (UZ)', 'Название на узбекском'],
-                    ['6', 'Описание (RU)', 'Описание на русском'],
-                    ['7', 'Описание (UZ)', 'Описание на узбекском'],
-                    ['8', 'Цена', 'Цена товара'],
-                    ['9', 'Единица', 'Ед. измерения (шт, кг...)'],
-                    ['10', 'Штрихкод', 'Штрихкод'],
-                    ['11', 'ИКПУ', 'Код ИКПУ'],
-                    ['12', 'В наличии', 'Да/Нет'],
-                    ['13', 'Сезонность', 'Всесезонный/Весна/Лето/Осень/Зима'],
-                    ['14', 'Скрыть из каталога', 'Да/Нет']
-                  ].map((item) => (
-                    <tr key={`paste-import-column-${item[0]}`}>
-                      <td>{item[0]}</td>
-                      <td><code>{item[1]}</code></td>
-                      <td>{item[2]}</td>
+                  {operatorPasteImportDemoRows.map((demoRow, rowIdx) => (
+                    <tr key={`op-paste-demo-${rowIdx}`}>
+                      {demoRow.map((cell, cellIdx) => (
+                        <td key={`op-paste-cell-${rowIdx}-${cellIdx}`}>{cell ? String(cell) : '—'}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
               </Table>
             </div>
 
-            <Form.Group className="mb-3">
-              <Form.Label>Поле для вставки</Form.Label>
-              <Form.Control
-                ref={pasteImportInputRef}
-                as="textarea"
-                rows={4}
-                placeholder="Нажмите сюда и вставьте данные из Excel (Ctrl+V)"
-                onPaste={handleProductsPasteImport}
-              />
-            </Form.Group>
-
-            {pasteImportError && (
-              <Alert variant="warning" className="mb-3">
-                {pasteImportError}
-              </Alert>
-            )}
-
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <strong>Распознано строк: {pastedImportRows.length}</strong>
+            <div className="sa-global-products-paste-toolbar justify-content-end">
               <Button
                 variant="outline-danger"
                 size="sm"
+                className="sa-global-products-btn sa-global-products-paste-clear"
                 onClick={() => {
                   setPastedImportRows([]);
                   setPasteImportError('');
                 }}
                 disabled={pastedImportRows.length === 0}
               >
-                Очистить
+                {language === 'uz' ? 'Tozalash' : 'Очистить'}
               </Button>
             </div>
 
-            <div className="table-responsive" style={{ maxHeight: '40vh', overflow: 'auto' }}>
-              <Table bordered hover size="sm" className="mb-0">
-                <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                  <tr>
-                    <th style={{ minWidth: '70px' }}>№</th>
-                    <th style={{ minWidth: '220px' }}>Название (RU)</th>
-                    <th style={{ minWidth: '220px' }}>Название (UZ)</th>
-                    <th style={{ minWidth: '120px' }}>Цена</th>
-                    <th style={{ minWidth: '260px' }}>Категория (из буфера)</th>
-                    <th style={{ minWidth: '170px' }}>Штрихкод / ИКПУ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pastedImportRows.length === 0 ? (
+            <div
+              className="sa-global-products-paste-focus-zone"
+              onClick={() => pasteImportInputRef.current?.focus()}
+              role="presentation"
+            >
+              <p className="sa-global-products-paste-short-hint small text-muted mb-0">
+                {language === 'uz'
+                  ? 'Ctrl+V — satrlar pastdagi jadvalga tushadi. Fokus avtomatik.'
+                  : 'Вставьте через Ctrl+V — строки появятся в таблице ниже. Фокус устанавливается автоматически.'}
+              </p>
+              <Form.Control
+                ref={pasteImportInputRef}
+                as="textarea"
+                readOnly
+                tabIndex={0}
+                rows={1}
+                aria-label={language === 'uz' ? 'Exceldan Ctrl+V' : 'Вставка из Excel Ctrl+V'}
+                className="sa-global-products-paste-textarea-hidden"
+                onPaste={handleProductsPasteImport}
+              />
+            </div>
+
+            {pasteImportError && (
+              <Alert variant="warning" className="sa-global-products-info-alert">
+                {pasteImportError}
+              </Alert>
+            )}
+
+            <section className="sa-global-products-paste-preview">
+              <div className="sa-global-products-paste-preview-head">
+                <span className="sa-global-products-paste-preview-label">
+                  {language === 'uz' ? 'Aniqlangan satrlar' : 'Распознано строк'}
+                </span>
+                <span className="sa-global-products-paste-preview-count">{pastedImportRows.length}</span>
+              </div>
+              <div className="sa-global-products-paste-table-wrap admin-thin-scrollbar">
+                <Table bordered hover size="sm" className="mb-0 sa-global-products-paste-table">
+                  <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                     <tr>
-                      <td colSpan={6} className="text-center text-muted py-4">
-                        Пока нет вставленных строк
-                      </td>
+                      <th style={{ minWidth: 48 }}>№</th>
+                      <th style={{ minWidth: 140 }}>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
+                      <th style={{ minWidth: 120 }}>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
+                      <th style={{ minWidth: 72 }}>{language === 'uz' ? 'Narx' : 'Цена'}</th>
+                      <th style={{ minWidth: 160 }}>{language === 'uz' ? 'Kategoriya' : 'Категория (из буфера)'}</th>
+                      <th style={{ minWidth: 120 }}>{language === 'uz' ? 'Shtrix-kod / IKPU' : 'Штрихкод / ИКПУ'}</th>
                     </tr>
-                  ) : (
-                    pastedImportRows.map((row) => (
-                      <tr key={`pasted-import-row-${row.rowNo}`}>
-                        <td>{row.rowNo}</td>
-                        <td>{row.name_ru || '-'}</td>
-                        <td>{row.name_uz || '-'}</td>
-                        <td>{row.price_raw || '-'}</td>
-                        <td>{row.sourceCategoryId || row.sourceCategoryPath || row.sourceCategoryName || '-'}</td>
-                        <td>
-                          <div>{row.barcode || '-'}</div>
-                          <div className="small text-muted">{row.ikpu || '-'}</div>
+                  </thead>
+                  <tbody>
+                    {pastedImportRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center text-muted sa-global-products-paste-empty">
+                          {language === 'uz' ? 'Hali qatorlar yo‘q' : 'Пока нет вставленных строк'}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </Table>
-            </div>
+                    ) : (
+                      pastedImportRows.map((row) => (
+                        <tr key={`pasted-import-row-${row.rowNo}`}>
+                          <td>{row.rowNo}</td>
+                          <td>{row.name_ru || '—'}</td>
+                          <td>{row.name_uz || '—'}</td>
+                          <td>{row.price_raw || '—'}</td>
+                          <td>{row.sourceCategoryId || row.sourceCategoryPath || row.sourceCategoryName || '—'}</td>
+                          <td>
+                            <div>{row.barcode || '—'}</div>
+                            <div className="small text-muted">{row.ikpu || '—'}</div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </Table>
+              </div>
+            </section>
           </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={closePasteImportModal}>
-              Отмена
+          <Modal.Footer className="sa-global-products-modal-footer d-flex flex-wrap gap-2 justify-content-end">
+            <Button variant="outline-secondary" className="sa-global-products-btn" onClick={closePasteImportModal}>
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
             </Button>
             <Button
-              variant="success"
+              className="btn-primary-custom sa-global-products-btn"
               onClick={continuePasteImportToReview}
               disabled={pastedImportRows.length === 0}
             >
-              Далее на проверку
+              {language === 'uz' ? 'Keyingi: tekshirish' : 'Далее: проверка'}
             </Button>
           </Modal.Footer>
         </Modal>
