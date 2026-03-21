@@ -9219,6 +9219,14 @@ body::-webkit-scrollbar,
     box-shadow: var(--admin-segment-active-shadow);
 }
 
+.admin-panel .sa-founders-inner-tabs.nav-tabs .nav-link,
+.admin-panel .sa-founders-inner-tabs.nav-tabs .nav-link.active,
+.admin-panel .sa-founders-inner-tabs.nav-tabs .show>.nav-link {
+    border-color: transparent !important;
+    border-bottom-color: transparent !important;
+    border-bottom-width: 0 !important;
+}
+
 .sa-founders-inner-tabs .nav-link::after,
 .sa-founders-inner-tabs .nav-link.active::after {
     display: none !important;
