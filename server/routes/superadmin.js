@@ -71,6 +71,8 @@ let aiProvidersSchemaReady = false;
 let aiProvidersSchemaPromise = null;
 let aiUsageSchemaReady = false;
 let aiUsageSchemaPromise = null;
+let organizationExpensesSchemaReady = false;
+let organizationExpensesSchemaPromise = null;
 const GLOBAL_PRODUCT_MAX_IMAGES = 5;
 const GLOBAL_PRODUCT_AI_OUTPUT_SIZE = 1024;
 const GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
@@ -212,6 +214,27 @@ const getFounderModuleSharePercent = (founderKey, moduleKey) => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
 };
+const DEFAULT_ORGANIZATION_EXPENSE_CATEGORIES = [
+  { code: 'ads_general', name_ru: 'Реклама', name_uz: 'Reklama' },
+  { code: 'banners', name_ru: 'Баннеры', name_uz: 'Bannerlar' },
+  { code: 'flyers', name_ru: 'Флаеры и листовки', name_uz: 'Flyer va varaqalar' },
+  { code: 'tax', name_ru: 'Налог', name_uz: 'Soliq' },
+  { code: 'zakat', name_ru: 'Закат', name_uz: 'Zakot' },
+  { code: 'call_center', name_ru: 'Колл центр', name_uz: 'Koll-markaz' },
+  { code: 'instagram_target', name_ru: 'Таргет инстаграм', name_uz: 'Instagram target' },
+  { code: 'video_editing', name_ru: 'Видеомонтаж', name_uz: 'Videomontaj' },
+  { code: 'ai_agents_purchase', name_ru: 'Покупка ИИ агентов', name_uz: 'AI agentlar xaridi' },
+  { code: 'ai_tokens', name_ru: 'ИИ токены для генерации фото и текста', name_uz: 'Foto va matn generatsiyasi uchun AI tokenlar' },
+  { code: 'salary', name_ru: 'Оплата труда', name_uz: 'Mehnat haqi' },
+  { code: 'utilities', name_ru: 'Коммунальные расходы', name_uz: 'Kommunal xarajatlar' },
+  { code: 'office_rent', name_ru: 'Аренда офиса', name_uz: 'Ofis ijarasi' },
+  { code: 'internet', name_ru: 'Интернет', name_uz: 'Internet' },
+  { code: 'equipment', name_ru: 'Оборудование', name_uz: 'Jihozlar' },
+  { code: 'furniture', name_ru: 'Мебель', name_uz: 'Mebel' },
+  { code: 'construction_repair', name_ru: 'Строительство и ремонт', name_uz: "Qurilish va ta'mirlash" },
+  { code: 'transport', name_ru: 'Бензин и транспортные расходы', name_uz: "Yoqilg'i va transport xarajatlari" },
+  { code: 'travel', name_ru: 'Путишествие', name_uz: 'Sayohat' }
+];
 
 const normalizeTokenValue = (value) => {
   const normalized = value ? String(value).trim() : '';
@@ -371,6 +394,66 @@ const roundMoneyValue = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
   return Math.round((numeric + Number.EPSILON) * 100) / 100;
+};
+const normalizeExpenseCurrencyCode = (value, fallback = 'uz') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (/^[a-z]{2,8}$/.test(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  if (/^[a-z]{2,8}$/.test(normalizedFallback)) return normalizedFallback;
+  return 'uz';
+};
+const normalizeExpenseCode = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80)
+);
+const normalizeExpenseCategoryName = (value) => (
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 255)
+);
+const normalizeExpenseDescription = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized ? normalized.slice(0, 3000) : null;
+};
+const distributeAmountByWeights = (amount, items = []) => {
+  const normalizedAmount = roundMoneyValue(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0 || !Array.isArray(items) || items.length === 0) {
+    return new Map();
+  }
+
+  const normalizedItems = items.map((item, index) => ({
+    key: String(item?.key || '').trim().toLowerCase(),
+    weight: Math.max(0, Number(item?.weight || 0)),
+    index
+  })).filter((item) => item.key);
+
+  if (!normalizedItems.length) return new Map();
+
+  const totalWeight = normalizedItems.reduce((acc, item) => acc + item.weight, 0);
+  const fallbackWeight = totalWeight > 0 ? null : 1;
+  const divisor = totalWeight > 0 ? totalWeight : normalizedItems.length;
+
+  const allocations = new Map();
+  let distributed = 0;
+  for (let i = 0; i < normalizedItems.length; i += 1) {
+    const item = normalizedItems[i];
+    if (i === normalizedItems.length - 1) {
+      const remainder = roundMoneyValue(normalizedAmount - distributed);
+      allocations.set(item.key, remainder);
+      continue;
+    }
+    const effectiveWeight = fallbackWeight === null ? item.weight : fallbackWeight;
+    const rawShare = (normalizedAmount * effectiveWeight) / divisor;
+    const roundedShare = roundMoneyValue(rawShare);
+    allocations.set(item.key, roundedShare);
+    distributed = roundMoneyValue(distributed + roundedShare);
+  }
+  return allocations;
 };
 
 const ensureActivityTypesSchema = async () => {
@@ -647,6 +730,117 @@ const ensureGlobalProductsSchema = async () => {
     await globalProductsSchemaPromise;
   } finally {
     globalProductsSchemaPromise = null;
+  }
+};
+const ensureOrganizationExpensesSchema = async () => {
+  if (organizationExpensesSchemaReady) return;
+  if (organizationExpensesSchemaPromise) {
+    await organizationExpensesSchemaPromise;
+    return;
+  }
+
+  organizationExpensesSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_expense_categories (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(80) UNIQUE,
+        name_ru VARCHAR(255) NOT NULL,
+        name_uz VARCHAR(255),
+        is_system BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS code VARCHAR(80)`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS name_ru VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS name_uz VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS is_system BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expense_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`UPDATE organization_expense_categories SET name_ru = 'Статья расхода' WHERE name_ru IS NULL OR BTRIM(name_ru) = ''`).catch(() => {});
+    await pool.query(`UPDATE organization_expense_categories SET is_system = false WHERE is_system IS NULL`).catch(() => {});
+    await pool.query(`UPDATE organization_expense_categories SET is_active = true WHERE is_active IS NULL`).catch(() => {});
+    await pool.query(`UPDATE organization_expense_categories SET code = NULL WHERE code IS NOT NULL AND BTRIM(code) = ''`).catch(() => {});
+    await pool.query(`UPDATE organization_expense_categories SET code = LOWER(BTRIM(code)) WHERE code IS NOT NULL`).catch(() => {});
+    await pool.query(`
+      ALTER TABLE organization_expense_categories
+      ADD CONSTRAINT IF NOT EXISTS organization_expense_categories_code_format_check
+      CHECK (code IS NULL OR code ~ '^[a-z0-9_]{1,80}$')
+    `).catch(() => {});
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_organization_expense_categories_code ON organization_expense_categories(code)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expense_categories_name_ru ON organization_expense_categories(LOWER(name_ru))`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expense_categories_name_uz ON organization_expense_categories(LOWER(name_uz))`).catch(() => {});
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_expenses (
+        id BIGSERIAL PRIMARY KEY,
+        category_id INTEGER NOT NULL REFERENCES organization_expense_categories(id) ON DELETE RESTRICT,
+        amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+        currency_code VARCHAR(12) NOT NULL DEFAULT 'uz',
+        expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        description TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES organization_expense_categories(id) ON DELETE RESTRICT`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS amount NUMERIC(14,2)`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS currency_code VARCHAR(12) DEFAULT 'uz'`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS expense_date DATE DEFAULT CURRENT_DATE`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS description TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE organization_expenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`UPDATE organization_expenses SET currency_code = 'uz' WHERE currency_code IS NULL OR BTRIM(currency_code) = ''`).catch(() => {});
+    await pool.query(`UPDATE organization_expenses SET currency_code = LOWER(BTRIM(currency_code)) WHERE currency_code IS NOT NULL`).catch(() => {});
+    await pool.query(`UPDATE organization_expenses SET expense_date = CURRENT_DATE WHERE expense_date IS NULL`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expenses_expense_date ON organization_expenses(expense_date DESC, id DESC)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expenses_category_date ON organization_expenses(category_id, expense_date DESC)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expenses_currency_date ON organization_expenses(currency_code, expense_date DESC)`).catch(() => {});
+
+    for (const defaultCategory of DEFAULT_ORGANIZATION_EXPENSE_CATEGORIES) {
+      const code = normalizeExpenseCode(defaultCategory.code);
+      const nameRu = normalizeExpenseCategoryName(defaultCategory.name_ru);
+      const nameUz = normalizeExpenseCategoryName(defaultCategory.name_uz);
+      if (!code || !nameRu) continue;
+      await pool.query(
+        `
+        INSERT INTO organization_expense_categories (
+          code,
+          name_ru,
+          name_uz,
+          is_system,
+          is_active
+        )
+        VALUES ($1, $2, $3, true, true)
+        ON CONFLICT (code)
+        DO UPDATE SET
+          name_ru = EXCLUDED.name_ru,
+          name_uz = EXCLUDED.name_uz,
+          is_system = true,
+          is_active = true,
+          updated_at = CURRENT_TIMESTAMP
+        `,
+        [code, nameRu, nameUz || null]
+      );
+    }
+
+    organizationExpensesSchemaReady = true;
+  })();
+
+  try {
+    await organizationExpensesSchemaPromise;
+  } finally {
+    organizationExpensesSchemaPromise = null;
   }
 };
 const normalizeLogoDisplayMode = (value, fallback = 'square') => {
@@ -3930,12 +4124,41 @@ router.get('/billing/transactions', async (req, res) => {
   }
 });
 
+const ensureFoundersAccessByPassword = (req, res) => {
+  const providedPassword = String(req.get('x-founders-password') || req.query.password || req.body?.password || '').trim();
+  if (!providedPassword || providedPassword !== FOUNDERS_ACCESS_PASSWORD) {
+    res.status(403).json({ error: 'Неверный пароль доступа к вкладке учредителей' });
+    return false;
+  }
+  return true;
+};
+const buildOrganizationExpensesWhereSql = ({ startDate, endDate, tableAlias = 'oe', paramsStartIndex = 1 } = {}) => {
+  const whereParts = [];
+  const params = [];
+  let paramIndex = paramsStartIndex;
+
+  if (startDate) {
+    params.push(startDate);
+    whereParts.push(`${tableAlias}.expense_date >= $${paramIndex}`);
+    paramIndex += 1;
+  }
+  if (endDate) {
+    params.push(endDate);
+    whereParts.push(`${tableAlias}.expense_date <= $${paramIndex}`);
+    paramIndex += 1;
+  }
+
+  return {
+    whereSql: whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '',
+    params,
+    nextIndex: paramIndex
+  };
+};
+
 router.get('/founders/analytics', async (req, res) => {
   try {
-    const providedPassword = String(req.get('x-founders-password') || req.query.password || '').trim();
-    if (!providedPassword || providedPassword !== FOUNDERS_ACCESS_PASSWORD) {
-      return res.status(403).json({ error: 'Неверный пароль доступа к вкладке учредителей' });
-    }
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
 
     const startDate = parseDateRangeFilterValue(req.query.start_date);
     const endDate = parseDateRangeFilterValue(req.query.end_date);
@@ -4030,6 +4253,54 @@ router.get('/founders/analytics', async (req, res) => {
       `,
       params
     );
+    const expenseWhere = buildOrganizationExpensesWhereSql({ startDate, endDate, tableAlias: 'oe', paramsStartIndex: 1 });
+    const expenseTotalsResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz') AS currency_code,
+        COUNT(*)::int AS records_count,
+        COALESCE(SUM(oe.amount), 0)::numeric AS amount
+      FROM organization_expenses oe
+      ${expenseWhere.whereSql}
+      GROUP BY COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz')
+      ORDER BY currency_code ASC
+      `,
+      expenseWhere.params
+    );
+    const expenseCategoryTotalsResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz') AS currency_code,
+        oe.category_id,
+        c.code AS category_code,
+        c.name_ru,
+        c.name_uz,
+        COUNT(*)::int AS records_count,
+        COALESCE(SUM(oe.amount), 0)::numeric AS amount
+      FROM organization_expenses oe
+      INNER JOIN organization_expense_categories c ON c.id = oe.category_id
+      ${expenseWhere.whereSql}
+      GROUP BY COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz'), oe.category_id, c.code, c.name_ru, c.name_uz
+      ORDER BY LOWER(c.name_ru) ASC, currency_code ASC
+      `,
+      expenseWhere.params
+    );
+    const monthlyExpenseTotalsResult = await pool.query(
+      `
+      SELECT
+        date_trunc('month', oe.expense_date)::date AS month_start,
+        to_char(date_trunc('month', oe.expense_date), 'YYYY-MM') AS month_key,
+        to_char(date_trunc('month', oe.expense_date), 'MM.YYYY') AS month_label,
+        COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz') AS currency_code,
+        COUNT(*)::int AS records_count,
+        COALESCE(SUM(oe.amount), 0)::numeric AS amount
+      FROM organization_expenses oe
+      ${expenseWhere.whereSql}
+      GROUP BY month_start, month_key, month_label, COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz')
+      ORDER BY month_start ASC, currency_code ASC
+      `,
+      expenseWhere.params
+    );
 
     const rawModuleTotals = (moduleTotalsResult.rows || []).map((row) => ({
       currency_code: String(row.currency_code || 'uz').toLowerCase(),
@@ -4046,14 +4317,42 @@ router.get('/founders/analytics', async (req, res) => {
       transactions_count: Number.parseInt(row.transactions_count, 10) || 0,
       amount: roundMoneyValue(row.amount)
     }));
+    const rawExpenseTotals = (expenseTotalsResult.rows || []).map((row) => ({
+      currency_code: normalizeExpenseCurrencyCode(row.currency_code, 'uz'),
+      records_count: Number.parseInt(row.records_count, 10) || 0,
+      amount: roundMoneyValue(row.amount)
+    }));
+    const rawExpenseCategoryTotals = (expenseCategoryTotalsResult.rows || []).map((row) => ({
+      currency_code: normalizeExpenseCurrencyCode(row.currency_code, 'uz'),
+      category_id: Number.parseInt(row.category_id, 10) || 0,
+      category_code: String(row.category_code || '').trim().toLowerCase(),
+      category_name_ru: String(row.name_ru || '').trim(),
+      category_name_uz: String(row.name_uz || '').trim(),
+      records_count: Number.parseInt(row.records_count, 10) || 0,
+      amount: roundMoneyValue(row.amount)
+    }));
+    const rawMonthlyExpenseTotals = (monthlyExpenseTotalsResult.rows || []).map((row) => ({
+      month_start: row.month_start || null,
+      month_key: String(row.month_key || '').trim(),
+      month_label: String(row.month_label || '').trim(),
+      currency_code: normalizeExpenseCurrencyCode(row.currency_code, 'uz'),
+      records_count: Number.parseInt(row.records_count, 10) || 0,
+      amount: roundMoneyValue(row.amount)
+    }));
 
     const currencySet = new Set();
     for (const row of rawModuleTotals) currencySet.add(row.currency_code);
     for (const row of rawMonthlyModuleTotals) currencySet.add(row.currency_code);
+    for (const row of rawExpenseTotals) currencySet.add(row.currency_code);
+    for (const row of rawExpenseCategoryTotals) currencySet.add(row.currency_code);
+    for (const row of rawMonthlyExpenseTotals) currencySet.add(row.currency_code);
     const availableCurrencies = Array.from(currencySet).sort((left, right) => left.localeCompare(right, 'ru'));
 
     const moduleRowMap = new Map(
       rawModuleTotals.map((row) => [`${row.currency_code}__${row.module_key}`, row])
+    );
+    const expenseByCurrencyMap = new Map(
+      rawExpenseTotals.map((row) => [row.currency_code, row])
     );
     const moduleTotals = [];
     for (const currencyCode of availableCurrencies) {
@@ -4077,8 +4376,12 @@ router.get('/founders/analytics', async (req, res) => {
       const deliveryRow = getRow('delivery');
       const adsRow = getRow('ads');
       const superappRow = getRow('superapp');
-      const transactionsCount = rows.reduce((acc, item) => acc + Number(item.transactions_count || 0), 0);
-      const totalDistributable = rows.reduce((acc, item) => acc + Number(item.amount || 0), 0);
+      const incomeTransactionsCount = rows.reduce((acc, item) => acc + Number(item.transactions_count || 0), 0);
+      const incomeTotal = roundMoneyValue(rows.reduce((acc, item) => acc + Number(item.amount || 0), 0));
+      const expenseRow = expenseByCurrencyMap.get(currencyCode);
+      const expenseTotal = roundMoneyValue(expenseRow?.amount || 0);
+      const expenseRecordsCount = Number(expenseRow?.records_count || 0);
+      const balanceTotal = roundMoneyValue(incomeTotal - expenseTotal);
       return {
         currency_code: currencyCode,
         orders_count: Number(ordersRow?.transactions_count || 0),
@@ -4091,8 +4394,13 @@ router.get('/founders/analytics', async (req, res) => {
         ads_total: roundMoneyValue(adsRow?.amount || 0),
         superapp_count: Number(superappRow?.transactions_count || 0),
         superapp_total: roundMoneyValue(superappRow?.amount || 0),
-        transactions_count: transactionsCount,
-        total_distributable: roundMoneyValue(totalDistributable)
+        income_transactions_count: incomeTransactionsCount,
+        income_total: incomeTotal,
+        expense_records_count: expenseRecordsCount,
+        expense_total: expenseTotal,
+        balance_total: balanceTotal,
+        transactions_count: incomeTransactionsCount,
+        total_distributable: balanceTotal
       };
     });
 
@@ -4109,6 +4417,8 @@ router.get('/founders/analytics', async (req, res) => {
             currency_code: currencyCode,
             order_percent: Number(founder.order_percent || 0),
             reservation_percent: Number(founder.reservation_percent || 0),
+            gross_amount: 0,
+            expense_amount: 0,
             total_amount: 0
           };
           for (const moduleItem of FOUNDERS_MODULE_DEFINITIONS) {
@@ -4142,10 +4452,46 @@ router.get('/founders/analytics', async (req, res) => {
           founderTotalEntry[`${moduleItem.key}_amount`] = roundMoneyValue(
             Number(founderTotalEntry[`${moduleItem.key}_amount`] || 0) + founderAmount
           );
-          founderTotalEntry.total_amount = roundMoneyValue(
-            Number(founderTotalEntry.total_amount || 0) + founderAmount
+          founderTotalEntry.gross_amount = roundMoneyValue(
+            Number(founderTotalEntry.gross_amount || 0) + founderAmount
           );
+          founderTotalEntry.total_amount = founderTotalEntry.gross_amount;
         }
+      }
+    }
+
+    const founderExpenseTotals = [];
+    for (const currencyCode of availableCurrencies) {
+      const expenseTotal = roundMoneyValue(expenseByCurrencyMap.get(currencyCode)?.amount || 0);
+      const totalGrossForCurrency = FOUNDER_SHARE_CONFIG.reduce((acc, founder) => {
+        const entry = founderTotalsMap.get(`${founder.key}__${currencyCode}`);
+        return acc + Number(entry?.gross_amount || 0);
+      }, 0);
+      const expenseAllocationMap = distributeAmountByWeights(
+        expenseTotal,
+        FOUNDER_SHARE_CONFIG.map((founder) => {
+          const entry = founderTotalsMap.get(`${founder.key}__${currencyCode}`);
+          return {
+            key: founder.key,
+            weight: totalGrossForCurrency > 0
+              ? Number(entry?.gross_amount || 0)
+              : Number(founder.order_percent || 0)
+          };
+        })
+      );
+
+      for (const founder of FOUNDER_SHARE_CONFIG) {
+        const entry = founderTotalsMap.get(`${founder.key}__${currencyCode}`);
+        if (!entry) continue;
+        const founderExpenseAmount = roundMoneyValue(expenseAllocationMap.get(founder.key) || 0);
+        entry.expense_amount = founderExpenseAmount;
+        entry.total_amount = roundMoneyValue(Number(entry.gross_amount || 0) - founderExpenseAmount);
+        founderExpenseTotals.push({
+          founder_key: founder.key,
+          founder_name: founder.name,
+          currency_code: currencyCode,
+          expense_amount: founderExpenseAmount
+        });
       }
     }
 
@@ -4189,11 +4535,82 @@ router.get('/founders/analytics', async (req, res) => {
             month_label: monthRow.month_label,
             month_start: monthRow.month_start,
             currency_code: monthRow.currency_code,
+            gross_amount: 0,
+            expense_amount: 0,
             total_amount: 0
           });
         }
         const entry = founderMonthlyTotalsMap.get(monthlyKey);
-        entry.total_amount = roundMoneyValue(Number(entry.total_amount || 0) + founderAmount);
+        entry.gross_amount = roundMoneyValue(Number(entry.gross_amount || 0) + founderAmount);
+        entry.total_amount = entry.gross_amount;
+      }
+    }
+
+    const monthlyMetaMap = new Map();
+    for (const monthRow of rawMonthlyModuleTotals) {
+      monthlyMetaMap.set(`${monthRow.month_key}__${monthRow.currency_code}`, {
+        month_key: monthRow.month_key,
+        month_label: monthRow.month_label,
+        month_start: monthRow.month_start,
+        currency_code: monthRow.currency_code
+      });
+    }
+    for (const monthRow of rawMonthlyExpenseTotals) {
+      monthlyMetaMap.set(`${monthRow.month_key}__${monthRow.currency_code}`, {
+        month_key: monthRow.month_key,
+        month_label: monthRow.month_label,
+        month_start: monthRow.month_start,
+        currency_code: monthRow.currency_code
+      });
+    }
+
+    for (const expenseMonthRow of rawMonthlyExpenseTotals) {
+      const monthMetaKey = `${expenseMonthRow.month_key}__${expenseMonthRow.currency_code}`;
+      const monthMeta = monthlyMetaMap.get(monthMetaKey);
+      if (!monthMeta) continue;
+
+      for (const founder of FOUNDER_SHARE_CONFIG) {
+        const founderMonthlyKey = `${founder.key}__${monthMeta.month_key}__${monthMeta.currency_code}`;
+        if (!founderMonthlyTotalsMap.has(founderMonthlyKey)) {
+          founderMonthlyTotalsMap.set(founderMonthlyKey, {
+            founder_key: founder.key,
+            founder_name: founder.name,
+            month_key: monthMeta.month_key,
+            month_label: monthMeta.month_label,
+            month_start: monthMeta.month_start,
+            currency_code: monthMeta.currency_code,
+            gross_amount: 0,
+            expense_amount: 0,
+            total_amount: 0
+          });
+        }
+      }
+
+      const expenseAmount = roundMoneyValue(expenseMonthRow.amount || 0);
+      if (expenseAmount <= 0) continue;
+      const monthTotalGross = FOUNDER_SHARE_CONFIG.reduce((acc, founder) => {
+        const entry = founderMonthlyTotalsMap.get(`${founder.key}__${monthMeta.month_key}__${monthMeta.currency_code}`);
+        return acc + Number(entry?.gross_amount || 0);
+      }, 0);
+      const allocationMap = distributeAmountByWeights(
+        expenseAmount,
+        FOUNDER_SHARE_CONFIG.map((founder) => {
+          const entry = founderMonthlyTotalsMap.get(`${founder.key}__${monthMeta.month_key}__${monthMeta.currency_code}`);
+          return {
+            key: founder.key,
+            weight: monthTotalGross > 0
+              ? Number(entry?.gross_amount || 0)
+              : Number(founder.order_percent || 0)
+          };
+        })
+      );
+
+      for (const founder of FOUNDER_SHARE_CONFIG) {
+        const founderMonthlyKey = `${founder.key}__${monthMeta.month_key}__${monthMeta.currency_code}`;
+        const entry = founderMonthlyTotalsMap.get(founderMonthlyKey);
+        if (!entry) continue;
+        entry.expense_amount = roundMoneyValue(Number(entry.expense_amount || 0) + Number(allocationMap.get(founder.key) || 0));
+        entry.total_amount = roundMoneyValue(Number(entry.gross_amount || 0) - Number(entry.expense_amount || 0));
       }
     }
 
@@ -4216,12 +4633,16 @@ router.get('/founders/analytics', async (req, res) => {
       available_currencies: availableCurrencies,
       shares_config: FOUNDER_SHARE_CONFIG,
       totals_by_currency: totalsByCurrency,
+      expense_totals_by_currency: rawExpenseTotals,
+      expense_category_totals: rawExpenseCategoryTotals,
+      expense_monthly_totals: rawMonthlyExpenseTotals,
       module_totals: moduleTotals,
       module_monthly_totals: rawMonthlyModuleTotals.map((item) => ({
         ...item,
         module_label: FOUNDERS_MODULE_LABEL_MAP[item.module_key] || item.module_key || '—'
       })),
       founder_module_totals: founderModuleTotals,
+      founder_expense_totals: founderExpenseTotals,
       founder_totals: founderTotals,
       founder_monthly_totals: founderMonthlyTotals,
       founder_monthly_module_totals: founderMonthlyModuleTotals,
@@ -4230,6 +4651,534 @@ router.get('/founders/analytics', async (req, res) => {
   } catch (error) {
     console.error('Get founders analytics error:', error);
     res.status(500).json({ error: 'Ошибка загрузки аналитики учредителей' });
+  }
+});
+
+router.get('/founders/expense-categories', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const result = await pool.query(`
+      SELECT
+        c.id,
+        c.code,
+        c.name_ru,
+        c.name_uz,
+        c.is_system,
+        c.is_active,
+        c.created_at,
+        c.updated_at,
+        COUNT(e.id)::int AS expenses_count,
+        COALESCE(SUM(e.amount), 0)::numeric AS total_amount
+      FROM organization_expense_categories c
+      LEFT JOIN organization_expenses e ON e.category_id = c.id
+      GROUP BY c.id
+      ORDER BY c.is_system DESC, LOWER(c.name_ru) ASC, c.id ASC
+    `);
+
+    res.json({
+      items: (result.rows || []).map((row) => ({
+        id: Number.parseInt(row.id, 10) || 0,
+        code: String(row.code || '').trim().toLowerCase() || null,
+        name_ru: String(row.name_ru || '').trim(),
+        name_uz: String(row.name_uz || '').trim(),
+        is_system: row.is_system === true,
+        is_active: row.is_active !== false,
+        expenses_count: Number.parseInt(row.expenses_count, 10) || 0,
+        total_amount: roundMoneyValue(row.total_amount),
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null
+      }))
+    });
+  } catch (error) {
+    console.error('Get founders expense categories error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки статей расходов' });
+  }
+});
+
+router.post('/founders/expense-categories', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const inputNameRu = normalizeExpenseCategoryName(req.body?.name_ru);
+    const inputNameUz = normalizeExpenseCategoryName(req.body?.name_uz);
+    const nameRu = inputNameRu || inputNameUz;
+    const nameUz = inputNameUz || inputNameRu;
+
+    if (!nameRu) {
+      return res.status(400).json({ error: 'Укажите название статьи расходов (RU или UZ)' });
+    }
+
+    const duplicateResult = await pool.query(
+      `
+      SELECT id
+      FROM organization_expense_categories
+      WHERE LOWER(name_ru) = LOWER($1)
+         OR LOWER(COALESCE(name_uz, '')) = LOWER($2)
+      LIMIT 1
+      `,
+      [nameRu, nameUz || '']
+    );
+    if (duplicateResult.rows.length > 0) {
+      return res.status(409).json({ error: 'Статья с таким названием уже существует' });
+    }
+
+    const createdResult = await pool.query(
+      `
+      INSERT INTO organization_expense_categories (
+        code,
+        name_ru,
+        name_uz,
+        is_system,
+        is_active,
+        created_by,
+        updated_by
+      )
+      VALUES (NULL, $1, $2, false, true, $3, $3)
+      RETURNING id, code, name_ru, name_uz, is_system, is_active, created_at, updated_at
+      `,
+      [nameRu, nameUz || null, req.user.id]
+    );
+
+    res.json(createdResult.rows[0]);
+  } catch (error) {
+    console.error('Create founders expense category error:', error);
+    res.status(500).json({ error: 'Ошибка создания статьи расходов' });
+  }
+});
+
+router.put('/founders/expense-categories/:id', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const categoryId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID статьи расходов' });
+    }
+
+    const currentResult = await pool.query(
+      `
+      SELECT id, name_ru, name_uz, is_active
+      FROM organization_expense_categories
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [categoryId]
+    );
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Статья расходов не найдена' });
+    }
+
+    const current = currentResult.rows[0];
+    const inputNameRu = normalizeExpenseCategoryName(req.body?.name_ru);
+    const inputNameUz = normalizeExpenseCategoryName(req.body?.name_uz);
+    const nextNameRu = inputNameRu || inputNameUz || normalizeExpenseCategoryName(current.name_ru);
+    const nextNameUz = inputNameUz || inputNameRu || normalizeExpenseCategoryName(current.name_uz);
+    const nextIsActive = req.body?.is_active === undefined
+      ? current.is_active !== false
+      : normalizeBooleanFlag(req.body?.is_active, current.is_active !== false);
+
+    if (!nextNameRu) {
+      return res.status(400).json({ error: 'Укажите название статьи расходов (RU или UZ)' });
+    }
+
+    const duplicateResult = await pool.query(
+      `
+      SELECT id
+      FROM organization_expense_categories
+      WHERE id <> $1
+        AND (
+          LOWER(name_ru) = LOWER($2)
+          OR LOWER(COALESCE(name_uz, '')) = LOWER($3)
+        )
+      LIMIT 1
+      `,
+      [categoryId, nextNameRu, nextNameUz || '']
+    );
+    if (duplicateResult.rows.length > 0) {
+      return res.status(409).json({ error: 'Статья с таким названием уже существует' });
+    }
+
+    const updatedResult = await pool.query(
+      `
+      UPDATE organization_expense_categories
+      SET
+        name_ru = $1,
+        name_uz = $2,
+        is_active = $3,
+        updated_by = $4,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING id, code, name_ru, name_uz, is_system, is_active, created_at, updated_at
+      `,
+      [nextNameRu, nextNameUz || null, nextIsActive, req.user.id, categoryId]
+    );
+
+    res.json(updatedResult.rows[0]);
+  } catch (error) {
+    console.error('Update founders expense category error:', error);
+    res.status(500).json({ error: 'Ошибка обновления статьи расходов' });
+  }
+});
+
+router.delete('/founders/expense-categories/:id', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const categoryId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID статьи расходов' });
+    }
+
+    const categoryResult = await pool.query(
+      `
+      SELECT
+        c.id,
+        c.is_system,
+        COUNT(e.id)::int AS expenses_count
+      FROM organization_expense_categories c
+      LEFT JOIN organization_expenses e ON e.category_id = c.id
+      WHERE c.id = $1
+      GROUP BY c.id
+      LIMIT 1
+      `,
+      [categoryId]
+    );
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Статья расходов не найдена' });
+    }
+
+    const item = categoryResult.rows[0];
+    const expensesCount = Number.parseInt(item.expenses_count, 10) || 0;
+    if (expensesCount > 0) {
+      return res.status(400).json({ error: 'Нельзя удалить статью: по ней уже есть записи расходов' });
+    }
+    if (item.is_system === true) {
+      return res.status(400).json({ error: 'Системную статью расходов удалять нельзя' });
+    }
+
+    await pool.query('DELETE FROM organization_expense_categories WHERE id = $1', [categoryId]);
+    res.json({ success: true, id: categoryId });
+  } catch (error) {
+    console.error('Delete founders expense category error:', error);
+    res.status(500).json({ error: 'Ошибка удаления статьи расходов' });
+  }
+});
+
+router.get('/founders/expenses', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const startDate = parseDateRangeFilterValue(req.query.start_date);
+    const endDate = parseDateRangeFilterValue(req.query.end_date);
+    const parsedPage = Number.parseInt(req.query.page, 10);
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 1000) : 200;
+    const offset = (page - 1) * limit;
+    const categoryId = Number.parseInt(req.query.category_id, 10);
+    const normalizedCategoryId = Number.isFinite(categoryId) && categoryId > 0 ? categoryId : null;
+    const currencyRaw = String(req.query.currency_code || '').trim().toLowerCase();
+    const currencyCode = /^[a-z]{2,8}$/.test(currencyRaw) ? currencyRaw : '';
+    const search = String(req.query.search || '').trim();
+
+    const whereParts = [];
+    const params = [];
+    if (startDate) {
+      params.push(startDate);
+      whereParts.push(`oe.expense_date >= $${params.length}`);
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereParts.push(`oe.expense_date <= $${params.length}`);
+    }
+    if (normalizedCategoryId) {
+      params.push(normalizedCategoryId);
+      whereParts.push(`oe.category_id = $${params.length}`);
+    }
+    if (currencyCode) {
+      params.push(currencyCode);
+      whereParts.push(`LOWER(COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz')) = $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      whereParts.push(`(
+        oe.description ILIKE $${params.length}
+        OR c.name_ru ILIKE $${params.length}
+        OR COALESCE(c.name_uz, '') ILIKE $${params.length}
+      )`);
+    }
+    const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+    const totalResult = await pool.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM organization_expenses oe
+      INNER JOIN organization_expense_categories c ON c.id = oe.category_id
+      ${whereSql}
+      `,
+      params
+    );
+    const listResult = await pool.query(
+      `
+      SELECT
+        oe.id,
+        oe.category_id,
+        COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz') AS currency_code,
+        oe.amount,
+        oe.expense_date,
+        oe.description,
+        oe.created_at,
+        oe.updated_at,
+        c.code AS category_code,
+        c.name_ru AS category_name_ru,
+        c.name_uz AS category_name_uz,
+        COALESCE(NULLIF(BTRIM(u.full_name), ''), NULLIF(BTRIM(u.username), ''), 'Система') AS actor_name
+      FROM organization_expenses oe
+      INNER JOIN organization_expense_categories c ON c.id = oe.category_id
+      LEFT JOIN users u ON u.id = oe.created_by
+      ${whereSql}
+      ORDER BY oe.expense_date DESC, oe.id DESC
+      LIMIT $${params.length + 1}
+      OFFSET $${params.length + 2}
+      `,
+      [...params, limit, offset]
+    );
+    const totalsByCurrencyResult = await pool.query(
+      `
+      SELECT
+        COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz') AS currency_code,
+        COUNT(*)::int AS records_count,
+        COALESCE(SUM(oe.amount), 0)::numeric AS total_amount
+      FROM organization_expenses oe
+      INNER JOIN organization_expense_categories c ON c.id = oe.category_id
+      ${whereSql}
+      GROUP BY COALESCE(NULLIF(BTRIM(oe.currency_code), ''), 'uz')
+      ORDER BY currency_code ASC
+      `,
+      params
+    );
+
+    res.json({
+      items: (listResult.rows || []).map((row) => ({
+        id: Number.parseInt(row.id, 10) || 0,
+        category_id: Number.parseInt(row.category_id, 10) || 0,
+        currency_code: normalizeExpenseCurrencyCode(row.currency_code, 'uz'),
+        amount: roundMoneyValue(row.amount),
+        expense_date: row.expense_date || null,
+        description: row.description || null,
+        category_code: String(row.category_code || '').trim().toLowerCase() || null,
+        category_name_ru: String(row.category_name_ru || '').trim(),
+        category_name_uz: String(row.category_name_uz || '').trim(),
+        actor_name: String(row.actor_name || '').trim() || 'Система',
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null
+      })),
+      totals_by_currency: (totalsByCurrencyResult.rows || []).map((row) => ({
+        currency_code: normalizeExpenseCurrencyCode(row.currency_code, 'uz'),
+        records_count: Number.parseInt(row.records_count, 10) || 0,
+        amount: roundMoneyValue(row.total_amount)
+      })),
+      total: Number(totalResult.rows?.[0]?.total || 0),
+      page,
+      limit
+    });
+  } catch (error) {
+    console.error('Get organization expenses error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки расходов организации' });
+  }
+});
+
+router.post('/founders/expenses', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const categoryId = Number.parseInt(req.body?.category_id, 10);
+    const amount = roundMoneyValue(parseFlexibleAmount(req.body?.amount, 0));
+    const currencyCode = normalizeExpenseCurrencyCode(req.body?.currency_code, 'uz');
+    const expenseDate = parseDateRangeFilterValue(req.body?.expense_date) || new Date().toISOString().slice(0, 10);
+    const description = normalizeExpenseDescription(req.body?.description);
+
+    if (!Number.isFinite(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'Укажите статью расходов' });
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Укажите корректную сумму расхода' });
+    }
+
+    const categoryResult = await pool.query(
+      `
+      SELECT id, code, name_ru, name_uz
+      FROM organization_expense_categories
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [categoryId]
+    );
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Статья расходов не найдена' });
+    }
+    const category = categoryResult.rows[0];
+
+    const createdResult = await pool.query(
+      `
+      INSERT INTO organization_expenses (
+        category_id,
+        amount,
+        currency_code,
+        expense_date,
+        description,
+        created_by,
+        updated_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $6)
+      RETURNING id, category_id, amount, currency_code, expense_date, description, created_at, updated_at
+      `,
+      [categoryId, amount, currencyCode, expenseDate, description, req.user.id]
+    );
+
+    res.json({
+      ...createdResult.rows[0],
+      amount: roundMoneyValue(createdResult.rows[0]?.amount),
+      currency_code: normalizeExpenseCurrencyCode(createdResult.rows[0]?.currency_code, currencyCode),
+      category_code: String(category.code || '').trim().toLowerCase() || null,
+      category_name_ru: String(category.name_ru || '').trim(),
+      category_name_uz: String(category.name_uz || '').trim()
+    });
+  } catch (error) {
+    console.error('Create organization expense error:', error);
+    res.status(500).json({ error: 'Ошибка создания расхода' });
+  }
+});
+
+router.put('/founders/expenses/:id', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const expenseId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(expenseId) || expenseId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID расхода' });
+    }
+
+    const currentResult = await pool.query(
+      `
+      SELECT id, category_id, amount, currency_code, expense_date, description
+      FROM organization_expenses
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [expenseId]
+    );
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Расход не найден' });
+    }
+
+    const current = currentResult.rows[0];
+    const parsedCategoryId = Number.parseInt(req.body?.category_id, 10);
+    const categoryId = Number.isFinite(parsedCategoryId) && parsedCategoryId > 0
+      ? parsedCategoryId
+      : Number.parseInt(current.category_id, 10);
+    const amount = req.body?.amount === undefined
+      ? roundMoneyValue(current.amount)
+      : roundMoneyValue(parseFlexibleAmount(req.body?.amount, 0));
+    const currencyCode = req.body?.currency_code === undefined
+      ? normalizeExpenseCurrencyCode(current.currency_code, 'uz')
+      : normalizeExpenseCurrencyCode(req.body?.currency_code, 'uz');
+    const expenseDate = req.body?.expense_date === undefined
+      ? (parseDateRangeFilterValue(current.expense_date) || new Date().toISOString().slice(0, 10))
+      : parseDateRangeFilterValue(req.body?.expense_date);
+    const description = req.body?.description === undefined
+      ? normalizeExpenseDescription(current.description)
+      : normalizeExpenseDescription(req.body?.description);
+
+    if (!Number.isFinite(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'Укажите статью расходов' });
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Укажите корректную сумму расхода' });
+    }
+    if (!expenseDate) {
+      return res.status(400).json({ error: 'Укажите корректную дату расхода' });
+    }
+
+    const categoryResult = await pool.query(
+      `
+      SELECT id, code, name_ru, name_uz
+      FROM organization_expense_categories
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [categoryId]
+    );
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Статья расходов не найдена' });
+    }
+    const category = categoryResult.rows[0];
+
+    const updatedResult = await pool.query(
+      `
+      UPDATE organization_expenses
+      SET
+        category_id = $1,
+        amount = $2,
+        currency_code = $3,
+        expense_date = $4,
+        description = $5,
+        updated_by = $6,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING id, category_id, amount, currency_code, expense_date, description, created_at, updated_at
+      `,
+      [categoryId, amount, currencyCode, expenseDate, description, req.user.id, expenseId]
+    );
+
+    res.json({
+      ...updatedResult.rows[0],
+      amount: roundMoneyValue(updatedResult.rows[0]?.amount),
+      currency_code: normalizeExpenseCurrencyCode(updatedResult.rows[0]?.currency_code, currencyCode),
+      category_code: String(category.code || '').trim().toLowerCase() || null,
+      category_name_ru: String(category.name_ru || '').trim(),
+      category_name_uz: String(category.name_uz || '').trim()
+    });
+  } catch (error) {
+    console.error('Update organization expense error:', error);
+    res.status(500).json({ error: 'Ошибка обновления расхода' });
+  }
+});
+
+router.delete('/founders/expenses/:id', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureOrganizationExpensesSchema();
+
+    const expenseId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(expenseId) || expenseId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID расхода' });
+    }
+
+    const deletedResult = await pool.query(
+      `
+      DELETE FROM organization_expenses
+      WHERE id = $1
+      RETURNING id
+      `,
+      [expenseId]
+    );
+    if (deletedResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Расход не найден' });
+    }
+
+    res.json({ success: true, id: expenseId });
+  } catch (error) {
+    console.error('Delete organization expense error:', error);
+    res.status(500).json({ error: 'Ошибка удаления расхода' });
   }
 });
 

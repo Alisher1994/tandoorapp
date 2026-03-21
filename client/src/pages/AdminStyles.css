@@ -9142,6 +9142,19 @@ body::-webkit-scrollbar,
     overflow: hidden;
 }
 
+.sa-founders-inner-tabs .nav-link {
+    border-radius: 10px 10px 0 0;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.sa-founders-inner-tabs .nav-link.active {
+    color: #1e1b4b;
+    background: #eef2ff;
+    border-color: #c7d2fe #c7d2fe #eef2ff;
+}
+
 .sa-founders-founder-head {
     padding: 12px 14px;
     border-bottom: 1px solid var(--border-color);

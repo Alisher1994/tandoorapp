@@ -272,11 +272,36 @@ const createInitialFoundersAnalyticsState = () => ({
   totals_by_currency: [],
   module_totals: [],
   module_monthly_totals: [],
+  expense_totals_by_currency: [],
+  expense_category_totals: [],
+  expense_monthly_totals: [],
   founder_module_totals: [],
+  founder_expense_totals: [],
   founder_totals: [],
   founder_monthly_totals: [],
   founder_monthly_module_totals: [],
   generated_at: null
+});
+const getTodayDateInputValue = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const createInitialOrganizationExpenseForm = () => ({
+  id: null,
+  category_id: '',
+  amount: '',
+  currency_code: 'uz',
+  expense_date: getTodayDateInputValue(),
+  description: ''
+});
+const createInitialExpenseCategoryForm = () => ({
+  id: null,
+  name_ru: '',
+  name_uz: '',
+  is_active: true
 });
 const FOUNDERS_MODULE_UI_ORDER = [
   { key: 'orders', labelRu: 'Заказы', labelUz: 'Buyurtmalar' },
@@ -1274,6 +1299,30 @@ function SuperAdminDashboard() {
   const [foundersAccessGranted, setFoundersAccessGranted] = useState(false);
   const [foundersAccessError, setFoundersAccessError] = useState('');
   const [foundersChartsCurrency, setFoundersChartsCurrency] = useState('');
+  const [foundersInnerTab, setFoundersInnerTab] = useState('analytics');
+  const [organizationExpenseCategories, setOrganizationExpenseCategories] = useState([]);
+  const [organizationExpenseCategoriesLoading, setOrganizationExpenseCategoriesLoading] = useState(false);
+  const [organizationExpensesData, setOrganizationExpensesData] = useState({
+    items: [],
+    totals_by_currency: [],
+    total: 0,
+    page: 1,
+    limit: 200
+  });
+  const [organizationExpensesFilter, setOrganizationExpensesFilter] = useState({
+    category_id: '',
+    currency_code: '',
+    search: '',
+    page: 1,
+    limit: 200
+  });
+  const [organizationExpensesLoading, setOrganizationExpensesLoading] = useState(false);
+  const [showOrganizationExpenseModal, setShowOrganizationExpenseModal] = useState(false);
+  const [organizationExpenseForm, setOrganizationExpenseForm] = useState(createInitialOrganizationExpenseForm);
+  const [organizationExpenseSubmitting, setOrganizationExpenseSubmitting] = useState(false);
+  const [showExpenseCategoryModal, setShowExpenseCategoryModal] = useState(false);
+  const [expenseCategoryForm, setExpenseCategoryForm] = useState(createInitialExpenseCategoryForm);
+  const [expenseCategorySubmitting, setExpenseCategorySubmitting] = useState(false);
 
   // Customer order history modal
   const [showOrderHistoryModal, setShowOrderHistoryModal] = useState(false);
@@ -1780,6 +1829,27 @@ function SuperAdminDashboard() {
     foundersAccessPassword,
     foundersAnalyticsFilter.start_date,
     foundersAnalyticsFilter.end_date
+  ]);
+  useEffect(() => {
+    if (activeTab !== 'founders') return;
+    if (!foundersAccessGranted || !foundersAccessPassword) return;
+    loadOrganizationExpenseCategories();
+  }, [activeTab, foundersAccessGranted, foundersAccessPassword]);
+  useEffect(() => {
+    if (activeTab !== 'founders') return;
+    if (!foundersAccessGranted || !foundersAccessPassword) return;
+    loadOrganizationExpenses();
+  }, [
+    activeTab,
+    foundersAccessGranted,
+    foundersAccessPassword,
+    foundersAnalyticsFilter.start_date,
+    foundersAnalyticsFilter.end_date,
+    organizationExpensesFilter.category_id,
+    organizationExpensesFilter.currency_code,
+    organizationExpensesFilter.search,
+    organizationExpensesFilter.page,
+    organizationExpensesFilter.limit
   ]);
 
   useEffect(() => {
@@ -2919,7 +2989,11 @@ function SuperAdminDashboard() {
         totals_by_currency: Array.isArray(payload.totals_by_currency) ? payload.totals_by_currency : [],
         module_totals: Array.isArray(payload.module_totals) ? payload.module_totals : [],
         module_monthly_totals: Array.isArray(payload.module_monthly_totals) ? payload.module_monthly_totals : [],
+        expense_totals_by_currency: Array.isArray(payload.expense_totals_by_currency) ? payload.expense_totals_by_currency : [],
+        expense_category_totals: Array.isArray(payload.expense_category_totals) ? payload.expense_category_totals : [],
+        expense_monthly_totals: Array.isArray(payload.expense_monthly_totals) ? payload.expense_monthly_totals : [],
         founder_module_totals: Array.isArray(payload.founder_module_totals) ? payload.founder_module_totals : [],
+        founder_expense_totals: Array.isArray(payload.founder_expense_totals) ? payload.founder_expense_totals : [],
         founder_totals: Array.isArray(payload.founder_totals) ? payload.founder_totals : [],
         founder_monthly_totals: Array.isArray(payload.founder_monthly_totals) ? payload.founder_monthly_totals : [],
         founder_monthly_module_totals: Array.isArray(payload.founder_monthly_module_totals) ? payload.founder_monthly_module_totals : [],
@@ -2942,6 +3016,15 @@ function SuperAdminDashboard() {
         setFoundersAccessPassword('');
         setFoundersChartsCurrency('');
         setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
+        setFoundersInnerTab('analytics');
+        setOrganizationExpenseCategories([]);
+        setOrganizationExpensesData({
+          items: [],
+          totals_by_currency: [],
+          total: 0,
+          page: 1,
+          limit: organizationExpensesFilter.limit
+        });
         setFoundersAccessError(language === 'uz'
           ? "Parol noto'g'ri. Qayta urinib ko'ring."
           : 'Неверный пароль. Попробуйте снова.');
@@ -2982,7 +3065,263 @@ function SuperAdminDashboard() {
     setFoundersPasswordInput('');
     setFoundersAccessError('');
     setFoundersAnalyticsData(createInitialFoundersAnalyticsState());
+    setFoundersInnerTab('analytics');
+    setOrganizationExpenseCategories([]);
+    setOrganizationExpensesData({
+      items: [],
+      totals_by_currency: [],
+      total: 0,
+      page: 1,
+      limit: organizationExpensesFilter.limit
+    });
     setShowFoundersAccessModal(true);
+  };
+  const getFoundersAuthHeaders = (passwordOverride = null) => {
+    const resolvedPassword = String(passwordOverride ?? foundersAccessPassword ?? '').trim();
+    if (!resolvedPassword) return null;
+    return {
+      'x-founders-password': resolvedPassword
+    };
+  };
+  const loadOrganizationExpenseCategories = async () => {
+    const headers = getFoundersAuthHeaders();
+    if (!headers) return;
+    setOrganizationExpenseCategoriesLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/founders/expense-categories`, { headers });
+      setOrganizationExpenseCategories(Array.isArray(response.data?.items) ? response.data.items : []);
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        requestFoundersReauth();
+        return;
+      }
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Xarajat maqolalarini yuklab bo'lmadi"
+        : 'Ошибка загрузки статей расходов'));
+    } finally {
+      setOrganizationExpenseCategoriesLoading(false);
+    }
+  };
+  const loadOrganizationExpenses = async () => {
+    const headers = getFoundersAuthHeaders();
+    if (!headers) return;
+    setOrganizationExpensesLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/founders/expenses`, {
+        headers,
+        params: {
+          start_date: foundersAnalyticsFilter.start_date || undefined,
+          end_date: foundersAnalyticsFilter.end_date || undefined,
+          category_id: organizationExpensesFilter.category_id || undefined,
+          currency_code: organizationExpensesFilter.currency_code || undefined,
+          search: String(organizationExpensesFilter.search || '').trim() || undefined,
+          page: organizationExpensesFilter.page,
+          limit: organizationExpensesFilter.limit
+        }
+      });
+      const payload = response.data || {};
+      setOrganizationExpensesData({
+        items: Array.isArray(payload.items) ? payload.items : [],
+        totals_by_currency: Array.isArray(payload.totals_by_currency) ? payload.totals_by_currency : [],
+        total: Number(payload.total || 0),
+        page: Number(payload.page || organizationExpensesFilter.page || 1),
+        limit: Number(payload.limit || organizationExpensesFilter.limit || 200)
+      });
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        requestFoundersReauth();
+        return;
+      }
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Tashkilot xarajatlarini yuklab bo'lmadi"
+        : 'Ошибка загрузки расходов организации'));
+    } finally {
+      setOrganizationExpensesLoading(false);
+    }
+  };
+  const openCreateOrganizationExpenseModal = () => {
+    setOrganizationExpenseForm({
+      ...createInitialOrganizationExpenseForm(),
+      currency_code: String(countryCurrency?.code || 'uz').trim().toLowerCase() || 'uz'
+    });
+    setShowOrganizationExpenseModal(true);
+  };
+  const openEditOrganizationExpenseModal = (item) => {
+    if (!item) return;
+    setOrganizationExpenseForm({
+      id: item.id,
+      category_id: String(item.category_id || ''),
+      amount: String(item.amount ?? ''),
+      currency_code: String(item.currency_code || countryCurrency?.code || 'uz').trim().toLowerCase(),
+      expense_date: String(item.expense_date || getTodayDateInputValue()),
+      description: String(item.description || '')
+    });
+    setShowOrganizationExpenseModal(true);
+  };
+  const submitOrganizationExpense = async (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    const headers = getFoundersAuthHeaders();
+    if (!headers) return;
+    const categoryId = Number.parseInt(organizationExpenseForm.category_id, 10);
+    const amountValue = parseDecimalInputOrZero(organizationExpenseForm.amount);
+    const currencyCode = String(organizationExpenseForm.currency_code || '').trim().toLowerCase();
+    const expenseDate = String(organizationExpenseForm.expense_date || '').trim();
+    if (!Number.isFinite(categoryId) || categoryId <= 0) {
+      setError(language === 'uz' ? 'Xarajat maqolasini tanlang' : 'Выберите статью расходов');
+      return;
+    }
+    if (!(amountValue > 0)) {
+      setError(language === 'uz' ? "Xarajat summasini to'g'ri kiriting" : 'Введите корректную сумму расхода');
+      return;
+    }
+    if (!expenseDate) {
+      setError(language === 'uz' ? 'Xarajat sanasini tanlang' : 'Выберите дату расхода');
+      return;
+    }
+
+    setOrganizationExpenseSubmitting(true);
+    try {
+      const payload = {
+        category_id: categoryId,
+        amount: amountValue,
+        currency_code: currencyCode || 'uz',
+        expense_date: expenseDate,
+        description: String(organizationExpenseForm.description || '').trim()
+      };
+      if (organizationExpenseForm.id) {
+        await axios.put(`${API_URL}/superadmin/founders/expenses/${organizationExpenseForm.id}`, payload, { headers });
+      } else {
+        await axios.post(`${API_URL}/superadmin/founders/expenses`, payload, { headers });
+      }
+      setShowOrganizationExpenseModal(false);
+      setOrganizationExpenseForm(createInitialOrganizationExpenseForm());
+      await Promise.all([
+        loadOrganizationExpenses(),
+        loadOrganizationExpenseCategories(),
+        loadFoundersAnalytics()
+      ]);
+      setSuccess(language === 'uz' ? "Xarajat muvaffaqiyatli saqlandi" : 'Расход успешно сохранён');
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        requestFoundersReauth();
+        return;
+      }
+      setError(err.response?.data?.error || (language === 'uz' ? "Xarajatni saqlab bo'lmadi" : 'Ошибка сохранения расхода'));
+    } finally {
+      setOrganizationExpenseSubmitting(false);
+    }
+  };
+  const deleteOrganizationExpense = async (item) => {
+    if (!item?.id) return;
+    const confirmed = window.confirm(language === 'uz'
+      ? 'Ushbu xarajat yozuvini o‘chirasizmi?'
+      : 'Удалить эту запись расхода?');
+    if (!confirmed) return;
+
+    const headers = getFoundersAuthHeaders();
+    if (!headers) return;
+    try {
+      await axios.delete(`${API_URL}/superadmin/founders/expenses/${item.id}`, { headers });
+      await Promise.all([
+        loadOrganizationExpenses(),
+        loadOrganizationExpenseCategories(),
+        loadFoundersAnalytics()
+      ]);
+      setSuccess(language === 'uz' ? "Xarajat o'chirildi" : 'Расход удалён');
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        requestFoundersReauth();
+        return;
+      }
+      setError(err.response?.data?.error || (language === 'uz' ? "Xarajatni o'chirib bo'lmadi" : 'Ошибка удаления расхода'));
+    }
+  };
+  const openCreateExpenseCategoryModal = () => {
+    setExpenseCategoryForm(createInitialExpenseCategoryForm());
+    setShowExpenseCategoryModal(true);
+  };
+  const openEditExpenseCategoryModal = (item) => {
+    if (!item) return;
+    setExpenseCategoryForm({
+      id: item.id,
+      name_ru: String(item.name_ru || ''),
+      name_uz: String(item.name_uz || ''),
+      is_active: item.is_active !== false
+    });
+    setShowExpenseCategoryModal(true);
+  };
+  const submitExpenseCategory = async (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    const headers = getFoundersAuthHeaders();
+    if (!headers) return;
+
+    const nameRu = String(expenseCategoryForm.name_ru || '').trim();
+    const nameUz = String(expenseCategoryForm.name_uz || '').trim();
+    if (!nameRu && !nameUz) {
+      setError(language === 'uz'
+        ? 'Maqola nomini RU yoki UZ da kiriting'
+        : 'Введите название статьи на RU или UZ');
+      return;
+    }
+
+    setExpenseCategorySubmitting(true);
+    try {
+      const payload = {
+        name_ru: nameRu,
+        name_uz: nameUz,
+        is_active: expenseCategoryForm.is_active !== false
+      };
+      if (expenseCategoryForm.id) {
+        await axios.put(`${API_URL}/superadmin/founders/expense-categories/${expenseCategoryForm.id}`, payload, { headers });
+      } else {
+        await axios.post(`${API_URL}/superadmin/founders/expense-categories`, payload, { headers });
+      }
+      setShowExpenseCategoryModal(false);
+      setExpenseCategoryForm(createInitialExpenseCategoryForm());
+      await Promise.all([
+        loadOrganizationExpenseCategories(),
+        loadOrganizationExpenses(),
+        loadFoundersAnalytics()
+      ]);
+      setSuccess(language === 'uz' ? "Maqola saqlandi" : 'Статья расходов сохранена');
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        requestFoundersReauth();
+        return;
+      }
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Maqolani saqlab bo'lmadi"
+        : 'Ошибка сохранения статьи расходов'));
+    } finally {
+      setExpenseCategorySubmitting(false);
+    }
+  };
+  const deleteExpenseCategory = async (item) => {
+    if (!item?.id) return;
+    const confirmed = window.confirm(language === 'uz'
+      ? 'Ushbu xarajat maqolasini o‘chirasizmi?'
+      : 'Удалить эту статью расходов?');
+    if (!confirmed) return;
+
+    const headers = getFoundersAuthHeaders();
+    if (!headers) return;
+    try {
+      await axios.delete(`${API_URL}/superadmin/founders/expense-categories/${item.id}`, { headers });
+      await Promise.all([
+        loadOrganizationExpenseCategories(),
+        loadOrganizationExpenses(),
+        loadFoundersAnalytics()
+      ]);
+      setSuccess(language === 'uz' ? "Maqola o'chirildi" : 'Статья расходов удалена');
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        requestFoundersReauth();
+        return;
+      }
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Maqolani o'chirib bo'lmadi"
+        : 'Ошибка удаления статьи расходов'));
+    }
   };
 
   const loadHiddenOpsInsights = async (hoursOverride = null) => {
@@ -4352,6 +4691,11 @@ function SuperAdminDashboard() {
       ? foundersAnalyticsData.shares_config
       : []
   ), [foundersAnalyticsData]);
+  const foundersExpenseCategoryTotals = useMemo(() => (
+    Array.isArray(foundersAnalyticsData?.expense_category_totals)
+      ? foundersAnalyticsData.expense_category_totals
+      : []
+  ), [foundersAnalyticsData]);
   const foundersAvailableCurrencies = useMemo(() => {
     const fromApi = Array.isArray(foundersAnalyticsData?.available_currencies)
       ? foundersAnalyticsData.available_currencies
@@ -4428,6 +4772,13 @@ function SuperAdminDashboard() {
         return [`${founderKey}__${moduleKey}__${currencyCode}`, row];
       })
     );
+    const founderTotalsMap = new Map(
+      (Array.isArray(foundersAnalyticsData?.founder_totals) ? foundersAnalyticsData.founder_totals : []).map((row) => {
+        const founderKey = String(row?.founder_key || '').trim().toLowerCase();
+        const currencyCode = String(row?.currency_code || '').trim().toLowerCase();
+        return [`${founderKey}__${currencyCode}`, row];
+      })
+    );
 
     return foundersSource.map((founder, founderIndex) => {
       const founderKey = String(founder?.key || founder?.founder_key || '').trim().toLowerCase();
@@ -4452,13 +4803,15 @@ function SuperAdminDashboard() {
       });
 
       const totalByCurrency = foundersAvailableCurrencies.map((currencyCode) => {
-        const amount = modules.reduce((acc, moduleItem) => {
-          const currencyLine = moduleItem.amounts_by_currency.find((line) => line.currency_code === currencyCode);
-          return acc + Number(currencyLine?.founder_amount || 0);
-        }, 0);
+        const summaryRow = founderTotalsMap.get(`${founderKey}__${currencyCode}`);
+        const grossAmount = Number(summaryRow?.gross_amount || 0);
+        const expenseAmount = Number(summaryRow?.expense_amount || 0);
+        const netAmount = Number(summaryRow?.total_amount || 0);
         return {
           currency_code: currencyCode,
-          amount: Math.round((amount + Number.EPSILON) * 100) / 100
+          gross_amount: Math.round((grossAmount + Number.EPSILON) * 100) / 100,
+          expense_amount: Math.round((expenseAmount + Number.EPSILON) * 100) / 100,
+          amount: Math.round((netAmount + Number.EPSILON) * 100) / 100
         };
       });
       const founderTotal = totalByCurrency.reduce((acc, row) => acc + Number(row.amount || 0), 0);
@@ -4550,6 +4903,56 @@ function SuperAdminDashboard() {
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleString(language === 'uz' ? 'uz-UZ' : 'ru-RU');
   }, [foundersAnalyticsData?.generated_at, language]);
+  const foundersExpenseCategoryRows = useMemo(() => {
+    const grouped = new Map();
+    foundersExpenseCategoryTotals.forEach((row) => {
+      const categoryId = Number(row?.category_id || 0);
+      const key = categoryId > 0 ? `id:${categoryId}` : `name:${String(row?.category_name_ru || row?.category_name_uz || '').trim().toLowerCase()}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          category_id: categoryId > 0 ? categoryId : null,
+          category_name_ru: String(row?.category_name_ru || '').trim() || '—',
+          category_name_uz: String(row?.category_name_uz || '').trim() || '',
+          currencies: []
+        });
+      }
+      const target = grouped.get(key);
+      const amount = Number(row?.amount || 0);
+      const recordsCount = Number(row?.records_count || 0);
+      const currencyCode = String(row?.currency_code || '').trim().toLowerCase();
+      if (!currencyCode) return;
+      target.currencies.push({
+        currency_code: currencyCode,
+        amount,
+        records_count: recordsCount
+      });
+    });
+
+    return Array.from(grouped.values())
+      .map((item) => ({
+        ...item,
+        currencies: [...item.currencies].sort((left, right) => String(left.currency_code || '').localeCompare(String(right.currency_code || ''), 'ru'))
+      }))
+      .sort((left, right) => String(left.category_name_ru || '').localeCompare(String(right.category_name_ru || ''), 'ru'));
+  }, [foundersExpenseCategoryTotals]);
+  const organizationExpenseCategoryOptions = useMemo(() => (
+    [...(Array.isArray(organizationExpenseCategories) ? organizationExpenseCategories : [])]
+      .sort((left, right) => String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru'))
+  ), [organizationExpenseCategories]);
+  const organizationExpensesCurrencyOptions = useMemo(() => {
+    const set = new Set();
+    foundersAvailableCurrencies.forEach((item) => set.add(String(item || '').trim().toLowerCase()));
+    (organizationExpensesData?.totals_by_currency || []).forEach((item) => {
+      const code = String(item?.currency_code || '').trim().toLowerCase();
+      if (code) set.add(code);
+    });
+    (organizationExpensesData?.items || []).forEach((item) => {
+      const code = String(item?.currency_code || '').trim().toLowerCase();
+      if (code) set.add(code);
+    });
+    return Array.from(set).filter(Boolean).sort((left, right) => left.localeCompare(right, 'ru'));
+  }, [foundersAvailableCurrencies, organizationExpensesData?.totals_by_currency, organizationExpensesData?.items]);
 
   const securityEventTypeOptions = useMemo(() => {
     const uniqueTypes = new Set();
@@ -8708,6 +9111,14 @@ function SuperAdminDashboard() {
         start_date: '',
         end_date: ''
       });
+      setOrganizationExpensesFilter((prev) => ({
+        category_id: '',
+        currency_code: '',
+        search: '',
+        page: 1,
+        limit: prev.limit || 200
+      }));
+      setFoundersInnerTab('analytics');
       return;
     }
     if (activeTab === 'security') {
@@ -12661,6 +13072,34 @@ function SuperAdminDashboard() {
                   </Card>
                 ) : (
                   <>
+                    <Nav
+                      variant="tabs"
+                      className="sa-founders-inner-tabs mb-3"
+                      activeKey={foundersInnerTab}
+                      onSelect={(nextKey) => {
+                        if (!nextKey) return;
+                        setFoundersInnerTab(nextKey);
+                      }}
+                    >
+                      <Nav.Item>
+                        <Nav.Link eventKey="analytics">
+                          {language === 'uz' ? 'Analitika' : 'Аналитика'}
+                        </Nav.Link>
+                      </Nav.Item>
+                      <Nav.Item>
+                        <Nav.Link eventKey="expenses">
+                          {language === 'uz' ? 'Tashkilot xarajatlari' : 'Расходы организации'}
+                        </Nav.Link>
+                      </Nav.Item>
+                      <Nav.Item>
+                        <Nav.Link eventKey="categories">
+                          {language === 'uz' ? 'Xarajat maqolalari' : 'Статья расходов'}
+                        </Nav.Link>
+                      </Nav.Item>
+                    </Nav>
+
+                    {foundersInnerTab === 'analytics' && (
+                      <>
                     <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
                       <Form.Control
                         type="date"
@@ -12728,27 +13167,97 @@ function SuperAdminDashboard() {
                         <Row className="g-3 mb-4">
                           {foundersTotalsByCurrency.map((row) => (
                             <Col xs={12} md={6} xl={4} key={`founders-total-${row.currency_code}`}>
-                              <Card className="admin-card border-0 h-100">
+                                <Card className="admin-card border-0 h-100">
                                 <Card.Body className="p-3">
                                   <div className="small text-muted mb-1">
-                                    {language === 'uz' ? 'Umumiy taqsimlanadigan tushum' : 'Всего к распределению'}
+                                    {language === 'uz' ? 'Valyuta kesimida balans' : 'Баланс по валюте'}
                                   </div>
                                   <div className="fw-bold fs-5 mb-1">
-                                    {formatBalanceAmount(row.total_distributable || 0)} {getCurrencyLabelByCode(row.currency_code)}
+                                    {formatBalanceAmount(row.balance_total || 0)} {getCurrencyLabelByCode(row.currency_code)}
                                   </div>
                                   <div className="small text-muted">
-                                    {language === 'uz' ? 'Buyurtmalar:' : 'Заказы:'}{' '}
-                                    {formatBalanceAmount(row.orders_total || 0)} ({row.orders_count || 0})
+                                    {language === 'uz' ? 'Kirim:' : 'Приход:'}{' '}
+                                    {formatBalanceAmount(row.income_total || 0)} ({row.income_transactions_count || 0})
                                   </div>
                                   <div className="small text-muted">
-                                    {language === 'uz' ? 'Bronlar:' : 'Брони:'}{' '}
-                                    {formatBalanceAmount(row.reservations_total || 0)} ({row.reservations_count || 0})
+                                    {language === 'uz' ? 'Chiqim:' : 'Расход:'}{' '}
+                                    {formatBalanceAmount(row.expense_total || 0)} ({row.expense_records_count || 0})
                                   </div>
                                 </Card.Body>
                               </Card>
                             </Col>
                           ))}
                         </Row>
+
+                        <Card className="admin-card border-0 mb-4">
+                          <Card.Body className="p-0">
+                            <div className="px-3 pt-3 pb-2 fw-semibold">
+                              {language === 'uz' ? 'Xarajat maqolalari analitikasi' : 'Аналитика по статьям расходов'}
+                            </div>
+                            <div className="admin-table-container">
+                              <Table responsive className="admin-table mb-0">
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: '42%' }}>{language === 'uz' ? 'Xarajat maqolasi' : 'Статья расхода'}</th>
+                                    <th>{language === 'uz' ? 'Valyutalar bo‘yicha xarajat' : 'Расход по валютам'}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {foundersExpenseCategoryRows.map((row) => (
+                                    <tr key={`founders-expense-category-${row.key}`}>
+                                      <td>
+                                        <div className="fw-semibold">
+                                          {language === 'uz'
+                                            ? (row.category_name_uz || row.category_name_ru || '—')
+                                            : (row.category_name_ru || row.category_name_uz || '—')}
+                                        </div>
+                                        {row.category_name_uz && row.category_name_ru && (
+                                          <div className="small text-muted">
+                                            {language === 'uz' ? `RU: ${row.category_name_ru}` : `UZ: ${row.category_name_uz}`}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td>
+                                        <div className="sa-founders-currency-stack">
+                                          {row.currencies.map((currencyLine) => {
+                                            const flagUrl = resolveCurrencyFlagSvgUrl(currencyLine.currency_code);
+                                            return (
+                                              <div className="sa-founders-currency-line" key={`founders-expense-category-line-${row.key}-${currencyLine.currency_code}`}>
+                                                {flagUrl ? (
+                                                  <img
+                                                    src={flagUrl}
+                                                    alt={currencyLine.currency_code?.toUpperCase() || 'CUR'}
+                                                    className="sa-founders-currency-flag"
+                                                  />
+                                                ) : (
+                                                  <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
+                                                    {String(currencyLine.currency_code || '').toUpperCase().slice(0, 2)}
+                                                  </span>
+                                                )}
+                                                <span className="sa-founders-currency-label">{getCurrencyLabelByCode(currencyLine.currency_code)}</span>
+                                                <span className="sa-founders-currency-amount">{formatBalanceAmount(currencyLine.amount || 0)}</span>
+                                                <span className="text-muted small">({currencyLine.records_count || 0})</span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  {foundersExpenseCategoryRows.length === 0 && (
+                                    <tr>
+                                      <td colSpan={2} className="text-center py-4 text-muted">
+                                        {language === 'uz'
+                                          ? "Xarajat maqolalari bo'yicha ma'lumot topilmadi"
+                                          : 'По статьям расходов данных не найдено'}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </Table>
+                            </div>
+                          </Card.Body>
+                        </Card>
 
                         <Row className="g-3 mb-4">
                           {foundersCardsData.map((founderItem, founderIndex) => (
@@ -12830,6 +13339,11 @@ function SuperAdminDashboard() {
                                                       )}
                                                       <span className="sa-founders-currency-label">{getCurrencyLabelByCode(line.currency_code)}</span>
                                                       <span className="sa-founders-currency-amount">{formatBalanceAmount(line.amount || 0)}</span>
+                                                      <span className="text-muted small">
+                                                        {language === 'uz'
+                                                          ? `Kirim ${formatBalanceAmount(line.gross_amount || 0)} • Chiqim ${formatBalanceAmount(line.expense_amount || 0)}`
+                                                          : `Приход ${formatBalanceAmount(line.gross_amount || 0)} • Расход ${formatBalanceAmount(line.expense_amount || 0)}`}
+                                                      </span>
                                                     </div>
                                                   );
                                                 })}
@@ -12959,6 +13473,253 @@ function SuperAdminDashboard() {
                                 </div>
                               </Col>
                             </Row>
+                          </Card.Body>
+                        </Card>
+                      </>
+                    )}
+                      </>
+                    )}
+
+                    {foundersInnerTab === 'expenses' && (
+                      <>
+                        <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+                          <Form.Control
+                            type="date"
+                            className="form-control-custom"
+                            style={{ width: '170px' }}
+                            value={foundersAnalyticsFilter.start_date}
+                            onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, start_date: e.target.value }))}
+                          />
+                          <Form.Control
+                            type="date"
+                            className="form-control-custom"
+                            style={{ width: '170px' }}
+                            value={foundersAnalyticsFilter.end_date}
+                            onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, end_date: e.target.value }))}
+                          />
+                          <Form.Select
+                            className="form-control-custom"
+                            style={{ width: '230px' }}
+                            value={organizationExpensesFilter.category_id}
+                            onChange={(e) => setOrganizationExpensesFilter((prev) => ({ ...prev, category_id: e.target.value, page: 1 }))}
+                          >
+                            <option value="">{language === 'uz' ? 'Barcha maqolalar' : 'Все статьи'}</option>
+                            {organizationExpenseCategoryOptions.map((item) => (
+                              <option key={`expense-category-filter-${item.id}`} value={item.id}>
+                                {language === 'uz'
+                                  ? (item.name_uz || item.name_ru || `#${item.id}`)
+                                  : (item.name_ru || item.name_uz || `#${item.id}`)}
+                              </option>
+                            ))}
+                          </Form.Select>
+                          <Form.Select
+                            className="form-control-custom"
+                            style={{ width: '150px' }}
+                            value={organizationExpensesFilter.currency_code}
+                            onChange={(e) => setOrganizationExpensesFilter((prev) => ({ ...prev, currency_code: e.target.value, page: 1 }))}
+                          >
+                            <option value="">{language === 'uz' ? 'Barcha valyutalar' : 'Все валюты'}</option>
+                            {organizationExpensesCurrencyOptions.map((currencyCode) => (
+                              <option key={`expense-currency-filter-${currencyCode}`} value={currencyCode}>
+                                {getCurrencyLabelByCode(currencyCode)}
+                              </option>
+                            ))}
+                          </Form.Select>
+                          <Form.Control
+                            className="form-control-custom"
+                            style={{ minWidth: '220px', maxWidth: '280px' }}
+                            value={organizationExpensesFilter.search}
+                            onChange={(e) => setOrganizationExpensesFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+                            placeholder={language === 'uz' ? "Qidiruv: maqola/izoh" : 'Поиск: статья/описание'}
+                          />
+                          <Button
+                            className="btn-primary-custom ms-auto"
+                            onClick={openCreateOrganizationExpenseModal}
+                          >
+                            <i className="bi bi-plus-lg me-2" />
+                            {language === 'uz' ? "Xarajat qo'shish" : 'Добавить расход'}
+                          </Button>
+                        </div>
+
+                        <Row className="g-3 mb-3">
+                          {(organizationExpensesData.totals_by_currency || []).map((item) => (
+                            <Col xs={12} md={6} xl={4} key={`expense-total-currency-${item.currency_code}`}>
+                              <Card className="admin-card border-0 h-100">
+                                <Card.Body className="p-3">
+                                  <div className="small text-muted mb-1">
+                                    {language === 'uz' ? 'Jami xarajat' : 'Всего расходов'}
+                                  </div>
+                                  <div className="fw-bold fs-5 mb-1">
+                                    {formatBalanceAmount(item.amount || 0)} {getCurrencyLabelByCode(item.currency_code)}
+                                  </div>
+                                  <div className="small text-muted">
+                                    {language === 'uz' ? 'Yozuvlar:' : 'Записей:'} {item.records_count || 0}
+                                  </div>
+                                </Card.Body>
+                              </Card>
+                            </Col>
+                          ))}
+                        </Row>
+
+                        <Card className="admin-card border-0">
+                          <Card.Body className="p-0">
+                            {organizationExpensesLoading ? (
+                              <TableSkeleton
+                                rows={10}
+                                columns={7}
+                                label={language === 'uz' ? "Xarajatlar yuklanmoqda" : 'Загрузка расходов'}
+                              />
+                            ) : (
+                              <div className="admin-table-container">
+                                <Table responsive className="admin-table mb-0">
+                                  <thead>
+                                    <tr>
+                                      <th style={{ width: 120 }}>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                                      <th>{language === 'uz' ? 'Maqola' : 'Статья расхода'}</th>
+                                      <th style={{ width: 140 }}>{language === 'uz' ? 'Valyuta' : 'Валюта'}</th>
+                                      <th className="text-end" style={{ width: 160 }}>{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                                      <th>{language === 'uz' ? 'Izoh' : 'Описание'}</th>
+                                      <th style={{ width: 170 }}>{language === 'uz' ? 'Kim kiritdi' : 'Кто добавил'}</th>
+                                      <th className="text-end" style={{ width: 140 }}>{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(organizationExpensesData.items || []).map((item) => (
+                                      <tr key={`expense-item-${item.id}`}>
+                                        <td>{item.expense_date || '—'}</td>
+                                        <td>
+                                          <div className="fw-semibold">
+                                            {language === 'uz'
+                                              ? (item.category_name_uz || item.category_name_ru || '—')
+                                              : (item.category_name_ru || item.category_name_uz || '—')}
+                                          </div>
+                                          {item.category_code && (
+                                            <div className="small text-muted">{item.category_code}</div>
+                                          )}
+                                        </td>
+                                        <td>{getCurrencyLabelByCode(item.currency_code)}</td>
+                                        <td className="text-end fw-semibold">
+                                          {formatBalanceAmount(item.amount || 0)}
+                                        </td>
+                                        <td>{item.description || '—'}</td>
+                                        <td>{item.actor_name || '—'}</td>
+                                        <td className="text-end">
+                                          <div className="d-inline-flex gap-1">
+                                            <Button
+                                              size="sm"
+                                              variant="outline-secondary"
+                                              onClick={() => openEditOrganizationExpenseModal(item)}
+                                            >
+                                              {language === 'uz' ? 'Tahrir' : 'Изм.'}
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline-danger"
+                                              onClick={() => deleteOrganizationExpense(item)}
+                                            >
+                                              {language === 'uz' ? "O'chir" : 'Удал.'}
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {(organizationExpensesData.items || []).length === 0 && (
+                                      <tr>
+                                        <td colSpan={7} className="text-center py-5 text-muted">
+                                          {language === 'uz' ? "Xarajat yozuvlari yo'q" : 'Записей расходов пока нет'}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </Table>
+                              </div>
+                            )}
+                          </Card.Body>
+                        </Card>
+                      </>
+                    )}
+
+                    {foundersInnerTab === 'categories' && (
+                      <>
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                          <div className="small text-muted">
+                            {language === 'uz'
+                              ? "Tizimdagi statik maqolalar saqlanadi, qo'shimcha maqolani qo'lda qo'shishingiz mumkin."
+                              : 'Системные статьи закреплены, вы можете добавить и свои статьи расходов.'}
+                          </div>
+                          <Button className="btn-primary-custom" onClick={openCreateExpenseCategoryModal}>
+                            <i className="bi bi-plus-lg me-2" />
+                            {language === 'uz' ? "Maqola qo'shish" : 'Добавить статью'}
+                          </Button>
+                        </div>
+
+                        <Card className="admin-card border-0">
+                          <Card.Body className="p-0">
+                            {organizationExpenseCategoriesLoading ? (
+                              <TableSkeleton
+                                rows={10}
+                                columns={6}
+                                label={language === 'uz' ? "Maqolalar yuklanmoqda" : 'Загрузка статей расходов'}
+                              />
+                            ) : (
+                              <div className="admin-table-container">
+                                <Table responsive className="admin-table mb-0">
+                                  <thead>
+                                    <tr>
+                                      <th style={{ width: 90 }}>ID</th>
+                                      <th>{language === 'uz' ? 'Maqola (RU)' : 'Статья (RU)'}</th>
+                                      <th>{language === 'uz' ? 'Maqola (UZ)' : 'Статья (UZ)'}</th>
+                                      <th style={{ width: 150 }}>{language === 'uz' ? 'Turi' : 'Тип'}</th>
+                                      <th style={{ width: 160 }}>{language === 'uz' ? 'Yozuvlar' : 'Записей'}</th>
+                                      <th className="text-end" style={{ width: 180 }}>{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {organizationExpenseCategoryOptions.map((item) => (
+                                      <tr key={`expense-category-row-${item.id}`}>
+                                        <td>#{item.id}</td>
+                                        <td>{item.name_ru || '—'}</td>
+                                        <td>{item.name_uz || '—'}</td>
+                                        <td>
+                                          <Badge bg={item.is_system ? 'secondary' : 'primary'} className="badge-custom">
+                                            {item.is_system
+                                              ? (language === 'uz' ? 'Tizim' : 'Системная')
+                                              : (language === 'uz' ? 'Custom' : 'Пользовательская')}
+                                          </Badge>
+                                        </td>
+                                        <td>{item.expenses_count || 0}</td>
+                                        <td className="text-end">
+                                          <div className="d-inline-flex gap-1">
+                                            <Button
+                                              size="sm"
+                                              variant="outline-secondary"
+                                              onClick={() => openEditExpenseCategoryModal(item)}
+                                            >
+                                              {language === 'uz' ? 'Tahrir' : 'Изм.'}
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline-danger"
+                                              onClick={() => deleteExpenseCategory(item)}
+                                              disabled={item.is_system || Number(item.expenses_count || 0) > 0}
+                                            >
+                                              {language === 'uz' ? "O'chir" : 'Удал.'}
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {organizationExpenseCategoryOptions.length === 0 && (
+                                      <tr>
+                                        <td colSpan={6} className="text-center py-5 text-muted">
+                                          {language === 'uz' ? "Maqolalar topilmadi" : 'Статьи расходов пока не добавлены'}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </Table>
+                              </div>
+                            )}
                           </Card.Body>
                         </Card>
                       </>
@@ -17939,6 +18700,169 @@ function SuperAdminDashboard() {
               {foundersAnalyticsLoading
                 ? (language === 'uz' ? 'Tekshirilmoqda...' : 'Проверка...')
                 : (language === 'uz' ? 'Kirish' : 'Войти')}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      <Modal
+        show={showOrganizationExpenseModal}
+        onHide={() => {
+          if (organizationExpenseSubmitting) return;
+          setShowOrganizationExpenseModal(false);
+          setOrganizationExpenseForm(createInitialOrganizationExpenseForm());
+        }}
+        centered
+      >
+        <Form onSubmit={submitOrganizationExpense}>
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {organizationExpenseForm.id
+                ? (language === 'uz' ? 'Xarajatni tahrirlash' : 'Редактировать расход')
+                : (language === 'uz' ? "Xarajat qo'shish" : 'Добавить расход')}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Row className="g-3">
+              <Col xs={12}>
+                <Form.Label>{language === 'uz' ? 'Xarajat maqolasi' : 'Статья расхода'} *</Form.Label>
+                <Form.Select
+                  value={organizationExpenseForm.category_id}
+                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, category_id: e.target.value }))}
+                >
+                  <option value="">{language === 'uz' ? 'Tanlang' : 'Выберите'}</option>
+                  {organizationExpenseCategoryOptions.map((item) => (
+                    <option key={`expense-category-option-${item.id}`} value={item.id}>
+                      {language === 'uz'
+                        ? (item.name_uz || item.name_ru || `#${item.id}`)
+                        : (item.name_ru || item.name_uz || `#${item.id}`)}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Col>
+              <Col md={6}>
+                <Form.Label>{language === 'uz' ? 'Summa' : 'Сумма'} *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={organizationExpenseForm.amount}
+                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  placeholder={language === 'uz' ? "Masalan: 250000" : 'Например: 250000'}
+                />
+              </Col>
+              <Col md={6}>
+                <Form.Label>{language === 'uz' ? 'Valyuta kodi' : 'Код валюты'} *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={organizationExpenseForm.currency_code}
+                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, currency_code: String(e.target.value || '').trim().toLowerCase() }))}
+                  placeholder="uz"
+                />
+              </Col>
+              <Col md={6}>
+                <Form.Label>{language === 'uz' ? 'Xarajat sanasi' : 'Дата расхода'} *</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={organizationExpenseForm.expense_date}
+                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, expense_date: e.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Label>{language === 'uz' ? 'Izoh' : 'Описание'}</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={organizationExpenseForm.description}
+                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder={language === 'uz' ? 'Qisqa izoh' : 'Краткое описание'}
+                />
+              </Col>
+            </Row>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (organizationExpenseSubmitting) return;
+                setShowOrganizationExpenseModal(false);
+                setOrganizationExpenseForm(createInitialOrganizationExpenseForm());
+              }}
+              disabled={organizationExpenseSubmitting}
+            >
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button type="submit" className="btn-primary-custom" disabled={organizationExpenseSubmitting}>
+              {organizationExpenseSubmitting
+                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      <Modal
+        show={showExpenseCategoryModal}
+        onHide={() => {
+          if (expenseCategorySubmitting) return;
+          setShowExpenseCategoryModal(false);
+          setExpenseCategoryForm(createInitialExpenseCategoryForm());
+        }}
+        centered
+      >
+        <Form onSubmit={submitExpenseCategory}>
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {expenseCategoryForm.id
+                ? (language === 'uz' ? 'Maqolani tahrirlash' : 'Редактировать статью расхода')
+                : (language === 'uz' ? "Maqola qo'shish" : 'Добавить статью расхода')}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Row className="g-3">
+              <Col xs={12}>
+                <Form.Label>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'} *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={expenseCategoryForm.name_ru}
+                  onChange={(e) => setExpenseCategoryForm((prev) => ({ ...prev, name_ru: e.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Label>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={expenseCategoryForm.name_uz}
+                  onChange={(e) => setExpenseCategoryForm((prev) => ({ ...prev, name_uz: e.target.value }))}
+                />
+              </Col>
+              {expenseCategoryForm.id && (
+                <Col xs={12}>
+                  <Form.Check
+                    type="switch"
+                    id="expense-category-active-switch"
+                    label={language === 'uz' ? 'Faol' : 'Активна'}
+                    checked={expenseCategoryForm.is_active !== false}
+                    onChange={(e) => setExpenseCategoryForm((prev) => ({ ...prev, is_active: !!e.target.checked }))}
+                  />
+                </Col>
+              )}
+            </Row>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (expenseCategorySubmitting) return;
+                setShowExpenseCategoryModal(false);
+                setExpenseCategoryForm(createInitialExpenseCategoryForm());
+              }}
+              disabled={expenseCategorySubmitting}
+            >
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button type="submit" className="btn-primary-custom" disabled={expenseCategorySubmitting}>
+              {expenseCategorySubmitting
+                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
             </Button>
           </Modal.Footer>
         </Form>
