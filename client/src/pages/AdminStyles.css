@@ -8096,6 +8096,70 @@ body::-webkit-scrollbar,
     line-height: 1.12;
 }
 
+.sa-global-import-review-header {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sa-global-import-review-body {
+    padding: 0.65rem 1rem 1rem;
+}
+
+.sa-global-import-review-table.sa-global-import-review-table--compact {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-col-row {
+    width: 7%;
+    min-width: 72px;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-col-mono {
+    width: 9%;
+    min-width: 88px;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-col-unit {
+    width: 5%;
+    min-width: 44px;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-col-action {
+    width: 14%;
+    min-width: 128px;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-td-row {
+    vertical-align: top;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-row-no {
+    font-weight: 600;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-td-action {
+    vertical-align: top;
+}
+
+.sa-global-import-review-table--compact .sa-global-import-review-select {
+    max-width: 100%;
+    min-width: 0;
+    font-size: 0.72rem;
+    padding-top: 0.16rem;
+    padding-bottom: 0.16rem;
+}
+
+.sa-global-import-review-table--compact td.sa-global-import-review-col-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.7rem;
+    word-break: break-all;
+}
+
+.sa-global-import-review-table--compact tbody td {
+    vertical-align: top;
+}
+
 .sa-global-import-review-table thead th {
     font-size: 0.68rem;
     letter-spacing: 0.02em;
@@ -8206,6 +8270,44 @@ body::-webkit-scrollbar,
     gap: 0.35rem;
 }
 
+.sa-global-products-paste-focus-zone {
+    position: relative;
+    padding: 0.1rem 0 0.35rem;
+}
+
+.sa-global-products-paste-short-hint {
+    line-height: 1.45;
+}
+
+.sa-global-products-paste-textarea-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    opacity: 0;
+    resize: none;
+}
+
+.sa-global-products-paste-info-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    line-height: 1;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.sa-global-products-hint-popover.popover {
+    max-width: min(360px, 92vw);
+}
+
 .sa-global-products-field-label {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -8297,33 +8399,19 @@ body::-webkit-scrollbar,
 .sa-global-products-template-table {
     font-size: 0.875rem;
     line-height: 1.4;
-    table-layout: fixed;
     width: 100%;
 }
 
-.sa-global-products-template-table th:nth-child(1),
-.sa-global-products-template-table td:nth-child(1) {
-    width: 6%;
+.sa-global-products-template-demo-table {
+    table-layout: auto;
+    min-width: 960px;
+    font-size: 0.78rem;
+    line-height: 1.35;
 }
 
-.sa-global-products-template-table th:nth-child(2),
-.sa-global-products-template-table td:nth-child(2) {
-    width: 22%;
-}
-
-.sa-global-products-template-table th:nth-child(3),
-.sa-global-products-template-table td:nth-child(3) {
-    width: 40%;
-}
-
-.sa-global-products-template-table th:nth-child(4),
-.sa-global-products-template-table td:nth-child(4) {
-    width: 10%;
-}
-
-.sa-global-products-template-table th:nth-child(5),
-.sa-global-products-template-table td:nth-child(5) {
-    width: 22%;
+.sa-global-products-template-demo-table thead th {
+    font-size: 0.7rem;
+    white-space: nowrap;
 }
 
 .sa-global-products-template-table thead th {

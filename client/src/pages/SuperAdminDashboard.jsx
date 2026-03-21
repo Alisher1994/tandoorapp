@@ -23,7 +23,7 @@ import * as echarts from 'echarts';
 import {
   Container, Row, Col, Card, Table, Button, Form, Modal,
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
-  Toast, ToastContainer, Dropdown
+  Toast, ToastContainer, Dropdown, OverlayTrigger, Popover
 } from 'react-bootstrap';
 import {
   Bot,
@@ -1415,6 +1415,7 @@ function SuperAdminDashboard() {
   const [globalProductsCategoryLevel1Filter, setGlobalProductsCategoryLevel1Filter] = useState('all');
   const [globalProductsCategoryLevel2Filter, setGlobalProductsCategoryLevel2Filter] = useState('all');
   const [globalProductsCategoryLevel3Filter, setGlobalProductsCategoryLevel3Filter] = useState('all');
+  const [selectedGlobalProductIds, setSelectedGlobalProductIds] = useState([]);
   const [showGlobalProductsFilterPanel, setShowGlobalProductsFilterPanel] = useState(false);
   const [showGlobalProductModal, setShowGlobalProductModal] = useState(false);
   const [globalProductForm, setGlobalProductForm] = useState(createEmptyGlobalProductForm);
@@ -1919,6 +1920,30 @@ function SuperAdminDashboard() {
       sample: 'Шахматы'
     }
   ]), [language]);
+
+  const globalProductsImportTemplateDemoRows = useMemo(() => {
+    if (language === 'uz') {
+      return [
+        ['Шахматы 2', 'Shaxmat 2', 'Настольная игра', '', '1234567890123', '12345678901234', 'шт', '125', '', ''],
+        ['яблоко Салтанат', '', 'Свежее яблоко', '', '9876543210987', '98765432109876', 'шт', '', 'Продукты > Фрукты > Яблоки', ''],
+        ['морковь', '', '', '', '1111111111111', '22222222222222', 'кг', '', '', 'Овощи']
+      ];
+    }
+    return [
+      ['Шахматы 2', 'Shaxmat 2', 'Настольная игра', '', '1234567890123', '12345678901234', 'шт', '125', '', ''],
+      ['яблоко Салтанат', '', 'Свежее яблоко', '', '9876543210987', '98765432109876', 'шт', '', 'Продукты > Фрукты > Яблоки', ''],
+      ['морковь', '', '', '', '1111111111111', '22222222222222', 'кг', '', '', 'Овощи']
+    ];
+  }, [language]);
+
+  const globalProductsPageIds = useMemo(() => (
+    Array.isArray(globalProducts?.items)
+      ? globalProducts.items
+        .map((p) => Number(p.id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+      : []
+  ), [globalProducts.items]);
+
   useEffect(() => {
     if (!showGlobalProductsPasteModal) return;
     const timer = setTimeout(() => {
@@ -2156,6 +2181,19 @@ function SuperAdminDashboard() {
   useEffect(() => {
     setGlobalProductsPage(1);
   }, [
+    globalProductsSearch,
+    globalProductsBarcodeFilter,
+    globalProductsStatusFilter,
+    globalProductsCategoryLevel1Filter,
+    globalProductsCategoryLevel2Filter,
+    globalProductsCategoryLevel3Filter
+  ]);
+
+  useEffect(() => {
+    setSelectedGlobalProductIds([]);
+  }, [
+    globalProductsPage,
+    globalProductsLimit,
     globalProductsSearch,
     globalProductsBarcodeFilter,
     globalProductsStatusFilter,
@@ -3989,6 +4027,50 @@ function SuperAdminDashboard() {
         : 'Ошибка сохранения глобального товара'));
     } finally {
       setSavingGlobalProduct(false);
+    }
+  };
+
+  const allGlobalProductsOnPageSelected = globalProductsPageIds.length > 0
+    && globalProductsPageIds.every((id) => selectedGlobalProductIds.includes(id));
+
+  const toggleGlobalProductRowSelected = (productId) => {
+    const id = Number.parseInt(productId, 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+    setSelectedGlobalProductIds((prev) => (
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    ));
+  };
+
+  const toggleSelectAllGlobalProductsOnPage = () => {
+    if (!globalProductsPageIds.length) return;
+    setSelectedGlobalProductIds((prev) => {
+      if (globalProductsPageIds.every((id) => prev.includes(id))) {
+        return prev.filter((id) => !globalProductsPageIds.includes(id));
+      }
+      return [...new Set([...prev, ...globalProductsPageIds])];
+    });
+  };
+
+  const handleBulkDeleteGlobalProducts = async () => {
+    if (!selectedGlobalProductIds.length) return;
+    const ids = [...selectedGlobalProductIds];
+    const confirmMsg = language === 'uz'
+      ? `Tanlangan ${ids.length} ta mahsulotni o‘chirish (nofaol qilish)?`
+      : `Отключить выбранные товары (${ids.length})?`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      for (const id of ids) {
+        await axios.delete(`${API_URL}/superadmin/global-products/${id}`);
+      }
+      setSelectedGlobalProductIds([]);
+      setSuccess(language === 'uz'
+        ? `${ids.length} ta mahsulot o‘chirildi (nofaol)`
+        : `Отключено товаров: ${ids.length}`);
+      loadGlobalProducts();
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || (language === 'uz'
+        ? 'O‘chirishda xato'
+        : 'Ошибка при отключении'));
     }
   };
 
@@ -11831,6 +11913,16 @@ function SuperAdminDashboard() {
                       className="d-none"
                       onChange={handleImportGlobalProductsFile}
                     />
+                    {selectedGlobalProductIds.length > 0 && (
+                      <Button
+                        variant="outline-danger"
+                        onClick={handleBulkDeleteGlobalProducts}
+                      >
+                        {language === 'uz'
+                          ? `O'chirish (${selectedGlobalProductIds.length})`
+                          : `Удалить (${selectedGlobalProductIds.length})`}
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline-secondary"
@@ -11956,7 +12048,7 @@ function SuperAdminDashboard() {
                 {globalProductsLoading ? (
                   <TableSkeleton
                     rows={8}
-                    columns={9}
+                    columns={10}
                     label={language === 'uz' ? "Global mahsulotlar yuklanmoqda" : 'Загрузка глобальных товаров'}
                   />
                 ) : (
@@ -11965,6 +12057,15 @@ function SuperAdminDashboard() {
                       <Table responsive hover className="admin-table align-middle">
                         <thead>
                           <tr>
+                            <th style={{ width: 40 }} className="text-center">
+                              <Form.Check
+                                type="checkbox"
+                                checked={allGlobalProductsOnPageSelected}
+                                disabled={!globalProductsPageIds.length}
+                                onChange={toggleSelectAllGlobalProductsOnPage}
+                                aria-label={language === 'uz' ? 'Barchasini tanlash' : 'Выбрать все на странице'}
+                              />
+                            </th>
                             <th>ID</th>
                             <th>{language === 'uz' ? 'Rasm' : 'Фото'}</th>
                             <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
@@ -11989,6 +12090,14 @@ function SuperAdminDashboard() {
                                 : (item.recommended_category_name_ru || item.recommended_category_name_uz);
                               return (
                                 <tr key={`global-product-row-${item.id}`}>
+                                  <td className="text-center">
+                                    <Form.Check
+                                      type="checkbox"
+                                      checked={selectedGlobalProductIds.includes(Number(item.id))}
+                                      onChange={() => toggleGlobalProductRowSelected(item.id)}
+                                      aria-label={language === 'uz' ? 'Tanlash' : 'Выбрать'}
+                                    />
+                                  </td>
                                   <td><span className="text-muted small">#{item.id}</span></td>
                                   <td>
                                     {imageUrl ? (
@@ -12058,7 +12167,7 @@ function SuperAdminDashboard() {
                             })
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center py-5 text-muted">
+                              <td colSpan="10" className="text-center py-5 text-muted">
                                 {language === 'uz'
                                   ? "Global mahsulotlar hozircha yo'q"
                                   : 'Глобальные товары пока не добавлены'}
@@ -16987,19 +17096,39 @@ function SuperAdminDashboard() {
         dialogClassName="sa-global-products-paste-dialog"
       >
         <Modal.Header closeButton={!isImportingGlobalProductsExcel} className="sa-global-products-paste-header">
-          <Modal.Title className="sa-global-products-modal-title h6 mb-0">
-            {language === 'uz'
-              ? 'Global mahsulotlar: import / paste'
-              : 'Глобальные товары: импорт / вставка'}
-          </Modal.Title>
+          <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap w-100 me-1">
+            <Modal.Title className="sa-global-products-modal-title h6 mb-0">
+              {language === 'uz'
+                ? 'Global mahsulotlar: import / paste'
+                : 'Глобальные товары: импорт / вставка'}
+            </Modal.Title>
+            <OverlayTrigger
+              trigger="click"
+              rootClose
+              placement="bottom"
+              overlay={(
+                <Popover id="sa-global-products-paste-hint-popover" className="sa-global-products-hint-popover">
+                  <Popover.Body className="small mb-0">
+                    {language === 'uz'
+                      ? "Excel'dan satrlarni nusxa oling va shu oynada Ctrl+V qiling. Har bir satr = bitta mahsulot."
+                      : 'Скопируйте строки из Excel и нажмите Ctrl+V в этом окне. Каждая строка = один товар.'}
+                  </Popover.Body>
+                </Popover>
+              )}
+            >
+              <Button
+                type="button"
+                variant="outline-secondary"
+                size="sm"
+                className="sa-global-products-paste-info-btn"
+                aria-label={language === 'uz' ? 'Exceldan qanday nusxa olish' : 'Как вставить данные из Excel'}
+              >
+                i
+              </Button>
+            </OverlayTrigger>
+          </div>
         </Modal.Header>
         <Modal.Body className="sa-global-products-paste-body">
-          <Alert variant="info" className="sa-global-products-info-alert mb-0">
-            {language === 'uz'
-              ? "Excel'dan satrlarni nusxa oling va shu oynada Ctrl+V qiling. Har bir satr = bitta mahsulot."
-              : 'Скопируйте строки из Excel и нажмите Ctrl+V в этом окне. Каждая строка = один товар.'}
-          </Alert>
-
           <div className="sa-global-products-paste-toolbar">
             <div className="sa-global-products-paste-toolbar-main d-flex flex-wrap align-items-center gap-2">
               <Button
@@ -17033,23 +17162,27 @@ function SuperAdminDashboard() {
             </Button>
           </div>
 
-          <section className="sa-global-products-paste-input-section">
-            <Form.Group className="mb-0">
-              <Form.Label className="sa-global-products-field-label">
-                {language === 'uz' ? 'Ctrl+V uchun maydon' : 'Поле для Ctrl+V'}
-              </Form.Label>
-              <Form.Control
-                ref={globalProductsPasteInputRef}
-                as="textarea"
-                rows={4}
-                className="sa-global-products-paste-textarea"
-                placeholder={language === 'uz'
-                  ? "Excel'dan nusxa oling va shu yerga Ctrl+V qiling"
-                  : 'Скопируйте данные из Excel и вставьте сюда через Ctrl+V'}
-                onPaste={handleGlobalProductsPaste}
-              />
-            </Form.Group>
-          </section>
+          <div
+            className="sa-global-products-paste-focus-zone"
+            onClick={() => globalProductsPasteInputRef.current?.focus()}
+            role="presentation"
+          >
+            <p className="sa-global-products-paste-short-hint small text-muted mb-0">
+              {language === 'uz'
+                ? 'Ctrl+V — ma’lumotlar jadvalga tushadi. Kursor bu yerga avtomatik yo‘naltiriladi.'
+                : 'Вставьте строки через Ctrl+V — они появятся в таблице ниже. Фокус в окне выставляется автоматически.'}
+            </p>
+            <Form.Control
+              ref={globalProductsPasteInputRef}
+              as="textarea"
+              readOnly
+              tabIndex={0}
+              rows={1}
+              aria-label={language === 'uz' ? 'Exceldan Ctrl+V' : 'Вставка из Excel через Ctrl+V'}
+              className="sa-global-products-paste-textarea-hidden"
+              onPaste={handleGlobalProductsPaste}
+            />
+          </div>
 
           {globalProductsPasteError && (
             <Alert variant="warning" className="sa-global-products-info-alert">
@@ -17152,29 +17285,28 @@ function SuperAdminDashboard() {
                 : 'Для категории приоритет такой: сначала ID, затем путь, затем название.'}
             </span>
           </Alert>
+          <p className="small text-muted mb-0">
+            {language === 'uz'
+              ? 'Exceldagi kabi bir xil tartibda 3 ta namuna qator (boshidan oxirigacha):'
+              : 'Три примера строк в том же порядке, как в Excel (слева направо):'}
+          </p>
           <div className="sa-global-products-template-table-wrap admin-thin-scrollbar">
-            <Table bordered hover size="sm" className="mb-0 sa-global-products-template-table">
+            <Table bordered hover size="sm" className="mb-0 sa-global-products-template-table sa-global-products-template-demo-table">
               <thead className="table-light">
                 <tr>
-                  <th style={{ width: 52 }}>№</th>
-                  <th>{language === 'uz' ? 'Ustun nomi' : 'Название столбца'}</th>
-                  <th>{language === 'uz' ? "Nimani to'ldirish" : 'Что заполнять'}</th>
-                  <th style={{ width: 112 }}>
-                    {language === 'uz' ? 'Majburiy' : 'Обязательно'}
-                  </th>
-                  <th style={{ minWidth: 140 }}>{language === 'uz' ? 'Misol' : 'Пример'}</th>
+                  {globalProductsImportTemplateColumns.map((col) => (
+                    <th key={`global-template-demo-h-${col.index}`}>{col.header}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {globalProductsImportTemplateColumns.map((item) => (
-                  <tr key={`global-import-template-col-${item.index}`}>
-                    <td>{item.index}</td>
-                    <td>
-                      <span className="sa-global-template-col-name">{item.header}</span>
-                    </td>
-                    <td>{item.description}</td>
-                    <td>{item.required ? (language === 'uz' ? 'Ha' : 'Да') : (language === 'uz' ? "Yo'q" : 'Нет')}</td>
-                    <td>{item.sample || '—'}</td>
+                {globalProductsImportTemplateDemoRows.map((demoRow, rowIdx) => (
+                  <tr key={`global-template-demo-row-${rowIdx}`}>
+                    {demoRow.map((cell, cellIdx) => (
+                      <td key={`global-template-demo-cell-${rowIdx}-${cellIdx}`}>
+                        {cell ? String(cell) : '—'}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -17202,14 +17334,14 @@ function SuperAdminDashboard() {
         className="sa-global-import-review-modal"
         centered
       >
-        <Modal.Header closeButton={!isApplyingGlobalProductsExcelImport}>
-          <Modal.Title>
+        <Modal.Header closeButton={!isApplyingGlobalProductsExcelImport} className="sa-global-import-review-header">
+          <Modal.Title className="sa-global-products-modal-title h6 mb-0">
             {language === 'uz'
               ? "Global mahsulotlar importini tekshirish"
               : 'Проверка импорта глобальных товаров'}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body className="sa-global-import-review-body">
           <Alert variant="secondary" className="mb-2 sa-global-import-review-summary">
             <div className="d-flex flex-wrap gap-3 align-items-center">
               <span>
@@ -17235,19 +17367,18 @@ function SuperAdminDashboard() {
             className={`table-responsive sa-global-import-review-scroll admin-thin-scrollbar${isGlobalImportReviewScrolling ? ' is-scrolling' : ''}`}
             onScroll={handleGlobalImportReviewScroll}
           >
-            <Table bordered hover size="sm" className="mb-0 sa-global-import-review-table">
+            <Table bordered hover size="sm" className="mb-0 sa-global-import-review-table sa-global-import-review-table--compact">
               <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
-                  <th style={{ minWidth: 70 }}>{language === 'uz' ? 'Satr' : 'Строка'}</th>
-                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
-                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
-                  <th style={{ minWidth: 150 }}>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</th>
-                  <th style={{ minWidth: 140 }}>{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
-                  <th style={{ minWidth: 120 }}>{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
-                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Kategoriya' : 'Категория'}</th>
-                  <th style={{ minWidth: 300 }}>{language === 'uz' ? 'Mavjud dublikatlar' : 'Найденные дубли'}</th>
-                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Amal' : 'Действие'}</th>
-                  <th style={{ minWidth: 180 }}>{language === 'uz' ? 'Holat' : 'Статус'}</th>
+                  <th className="sa-global-import-review-col-row">{language === 'uz' ? 'Satr' : 'Строка'}</th>
+                  <th>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
+                  <th>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
+                  <th className="sa-global-import-review-col-mono">{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</th>
+                  <th className="sa-global-import-review-col-mono">{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
+                  <th className="sa-global-import-review-col-unit">{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
+                  <th>{language === 'uz' ? 'Kategoriya' : 'Категория'}</th>
+                  <th>{language === 'uz' ? 'Mavjud dublikatlar' : 'Найденные дубли'}</th>
+                  <th className="sa-global-import-review-col-action">{language === 'uz' ? 'Amal' : 'Действие'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -17259,11 +17390,38 @@ function SuperAdminDashboard() {
                     : (hasConflict ? 'sa-global-import-row-duplicate' : '');
                   return (
                     <tr key={`global-import-row-${row.row_no}`} className={rowClassName}>
-                      <td>{row.row_no}</td>
+                      <td className="sa-global-import-review-td-row">
+                        <div className="sa-global-import-review-row-no">{row.row_no}</div>
+                        {!row.is_valid ? (
+                          <>
+                            <Badge bg="danger" className="mt-1">{language === 'uz' ? 'Xatolik' : 'Ошибка'}</Badge>
+                            <div className="small text-danger mt-1">
+                              {row.error || (language === 'uz' ? "Majburiy maydonlar to'ldirilmagan" : 'Не заполнены обязательные поля')}
+                            </div>
+                          </>
+                        ) : row.status === 'success' ? (
+                          <>
+                            <Badge bg="success" className="mt-1">{language === 'uz' ? 'Bajarildi' : 'Готово'}</Badge>
+                            {row.status_message && <div className="small text-success mt-1">{row.status_message}</div>}
+                          </>
+                        ) : row.status === 'error' ? (
+                          <>
+                            <Badge bg="danger" className="mt-1">{language === 'uz' ? 'Xato' : 'Ошибка'}</Badge>
+                            {row.status_message && <div className="small text-danger mt-1">{row.status_message}</div>}
+                          </>
+                        ) : row.status === 'skipped' ? (
+                          <>
+                            <Badge bg="secondary" className="mt-1">{language === 'uz' ? "O'tkazildi" : 'Пропущено'}</Badge>
+                            {row.status_message && <div className="small text-muted mt-1">{row.status_message}</div>}
+                          </>
+                        ) : (
+                          <Badge bg="light" text="dark" className="mt-1">{language === 'uz' ? 'Kutilmoqda' : 'Ожидает'}</Badge>
+                        )}
+                      </td>
                       <td>{row.name_ru || '—'}</td>
                       <td>{row.name_uz || '—'}</td>
-                      <td>{row.barcode || '—'}</td>
-                      <td>{row.ikpu || '—'}</td>
+                      <td className="sa-global-import-review-col-mono">{row.barcode || '—'}</td>
+                      <td className="sa-global-import-review-col-mono">{row.ikpu || '—'}</td>
                       <td>{row.unit || 'шт'}</td>
                       <td>
                         <div>{row.recommended_category_label || '—'}</div>
@@ -17287,10 +17445,11 @@ function SuperAdminDashboard() {
                           </div>
                         )}
                       </td>
-                      <td>
+                      <td className="sa-global-import-review-td-action">
                         <div className="d-flex flex-column gap-2">
                           <Form.Select
                             size="sm"
+                            className="sa-global-import-review-select"
                             value={action}
                             onChange={(e) => {
                               const nextAction = String(e.target.value || '').trim();
@@ -17319,6 +17478,7 @@ function SuperAdminDashboard() {
                           {hasConflict && action === 'replace' && (
                             <Form.Select
                               size="sm"
+                              className="sa-global-import-review-select"
                               value={String(row.conflict_target_id || row.conflict_matches?.[0]?.id || '')}
                               onChange={(e) => updateGlobalProductsImportRow(row.row_no, { conflict_target_id: String(e.target.value || '').trim() })}
                               disabled={!row.is_valid || isApplyingGlobalProductsExcelImport}
@@ -17332,33 +17492,6 @@ function SuperAdminDashboard() {
                           )}
                         </div>
                       </td>
-                      <td>
-                        {!row.is_valid ? (
-                          <>
-                            <Badge bg="danger">{language === 'uz' ? 'Xatolik' : 'Ошибка'}</Badge>
-                            <div className="small text-danger mt-1">
-                              {row.error || (language === 'uz' ? "Majburiy maydonlar to'ldirilmagan" : 'Не заполнены обязательные поля')}
-                            </div>
-                          </>
-                        ) : row.status === 'success' ? (
-                          <>
-                            <Badge bg="success">{language === 'uz' ? 'Bajarildi' : 'Успех'}</Badge>
-                            {row.status_message && <div className="small text-success mt-1">{row.status_message}</div>}
-                          </>
-                        ) : row.status === 'error' ? (
-                          <>
-                            <Badge bg="danger">{language === 'uz' ? 'Xato' : 'Ошибка'}</Badge>
-                            {row.status_message && <div className="small text-danger mt-1">{row.status_message}</div>}
-                          </>
-                        ) : row.status === 'skipped' ? (
-                          <>
-                            <Badge bg="secondary">{language === 'uz' ? "O'tkazildi" : 'Пропущено'}</Badge>
-                            {row.status_message && <div className="small text-muted mt-1">{row.status_message}</div>}
-                          </>
-                        ) : (
-                          <Badge bg="light" text="dark">{language === 'uz' ? 'Kutilmoqda' : 'Ожидает'}</Badge>
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
@@ -17366,16 +17499,17 @@ function SuperAdminDashboard() {
             </Table>
           </div>
         </Modal.Body>
-        <Modal.Footer>
+        <Modal.Footer className="sa-global-products-modal-footer d-flex flex-wrap gap-2 justify-content-end">
           <Button
-            variant="secondary"
+            variant="outline-secondary"
+            className="sa-global-products-btn"
             onClick={closeGlobalProductsImportReviewModal}
             disabled={isApplyingGlobalProductsExcelImport}
           >
             {language === 'uz' ? 'Yopish' : 'Закрыть'}
           </Button>
           <Button
-            className="btn-primary-custom"
+            className="btn-primary-custom sa-global-products-btn"
             onClick={applyGlobalProductsExcelImport}
             disabled={isApplyingGlobalProductsExcelImport || !globalProductsImportRows.some((row) => row.is_valid)}
           >
