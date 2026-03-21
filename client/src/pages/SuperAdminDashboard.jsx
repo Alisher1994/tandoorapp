@@ -8486,6 +8486,9 @@ function SuperAdminDashboard() {
                                     <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
                                     <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
                                     <th className="text-end">{language === 'uz' ? 'Buyurtma' : 'Заказ'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                                    <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                                    <th>{language === 'uz' ? 'Manzil' : 'Адрес'}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -8507,8 +8510,16 @@ function SuperAdminDashboard() {
                                           {location.restaurantName || 'Магазин'}
                                         </td>
                                         <td className="text-end text-nowrap">
-                                          <span className="small text-muted d-block">№{location.orderNumber || '—'}</span>
-                                          <span className="small fw-semibold">{formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}</span>
+                                          №{location.orderNumber || '—'}
+                                        </td>
+                                        <td className="text-end text-nowrap fw-semibold">
+                                          {formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}
+                                        </td>
+                                        <td className="text-nowrap">
+                                          {location.createdAt ? new Date(location.createdAt).toLocaleString('ru-RU') : '—'}
+                                        </td>
+                                        <td className="text-truncate" title={location.deliveryAddress || '—'}>
+                                          {location.deliveryAddress || '—'}
                                         </td>
                                       </tr>
                                     );
