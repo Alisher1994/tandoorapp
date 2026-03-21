@@ -9354,6 +9354,75 @@ body::-webkit-scrollbar,
     min-height: 100%;
 }
 
+.sa-founders-store-map-card {
+    overflow: hidden;
+}
+
+.sa-founders-store-map-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: #f8fafc;
+}
+
+.sa-founders-store-map-wrap {
+    height: 390px;
+    width: 100%;
+    background: radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%);
+}
+
+.sa-founders-store-marker-icon {
+    background: transparent !important;
+    border: 0 !important;
+    overflow: visible !important;
+}
+
+.sa-founders-store-marker {
+    min-width: 210px;
+    max-width: 210px;
+    padding: 8px 9px;
+    border-radius: 10px;
+    border: 1px solid #d7e1f2;
+    background: #ffffff;
+    box-shadow: none;
+    color: #334155;
+    line-height: 1.22;
+    font-size: 11px;
+}
+
+.sa-founders-store-marker-line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.sa-founders-store-marker-line.is-title {
+    margin-bottom: 4px;
+    color: #0f172a;
+    font-size: 11.5px;
+}
+
+.sa-founders-store-marker-line.is-meta {
+    margin-top: 3px;
+    margin-bottom: 0;
+    color: #475569;
+}
+
+.sa-founders-store-marker-pin {
+    width: 12px;
+    height: 12px;
+    display: block;
+    margin: -1px auto 0;
+    border-radius: 2px;
+    background: #ffffff;
+    border: 1px solid #d7e1f2;
+    transform: rotate(45deg);
+}
+
 .sa-founders-chart-title {
     font-size: 0.88rem;
     font-weight: 700;

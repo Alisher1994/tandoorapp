@@ -398,6 +398,12 @@ const resolveFounderActorDisplayName = (actorName, actorUsername = '', actorPhon
   if (haystack.includes('alisher') || haystack.includes('алишер') || haystack.includes('admin')) return 'Alisher';
   return String(actorName || actorUsername || '—').trim() || '—';
 };
+const formatCompactMoneyForMapLabel = (value) => {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '0';
+  const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+  return rounded.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
+};
 const createInitialOrganizationExpenseForm = () => ({
   id: null,
   category_id: '',
@@ -1436,6 +1442,7 @@ function SuperAdminDashboard() {
   const [organizationExpensesLoading, setOrganizationExpensesLoading] = useState(false);
   const [showOrganizationExpenseModal, setShowOrganizationExpenseModal] = useState(false);
   const [organizationExpenseForm, setOrganizationExpenseForm] = useState(createInitialOrganizationExpenseForm);
+  const [organizationExpenseCategorySearch, setOrganizationExpenseCategorySearch] = useState('');
   const [organizationExpenseSubmitting, setOrganizationExpenseSubmitting] = useState(false);
   const [showExpenseCategoryModal, setShowExpenseCategoryModal] = useState(false);
   const [expenseCategoryForm, setExpenseCategoryForm] = useState(createInitialExpenseCategoryForm);
@@ -3264,6 +3271,7 @@ function SuperAdminDashboard() {
       ...createInitialOrganizationExpenseForm(),
       currency_code: String(countryCurrency?.code || 'uz').trim().toLowerCase() || 'uz'
     });
+    setOrganizationExpenseCategorySearch('');
     setShowOrganizationExpenseModal(true);
   };
   const openEditOrganizationExpenseModal = (item) => {
@@ -3276,6 +3284,9 @@ function SuperAdminDashboard() {
       expense_date: String(item.expense_date || getTodayDateInputValue()),
       description: String(item.description || '')
     });
+    setOrganizationExpenseCategorySearch(language === 'uz'
+      ? String(item.category_name_uz || item.category_name_ru || '').trim()
+      : String(item.category_name_ru || item.category_name_uz || '').trim());
     setShowOrganizationExpenseModal(true);
   };
   const submitOrganizationExpense = async (event) => {
@@ -3315,6 +3326,7 @@ function SuperAdminDashboard() {
       }
       setShowOrganizationExpenseModal(false);
       setOrganizationExpenseForm(createInitialOrganizationExpenseForm());
+      setOrganizationExpenseCategorySearch('');
       await Promise.all([
         loadOrganizationExpenses(),
         loadOrganizationExpenseCategories(),
@@ -5126,6 +5138,17 @@ function SuperAdminDashboard() {
     [...(Array.isArray(organizationExpenseCategories) ? organizationExpenseCategories : [])]
       .sort((left, right) => String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru'))
   ), [organizationExpenseCategories]);
+  const organizationExpenseCategoryFilteredOptions = useMemo(() => {
+    const source = Array.isArray(organizationExpenseCategoryOptions) ? organizationExpenseCategoryOptions : [];
+    const query = String(organizationExpenseCategorySearch || '').trim().toLowerCase();
+    if (!query) return source;
+    return source.filter((item) => {
+      const ru = String(item?.name_ru || '').trim().toLowerCase();
+      const uz = String(item?.name_uz || '').trim().toLowerCase();
+      const code = String(item?.code || '').trim().toLowerCase();
+      return ru.includes(query) || uz.includes(query) || code.includes(query) || String(item?.id || '').includes(query);
+    });
+  }, [organizationExpenseCategoryOptions, organizationExpenseCategorySearch]);
   const organizationExpenseCategoryRowsById = useMemo(() => (
     [...(Array.isArray(organizationExpenseCategories) ? organizationExpenseCategories : [])]
       .sort((left, right) => {
@@ -5134,6 +5157,106 @@ function SuperAdminDashboard() {
         return leftId - rightId;
       })
   ), [organizationExpenseCategories]);
+  const foundersRestaurantOperatorMap = useMemo(() => {
+    const map = new Map();
+    const source = Array.isArray(allOperators) ? allOperators : [];
+    source.forEach((operator) => {
+      const operatorName = String(operator?.full_name || operator?.username || '').trim();
+      if (!operatorName) return;
+      const restaurantsList = Array.isArray(operator?.restaurants) ? operator.restaurants : [];
+      restaurantsList.forEach((restaurantItem) => {
+        const restaurantId = Number(restaurantItem?.id || 0);
+        if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
+        if (!map.has(restaurantId)) map.set(restaurantId, []);
+        const names = map.get(restaurantId);
+        if (!names.includes(operatorName)) names.push(operatorName);
+      });
+      const activeRestaurantId = Number(operator?.active_restaurant_id || 0);
+      if (Number.isFinite(activeRestaurantId) && activeRestaurantId > 0) {
+        if (!map.has(activeRestaurantId)) map.set(activeRestaurantId, []);
+        const names = map.get(activeRestaurantId);
+        if (!names.includes(operatorName)) names.push(operatorName);
+      }
+    });
+    return map;
+  }, [allOperators]);
+  const foundersShopsMapPoints = useMemo(() => (
+    (Array.isArray(allRestaurants) ? allRestaurants : [])
+      .map((restaurant) => {
+        const lat = Number(restaurant?.latitude);
+        const lng = Number(restaurant?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+        const restaurantId = Number(restaurant?.id || 0);
+        const operatorNames = foundersRestaurantOperatorMap.get(restaurantId) || [];
+        const mappedIssueCount = Number(restaurantIssueCountMap?.[restaurantId]);
+        const token = String(restaurant?.telegram_bot_token || '').trim();
+        const botMetaError = String(restaurant?.telegram_bot_meta_error || '').trim();
+        const botUsername = String(restaurant?.telegram_bot_username || '').trim();
+        const quickIssueCount = (!token || botMetaError || !botUsername) ? 1 : 0;
+        const issuesCount = Number.isFinite(mappedIssueCount)
+          ? Math.max(0, mappedIssueCount)
+          : quickIssueCount;
+        const currencyCode = String(restaurant?.currency_code || countryCurrency?.code || 'uz').trim().toLowerCase();
+        const currencyLabel = currencyCode === 'uz'
+          ? (language === 'uz' ? "so'm" : 'сум')
+          : (currencyCode === 'tj'
+            ? (language === 'uz' ? 'somoni' : 'сомони')
+            : (currencyCode === 'kz'
+              ? (language === 'uz' ? 'tenge' : 'тенге')
+              : String(currencyCode || '').toUpperCase()));
+        return {
+          id: restaurantId > 0 ? restaurantId : `${lat}:${lng}`,
+          lat,
+          lng,
+          name: String(restaurant?.name || '').trim() || '—',
+          activityType: String(restaurant?.activity_type_name || '').trim() || (language === 'uz' ? "Faoliyat turi tanlanmagan" : 'Вид деятельности не выбран'),
+          phone: String(restaurant?.phone || '').trim() || '—',
+          balance: Number(restaurant?.balance || 0),
+          currencyCode,
+          currencyLabel,
+          operatorLabel: operatorNames.length
+            ? operatorNames.join(', ')
+            : (language === 'uz' ? "Operator biriktirilmagan" : 'Оператор не назначен'),
+          productsCount: Math.max(0, Number(restaurant?.products_count || 0)),
+          issuesCount
+        };
+      })
+      .filter(Boolean)
+  ), [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
+  const foundersShopsMapMarkerIcons = useMemo(() => {
+    const map = new Map();
+    const labels = {
+      shop: language === 'uz' ? "Do'kon" : 'Магазин',
+      activity: language === 'uz' ? 'Faoliyat' : 'Вид деятельности',
+      phone: language === 'uz' ? 'Telefon' : 'Телефон',
+      balance: language === 'uz' ? 'Balans' : 'Баланс',
+      operator: language === 'uz' ? 'Operator' : 'Оператор',
+      products: language === 'uz' ? 'Tovarlar' : 'Товары',
+      errors: language === 'uz' ? 'Xatolar' : 'Ошибки'
+    };
+
+    foundersShopsMapPoints.forEach((point) => {
+      const html = `
+        <div class="sa-founders-store-marker">
+          <div class="sa-founders-store-marker-line is-title"><strong>${escapeHtml(point.name)}</strong></div>
+          <div class="sa-founders-store-marker-line">${labels.activity}: ${escapeHtml(point.activityType)}</div>
+          <div class="sa-founders-store-marker-line">${labels.phone}: ${escapeHtml(point.phone)}</div>
+          <div class="sa-founders-store-marker-line">${labels.balance}: ${escapeHtml(formatCompactMoneyForMapLabel(point.balance))} ${escapeHtml(point.currencyLabel)}</div>
+          <div class="sa-founders-store-marker-line">${labels.operator}: ${escapeHtml(point.operatorLabel)}</div>
+          <div class="sa-founders-store-marker-line is-meta">${labels.products}: <strong>${Number(point.productsCount || 0)}</strong> · ${labels.errors}: <strong>${Number(point.issuesCount || 0)}</strong></div>
+        </div>
+        <span class="sa-founders-store-marker-pin" aria-hidden="true"></span>
+      `;
+      map.set(point.id, L.divIcon({
+        className: 'sa-founders-store-marker-icon',
+        html,
+        iconSize: [220, 124],
+        iconAnchor: [110, 124]
+      }));
+    });
+    return map;
+  }, [foundersShopsMapPoints, language]);
   const organizationExpensesCurrencyOptions = useMemo(() => {
     const set = new Set();
     foundersAvailableCurrencies.forEach((item) => set.add(String(item || '').trim().toLowerCase()));
@@ -13295,6 +13418,55 @@ function SuperAdminDashboard() {
 
                     {foundersInnerTab === 'analytics' && (
                       <>
+                    <Row className="g-3 mb-3">
+                      <Col xs={12}>
+                        <Card className="admin-card border-0 sa-founders-store-map-card">
+                          <Card.Body className="p-0">
+                            <div className="sa-founders-store-map-head">
+                              <div className="fw-semibold">
+                                {language === 'uz' ? "Do'konlar lokatsiyasi" : 'Локации магазинов'}
+                              </div>
+                              <div className="small text-muted">
+                                {language === 'uz'
+                                  ? `Xaritada nuqtalar: ${foundersShopsMapPoints.length}`
+                                  : `Точек на карте: ${foundersShopsMapPoints.length}`}
+                              </div>
+                            </div>
+                            <div className="sa-founders-store-map-wrap">
+                              {foundersShopsMapPoints.length === 0 ? (
+                                <div className="h-100 d-flex align-items-center justify-content-center text-muted small">
+                                  {language === 'uz'
+                                    ? "Lokatsiyasi ko'rsatilgan do'konlar topilmadi"
+                                    : 'Магазины с заполненной локацией не найдены'}
+                                </div>
+                              ) : (
+                                <MapContainer
+                                  center={ANALYTICS_DEFAULT_MAP_CENTER}
+                                  zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                                  style={{ height: '100%', width: '100%' }}
+                                >
+                                  <TileLayer
+                                    url={overviewMapTileLayerConfig.url}
+                                    attribution={overviewMapTileLayerConfig.attribution}
+                                    maxZoom={overviewMapTileLayerConfig.maxZoom}
+                                  />
+                                  <SuperAdminAnalyticsMapResizeFix />
+                                  <SuperAdminAnalyticsMapAutoBounds points={foundersShopsMapPoints} />
+                                  {foundersShopsMapPoints.map((point) => (
+                                    <Marker
+                                      key={`founders-shop-map-${point.id}`}
+                                      position={[point.lat, point.lng]}
+                                      icon={foundersShopsMapMarkerIcons.get(point.id) || getOverviewAnalyticsPointIcon(false)}
+                                    />
+                                  ))}
+                                </MapContainer>
+                              )}
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    </Row>
+
                     <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
                       <Form.Control
                         type="date"
@@ -19044,6 +19216,7 @@ function SuperAdminDashboard() {
           if (organizationExpenseSubmitting) return;
           setShowOrganizationExpenseModal(false);
           setOrganizationExpenseForm(createInitialOrganizationExpenseForm());
+          setOrganizationExpenseCategorySearch('');
         }}
         centered
       >
@@ -19059,12 +19232,28 @@ function SuperAdminDashboard() {
             <Row className="g-3">
               <Col xs={12}>
                 <Form.Label>{language === 'uz' ? 'Xarajat maqolasi' : 'Статья расхода'} *</Form.Label>
+                <Form.Control
+                  className="mb-2"
+                  type="text"
+                  value={organizationExpenseCategorySearch}
+                  onChange={(e) => setOrganizationExpenseCategorySearch(e.target.value)}
+                  placeholder={language === 'uz' ? "Ro'yxatdan izlash..." : 'Поиск по списку...'}
+                />
                 <Form.Select
                   value={organizationExpenseForm.category_id}
-                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, category_id: e.target.value }))}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setOrganizationExpenseForm((prev) => ({ ...prev, category_id: nextValue }));
+                    const selected = organizationExpenseCategoryOptions.find((item) => String(item.id) === String(nextValue));
+                    if (selected) {
+                      setOrganizationExpenseCategorySearch(language === 'uz'
+                        ? String(selected.name_uz || selected.name_ru || '').trim()
+                        : String(selected.name_ru || selected.name_uz || '').trim());
+                    }
+                  }}
                 >
                   <option value="">{language === 'uz' ? 'Tanlang' : 'Выберите'}</option>
-                  {organizationExpenseCategoryOptions.map((item) => (
+                  {organizationExpenseCategoryFilteredOptions.map((item) => (
                     <option key={`expense-category-option-${item.id}`} value={item.id}>
                       {language === 'uz'
                         ? (item.name_uz || item.name_ru || `#${item.id}`)
@@ -19072,6 +19261,11 @@ function SuperAdminDashboard() {
                     </option>
                   ))}
                 </Form.Select>
+                {organizationExpenseCategoryFilteredOptions.length === 0 && (
+                  <div className="small text-muted mt-1">
+                    {language === 'uz' ? "Maqola topilmadi" : 'Статья не найдена'}
+                  </div>
+                )}
               </Col>
               <Col md={6}>
                 <Form.Label>{language === 'uz' ? 'Summa' : 'Сумма'} *</Form.Label>
@@ -19118,6 +19312,7 @@ function SuperAdminDashboard() {
                 if (organizationExpenseSubmitting) return;
                 setShowOrganizationExpenseModal(false);
                 setOrganizationExpenseForm(createInitialOrganizationExpenseForm());
+                setOrganizationExpenseCategorySearch('');
               }}
               disabled={organizationExpenseSubmitting}
             >
