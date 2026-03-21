@@ -78,9 +78,36 @@ const normalizePoint = (point) => {
 };
 
 const getPointKey = (point) => String(point?.orderId ?? point?.orderNumber ?? `${point?.lat}:${point?.lng}`);
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+const buildShopBalloonHtml = (shop = {}) => {
+  const rows = [
+    ['Магазин', shop.name || '—'],
+    ['Оператор', shop.operatorName || '—'],
+    ['Телефон', shop.operatorPhone || shop.phone || '—'],
+    ['Баланс', `${Number(shop.balance || 0).toLocaleString('ru-RU')} ${shop.currencyCode || 'сум'}`],
+    ['Ошибки', Number(shop.errorsCount || 0).toLocaleString('ru-RU')],
+    ['Товары', Number(shop.productsCount || 0).toLocaleString('ru-RU')]
+  ];
+  return `
+    <div style="min-width:220px;font-size:12px;line-height:1.35;color:#0f172a">
+      ${rows.map(([label, value]) => (
+        `<div style="display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px dashed #e2e8f0;">
+          <span style="color:#64748b">${escapeHtml(label)}</span>
+          <strong style="text-align:right">${escapeHtml(value)}</strong>
+        </div>`
+      )).join('')}
+    </div>
+  `;
+};
 
 function YandexAnalyticsMap({
   points = [],
+  shopPoints = [],
   shopPoint = null,
   selectedPoint = null,
   onSelectPoint = () => {},
@@ -99,6 +126,10 @@ function YandexAnalyticsMap({
   const normalizedPoints = useMemo(
     () => (Array.isArray(points) ? points.map(normalizePoint).filter(Boolean) : []),
     [points]
+  );
+  const normalizedShopPoints = useMemo(
+    () => (Array.isArray(shopPoints) ? shopPoints.map(normalizePoint).filter(Boolean) : []),
+    [shopPoints]
   );
   const normalizedShopPoint = useMemo(() => normalizePoint(shopPoint), [shopPoint]);
   const normalizedSelectedPoint = useMemo(() => normalizePoint(selectedPoint), [selectedPoint]);
@@ -187,17 +218,35 @@ function YandexAnalyticsMap({
       geoCollection.add(placemark);
     });
 
-    if (normalizedShopPoint) {
-      const shopPlacemark = new ymaps.Placemark(
-        [normalizedShopPoint.lat, normalizedShopPoint.lng],
-        {},
-        {
-          iconLayout: shopMarkerLayoutRef.current,
-          iconShape: { type: 'Circle', coordinates: [15, 15], radius: 15 },
-          iconOffset: [-15, -15]
-        }
-      );
-      geoCollection.add(shopPlacemark);
+    const shopsForMap = normalizedShopPoints.length ? normalizedShopPoints : (normalizedShopPoint ? [normalizedShopPoint] : []);
+    if (shopsForMap.length) {
+      const clusterer = new ymaps.Clusterer({
+        clusterIcons: [{
+          href: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42"><circle cx="21" cy="21" r="20" fill="%2316a34a" stroke="%23ffffff" stroke-width="2"/></svg>',
+          size: [42, 42],
+          offset: [-21, -21]
+        }],
+        clusterNumbers: [50, 100, 500, 1000],
+        groupByCoordinates: false,
+        hasBalloon: true,
+        clusterDisableClickZoom: false,
+        preset: 'islands#greenClusterIcons'
+      });
+      const shopPlacemarks = shopsForMap.map((shop) => (
+        new ymaps.Placemark(
+          [shop.lat, shop.lng],
+          {
+            balloonContentBody: buildShopBalloonHtml(shop)
+          },
+          {
+            iconLayout: shopMarkerLayoutRef.current,
+            iconShape: { type: 'Circle', coordinates: [15, 15], radius: 15 },
+            iconOffset: [-15, -15]
+          }
+        )
+      ));
+      clusterer.add(shopPlacemarks);
+      geoCollection.add(clusterer);
     }
 
     if (normalizedSelectedPoint) {
@@ -207,7 +256,7 @@ function YandexAnalyticsMap({
 
     const signature = JSON.stringify({
       points: normalizedPoints.map((point) => [point.lat, point.lng, getPointKey(point)]),
-      shop: normalizedShopPoint ? [normalizedShopPoint.lat, normalizedShopPoint.lng] : null
+      shops: shopsForMap.map((shop) => [shop.lat, shop.lng, String(shop.id || shop.name || '')])
     });
 
     if (signature === boundsSignatureRef.current) return;
@@ -219,7 +268,7 @@ function YandexAnalyticsMap({
     } else {
       map.setCenter(DEFAULT_CENTER, DEFAULT_ZOOM);
     }
-  }, [normalizedPoints, normalizedSelectedPoint, normalizedShopPoint, onSelectPoint]);
+  }, [normalizedPoints, normalizedSelectedPoint, normalizedShopPoint, normalizedShopPoints, onSelectPoint]);
 
   if (loadError) {
     return (

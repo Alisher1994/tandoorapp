@@ -47,7 +47,7 @@ import {
   Users,
   Wallet
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -658,6 +658,118 @@ const getOverviewAnalyticsPointIcon = (isActive = false) => L.divIcon({
   iconSize: [26, 26],
   iconAnchor: [13, 13]
 });
+const getOverviewAnalyticsShopIcon = () => L.divIcon({
+  className: 'analytics-map-shop-point',
+  html: '<span class="analytics-map-shop-badge"><span class="analytics-map-shop-emoji">🏪</span></span>',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
+const getOverviewAnalyticsShopClusterIcon = (count = 0) => L.divIcon({
+  className: 'analytics-map-shop-cluster-point',
+  html: `<span class="analytics-map-shop-cluster-badge">${Number(count || 0)}</span>`,
+  iconSize: [38, 38],
+  iconAnchor: [19, 19]
+});
+const getOverviewShopClusterStepByZoom = (zoom = 11) => {
+  if (zoom <= 8) return 0.25;
+  if (zoom <= 10) return 0.12;
+  if (zoom <= 11) return 0.07;
+  if (zoom <= 12) return 0.04;
+  if (zoom <= 13) return 0.02;
+  return 0;
+};
+const clusterOverviewShopPoints = (shopPoints = [], zoom = 11) => {
+  const step = getOverviewShopClusterStepByZoom(zoom);
+  if (!step) {
+    return shopPoints.map((shop) => ({ type: 'shop', lat: shop.lat, lng: shop.lng, shops: [shop] }));
+  }
+  const buckets = new Map();
+  shopPoints.forEach((shop) => {
+    const latBucket = Math.floor(shop.lat / step);
+    const lngBucket = Math.floor(shop.lng / step);
+    const bucketKey = `${latBucket}:${lngBucket}`;
+    const existing = buckets.get(bucketKey) || { count: 0, shops: [], latSum: 0, lngSum: 0 };
+    existing.count += 1;
+    existing.shops.push(shop);
+    existing.latSum += shop.lat;
+    existing.lngSum += shop.lng;
+    buckets.set(bucketKey, existing);
+  });
+  return Array.from(buckets.values()).map((bucket) => {
+    const centerLat = bucket.latSum / Math.max(1, bucket.count);
+    const centerLng = bucket.lngSum / Math.max(1, bucket.count);
+    if (bucket.count === 1) {
+      return { type: 'shop', lat: centerLat, lng: centerLng, shops: bucket.shops };
+    }
+    return { type: 'cluster', lat: centerLat, lng: centerLng, shops: bucket.shops, count: bucket.count };
+  });
+};
+const SuperAdminOverviewShopMarkersLayer = ({
+  shopPoints = [],
+  language = 'ru',
+  formatMoney = (value) => value,
+  getCurrencyLabel = () => 'сум'
+}) => {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map?.getZoom?.() || ANALYTICS_DEFAULT_MAP_ZOOM);
+  useMapEvents({
+    zoomend: () => setZoom(map?.getZoom?.() || ANALYTICS_DEFAULT_MAP_ZOOM)
+  });
+  const clustered = useMemo(() => clusterOverviewShopPoints(shopPoints, zoom), [shopPoints, zoom]);
+
+  return (
+    <>
+      {clustered.map((item, idx) => {
+        if (item.type === 'cluster') {
+          return (
+            <Marker
+              key={`sa-overview-shop-cluster-${idx}-${item.count}`}
+              position={[item.lat, item.lng]}
+              icon={getOverviewAnalyticsShopClusterIcon(item.count)}
+              zIndexOffset={1400}
+              eventHandlers={{
+                click: () => {
+                  const currentZoom = map?.getZoom?.() || ANALYTICS_DEFAULT_MAP_ZOOM;
+                  const nextZoom = Math.min(17, currentZoom + 2);
+                  map.setView([item.lat, item.lng], nextZoom, { animate: true, duration: 0.3 });
+                }
+              }}
+            >
+              <Popup>
+                <div className="small">
+                  <strong>{language === 'uz' ? "Do'konlar klasteri" : 'Кластер магазинов'}</strong>
+                  <div>{language === 'uz' ? "Do'konlar soni" : 'Количество магазинов'}: {item.count}</div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        }
+
+        const shop = item.shops[0];
+        const currencyLabel = getCurrencyLabel(shop.currencyCode || 'uz');
+        return (
+          <Marker
+            key={`sa-overview-shop-marker-${shop.id || idx}`}
+            position={[shop.lat, shop.lng]}
+            icon={getOverviewAnalyticsShopIcon()}
+            zIndexOffset={1300}
+          >
+            <Popup minWidth={240}>
+              <div className="small">
+                <div className="fw-semibold mb-1">{shop.name || (language === 'uz' ? "Do'kon" : 'Магазин')}</div>
+                <div>{language === 'uz' ? 'Operator' : 'Оператор'}: <strong>{shop.operatorName || '—'}</strong></div>
+                <div>{language === 'uz' ? 'Telefon' : 'Телефон'}: <strong>{shop.operatorPhone || shop.phone || '—'}</strong></div>
+                <div>{language === 'uz' ? 'Balans' : 'Баланс'}: <strong>{formatMoney(shop.balance || 0)} {currencyLabel}</strong></div>
+                <div>{language === 'uz' ? 'Xatolar' : 'Ошибки'}: <strong>{Number(shop.errorsCount || 0)}</strong></div>
+                <div>{language === 'uz' ? 'Tovarlar' : 'Товары'}: <strong>{Number(shop.productsCount || 0)}</strong></div>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+    </>
+  );
+};
 const SuperAdminAnalyticsMapAutoBounds = ({ points = [], selectedPoint = null }) => {
   const map = useMap();
 
@@ -7678,6 +7790,61 @@ function SuperAdminDashboard() {
         new Date(right?.createdAt || 0).getTime() - new Date(left?.createdAt || 0).getTime()
       ));
   }, [overviewAnalyticsData?.orderLocations]);
+  const overviewOperatorsByRestaurantId = useMemo(() => {
+    const map = new Map();
+    (allOperators || []).forEach((operator) => {
+      const operatorName = String(operator?.full_name || operator?.username || '').trim();
+      const operatorPhone = String(operator?.phone || '').trim();
+      const linkedRestaurants = Array.isArray(operator?.restaurants) ? operator.restaurants : [];
+      linkedRestaurants.forEach((restaurant) => {
+        const restaurantId = Number(restaurant?.id || 0);
+        if (!restaurantId) return;
+        if (!map.has(restaurantId)) map.set(restaurantId, []);
+        map.get(restaurantId).push({
+          name: operatorName,
+          phone: operatorPhone
+        });
+      });
+    });
+    return map;
+  }, [allOperators]);
+  const overviewAnalyticsShopPoints = useMemo(() => {
+    const parseCoord = (value, min, max) => {
+      const numeric = Number.parseFloat(String(value ?? '').replace(',', '.'));
+      return Number.isFinite(numeric) && numeric >= min && numeric <= max ? numeric : null;
+    };
+
+    return (allRestaurants || [])
+      .map((restaurant) => {
+        const lat = parseCoord(restaurant?.latitude, -90, 90);
+        const lng = parseCoord(restaurant?.longitude, -180, 180);
+        if (lat === null || lng === null) return null;
+        const restaurantId = Number(restaurant?.id || 0);
+        const linkedOperators = overviewOperatorsByRestaurantId.get(restaurantId) || [];
+        const firstOperator = linkedOperators[0] || {};
+        const derivedErrors = String(restaurant?.telegram_bot_meta_error || '').trim() ? 1 : 0;
+        const errorsCount = Number(
+          restaurant?.problems_count
+          ?? restaurant?.errors_count
+          ?? restaurant?.issues_count
+          ?? derivedErrors
+        ) || 0;
+        return {
+          id: restaurantId,
+          lat,
+          lng,
+          name: String(restaurant?.name || '').trim(),
+          phone: String(restaurant?.phone || '').trim(),
+          operatorName: String(firstOperator?.name || '').trim(),
+          operatorPhone: String(firstOperator?.phone || '').trim(),
+          balance: Number(restaurant?.balance || 0),
+          currencyCode: String(restaurant?.currency_code || 'uz').trim().toLowerCase() || 'uz',
+          errorsCount,
+          productsCount: Number(restaurant?.products_count || 0)
+        };
+      })
+      .filter(Boolean);
+  }, [allRestaurants, overviewOperatorsByRestaurantId]);
   const handleSelectOverviewOrderLocation = React.useCallback((location) => {
     if (!location) return;
     setSelectedOverviewOrderLocation(location);
@@ -8606,6 +8773,7 @@ function SuperAdminDashboard() {
                           ) : isOverviewYandexMapProvider ? (
                             <YandexAnalyticsMap
                               points={overviewAnalyticsOrderLocations}
+                              shopPoints={overviewAnalyticsShopPoints}
                               selectedPoint={overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
                               onSelectPoint={handleSelectOverviewOrderLocation}
                               onLoadError={handleOverviewYandexMapLoadError}
@@ -8642,6 +8810,12 @@ function SuperAdminDashboard() {
                                   />
                                 );
                               })}
+                              <SuperAdminOverviewShopMarkersLayer
+                                shopPoints={overviewAnalyticsShopPoints}
+                                language={language}
+                                formatMoney={formatAnalyticsMoney}
+                                getCurrencyLabel={getCurrencyLabelByCode}
+                              />
                             </MapContainer>
                           )}
                         </div>
