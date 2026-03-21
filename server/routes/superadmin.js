@@ -229,6 +229,7 @@ const DEFAULT_ORGANIZATION_EXPENSE_CATEGORIES = [
   { code: 'utilities', name_ru: 'Коммунальные расходы', name_uz: 'Kommunal xarajatlar' },
   { code: 'office_rent', name_ru: 'Аренда офиса', name_uz: 'Ofis ijarasi' },
   { code: 'internet', name_ru: 'Интернет', name_uz: 'Internet' },
+  { code: 'server_payment', name_ru: 'Оплата за сервер', name_uz: "Server uchun to'lov" },
   { code: 'equipment', name_ru: 'Оборудование', name_uz: 'Jihozlar' },
   { code: 'furniture', name_ru: 'Мебель', name_uz: 'Mebel' },
   { code: 'construction_repair', name_ru: 'Строительство и ремонт', name_uz: "Qurilish va ta'mirlash" },

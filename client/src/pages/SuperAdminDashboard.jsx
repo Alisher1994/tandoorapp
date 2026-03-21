@@ -13927,21 +13927,23 @@ function SuperAdminDashboard() {
                                           <div className="sa-founders-row-actions">
                                             <Button
                                               type="button"
+                                              variant="light"
                                               className="sa-founders-icon-btn"
                                               onClick={() => openEditOrganizationExpenseModal(item)}
                                               title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                               aria-label={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                             >
-                                              <Pencil size={15} />
+                                              <Pencil size={15} strokeWidth={2.1} />
                                             </Button>
                                             <Button
                                               type="button"
+                                              variant="light"
                                               className="sa-founders-icon-btn is-danger"
                                               onClick={() => deleteOrganizationExpense(item)}
                                               title={language === 'uz' ? "O'chirish" : 'Удалить'}
                                               aria-label={language === 'uz' ? "O'chirish" : 'Удалить'}
                                             >
-                                              <Trash2 size={15} />
+                                              <Trash2 size={15} strokeWidth={2.2} />
                                             </Button>
                                           </div>
                                         </td>
@@ -14016,22 +14018,24 @@ function SuperAdminDashboard() {
                                           <div className="sa-founders-row-actions">
                                             <Button
                                               type="button"
+                                              variant="light"
                                               className="sa-founders-icon-btn"
                                               onClick={() => openEditExpenseCategoryModal(item)}
                                               title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                               aria-label={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                             >
-                                              <Pencil size={15} />
+                                              <Pencil size={15} strokeWidth={2.1} />
                                             </Button>
                                             <Button
                                               type="button"
+                                              variant="light"
                                               className="sa-founders-icon-btn is-danger"
                                               onClick={() => deleteExpenseCategory(item)}
                                               disabled={item.is_system || Number(item.expenses_count || 0) > 0}
                                               title={language === 'uz' ? "O'chirish" : 'Удалить'}
                                               aria-label={language === 'uz' ? "O'chirish" : 'Удалить'}
                                             >
-                                              <Trash2 size={15} />
+                                              <Trash2 size={15} strokeWidth={2.2} />
                                             </Button>
                                           </div>
                                         </td>

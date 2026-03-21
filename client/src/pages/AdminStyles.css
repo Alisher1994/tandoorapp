@@ -9146,6 +9146,7 @@ body::-webkit-scrollbar,
 .sa-founders-workspace .admin-table-container {
     border-color: var(--border-color);
     box-shadow: none !important;
+    border-radius: 0 !important;
 }
 
 .sa-founders-workspace .admin-table tbody tr:hover {
@@ -9176,6 +9177,10 @@ body::-webkit-scrollbar,
     -ms-overflow-style: none;
 }
 
+.sa-founders-inner-tabs.nav-tabs {
+    border-bottom: none !important;
+}
+
 .sa-founders-inner-tabs::-webkit-scrollbar {
     display: none;
 }
@@ -9196,6 +9201,7 @@ body::-webkit-scrollbar,
     color: #64748b;
     font-size: 0.82rem;
     font-weight: 600;
+    margin-bottom: 0 !important;
     transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
@@ -9211,6 +9217,11 @@ body::-webkit-scrollbar,
     background: var(--admin-segment-active-bg) !important;
     border-color: transparent !important;
     box-shadow: var(--admin-segment-active-shadow);
+}
+
+.sa-founders-inner-tabs .nav-link::after,
+.sa-founders-inner-tabs .nav-link.active::after {
+    display: none !important;
 }
 
 .sa-founders-founder-card {
@@ -9492,12 +9503,12 @@ body::-webkit-scrollbar,
 }
 
 .sa-founders-icon-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: 1px solid #d6deed !important;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid #cfd9ee !important;
     background: #ffffff !important;
-    color: #5b6476 !important;
+    color: #475569 !important;
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
@@ -9518,12 +9529,15 @@ body::-webkit-scrollbar,
 }
 
 .sa-founders-icon-btn:disabled {
-    opacity: 0.46;
+    opacity: 1;
+    color: #94a3b8 !important;
+    border-color: #dbe4f3 !important;
+    background: #f1f5f9 !important;
     cursor: not-allowed;
 }
 
 .sa-founders-icon-btn.is-danger {
-    color: #475569 !important;
+    color: #dc2626 !important;
 }
 
 .sa-founders-icon-btn.is-danger:hover,
@@ -9531,6 +9545,12 @@ body::-webkit-scrollbar,
     color: #b91c1c !important;
     border-color: #fecaca !important;
     background: #fff5f5 !important;
+}
+
+.sa-founders-icon-btn.is-danger:disabled {
+    color: #94a3b8 !important;
+    border-color: #dbe4f3 !important;
+    background: #f1f5f9 !important;
 }
 
 @media (max-width: 1199px) {
