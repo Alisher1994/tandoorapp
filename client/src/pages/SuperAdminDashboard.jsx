@@ -303,6 +303,62 @@ const getTodayDateInputValue = () => {
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+const parseMonthStartFromValue = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  const monthMatch = normalized.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (monthMatch) {
+    const year = Number.parseInt(monthMatch[1], 10);
+    const monthIndex = Number.parseInt(monthMatch[2], 10) - 1;
+    if (Number.isFinite(year) && monthIndex >= 0 && monthIndex <= 11) {
+      return new Date(year, monthIndex, 1);
+    }
+  }
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+};
+const formatMonthKey = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+const formatMonthLabel = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
+};
+const buildTrailingMonthsWindow = (endMonthDate, monthsCount = 12) => {
+  const safeMonthsCount = Number.isFinite(Number(monthsCount)) && Number(monthsCount) > 0
+    ? Number(monthsCount)
+    : 12;
+  const endDate = endMonthDate instanceof Date && !Number.isNaN(endMonthDate.getTime())
+    ? new Date(endMonthDate.getFullYear(), endMonthDate.getMonth(), 1)
+    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const result = [];
+  for (let idx = safeMonthsCount - 1; idx >= 0; idx -= 1) {
+    const date = new Date(endDate.getFullYear(), endDate.getMonth() - idx, 1);
+    result.push({
+      month_key: formatMonthKey(date),
+      month_label: formatMonthLabel(date)
+    });
+  }
+  return result;
+};
+const resolvePreferredFoundersCurrencyCode = (availableCurrencies = [], fallbackCurrencyCode = '') => {
+  const normalizedList = Array.from(new Set(
+    (Array.isArray(availableCurrencies) ? availableCurrencies : [])
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter(Boolean)
+  ));
+  if (!normalizedList.length) return '';
+  const preferredCodes = [
+    'uz',
+    String(fallbackCurrencyCode || '').trim().toLowerCase()
+  ].filter(Boolean);
+  for (const code of preferredCodes) {
+    if (normalizedList.includes(code)) return code;
+  }
+  return normalizedList[0];
+};
 const createInitialOrganizationExpenseForm = () => ({
   id: null,
   category_id: '',
@@ -3003,6 +3059,7 @@ function SuperAdminDashboard() {
       });
       const payload = response.data || {};
       const currencies = Array.isArray(payload.available_currencies) ? payload.available_currencies : [];
+      const preferredCurrency = resolvePreferredFoundersCurrencyCode(currencies, countryCurrency?.code);
       setFoundersAnalyticsData({
         period: payload.period || { start_date: null, end_date: null },
         modules_config: Array.isArray(payload.modules_config) ? payload.modules_config : [],
@@ -3026,7 +3083,7 @@ function SuperAdminDashboard() {
         if (normalizedPrev && currencies.map((item) => String(item || '').trim().toLowerCase()).includes(normalizedPrev)) {
           return normalizedPrev;
         }
-        return String(currencies[0] || '').trim().toLowerCase();
+        return preferredCurrency;
       });
       setFoundersAccessPassword(resolvedPassword);
       setFoundersAccessGranted(true);
@@ -4860,81 +4917,118 @@ function SuperAdminDashboard() {
   const foundersChartCurrencyResolved = useMemo(() => {
     const normalized = String(foundersChartsCurrency || '').trim().toLowerCase();
     if (normalized && foundersAvailableCurrencies.includes(normalized)) return normalized;
-    return String(foundersAvailableCurrencies[0] || '').trim().toLowerCase();
-  }, [foundersChartsCurrency, foundersAvailableCurrencies]);
+    return resolvePreferredFoundersCurrencyCode(foundersAvailableCurrencies, countryCurrency?.code);
+  }, [foundersChartsCurrency, foundersAvailableCurrencies, countryCurrency?.code]);
   useEffect(() => {
     const normalized = String(foundersChartsCurrency || '').trim().toLowerCase();
     const resolved = String(foundersChartCurrencyResolved || '').trim().toLowerCase();
     if (normalized === resolved) return;
     setFoundersChartsCurrency(resolved);
   }, [foundersChartsCurrency, foundersChartCurrencyResolved]);
+  const foundersTrailingMonthsWindow = useMemo(() => {
+    const currencyCode = String(foundersChartCurrencyResolved || '').trim().toLowerCase();
+    const selectedCurrencyRows = [
+      ...(Array.isArray(foundersMonthlyTotals) ? foundersMonthlyTotals : []),
+      ...(Array.isArray(foundersAnalyticsData?.module_monthly_totals) ? foundersAnalyticsData.module_monthly_totals : [])
+    ].filter((row) => (
+      String(row?.currency_code || '').trim().toLowerCase() === currencyCode
+    ));
+    const latestMonthFromRows = selectedCurrencyRows.reduce((latest, row) => {
+      const parsed = parseMonthStartFromValue(row?.month_key);
+      if (!parsed) return latest;
+      if (!latest) return parsed;
+      return parsed > latest ? parsed : latest;
+    }, null);
+    const periodEndMonth = parseMonthStartFromValue(foundersAnalyticsData?.period?.end_date);
+    const filterEndMonth = parseMonthStartFromValue(foundersAnalyticsFilter.end_date);
+    const fallbackCurrentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const resolvedEndMonth = filterEndMonth || periodEndMonth || latestMonthFromRows || fallbackCurrentMonth;
+    return buildTrailingMonthsWindow(resolvedEndMonth, 12);
+  }, [
+    foundersChartCurrencyResolved,
+    foundersMonthlyTotals,
+    foundersAnalyticsData?.module_monthly_totals,
+    foundersAnalyticsData?.period?.end_date,
+    foundersAnalyticsFilter.end_date
+  ]);
   const foundersMonthlyAreaChartData = useMemo(() => {
     const currencyCode = foundersChartCurrencyResolved;
     if (!currencyCode) return [];
     const foundersOrder = foundersCardsData.map((item) => item.founder_key);
-    const grouped = new Map();
+    const grouped = new Map(
+      foundersTrailingMonthsWindow.map((monthItem) => ([
+        monthItem.month_key,
+        {
+          month_key: monthItem.month_key,
+          month_label: monthItem.month_label
+        }
+      ]))
+    );
     foundersMonthlyTotals
       .filter((row) => String(row?.currency_code || '').trim().toLowerCase() === currencyCode)
       .forEach((row) => {
         const monthKey = String(row?.month_key || '').trim();
-        if (!monthKey) return;
-        if (!grouped.has(monthKey)) {
-          grouped.set(monthKey, {
-            month_key: monthKey,
-            month_label: String(row?.month_label || monthKey).trim()
-          });
-        }
+        if (!monthKey || !grouped.has(monthKey)) return;
         const target = grouped.get(monthKey);
         const founderKey = String(row?.founder_key || '').trim().toLowerCase();
-        target[founderKey] = Number(row?.total_amount || 0);
+        if (!founderKey) return;
+        target[founderKey] = Number(target[founderKey] || 0) + Number(row?.total_amount || 0);
       });
-
-    return Array.from(grouped.values())
-      .sort((left, right) => String(left.month_key || '').localeCompare(String(right.month_key || ''), 'ru'))
-      .slice(-12)
-      .map((row) => {
-        const target = { ...row };
-        foundersOrder.forEach((founderKey) => {
-          target[founderKey] = Number(row?.[founderKey] || 0);
-        });
-        return target;
+    return foundersTrailingMonthsWindow.map((monthItem) => {
+      const source = grouped.get(monthItem.month_key) || {
+        month_key: monthItem.month_key,
+        month_label: monthItem.month_label
+      };
+      const target = {
+        month_key: monthItem.month_key,
+        month_label: monthItem.month_label
+      };
+      foundersOrder.forEach((founderKey) => {
+        target[founderKey] = Number(source?.[founderKey] || 0);
       });
-  }, [foundersMonthlyTotals, foundersChartCurrencyResolved, foundersCardsData]);
+      return target;
+    });
+  }, [foundersMonthlyTotals, foundersChartCurrencyResolved, foundersCardsData, foundersTrailingMonthsWindow]);
   const foundersMonthlyModulesChartData = useMemo(() => {
     const currencyCode = foundersChartCurrencyResolved;
     if (!currencyCode) return [];
     const rows = Array.isArray(foundersAnalyticsData?.module_monthly_totals)
       ? foundersAnalyticsData.module_monthly_totals
       : [];
-    const grouped = new Map();
+    const grouped = new Map(
+      foundersTrailingMonthsWindow.map((monthItem) => ([
+        monthItem.month_key,
+        {
+          month_key: monthItem.month_key,
+          month_label: monthItem.month_label
+        }
+      ]))
+    );
     rows
       .filter((row) => String(row?.currency_code || '').trim().toLowerCase() === currencyCode)
       .forEach((row) => {
         const monthKey = String(row?.month_key || '').trim();
-        if (!monthKey) return;
+        if (!monthKey || !grouped.has(monthKey)) return;
         const moduleKey = String(row?.module_key || '').trim().toLowerCase();
         if (!moduleKey) return;
-        if (!grouped.has(monthKey)) {
-          grouped.set(monthKey, {
-            month_key: monthKey,
-            month_label: String(row?.month_label || monthKey).trim()
-          });
-        }
         const target = grouped.get(monthKey);
-        target[moduleKey] = Number(row?.amount || 0);
+        target[moduleKey] = Number(target[moduleKey] || 0) + Number(row?.amount || 0);
       });
-
-    return Array.from(grouped.values())
-      .sort((left, right) => String(left.month_key || '').localeCompare(String(right.month_key || ''), 'ru'))
-      .slice(-12)
-      .map((row) => {
-        const target = { ...row };
-        foundersModulesConfig.forEach((moduleItem) => {
-          target[moduleItem.key] = Number(row?.[moduleItem.key] || 0);
-        });
-        return target;
+    return foundersTrailingMonthsWindow.map((monthItem) => {
+      const source = grouped.get(monthItem.month_key) || {
+        month_key: monthItem.month_key,
+        month_label: monthItem.month_label
+      };
+      const target = {
+        month_key: monthItem.month_key,
+        month_label: monthItem.month_label
+      };
+      foundersModulesConfig.forEach((moduleItem) => {
+        target[moduleItem.key] = Number(source?.[moduleItem.key] || 0);
       });
-  }, [foundersAnalyticsData?.module_monthly_totals, foundersChartCurrencyResolved, foundersModulesConfig]);
+      return target;
+    });
+  }, [foundersAnalyticsData?.module_monthly_totals, foundersChartCurrencyResolved, foundersModulesConfig, foundersTrailingMonthsWindow]);
   const foundersFoundersBarChartData = useMemo(() => {
     const currencyCode = foundersChartCurrencyResolved;
     if (!currencyCode) return [];
