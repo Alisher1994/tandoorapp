@@ -8904,7 +8904,7 @@ function SuperAdminDashboard() {
                                             onClick={() => handleSelectOverviewOrderLocation(location)}
                                             style={{ cursor: 'pointer' }}
                                           >
-                                            <td className="fw-semibold text-truncate" title={location.customerName || 'Клиент'}>
+                                            <td className="text-truncate" title={location.customerName || 'Клиент'}>
                                               {location.customerName || 'Клиент'}
                                             </td>
                                             <td className="text-muted text-truncate" title={location.restaurantName || 'Магазин'}>
@@ -8962,7 +8962,7 @@ function SuperAdminDashboard() {
                                         const currencyLabel = getCurrencyLabelByCode(shop.currencyCode || 'uz');
                                         return (
                                           <tr key={`sa-overview-shop-list-${shop.id || idx}`}>
-                                            <td className="fw-semibold text-truncate" title={shop.name || 'Магазин'}>
+                                            <td className="text-truncate" title={shop.name || 'Магазин'}>
                                               {shop.name || (language === 'uz' ? "Do'kon" : 'Магазин')}
                                             </td>
                                             <td className="text-truncate" title={shop.operatorName || '—'}>
