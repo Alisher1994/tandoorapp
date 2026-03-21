@@ -45,14 +45,13 @@ import {
   Users,
   Wallet
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
-import YandexShopsMap from '../components/YandexShopsMap';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
@@ -722,172 +721,6 @@ const SuperAdminAnalyticsMapResizeFix = () => {
 
   return null;
 };
-const createShopsClusterPointIcon = (count = 0) => L.divIcon({
-  className: 'sa-shops-cluster-icon',
-  html: `
-    <span class="sa-shops-cluster-badge">
-      <span class="sa-shops-cluster-store" aria-hidden="true">🏪</span>
-      <span class="sa-shops-cluster-count">${Number(count || 0)}</span>
-    </span>
-  `,
-  iconSize: [48, 48],
-  iconAnchor: [24, 24]
-});
-const getShopsClusterCellSizeByZoom = (zoom) => {
-  if (zoom <= 6) return 148;
-  if (zoom <= 8) return 126;
-  if (zoom <= 10) return 102;
-  if (zoom <= 12) return 84;
-  return 70;
-};
-const getMedianValue = (values = []) => {
-  const source = Array.isArray(values)
-    ? values.filter((item) => Number.isFinite(Number(item))).map((item) => Number(item))
-    : [];
-  if (!source.length) return 0;
-  const sorted = [...source].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 0) {
-    return (sorted[middle - 1] + sorted[middle]) / 2;
-  }
-  return sorted[middle];
-};
-const SuperAdminShopsClusteredMarkers = ({ points = [], language = 'ru' }) => {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => (
-    Number.isFinite(map?.getZoom?.()) ? Number(map.getZoom()) : ANALYTICS_DEFAULT_MAP_ZOOM
-  ));
-  const clusterIconCacheRef = useRef(new Map());
-  const pointIcon = useMemo(() => L.divIcon({
-    className: 'sa-shops-point-icon',
-    html: '<span class="sa-shops-point-badge" aria-hidden="true">🏪</span>',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -12]
-  }), []);
-
-  useMapEvents({
-    zoomend: (event) => {
-      const nextZoom = Number(event?.target?.getZoom?.());
-      if (Number.isFinite(nextZoom)) setZoom(nextZoom);
-    }
-  });
-
-  useEffect(() => {
-    if (!map) return;
-    const initialZoom = Number(map.getZoom());
-    if (Number.isFinite(initialZoom)) setZoom(initialZoom);
-  }, [map]);
-
-  const clusteredItems = useMemo(() => {
-    if (!map || !Array.isArray(points) || points.length === 0) return [];
-    const safeZoom = Number.isFinite(zoom) ? zoom : Number(map.getZoom()) || ANALYTICS_DEFAULT_MAP_ZOOM;
-    // For current scale (tens of stores), exact pins are more reliable than clustering.
-    const shouldCluster = points.length > 120 && safeZoom <= 9;
-    if (!shouldCluster) {
-      return points.map((point) => ({
-        type: 'point',
-        id: point.id,
-        point
-      }));
-    }
-    const cellSize = getShopsClusterCellSizeByZoom(safeZoom);
-    const grouped = new Map();
-
-    points.forEach((point) => {
-      const projected = map.project([Number(point.lat), Number(point.lng)], safeZoom);
-      const cellX = Math.floor(projected.x / cellSize);
-      const cellY = Math.floor(projected.y / cellSize);
-      const key = `${cellX}:${cellY}`;
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          key,
-          points: [],
-          latSum: 0,
-          lngSum: 0
-        });
-      }
-      const bucket = grouped.get(key);
-      bucket.points.push(point);
-      bucket.latSum += Number(point.lat);
-      bucket.lngSum += Number(point.lng);
-    });
-
-    return Array.from(grouped.values()).map((bucket) => {
-      if (bucket.points.length <= 1) {
-        const point = bucket.points[0];
-        return {
-          type: 'point',
-          id: point.id,
-          point
-        };
-      }
-      return {
-        type: 'cluster',
-        id: `cluster:${bucket.key}`,
-        count: bucket.points.length,
-        lat: bucket.latSum / bucket.points.length,
-        lng: bucket.lngSum / bucket.points.length
-      };
-    });
-  }, [map, points, zoom]);
-
-  const resolveClusterIcon = (count) => {
-    const normalizedCount = Math.max(2, Number(count || 0));
-    if (!clusterIconCacheRef.current.has(normalizedCount)) {
-      clusterIconCacheRef.current.set(normalizedCount, createShopsClusterPointIcon(normalizedCount));
-    }
-    return clusterIconCacheRef.current.get(normalizedCount);
-  };
-
-  return (
-    <>
-      {clusteredItems.map((item) => {
-        if (item.type === 'cluster') {
-          return (
-            <Marker
-              key={`shops-map-${item.id}`}
-              position={[item.lat, item.lng]}
-              icon={resolveClusterIcon(item.count)}
-            />
-          );
-        }
-        const point = item.point;
-      return (
-        <Marker
-          key={`shops-map-point-${item.id}`}
-          position={[point.lat, point.lng]}
-          icon={pointIcon}
-        >
-          <Popup maxWidth={320} className="sa-founders-store-popup">
-            <div className="sa-founders-store-popup-content">
-              <div className="sa-founders-store-popup-title">🏪 {point.name}</div>
-              <div className="sa-founders-store-popup-line">
-                {language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}: {point.activityType}
-              </div>
-              <div className="sa-founders-store-popup-line">
-                {language === 'uz' ? 'Telefon' : 'Телефон'}: {point.phone}
-              </div>
-              <div className="sa-founders-store-popup-line">
-                {language === 'uz' ? 'Balans' : 'Баланс'}: {formatCompactMoneyForMapLabel(point.balance)} {point.currencyLabel}
-              </div>
-              <div className="sa-founders-store-popup-line">
-                {language === 'uz' ? 'Operator' : 'Оператор'}: {point.operatorLabel}
-              </div>
-              <div className="sa-founders-store-popup-line is-meta">
-                {language === 'uz' ? 'Tovarlar' : 'Товары'}: <strong>{Number(point.productsCount || 0)}</strong>
-                {' · '}
-                {language === 'uz' ? 'Xatolar' : 'Ошибки'}: <strong>{Number(point.issuesCount || 0)}</strong>
-              </div>
-            </div>
-          </Popup>
-        </Marker>
-      );
-    })}
-  </>
-  );
-};
-
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
   const { t } = useLanguage();
   const totalPages = Math.ceil(total / limit);
@@ -5357,101 +5190,6 @@ function SuperAdminDashboard() {
         return leftId - rightId;
       })
   ), [organizationExpenseCategories]);
-  const foundersRestaurantOperatorMap = useMemo(() => {
-    const map = new Map();
-    const source = Array.isArray(allOperators) ? allOperators : [];
-    source.forEach((operator) => {
-      const operatorName = String(operator?.full_name || operator?.username || '').trim();
-      if (!operatorName) return;
-      const restaurantsList = Array.isArray(operator?.restaurants) ? operator.restaurants : [];
-      restaurantsList.forEach((restaurantItem) => {
-        const restaurantId = Number(restaurantItem?.id || 0);
-        if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
-        if (!map.has(restaurantId)) map.set(restaurantId, []);
-        const names = map.get(restaurantId);
-        if (!names.includes(operatorName)) names.push(operatorName);
-      });
-      const activeRestaurantId = Number(operator?.active_restaurant_id || 0);
-      if (Number.isFinite(activeRestaurantId) && activeRestaurantId > 0) {
-        if (!map.has(activeRestaurantId)) map.set(activeRestaurantId, []);
-        const names = map.get(activeRestaurantId);
-        if (!names.includes(operatorName)) names.push(operatorName);
-      }
-    });
-    return map;
-  }, [allOperators]);
-  const shopsMapPoints = useMemo(() => {
-    const rawPoints = (Array.isArray(allRestaurants) ? allRestaurants : [])
-      .map((restaurant) => {
-        const lat = Number(restaurant?.latitude);
-        const lng = Number(restaurant?.longitude);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-        // Guard against accidental out-of-region coordinates that break map fit and clustering.
-        if (lat < 30 || lat > 50 || lng < 45 || lng > 90) return null;
-        const restaurantId = Number(restaurant?.id || 0);
-        const operatorNames = foundersRestaurantOperatorMap.get(restaurantId) || [];
-        const mappedIssueCount = Number(restaurantIssueCountMap?.[restaurantId]);
-        const token = String(restaurant?.telegram_bot_token || '').trim();
-        const botMetaError = String(restaurant?.telegram_bot_meta_error || '').trim();
-        const botUsername = String(restaurant?.telegram_bot_username || '').trim();
-        const productsCount = Math.max(0, Number(restaurant?.products_count || 0));
-        const ordersCount = Math.max(0, Number(restaurant?.orders_count || 0));
-        const isTashkentArea = lat >= 40.95 && lat <= 41.45 && lng >= 68.9 && lng <= 69.65;
-        const hasOperationalActivity = productsCount > 0 || ordersCount > 0;
-        // Keep all active Tashkent stores (for manual checks) + operational stores in other regions.
-        if (!isTashkentArea && !hasOperationalActivity) return null;
-        const quickIssueCount = (!token || botMetaError || !botUsername) ? 1 : 0;
-        const issuesCount = Number.isFinite(mappedIssueCount)
-          ? Math.max(0, mappedIssueCount)
-          : quickIssueCount;
-        const currencyCode = String(restaurant?.currency_code || countryCurrency?.code || 'uz').trim().toLowerCase();
-        const currencyLabel = currencyCode === 'uz'
-          ? (language === 'uz' ? "so'm" : 'сум')
-          : (currencyCode === 'tj'
-            ? (language === 'uz' ? 'somoni' : 'сомони')
-            : (currencyCode === 'kz'
-              ? (language === 'uz' ? 'tenge' : 'тенге')
-              : String(currencyCode || '').toUpperCase()));
-        return {
-          id: restaurantId > 0 ? restaurantId : `${lat}:${lng}`,
-          lat,
-          lng,
-          name: String(restaurant?.name || '').trim() || '—',
-          activityType: String(restaurant?.activity_type_name || '').trim() || (language === 'uz' ? "Faoliyat turi tanlanmagan" : 'Вид деятельности не выбран'),
-          phone: String(restaurant?.phone || '').trim() || '—',
-          balance: Number(restaurant?.balance || 0),
-          currencyCode,
-          currencyLabel,
-          operatorLabel: operatorNames.length
-            ? operatorNames.join(', ')
-            : (language === 'uz' ? "Operator biriktirilmagan" : 'Оператор не назначен'),
-          productsCount,
-          ordersCount,
-          issuesCount
-        };
-      })
-      .filter(Boolean);
-
-    if (rawPoints.length < 6) return rawPoints;
-
-    const medianLat = getMedianValue(rawPoints.map((item) => item.lat));
-    const medianLng = getMedianValue(rawPoints.map((item) => item.lng));
-    const softLatDelta = 4.6;
-    const softLngDelta = 7.2;
-    const filteredOutliers = rawPoints.filter((point) => {
-      const latDelta = Math.abs(Number(point.lat) - medianLat);
-      const lngDelta = Math.abs(Number(point.lng) - medianLng);
-      const isInSoftBounds = latDelta <= softLatDelta && lngDelta <= softLngDelta;
-      if (isInSoftBounds) return true;
-      // Keep remote points only when they have real activity, otherwise they distort map bounds.
-      return Number(point.ordersCount || 0) > 0 || Number(point.productsCount || 0) > 3;
-    });
-
-    return filteredOutliers.length >= Math.max(4, Math.floor(rawPoints.length * 0.68))
-      ? filteredOutliers
-      : rawPoints;
-  }, [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
   const organizationExpensesCurrencyOptions = useMemo(() => {
     const set = new Set();
     foundersAvailableCurrencies.forEach((item) => set.add(String(item || '').trim().toLowerCase()));
@@ -8641,41 +8379,6 @@ function SuperAdminDashboard() {
                 </div>
               ))}
             </div>
-
-            <Row className="g-4 mb-4">
-              <Col xs={12}>
-                <Card className="border-0 shadow-sm admin-analytics-surface-card sa-founders-store-map-card">
-                  <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between admin-analytics-card-header">
-                    <h6 className="mb-0 admin-analytics-card-title">
-                      <span className="admin-analytics-card-title-icon" style={{ color: '#0369a1', background: '#f0f9ff' }}>🏪</span>
-                      {language === 'uz' ? "Do'konlar lokatsiyasi" : 'Локации магазинов'}
-                    </h6>
-                    <small className="text-muted">
-                      {language === 'uz'
-                        ? `Xaritada nuqtalar: ${shopsMapPoints.length}`
-                        : `Точек на карте: ${shopsMapPoints.length}`}
-                    </small>
-                  </Card.Header>
-                  <Card.Body className="p-0">
-                    <div className="sa-founders-store-map-wrap">
-                      {shopsMapPoints.length === 0 ? (
-                        <div className="h-100 d-flex align-items-center justify-content-center text-muted small">
-                          {language === 'uz'
-                            ? "Lokatsiyasi ko'rsatilgan do'konlar topilmadi"
-                            : 'Магазины с заполненной локацией не найдены'}
-                        </div>
-                      ) : (
-                        <YandexShopsMap
-                          points={shopsMapPoints}
-                          language={language}
-                          height="100%"
-                        />
-                      )}
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
 
             <Row className="g-4 mb-4">
               <Col xs={12}>
