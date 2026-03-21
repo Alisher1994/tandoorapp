@@ -5363,6 +5363,10 @@ function SuperAdminDashboard() {
         const token = String(restaurant?.telegram_bot_token || '').trim();
         const botMetaError = String(restaurant?.telegram_bot_meta_error || '').trim();
         const botUsername = String(restaurant?.telegram_bot_username || '').trim();
+        const productsCount = Math.max(0, Number(restaurant?.products_count || 0));
+        const ordersCount = Math.max(0, Number(restaurant?.orders_count || 0));
+        // Keep only operational stores on the map to avoid noisy test points with stale coordinates.
+        if (productsCount <= 0 && ordersCount <= 0) return null;
         const quickIssueCount = (!token || botMetaError || !botUsername) ? 1 : 0;
         const issuesCount = Number.isFinite(mappedIssueCount)
           ? Math.max(0, mappedIssueCount)
@@ -5388,8 +5392,8 @@ function SuperAdminDashboard() {
           operatorLabel: operatorNames.length
             ? operatorNames.join(', ')
             : (language === 'uz' ? "Operator biriktirilmagan" : 'Оператор не назначен'),
-          productsCount: Math.max(0, Number(restaurant?.products_count || 0)),
-          ordersCount: Math.max(0, Number(restaurant?.orders_count || 0)),
+          productsCount,
+          ordersCount,
           issuesCount
         };
       })
