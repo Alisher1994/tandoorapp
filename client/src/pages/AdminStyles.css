@@ -9428,6 +9428,25 @@ body::-webkit-scrollbar,
     border: 0 !important;
 }
 
+.sa-shops-point-icon {
+    background: transparent !important;
+    border: 0 !important;
+}
+
+.sa-shops-point-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid #c6d5ef;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+}
+
 .sa-shops-cluster-badge {
     width: 44px;
     height: 44px;
@@ -9452,6 +9471,42 @@ body::-webkit-scrollbar,
 .sa-shops-cluster-count {
     line-height: 1;
     letter-spacing: 0.01em;
+}
+
+.sa-founders-store-popup .leaflet-popup-content-wrapper {
+    border: 1px solid #d7e1f2;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.sa-founders-store-popup .leaflet-popup-content {
+    margin: 8px 10px;
+}
+
+.sa-founders-store-popup-content {
+    min-width: 200px;
+    max-width: 260px;
+    color: #334155;
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.sa-founders-store-popup-title {
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.sa-founders-store-popup-line {
+    margin-bottom: 2px;
+    word-break: break-word;
+}
+
+.sa-founders-store-popup-line.is-meta {
+    margin-top: 4px;
+    margin-bottom: 0;
+    color: #475569;
 }
 
 .sa-founders-chart-title {

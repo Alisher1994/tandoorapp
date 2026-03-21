@@ -45,7 +45,7 @@ import {
   Users,
   Wallet
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -751,12 +751,19 @@ const getMedianValue = (values = []) => {
   }
   return sorted[middle];
 };
-const SuperAdminShopsClusteredMarkers = ({ points = [], markerIcons = new Map() }) => {
+const SuperAdminShopsClusteredMarkers = ({ points = [], language = 'ru' }) => {
   const map = useMap();
   const [zoom, setZoom] = useState(() => (
     Number.isFinite(map?.getZoom?.()) ? Number(map.getZoom()) : ANALYTICS_DEFAULT_MAP_ZOOM
   ));
   const clusterIconCacheRef = useRef(new Map());
+  const pointIcon = useMemo(() => L.divIcon({
+    className: 'sa-shops-point-icon',
+    html: '<span class="sa-shops-point-badge" aria-hidden="true">🏪</span>',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -12]
+  }), []);
 
   useMapEvents({
     zoomend: (event) => {
@@ -844,15 +851,38 @@ const SuperAdminShopsClusteredMarkers = ({ points = [], markerIcons = new Map() 
           );
         }
         const point = item.point;
-        return (
-          <Marker
-            key={`shops-map-point-${item.id}`}
-            position={[point.lat, point.lng]}
-            icon={markerIcons.get(point.id) || getOverviewAnalyticsPointIcon(false)}
-          />
-        );
-      })}
-    </>
+      return (
+        <Marker
+          key={`shops-map-point-${item.id}`}
+          position={[point.lat, point.lng]}
+          icon={pointIcon}
+        >
+          <Popup maxWidth={320} className="sa-founders-store-popup">
+            <div className="sa-founders-store-popup-content">
+              <div className="sa-founders-store-popup-title">🏪 {point.name}</div>
+              <div className="sa-founders-store-popup-line">
+                {language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}: {point.activityType}
+              </div>
+              <div className="sa-founders-store-popup-line">
+                {language === 'uz' ? 'Telefon' : 'Телефон'}: {point.phone}
+              </div>
+              <div className="sa-founders-store-popup-line">
+                {language === 'uz' ? 'Balans' : 'Баланс'}: {formatCompactMoneyForMapLabel(point.balance)} {point.currencyLabel}
+              </div>
+              <div className="sa-founders-store-popup-line">
+                {language === 'uz' ? 'Operator' : 'Оператор'}: {point.operatorLabel}
+              </div>
+              <div className="sa-founders-store-popup-line is-meta">
+                {language === 'uz' ? 'Tovarlar' : 'Товары'}: <strong>{Number(point.productsCount || 0)}</strong>
+                {' · '}
+                {language === 'uz' ? 'Xatolar' : 'Ошибки'}: <strong>{Number(point.issuesCount || 0)}</strong>
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      );
+    })}
+  </>
   );
 };
 
@@ -5418,38 +5448,6 @@ function SuperAdminDashboard() {
       ? filteredOutliers
       : rawPoints;
   }, [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
-  const shopsMapMarkerIcons = useMemo(() => {
-    const map = new Map();
-    const labels = {
-      activity: language === 'uz' ? 'Faoliyat' : 'Вид деятельности',
-      phone: language === 'uz' ? 'Telefon' : 'Телефон',
-      balance: language === 'uz' ? 'Balans' : 'Баланс',
-      operator: language === 'uz' ? 'Operator' : 'Оператор',
-      products: language === 'uz' ? 'Tovarlar' : 'Товары',
-      errors: language === 'uz' ? 'Xatolar' : 'Ошибки'
-    };
-
-    shopsMapPoints.forEach((point) => {
-      const html = `
-        <div class="sa-founders-store-marker">
-          <div class="sa-founders-store-marker-line is-title"><strong>🏪 ${escapeHtml(point.name)}</strong></div>
-          <div class="sa-founders-store-marker-line">${labels.activity}: ${escapeHtml(point.activityType)}</div>
-          <div class="sa-founders-store-marker-line">${labels.phone}: ${escapeHtml(point.phone)}</div>
-          <div class="sa-founders-store-marker-line">${labels.balance}: ${escapeHtml(formatCompactMoneyForMapLabel(point.balance))} ${escapeHtml(point.currencyLabel)}</div>
-          <div class="sa-founders-store-marker-line">${labels.operator}: ${escapeHtml(point.operatorLabel)}</div>
-          <div class="sa-founders-store-marker-line is-meta">${labels.products}: <strong>${Number(point.productsCount || 0)}</strong> · ${labels.errors}: <strong>${Number(point.issuesCount || 0)}</strong></div>
-        </div>
-        <span class="sa-founders-store-marker-pin" aria-hidden="true"></span>
-      `;
-      map.set(point.id, L.divIcon({
-        className: 'sa-founders-store-marker-icon',
-        html,
-        iconSize: [220, 124],
-        iconAnchor: [110, 124]
-      }));
-    });
-    return map;
-  }, [shopsMapPoints, language]);
   const organizationExpensesCurrencyOptions = useMemo(() => {
     const set = new Set();
     foundersAvailableCurrencies.forEach((item) => set.add(String(item || '').trim().toLowerCase()));
@@ -8677,7 +8675,7 @@ function SuperAdminDashboard() {
                           <SuperAdminAnalyticsMapAutoBounds points={shopsMapPoints} />
                           <SuperAdminShopsClusteredMarkers
                             points={shopsMapPoints}
-                            markerIcons={shopsMapMarkerIcons}
+                            language={language}
                           />
                         </MapContainer>
                       )}
