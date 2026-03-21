@@ -120,6 +120,7 @@ function YandexAnalyticsMap({
   const customerMarkerLayoutRef = useRef(null);
   const customerMarkerActiveLayoutRef = useRef(null);
   const shopMarkerLayoutRef = useRef(null);
+  const shopClusterLayoutRef = useRef(null);
   const boundsSignatureRef = useRef('');
   const [loadError, setLoadError] = useState('');
 
@@ -162,6 +163,11 @@ function YandexAnalyticsMap({
         if (!shopMarkerLayoutRef.current) {
           shopMarkerLayoutRef.current = ymaps.templateLayoutFactory.createClass(
             '<div style="width:30px;height:30px;border-radius:999px;background:#16a34a;border:2px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(22,163,74,0.35);font-size:15px;line-height:1;">🏪</div>'
+          );
+        }
+        if (!shopClusterLayoutRef.current) {
+          shopClusterLayoutRef.current = ymaps.templateLayoutFactory.createClass(
+            '<div style="min-width:46px;height:46px;padding:0 8px;border-radius:999px;background:radial-gradient(circle at 30% 30%, #34d399, #16a34a 65%);border:3px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(15,23,42,0.36);color:#ffffff;font-size:14px;font-weight:800;line-height:1;letter-spacing:0.01em;text-shadow:0 1px 1px rgba(0,0,0,0.25);">$[properties.geoObjects.length]</div>'
           );
         }
 
@@ -221,16 +227,16 @@ function YandexAnalyticsMap({
     const shopsForMap = normalizedShopPoints.length ? normalizedShopPoints : (normalizedShopPoint ? [normalizedShopPoint] : []);
     if (shopsForMap.length) {
       const clusterer = new ymaps.Clusterer({
-        clusterIcons: [{
-          href: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42"><circle cx="21" cy="21" r="20" fill="%2316a34a" stroke="%23ffffff" stroke-width="2"/></svg>',
-          size: [42, 42],
-          offset: [-21, -21]
-        }],
-        clusterNumbers: [50, 100, 500, 1000],
+        clusterIconLayout: shopClusterLayoutRef.current,
+        clusterIconShape: {
+          type: 'Circle',
+          coordinates: [23, 23],
+          radius: 23
+        },
+        clusterIconOffset: [-23, -23],
         groupByCoordinates: false,
         hasBalloon: true,
-        clusterDisableClickZoom: false,
-        preset: 'islands#greenClusterIcons'
+        clusterDisableClickZoom: false
       });
       const shopPlacemarks = shopsForMap.map((shop) => (
         new ymaps.Placemark(
