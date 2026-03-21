@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const DEFAULT_CENTER = [41.311081, 69.240562];
-const DEFAULT_ZOOM = 11;
+const DEFAULT_ZOOM = 12;
 
-let yandexLoaderPromise = null;
+let yandexMapsLoaderPromise = null;
 
-const resetLoader = () => {
-  yandexLoaderPromise = null;
+const resetYandexLoader = () => {
+  yandexMapsLoaderPromise = null;
 };
 
 const loadYandexMaps = () => {
@@ -20,9 +20,9 @@ const loadYandexMaps = () => {
     });
   }
 
-  if (yandexLoaderPromise) return yandexLoaderPromise;
+  if (yandexMapsLoaderPromise) return yandexMapsLoaderPromise;
 
-  yandexLoaderPromise = new Promise((resolve, reject) => {
+  yandexMapsLoaderPromise = new Promise((resolve, reject) => {
     const existingScript = document.querySelector('script[src*="api-maps.yandex.ru"]');
     if (existingScript) {
       const waitTimer = setInterval(() => {
@@ -34,7 +34,7 @@ const loadYandexMaps = () => {
       setTimeout(() => {
         if (!window.ymaps) {
           clearInterval(waitTimer);
-          resetLoader();
+          resetYandexLoader();
           reject(new Error('Не удалось загрузить Yandex Maps'));
         }
       }, 15000);
@@ -47,35 +47,29 @@ const loadYandexMaps = () => {
     script.async = true;
     script.onload = () => {
       if (!window.ymaps) {
-        resetLoader();
+        resetYandexLoader();
         reject(new Error('Yandex Maps API не инициализирован'));
         return;
       }
       window.ymaps.ready(() => resolve(window.ymaps));
     };
     script.onerror = () => {
-      resetLoader();
+      resetYandexLoader();
       reject(new Error('Ошибка загрузки Yandex Maps API'));
     };
     document.head.appendChild(script);
   });
 
-  return yandexLoaderPromise;
+  return yandexMapsLoaderPromise;
 };
 
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const isFiniteCoord = (value) => Number.isFinite(Number(value));
 
 const normalizePoint = (point) => {
   if (!point || typeof point !== 'object') return null;
   const lat = Number(point.lat);
   const lng = Number(point.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  if (!isFiniteCoord(lat) || !isFiniteCoord(lng)) return null;
   return {
     ...point,
     lat,
@@ -83,36 +77,19 @@ const normalizePoint = (point) => {
   };
 };
 
-const getMedian = (values = []) => {
-  const source = Array.isArray(values)
-    ? values.filter((item) => Number.isFinite(Number(item))).map((item) => Number(item))
-    : [];
-  if (!source.length) return 0;
-  const sorted = [...source].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 0) return (sorted[middle - 1] + sorted[middle]) / 2;
-  return sorted[middle];
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const formatMoney = (value) => {
+  const safeValue = Number(value || 0);
+  return Number.isFinite(safeValue) ? safeValue.toLocaleString('ru-RU') : '0';
 };
 
-const distanceKm = (lat1, lng1, lat2, lng2) => {
-  const toRad = (value) => (Number(value) * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2
-    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const getPercentile = (values = [], percentile = 0.9) => {
-  const source = Array.isArray(values)
-    ? values.filter((item) => Number.isFinite(Number(item))).map((item) => Number(item)).sort((left, right) => left - right)
-    : [];
-  if (!source.length) return 0;
-  const bounded = Math.min(1, Math.max(0, Number(percentile)));
-  const index = Math.floor((source.length - 1) * bounded);
-  return source[index] || 0;
-};
+const getPointKey = (point) => String(point?.id ?? `${point?.lat}:${point?.lng}`);
 
 function YandexShopsMap({
   points = [],
@@ -123,10 +100,10 @@ function YandexShopsMap({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const geoCollectionRef = useRef(null);
-  const markerLayoutRef = useRef(null);
+  const shopMarkerLayoutRef = useRef(null);
+  const boundsSignatureRef = useRef('');
   const [loadError, setLoadError] = useState('');
   const [mapReady, setMapReady] = useState(false);
-  const boundsSignatureRef = useRef('');
 
   const normalizedPoints = useMemo(
     () => (Array.isArray(points) ? points.map(normalizePoint).filter(Boolean) : []),
@@ -148,17 +125,17 @@ function YandexShopsMap({
         });
         mapRef.current = map;
 
-        if (!markerLayoutRef.current) {
-          markerLayoutRef.current = ymaps.templateLayoutFactory.createClass(
-            '<div style="width:26px;height:26px;border-radius:999px;background:#16a34a;border:2px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(15,23,42,0.25);font-size:13px;line-height:1;">🏪</div>'
+        if (!shopMarkerLayoutRef.current) {
+          shopMarkerLayoutRef.current = ymaps.templateLayoutFactory.createClass(
+            '<div style="width:30px;height:30px;border-radius:999px;background:#16a34a;border:2px solid #ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(22,163,74,0.35);font-size:15px;line-height:1;">🏪</div>'
           );
         }
 
         const geoCollection = new ymaps.GeoObjectCollection({}, {});
         geoCollectionRef.current = geoCollection;
         map.geoObjects.add(geoCollection);
-        setMapReady(true);
         map.container.fitToViewport();
+        setMapReady(true);
       } catch (error) {
         if (!destroyed) {
           const message = error?.message || 'Не удалось загрузить карту Yandex';
@@ -194,7 +171,7 @@ function YandexShopsMap({
           <div class="sa-yandex-shop-balloon-title">🏪 ${escapeHtml(point.name)}</div>
           <div><strong>${language === 'uz' ? 'Faoliyat turi' : 'Вид деятельности'}:</strong> ${escapeHtml(point.activityType)}</div>
           <div><strong>${language === 'uz' ? 'Telefon' : 'Телефон'}:</strong> ${escapeHtml(point.phone)}</div>
-          <div><strong>${language === 'uz' ? 'Balans' : 'Баланс'}:</strong> ${escapeHtml(point.balance)} ${escapeHtml(point.currencyLabel)}</div>
+          <div><strong>${language === 'uz' ? 'Balans' : 'Баланс'}:</strong> ${formatMoney(point.balance)} ${escapeHtml(point.currencyLabel)}</div>
           <div><strong>${language === 'uz' ? 'Operator' : 'Оператор'}:</strong> ${escapeHtml(point.operatorLabel)}</div>
           <div><strong>${language === 'uz' ? 'Tovarlar' : 'Товары'}:</strong> ${Number(point.productsCount || 0)} · <strong>${language === 'uz' ? 'Xatolar' : 'Ошибки'}:</strong> ${Number(point.issuesCount || 0)}</div>
         </div>
@@ -203,47 +180,38 @@ function YandexShopsMap({
       const placemark = new ymaps.Placemark(
         [point.lat, point.lng],
         {
-          hintContent: String(point.name || ''),
+          hintContent: String(point.name || '—'),
           balloonContentBody
         },
         {
-          iconLayout: markerLayoutRef.current,
-          iconShape: {
-            type: 'Circle',
-            coordinates: [13, 13],
-            radius: 13
-          },
-          iconOffset: [-13, -13]
+          iconLayout: shopMarkerLayoutRef.current,
+          iconShape: { type: 'Circle', coordinates: [15, 15], radius: 15 },
+          iconOffset: [-15, -15]
         }
       );
+
+      placemark.events.add('click', () => {
+        if (placemark.balloon && typeof placemark.balloon.open === 'function') {
+          placemark.balloon.open();
+        }
+      });
 
       geoCollection.add(placemark);
     });
 
-    const signature = JSON.stringify(normalizedPoints.map((point) => [point.id, point.lat, point.lng]));
+    const signature = JSON.stringify({
+      points: normalizedPoints.map((point) => [getPointKey(point), point.lat, point.lng])
+    });
+
     if (signature === boundsSignatureRef.current) return;
     boundsSignatureRef.current = signature;
 
-    if (!normalizedPoints.length) {
+    const bounds = geoCollection.getBounds();
+    if (bounds) {
+      map.setBounds(bounds, { checkZoomRange: true, zoomMargin: [32, 32, 32, 32] });
+    } else {
       map.setCenter(DEFAULT_CENTER, DEFAULT_ZOOM);
-      return;
     }
-
-    const centerLat = getMedian(normalizedPoints.map((point) => point.lat));
-    const centerLng = getMedian(normalizedPoints.map((point) => point.lng));
-    const distances = normalizedPoints.map((point) => (
-      distanceKm(centerLat, centerLng, point.lat, point.lng)
-    ));
-    const spreadKm = getPercentile(distances, 0.85);
-
-    let zoom = 11;
-    if (spreadKm > 220) zoom = 6;
-    else if (spreadKm > 140) zoom = 7;
-    else if (spreadKm > 90) zoom = 8;
-    else if (spreadKm > 55) zoom = 9;
-    else if (spreadKm > 30) zoom = 10;
-
-    map.setCenter([centerLat, centerLng], zoom, { duration: 250 });
   }, [normalizedPoints, language, mapReady]);
 
   if (loadError) {
@@ -257,7 +225,12 @@ function YandexShopsMap({
     );
   }
 
-  return <div ref={containerRef} style={{ height, width: '100%' }} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{ height, width: '100%' }}
+    />
+  );
 }
 
 export default YandexShopsMap;
