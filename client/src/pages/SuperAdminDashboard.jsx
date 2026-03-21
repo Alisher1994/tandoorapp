@@ -1727,6 +1727,8 @@ function SuperAdminDashboard() {
     return `${year}-${month}-${day}`;
   });
   const [overviewMapProvider, setOverviewMapProvider] = useState(() => getSavedMapProvider());
+  const [showOverviewClientsOnMap, setShowOverviewClientsOnMap] = useState(true);
+  const [showOverviewShopsOnMap, setShowOverviewShopsOnMap] = useState(true);
   const [selectedOverviewOrderLocation, setSelectedOverviewOrderLocation] = useState(null);
   const [overviewMapSelectionLocked, setOverviewMapSelectionLocked] = useState(false);
   const overviewAnalyticsTabOpenedRef = useRef(false);
@@ -7845,6 +7847,18 @@ function SuperAdminDashboard() {
       })
       .filter(Boolean);
   }, [allRestaurants, overviewOperatorsByRestaurantId]);
+  const overviewVisibleOrderLocations = useMemo(
+    () => (showOverviewClientsOnMap ? overviewAnalyticsOrderLocations : []),
+    [showOverviewClientsOnMap, overviewAnalyticsOrderLocations]
+  );
+  const overviewVisibleShopPoints = useMemo(
+    () => (showOverviewShopsOnMap ? overviewAnalyticsShopPoints : []),
+    [showOverviewShopsOnMap, overviewAnalyticsShopPoints]
+  );
+  const overviewVisibleMapPoints = useMemo(
+    () => [...overviewVisibleOrderLocations, ...overviewVisibleShopPoints],
+    [overviewVisibleOrderLocations, overviewVisibleShopPoints]
+  );
   const handleSelectOverviewOrderLocation = React.useCallback((location) => {
     if (!location) return;
     setSelectedOverviewOrderLocation(location);
@@ -8742,19 +8756,39 @@ function SuperAdminDashboard() {
                       <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
                       {t('orderGeography')}
                     </h6>
-                    <Form.Select
-                      size="sm"
-                      value={overviewMapProvider}
-                      onChange={(e) => handleOverviewMapProviderChange(e.target.value)}
-                      style={{ minWidth: '140px' }}
-                      aria-label={language === 'uz' ? 'Xarita manbasi' : 'Источник карты'}
-                    >
-                      {overviewMapProviderOptions.map((item) => (
-                        <option key={`sa-overview-map-provider-${item.value}`} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </Form.Select>
+                    <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                      <Form.Select
+                        size="sm"
+                        value={overviewMapProvider}
+                        onChange={(e) => handleOverviewMapProviderChange(e.target.value)}
+                        style={{ minWidth: '140px' }}
+                        aria-label={language === 'uz' ? 'Xarita manbasi' : 'Источник карты'}
+                      >
+                        {overviewMapProviderOptions.map((item) => (
+                          <option key={`sa-overview-map-provider-${item.value}`} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </Form.Select>
+                      <Form.Check
+                        inline
+                        type="switch"
+                        id="sa-overview-map-clients-switch"
+                        className="mb-0"
+                        label={language === 'uz' ? 'Mijozlar' : 'Клиенты'}
+                        checked={showOverviewClientsOnMap}
+                        onChange={(e) => setShowOverviewClientsOnMap(e.target.checked)}
+                      />
+                      <Form.Check
+                        inline
+                        type="switch"
+                        id="sa-overview-map-shops-switch"
+                        className="mb-0"
+                        label={language === 'uz' ? "Do'konlar" : 'Магазины'}
+                        checked={showOverviewShopsOnMap}
+                        onChange={(e) => setShowOverviewShopsOnMap(e.target.checked)}
+                      />
+                    </div>
                   </Card.Header>
                   <Card.Body className="p-0">
                     <Row className="g-0">
@@ -8772,9 +8806,9 @@ function SuperAdminDashboard() {
                             </div>
                           ) : isOverviewYandexMapProvider ? (
                             <YandexAnalyticsMap
-                              points={overviewAnalyticsOrderLocations}
-                              shopPoints={overviewAnalyticsShopPoints}
-                              selectedPoint={overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
+                              points={overviewVisibleOrderLocations}
+                              shopPoints={overviewVisibleShopPoints}
+                              selectedPoint={showOverviewClientsOnMap && overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
                               onSelectPoint={handleSelectOverviewOrderLocation}
                               onLoadError={handleOverviewYandexMapLoadError}
                               height="100%"
@@ -8792,10 +8826,10 @@ function SuperAdminDashboard() {
                               />
                               <SuperAdminAnalyticsMapResizeFix />
                               <SuperAdminAnalyticsMapAutoBounds
-                                points={overviewAnalyticsOrderLocations}
-                                selectedPoint={overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
+                                points={overviewVisibleMapPoints}
+                                selectedPoint={showOverviewClientsOnMap && overviewMapSelectionLocked ? selectedOverviewOrderLocation : null}
                               />
-                              {overviewAnalyticsOrderLocations.map((location) => {
+                              {overviewVisibleOrderLocations.map((location) => {
                                 const locationKey = getOverviewOrderLocationKey(location);
                                 const isSelected = selectedOverviewOrderLocation
                                   && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
@@ -8811,7 +8845,7 @@ function SuperAdminDashboard() {
                                 );
                               })}
                               <SuperAdminOverviewShopMarkersLayer
-                                shopPoints={overviewAnalyticsShopPoints}
+                                shopPoints={overviewVisibleShopPoints}
                                 language={language}
                                 formatMoney={formatAnalyticsMoney}
                                 getCurrencyLabel={getCurrencyLabelByCode}
