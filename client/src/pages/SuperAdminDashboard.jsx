@@ -8476,43 +8476,45 @@ function SuperAdminDashboard() {
                           <div className="small text-uppercase text-muted fw-semibold mb-2">
                             {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
                           </div>
-                          <div className="admin-analytics-map-list-head">
-                            <span>{language === 'uz' ? 'Mijoz' : 'Клиент'}</span>
-                            <span>{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
-                            <span>{language === 'uz' ? 'Buyurtma' : 'Заказ'}</span>
-                          </div>
-                          <div className="d-grid gap-2">
-                            {overviewAnalyticsOrderLocations.length > 0 ? overviewAnalyticsOrderLocations.map((location) => {
-                              const locationKey = getOverviewOrderLocationKey(location);
-                              const isSelected = selectedOverviewOrderLocation
-                                && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
-                              return (
-                                <button
-                                  key={`sa-overview-map-list-${locationKey}`}
-                                  type="button"
-                                  className={`admin-analytics-map-list-item text-start${isSelected ? ' is-active' : ''}`}
-                                  style={{
-                                    borderColor: isSelected ? '#93c5fd' : '#e2e8f0',
-                                    background: isSelected ? '#eff6ff' : '#ffffff'
-                                  }}
-                                  onClick={() => handleSelectOverviewOrderLocation(location)}
-                                >
-                                  <div className="admin-analytics-map-list-row">
-                                    <div className="admin-analytics-map-list-col admin-analytics-map-list-col-customer fw-semibold text-truncate">
-                                      {location.customerName || 'Клиент'}
-                                    </div>
-                                    <div className="admin-analytics-map-list-col admin-analytics-map-list-col-restaurant small text-muted text-truncate">
-                                      {location.restaurantName || 'Магазин'}
-                                    </div>
-                                    <div className="admin-analytics-map-list-col admin-analytics-map-list-col-order text-truncate">
-                                      <span className="small text-muted">№{location.orderNumber || '—'}</span>
-                                      <span className="small fw-semibold ms-2">{formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}</span>
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            }) : (
+                          <div className="table-responsive admin-analytics-map-table-wrap">
+                            {overviewAnalyticsOrderLocations.length === 0 ? (
                               <div className="text-muted small">{t('noDataForPeriod')}</div>
+                            ) : (
+                              <Table hover size="sm" className="mb-0 admin-analytics-map-table">
+                                <thead>
+                                  <tr>
+                                    <th>{language === 'uz' ? 'Mijoz' : 'Клиент'}</th>
+                                    <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                                    <th className="text-end">{language === 'uz' ? 'Buyurtma' : 'Заказ'}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {overviewAnalyticsOrderLocations.map((location) => {
+                                    const locationKey = getOverviewOrderLocationKey(location);
+                                    const isSelected = selectedOverviewOrderLocation
+                                      && getOverviewOrderLocationKey(selectedOverviewOrderLocation) === locationKey;
+                                    return (
+                                      <tr
+                                        key={`sa-overview-map-list-${locationKey}`}
+                                        className={isSelected ? 'is-active' : ''}
+                                        onClick={() => handleSelectOverviewOrderLocation(location)}
+                                        style={{ cursor: 'pointer' }}
+                                      >
+                                        <td className="fw-semibold text-truncate" title={location.customerName || 'Клиент'}>
+                                          {location.customerName || 'Клиент'}
+                                        </td>
+                                        <td className="text-muted text-truncate" title={location.restaurantName || 'Магазин'}>
+                                          {location.restaurantName || 'Магазин'}
+                                        </td>
+                                        <td className="text-end text-nowrap">
+                                          <span className="small text-muted d-block">№{location.orderNumber || '—'}</span>
+                                          <span className="small fw-semibold">{formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}</span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </Table>
                             )}
                           </div>
 
