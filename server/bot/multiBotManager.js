@@ -1734,6 +1734,48 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         registrationStates.delete(stateKey);
       }
     }
+
+    // Fallback for lost in-memory state:
+    // if user sent contact in private chat but waiting_contact state is missing
+    // (for example after bot restart), continue registration flow safely.
+    try {
+      if (msg.chat?.type === 'private' && contact?.phone_number) {
+        const existingUser = await resolvePreferredTelegramUser(userId);
+        if (!existingUser) {
+          const fallbackLang = normalizeBotLanguage(
+            state?.lang
+            || languagePreferences.get(getLangCacheKey(userId))
+            || getTelegramPreferredLanguage(msg.from?.language_code)
+            || 'ru'
+          );
+          const fallbackStateKey = getStateKey(userId, chatId);
+          const fallbackState = ensureFlowStateMeta(registrationStates.get(fallbackStateKey) || {});
+          fallbackState.step = 'waiting_name';
+          fallbackState.phone = normalizePhone(contact.phone_number);
+          fallbackState.lang = fallbackLang;
+          fallbackState.restaurantId = restaurantId;
+          registrationStates.set(fallbackStateKey, fallbackState);
+
+          await trackFunnelEvent({
+            telegramUserId: userId,
+            eventType: 'contact_shared',
+            payload: {
+              source: 'contact_fallback',
+              phone_masked: String(fallbackState.phone || '').replace(/^(\+?\d{3})\d+(\d{2})$/, '$1***$2')
+            }
+          });
+
+          await sendTrackedFlowMessage(
+            fallbackStateKey,
+            chatId,
+            t(fallbackLang, 'thanksName'),
+            { reply_markup: { remove_keyboard: true } }
+          );
+        }
+      }
+    } catch (fallbackError) {
+      console.error('Contact fallback flow error:', fallbackError.message);
+    }
   });
 
   // Handle text messages
@@ -1983,6 +2025,56 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         console.error('Reply keyboard text action error:', error);
         await bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
       }
+      return;
+    }
+
+    if (state.step === 'waiting_contact') {
+      const userLang = normalizeBotLanguage(
+        state.lang || languagePreferences.get(getLangCacheKey(userId)) || getTelegramPreferredLanguage(msg.from?.language_code) || 'ru'
+      );
+      const typedPhone = normalizePhone(text);
+      const digitsOnly = String(typedPhone || '').replace(/\D/g, '');
+      const isValidTypedPhone = digitsOnly.length >= 9 && digitsOnly.length <= 15;
+
+      if (!isValidTypedPhone) {
+        await sendTrackedFlowMessage(
+          stateKey,
+          chatId,
+          userLang === 'uz'
+            ? '📱 Telefon raqamingizni kontakt tugmasi orqali yuboring yoki raqamni to‘liq kiriting (masalan: +998901234567).'
+            : '📱 Отправьте номер через кнопку контакта или введите полный номер (например: +998901234567).',
+          {
+            reply_markup: {
+              keyboard: [[{ text: t(userLang, 'shareContact'), request_contact: true }]],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            }
+          }
+        );
+        return;
+      }
+
+      state.phone = typedPhone;
+      state.step = 'waiting_name';
+      state.lang = userLang;
+      ensureFlowStateMeta(state);
+      registrationStates.set(stateKey, state);
+      await trackFunnelEvent({
+        telegramUserId: userId,
+        eventType: 'contact_shared',
+        payload: {
+          source: 'typed_text',
+          phone_masked: String(state.phone || '').replace(/^(\+?\d{3})\d+(\d{2})$/, '$1***$2')
+        }
+      });
+
+      await cleanupFlowMessages(chatId, stateKey);
+      await sendTrackedFlowMessage(
+        stateKey,
+        chatId,
+        t(userLang, 'thanksName'),
+        { reply_markup: { remove_keyboard: true } }
+      );
       return;
     }
 

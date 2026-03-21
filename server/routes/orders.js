@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../database/connection');
+const axios = require('axios');
 const { authenticate } = require('../middleware/auth');
 const {
   sendOrderNotification,
@@ -70,6 +71,35 @@ function isInDeliveryZone(deliveryZone, lat, lng) {
 
   if (!Array.isArray(zone) || zone.length < 3) return true;
   return isPointInPolygon([lat, lng], zone);
+}
+
+const DEFAULT_DELIVERY_BASE_RADIUS_KM = 2;
+const DEFAULT_DELIVERY_BASE_PRICE = 5000;
+const DEFAULT_DELIVERY_PRICE_PER_KM = 2000;
+
+async function getRoadDistanceKm(fromLat, fromLng, toLat, toLng) {
+  try {
+    const url = `http://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
+    const response = await axios.get(url, { timeout: 10000 });
+    if (response.data?.code === 'Ok' && Array.isArray(response.data?.routes) && response.data.routes.length > 0) {
+      return Number(response.data.routes[0]?.distance || 0) / 1000;
+    }
+  } catch (error) {
+    console.warn('⚠️ Delivery road distance error:', error?.message || error);
+  }
+  return null;
+}
+
+function getHaversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const earthRadiusKm = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
 }
 
 // Public temporary order preview for Telegram operator links
@@ -428,6 +458,8 @@ router.post('/', authenticate, async (req, res) => {
     if (finalRestaurantId) {
       const hoursResult = await client.query(
         `SELECT start_time, end_time, is_delivery_enabled, delivery_zone,
+                latitude, longitude,
+                delivery_base_radius, delivery_base_price, delivery_price_per_km,
                 payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
                 card_receipt_target, cash_enabled
          FROM restaurants
@@ -473,6 +505,8 @@ router.post('/', authenticate, async (req, res) => {
     const normalizedDeliveryCoordinates = isPickupOrder
       ? null
       : (delivery_coordinates || null);
+    let deliveryPointLat = null;
+    let deliveryPointLng = null;
 
     if (!isPickupOrder) {
       if (!normalizedDeliveryCoordinates) {
@@ -487,6 +521,8 @@ router.post('/', authenticate, async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Некорректные координаты доставки' });
       }
+      deliveryPointLat = lat;
+      deliveryPointLng = lng;
 
       const inZone = isInDeliveryZone(restaurantDeliveryZone, lat, lng);
       if (!inZone) {
@@ -505,8 +541,28 @@ router.post('/', authenticate, async (req, res) => {
     }, 0);
     
     const serviceFee = parseFloat(service_fee) || 0;
-    const deliveryCost = !isPickupOrder ? (parseFloat(delivery_cost) || 0) : 0;
-    const deliveryDistanceKm = !isPickupOrder ? (parseFloat(delivery_distance_km) || 0) : 0;
+    let deliveryCost = !isPickupOrder ? (parseFloat(delivery_cost) || 0) : 0;
+    let deliveryDistanceKm = !isPickupOrder ? (parseFloat(delivery_distance_km) || 0) : 0;
+    if (!isPickupOrder && Number.isFinite(deliveryPointLat) && Number.isFinite(deliveryPointLng)) {
+      const restaurantLat = Number.parseFloat(restaurantSettings?.latitude);
+      const restaurantLng = Number.parseFloat(restaurantSettings?.longitude);
+      if (Number.isFinite(restaurantLat) && Number.isFinite(restaurantLng)) {
+        const roadDistanceKm = await getRoadDistanceKm(restaurantLat, restaurantLng, deliveryPointLat, deliveryPointLng);
+        const computedDistanceKm = Number.isFinite(roadDistanceKm)
+          ? roadDistanceKm
+          : (getHaversineDistanceKm(restaurantLat, restaurantLng, deliveryPointLat, deliveryPointLng) * 1.3);
+        const baseRadius = Number.parseFloat(restaurantSettings?.delivery_base_radius) || DEFAULT_DELIVERY_BASE_RADIUS_KM;
+        const basePrice = Number.parseFloat(restaurantSettings?.delivery_base_price) || DEFAULT_DELIVERY_BASE_PRICE;
+        const pricePerKm = Number.parseFloat(restaurantSettings?.delivery_price_per_km) || DEFAULT_DELIVERY_PRICE_PER_KM;
+        let computedCost = basePrice;
+        if (computedDistanceKm > baseRadius) {
+          const extraKm = computedDistanceKm - baseRadius;
+          computedCost = basePrice + (extraKm * pricePerKm);
+        }
+        deliveryDistanceKm = Math.round(computedDistanceKm * 100) / 100;
+        deliveryCost = Math.round(computedCost / 500) * 500;
+      }
+    }
     const totalAmount = itemsTotal + serviceFee + deliveryCost;
     const normalizedPaymentMethod = String(payment_method || 'cash').trim().toLowerCase() || 'cash';
     const isCashEnabled = restaurantSettings?.cash_enabled === undefined || restaurantSettings?.cash_enabled === null

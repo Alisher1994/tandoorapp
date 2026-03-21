@@ -680,6 +680,11 @@ function Cart() {
       return;
     }
 
+    if (isDeliverySelected && deliveryLoading) {
+      setError(language === 'uz' ? 'Yetkazib berish narxi hisoblanmoqda, kuting' : 'Идёт расчёт стоимости доставки, подождите');
+      return;
+    }
+
     if (isDeliverySelected && deliveryOutOfZone) {
       setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
       return;
@@ -702,6 +707,11 @@ function Cart() {
 
       if (isDeliverySelected && !hasLocation) {
         setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
+        return;
+      }
+
+      if (isDeliverySelected && deliveryLoading) {
+        setError(language === 'uz' ? 'Yetkazib berish narxi hisoblanmoqda, kuting' : 'Идёт расчёт стоимости доставки, подождите');
         return;
       }
 
@@ -824,6 +834,10 @@ function Cart() {
     }
     if (isDeliverySelected && !hasLocation) {
       setError(language === 'uz' ? 'Xaritada manzilni belgilang' : 'Укажите адрес на карте');
+      return;
+    }
+    if (isDeliverySelected && deliveryLoading) {
+      setError(language === 'uz' ? 'Yetkazib berish narxi hisoblanmoqda, kuting' : 'Идёт расчёт стоимости доставки, подождите');
       return;
     }
     if (isDeliverySelected && deliveryOutOfZone) {
@@ -1821,7 +1835,7 @@ function Cart() {
                 variant="primary"
                 className="flex-fill"
                 onClick={confirmAndSendOrder}
-                disabled={loading}
+                disabled={loading || (isDeliverySelected && deliveryLoading)}
               >
                 {loading ? <Spinner size="sm" /> : (language === 'uz' ? 'Tasdiqlash' : 'Подтвердить')}
               </Button>
