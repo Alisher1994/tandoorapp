@@ -1615,6 +1615,7 @@ function SuperAdminDashboard() {
   const [overviewMapProvider, setOverviewMapProvider] = useState(() => getSavedMapProvider());
   const [selectedOverviewOrderLocation, setSelectedOverviewOrderLocation] = useState(null);
   const [overviewMapSelectionLocked, setOverviewMapSelectionLocked] = useState(false);
+  const overviewAnalyticsTabOpenedRef = useRef(false);
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
   const [overviewProductReviewAnalytics, setOverviewProductReviewAnalytics] = useState(() => createEmptyProductReviewAnalytics());
@@ -7700,6 +7701,17 @@ function SuperAdminDashboard() {
     }
   }, [overviewAnalyticsOrderLocations, selectedOverviewOrderLocation]);
 
+  useEffect(() => {
+    if (activeTab !== 'analytics') {
+      overviewAnalyticsTabOpenedRef.current = false;
+      return;
+    }
+    if (overviewAnalyticsTabOpenedRef.current || !overviewAnalyticsOrderLocations.length) return;
+    setSelectedOverviewOrderLocation(overviewAnalyticsOrderLocations[0]);
+    setOverviewMapSelectionLocked(false);
+    overviewAnalyticsTabOpenedRef.current = true;
+  }, [activeTab, overviewAnalyticsOrderLocations]);
+
   const monthShortLabels = language === 'uz'
     ? ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyun', 'Iyul', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
     : ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
@@ -8464,6 +8476,11 @@ function SuperAdminDashboard() {
                           <div className="small text-uppercase text-muted fw-semibold mb-2">
                             {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
                           </div>
+                          <div className="admin-analytics-map-list-head">
+                            <span>{language === 'uz' ? 'Mijoz' : 'Клиент'}</span>
+                            <span>{language === 'uz' ? "Do'kon" : 'Магазин'}</span>
+                            <span>{language === 'uz' ? 'Buyurtma' : 'Заказ'}</span>
+                          </div>
                           <div className="d-grid gap-2">
                             {overviewAnalyticsOrderLocations.length > 0 ? overviewAnalyticsOrderLocations.map((location) => {
                               const locationKey = getOverviewOrderLocationKey(location);
@@ -8473,18 +8490,25 @@ function SuperAdminDashboard() {
                                 <button
                                   key={`sa-overview-map-list-${locationKey}`}
                                   type="button"
-                                  className="admin-analytics-map-list-item text-start"
+                                  className={`admin-analytics-map-list-item text-start${isSelected ? ' is-active' : ''}`}
                                   style={{
                                     borderColor: isSelected ? '#93c5fd' : '#e2e8f0',
                                     background: isSelected ? '#eff6ff' : '#ffffff'
                                   }}
                                   onClick={() => handleSelectOverviewOrderLocation(location)}
                                 >
-                                  <div className="fw-semibold text-truncate">{location.customerName || 'Клиент'}</div>
-                                  <div className="small text-muted text-truncate">
-                                    {location.restaurantName || 'Магазин'}
+                                  <div className="admin-analytics-map-list-row">
+                                    <div className="admin-analytics-map-list-col admin-analytics-map-list-col-customer fw-semibold text-truncate">
+                                      {location.customerName || 'Клиент'}
+                                    </div>
+                                    <div className="admin-analytics-map-list-col admin-analytics-map-list-col-restaurant small text-muted text-truncate">
+                                      {location.restaurantName || 'Магазин'}
+                                    </div>
+                                    <div className="admin-analytics-map-list-col admin-analytics-map-list-col-order text-truncate">
+                                      <span className="small text-muted">№{location.orderNumber || '—'}</span>
+                                      <span className="small fw-semibold ms-2">{formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}</span>
+                                    </div>
                                   </div>
-                                  <div className="small text-truncate">№{location.orderNumber || '—'} · {formatAnalyticsMoney(location.totalAmount || 0)} {t('sum')}</div>
                                 </button>
                               );
                             }) : (
