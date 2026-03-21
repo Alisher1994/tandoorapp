@@ -5389,6 +5389,7 @@ function SuperAdminDashboard() {
             ? operatorNames.join(', ')
             : (language === 'uz' ? "Operator biriktirilmagan" : 'Оператор не назначен'),
           productsCount: Math.max(0, Number(restaurant?.products_count || 0)),
+          ordersCount: Math.max(0, Number(restaurant?.orders_count || 0)),
           issuesCount
         };
       })
@@ -5398,12 +5399,18 @@ function SuperAdminDashboard() {
 
     const medianLat = getMedianValue(rawPoints.map((item) => item.lat));
     const medianLng = getMedianValue(rawPoints.map((item) => item.lng));
-    const filteredOutliers = rawPoints.filter((point) => (
-      Math.abs(Number(point.lat) - medianLat) <= 5.2
-      && Math.abs(Number(point.lng) - medianLng) <= 8.5
-    ));
+    const softLatDelta = 4.6;
+    const softLngDelta = 7.2;
+    const filteredOutliers = rawPoints.filter((point) => {
+      const latDelta = Math.abs(Number(point.lat) - medianLat);
+      const lngDelta = Math.abs(Number(point.lng) - medianLng);
+      const isInSoftBounds = latDelta <= softLatDelta && lngDelta <= softLngDelta;
+      if (isInSoftBounds) return true;
+      // Keep remote points only when they have real activity, otherwise they distort map bounds.
+      return Number(point.ordersCount || 0) > 0 || Number(point.productsCount || 0) > 3;
+    });
 
-    return filteredOutliers.length >= Math.max(4, Math.floor(rawPoints.length * 0.72))
+    return filteredOutliers.length >= Math.max(4, Math.floor(rawPoints.length * 0.68))
       ? filteredOutliers
       : rawPoints;
   }, [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
