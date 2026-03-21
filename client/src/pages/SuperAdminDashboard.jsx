@@ -52,6 +52,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
+import YandexShopsMap from '../components/YandexShopsMap';
 import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
@@ -8664,23 +8665,11 @@ function SuperAdminDashboard() {
                             : 'Магазины с заполненной локацией не найдены'}
                         </div>
                       ) : (
-                        <MapContainer
-                          center={ANALYTICS_DEFAULT_MAP_CENTER}
-                          zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-                          style={{ height: '100%', width: '100%' }}
-                        >
-                          <TileLayer
-                            url={overviewMapTileLayerConfig.url}
-                            attribution={overviewMapTileLayerConfig.attribution}
-                            maxZoom={overviewMapTileLayerConfig.maxZoom}
-                          />
-                          <SuperAdminAnalyticsMapResizeFix />
-                          <SuperAdminAnalyticsMapAutoBounds points={shopsMapPoints} />
-                          <SuperAdminShopsClusteredMarkers
-                            points={shopsMapPoints}
-                            language={language}
-                          />
-                        </MapContainer>
+                        <YandexShopsMap
+                          points={shopsMapPoints}
+                          language={language}
+                          height="100%"
+                        />
                       )}
                     </div>
                   </Card.Body>
