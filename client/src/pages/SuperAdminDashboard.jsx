@@ -739,6 +739,18 @@ const getShopsClusterCellSizeByZoom = (zoom) => {
   if (zoom <= 12) return 84;
   return 70;
 };
+const getMedianValue = (values = []) => {
+  const source = Array.isArray(values)
+    ? values.filter((item) => Number.isFinite(Number(item))).map((item) => Number(item))
+    : [];
+  if (!source.length) return 0;
+  const sorted = [...source].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1] + sorted[middle]) / 2;
+  }
+  return sorted[middle];
+};
 const SuperAdminShopsClusteredMarkers = ({ points = [], markerIcons = new Map() }) => {
   const map = useMap();
   const [zoom, setZoom] = useState(() => (
@@ -762,7 +774,7 @@ const SuperAdminShopsClusteredMarkers = ({ points = [], markerIcons = new Map() 
   const clusteredItems = useMemo(() => {
     if (!map || !Array.isArray(points) || points.length === 0) return [];
     const safeZoom = Number.isFinite(zoom) ? zoom : Number(map.getZoom()) || ANALYTICS_DEFAULT_MAP_ZOOM;
-    const shouldCluster = safeZoom <= 13;
+    const shouldCluster = safeZoom <= 11;
     if (!shouldCluster) {
       return points.map((point) => ({
         type: 'point',
@@ -5336,13 +5348,15 @@ function SuperAdminDashboard() {
     });
     return map;
   }, [allOperators]);
-  const shopsMapPoints = useMemo(() => (
-    (Array.isArray(allRestaurants) ? allRestaurants : [])
+  const shopsMapPoints = useMemo(() => {
+    const rawPoints = (Array.isArray(allRestaurants) ? allRestaurants : [])
       .map((restaurant) => {
         const lat = Number(restaurant?.latitude);
         const lng = Number(restaurant?.longitude);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
         if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+        // Guard against accidental out-of-region coordinates that break map fit and clustering.
+        if (lat < 30 || lat > 50 || lng < 45 || lng > 90) return null;
         const restaurantId = Number(restaurant?.id || 0);
         const operatorNames = foundersRestaurantOperatorMap.get(restaurantId) || [];
         const mappedIssueCount = Number(restaurantIssueCountMap?.[restaurantId]);
@@ -5378,8 +5392,21 @@ function SuperAdminDashboard() {
           issuesCount
         };
       })
-      .filter(Boolean)
-  ), [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
+      .filter(Boolean);
+
+    if (rawPoints.length < 6) return rawPoints;
+
+    const medianLat = getMedianValue(rawPoints.map((item) => item.lat));
+    const medianLng = getMedianValue(rawPoints.map((item) => item.lng));
+    const filteredOutliers = rawPoints.filter((point) => (
+      Math.abs(Number(point.lat) - medianLat) <= 5.2
+      && Math.abs(Number(point.lng) - medianLng) <= 8.5
+    ));
+
+    return filteredOutliers.length >= Math.max(4, Math.floor(rawPoints.length * 0.72))
+      ? filteredOutliers
+      : rawPoints;
+  }, [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
   const shopsMapMarkerIcons = useMemo(() => {
     const map = new Map();
     const labels = {
