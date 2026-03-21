@@ -83,6 +83,37 @@ const normalizePoint = (point) => {
   };
 };
 
+const getMedian = (values = []) => {
+  const source = Array.isArray(values)
+    ? values.filter((item) => Number.isFinite(Number(item))).map((item) => Number(item))
+    : [];
+  if (!source.length) return 0;
+  const sorted = [...source].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) return (sorted[middle - 1] + sorted[middle]) / 2;
+  return sorted[middle];
+};
+
+const distanceKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = (value) => (Number(value) * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const getPercentile = (values = [], percentile = 0.9) => {
+  const source = Array.isArray(values)
+    ? values.filter((item) => Number.isFinite(Number(item))).map((item) => Number(item)).sort((left, right) => left - right)
+    : [];
+  if (!source.length) return 0;
+  const bounded = Math.min(1, Math.max(0, Number(percentile)));
+  const index = Math.floor((source.length - 1) * bounded);
+  return source[index] || 0;
+};
+
 function YandexShopsMap({
   points = [],
   language = 'ru',
@@ -190,12 +221,26 @@ function YandexShopsMap({
     if (signature === boundsSignatureRef.current) return;
     boundsSignatureRef.current = signature;
 
-    const bounds = geoCollection.getBounds();
-    if (bounds) {
-      map.setBounds(bounds, { checkZoomRange: true, zoomMargin: [26, 26, 26, 26] });
-    } else {
+    if (!normalizedPoints.length) {
       map.setCenter(DEFAULT_CENTER, DEFAULT_ZOOM);
+      return;
     }
+
+    const centerLat = getMedian(normalizedPoints.map((point) => point.lat));
+    const centerLng = getMedian(normalizedPoints.map((point) => point.lng));
+    const distances = normalizedPoints.map((point) => (
+      distanceKm(centerLat, centerLng, point.lat, point.lng)
+    ));
+    const spreadKm = getPercentile(distances, 0.85);
+
+    let zoom = 11;
+    if (spreadKm > 220) zoom = 6;
+    else if (spreadKm > 140) zoom = 7;
+    else if (spreadKm > 90) zoom = 8;
+    else if (spreadKm > 55) zoom = 9;
+    else if (spreadKm > 30) zoom = 10;
+
+    map.setCenter([centerLat, centerLng], zoom, { duration: 250 });
   }, [normalizedPoints, language]);
 
   if (loadError) {
