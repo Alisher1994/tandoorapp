@@ -45,7 +45,7 @@ import {
   Users,
   Wallet
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -693,6 +693,128 @@ const SuperAdminAnalyticsMapResizeFix = () => {
   }, [map]);
 
   return null;
+};
+const createShopsClusterPointIcon = (count = 0) => L.divIcon({
+  className: 'sa-shops-cluster-icon',
+  html: `
+    <span class="sa-shops-cluster-badge">
+      <span class="sa-shops-cluster-store" aria-hidden="true">🏪</span>
+      <span class="sa-shops-cluster-count">${Number(count || 0)}</span>
+    </span>
+  `,
+  iconSize: [48, 48],
+  iconAnchor: [24, 24]
+});
+const getShopsClusterCellSizeByZoom = (zoom) => {
+  if (zoom <= 6) return 148;
+  if (zoom <= 8) return 126;
+  if (zoom <= 10) return 102;
+  if (zoom <= 12) return 84;
+  return 70;
+};
+const SuperAdminShopsClusteredMarkers = ({ points = [], markerIcons = new Map() }) => {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => (
+    Number.isFinite(map?.getZoom?.()) ? Number(map.getZoom()) : ANALYTICS_DEFAULT_MAP_ZOOM
+  ));
+  const clusterIconCacheRef = useRef(new Map());
+
+  useMapEvents({
+    zoomend: (event) => {
+      const nextZoom = Number(event?.target?.getZoom?.());
+      if (Number.isFinite(nextZoom)) setZoom(nextZoom);
+    }
+  });
+
+  useEffect(() => {
+    if (!map) return;
+    const initialZoom = Number(map.getZoom());
+    if (Number.isFinite(initialZoom)) setZoom(initialZoom);
+  }, [map]);
+
+  const clusteredItems = useMemo(() => {
+    if (!map || !Array.isArray(points) || points.length === 0) return [];
+    const safeZoom = Number.isFinite(zoom) ? zoom : Number(map.getZoom()) || ANALYTICS_DEFAULT_MAP_ZOOM;
+    const shouldCluster = safeZoom <= 13;
+    if (!shouldCluster) {
+      return points.map((point) => ({
+        type: 'point',
+        id: point.id,
+        point
+      }));
+    }
+    const cellSize = getShopsClusterCellSizeByZoom(safeZoom);
+    const grouped = new Map();
+
+    points.forEach((point) => {
+      const projected = map.project([Number(point.lat), Number(point.lng)], safeZoom);
+      const cellX = Math.floor(projected.x / cellSize);
+      const cellY = Math.floor(projected.y / cellSize);
+      const key = `${cellX}:${cellY}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          points: [],
+          latSum: 0,
+          lngSum: 0
+        });
+      }
+      const bucket = grouped.get(key);
+      bucket.points.push(point);
+      bucket.latSum += Number(point.lat);
+      bucket.lngSum += Number(point.lng);
+    });
+
+    return Array.from(grouped.values()).map((bucket) => {
+      if (bucket.points.length <= 1) {
+        const point = bucket.points[0];
+        return {
+          type: 'point',
+          id: point.id,
+          point
+        };
+      }
+      return {
+        type: 'cluster',
+        id: `cluster:${bucket.key}`,
+        count: bucket.points.length,
+        lat: bucket.latSum / bucket.points.length,
+        lng: bucket.lngSum / bucket.points.length
+      };
+    });
+  }, [map, points, zoom]);
+
+  const resolveClusterIcon = (count) => {
+    const normalizedCount = Math.max(2, Number(count || 0));
+    if (!clusterIconCacheRef.current.has(normalizedCount)) {
+      clusterIconCacheRef.current.set(normalizedCount, createShopsClusterPointIcon(normalizedCount));
+    }
+    return clusterIconCacheRef.current.get(normalizedCount);
+  };
+
+  return (
+    <>
+      {clusteredItems.map((item) => {
+        if (item.type === 'cluster') {
+          return (
+            <Marker
+              key={`shops-map-${item.id}`}
+              position={[item.lat, item.lng]}
+              icon={resolveClusterIcon(item.count)}
+            />
+          );
+        }
+        const point = item.point;
+        return (
+          <Marker
+            key={`shops-map-point-${item.id}`}
+            position={[point.lat, point.lng]}
+            icon={markerIcons.get(point.id) || getOverviewAnalyticsPointIcon(false)}
+          />
+        );
+      })}
+    </>
+  );
 };
 
 const DataPagination = ({ current, total, limit, onPageChange, limitOptions, onLimitChange }) => {
@@ -3284,9 +3406,7 @@ function SuperAdminDashboard() {
       expense_date: String(item.expense_date || getTodayDateInputValue()),
       description: String(item.description || '')
     });
-    setOrganizationExpenseCategorySearch(language === 'uz'
-      ? String(item.category_name_uz || item.category_name_ru || '').trim()
-      : String(item.category_name_ru || item.category_name_uz || '').trim());
+    setOrganizationExpenseCategorySearch('');
     setShowOrganizationExpenseModal(true);
   };
   const submitOrganizationExpense = async (event) => {
@@ -5180,7 +5300,7 @@ function SuperAdminDashboard() {
     });
     return map;
   }, [allOperators]);
-  const foundersShopsMapPoints = useMemo(() => (
+  const shopsMapPoints = useMemo(() => (
     (Array.isArray(allRestaurants) ? allRestaurants : [])
       .map((restaurant) => {
         const lat = Number(restaurant?.latitude);
@@ -5224,10 +5344,9 @@ function SuperAdminDashboard() {
       })
       .filter(Boolean)
   ), [allRestaurants, foundersRestaurantOperatorMap, restaurantIssueCountMap, countryCurrency?.code, language]);
-  const foundersShopsMapMarkerIcons = useMemo(() => {
+  const shopsMapMarkerIcons = useMemo(() => {
     const map = new Map();
     const labels = {
-      shop: language === 'uz' ? "Do'kon" : 'Магазин',
       activity: language === 'uz' ? 'Faoliyat' : 'Вид деятельности',
       phone: language === 'uz' ? 'Telefon' : 'Телефон',
       balance: language === 'uz' ? 'Balans' : 'Баланс',
@@ -5236,10 +5355,10 @@ function SuperAdminDashboard() {
       errors: language === 'uz' ? 'Xatolar' : 'Ошибки'
     };
 
-    foundersShopsMapPoints.forEach((point) => {
+    shopsMapPoints.forEach((point) => {
       const html = `
         <div class="sa-founders-store-marker">
-          <div class="sa-founders-store-marker-line is-title"><strong>${escapeHtml(point.name)}</strong></div>
+          <div class="sa-founders-store-marker-line is-title"><strong>🏪 ${escapeHtml(point.name)}</strong></div>
           <div class="sa-founders-store-marker-line">${labels.activity}: ${escapeHtml(point.activityType)}</div>
           <div class="sa-founders-store-marker-line">${labels.phone}: ${escapeHtml(point.phone)}</div>
           <div class="sa-founders-store-marker-line">${labels.balance}: ${escapeHtml(formatCompactMoneyForMapLabel(point.balance))} ${escapeHtml(point.currencyLabel)}</div>
@@ -5256,7 +5375,7 @@ function SuperAdminDashboard() {
       }));
     });
     return map;
-  }, [foundersShopsMapPoints, language]);
+  }, [shopsMapPoints, language]);
   const organizationExpensesCurrencyOptions = useMemo(() => {
     const set = new Set();
     foundersAvailableCurrencies.forEach((item) => set.add(String(item || '').trim().toLowerCase()));
@@ -8446,6 +8565,53 @@ function SuperAdminDashboard() {
                 </div>
               ))}
             </div>
+
+            <Row className="g-4 mb-4">
+              <Col xs={12}>
+                <Card className="border-0 shadow-sm admin-analytics-surface-card sa-founders-store-map-card">
+                  <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0369a1', background: '#f0f9ff' }}>🏪</span>
+                      {language === 'uz' ? "Do'konlar lokatsiyasi" : 'Локации магазинов'}
+                    </h6>
+                    <small className="text-muted">
+                      {language === 'uz'
+                        ? `Xaritada nuqtalar: ${shopsMapPoints.length}`
+                        : `Точек на карте: ${shopsMapPoints.length}`}
+                    </small>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    <div className="sa-founders-store-map-wrap">
+                      {shopsMapPoints.length === 0 ? (
+                        <div className="h-100 d-flex align-items-center justify-content-center text-muted small">
+                          {language === 'uz'
+                            ? "Lokatsiyasi ko'rsatilgan do'konlar topilmadi"
+                            : 'Магазины с заполненной локацией не найдены'}
+                        </div>
+                      ) : (
+                        <MapContainer
+                          center={ANALYTICS_DEFAULT_MAP_CENTER}
+                          zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            url={overviewMapTileLayerConfig.url}
+                            attribution={overviewMapTileLayerConfig.attribution}
+                            maxZoom={overviewMapTileLayerConfig.maxZoom}
+                          />
+                          <SuperAdminAnalyticsMapResizeFix />
+                          <SuperAdminAnalyticsMapAutoBounds points={shopsMapPoints} />
+                          <SuperAdminShopsClusteredMarkers
+                            points={shopsMapPoints}
+                            markerIcons={shopsMapMarkerIcons}
+                          />
+                        </MapContainer>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
 
             <Row className="g-4 mb-4">
               <Col xs={12}>
@@ -13418,55 +13584,6 @@ function SuperAdminDashboard() {
 
                     {foundersInnerTab === 'analytics' && (
                       <>
-                    <Row className="g-3 mb-3">
-                      <Col xs={12}>
-                        <Card className="admin-card border-0 sa-founders-store-map-card">
-                          <Card.Body className="p-0">
-                            <div className="sa-founders-store-map-head">
-                              <div className="fw-semibold">
-                                {language === 'uz' ? "Do'konlar lokatsiyasi" : 'Локации магазинов'}
-                              </div>
-                              <div className="small text-muted">
-                                {language === 'uz'
-                                  ? `Xaritada nuqtalar: ${foundersShopsMapPoints.length}`
-                                  : `Точек на карте: ${foundersShopsMapPoints.length}`}
-                              </div>
-                            </div>
-                            <div className="sa-founders-store-map-wrap">
-                              {foundersShopsMapPoints.length === 0 ? (
-                                <div className="h-100 d-flex align-items-center justify-content-center text-muted small">
-                                  {language === 'uz'
-                                    ? "Lokatsiyasi ko'rsatilgan do'konlar topilmadi"
-                                    : 'Магазины с заполненной локацией не найдены'}
-                                </div>
-                              ) : (
-                                <MapContainer
-                                  center={ANALYTICS_DEFAULT_MAP_CENTER}
-                                  zoom={ANALYTICS_DEFAULT_MAP_ZOOM}
-                                  style={{ height: '100%', width: '100%' }}
-                                >
-                                  <TileLayer
-                                    url={overviewMapTileLayerConfig.url}
-                                    attribution={overviewMapTileLayerConfig.attribution}
-                                    maxZoom={overviewMapTileLayerConfig.maxZoom}
-                                  />
-                                  <SuperAdminAnalyticsMapResizeFix />
-                                  <SuperAdminAnalyticsMapAutoBounds points={foundersShopsMapPoints} />
-                                  {foundersShopsMapPoints.map((point) => (
-                                    <Marker
-                                      key={`founders-shop-map-${point.id}`}
-                                      position={[point.lat, point.lng]}
-                                      icon={foundersShopsMapMarkerIcons.get(point.id) || getOverviewAnalyticsPointIcon(false)}
-                                    />
-                                  ))}
-                                </MapContainer>
-                              )}
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                    </Row>
-
                     <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
                       <Form.Control
                         type="date"
@@ -19232,35 +19349,26 @@ function SuperAdminDashboard() {
             <Row className="g-3">
               <Col xs={12}>
                 <Form.Label>{language === 'uz' ? 'Xarajat maqolasi' : 'Статья расхода'} *</Form.Label>
-                <Form.Control
-                  className="mb-2"
-                  type="text"
-                  value={organizationExpenseCategorySearch}
-                  onChange={(e) => setOrganizationExpenseCategorySearch(e.target.value)}
-                  placeholder={language === 'uz' ? "Ro'yxatdan izlash..." : 'Поиск по списку...'}
-                />
-                <Form.Select
+                <CustomSelectDropdown
                   value={organizationExpenseForm.category_id}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setOrganizationExpenseForm((prev) => ({ ...prev, category_id: nextValue }));
-                    const selected = organizationExpenseCategoryOptions.find((item) => String(item.id) === String(nextValue));
-                    if (selected) {
-                      setOrganizationExpenseCategorySearch(language === 'uz'
-                        ? String(selected.name_uz || selected.name_ru || '').trim()
-                        : String(selected.name_ru || selected.name_uz || '').trim());
-                    }
+                  onChange={(nextValue) => {
+                    setOrganizationExpenseForm((prev) => ({ ...prev, category_id: String(nextValue || '') }));
+                    setOrganizationExpenseCategorySearch('');
                   }}
-                >
-                  <option value="">{language === 'uz' ? 'Tanlang' : 'Выберите'}</option>
-                  {organizationExpenseCategoryFilteredOptions.map((item) => (
-                    <option key={`expense-category-option-${item.id}`} value={item.id}>
-                      {language === 'uz'
-                        ? (item.name_uz || item.name_ru || `#${item.id}`)
-                        : (item.name_ru || item.name_uz || `#${item.id}`)}
-                    </option>
-                  ))}
-                </Form.Select>
+                  options={organizationExpenseCategoryFilteredOptions.map((item) => ({
+                    value: String(item.id),
+                    label: language === 'uz'
+                      ? (item.name_uz || item.name_ru || `#${item.id}`)
+                      : (item.name_ru || item.name_uz || `#${item.id}`)
+                  }))}
+                  placeholder={language === 'uz' ? 'Tanlang' : 'Выберите'}
+                  searchable
+                  searchValue={organizationExpenseCategorySearch}
+                  onSearchChange={setOrganizationExpenseCategorySearch}
+                  searchPlaceholder={language === 'uz' ? "Ro'yxatdan izlash..." : 'Поиск по списку...'}
+                  noDataLabel={language === 'uz' ? "Maqola topilmadi" : 'Статья не найдена'}
+                  toggleStyle={{ minHeight: '42px' }}
+                />
                 {organizationExpenseCategoryFilteredOptions.length === 0 && (
                   <div className="small text-muted mt-1">
                     {language === 'uz' ? "Maqola topilmadi" : 'Статья не найдена'}

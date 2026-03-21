@@ -9381,29 +9381,29 @@ body::-webkit-scrollbar,
 }
 
 .sa-founders-store-marker {
-    min-width: 210px;
-    max-width: 210px;
-    padding: 8px 9px;
-    border-radius: 10px;
+    min-width: 182px;
+    max-width: 182px;
+    padding: 7px 8px;
+    border-radius: 8px;
     border: 1px solid #d7e1f2;
     background: #ffffff;
     box-shadow: none;
     color: #334155;
     line-height: 1.22;
-    font-size: 11px;
+    font-size: 10px;
 }
 
 .sa-founders-store-marker-line {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
 }
 
 .sa-founders-store-marker-line.is-title {
-    margin-bottom: 4px;
+    margin-bottom: 3px;
     color: #0f172a;
-    font-size: 11.5px;
+    font-size: 10.8px;
 }
 
 .sa-founders-store-marker-line.is-meta {
@@ -9413,14 +9413,45 @@ body::-webkit-scrollbar,
 }
 
 .sa-founders-store-marker-pin {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     display: block;
     margin: -1px auto 0;
     border-radius: 2px;
     background: #ffffff;
     border: 1px solid #d7e1f2;
     transform: rotate(45deg);
+}
+
+.sa-shops-cluster-icon {
+    background: transparent !important;
+    border: 0 !important;
+}
+
+.sa-shops-cluster-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid #c6d5ef;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.88);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.sa-shops-cluster-store {
+    font-size: 12px;
+    line-height: 1;
+}
+
+.sa-shops-cluster-count {
+    line-height: 1;
+    letter-spacing: 0.01em;
 }
 
 .sa-founders-chart-title {
