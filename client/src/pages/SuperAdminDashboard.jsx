@@ -16983,40 +16983,46 @@ function SuperAdminDashboard() {
         onHide={closeGlobalProductsPasteModal}
         size="xl"
         centered
+        className="sa-global-products-paste-modal"
+        dialogClassName="sa-global-products-paste-dialog"
       >
-        <Modal.Header closeButton={!isImportingGlobalProductsExcel}>
-          <Modal.Title>
+        <Modal.Header closeButton={!isImportingGlobalProductsExcel} className="sa-global-products-paste-header">
+          <Modal.Title className="sa-global-products-modal-title h6 mb-0">
             {language === 'uz'
               ? 'Global mahsulotlar: import / paste'
               : 'Глобальные товары: импорт / вставка'}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <Alert variant="info" className="mb-3">
+        <Modal.Body className="sa-global-products-paste-body">
+          <Alert variant="info" className="sa-global-products-info-alert mb-0">
             {language === 'uz'
-              ? "Excel'dan satrlarni nusxa oling va shu oynada Ctrl+V qiling. Har bir satr = bitta товар."
+              ? "Excel'dan satrlarni nusxa oling va shu oynada Ctrl+V qiling. Har bir satr = bitta mahsulot."
               : 'Скопируйте строки из Excel и нажмите Ctrl+V в этом окне. Каждая строка = один товар.'}
           </Alert>
 
-          <div className="d-flex flex-wrap gap-2 mb-3">
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              onClick={() => setShowGlobalProductsImportTemplateModal(true)}
-            >
-              {language === 'uz' ? "Ustunlar bo'yicha yo'riqnoma" : 'Памятка по колонкам'}
-            </Button>
-            <Button
-              variant="outline-primary"
-              size="sm"
-              onClick={() => globalProductsImportInputRef.current?.click()}
-              disabled={isImportingGlobalProductsExcel}
-            >
-              {language === 'uz' ? 'Excel faylni tanlash' : 'Выбрать Excel-файл'}
-            </Button>
+          <div className="sa-global-products-paste-toolbar">
+            <div className="sa-global-products-paste-toolbar-main d-flex flex-wrap align-items-center gap-2">
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                className="sa-global-products-btn"
+                onClick={() => setShowGlobalProductsImportTemplateModal(true)}
+              >
+                {language === 'uz' ? "Ustunlar bo'yicha yo'riqnoma" : 'Памятка по колонкам'}
+              </Button>
+              <Button
+                size="sm"
+                className="btn-primary-custom sa-global-products-btn"
+                onClick={() => globalProductsImportInputRef.current?.click()}
+                disabled={isImportingGlobalProductsExcel}
+              >
+                {language === 'uz' ? 'Excel faylni tanlash' : 'Выбрать Excel-файл'}
+              </Button>
+            </div>
             <Button
               variant="outline-danger"
               size="sm"
+              className="sa-global-products-btn sa-global-products-paste-clear"
               onClick={() => {
                 setGlobalProductsPasteRows([]);
                 setGlobalProductsPasteError('');
@@ -17027,83 +17033,91 @@ function SuperAdminDashboard() {
             </Button>
           </div>
 
-          <Form.Group className="mb-3">
-            <Form.Label>{language === 'uz' ? 'Ctrl+V uchun maydon' : 'Поле для Ctrl+V'}</Form.Label>
-            <Form.Control
-              ref={globalProductsPasteInputRef}
-              as="textarea"
-              rows={4}
-              placeholder={language === 'uz'
-                ? "Excel'dan nusxa oling va shu yerga Ctrl+V qiling"
-                : 'Скопируйте данные из Excel и вставьте сюда через Ctrl+V'}
-              onPaste={handleGlobalProductsPaste}
-            />
-          </Form.Group>
+          <section className="sa-global-products-paste-input-section">
+            <Form.Group className="mb-0">
+              <Form.Label className="sa-global-products-field-label">
+                {language === 'uz' ? 'Ctrl+V uchun maydon' : 'Поле для Ctrl+V'}
+              </Form.Label>
+              <Form.Control
+                ref={globalProductsPasteInputRef}
+                as="textarea"
+                rows={4}
+                className="sa-global-products-paste-textarea"
+                placeholder={language === 'uz'
+                  ? "Excel'dan nusxa oling va shu yerga Ctrl+V qiling"
+                  : 'Скопируйте данные из Excel и вставьте сюда через Ctrl+V'}
+                onPaste={handleGlobalProductsPaste}
+              />
+            </Form.Group>
+          </section>
 
           {globalProductsPasteError && (
-            <Alert variant="warning" className="mb-3">
+            <Alert variant="warning" className="sa-global-products-info-alert">
               {globalProductsPasteError}
             </Alert>
           )}
 
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <strong>
-              {language === 'uz' ? 'Aniqlangan satrlar:' : 'Распознано строк:'}{' '}
-              {globalProductsPasteRows.length}
-            </strong>
-          </div>
+          <section className="sa-global-products-paste-preview">
+            <div className="sa-global-products-paste-preview-head">
+              <span className="sa-global-products-paste-preview-label">
+                {language === 'uz' ? 'Aniqlangan satrlar' : 'Распознано строк'}
+              </span>
+              <span className="sa-global-products-paste-preview-count">{globalProductsPasteRows.length}</span>
+            </div>
 
-          <div className="table-responsive" style={{ maxHeight: '45vh', overflow: 'auto' }}>
-            <Table bordered hover size="sm" className="mb-0">
-              <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                <tr>
-                  <th style={{ minWidth: 70 }}>№</th>
-                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
-                  <th style={{ minWidth: 220 }}>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
-                  <th style={{ minWidth: 260 }}>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</th>
-                  <th style={{ minWidth: 180 }}>{language === 'uz' ? 'Shtrixkod' : 'Штрихкод'}</th>
-                  <th style={{ minWidth: 160 }}>{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
-                  <th style={{ minWidth: 120 }}>{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
-                  <th style={{ minWidth: 180 }}>{language === 'uz' ? 'Категория ID' : 'Категория ID'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {globalProductsPasteRows.length === 0 ? (
+            <div className="sa-global-products-paste-table-wrap admin-thin-scrollbar">
+              <Table bordered hover size="sm" className="mb-0 sa-global-products-paste-table">
+                <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                   <tr>
-                    <td colSpan={8} className="text-center text-muted py-4">
-                      {language === 'uz'
-                        ? "Hali ma'lumot kiritilmadi"
-                        : 'Пока нет вставленных данных'}
-                    </td>
+                    <th style={{ minWidth: 48 }}>№</th>
+                    <th style={{ minWidth: 160 }}>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</th>
+                    <th style={{ minWidth: 160 }}>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</th>
+                    <th style={{ minWidth: 200 }}>{language === 'uz' ? 'Tavsif (RU)' : 'Описание (RU)'}</th>
+                    <th style={{ minWidth: 120 }}>{language === 'uz' ? 'Shtrixkod' : 'Штрихкод'}</th>
+                    <th style={{ minWidth: 110 }}>{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
+                    <th style={{ minWidth: 88 }}>{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
+                    <th style={{ minWidth: 120 }}>{language === 'uz' ? 'Kategoriya ID' : 'Категория ID'}</th>
                   </tr>
-                ) : (
-                  globalProductsPasteRows.map((row) => (
-                    <tr key={`global-products-paste-row-${row.row_no}`}>
-                      <td>{row.row_no}</td>
-                      <td>{row.name_ru || '—'}</td>
-                      <td>{row.name_uz || '—'}</td>
-                      <td>{row.description_ru || '—'}</td>
-                      <td>{row.barcode || '—'}</td>
-                      <td>{row.ikpu || '—'}</td>
-                      <td>{row.unit || 'шт'}</td>
-                      <td>{row.category_id_raw || '—'}</td>
+                </thead>
+                <tbody>
+                  {globalProductsPasteRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center text-muted sa-global-products-paste-empty">
+                        {language === 'uz'
+                          ? "Hali ma'lumot kiritilmadi"
+                          : 'Пока нет вставленных данных'}
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </Table>
-          </div>
+                  ) : (
+                    globalProductsPasteRows.map((row) => (
+                      <tr key={`global-products-paste-row-${row.row_no}`}>
+                        <td>{row.row_no}</td>
+                        <td>{row.name_ru || '—'}</td>
+                        <td>{row.name_uz || '—'}</td>
+                        <td>{row.description_ru || '—'}</td>
+                        <td>{row.barcode || '—'}</td>
+                        <td>{row.ikpu || '—'}</td>
+                        <td>{row.unit || 'шт'}</td>
+                        <td>{row.category_id_raw || '—'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </div>
+          </section>
         </Modal.Body>
-        <Modal.Footer>
+        <Modal.Footer className="sa-global-products-modal-footer d-flex flex-wrap gap-2 justify-content-end">
           <Button
-            variant="secondary"
+            variant="outline-secondary"
+            className="sa-global-products-btn"
             onClick={closeGlobalProductsPasteModal}
             disabled={isImportingGlobalProductsExcel}
           >
             {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
           </Button>
           <Button
-            className="btn-primary-custom"
+            className="btn-primary-custom sa-global-products-btn"
             onClick={continueGlobalProductsPasteToReview}
             disabled={isImportingGlobalProductsExcel || globalProductsPasteRows.length === 0}
           >
@@ -17117,46 +17131,47 @@ function SuperAdminDashboard() {
       <Modal
         show={showGlobalProductsImportTemplateModal}
         onHide={() => setShowGlobalProductsImportTemplateModal(false)}
-        size="lg"
+        size="xl"
         centered
+        className="sa-global-products-template-modal"
+        dialogClassName="sa-global-products-template-dialog"
       >
-        <Modal.Header closeButton>
-          <Modal.Title>
+        <Modal.Header closeButton className="sa-global-products-template-header">
+          <Modal.Title className="sa-global-products-modal-title h6 mb-0">
             {language === 'uz'
               ? "Global mahsulotlar importi: ustunlar shabloni"
               : 'Импорт глобальных товаров: структура колонок'}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
-          <Alert variant="info" className="mb-3">
-            {language === 'uz'
-              ? "Kategoriya uchun ustunlar ustuvorligi: avval ID, keyin yo'l, undan keyin nom."
-              : 'Для категории приоритет такой: сначала ID, затем путь, затем название.'}
+        <Modal.Body className="sa-global-products-template-body">
+          <Alert variant="info" className="sa-global-products-info-alert mb-0 d-flex gap-2 align-items-start">
+            <span className="sa-global-products-info-icon" aria-hidden>ⓘ</span>
+            <span>
+              {language === 'uz'
+                ? "Kategoriya uchun ustunlar ustuvorligi: avval ID, keyin yo'l, undan keyin nom."
+                : 'Для категории приоритет такой: сначала ID, затем путь, затем название.'}
+            </span>
           </Alert>
-          <div className="table-responsive">
-            <Table bordered hover size="sm" className="mb-0">
+          <div className="sa-global-products-template-table-wrap admin-thin-scrollbar">
+            <Table bordered hover size="sm" className="mb-0 sa-global-products-template-table">
               <thead className="table-light">
                 <tr>
-                  <th style={{ width: 60 }}>№</th>
-                  <th style={{ minWidth: 230 }}>
-                    {language === 'uz' ? 'Ustun nomi' : 'Название столбца'}
-                  </th>
-                  <th style={{ minWidth: 320 }}>
-                    {language === 'uz' ? "Nimani to'ldirish" : 'Что заполнять'}
-                  </th>
-                  <th style={{ width: 120 }}>
+                  <th style={{ width: 52 }}>№</th>
+                  <th>{language === 'uz' ? 'Ustun nomi' : 'Название столбца'}</th>
+                  <th>{language === 'uz' ? "Nimani to'ldirish" : 'Что заполнять'}</th>
+                  <th style={{ width: 112 }}>
                     {language === 'uz' ? 'Majburiy' : 'Обязательно'}
                   </th>
-                  <th style={{ minWidth: 180 }}>
-                    {language === 'uz' ? 'Misol' : 'Пример'}
-                  </th>
+                  <th style={{ minWidth: 140 }}>{language === 'uz' ? 'Misol' : 'Пример'}</th>
                 </tr>
               </thead>
               <tbody>
                 {globalProductsImportTemplateColumns.map((item) => (
                   <tr key={`global-import-template-col-${item.index}`}>
                     <td>{item.index}</td>
-                    <td><code>{item.header}</code></td>
+                    <td>
+                      <span className="sa-global-template-col-name">{item.header}</span>
+                    </td>
                     <td>{item.description}</td>
                     <td>{item.required ? (language === 'uz' ? 'Ha' : 'Да') : (language === 'uz' ? "Yo'q" : 'Нет')}</td>
                     <td>{item.sample || '—'}</td>
@@ -17166,11 +17181,15 @@ function SuperAdminDashboard() {
             </Table>
           </div>
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowGlobalProductsImportTemplateModal(false)}>
+        <Modal.Footer className="sa-global-products-modal-footer d-flex flex-wrap gap-2 justify-content-end">
+          <Button
+            variant="outline-secondary"
+            className="sa-global-products-btn"
+            onClick={() => setShowGlobalProductsImportTemplateModal(false)}
+          >
             {language === 'uz' ? 'Yopish' : 'Закрыть'}
           </Button>
-          <Button className="btn-primary-custom" onClick={handleDownloadGlobalProductsImportTemplate}>
+          <Button className="btn-primary-custom sa-global-products-btn" onClick={handleDownloadGlobalProductsImportTemplate}>
             {language === 'uz' ? 'Excel shablonni yuklab olish' : 'Скачать Excel-шаблон'}
           </Button>
         </Modal.Footer>
