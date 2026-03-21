@@ -18,6 +18,8 @@ import {
   Cell,
   LabelList
 } from 'recharts';
+import ReactECharts from 'echarts-for-react';
+import * as echarts from 'echarts';
 import {
   Container, Row, Col, Card, Table, Button, Form, Modal,
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
@@ -8111,11 +8113,148 @@ function SuperAdminDashboard() {
         color: '#6366f1'
       }
     ];
-    const donutTotal = donutSegments.reduce((sum, item) => sum + Number(item.value || 0), 0);
-    const donutRadius = 58;
-    const donutStroke = 18;
-    const donutCircumference = 2 * Math.PI * donutRadius;
-    let donutProgress = 0;
+    const formatAnalyticsTooltipTitle = (value) => String(value ?? '');
+    const revenueChartOption = {
+      color: ['#6366f1'],
+      grid: { top: 20, right: 10, left: 10, bottom: 22, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#0f172a',
+        borderWidth: 0,
+        textStyle: { color: '#e2e8f0' },
+        axisPointer: { type: 'line', lineStyle: { color: '#6366f1', width: 1 } },
+        formatter: (params) => {
+          const point = Array.isArray(params) ? params[0] : params;
+          const label = formatAnalyticsTooltipTitle(point?.axisValueLabel ?? point?.axisValue);
+          const value = Number(point?.data ?? 0);
+          return `${label}<br/>${language === 'uz' ? 'Moliya' : 'Финансы'}: <strong>${formatAnalyticsMoney(value)} ${t('sum')}</strong>`;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: normalizedRevenueTimeline.map((item) => item.label),
+        axisLine: { lineStyle: { color: '#cbd5e1' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#64748b', fontSize: 10 }
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { color: '#e2e8f0' } },
+        axisLabel: { color: '#64748b', fontSize: 10, formatter: (value) => formatAnalyticsAxisValue(value, 'currency') }
+      },
+      series: [
+        {
+          type: 'line',
+          smooth: 0.35,
+          showSymbol: true,
+          symbolSize: 5,
+          data: normalizedRevenueTimeline.map((item) => Number(item.value || 0)),
+          lineStyle: { width: 2.5 },
+          itemStyle: { color: '#6366f1' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(99,102,241,0.28)' },
+              { offset: 1, color: 'rgba(99,102,241,0.02)' }
+            ])
+          }
+        }
+      ]
+    };
+    const ordersChartOption = {
+      color: ['#f43f5e'],
+      grid: { top: 20, right: 10, left: 10, bottom: 22, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#0f172a',
+        borderWidth: 0,
+        textStyle: { color: '#e2e8f0' },
+        axisPointer: { type: 'line', lineStyle: { color: '#f43f5e', width: 1 } },
+        formatter: (params) => {
+          const point = Array.isArray(params) ? params[0] : params;
+          const label = formatAnalyticsTooltipTitle(point?.axisValueLabel ?? point?.axisValue);
+          const value = Number(point?.data ?? 0);
+          return `${label}<br/>${language === 'uz' ? 'Buyurtmalar' : 'Заказы'}: <strong>${Math.round(value).toLocaleString('ru-RU')}</strong>`;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: normalizedOrdersTimeline.map((item) => item.label),
+        axisLine: { lineStyle: { color: '#cbd5e1' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#64748b', fontSize: 10 }
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        splitLine: { lineStyle: { color: '#e2e8f0' } },
+        axisLabel: { color: '#64748b', fontSize: 10, formatter: (value) => formatAnalyticsAxisValue(value, 'count') }
+      },
+      series: [
+        {
+          type: 'line',
+          smooth: 0.28,
+          showSymbol: true,
+          symbolSize: 5,
+          data: normalizedOrdersTimeline.map((item) => Number(item.value || 0)),
+          lineStyle: { width: 2.5 },
+          itemStyle: { color: '#f43f5e' },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(244,63,94,0.24)' },
+              { offset: 1, color: 'rgba(244,63,94,0.02)' }
+            ])
+          }
+        }
+      ]
+    };
+    const funnelChartOption = {
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: '#0f172a',
+        borderWidth: 0,
+        textStyle: { color: '#e2e8f0' },
+        formatter: ({ name, value, percent }) => `${name}<br/><strong>${Number(value || 0).toLocaleString('ru-RU')}</strong> (${Number(percent || 0).toFixed(1)}%)`
+      },
+      legend: { show: false },
+      series: [
+        {
+          type: 'pie',
+          radius: ['57%', '78%'],
+          center: ['50%', '48%'],
+          avoidLabelOverlap: true,
+          itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
+          label: { show: false },
+          emphasis: { scale: true, scaleSize: 5 },
+          data: donutSegments.map((segment) => ({
+            name: segment.label,
+            value: Number(segment.value || 0),
+            itemStyle: { color: segment.color }
+          }))
+        }
+      ],
+      graphic: [
+        {
+          type: 'text',
+          left: 'center',
+          top: '41%',
+          style: { text: '/start', fill: '#64748b', fontSize: 11, fontWeight: 500 }
+        },
+        {
+          type: 'text',
+          left: 'center',
+          top: '49%',
+          style: { text: startedUsers.toLocaleString('ru-RU'), fill: '#0f172a', fontSize: 24, fontWeight: 700 }
+        },
+        {
+          type: 'text',
+          left: 'center',
+          top: '62%',
+          style: { text: `-> ${Number(funnel.conversionStartToOrder || 0).toFixed(1)}%`, fill: '#64748b', fontSize: 10 }
+        }
+      ]
+    };
 
     return (
       <div className="admin-analytics-layout">
@@ -8713,14 +8852,12 @@ function SuperAdminDashboard() {
                               : (language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам')}
                         </small>
                       </div>
-                      {renderOverviewSvgChart({
-                        data: normalizedRevenueTimeline,
-                        color: '#6366f1',
-                        gradientId: `sa-analytics-revenue-${overviewAnalyticsPeriod}`,
-                        mode: 'currency',
-                        showAllLabels: true,
-                        showPointValues: true
-                      })}
+                      <ReactECharts
+                        option={revenueChartOption}
+                        notMerge
+                        lazyUpdate
+                        style={{ width: '100%', height: 240 }}
+                      />
                     </div>
 
                     <div className="admin-analytics-chart-box admin-analytics-chart-box-secondary">
@@ -8734,14 +8871,12 @@ function SuperAdminDashboard() {
                               : (language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам')}
                         </small>
                       </div>
-                      {renderOverviewSvgChart({
-                        data: normalizedOrdersTimeline,
-                        color: '#f43f5e',
-                        gradientId: `sa-analytics-orders-${overviewAnalyticsPeriod}`,
-                        mode: 'count',
-                        showAllLabels: true,
-                        showPointValues: true
-                      })}
+                      <ReactECharts
+                        option={ordersChartOption}
+                        notMerge
+                        lazyUpdate
+                        style={{ width: '100%', height: 240 }}
+                      />
                     </div>
                   </Card.Body>
                 </Card>
@@ -8759,50 +8894,12 @@ function SuperAdminDashboard() {
                   <Card.Body>
                     <div className="admin-funnel-donut-wrap">
                       <div className="admin-funnel-donut-chart">
-                        <svg viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="Funnel donut chart">
-                          <circle
-                            cx="90"
-                            cy="90"
-                            r={donutRadius}
-                            fill="none"
-                            stroke="#e2e8f0"
-                            strokeWidth={donutStroke}
-                          />
-                          {donutTotal > 0 ? donutSegments.map((segment) => {
-                            const value = Number(segment.value || 0);
-                            if (value <= 0) return null;
-                            const ratio = value / donutTotal;
-                            const strokeLength = ratio * donutCircumference;
-                            const strokeDasharray = `${strokeLength} ${donutCircumference}`;
-                            const strokeDashoffset = -donutProgress * donutCircumference;
-                            donutProgress += ratio;
-                            return (
-                              <circle
-                                key={`funnel-donut-${segment.key}`}
-                                cx="90"
-                                cy="90"
-                                r={donutRadius}
-                                fill="none"
-                                stroke={segment.color}
-                                strokeWidth={donutStroke}
-                                strokeDasharray={strokeDasharray}
-                                strokeDashoffset={strokeDashoffset}
-                                strokeLinecap="butt"
-                                transform="rotate(-90 90 90)"
-                              />
-                            );
-                          }) : null}
-                          <circle cx="90" cy="90" r="42" fill="#ffffff" />
-                          <text x="90" y="84" textAnchor="middle" fontSize="11" fill="#64748b">
-                            /start
-                          </text>
-                          <text x="90" y="104" textAnchor="middle" fontSize="24" fontWeight="700" fill="#0f172a">
-                            {startedUsers.toLocaleString('ru-RU')}
-                          </text>
-                          <text x="90" y="122" textAnchor="middle" fontSize="10" fill="#64748b">
-                            {`-> ${Number(funnel.conversionStartToOrder || 0).toFixed(1)}%`}
-                          </text>
-                        </svg>
+                        <ReactECharts
+                          option={funnelChartOption}
+                          notMerge
+                          lazyUpdate
+                          style={{ width: 220, height: 220 }}
+                        />
                       </div>
                       <div className="admin-funnel-donut-legend">
                         {donutSegments.map((segment) => (

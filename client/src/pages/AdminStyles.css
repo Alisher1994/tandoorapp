@@ -3579,7 +3579,7 @@ body::-webkit-scrollbar,
 
 .admin-analytics-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 12px;
 }
 
@@ -3589,6 +3589,7 @@ body::-webkit-scrollbar,
     border-radius: 16px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
     padding: 14px;
+    min-width: 0;
 }
 
 .admin-analytics-kpi-header {
@@ -3601,17 +3602,22 @@ body::-webkit-scrollbar,
 }
 
 .admin-analytics-kpi-value {
-    font-size: clamp(1.25rem, 1.9vw, 1.55rem);
-    font-weight: 800;
+    font-size: clamp(1rem, 1.35vw, 1.25rem);
+    font-weight: 500;
     line-height: 1.1;
     color: #111827;
     margin-bottom: 8px;
 }
 
 .admin-analytics-kpi-value span {
-    font-size: 0.52em;
-    font-weight: 700;
+    font-size: 0.56em;
+    font-weight: 500;
     color: #64748b;
+}
+
+.admin-analytics-kpi-card .admin-analytics-card-title {
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .admin-analytics-kpi-list {
@@ -3627,7 +3633,7 @@ body::-webkit-scrollbar,
     gap: 8px;
     padding-top: 5px;
     border-top: 1px dashed #e2e8f0;
-    font-size: 11px;
+    font-size: 10px;
 }
 
 .admin-analytics-kpi-row:first-child {
@@ -3637,12 +3643,12 @@ body::-webkit-scrollbar,
 
 .admin-analytics-kpi-row span {
     color: #6b7280;
-    font-weight: 500;
+    font-weight: 400;
 }
 
 .admin-analytics-kpi-row strong {
     color: #111827;
-    font-weight: 700;
+    font-weight: 500;
     text-align: right;
 }
 
