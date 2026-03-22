@@ -6410,6 +6410,28 @@ body::-webkit-scrollbar,
     box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.12);
 }
 
+.sa-inline-action-field {
+    position: relative;
+}
+
+.sa-inline-action-input {
+    padding-right: 44px !important;
+}
+
+.sa-inline-action-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    z-index: 2;
+    color: var(--primary-color) !important;
+}
+
+.sa-inline-action-btn:hover,
+.sa-inline-action-btn:focus-visible {
+    color: var(--primary-hover) !important;
+}
+
 /* Badges */
 .badge-custom {
     padding: 0.5em 0.8em;

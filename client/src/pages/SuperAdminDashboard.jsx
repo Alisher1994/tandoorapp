@@ -42,6 +42,7 @@ import {
   PieChart,
   Puzzle,
   Receipt,
+  Send,
   Shield,
   Store,
   Trash2,
@@ -15563,36 +15564,36 @@ function SuperAdminDashboard() {
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
                               Telegram ID владельца суперадминки
                             </Form.Label>
-                            <Form.Control
-                              type="text"
-                              className="form-control-custom"
-                              placeholder="например: 123456789"
-                              value={billingSettings.superadmin_telegram_id || ''}
-                              onChange={e => setBillingSettings({ ...billingSettings, superadmin_telegram_id: e.target.value })}
-                            />
+                            <div className="sa-inline-action-field">
+                              <Form.Control
+                                type="text"
+                                className="form-control-custom sa-inline-action-input"
+                                placeholder="например: 123456789"
+                                value={billingSettings.superadmin_telegram_id || ''}
+                                onChange={e => setBillingSettings({ ...billingSettings, superadmin_telegram_id: e.target.value })}
+                              />
+                              <Button
+                                type="button"
+                                variant="light"
+                                className="action-btn sa-inline-action-btn"
+                                onClick={testCentralBot}
+                                disabled={isTestingCentralBot || !billingSettings.superadmin_bot_token || !billingSettings.superadmin_telegram_id}
+                                title={language === 'uz' ? 'Telegram ID ni tekshirish' : 'Проверить Telegram ID'}
+                              >
+                                {isTestingCentralBot ? (
+                                  <Spinner animation="border" size="sm" />
+                                ) : (
+                                  <Send className="action-btn-icon" aria-hidden="true" />
+                                )}
+                              </Button>
+                            </div>
                             <Form.Text className="text-muted small">
                               На этот ID отправляется подтверждение при смене токена центрального бота.
                             </Form.Text>
-                          </Form.Group>
-
-                          <div className="mb-4">
-                            <Button
-                              type="button"
-                              className="btn-primary-custom px-3"
-                              onClick={testCentralBot}
-                              disabled={isTestingCentralBot || !billingSettings.superadmin_bot_token || !billingSettings.superadmin_telegram_id}
-                            >
-                              {isTestingCentralBot ? (
-                                <>
-                                  <Spinner animation="border" size="sm" className="me-2" />
-                                  Проверка...
-                                </>
-                              ) : 'Проверить'}
-                            </Button>
                             <div className="text-muted small mt-2">
                               Отправит тестовый текст "Бот работает" на указанный Telegram ID.
                             </div>
-                          </div>
+                          </Form.Group>
 
                           <hr className="my-4" />
 
