@@ -335,27 +335,32 @@ function Catalog() {
   };
   const scrollActiveTabIntoView = (tabId, behavior = 'smooth') => {
     if (!tabId) return;
-    const tabsScroller = level3TabsScrollerRef.current;
-    const activeTabButton = level3TabButtonRefs.current[tabId];
-    if (!tabsScroller || !activeTabButton) return;
+    const scroller = level3TabsScrollerRef.current;
+    const btn = level3TabButtonRefs.current[tabId];
+    if (!scroller || !btn) return;
 
+    const scRect = scroller.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    if (btnRect.width < 1 && btnRect.height < 1) return;
+
+    // offsetLeft breaks under flex + transformed ancestors (iOS / Telegram); use viewport deltas.
     const gutter = 12;
-    const viewStart = tabsScroller.scrollLeft;
-    const viewEnd = viewStart + tabsScroller.clientWidth;
-    const tabStart = activeTabButton.offsetLeft - gutter;
-    const tabEnd = activeTabButton.offsetLeft + activeTabButton.offsetWidth + gutter;
-    let targetLeft = viewStart;
+    const tabContentLeft = scroller.scrollLeft + (btnRect.left - scRect.left);
+    const tabContentRight = tabContentLeft + btnRect.width;
+    const viewStart = scroller.scrollLeft;
+    const viewEnd = viewStart + scroller.clientWidth;
 
-    if (tabStart < viewStart) {
-      targetLeft = tabStart;
-    } else if (tabEnd > viewEnd) {
-      targetLeft = tabEnd - tabsScroller.clientWidth;
+    let targetLeft = viewStart;
+    if (tabContentLeft < viewStart + gutter) {
+      targetLeft = tabContentLeft - gutter;
+    } else if (tabContentRight > viewEnd - gutter) {
+      targetLeft = tabContentRight - scroller.clientWidth + gutter;
     }
 
-    const maxScrollLeft = Math.max(0, tabsScroller.scrollWidth - tabsScroller.clientWidth);
+    const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
     targetLeft = Math.min(maxScrollLeft, Math.max(0, targetLeft));
-    if (Math.abs(tabsScroller.scrollLeft - targetLeft) < 1) return;
-    tabsScroller.scrollTo({
+    if (Math.abs(scroller.scrollLeft - targetLeft) < 1) return;
+    scroller.scrollTo({
       left: targetLeft,
       behavior: behavior === 'smooth' ? 'smooth' : 'auto'
     });
@@ -1686,7 +1691,7 @@ function Catalog() {
 
   useEffect(() => {
     level3TabButtonRefs.current = {};
-  }, [selectedCategory, activeCatalogTabs, isSingleListMode]);
+  }, [selectedCategory, isSingleListMode]);
 
   useEffect(() => {
     productGroupRefs.current = {};
@@ -1711,7 +1716,7 @@ function Catalog() {
     }
   }, [activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!activeSubcategoryTab) return;
     const activationSource = tabActivationSourceRef.current;
     const behavior = activationSource === 'click' ? 'smooth' : 'auto';
@@ -3305,30 +3310,28 @@ function Catalog() {
             </div>
           </div>
         </div>
-        {!shouldShowCatalogTabs && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 2,
+            background: 'transparent',
+            pointerEvents: 'none'
+          }}
+        >
           <div
-            aria-hidden="true"
             style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 2,
-              background: 'transparent',
-              pointerEvents: 'none'
+              width: `${Math.round(catalogScrollProgress * 100)}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
+              boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
+              transition: 'width 0.12s linear'
             }}
-          >
-            <div
-              style={{
-                width: `${Math.round(catalogScrollProgress * 100)}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
-                boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
-                transition: 'width 0.12s linear'
-              }}
-            />
-          </div>
-        )}
+          />
+        </div>
       </Navbar>
 
       {renderCatalogSeasonOverlay()}
