@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, FeatureGroup, useMap } from 'react-leaflet';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { FeatureGroup, MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
@@ -58,9 +58,87 @@ const normalizeCenter = (center) => {
   return [lat, lng];
 };
 
+const zonesAreEqual = (first, second) => {
+  const firstZone = Array.isArray(first) ? first : [];
+  const secondZone = Array.isArray(second) ? second : [];
+  if (firstZone.length !== secondZone.length) return false;
+
+  for (let index = 0; index < firstZone.length; index += 1) {
+    const [firstLat, firstLng] = firstZone[index] || [];
+    const [secondLat, secondLng] = secondZone[index] || [];
+    if (!isFiniteNumber(firstLat) || !isFiniteNumber(firstLng) || !isFiniteNumber(secondLat) || !isFiniteNumber(secondLng)) {
+      return false;
+    }
+    if (Math.abs(Number(firstLat) - Number(secondLat)) > 1e-9) return false;
+    if (Math.abs(Number(firstLng) - Number(secondLng)) > 1e-9) return false;
+  }
+
+  return true;
+};
+
+const extractCoords = (layer) => (
+  layer
+    ?.getLatLngs()?.[0]
+    ?.map((latlng) => [latlng.lat, latlng.lng])
+    ?.filter((point) => isFiniteNumber(point[0]) && isFiniteNumber(point[1])) || []
+);
+
+const createPolygonLayer = (zone) => L.polygon(zone, {
+  color: '#28a745',
+  fillColor: '#28a745',
+  fillOpacity: 0.22,
+  weight: 3
+});
+
 function DrawLayer({ zone, onZoneChange }) {
   const map = useMap();
   const featureGroupRef = useRef(null);
+  const activeLayerRef = useRef(null);
+  const cleanupLayerListenersRef = useRef(() => {});
+  const onZoneChangeRef = useRef(onZoneChange);
+
+  useEffect(() => {
+    onZoneChangeRef.current = onZoneChange;
+  }, [onZoneChange]);
+
+  const emitZone = useCallback((coords) => {
+    const normalized = Array.isArray(coords) && coords.length >= 3 ? coords : null;
+    if (typeof onZoneChangeRef.current === 'function') {
+      onZoneChangeRef.current(normalized);
+    }
+  }, []);
+
+  const setActiveLayer = useCallback((nextLayer) => {
+    const featureGroup = featureGroupRef.current;
+    if (!featureGroup) return;
+
+    cleanupLayerListenersRef.current();
+    cleanupLayerListenersRef.current = () => {};
+
+    featureGroup.clearLayers();
+    activeLayerRef.current = null;
+
+    if (!nextLayer) return;
+
+    featureGroup.addLayer(nextLayer);
+    activeLayerRef.current = nextLayer;
+
+    const handleDirectEdit = () => {
+      emitZone(extractCoords(nextLayer));
+    };
+
+    nextLayer.on('edit', handleDirectEdit);
+    if (typeof nextLayer.editing?.enable === 'function') {
+      nextLayer.editing.enable();
+    }
+
+    cleanupLayerListenersRef.current = () => {
+      nextLayer.off('edit', handleDirectEdit);
+      if (typeof nextLayer.editing?.disable === 'function') {
+        nextLayer.editing.disable();
+      }
+    };
+  }, [emitZone]);
 
   useEffect(() => {
     if (!map || !featureGroupRef.current) return undefined;
@@ -91,34 +169,26 @@ function DrawLayer({ zone, onZoneChange }) {
       }
     });
 
-    const extractCoords = (layer) => (
-      layer
-        .getLatLngs()?.[0]
-        ?.map((latlng) => [latlng.lat, latlng.lng])
-        ?.filter((point) => isFiniteNumber(point[0]) && isFiniteNumber(point[1])) || []
-    );
-
-    const handleCreated = (e) => {
-      if (!e.layer) return;
-      featureGroup.clearLayers();
-      featureGroup.addLayer(e.layer);
-      const coords = extractCoords(e.layer);
-      onZoneChange(coords.length >= 3 ? coords : null);
+    const handleCreated = (event) => {
+      if (!event.layer) return;
+      setActiveLayer(event.layer);
+      emitZone(extractCoords(event.layer));
     };
 
-    const handleEdited = (e) => {
+    const handleEdited = (event) => {
       let nextZone = null;
-      e.layers.eachLayer((layer) => {
+      event.layers.eachLayer((layer) => {
         const coords = extractCoords(layer);
         if (coords.length >= 3) {
           nextZone = coords;
         }
       });
-      onZoneChange(nextZone);
+      emitZone(nextZone);
     };
 
     const handleDeleted = () => {
-      onZoneChange(null);
+      setActiveLayer(null);
+      emitZone(null);
     };
 
     map.addControl(drawControl);
@@ -130,19 +200,27 @@ function DrawLayer({ zone, onZoneChange }) {
       map.off(L.Draw.Event.CREATED, handleCreated);
       map.off(L.Draw.Event.EDITED, handleEdited);
       map.off(L.Draw.Event.DELETED, handleDeleted);
+      cleanupLayerListenersRef.current();
+      cleanupLayerListenersRef.current = () => {};
       map.removeControl(drawControl);
     };
-  }, [map, onZoneChange]);
+  }, [map, emitZone, setActiveLayer]);
 
   useEffect(() => {
     if (!featureGroupRef.current) return;
-    const featureGroup = featureGroupRef.current;
-    featureGroup.clearLayers();
 
-    if (zone && zone.length >= 3) {
-      featureGroup.addLayer(L.polygon(zone, { color: '#28a745' }));
+    const currentZone = extractCoords(activeLayerRef.current);
+
+    if (!zone || zone.length < 3) {
+      if (activeLayerRef.current) {
+        setActiveLayer(null);
+      }
+      return;
     }
-  }, [zone]);
+
+    if (zonesAreEqual(zone, currentZone)) return;
+    setActiveLayer(createPolygonLayer(zone));
+  }, [zone, setActiveLayer]);
 
   return <FeatureGroup ref={featureGroupRef} />;
 }
@@ -203,7 +281,7 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
         <DrawLayer zone={zone} onZoneChange={onZoneChange} />
       </MapContainer>
       <div className="mt-2 text-center">
-        <small className="text-muted">📍 Нажмите на иконку многоугольника справа и нарисуйте зону доставки</small>
+        <small className="text-muted">📍 Точки зоны можно перетаскивать мышкой сразу после создания</small>
       </div>
     </div>
   );

@@ -18439,7 +18439,7 @@ function SuperAdminDashboard() {
           <Suspense fallback={<ListSkeleton count={4} label="Загрузка карты зоны доставки" />}>
             <DeliveryZoneMap
               zone={restaurantForm.delivery_zone}
-              onZoneChange={(zone) => setRestaurantForm({ ...restaurantForm, delivery_zone: zone })}
+              onZoneChange={(zone) => setRestaurantForm((prev) => ({ ...prev, delivery_zone: zone }))}
               height="500px"
               editable={true}
             />
@@ -18450,6 +18450,7 @@ function SuperAdminDashboard() {
               <li>Нажмите на иконку многоугольника (⬠) справа на карте</li>
               <li>Кликайте по карте, чтобы отметить точки границы зоны доставки</li>
               <li>Завершите многоугольник, кликнув на первую точку</li>
+              <li>При необходимости перетащите вершины мышкой, чтобы поправить контур</li>
               <li>Закройте окно — зона сохранится</li>
             </ol>
           </Alert>

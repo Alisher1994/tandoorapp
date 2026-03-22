@@ -14899,7 +14899,7 @@ function AdminDashboard() {
               <label className="small fw-bold text-muted text-uppercase mb-2 d-block">Рисование области доставки</label>
               <DeliveryZonePicker
                 deliveryZone={restaurantSettings?.delivery_zone}
-                onZoneChange={(zone) => setRestaurantSettings({ ...restaurantSettings, delivery_zone: zone })}
+                onZoneChange={(zone) => setRestaurantSettings((prev) => (prev ? { ...prev, delivery_zone: zone } : prev))}
                 center={[restaurantSettings?.latitude || 41.311081, restaurantSettings?.longitude || 69.240562]}
               />
             </div>
@@ -14910,6 +14910,7 @@ function AdminDashboard() {
                 <li>Нажмите на иконку многоугольника (⬠) справа на карте</li>
                 <li>Кликайте по карте, чтобы отметить точки границы зоны доставки</li>
                 <li>Завершите многоугольник, кликнув на первую точку</li>
+                <li>При необходимости перетащите точки мышкой, чтобы подправить контур</li>
                 <li>Нажмите кнопку "Готово", чтобы сохранить изменения</li>
               </ol>
             </Alert>
