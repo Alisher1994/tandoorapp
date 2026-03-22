@@ -164,14 +164,30 @@ export function CartProvider({ children }) {
       const existingItem = prevCart.find((item) => isSameProductInRestaurant(item, product.id, productRestaurantId, selectedVariant));
       
       if (existingItem) {
+        const nextQuantity = normalizeQuantity(existingItem.quantity + safeQty, safeQty);
+        const nextContainerNorm = normalizeContainerNorm(
+          product?.container_norm ?? existingItem?.container_norm,
+          1
+        );
+        const nextContainerPrice = parsePriceValue(
+          product?.container_price ?? existingItem?.container_price
+        );
+        const nextContainerName = String(
+          product?.container_name ?? existingItem?.container_name ?? ''
+        ).trim() || null;
         return prevCart.map((item) =>
           isSameProductInRestaurant(item, product.id, productRestaurantId, selectedVariant)
-            ? {
+            ? normalizeCartItem({
               ...item,
+              ...product,
+              restaurant_id: productRestaurantId,
               order_step: productOrderStep,
               selected_variant: selectedVariant,
-              quantity: normalizeQuantity(item.quantity + safeQty, safeQty)
-            }
+              quantity: nextQuantity,
+              container_name: nextContainerName,
+              container_price: nextContainerPrice,
+              container_norm: nextContainerNorm
+            })
             : item
         );
       }

@@ -24,6 +24,12 @@ const normalizeContainerNorm = (value, fallback = 1) => {
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
+const toNumeric = (value, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const normalized = String(value).replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 const normalizeFulfillmentType = (value, fallback = 'delivery') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'pickup' ? 'pickup' : fallback;
@@ -499,6 +505,84 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
+    const productIds = [...new Set(
+      items
+        .map((item) => Number.parseInt(item?.product_id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )];
+
+    const productContainerMap = new Map();
+    if (productIds.length > 0) {
+      const productContainerResult = await client.query(
+        `SELECT
+           p.id AS product_id,
+           COALESCE(NULLIF(cnt.name, ''), '') AS container_name,
+           COALESCE(cnt.price, 0) AS container_price,
+           COALESCE(NULLIF(p.container_norm, 0), 1) AS container_norm,
+           COALESCE(NULLIF(p.name_ru, ''), NULLIF(p.name_uz, ''), '') AS product_name
+         FROM products p
+         LEFT JOIN containers cnt ON cnt.id = p.container_id
+         WHERE p.id = ANY($1::int[])`,
+        [productIds]
+      );
+
+      for (const row of productContainerResult.rows) {
+        productContainerMap.set(Number(row.product_id), {
+          product_name: String(row.product_name || '').trim(),
+          container_name: String(row.container_name || '').trim(),
+          container_price: Math.max(0, toNumeric(row.container_price, 0)),
+          container_norm: normalizeContainerNorm(row.container_norm, 1)
+        });
+      }
+    }
+
+    const normalizedItems = items.map((rawItem) => {
+      const quantity = toNumeric(rawItem?.quantity, 0);
+      const price = toNumeric(rawItem?.price, 0);
+      const parsedProductId = Number.parseInt(rawItem?.product_id, 10);
+      const resolvedProductId = Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : null;
+      const productConfig = resolvedProductId ? (productContainerMap.get(resolvedProductId) || null) : null;
+
+      const rawContainerPrice = toNumeric(rawItem?.container_price, NaN);
+      const rawContainerNorm = toNumeric(rawItem?.container_norm, NaN);
+      const requestedContainerName = String(rawItem?.container_name || '').trim();
+
+      let resolvedContainerPrice = Number.isFinite(rawContainerPrice)
+        ? Math.max(0, rawContainerPrice)
+        : NaN;
+      if ((!Number.isFinite(resolvedContainerPrice) || resolvedContainerPrice <= 0) && (productConfig?.container_price || 0) > 0) {
+        resolvedContainerPrice = productConfig.container_price;
+      }
+      if (!Number.isFinite(resolvedContainerPrice) || resolvedContainerPrice < 0) {
+        resolvedContainerPrice = 0;
+      }
+
+      let resolvedContainerNorm = Number.isFinite(rawContainerNorm)
+        ? normalizeContainerNorm(rawContainerNorm, 1)
+        : NaN;
+      if (!Number.isFinite(resolvedContainerNorm) || resolvedContainerNorm <= 0) {
+        resolvedContainerNorm = normalizeContainerNorm(productConfig?.container_norm, 1);
+      }
+
+      const resolvedContainerName = requestedContainerName || productConfig?.container_name || null;
+      const resolvedProductName = String(rawItem?.product_name || '').trim()
+        || productConfig?.product_name
+        || 'Товар';
+      const resolvedUnit = String(rawItem?.unit || '').trim() || 'шт';
+
+      return {
+        ...rawItem,
+        product_id: resolvedProductId,
+        product_name: resolvedProductName,
+        quantity,
+        price,
+        unit: resolvedUnit,
+        container_name: resolvedContainerName,
+        container_price: resolvedContainerPrice,
+        container_norm: resolvedContainerNorm
+      };
+    });
+
     const requestedFulfillmentType = normalizeFulfillmentType(fulfillment_type, 'delivery');
     const effectiveFulfillmentType = (isDeliveryEnabled && requestedFulfillmentType !== 'pickup') ? 'delivery' : 'pickup';
     const isPickupOrder = effectiveFulfillmentType === 'pickup';
@@ -535,9 +619,9 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     // Товары без фасовки — для проверки минимальной суммы заказа
-    const goodsSubtotalNoContainers = items.reduce((sum, item) => {
-      const quantity = Number.parseFloat(item.quantity) || 0;
-      const itemPrice = (Number.parseFloat(item.price) || 0) * quantity;
+    const goodsSubtotalNoContainers = normalizedItems.reduce((sum, item) => {
+      const quantity = toNumeric(item.quantity, 0);
+      const itemPrice = toNumeric(item.price, 0) * quantity;
       return sum + itemPrice;
     }, 0);
 
@@ -553,11 +637,11 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     // Calculate total (items + containers + service fee + delivery)
-    const itemsTotal = items.reduce((sum, item) => {
-      const quantity = Number.parseFloat(item.quantity) || 0;
-      const itemPrice = (Number.parseFloat(item.price) || 0) * quantity;
+    const itemsTotal = normalizedItems.reduce((sum, item) => {
+      const quantity = toNumeric(item.quantity, 0);
+      const itemPrice = toNumeric(item.price, 0) * quantity;
       const containerUnits = resolveContainerUnits(quantity, item.container_norm);
-      const containerPrice = (Number.parseFloat(item.container_price) || 0) * containerUnits;
+      const containerPrice = toNumeric(item.container_price, 0) * containerUnits;
       return sum + itemPrice + containerPrice;
     }, 0);
     
@@ -651,7 +735,7 @@ router.post('/', authenticate, async (req, res) => {
     const order = orderResult.rows[0];
     
     // Create order items
-    for (const item of items) {
+    for (const item of normalizedItems) {
       await client.query(
         `INSERT INTO order_items (
           order_id, product_id, product_name, quantity, unit, price, total, container_name, container_price, container_norm
@@ -663,9 +747,9 @@ router.post('/', authenticate, async (req, res) => {
           item.quantity,
           item.unit,
           item.price,
-          parseFloat(item.price) * parseFloat(item.quantity),
+          toNumeric(item.price, 0) * toNumeric(item.quantity, 0),
           item.container_name || null,
-          item.container_price || 0,
+          toNumeric(item.container_price, 0),
           normalizeContainerNorm(item.container_norm, 1)
         ]
       );
@@ -693,7 +777,7 @@ router.post('/', authenticate, async (req, res) => {
       const restaurant = restaurantResult.rows[0];
       if (restaurant?.telegram_group_id) {
         // Use restaurant-specific bot/group for notification
-        await sendOrderNotification(order, items, restaurant.telegram_group_id, restaurant.telegram_bot_token);
+        await sendOrderNotification(order, normalizedItems, restaurant.telegram_group_id, restaurant.telegram_bot_token);
 
         const cardReceiptTarget = String(restaurant?.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot';
         if (normalizedPaymentMethod === 'card' && cardReceiptTarget === 'bot') {
@@ -712,7 +796,7 @@ router.post('/', authenticate, async (req, res) => {
         }
       } else {
         // Fall back to default notification
-        await sendOrderNotification(order, items);
+        await sendOrderNotification(order, normalizedItems);
       }
       
       // Send notification to user with payment link
@@ -731,7 +815,7 @@ router.post('/', authenticate, async (req, res) => {
         await sendOrderUpdateToUser(req.user.telegram_id, order, 'new', restaurant?.telegram_bot_token, paymentUrls);
       }
     } else if (shouldNotifyImmediately) {
-      await sendOrderNotification(order, items);
+      await sendOrderNotification(order, normalizedItems);
       
       // Send notification to user
       if (req.user.telegram_id) {
@@ -743,7 +827,7 @@ router.post('/', authenticate, async (req, res) => {
       message: 'Заказ создан успешно',
       order: {
         ...order,
-        items
+        items: normalizedItems
       }
     });
   } catch (error) {

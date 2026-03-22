@@ -634,6 +634,7 @@ function Catalog() {
       : (product?.description_ru || '')
   );
   const normalizeProductVariantOptions = (value, { fallbackPrice = NaN } = {}) => {
+    const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
     let source = value;
     if (typeof source === 'string') {
       try {
@@ -658,6 +659,12 @@ function Catalog() {
       let imageUrl = '';
       let thumbUrl = '';
       let variantImages = [];
+      let hasContainerName = false;
+      let hasContainerPrice = false;
+      let hasContainerNorm = false;
+      let containerNameRaw = null;
+      let containerPriceRaw = null;
+      let containerNormRaw = null;
 
       if (item && typeof item === 'object' && !Array.isArray(item)) {
         name = String(item.name || item.value || item.label || '').trim();
@@ -669,6 +676,18 @@ function Catalog() {
         const mainVariantImage = variantImages[0] || null;
         imageUrl = String(mainVariantImage?.url || item.image_url || item.imageUrl || '').trim();
         thumbUrl = String(mainVariantImage?.thumb_url || item.thumb_url || item.thumbUrl || '').trim();
+        hasContainerName = hasOwn(item, 'container_name') || hasOwn(item, 'containerName');
+        hasContainerPrice = hasOwn(item, 'container_price') || hasOwn(item, 'containerPrice');
+        hasContainerNorm = hasOwn(item, 'container_norm') || hasOwn(item, 'containerNorm');
+        if (hasContainerName) {
+          containerNameRaw = item.container_name ?? item.containerName ?? '';
+        }
+        if (hasContainerPrice) {
+          containerPriceRaw = item.container_price ?? item.containerPrice;
+        }
+        if (hasContainerNorm) {
+          containerNormRaw = item.container_norm ?? item.containerNorm;
+        }
       } else {
         name = String(item ?? '').trim();
       }
@@ -679,6 +698,15 @@ function Catalog() {
       unique.add(key);
 
       const normalizedPrice = parseFloat(String(priceRaw ?? '').replace(',', '.'));
+      const normalizedContainerPrice = containerPriceRaw === null || containerPriceRaw === undefined
+        ? null
+        : parseFloat(String(containerPriceRaw).replace(',', '.'));
+      const normalizedContainerNorm = containerNormRaw === null || containerNormRaw === undefined
+        ? null
+        : parseFloat(String(containerNormRaw).replace(',', '.'));
+      const normalizedContainerName = hasContainerName
+        ? (String(containerNameRaw ?? '').trim() || null)
+        : null;
       normalized.push({
         name,
         description_ru: descriptionRu.slice(0, 1500),
@@ -687,7 +715,14 @@ function Catalog() {
         barcode: barcode.slice(0, 120),
         image_url: imageUrl,
         thumb_url: thumbUrl,
-        product_images: variantImages
+        product_images: variantImages,
+        container_name: normalizedContainerName,
+        container_price: hasContainerPrice
+          ? (Number.isFinite(normalizedContainerPrice) && normalizedContainerPrice >= 0 ? normalizedContainerPrice : 0)
+          : null,
+        container_norm: hasContainerNorm
+          ? (Number.isFinite(normalizedContainerNorm) && normalizedContainerNorm > 0 ? normalizedContainerNorm : 1)
+          : null
       });
       if (normalized.length >= 20) break;
     }
@@ -902,6 +937,12 @@ function Catalog() {
   };
 
   const handleAddToCart = (product) => {
+    const parseLocalizedNumber = (value, fallback = 0) => {
+      if (value === null || value === undefined || value === '') return fallback;
+      const normalized = String(value).replace(/\s+/g, '').replace(',', '.');
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
     const selectedVariant = getSelectedVariantForProduct(product);
     const selectedVariantDetails = getSelectedVariantDetails(product, selectedVariant);
     const variantPrice = getSelectedVariantPrice(product, selectedVariant);
@@ -917,6 +958,16 @@ function Catalog() {
     const cartProductImages = selectedVariantDetails && variantImageItems.length > 0
       ? variantImageItems
       : getProductImageItems(product);
+    const resolvedContainerPrice = parseLocalizedNumber(
+      selectedVariantDetails?.container_price ?? product?.container_price ?? 0
+    );
+    const resolvedContainerNorm = parseLocalizedNumber(
+      selectedVariantDetails?.container_norm ?? product?.container_norm ?? 1,
+      1
+    );
+    const resolvedContainerName = String(
+      selectedVariantDetails?.container_name || product?.container_name || ''
+    ).trim() || null;
     addToCart({
       ...product,
       restaurant_id: selectedRestaurant,
@@ -924,6 +975,9 @@ function Catalog() {
       description_ru: language === 'uz' ? (product?.description_ru || selectedVariantDescription) : selectedVariantDescription,
       description_uz: language === 'uz' ? selectedVariantDescription : (product?.description_uz || selectedVariantDescription),
       selected_variant: selectedVariant || null,
+      container_name: resolvedContainerName,
+      container_price: Number.isFinite(resolvedContainerPrice) && resolvedContainerPrice > 0 ? resolvedContainerPrice : 0,
+      container_norm: Number.isFinite(resolvedContainerNorm) && resolvedContainerNorm > 0 ? resolvedContainerNorm : 1,
       image_url: cartImageUrl,
       thumb_url: cartThumbUrl,
       product_images: cartProductImages
