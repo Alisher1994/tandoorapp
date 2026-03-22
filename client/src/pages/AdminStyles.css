@@ -5645,6 +5645,15 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+.action-btn-db-delete {
+    min-width: 38px !important;
+    width: auto !important;
+    padding: 0 8px !important;
+    font-size: 0.68rem !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
 .restaurant-comment-action-btn {
     position: relative;
 }

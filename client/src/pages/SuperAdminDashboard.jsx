@@ -1442,6 +1442,7 @@ function SuperAdminDashboard() {
   const hiddenOpsHotkeyLastPressedRef = useRef(0);
   const superadminBroadcastFileInputRef = useRef(null);
   const foundersPasswordInputRef = useRef(null);
+  const permanentDeletePasswordInputRef = useRef(null);
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
@@ -1493,6 +1494,11 @@ function SuperAdminDashboard() {
   const [operatorStoreAccessSearch, setOperatorStoreAccessSearch] = useState('');
   const [showOperatorStoresModal, setShowOperatorStoresModal] = useState(false);
   const [operatorStoresModalPayload, setOperatorStoresModalPayload] = useState({ operatorName: '', restaurants: [] });
+  const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState(null);
+  const [permanentDeletePassword, setPermanentDeletePassword] = useState('');
+  const [permanentDeleteSubmitting, setPermanentDeleteSubmitting] = useState(false);
+  const [permanentDeleteError, setPermanentDeleteError] = useState('');
 
   // Filters
   const [restaurantsPage, setRestaurantsPage] = useState(1);
@@ -2237,6 +2243,14 @@ function SuperAdminDashboard() {
     }, 40);
     return () => clearTimeout(timer);
   }, [showFoundersAccessModal]);
+
+  useEffect(() => {
+    if (!showPermanentDeleteModal) return;
+    const timer = setTimeout(() => {
+      permanentDeletePasswordInputRef.current?.focus();
+    }, 40);
+    return () => clearTimeout(timer);
+  }, [showPermanentDeleteModal]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -7400,6 +7414,80 @@ function SuperAdminDashboard() {
     }
   };
 
+  const openPermanentDeleteModal = ({ entity, id, name }) => {
+    const normalizedEntity = String(entity || '').trim().toLowerCase();
+    const normalizedId = Number.parseInt(id, 10);
+    if (!['restaurant', 'operator'].includes(normalizedEntity)) return;
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+    setPermanentDeleteTarget({
+      entity: normalizedEntity,
+      id: normalizedId,
+      name: String(name || '').trim()
+    });
+    setPermanentDeletePassword(foundersAccessPassword || '');
+    setPermanentDeleteError('');
+    setShowPermanentDeleteModal(true);
+  };
+
+  const closePermanentDeleteModal = () => {
+    if (permanentDeleteSubmitting) return;
+    setShowPermanentDeleteModal(false);
+    setPermanentDeleteTarget(null);
+    setPermanentDeletePassword('');
+    setPermanentDeleteError('');
+  };
+
+  const handlePermanentDeleteSubmit = async (event) => {
+    if (event?.preventDefault) event.preventDefault();
+    if (!permanentDeleteTarget?.id || !permanentDeleteTarget?.entity) return;
+
+    const trimmedPassword = String(permanentDeletePassword || '').trim();
+    if (!trimmedPassword) {
+      setPermanentDeleteError(language === 'uz' ? 'Parolni kiriting' : 'Введите пароль');
+      return;
+    }
+
+    const endpoint = permanentDeleteTarget.entity === 'restaurant'
+      ? `${API_URL}/superadmin/restaurants/${permanentDeleteTarget.id}/permanent`
+      : `${API_URL}/superadmin/operators/${permanentDeleteTarget.id}/permanent`;
+
+    setPermanentDeleteSubmitting(true);
+    setPermanentDeleteError('');
+    try {
+      await axios.delete(endpoint, {
+        headers: {
+          'x-founders-password': trimmedPassword
+        }
+      });
+
+      if (permanentDeleteTarget.entity === 'restaurant') {
+        setSuccess(language === 'uz'
+          ? "Do'kon bazadan to'liq o'chirildi"
+          : 'Магазин полностью удален из БД');
+        await loadRestaurants();
+      } else {
+        setSuccess(language === 'uz'
+          ? 'Operator bazadan to‘liq o‘chirildi'
+          : 'Оператор полностью удален из БД');
+        await loadOperators();
+      }
+      setFoundersAccessPassword(trimmedPassword);
+      closePermanentDeleteModal();
+    } catch (err) {
+      if (Number(err?.response?.status) === 403) {
+        setPermanentDeleteError(language === 'uz'
+          ? "Parol noto'g'ri. Qayta urinib ko'ring."
+          : 'Неверный пароль. Попробуйте снова.');
+        return;
+      }
+      setPermanentDeleteError(err?.response?.data?.error || (language === 'uz'
+        ? "Bazadan o'chirishda xatolik"
+        : 'Ошибка удаления из базы данных'));
+    } finally {
+      setPermanentDeleteSubmitting(false);
+    }
+  };
+
   const handleToggleRestaurant = async (restaurant) => {
     try {
       await axios.put(`${API_URL}/superadmin/restaurants/${restaurant.id}`, {
@@ -11942,6 +12030,14 @@ function SuperAdminDashboard() {
                                   <Button variant="light" className="action-btn text-info" onClick={() => openMessagesModal(r)} title="Шаблоны сообщений">
                                     💬
                                   </Button>
+                                  <Button
+                                    variant="outline-danger"
+                                    className="action-btn action-btn-db-delete"
+                                    onClick={() => openPermanentDeleteModal({ entity: 'restaurant', id: r.id, name: r.name })}
+                                    title={language === 'uz' ? "Bazadan to'liq o'chirish" : 'Полностью удалить из БД'}
+                                  >
+                                    DB
+                                  </Button>
                                   <Button variant="light" className="action-btn text-danger" onClick={() => handleDeleteRestaurant(r.id)} title="Удалить">
                                     🗑️
                                   </Button>
@@ -13082,9 +13178,19 @@ function SuperAdminDashboard() {
                                     ✏️
                                   </Button>
                                   {op.role !== 'superadmin' && (
-                                    <Button variant="light" className="action-btn text-danger" onClick={() => handleDeleteOperator(op.id)}>
-                                      🗑️
-                                    </Button>
+                                    <>
+                                      <Button
+                                        variant="outline-danger"
+                                        className="action-btn action-btn-db-delete"
+                                        onClick={() => openPermanentDeleteModal({ entity: 'operator', id: op.id, name: op.full_name || op.username })}
+                                        title={language === 'uz' ? "Bazadan to'liq o'chirish" : 'Полностью удалить из БД'}
+                                      >
+                                        DB
+                                      </Button>
+                                      <Button variant="light" className="action-btn text-danger" onClick={() => handleDeleteOperator(op.id)}>
+                                        🗑️
+                                      </Button>
+                                    </>
                                   )}
                                 </div>
                               </td>
@@ -19848,6 +19954,79 @@ function SuperAdminDashboard() {
           </div>
         </div>
       )}
+
+      <Modal
+        show={showPermanentDeleteModal}
+        onHide={closePermanentDeleteModal}
+        centered
+      >
+        <Form onSubmit={handlePermanentDeleteSubmit}>
+          <Modal.Header closeButton={!permanentDeleteSubmitting}>
+            <Modal.Title>
+              {language === 'uz' ? "Bazadan to'liq o'chirish" : 'Полное удаление из БД'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="warning" className="mb-3 py-2">
+              {language === 'uz'
+                ? "Diqqat: bu amal qaytarilmaydi. Ma'lumotlar bazadan butunlay o'chiriladi."
+                : 'Внимание: действие необратимо. Данные будут удалены из базы полностью.'}
+            </Alert>
+            <div className="mb-3">
+              <strong>
+                {language === 'uz' ? "Obyekt:" : 'Объект:'}{' '}
+              </strong>
+              <span>
+                {permanentDeleteTarget?.entity === 'restaurant'
+                  ? (language === 'uz' ? "Do'kon" : 'Магазин')
+                  : (language === 'uz' ? 'Operator' : 'Оператор')}
+              </span>
+            </div>
+            {permanentDeleteTarget?.name && (
+              <div className="mb-3">
+                <strong>{language === 'uz' ? 'Nomi:' : 'Название:'} </strong>
+                <span>{permanentDeleteTarget.name}</span>
+              </div>
+            )}
+            <Form.Group>
+              <Form.Label>
+                {language === 'uz' ? "Tasdiqlash paroli (ta’sischilar paroli)" : 'Пароль подтверждения (пароль учредителей)'}
+              </Form.Label>
+              <Form.Control
+                ref={permanentDeletePasswordInputRef}
+                type="password"
+                value={permanentDeletePassword}
+                onChange={(e) => {
+                  setPermanentDeletePassword(e.target.value);
+                  if (permanentDeleteError) setPermanentDeleteError('');
+                }}
+                placeholder={language === 'uz' ? 'Parolni kiriting' : 'Введите пароль'}
+                autoComplete="off"
+                disabled={permanentDeleteSubmitting}
+              />
+            </Form.Group>
+            {permanentDeleteError && (
+              <Alert variant="danger" className="mt-3 mb-0 py-2">
+                {permanentDeleteError}
+              </Alert>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={closePermanentDeleteModal}
+              disabled={permanentDeleteSubmitting}
+            >
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button type="submit" variant="danger" disabled={permanentDeleteSubmitting}>
+              {permanentDeleteSubmitting
+                ? (language === 'uz' ? "O'chirilmoqda..." : 'Удаление...')
+                : (language === 'uz' ? "Bazadan o'chirish" : 'Удалить из БД')}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
 
       <Modal
         show={showFoundersAccessModal}

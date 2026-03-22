@@ -6045,6 +6045,69 @@ router.delete('/restaurants/:id', async (req, res) => {
   }
 });
 
+// Полностью удалить ресторан из БД (только с паролем учредителей)
+router.delete('/restaurants/:id/permanent', async (req, res) => {
+  const restaurantId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+    return res.status(400).json({ error: 'Некорректный ID магазина' });
+  }
+  if (!ensureFoundersAccessByPassword(req, res)) return;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const restaurantResult = await client.query(
+      'SELECT * FROM restaurants WHERE id = $1 FOR UPDATE',
+      [restaurantId]
+    );
+    if (restaurantResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+    const restaurant = restaurantResult.rows[0];
+
+    const ordersResult = await client.query(
+      'SELECT COUNT(*)::int AS count FROM orders WHERE restaurant_id = $1',
+      [restaurantId]
+    );
+    const ordersCount = Number(ordersResult.rows?.[0]?.count || 0);
+
+    await client.query('DELETE FROM restaurants WHERE id = $1', [restaurantId]);
+    await client.query('COMMIT');
+
+    await logActivity({
+      userId: req.user.id,
+      actionType: ACTION_TYPES.DELETE_RESTAURANT,
+      entityType: ENTITY_TYPES.RESTAURANT,
+      entityId: restaurant.id,
+      entityName: restaurant.name,
+      oldValues: restaurant,
+      details: `Permanent delete from DB (founders password), linked orders: ${ordersCount}`,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    try {
+      await reloadMultiBots();
+    } catch (reloadErr) {
+      console.error('Multi-bot reload warning after permanent restaurant delete:', reloadErr.message);
+    }
+
+    return res.json({
+      message: 'Магазин полностью удален из базы данных',
+      deleted: true,
+      restaurant_id: restaurantId
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Permanent delete restaurant error:', error);
+    return res.status(500).json({ error: 'Ошибка полного удаления магазина' });
+  } finally {
+    client.release();
+  }
+});
+
 // =====================================================
 // ОПЕРАТОРЫ
 // =====================================================
@@ -7276,6 +7339,70 @@ router.delete('/operators/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete operator error:', error);
     res.status(500).json({ error: 'Ошибка удаления оператора' });
+  }
+});
+
+// Полностью удалить оператора из БД (только с паролем учредителей)
+router.delete('/operators/:id/permanent', async (req, res) => {
+  const operatorId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(operatorId) || operatorId <= 0) {
+    return res.status(400).json({ error: 'Некорректный ID оператора' });
+  }
+  if (operatorId === req.user.id) {
+    return res.status(400).json({ error: 'Нельзя удалить самого себя' });
+  }
+  if (!ensureFoundersAccessByPassword(req, res)) return;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const userResult = await client.query(
+      'SELECT * FROM users WHERE id = $1 FOR UPDATE',
+      [operatorId]
+    );
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Оператор не найден' });
+    }
+    const user = userResult.rows[0];
+    if (String(user.role || '').toLowerCase() !== 'operator') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Можно удалять из БД только операторов' });
+    }
+
+    const linkedRestaurantsResult = await client.query(
+      'SELECT COUNT(*)::int AS count FROM operator_restaurants WHERE user_id = $1',
+      [operatorId]
+    );
+    const linkedRestaurantsCount = Number(linkedRestaurantsResult.rows?.[0]?.count || 0);
+
+    await client.query('DELETE FROM users WHERE id = $1', [operatorId]);
+    await client.query('COMMIT');
+
+    await logActivity({
+      userId: req.user.id,
+      actionType: ACTION_TYPES.DELETE_USER,
+      entityType: ENTITY_TYPES.USER,
+      entityId: user.id,
+      entityName: user.full_name || user.username,
+      oldValues: user,
+      details: `Permanent delete from DB (founders password), linked restaurants: ${linkedRestaurantsCount}`,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    return res.json({
+      message: 'Оператор полностью удален из базы данных',
+      deleted: true,
+      operator_id: operatorId
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Permanent delete operator error:', error);
+    return res.status(500).json({ error: 'Ошибка полного удаления оператора' });
+  } finally {
+    client.release();
   }
 });
 
