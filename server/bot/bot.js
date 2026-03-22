@@ -10,7 +10,8 @@ const { reloadMultiBots } = require('./multiBotManager');
 const {
   ensureHelpInstructionsSchema,
   listHelpInstructions,
-  getHelpInstructionByCode
+  getHelpInstructionByCode,
+  incrementHelpInstructionViewCount
 } = require('../services/helpInstructions');
 
 let bot = null;
@@ -493,12 +494,19 @@ const ONBOARDING_TEXTS = {
     skip: '⏭️ Пропустить',
     skipGroupDone: '⏭️ Шаг с группой пропущен.',
     useGroupOrSkipHint: 'ℹ️ Используйте кнопку "👥 Поделиться группой", отправьте ID группы вручную (пример: -1001234567890) или нажмите "⏭️ Пропустить".',
+    instructionButton: '📘 Инструкция',
     shareGroup: '👥 Поделиться группой',
     addLogo: '➕ Добавить логотип',
     addToken: '➕ Добавить токен',
     addGroup: '➕ Поделиться группой',
+    hasOwnBotPrompt: '🤖 У вас уже есть собственный бот?',
+    hasOwnBotYes: '✅ Да',
+    hasOwnBotNo: '❌ Нет',
+    registerBotButton: '🤖 Регистрация бота',
+    iGotToken: '✅ Я получил токен',
+    botFatherGuide: '🛠 <b>Как зарегистрировать нового бота</b>\n\n1. Откройте @BotFather\n2. Нажмите /newbot\n3. Введите имя бота\n4. Введите username (должен заканчиваться на <code>bot</code>)\n5. Скопируйте выданный Bot Token\n6. Вернитесь сюда и нажмите <b>«✅ Я получил токен»</b>',
     optionalLogo: '🖼️ Логотип магазина (необязательно):',
-    optionalToken: '🤖 Bot Token магазина (необязательно на этом шаге):',
+    optionalToken: '🤖 Укажите Bot Token магазина:',
     optionalGroup: '👥 Группа для заказов (необязательно на этом шаге):',
     promptStoreName: '🏪 Введите <b>название магазина</b>:',
     promptActivityType: '🧩 Выберите <b>вид деятельности магазина</b> из списка и отправьте <b>номер</b>:\n\n{list}',
@@ -507,7 +515,7 @@ const ONBOARDING_TEXTS = {
     promptLocation: '📍 Отправьте <b>локацию магазина</b>:',
     promptLogo: '🖼️ Отправьте <b>фото логотипа</b> или ссылку (URL):',
     promptToken: '🤖 Отправьте <b>Bot Token</b> вашего магазина:',
-    promptGroup: '👥 Нажмите кнопку ниже и <b>поделитесь группой</b> для заказов.\n\nМожно также отправить ID группы вручную (пример: <code>-1001234567890</code>):',
+    promptGroup: '👥 Нажмите кнопку ниже и <b>поделитесь группой</b> для заказов.\n\nПосле добавления в группу обязательно сделайте бота <b>администратором с полным доступом</b>.\n\nМожно также отправить ID группы вручную (пример: <code>-1001234567890</code>):',
     groupConnected: '✅ Группа подключена.\n\nID группы: <code>{groupId}</code>',
     logoSaved: '✅ Логотип получен и сохранен.',
     photoReadError: '❌ Не удалось прочитать фото. Отправьте изображение еще раз.',
@@ -521,6 +529,7 @@ const ONBOARDING_TEXTS = {
     loginButton: '🔐 Войти в систему',
     locationNotSpecified: 'не указана',
     loginUrlMissing: '⚠️ URL входа не настроен в переменных окружения.',
+    instructionVideoMissing: 'ℹ️ Для этого этапа видео-инструкция пока не добавлена.',
     finalSuccess: '✅ <b>Регистрация завершена</b>\n\n🏪 Магазин: <b>{restaurant}</b>\n👤 ФИО: {fullName}\n📱 Логин: <code>{username}</code>\n🔐 Пароль: <code>{password}</code>\n📍 Локация: {location}\n🚚 Радиус доставки: 3 км (по умолчанию)\n\n{loginLine}'
   },
   uz: {
@@ -531,12 +540,19 @@ const ONBOARDING_TEXTS = {
     skip: '⏭️ O‘tkazib yuborish',
     skipGroupDone: '⏭️ Guruh bosqichi o‘tkazib yuborildi.',
     useGroupOrSkipHint: 'ℹ️ "👥 Guruhni ulashish" tugmasidan foydalaning, guruh ID ni qo‘lda yuboring (masalan: -1001234567890) yoki "⏭️ O‘tkazib yuborish"ni bosing.',
+    instructionButton: '📘 Yo‘riqnoma',
     shareGroup: '👥 Guruhni ulashish',
     addLogo: '➕ Logotip qo‘shish',
     addToken: '➕ Token qo‘shish',
     addGroup: '➕ Guruhni ulashish',
+    hasOwnBotPrompt: '🤖 Sizda shaxsiy bot bormi?',
+    hasOwnBotYes: '✅ Ha',
+    hasOwnBotNo: '❌ Yo‘q',
+    registerBotButton: '🤖 Bot ro‘yxatdan o‘tkazish',
+    iGotToken: '✅ Token oldim',
+    botFatherGuide: '🛠 <b>Yangi botni qanday ro‘yxatdan o‘tkazish</b>\n\n1. @BotFather ni oching\n2. /newbot buyrug‘ini yuboring\n3. Bot nomini kiriting\n4. Username kiriting (oxiri <code>bot</code> bilan tugashi kerak)\n5. Berilgan Bot Token ni nusxalang\n6. Shu botga qaytib, <b>«✅ Token oldim»</b> tugmasini bosing',
     optionalLogo: '🖼️ Do‘kon logotipi (ixtiyoriy):',
-    optionalToken: '🤖 Do‘kon Bot Tokeni (bu bosqichda ixtiyoriy):',
+    optionalToken: '🤖 Do‘kon Bot Tokenini kiriting:',
     optionalGroup: '👥 Buyurtmalar uchun guruh (bu bosqichda ixtiyoriy):',
     promptStoreName: '🏪 <b>Do‘kon nomini</b> kiriting:',
     promptActivityType: '🧩 Do‘konning <b>faoliyat turini</b> ro‘yxatdan tanlang va <b>raqamini</b> yuboring:\n\n{list}',
@@ -545,7 +561,7 @@ const ONBOARDING_TEXTS = {
     promptLocation: '📍 <b>Do‘kon lokatsiyasini</b> yuboring:',
     promptLogo: '🖼️ <b>Logotip rasmini</b> yoki havolani (URL) yuboring:',
     promptToken: '🤖 Do‘koningizning <b>Bot Token</b>ini yuboring:',
-    promptGroup: '👥 Quyidagi tugmani bosing va buyurtmalar uchun <b>guruhni ulashing</b>.\n\nYoki guruh ID ni qo‘lda yuboring (masalan: <code>-1001234567890</code>):',
+    promptGroup: '👥 Quyidagi tugmani bosing va buyurtmalar uchun <b>guruhni ulashing</b>.\n\nBotga guruhda <b>to‘liq huquqli admin</b> ruxsatini bering.\n\nYoki guruh ID ni qo‘lda yuboring (masalan: <code>-1001234567890</code>):',
     groupConnected: '✅ Guruh ulandi.\n\nGuruh ID: <code>{groupId}</code>',
     logoSaved: '✅ Logotip qabul qilindi va saqlandi.',
     photoReadError: '❌ Rasmni o‘qib bo‘lmadi. Iltimos, qayta yuboring.',
@@ -559,6 +575,7 @@ const ONBOARDING_TEXTS = {
     loginButton: '🔐 Tizimga kirish',
     locationNotSpecified: 'ko‘rsatilmagan',
     loginUrlMissing: '⚠️ Kirish URL manzili muhit o‘zgaruvchilarida sozlanmagan.',
+    instructionVideoMissing: 'ℹ️ Bu bosqich uchun video yo‘riqnoma hali qo‘shilmagan.',
     finalSuccess: '✅ <b>Ro‘yxatdan o‘tish yakunlandi</b>\n\n🏪 Do‘kon: <b>{restaurant}</b>\n👤 F.I.Sh.: {fullName}\n📱 Login: <code>{username}</code>\n🔐 Parol: <code>{password}</code>\n📍 Lokatsiya: {location}\n🚚 Yetkazib berish radiusi: 3 km (standart)\n\n{loginLine}'
   }
 };
@@ -576,6 +593,15 @@ function getOnboardingLanguage(userId) {
   const state = onboardingStates.get(getOnboardingStateKey(userId));
   return normalizeBotLanguage(state?.lang || languagePreferences.get(userId) || 'ru');
 }
+
+const ONBOARDING_INSTRUCTION_CODES = {
+  store_registration: 'store_registration',
+  logo: 'store_logo',
+  token: 'bot_token',
+  bot_registration: 'add_own_bot',
+  group: 'group_and_assign_bot'
+};
+const BOTFATHER_URL = 'https://t.me/BotFather';
 
 async function resolveSuperadminBotToken() {
   try {
@@ -957,6 +983,60 @@ async function initBot() {
     }
   }
 
+  async function sendOnboardingInstruction(chatId, userId, instructionCode) {
+    const userLang = getOnboardingLanguage(userId);
+    try {
+      await ensureHelpInstructionsSchema();
+      const instruction = await getHelpInstructionByCode(instructionCode);
+      const instructionUrl = String(instruction?.youtube_url || '').trim();
+      if (!instructionUrl) {
+        await bot.sendMessage(chatId, onboardingT(userLang, 'instructionVideoMissing'));
+        return;
+      }
+
+      const title = userLang === 'uz'
+        ? (instruction?.title_uz || instruction?.title_ru || onboardingT(userLang, 'instructionButton'))
+        : (instruction?.title_ru || instruction?.title_uz || onboardingT(userLang, 'instructionButton'));
+
+      await bot.sendMessage(chatId, `📘 <b>${title}</b>`, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [[{
+            text: onboardingT(userLang, 'instructionButton'),
+            url: instructionUrl
+          }]]
+        }
+      });
+
+      if (instruction?.id) {
+        await incrementHelpInstructionViewCount(instruction.id).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Onboarding instruction send error:', error);
+      await bot.sendMessage(chatId, onboardingT(userLang, 'instructionVideoMissing'));
+    }
+  }
+
+  async function askHasOwnBotChoice(chatId, userId) {
+    const stateKey = getOnboardingStateKey(userId);
+    const state = onboardingStates.get(stateKey);
+    if (!state) return;
+    const userLang = getOnboardingLanguage(userId);
+    state.step = 'await_has_bot_choice';
+    onboardingStates.set(stateKey, state);
+    await sendOnboardingUiMessage(chatId, userId, onboardingT(userLang, 'hasOwnBotPrompt'), {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: onboardingT(userLang, 'hasOwnBotYes'), callback_data: 'onboard_has_bot_yes' }],
+          [{ text: onboardingT(userLang, 'hasOwnBotNo'), callback_data: 'onboard_has_bot_no' }],
+          [{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]
+        ]
+      }
+    });
+  }
+
   async function askOnboardingField(chatId, userId, field) {
     const userLang = getOnboardingLanguage(userId);
     const prompts = {
@@ -1015,6 +1095,32 @@ async function initBot() {
       return;
     }
 
+    if (field === 'logo_url') {
+      await sendOnboardingUiMessage(chatId, userId, prompts[field], {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_logo' }],
+            [{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]
+          ]
+        }
+      });
+      return;
+    }
+
+    if (field === 'bot_token') {
+      await sendOnboardingUiMessage(chatId, userId, prompts[field], {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_token' }],
+            [{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]
+          ]
+        }
+      });
+      return;
+    }
+
     if (field === 'group_id') {
       const requestId = Number(Date.now() % 1000000000);
       console.log(`[onboarding] requesting group share: user=${userId}, request_id=${requestId}`);
@@ -1029,6 +1135,7 @@ async function initBot() {
                 chat_is_channel: false
               }
             }],
+            [{ text: onboardingT(userLang, 'instructionButton') }],
             [{ text: onboardingT(userLang, 'skip') }],
             [{ text: onboardingT(userLang, 'cancel') }]
           ],
@@ -1062,7 +1169,8 @@ async function initBot() {
           reply_markup: {
             inline_keyboard: [
               [{ text: onboardingT(userLang, 'addLogo'), callback_data: 'onboard_add_logo' }],
-              [{ text: onboardingT(userLang, 'skip'), callback_data: 'onboard_skip_logo' }]
+              [{ text: onboardingT(userLang, 'skip'), callback_data: 'onboard_skip_logo' }],
+              [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_logo' }]
             ]
           }
         }
@@ -1071,19 +1179,7 @@ async function initBot() {
     }
 
     if (stepName === 'bot_token') {
-      state.step = 'await_token_choice';
-      onboardingStates.set(stateKey, state);
-      await sendOnboardingUiMessage(chatId, userId,
-        onboardingT(userLang, 'optionalToken'),
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: onboardingT(userLang, 'addToken'), callback_data: 'onboard_add_token' }],
-              [{ text: onboardingT(userLang, 'skip'), callback_data: 'onboard_skip_token' }]
-            ]
-          }
-        }
-      );
+      await askHasOwnBotChoice(chatId, userId);
       return;
     }
 
@@ -1096,7 +1192,8 @@ async function initBot() {
           reply_markup: {
             inline_keyboard: [
               [{ text: onboardingT(userLang, 'addGroup'), callback_data: 'onboard_add_group' }],
-              [{ text: onboardingT(userLang, 'skip'), callback_data: 'onboard_skip_group' }]
+              [{ text: onboardingT(userLang, 'skip'), callback_data: 'onboard_skip_group' }],
+              [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_group' }]
             ]
           }
         }
@@ -1392,6 +1489,7 @@ async function initBot() {
         reply_markup: {
           inline_keyboard: [
             [{ text: onboardingT(userLang, 'start'), callback_data: 'onboard_begin_required' }],
+            [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_store_registration' }],
             [{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]
           ]
         }
@@ -1656,6 +1754,50 @@ async function initBot() {
     const onboardingKey = getOnboardingStateKey(userId);
     const onboardingState = onboardingStates.get(onboardingKey);
     if (onboardingState) {
+      if (onboardingState.step === 'await_has_bot_choice') {
+        const userLang = getOnboardingLanguage(userId);
+        const normalizedText = String(text || '').trim().toLowerCase();
+        const yesVariants = [onboardingT(userLang, 'hasOwnBotYes').toLowerCase(), 'да', 'ha', 'yes'];
+        const noVariants = [onboardingT(userLang, 'hasOwnBotNo').toLowerCase(), 'нет', 'yo‘q', "yo'q", 'no'];
+        if (yesVariants.includes(normalizedText)) {
+          onboardingState.step = 'await_bot_token';
+          onboardingStates.set(onboardingKey, onboardingState);
+          await askOnboardingField(chatId, userId, 'bot_token');
+          return;
+        }
+        if (noVariants.includes(normalizedText)) {
+          onboardingState.step = 'await_no_bot_guidance';
+          onboardingStates.set(onboardingKey, onboardingState);
+          await sendOnboardingUiMessage(
+            chatId,
+            userId,
+            onboardingT(userLang, 'botFatherGuide'),
+            {
+              parse_mode: 'HTML',
+              disable_web_page_preview: true,
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: onboardingT(userLang, 'registerBotButton'), url: BOTFATHER_URL }],
+                  [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_bot_registration' }],
+                  [{ text: onboardingT(userLang, 'iGotToken'), callback_data: 'onboard_no_bot_ready_token' }],
+                  [{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]
+                ]
+              }
+            }
+          );
+          return;
+        }
+      }
+
+      if (onboardingState.step === 'await_no_bot_guidance') {
+        const userLang = getOnboardingLanguage(userId);
+        if (String(text || '').trim() === onboardingT(userLang, 'instructionButton')) {
+          await sendOnboardingInstruction(chatId, userId, ONBOARDING_INSTRUCTION_CODES.bot_registration);
+          return;
+        }
+        return;
+      }
+
       if (onboardingState.step === 'await_store_name') {
         const userLang = getOnboardingLanguage(userId);
         const storeName = text.trim();
@@ -1740,6 +1882,10 @@ async function initBot() {
       if (onboardingState.step === 'await_group_share') {
         const userLang = getOnboardingLanguage(userId);
         const normalizedText = text.trim();
+        if (normalizedText === onboardingT(userLang, 'instructionButton')) {
+          await sendOnboardingInstruction(chatId, userId, ONBOARDING_INSTRUCTION_CODES.group);
+          return;
+        }
         const manualGroupId = parseTelegramGroupId(normalizedText);
 
         if (manualGroupId) {
@@ -2236,6 +2382,20 @@ async function initBot() {
       return;
     }
 
+    if (data.startsWith('onboard_instruction_')) {
+      const instructionKey = data.replace('onboard_instruction_', '').trim();
+      if (!instructionKey) return;
+      let instructionCode = null;
+      if (instructionKey === 'store_registration') instructionCode = ONBOARDING_INSTRUCTION_CODES.store_registration;
+      if (instructionKey === 'logo') instructionCode = ONBOARDING_INSTRUCTION_CODES.logo;
+      if (instructionKey === 'token') instructionCode = ONBOARDING_INSTRUCTION_CODES.token;
+      if (instructionKey === 'bot_registration') instructionCode = ONBOARDING_INSTRUCTION_CODES.bot_registration;
+      if (instructionKey === 'group') instructionCode = ONBOARDING_INSTRUCTION_CODES.group;
+      if (!instructionCode) return;
+      await sendOnboardingInstruction(chatId, userId, instructionCode);
+      return;
+    }
+
     if (data === 'onboard_add_logo') {
       const stateKey = getOnboardingStateKey(userId);
       const state = onboardingStates.get(stateKey);
@@ -2251,6 +2411,53 @@ async function initBot() {
       return;
     }
 
+    if (data === 'onboard_has_bot_yes') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey);
+      if (!state) return;
+      state.step = 'await_bot_token';
+      onboardingStates.set(stateKey, state);
+      await askOnboardingField(chatId, userId, 'bot_token');
+      return;
+    }
+
+    if (data === 'onboard_has_bot_no') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey);
+      if (!state) return;
+      const userLang = getOnboardingLanguage(userId);
+      state.step = 'await_no_bot_guidance';
+      onboardingStates.set(stateKey, state);
+      await sendOnboardingUiMessage(
+        chatId,
+        userId,
+        onboardingT(userLang, 'botFatherGuide'),
+        {
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: onboardingT(userLang, 'registerBotButton'), url: BOTFATHER_URL }],
+              [{ text: onboardingT(userLang, 'instructionButton'), callback_data: 'onboard_instruction_bot_registration' }],
+              [{ text: onboardingT(userLang, 'iGotToken'), callback_data: 'onboard_no_bot_ready_token' }],
+              [{ text: onboardingT(userLang, 'cancel'), callback_data: 'onboard_cancel' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    if (data === 'onboard_no_bot_ready_token') {
+      const stateKey = getOnboardingStateKey(userId);
+      const state = onboardingStates.get(stateKey);
+      if (!state) return;
+      state.step = 'await_bot_token';
+      onboardingStates.set(stateKey, state);
+      await askOnboardingField(chatId, userId, 'bot_token');
+      return;
+    }
+
     if (data === 'onboard_add_token') {
       const stateKey = getOnboardingStateKey(userId);
       const state = onboardingStates.get(stateKey);
@@ -2262,7 +2469,7 @@ async function initBot() {
     }
 
     if (data === 'onboard_skip_token') {
-      await showOptionalStep(chatId, userId, 'group_id');
+      await showOptionalStep(chatId, userId, 'bot_token');
       return;
     }
 

@@ -63,6 +63,12 @@ const DEFAULT_HELP_INSTRUCTIONS = [
     title_ru: 'Восстановление логина и пароля',
     title_uz: 'Login va parolni tiklash',
     sort_order: 10
+  },
+  {
+    code: 'store_logo',
+    title_ru: 'Добавление логотипа магазина',
+    title_uz: "Do'kon logotipini qo'shish",
+    sort_order: 11
   }
 ];
 
