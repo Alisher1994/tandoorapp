@@ -2,6 +2,10 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const sharp = require('sharp');
 const TelegramBot = require('node-telegram-bot-api');
 const rateLimit = require('express-rate-limit');
 const pool = require('../database/connection');
@@ -58,6 +62,25 @@ const loginRateLimiter = rateLimit({
       }
     }).catch(() => {});
     res.status(options.statusCode).json(options.message);
+  }
+});
+const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
+const uploadsDir = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storeRegistrationLogoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (String(file?.mimetype || '').startsWith('image/')) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Только изображения разрешены'), false);
   }
 });
 const UI_THEME_VALUES = new Set([
@@ -378,12 +401,16 @@ async function sendStoreRegistrationSummaryToTelegram({
   password,
   botUsername,
   botLink,
+  qrUrl,
   pdfUrl,
   requestOrigin,
   fallbackBotToken
 }) {
   const normalizedLanguage = normalizeBotLanguage(language);
   const baseOrigin = String(requestOrigin || '').replace(/\/$/, '');
+  const fullQrUrl = qrUrl
+    ? (/^https?:\/\//i.test(qrUrl) ? qrUrl : `${baseOrigin}${qrUrl}`)
+    : '';
   const fullPdfUrl = pdfUrl
     ? (/^https?:\/\//i.test(pdfUrl) ? pdfUrl : `${baseOrigin}${pdfUrl}`)
     : '';
@@ -455,6 +482,34 @@ async function sendStoreRegistrationSummaryToTelegram({
     disable_web_page_preview: true,
     reply_markup: inlineKeyboard.length ? { inline_keyboard: inlineKeyboard } : undefined
   });
+
+  if (fullQrUrl) {
+    const qrCaption = normalizedLanguage === 'uz'
+      ? `📌 <b>Do‘kon QR kodi</b>\n🤖 ${botUsername || ''}\n${fullPdfUrl ? `🧾 PDF: ${fullPdfUrl}` : ''}`.trim()
+      : `📌 <b>QR-код магазина</b>\n🤖 ${botUsername || ''}\n${fullPdfUrl ? `🧾 PDF: ${fullPdfUrl}` : ''}`.trim();
+    const qrButtons = [];
+    if (botLink) {
+      qrButtons.push([{
+        text: normalizedLanguage === 'uz' ? '🤖 Botni ochish' : '🤖 Открыть бота',
+        url: botLink
+      }]);
+    }
+    if (fullPdfUrl) {
+      qrButtons.push([{
+        text: normalizedLanguage === 'uz' ? '🧾 PDF yuklab olish' : '🧾 Скачать PDF',
+        url: fullPdfUrl
+      }]);
+    }
+    try {
+      await bot.sendPhoto(telegramId, fullQrUrl, {
+        caption: qrCaption,
+        parse_mode: 'HTML',
+        reply_markup: qrButtons.length ? { inline_keyboard: qrButtons } : undefined
+      });
+    } catch (qrError) {
+      console.warn('Registration QR duplicate send warning:', qrError.message);
+    }
+  }
   return true;
 }
 
@@ -1172,6 +1227,68 @@ router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async 
   }
 });
 
+router.post('/telegram-webapp-store-registration/upload-logo', loginRateLimiter, (req, res, next) => {
+  storeRegistrationLogoUpload.single('image')(req, res, (error) => {
+    if (error) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Размер файла слишком большой (макс 12MB)' });
+      }
+      return res.status(400).json({ error: error.message || 'Ошибка загрузки файла' });
+    }
+    return next();
+  });
+}, async (req, res) => {
+  try {
+    const initData = String(req.body?.init_data || '').trim();
+    const launchToken = String(req.body?.launch_token || req.query?.launch_token || '').trim();
+    if (!initData && !launchToken) {
+      return res.status(400).json({ error: 'init_data или launch_token обязателен' });
+    }
+
+    const identity = await resolveStoreRegistrationIdentity({ initData, launchToken });
+    if (!identity.ok) {
+      if (identity.reason === 'central_bot_not_configured') {
+        return res.status(503).json({ error: 'Центральный бот не настроен' });
+      }
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: identity.reason });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не загружен' });
+    }
+
+    const optimized = await sharp(req.file.buffer, { failOnError: true })
+      .rotate()
+      .resize({
+        width: 1280,
+        height: 1280,
+        fit: 'inside',
+        withoutEnlargement: true,
+        fastShrinkOnLoad: true
+      })
+      .webp({
+        quality: 68,
+        alphaQuality: 72,
+        effort: 6,
+        smartSubsample: true
+      })
+      .toBuffer();
+
+    const filename = `logo-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
+    await fs.promises.writeFile(path.join(uploadsDir, filename), optimized);
+    const fileUrl = `/uploads/${filename}`;
+
+    return res.json({
+      url: fileUrl,
+      imageUrl: fileUrl,
+      filename
+    });
+  } catch (error) {
+    console.error('telegram-webapp-store-registration/upload-logo error:', error);
+    return res.status(500).json({ error: 'Ошибка загрузки логотипа' });
+  }
+});
+
 router.post('/telegram-webapp-store-registration/complete', loginRateLimiter, async (req, res) => {
   try {
     const initData = String(req.body?.init_data || '').trim();
@@ -1233,6 +1350,7 @@ router.post('/telegram-webapp-store-registration/complete', loginRateLimiter, as
       password: registration.credentials?.password || '',
       botUsername: printMeta.bot_username,
       botLink: printMeta.bot_link,
+      qrUrl: printMeta.qr_url,
       pdfUrl: printMeta.pdf_url,
       requestOrigin: backendBase,
       fallbackBotToken: centralBotToken

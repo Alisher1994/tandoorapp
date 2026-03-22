@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import './TelegramStoreRegistration.css';
 
@@ -84,7 +84,13 @@ const i18n = {
     phone: 'Телефон',
     latitude: 'Широта',
     longitude: 'Долгота',
-    logo: 'Ссылка на логотип (необязательно)',
+    logo: 'Логотип (необязательно)',
+    logoPick: 'Выбрать фото',
+    logoRemove: 'Удалить фото',
+    logoUploading: 'Загрузка фото...',
+    logoEmpty: 'Фото логотипа не выбрано',
+    logoImageOnly: 'Можно выбрать только файл изображения',
+    logoUploadError: 'Ошибка загрузки логотипа',
     botToken: 'Токен бота (необязательно)',
     groupId: 'ID группы для заказов (необязательно)',
     selectActivity: 'Выберите вид деятельности',
@@ -119,7 +125,13 @@ const i18n = {
     phone: 'Telefon',
     latitude: 'Kenglik',
     longitude: "Uzunlik",
-    logo: 'Logotip havolasi (ixtiyoriy)',
+    logo: 'Logotip (ixtiyoriy)',
+    logoPick: 'Rasm tanlash',
+    logoRemove: "Rasmni o'chirish",
+    logoUploading: 'Rasm yuklanmoqda...',
+    logoEmpty: 'Logotip rasmi tanlanmagan',
+    logoImageOnly: 'Faqat rasm faylini tanlash mumkin',
+    logoUploadError: 'Logotipni yuklashda xatolik',
     botToken: 'Bot tokeni (ixtiyoriy)',
     groupId: 'Buyurtmalar guruhi ID (ixtiyoriy)',
     selectActivity: 'Faoliyat turini tanlang',
@@ -146,7 +158,9 @@ function TelegramStoreRegistration() {
   const [error, setError] = useState('');
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoStatus, setGeoStatus] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
   const [successData, setSuccessData] = useState(null);
+  const logoFileInputRef = useRef(null);
   const [form, setForm] = useState({
     store_name: '',
     activity_type_id: '',
@@ -254,6 +268,48 @@ function TelegramStoreRegistration() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleLogoUpload = async (file) => {
+    if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setError(dict.logoImageOnly);
+      return;
+    }
+
+    try {
+      setLogoUploading(true);
+      setError('');
+      const formData = new FormData();
+      formData.append('image', file);
+      if (initData) formData.append('init_data', initData);
+      if (launchToken) formData.append('launch_token', launchToken);
+      const response = await axios.post(`${API_URL}/auth/telegram-webapp-store-registration/upload-logo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const uploadedUrl = response.data?.url || response.data?.imageUrl || '';
+      if (!uploadedUrl) {
+        throw new Error('Не удалось загрузить фото');
+      }
+      setForm((prev) => ({
+        ...prev,
+        logo_url: uploadedUrl
+      }));
+    } catch (uploadError) {
+      setError(uploadError?.response?.data?.error || dict.logoUploadError);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const removeUploadedLogo = () => {
+    setForm((prev) => ({
+      ...prev,
+      logo_url: ''
+    }));
+    if (logoFileInputRef.current) {
+      logoFileInputRef.current.value = '';
+    }
+  };
+
   const canSubmit = useMemo(() => (
     Boolean(initData || launchToken)
     && form.store_name.trim()
@@ -329,6 +385,7 @@ function TelegramStoreRegistration() {
   if (successData) {
     const siteUrl = toAbsoluteUrl(successData.site_url);
     const botLink = toAbsoluteUrl(successData.bot_link);
+    const qrUrl = toAbsoluteUrl(successData.qr_url_full || successData.qr_url);
     const pdfUrl = toAbsoluteUrl(successData.pdf_url_full || successData.pdf_url);
 
     return (
@@ -357,6 +414,11 @@ function TelegramStoreRegistration() {
               <div className="tg-result-label">{dict.botSection}</div>
               {successData.bot_username && (
                 <div className="tg-row"><span>{dict.botUsername}</span><strong>{successData.bot_username}</strong></div>
+              )}
+              {qrUrl && (
+                <div className="tg-qr-preview-wrap">
+                  <img src={qrUrl} alt="QR" className="tg-qr-preview" />
+                </div>
               )}
               <div className="tg-actions">
                 {siteUrl && (
@@ -464,14 +526,39 @@ function TelegramStoreRegistration() {
           {geoStatus && <div className="muted">{geoStatus}</div>}
         </div>
 
-        <label>
-          <span>{dict.logo}</span>
-          <input
-            value={form.logo_url}
-            onChange={(e) => onFieldChange('logo_url', e.target.value)}
-            maxLength={1200}
-          />
-        </label>
+        <div className="tg-logo-section">
+          <span className="tg-logo-label">{dict.logo}</span>
+          <div className={`tg-logo-slot${form.logo_url ? ' is-filled' : ''}`}>
+            {form.logo_url ? (
+              <img src={toAbsoluteUrl(form.logo_url)} alt="Logo" className="tg-logo-preview" />
+            ) : (
+              <div className="tg-logo-empty">{dict.logoEmpty}</div>
+            )}
+          </div>
+          <div className="tg-logo-actions">
+            <label className="tg-btn tg-btn-secondary tg-file-btn">
+              {logoUploading ? dict.logoUploading : dict.logoPick}
+              <input
+                ref={logoFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+                disabled={logoUploading}
+                hidden
+              />
+            </label>
+            {form.logo_url && (
+              <button
+                type="button"
+                className="tg-btn tg-btn-secondary"
+                onClick={removeUploadedLogo}
+                disabled={logoUploading}
+              >
+                {dict.logoRemove}
+              </button>
+            )}
+          </div>
+        </div>
 
         <label>
           <span>{dict.botToken}</span>
