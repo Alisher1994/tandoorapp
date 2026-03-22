@@ -40,6 +40,11 @@ const TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS = Math.max(
   0,
   Number.parseInt(process.env.TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS, 10) || 35
 );
+// Chat bar "Open" / Web App menu button next to the message field (setChatMenuButton).
+// Set TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED=0 on Railway to remove it for all store bots without changing code.
+const TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED = String(
+  process.env.TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED ?? '1'
+).trim() !== '0';
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
@@ -207,7 +212,10 @@ async function getKnownPrivateChatIdsForRestaurant(restaurantId) {
 }
 
 async function backfillPrivateChatMenuButtons({ bot, restaurantId, restaurantName, webAppUrl }) {
-  if (!TELEGRAM_MENU_BUTTON_BACKFILL_ENABLED || !bot || !webAppUrl) return;
+  if (!TELEGRAM_MENU_BUTTON_BACKFILL_ENABLED || !bot) return;
+  const installWebApp = TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED && webAppUrl;
+  const clearWebAppMenu = !TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED;
+  if (!installWebApp && !clearWebAppMenu) return;
 
   try {
     const knownChatIds = await getKnownPrivateChatIdsForRestaurant(restaurantId);
@@ -227,11 +235,15 @@ async function backfillPrivateChatMenuButtons({ bot, restaurantId, restaurantNam
       try {
         await bot.setChatMenuButton({
           chat_id: chatId,
-          menu_button: JSON.stringify({
-            type: 'web_app',
-            text: 'Open',
-            web_app: { url: webAppUrl }
-          })
+          menu_button: JSON.stringify(
+            clearWebAppMenu
+              ? { type: 'default' }
+              : {
+                  type: 'web_app',
+                  text: 'Open',
+                  web_app: { url: webAppUrl }
+                }
+          )
         });
         successCount += 1;
       } catch (error) {
@@ -248,7 +260,7 @@ async function backfillPrivateChatMenuButtons({ bot, restaurantId, restaurantNam
     }
 
     console.log(
-      `✅ ${restaurantName}: silent menu backfill done (${successCount}/${targetChatIds.length}, failed: ${failCount})`
+      `✅ ${restaurantName}: silent menu ${clearWebAppMenu ? 'clear' : 'backfill'} done (${successCount}/${targetChatIds.length}, failed: ${failCount})`
     );
   } catch (error) {
     console.error(`⚠️ ${restaurantName}: silent menu backfill error:`, error.message);
@@ -1046,8 +1058,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   });
 
   const setPrivateChatMenuButton = async ({ chatId, webAppUrl, lang = 'ru' }) => {
-    if (!chatId || !webAppUrl) return;
+    if (!chatId) return;
     try {
+      if (!TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) {
+        await bot.setChatMenuButton({
+          chat_id: chatId,
+          menu_button: JSON.stringify({ type: 'default' })
+        });
+        return;
+      }
+      if (!webAppUrl) return;
       await bot.setChatMenuButton({
         chat_id: chatId,
         // node-telegram-bot-api serializes nested objects for reply_markup only,
@@ -3335,25 +3355,37 @@ async function initMultiBots() {
         // Setup handlers
         setupBotHandlers(bot, restaurant.id, restaurant.name, restaurant.telegram_bot_token);
 
-        // Set default menu button for all private chats in this bot.
+        // Set default menu button for all private chats in this bot (the "Open" bar next to the input).
         // Uses a static restaurant-scoped URL; auth is resolved in WebApp via Telegram initData.
+        // Disable with TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED=0 (silent; customers keep "Заказать" keyboard).
         try {
-          const defaultCatalogUrl = buildCatalogPublicUrl(appUrl, restaurant.id);
-          if (defaultCatalogUrl) {
-            await bot.setChatMenuButton({
-              menu_button: JSON.stringify({
-                type: 'web_app',
-                text: 'Open',
-                web_app: { url: defaultCatalogUrl }
-              })
-            });
+          if (TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) {
+            const defaultCatalogUrl = buildCatalogPublicUrl(appUrl, restaurant.id);
+            if (defaultCatalogUrl) {
+              await bot.setChatMenuButton({
+                menu_button: JSON.stringify({
+                  type: 'web_app',
+                  text: 'Open',
+                  web_app: { url: defaultCatalogUrl }
+                })
+              });
 
-            // Silent rollout: update menu button in known private chats without any visible bot messages.
+              void backfillPrivateChatMenuButtons({
+                bot,
+                restaurantId: restaurant.id,
+                restaurantName: restaurant.name,
+                webAppUrl: defaultCatalogUrl
+              });
+            }
+          } else {
+            await bot.setChatMenuButton({
+              menu_button: JSON.stringify({ type: 'default' })
+            });
             void backfillPrivateChatMenuButtons({
               bot,
               restaurantId: restaurant.id,
               restaurantName: restaurant.name,
-              webAppUrl: defaultCatalogUrl
+              webAppUrl: ''
             });
           }
         } catch (menuError) {
