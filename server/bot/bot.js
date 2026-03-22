@@ -105,6 +105,42 @@ const BOT_TEXTS = {
     welcomeStart: '👋 Добро пожаловать!\n\nДля регистрации нажмите на кнопку Регистрация магазина',
     registerStoreButton: '🏪 Регистрация магазина',
     genericError: '❌ Произошла ошибка. Попробуйте позже.',
+    notRegisteredStart: '❌ Вы не зарегистрированы. Нажмите /start',
+    notRegisteredUseStart: '❌ Вы не зарегистрированы. Используйте /start',
+    notRegisteredStartRegistration: '❌ Пожалуйста, сначала нажмите /start для регистрации',
+    profileNotFoundStart: '❌ Профиль не найден. Нажмите /start для регистрации.',
+    customerResetDisabled: 'ℹ️ Для клиентов восстановление через бот отключено. Обратитесь в поддержку магазина.',
+    resetNeedsPhone: '❌ Для восстановления нужен номер телефона в профиле.',
+    resetAccessRestored: '✅ <b>Доступ восстановлен</b>\n\nЛогин: <code>{login}</code>\nВременный пароль: <code>{password}</code>\n\n{loginLink}Рекомендуется войти и сменить пароль.',
+    resetLoginLink: 'Ссылка для входа: {url}\n\n',
+    resetAccessError: '❌ Ошибка восстановления доступа.',
+    noOrdersYet: '📦 У вас пока нет заказов.',
+    ordersTitle: '📦 <b>Ваши заказы:</b>\n\n',
+    ordersLatestTitle: '📦 <b>Ваши последние заказы:</b>\n\n',
+    orderTitle: 'Заказ',
+    orderStatusLabel: 'Статус',
+    ordersFetchError: '❌ Ошибка получения заказов',
+    menuAddressPrompt: '📍 Укажите адрес доставки:',
+    sendGeoForDeliveryPrompt: '📍 Отправьте геолокацию для доставки:',
+    sendGeoButton: '📍 Отправить геолокацию',
+    sendAnotherLocationButton: '📍 Отправить другую локацию',
+    openStoreButton: '🏪 Открыть магазин',
+    storeClosedNow: '😔 Извините, данный магазин работает с {start} по {end}.\n\nПопробуйте позже!',
+    deliveryAvailable: '✅ Отлично! Доставка доступна!\n\n🏪 Магазин: <b>{store}</b>',
+    deliveryLinkIssue: '⚠️ Ошибка выдачи ссылки. Попробуйте команду /menu.',
+    registrationSuccess: '✅ Регистрация успешна!\n\n🏪 Магазин: <b>{store}</b>\n📍 Доставка по вашему адресу доступна!{closedNote}',
+    storeClosedOrderHint: '\n\nℹ️ Сейчас магазин закрыт и работает с {start} по {end}. Заказ можно оформить в рабочее время.',
+    deliveryUnavailable: '😔 Извините!\n\nК сожалению, доставка по вашему адресу пока не осуществляется.\n\n📍 Попробуйте отправить другую локацию или свяжитесь с нами для уточнения.',
+    quickHelpText: '📖 <b>Помощь</b>\n\n📍 <b>Отправить локацию</b> — начать заказ\n📋 <b>Мои заказы</b> — история заказов\n\nКоманды:\n/start — начать\n/menu — открыть меню\n/orders — мои заказы',
+    orderNotFound: '❌ Заказ не найден',
+    orderAlreadyProcessed: '⚠️ Заказ уже обработан',
+    insufficientBalanceAlert: '❌ Недостаточно средств на балансе магазина\nБаланс: {balance} сум\nНужно: {required} сум',
+    orderAcceptFailed: '❌ Не удалось принять заказ',
+    orderConfirmed: '✅ Заказ подтвержден!',
+    callbackErrorPrefix: '❌ Ошибка: ',
+    rejectOrderPrompt: '❌ <b>Отмена заказа #{orderId}</b>\n\nНапишите причину отказа:',
+    rejectSummary: '❌ <b>Заказ #{orderId} отменен</b>\n\nПричина: {reason}\nОператор: {operator}',
+    rejectOrderError: '❌ Ошибка при отмене заказа',
     thanksName: '✅ Спасибо!\n\n👤 Теперь введите ваше имя:',
     niceToMeet: '👋 Приятно познакомиться, {name}!\n\n📍 Теперь поделитесь вашей геолокацией, чтобы мы проверили зону доставки:',
     shareContact: '📱 Поделиться контактом',
@@ -131,6 +167,42 @@ const BOT_TEXTS = {
     welcomeStart: '👋 Xush kelibsiz!\n\nRo\'yxatdan o\'tish uchun Do\'konni ro\'yxatdan o\'tish tugmasini bosing',
     registerStoreButton: '🏪 Do‘konni ro‘yxatdan o‘tkazish',
     genericError: '❌ Xatolik yuz berdi. Keyinroq urinib ko‘ring.',
+    notRegisteredStart: "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing",
+    notRegisteredUseStart: "❌ Siz ro'yxatdan o'tmagansiz. /start dan foydalaning",
+    notRegisteredStartRegistration: "❌ Avval ro'yxatdan o'tish uchun /start ni bosing",
+    profileNotFoundStart: "❌ Profil topilmadi. Ro'yxatdan o'tish uchun /start ni bosing.",
+    customerResetDisabled: "ℹ️ Mijozlar uchun bot orqali tiklash o'chirilgan. Do'kon qo'llab-quvvatlashiga murojaat qiling.",
+    resetNeedsPhone: "❌ Tiklash uchun profilda telefon raqami bo'lishi kerak.",
+    resetAccessRestored: "✅ <b>Kirish tiklandi</b>\n\nLogin: <code>{login}</code>\nVaqtinchalik parol: <code>{password}</code>\n\n{loginLink}Tizimga kirib, parolni almashtirish tavsiya etiladi.",
+    resetLoginLink: 'Kirish havolasi: {url}\n\n',
+    resetAccessError: '❌ Kirishni tiklashda xatolik yuz berdi.',
+    noOrdersYet: "📦 Sizda hali buyurtmalar yo'q.",
+    ordersTitle: '📦 <b>Buyurtmalaringiz:</b>\n\n',
+    ordersLatestTitle: '📦 <b>So‘nggi buyurtmalaringiz:</b>\n\n',
+    orderTitle: 'Buyurtma',
+    orderStatusLabel: 'Holat',
+    ordersFetchError: "❌ Buyurtmalarni olishda xatolik yuz berdi",
+    menuAddressPrompt: '📍 Yetkazib berish manzilini yuboring:',
+    sendGeoForDeliveryPrompt: '📍 Yetkazib berish uchun geolokatsiyani yuboring:',
+    sendGeoButton: '📍 Geolokatsiyani yuborish',
+    sendAnotherLocationButton: '📍 Boshqa lokatsiya yuborish',
+    openStoreButton: "🏪 Do'konni ochish",
+    storeClosedNow: '😔 Kechirasiz, ushbu do‘kon {start} dan {end} gacha ishlaydi.\n\nIltimos, keyinroq urinib ko‘ring!',
+    deliveryAvailable: "✅ A'lo! Yetkazib berish mavjud!\n\n🏪 Do'kon: <b>{store}</b>",
+    deliveryLinkIssue: "⚠️ Havola berishda xatolik. /menu buyrug'i bilan urinib ko'ring.",
+    registrationSuccess: "✅ Ro'yxatdan o'tish muvaffaqiyatli!\n\n🏪 Do'kon: <b>{store}</b>\n📍 Manzilingiz bo'yicha yetkazib berish mavjud!{closedNote}",
+    storeClosedOrderHint: '\n\nℹ️ Hozir do‘kon yopiq, ish vaqti: {start} - {end}. Buyurtmani ish vaqtida rasmiylashtirish mumkin.',
+    deliveryUnavailable: "😔 Kechirasiz!\n\nAfsuski, manzilingizga yetkazib berish hozircha mavjud emas.\n\n📍 Boshqa lokatsiya yuboring yoki aniqlik uchun biz bilan bog'laning.",
+    quickHelpText: "📖 <b>Yordam</b>\n\n📍 <b>Lokatsiya yuborish</b> — buyurtmani boshlash\n📋 <b>Buyurtmalarim</b> — buyurtmalar tarixi\n\nBuyruqlar:\n/start — boshlash\n/menu — menyuni ochish\n/orders — buyurtmalarim",
+    orderNotFound: '❌ Buyurtma topilmadi',
+    orderAlreadyProcessed: '⚠️ Buyurtma allaqachon qayta ishlangan',
+    insufficientBalanceAlert: "❌ Do'kon balansida mablag' yetarli emas\nBalans: {balance} so'm\nKerak: {required} so'm",
+    orderAcceptFailed: '❌ Buyurtmani qabul qilib bo‘lmadi',
+    orderConfirmed: '✅ Buyurtma tasdiqlandi!',
+    callbackErrorPrefix: '❌ Xatolik: ',
+    rejectOrderPrompt: '❌ <b>Buyurtma #{orderId} bekor qilinmoqda</b>\n\nBekor qilish sababini yozing:',
+    rejectSummary: '❌ <b>Buyurtma #{orderId} bekor qilindi</b>\n\nSabab: {reason}\nOperator: {operator}',
+    rejectOrderError: '❌ Buyurtmani bekor qilishda xatolik yuz berdi',
     thanksName: '✅ Rahmat!\n\n👤 Endi ismingizni kiriting:',
     niceToMeet: '👋 Tanishganimdan xursandman, {name}!\n\n📍 Endi yetkazib berish hududini tekshirish uchun geolokatsiyangizni yuboring:',
     shareContact: '📱 Kontaktni yuborish',
@@ -517,6 +589,7 @@ const ONBOARDING_TEXTS = {
     promptToken: '🤖 Отправьте <b>Bot Token</b> вашего магазина:',
     promptGroup: '👥 Нажмите кнопку ниже и <b>поделитесь группой</b> для заказов.\n\nПосле добавления в группу обязательно сделайте бота <b>администратором с полным доступом</b>.\n\nМожно также отправить ID группы вручную (пример: <code>-1001234567890</code>):',
     groupConnected: '✅ Группа подключена.\n\nID группы: <code>{groupId}</code>',
+    requiredFieldsComplete: '✅ Обязательные поля заполнены.\n\nДалее можно добавить необязательные данные или пропустить:',
     logoSaved: '✅ Логотип получен и сохранен.',
     photoReadError: '❌ Не удалось прочитать фото. Отправьте изображение еще раз.',
     photoSaveError: '❌ Не удалось сохранить фото. Попробуйте снова или отправьте URL.',
@@ -563,6 +636,7 @@ const ONBOARDING_TEXTS = {
     promptToken: '🤖 Do‘koningizning <b>Bot Token</b>ini yuboring:',
     promptGroup: '👥 Quyidagi tugmani bosing va buyurtmalar uchun <b>guruhni ulashing</b>.\n\nBotga guruhda <b>to‘liq huquqli admin</b> ruxsatini bering.\n\nYoki guruh ID ni qo‘lda yuboring (masalan: <code>-1001234567890</code>):',
     groupConnected: '✅ Guruh ulandi.\n\nGuruh ID: <code>{groupId}</code>',
+    requiredFieldsComplete: '✅ Majburiy maydonlar to‘ldirildi.\n\nEndi ixtiyoriy ma’lumotlarni qo‘shishingiz yoki o‘tkazib yuborishingiz mumkin:',
     logoSaved: '✅ Logotip qabul qilindi va saqlandi.',
     photoReadError: '❌ Rasmni o‘qib bo‘lmadi. Iltimos, qayta yuboring.',
     photoSaveError: '❌ Rasmni saqlab bo‘lmadi. Qayta urinib ko‘ring yoki URL yuboring.',
@@ -1499,22 +1573,27 @@ async function initBot() {
 
   async function resetAccessByTelegram(chatId, telegramUserId) {
     const user = await resolvePreferredAdminTelegramUser(telegramUserId);
+    const userLang = normalizeBotLanguage(
+      languagePreferences.get(telegramUserId)
+      || user?.bot_language
+      || 'ru'
+    );
 
     if (!user) {
-      await bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+      await bot.sendMessage(chatId, t(userLang, 'notRegisteredStart'));
       return;
     }
     if (user.role === 'customer') {
       await bot.sendMessage(
         chatId,
-        'ℹ️ Для клиентов восстановление через бот отключено. Обратитесь в поддержку магазина.'
+        t(userLang, 'customerResetDisabled')
       );
       return;
     }
 
     const phoneLogin = normalizePhoneDigits(user.phone);
     if (!phoneLogin) {
-      await bot.sendMessage(chatId, '❌ Для восстановления нужен номер телефона в профиле.');
+      await bot.sendMessage(chatId, t(userLang, 'resetNeedsPhone'));
       return;
     }
     const resolvedLogin = await resolveUniqueAuthUsername(pool, phoneLogin, user.id);
@@ -1540,14 +1619,15 @@ async function initBot() {
       source: 'superadmin_bot',
       token: adminAutoLoginToken
     });
-    const actionKeyboard = await getSuperadminActionReplyMarkup(telegramUserId, normalizeBotLanguage(languagePreferences.get(telegramUserId) || 'ru'));
+    const loginLink = loginUrl ? t(userLang, 'resetLoginLink', { url: loginUrl }) : '';
+    const actionKeyboard = await getSuperadminActionReplyMarkup(telegramUserId, userLang);
     await bot.sendMessage(
       chatId,
-      `✅ <b>Доступ восстановлен</b>\n\n` +
-      `Логин: <code>${resolvedLogin}</code>\n` +
-      `Временный пароль: <code>${temporaryPassword}</code>\n\n` +
-      `${loginUrl ? `Ссылка для входа: ${loginUrl}\n\n` : ''}` +
-      `Рекомендуется войти и сменить пароль.`,
+      t(userLang, 'resetAccessRestored', {
+        login: resolvedLogin,
+        password: temporaryPassword,
+        loginLink
+      }),
       {
         parse_mode: 'HTML',
         reply_markup: actionKeyboard
@@ -1564,7 +1644,8 @@ async function initBot() {
       await resetAccessByTelegram(msg.chat.id, msg.from.id);
     } catch (error) {
       console.error('Reset access error:', error);
-      bot.sendMessage(msg.chat.id, '❌ Ошибка восстановления доступа.');
+      const userLang = normalizeBotLanguage(languagePreferences.get(msg.from.id) || getTelegramPreferredLanguage(msg.from?.language_code));
+      bot.sendMessage(msg.chat.id, t(userLang, 'resetAccessError'));
     }
   });
   
@@ -1893,7 +1974,12 @@ async function initBot() {
           return;
         }
 
-        if (normalizedText === onboardingT(userLang, 'skip') || normalizedText === '⏭️ Пропустить') {
+        const skipVariants = [
+          onboardingT(userLang, 'skip'),
+          onboardingT('ru', 'skip'),
+          onboardingT('uz', 'skip')
+        ];
+        if (skipVariants.includes(normalizedText)) {
           onboardingState.group_id = null;
           onboardingStates.set(onboardingKey, onboardingState);
           await bot.sendMessage(chatId, onboardingT(userLang, 'skipGroupDone'), {
@@ -1903,7 +1989,12 @@ async function initBot() {
           return;
         }
 
-        if (normalizedText === onboardingT(userLang, 'cancel') || normalizedText === '❌ Отмена') {
+        const cancelVariants = [
+          onboardingT(userLang, 'cancel'),
+          onboardingT('ru', 'cancel'),
+          onboardingT('uz', 'cancel')
+        ];
+        if (cancelVariants.includes(normalizedText)) {
           onboardingStates.delete(onboardingKey);
           await clearOnboardingUiMessages(chatId, userId);
           await bot.sendMessage(chatId, onboardingT(userLang, 'cancelled'), {
@@ -1921,11 +2012,12 @@ async function initBot() {
     }
     
     // Handle menu buttons
-    if (text === '📋 Мои заказы') {
+    if ([t('ru', 'myOrdersButton'), t('uz', 'myOrdersButton')].includes(text)) {
+      const userLang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
       // Trigger /orders command
       const userResult = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
       if (userResult.rows.length === 0) {
-        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+        bot.sendMessage(chatId, t(userLang, 'notRegisteredStart'));
         return;
       }
       
@@ -1936,11 +2028,11 @@ async function initBot() {
       `, [userResult.rows[0].id]);
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
+        bot.sendMessage(chatId, t(userLang, 'noOrdersYet'));
         return;
       }
       
-      let message = '📦 <b>Ваши заказы:</b>\n\n';
+      let message = t(userLang, 'ordersTitle');
       const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
       
       ordersResult.rows.forEach((order) => {
@@ -1953,15 +2045,10 @@ async function initBot() {
       return;
     }
     
-    if (text === '❓ Помощь') {
+    if (['❓ Помощь', '❓ Yordam'].includes(text)) {
+      const userLang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
       bot.sendMessage(chatId,
-        '📖 <b>Помощь</b>\n\n' +
-        '📍 <b>Отправить локацию</b> — начать заказ\n' +
-        '📋 <b>Мои заказы</b> — история заказов\n\n' +
-        'Команды:\n' +
-        '/start — начать\n' +
-        '/menu — открыть меню\n' +
-        '/orders — мои заказы',
+        t(userLang, 'quickHelpText'),
         { parse_mode: 'HTML' }
       );
       return;
@@ -2000,6 +2087,10 @@ async function initBot() {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const location = msg.location;
+    const userLang = normalizeBotLanguage(
+      languagePreferences.get(userId)
+      || getTelegramPreferredLanguage(msg.from?.language_code)
+    );
 
     const onboardingKey = getOnboardingStateKey(userId);
     const onboardingState = onboardingStates.get(onboardingKey);
@@ -2010,7 +2101,7 @@ async function initBot() {
       };
       onboardingStates.set(onboardingKey, onboardingState);
       await bot.sendMessage(chatId,
-        '✅ Обязательные поля заполнены.\n\nДалее можно добавить необязательные данные или пропустить:',
+        onboardingT(getOnboardingLanguage(userId), 'requiredFieldsComplete'),
         { reply_markup: { remove_keyboard: true } }
       );
       await showOptionalStep(chatId, userId, 'logo_url');
@@ -2029,7 +2120,7 @@ async function initBot() {
         console.log(`📍 Auto-set state for existing user ${userId}`);
       } else {
         // Unknown user - tell them to /start
-        bot.sendMessage(chatId, '❌ Пожалуйста, сначала нажмите /start для регистрации');
+        bot.sendMessage(chatId, t(userLang, 'notRegisteredStartRegistration'));
         return;
       }
     }
@@ -2052,7 +2143,10 @@ async function initBot() {
         
         if (!isOpenNow && state.isExistingUser) {
           bot.sendMessage(chatId,
-            `😔 Извините, данный магазин работает с ${startTime || '??:??'} по ${endTime || '??:??'}.\n\nПопробуйте позже!`,
+            t(userLang, 'storeClosedNow', {
+              start: startTime || '??:??',
+              end: endTime || '??:??'
+            }),
             { reply_markup: { remove_keyboard: true } }
           );
           registrationStates.delete(userId);
@@ -2070,7 +2164,7 @@ async function initBot() {
           
           if (userResult.rows.length === 0) {
             registrationStates.delete(userId);
-            bot.sendMessage(chatId, '❌ Профиль не найден. Нажмите /start для регистрации.');
+            bot.sendMessage(chatId, t(userLang, 'profileNotFoundStart'));
             return;
           }
 
@@ -2096,23 +2190,20 @@ async function initBot() {
           
           if (!loginUrl) {
             bot.sendMessage(chatId,
-              `✅ Отлично! Доставка доступна!\n\n` +
-              `🏪 Магазин: <b>${restaurant.name}</b>\n\n` +
-              `⚠️ Ошибка выдачи ссылки. Попробуйте команду /menu.`,
+              `${t(userLang, 'deliveryAvailable', { store: restaurant.name })}\n\n${t(userLang, 'deliveryLinkIssue')}`,
               { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
             );
             return;
           }
           
           bot.sendMessage(chatId,
-            `✅ Отлично! Доставка доступна!\n\n` +
-            `🏪 Магазин: <b>${restaurant.name}</b>`,
+            t(userLang, 'deliveryAvailable', { store: restaurant.name }),
             {
               parse_mode: 'HTML',
               reply_markup: {
                 keyboard: [[
-                  { text: '🏪 Открыть магазин', web_app: { url: loginUrl } },
-                  { text: '📋 Мои заказы' }
+                  { text: t(userLang, 'openStoreButton'), web_app: { url: loginUrl } },
+                  { text: t(userLang, 'myOrdersButton') }
                 ]],
                 resize_keyboard: true,
                 is_persistent: true
@@ -2152,18 +2243,24 @@ async function initBot() {
         // Generate auto-login token
         const token = generateLoginToken(newUserId, username, { restaurantId: restaurant.id });
         const loginUrl = buildCatalogUrl(appUrl, token);
+        const closedNote = !isOpenNow
+          ? t(userLang, 'storeClosedOrderHint', {
+            start: startTime || '??:??',
+            end: endTime || '??:??'
+          })
+          : '';
         
         bot.sendMessage(chatId,
-          `✅ Регистрация успешна!\n\n` +
-          `🏪 Магазин: <b>${restaurant.name}</b>\n` +
-          `📍 Доставка по вашему адресу доступна!` +
-          (!isOpenNow ? `\n\nℹ️ Сейчас магазин закрыт и работает с ${startTime || '??:??'} по ${endTime || '??:??'}. Заказ можно оформить в рабочее время.` : ''),
+          t(userLang, 'registrationSuccess', {
+            store: restaurant.name,
+            closedNote
+          }),
           {
             parse_mode: 'HTML',
             reply_markup: {
               keyboard: [[
-                { text: '🏪 Открыть магазин', web_app: { url: loginUrl } },
-                { text: '📋 Мои заказы' }
+                { text: t(userLang, 'openStoreButton'), web_app: { url: loginUrl } },
+                { text: t(userLang, 'myOrdersButton') }
               ]],
               resize_keyboard: true,
               is_persistent: true
@@ -2173,13 +2270,11 @@ async function initBot() {
       } else {
         // Location is NOT in any delivery zone
         bot.sendMessage(chatId,
-          '😔 Извините!\n\n' +
-          'К сожалению, доставка по вашему адресу пока не осуществляется.\n\n' +
-          '📍 Попробуйте отправить другую локацию или свяжитесь с нами для уточнения.',
+          t(userLang, 'deliveryUnavailable'),
           {
             reply_markup: {
               keyboard: [[
-                { text: '📍 Отправить другую локацию', request_location: true }
+                { text: t(userLang, 'sendAnotherLocationButton'), request_location: true }
               ]],
               resize_keyboard: true,
               one_time_keyboard: true
@@ -2189,7 +2284,7 @@ async function initBot() {
       }
     } catch (error) {
       console.error('Location handling error:', error);
-      bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+      bot.sendMessage(chatId, t(userLang, 'genericError'));
     }
   });
   
@@ -2209,6 +2304,7 @@ async function initBot() {
   bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
     const telegramUserId = msg.from.id;
+    const userLang = normalizeBotLanguage(languagePreferences.get(telegramUserId) || getTelegramPreferredLanguage(msg.from?.language_code));
     
     try {
       const userResult = await pool.query(
@@ -2217,7 +2313,7 @@ async function initBot() {
       );
       
       if (userResult.rows.length === 0) {
-        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Используйте /start');
+        bot.sendMessage(chatId, t(userLang, 'notRegisteredUseStart'));
         return;
       }
       
@@ -2228,11 +2324,11 @@ async function initBot() {
       });
       
       bot.sendMessage(chatId,
-        '📍 Укажите адрес доставки:',
+        t(userLang, 'menuAddressPrompt'),
         {
           reply_markup: {
             keyboard: [[
-              { text: '📍 Отправить локацию', request_location: true }
+              { text: t(userLang, 'sendGeoButton'), request_location: true }
             ]],
             resize_keyboard: true,
             one_time_keyboard: true
@@ -2241,7 +2337,7 @@ async function initBot() {
       );
     } catch (error) {
       console.error('Menu command error:', error);
-      bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте позже.');
+      bot.sendMessage(chatId, t(userLang, 'genericError'));
     }
   });
   
@@ -2251,6 +2347,7 @@ async function initBot() {
   bot.onText(/\/orders/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
+    const userLang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
     
     try {
       const userResult = await pool.query(
@@ -2259,7 +2356,7 @@ async function initBot() {
       );
       
       if (userResult.rows.length === 0) {
-        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Используйте /start');
+        bot.sendMessage(chatId, t(userLang, 'notRegisteredUseStart'));
         return;
       }
       
@@ -2286,11 +2383,11 @@ async function initBot() {
       );
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
+        bot.sendMessage(chatId, t(userLang, 'noOrdersYet'));
         return;
       }
       
-      let message = '📦 <b>Ваши последние заказы:</b>\n\n';
+      let message = t(userLang, 'ordersLatestTitle');
       
       ordersResult.rows.forEach((order) => {
         const statusEmoji = {
@@ -2301,11 +2398,11 @@ async function initBot() {
           'cancelled': '❌'
         };
         
-        message += `${statusEmoji[order.status] || '📦'} <b>Заказ #${order.order_number}</b>\n`;
+        message += `${statusEmoji[order.status] || '📦'} <b>${t(userLang, 'orderTitle')} #${order.order_number}</b>\n`;
         if (order.restaurant_name) message += `🏪 ${order.restaurant_name}\n`;
         message += `💰 ${order.total_amount} сум\n`;
         message += `📅 ${new Date(order.created_at).toLocaleDateString('ru-RU', { timeZone: BOT_TIME_ZONE })}\n`;
-        message += `Статус: ${getStatusText(order.status)}\n\n`;
+        message += `${t(userLang, 'orderStatusLabel')}: ${getStatusText(order.status, userLang)}\n\n`;
       });
       
       bot.sendMessage(chatId, message, { 
@@ -2313,7 +2410,7 @@ async function initBot() {
       });
     } catch (error) {
       console.error('Orders command error:', error);
-      bot.sendMessage(chatId, '❌ Ошибка получения заказов');
+      bot.sendMessage(chatId, t(userLang, 'ordersFetchError'));
     }
   });
   
@@ -2325,6 +2422,10 @@ async function initBot() {
     const messageId = callbackQuery.message.message_id;
     const userId = callbackQuery.from.id;
     const data = callbackQuery.data;
+    const callbackLang = normalizeBotLanguage(
+      languagePreferences.get(userId)
+      || getTelegramPreferredLanguage(callbackQuery?.from?.language_code)
+    );
     const operatorName = callbackQuery.from.first_name || 'Оператор';
     
     // Answer callback to remove loading state
@@ -2503,15 +2604,13 @@ async function initBot() {
       
       // Send message with location request keyboard
       await bot.sendMessage(chatId,
-        userLang === 'uz'
-          ? '📍 Yetkazib berish uchun geolokatsiyani yuboring:'
-          : '📍 Отправьте геолокацию для доставки:',
+        t(userLang, 'sendGeoForDeliveryPrompt'),
         {
           parse_mode: 'HTML',
           reply_markup: {
             keyboard: [
               [{
-                text: userLang === 'uz' ? '📍 Geolokatsiyani yuborish' : '📍 Отправить геолокацию',
+                text: t(userLang, 'sendGeoButton'),
                 request_location: true
               }]
             ],
@@ -2525,10 +2624,11 @@ async function initBot() {
     
     // My orders inline button
     if (data === 'my_orders') {
+      const userLang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(callbackQuery?.from?.language_code));
       const userResult = await pool.query('SELECT id FROM users WHERE telegram_id = $1', [userId]);
       
       if (userResult.rows.length === 0) {
-        bot.sendMessage(chatId, '❌ Вы не зарегистрированы. Нажмите /start');
+        bot.sendMessage(chatId, t(userLang, 'notRegisteredStart'));
         return;
       }
       
@@ -2539,11 +2639,11 @@ async function initBot() {
       `, [userResult.rows[0].id]);
       
       if (ordersResult.rows.length === 0) {
-        bot.sendMessage(chatId, '📦 У вас пока нет заказов.');
+        bot.sendMessage(chatId, t(userLang, 'noOrdersYet'));
         return;
       }
       
-      let message = '📦 <b>Ваши заказы:</b>\n\n';
+      let message = t(userLang, 'ordersTitle');
       const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
       
       ordersResult.rows.forEach((order) => {
@@ -2583,7 +2683,7 @@ async function initBot() {
         }
         
         if (orderCheck.rows.length === 0) {
-          bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Заказ не найден', show_alert: true });
+          bot.answerCallbackQuery(callbackQuery.id, { text: t(callbackLang, 'orderNotFound'), show_alert: true });
           return;
         }
         
@@ -2596,15 +2696,18 @@ async function initBot() {
         }
         
         if (orderData.status !== 'new') {
-          bot.answerCallbackQuery(callbackQuery.id, { text: '⚠️ Заказ уже обработан', show_alert: true });
+          bot.answerCallbackQuery(callbackQuery.id, { text: t(callbackLang, 'orderAlreadyProcessed'), show_alert: true });
           return;
         }
 
         const billingResult = await ensureOrderPaidForProcessing({ orderId });
         if (!billingResult.ok) {
           const text = billingResult.code === 'INSUFFICIENT_BALANCE'
-            ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} сум\nНужно: ${formatMoney(billingResult.requiredAmount)} сум`
-            : (billingResult.error || '❌ Не удалось принять заказ');
+            ? t(callbackLang, 'insufficientBalanceAlert', {
+              balance: formatMoney(billingResult.balanceBefore),
+              required: formatMoney(billingResult.requiredAmount)
+            })
+            : (billingResult.error || t(callbackLang, 'orderAcceptFailed'));
           bot.answerCallbackQuery(callbackQuery.id, { text, show_alert: true });
           return;
         }
@@ -2695,10 +2798,10 @@ async function initBot() {
           }
         }
         
-        bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Заказ подтвержден!' });
+        bot.answerCallbackQuery(callbackQuery.id, { text: t(callbackLang, 'orderConfirmed') });
       } catch (error) {
         console.error('Confirm order error:', error);
-        bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Ошибка: ' + error.message, show_alert: true });
+        bot.answerCallbackQuery(callbackQuery.id, { text: t(callbackLang, 'callbackErrorPrefix') + error.message, show_alert: true });
       }
     }
     
@@ -2732,8 +2835,7 @@ async function initBot() {
       });
       
       bot.sendMessage(chatId,
-        `❌ <b>Отмена заказа #${orderId}</b>\n\n` +
-        `Напишите причину отказа:`,
+        t(callbackLang, 'rejectOrderPrompt', { orderId }),
         {
           parse_mode: 'HTML',
           reply_markup: {
@@ -2752,7 +2854,12 @@ async function initBot() {
     if (!msg.reply_to_message) return;
     
     const chatId = msg.chat.id;
+    const userId = msg.from?.id;
     const text = msg.text;
+    const userLang = normalizeBotLanguage(
+      languagePreferences.get(userId)
+      || getTelegramPreferredLanguage(msg.from?.language_code)
+    );
     
     // Find rejection state
     for (const [key, state] of registrationStates.entries()) {
@@ -2836,9 +2943,11 @@ async function initBot() {
           
           // Update original message
           bot.sendMessage(chatId,
-            `❌ <b>Заказ #${orderId} отменен</b>\n\n` +
-            `Причина: ${text}\n` +
-            `Оператор: ${operatorName}`,
+            t(userLang, 'rejectSummary', {
+              orderId,
+              reason: text,
+              operator: operatorName
+            }),
             { parse_mode: 'HTML' }
           );
           
@@ -2846,7 +2955,7 @@ async function initBot() {
           registrationStates.delete(key);
         } catch (error) {
           console.error('Reject order error:', error);
-          bot.sendMessage(chatId, '❌ Ошибка при отмене заказа');
+          bot.sendMessage(chatId, t(userLang, 'rejectOrderError'));
         }
         
         break;
@@ -2868,14 +2977,25 @@ async function initBot() {
   });
 }
 
-function getStatusText(status) {
-  const statusMap = {
-    'new': 'Новый',
-    'preparing': 'Готовится',
-    'delivering': 'Доставляется',
-    'delivered': 'Доставлен',
-    'cancelled': 'Отменен'
+function getStatusText(status, lang = 'ru') {
+  const language = normalizeBotLanguage(lang);
+  const statusMapByLang = {
+    ru: {
+      'new': 'Новый',
+      'preparing': 'Готовится',
+      'delivering': 'Доставляется',
+      'delivered': 'Доставлен',
+      'cancelled': 'Отменен'
+    },
+    uz: {
+      'new': 'Yangi',
+      'preparing': 'Tayyorlanmoqda',
+      'delivering': 'Yetkazilmoqda',
+      'delivered': 'Yetkazildi',
+      'cancelled': 'Bekor qilindi'
+    }
   };
+  const statusMap = statusMapByLang[language] || statusMapByLang.ru;
   return statusMap[status] || status;
 }
 
