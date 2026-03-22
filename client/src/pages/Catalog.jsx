@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useDeferredValue } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -160,6 +160,7 @@ function Catalog() {
   const pendingProductReviewsLoadedRef = useRef(false);
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
+  const activeSubcategoryTabRef = useRef(null);
   const catalogHeaderBackground = '#f8fafc';
   const catalogTabGap = 8;
   const isTelegramWebView = useMemo(() => (
@@ -1721,6 +1722,10 @@ function Catalog() {
     return () => cancelAnimationFrame(rafId);
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
+  useLayoutEffect(() => {
+    activeSubcategoryTabRef.current = activeSubcategoryTab;
+  }, [activeSubcategoryTab]);
+
   // Tabs layout management removed to simplify native scrolling
 
 
@@ -1782,7 +1787,8 @@ function Catalog() {
       const nextActiveId = currentId ?? firstId;
       if (!nextActiveId) return;
 
-      scrollActiveTabIntoView(nextActiveId, 'auto');
+      // Do not call scrollActiveTabIntoView here: it runs on every vertical scroll tick and
+      // resets horizontal scrollLeft on the tab strip, causing "rubber band" when browsing tabs.
       if (nextActiveId !== activeSubcategoryTab) {
         tabActivationSourceRef.current = 'scroll';
         setActiveSubcategoryTab(nextActiveId);
@@ -1797,17 +1803,25 @@ function Catalog() {
       });
     };
 
+    const onResize = () => {
+      onScroll();
+      requestAnimationFrame(() => {
+        const id = activeSubcategoryTabRef.current;
+        if (id) scrollActiveTabIntoView(id, 'auto');
+      });
+    };
+
     detectVisibleSection();
     uniqueScrollTargets.forEach((target) => {
       target.addEventListener('scroll', onScroll, { passive: true });
     });
-    window.addEventListener('resize', onScroll);
+    window.addEventListener('resize', onResize);
 
     return () => {
       uniqueScrollTargets.forEach((target) => {
         target.removeEventListener('scroll', onScroll);
       });
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('resize', onResize);
       if (tabScrollSpyRafRef.current) {
         cancelAnimationFrame(tabScrollSpyRafRef.current);
         tabScrollSpyRafRef.current = null;
@@ -3291,28 +3305,30 @@ function Catalog() {
             </div>
           </div>
         </div>
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 2,
-            background: 'transparent',
-            pointerEvents: 'none'
-          }}
-        >
+        {!shouldShowCatalogTabs && (
           <div
+            aria-hidden="true"
             style={{
-              width: `${Math.round(catalogScrollProgress * 100)}%`,
-              height: '100%',
-              background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
-              boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
-              transition: 'width 0.12s linear'
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 2,
+              background: 'transparent',
+              pointerEvents: 'none'
             }}
-          />
-        </div>
+          >
+            <div
+              style={{
+                width: `${Math.round(catalogScrollProgress * 100)}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #38bdf8 0%, #2563eb 55%, #22d3ee 100%)',
+                boxShadow: '0 0 8px rgba(37, 99, 235, 0.35)',
+                transition: 'width 0.12s linear'
+              }}
+            />
+          </div>
+        )}
       </Navbar>
 
       {renderCatalogSeasonOverlay()}
