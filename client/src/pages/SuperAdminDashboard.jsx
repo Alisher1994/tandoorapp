@@ -10167,9 +10167,15 @@ function SuperAdminDashboard() {
       </div>
     </div>
   );
+  const sidebarFooterDropdownAlign = isSidebarCollapsed ? 'start' : 'end';
+  const sidebarFooterDropdownDrop = isSidebarCollapsed ? 'end' : undefined;
   const renderSuperAdminSidebarUtilityActions = () => (
     <div className="admin-sidebar-footer-actions d-none d-lg-flex">
-      <Dropdown align="end" className="admin-sidebar-footer-dropdown admin-header-lang-dropdown">
+      <Dropdown
+        align={sidebarFooterDropdownAlign}
+        drop={sidebarFooterDropdownDrop}
+        className="admin-sidebar-footer-dropdown admin-header-lang-dropdown"
+      >
         <Dropdown.Toggle
           variant="link"
           bsPrefix="p-0"
@@ -10205,7 +10211,11 @@ function SuperAdminDashboard() {
         </Dropdown.Menu>
       </Dropdown>
 
-      <Dropdown align="end" className="admin-sidebar-footer-dropdown">
+      <Dropdown
+        align={sidebarFooterDropdownAlign}
+        drop={sidebarFooterDropdownDrop}
+        className="admin-sidebar-footer-dropdown"
+      >
         <Dropdown.Toggle
           variant="link"
           bsPrefix="p-0"

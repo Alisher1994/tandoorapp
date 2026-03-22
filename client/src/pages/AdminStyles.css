@@ -900,6 +900,8 @@ body::-webkit-scrollbar,
     border-radius: 18px;
     box-shadow: 0 12px 30px rgba(71, 85, 105, 0.08);
     overflow: visible;
+    position: relative;
+    z-index: 8;
 }
 
 .admin-tab-content-shell {
@@ -1022,7 +1024,8 @@ body::-webkit-scrollbar,
 }
 
 .admin-sidebar-footer-menu {
-    z-index: 2055;
+    z-index: 2070;
+    min-width: 196px;
 }
 
 .admin-tabs.admin-tabs-content-only {
@@ -1211,6 +1214,14 @@ body::-webkit-scrollbar,
 
 .admin-sidebar-column.is-collapsed .admin-sidebar-footer-copy {
     display: none;
+}
+
+.admin-sidebar-column.is-collapsed .admin-sidebar-footer-dropdown .dropdown-menu {
+    margin-left: 10px !important;
+}
+
+.admin-sidebar-column.is-collapsed .admin-sidebar-footer-dropdown .admin-sidebar-footer-menu {
+    min-width: 176px;
 }
 
 .admin-sidebar-column.is-collapsed .admin-tabs.admin-tabs-sidebar::-webkit-scrollbar {
