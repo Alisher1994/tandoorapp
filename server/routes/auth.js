@@ -2,9 +2,11 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const TelegramBot = require('node-telegram-bot-api');
 const rateLimit = require('express-rate-limit');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
+const { getBot } = require('../bot/bot');
 const {
   logActivity,
   getIpFromRequest,
@@ -13,6 +15,13 @@ const {
   ENTITY_TYPES
 } = require('../services/activityLogger');
 const { logSecurityEvent } = require('../services/securityEvents');
+const {
+  getVisibleActivityTypes,
+  registerStoreViaWebApp,
+  normalizeBotLanguage
+} = require('../services/storeRegistration');
+const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
+const { generateStorePrintForm } = require('../services/printFormGenerator');
 
 const router = express.Router();
 const maskIdentifierForLogs = (value) => {
@@ -182,6 +191,192 @@ function verifyTelegramWebAppInitData(initData, botToken) {
     authDate,
     user
   };
+}
+
+async function resolveCentralRegistrationBotToken() {
+  try {
+    const result = await pool.query(
+      'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1 LIMIT 1'
+    );
+    const tokenFromDb = String(result.rows[0]?.superadmin_bot_token || '').trim();
+    if (tokenFromDb) return tokenFromDb;
+  } catch (error) {
+    console.warn('Resolve central registration bot token warning:', error.message);
+  }
+  return String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
+}
+
+const registrationErrorMap = {
+  STORE_NAME_REQUIRED: { status: 400, error: 'Название магазина обязательно' },
+  ACTIVITY_TYPE_REQUIRED: { status: 400, error: 'Выберите вид деятельности' },
+  ACTIVITY_TYPE_INVALID: { status: 400, error: 'Выбран неверный вид деятельности' },
+  FULL_NAME_REQUIRED: { status: 400, error: 'ФИО оператора обязательно' },
+  PHONE_INVALID: { status: 400, error: 'Некорректный номер телефона' },
+  LOCATION_REQUIRED: { status: 400, error: 'Локация обязательна' },
+  INVALID_TELEGRAM_ID: { status: 400, error: 'Некорректный Telegram ID' }
+};
+
+function mapStoreRegistrationError(error) {
+  const key = String(error?.message || '').trim();
+  return registrationErrorMap[key] || null;
+}
+
+function resolveRegistrationLanguage(telegramUser, payloadLang) {
+  if (payloadLang) return normalizeBotLanguage(payloadLang);
+  const telegramLanguage = String(telegramUser?.language_code || '').trim().toLowerCase();
+  return telegramLanguage.startsWith('uz') ? 'uz' : 'ru';
+}
+
+async function resolveBotProfileAndPrintAssets({
+  botToken,
+  restaurantId,
+  language
+}) {
+  const normalizedToken = String(botToken || '').trim();
+  if (!normalizedToken) {
+    return {
+      bot_username: null,
+      bot_link: null,
+      qr_url: null,
+      pdf_url: null
+    };
+  }
+
+  let botUsername = null;
+  try {
+    const bot = new TelegramBot(normalizedToken);
+    const me = await bot.getMe();
+    if (me?.username) {
+      botUsername = `@${me.username}`;
+    }
+  } catch (error) {
+    console.warn('Resolve registered bot profile warning:', error.message);
+  }
+
+  if (!botUsername) {
+    return {
+      bot_username: null,
+      bot_link: null,
+      qr_url: null,
+      pdf_url: null
+    };
+  }
+
+  await ensurePrintFormSettingsSchema();
+  const settingsResult = await pool.query(
+    `SELECT print_form_background_url, print_form_qr_position, print_form_caption_ru, print_form_caption_uz
+     FROM billing_settings
+     WHERE id = 1
+     LIMIT 1`
+  );
+  const printSettings = settingsResult.rows[0] || {};
+  const botLink = `https://t.me/${botUsername.replace(/^@/, '')}`;
+  const printAssets = await generateStorePrintForm({
+    restaurantId,
+    botUsername,
+    botLink,
+    language,
+    settings: printSettings
+  }).catch((error) => {
+    console.warn('Generate registration print form warning:', error.message);
+    return { png_url: null, pdf_url: null };
+  });
+
+  return {
+    bot_username: botUsername,
+    bot_link: botLink,
+    qr_url: printAssets?.png_url || null,
+    pdf_url: printAssets?.pdf_url || null
+  };
+}
+
+async function sendStoreRegistrationSummaryToTelegram({
+  telegramId,
+  language,
+  restaurantName,
+  loginUrl,
+  username,
+  password,
+  botUsername,
+  botLink,
+  pdfUrl,
+  requestOrigin,
+  fallbackBotToken
+}) {
+  const normalizedLanguage = normalizeBotLanguage(language);
+  const baseOrigin = String(requestOrigin || '').replace(/\/$/, '');
+  const fullPdfUrl = pdfUrl
+    ? (/^https?:\/\//i.test(pdfUrl) ? pdfUrl : `${baseOrigin}${pdfUrl}`)
+    : '';
+
+  const lines = normalizedLanguage === 'uz'
+    ? [
+      '✅ <b>Do‘kon ro‘yxatdan o‘tkazildi</b>',
+      '',
+      `🏪 Do‘kon: <b>${restaurantName}</b>`,
+      loginUrl ? `🔗 Sayt: <a href="${loginUrl}">Boshqaruv panelini ochish</a>` : '🔗 Sayt: sozlanmagan',
+      `👤 Login: <code>${username}</code>`,
+      `🔐 Parol: <code>${password}</code>`
+    ]
+    : [
+      '✅ <b>Магазин зарегистрирован</b>',
+      '',
+      `🏪 Магазин: <b>${restaurantName}</b>`,
+      loginUrl ? `🔗 Сайт: <a href="${loginUrl}">Открыть панель управления</a>` : '🔗 Сайт: не настроен',
+      `👤 Логин: <code>${username}</code>`,
+      `🔐 Пароль: <code>${password}</code>`
+    ];
+
+  if (botUsername && botLink) {
+    if (normalizedLanguage === 'uz') {
+      lines.push('', `🤖 Bot: <a href="${botLink}">${botUsername}</a>`);
+      if (fullPdfUrl) {
+        lines.push(`🧾 PDF: <a href="${fullPdfUrl}">Yuklab olish</a>`);
+      }
+    } else {
+      lines.push('', `🤖 Бот: <a href="${botLink}">${botUsername}</a>`);
+      if (fullPdfUrl) {
+        lines.push(`🧾 PDF: <a href="${fullPdfUrl}">Скачать</a>`);
+      }
+    }
+  }
+
+  const inlineKeyboard = [];
+  if (loginUrl) {
+    inlineKeyboard.push([{
+      text: normalizedLanguage === 'uz' ? '🔐 Panelga kirish' : '🔐 Войти в панель',
+      url: loginUrl
+    }]);
+  }
+  if (botLink) {
+    inlineKeyboard.push([{
+      text: normalizedLanguage === 'uz' ? '🤖 Botni ochish' : '🤖 Открыть бота',
+      url: botLink
+    }]);
+  }
+  if (fullPdfUrl) {
+    inlineKeyboard.push([{
+      text: normalizedLanguage === 'uz' ? '🧾 PDF yuklab olish' : '🧾 Скачать PDF',
+      url: fullPdfUrl
+    }]);
+  }
+
+  let bot = getBot();
+  if (!bot && fallbackBotToken) {
+    try {
+      bot = new TelegramBot(fallbackBotToken);
+    } catch (_) {
+      bot = null;
+    }
+  }
+  if (!bot) return false;
+
+  await bot.sendMessage(telegramId, lines.join('\n'), {
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    reply_markup: inlineKeyboard.length ? { inline_keyboard: inlineKeyboard } : undefined
+  });
+  return true;
 }
 
 async function resolveRestaurantFromTelegramWebAppInitData(initData) {
@@ -852,6 +1047,142 @@ router.post('/telegram-webapp-login', async (req, res) => {
   } catch (error) {
     console.error('Telegram WebApp login error:', error);
     res.status(500).json({ error: 'Ошибка входа через Telegram' });
+  }
+});
+
+router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async (req, res) => {
+  try {
+    const initData = String(req.body?.init_data || '').trim();
+    if (!initData) {
+      return res.status(400).json({ error: 'init_data обязателен' });
+    }
+
+    const centralBotToken = await resolveCentralRegistrationBotToken();
+    if (!centralBotToken) {
+      return res.status(503).json({ error: 'Центральный бот не настроен' });
+    }
+
+    const verified = verifyTelegramWebAppInitData(initData, centralBotToken);
+    if (!verified.ok) {
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
+    }
+
+    const activityTypes = await getVisibleActivityTypes(pool);
+    const telegramUser = verified.user || {};
+    const suggestedFullName = String(
+      [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ').trim()
+    );
+
+    return res.json({
+      telegram_id: verified.telegramId,
+      telegram_user: {
+        id: verified.telegramId,
+        username: telegramUser.username || null,
+        first_name: telegramUser.first_name || null,
+        last_name: telegramUser.last_name || null,
+        language_code: telegramUser.language_code || null
+      },
+      suggested_full_name: suggestedFullName || null,
+      activity_types: activityTypes
+    });
+  } catch (error) {
+    console.error('telegram-webapp-store-registration/meta error:', error);
+    return res.status(500).json({ error: 'Ошибка загрузки данных регистрации' });
+  }
+});
+
+router.post('/telegram-webapp-store-registration/complete', loginRateLimiter, async (req, res) => {
+  try {
+    const initData = String(req.body?.init_data || '').trim();
+    if (!initData) {
+      return res.status(400).json({ error: 'init_data обязателен' });
+    }
+
+    const centralBotToken = await resolveCentralRegistrationBotToken();
+    if (!centralBotToken) {
+      return res.status(503).json({ error: 'Центральный бот не настроен' });
+    }
+
+    const verified = verifyTelegramWebAppInitData(initData, centralBotToken);
+    if (!verified.ok) {
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
+    }
+
+    let registration;
+    try {
+      registration = await registerStoreViaWebApp({
+        telegramId: verified.telegramId,
+        telegramUser: verified.user || {},
+        payload: req.body || {}
+      });
+    } catch (error) {
+      const mapped = mapStoreRegistrationError(error);
+      if (mapped) {
+        return res.status(mapped.status).json({ error: mapped.error });
+      }
+      throw error;
+    }
+
+    const language = resolveRegistrationLanguage(verified.user, req.body?.lang);
+    const printMeta = await resolveBotProfileAndPrintAssets({
+      botToken: registration.restaurant?.telegram_bot_token || req.body?.bot_token || '',
+      restaurantId: registration.restaurant?.id,
+      language
+    });
+
+    const backendBaseRaw = String(process.env.BACKEND_URL || '').trim();
+    const backendBase = backendBaseRaw
+      ? backendBaseRaw.replace(/\/api\/?$/i, '').replace(/\/$/, '')
+      : `${req.protocol}://${req.get('host')}`;
+    const toAbsoluteUrl = (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+      if (/^https?:\/\//i.test(raw)) return raw;
+      return `${backendBase}${raw.startsWith('/') ? '' : '/'}${raw}`;
+    };
+
+    const messageSent = await sendStoreRegistrationSummaryToTelegram({
+      telegramId: verified.telegramId,
+      language,
+      restaurantName: registration.restaurant?.name || '',
+      loginUrl: registration.urls?.login_url || null,
+      username: registration.credentials?.username || '',
+      password: registration.credentials?.password || '',
+      botUsername: printMeta.bot_username,
+      botLink: printMeta.bot_link,
+      pdfUrl: printMeta.pdf_url,
+      requestOrigin: backendBase,
+      fallbackBotToken: centralBotToken
+    }).catch((error) => {
+      console.warn('Send registration summary message warning:', error.message);
+      return false;
+    });
+
+    return res.status(201).json({
+      message: language === 'uz' ? "Do'kon muvaffaqiyatli ro'yxatdan o'tkazildi" : 'Магазин успешно зарегистрирован',
+      registration: {
+        restaurant_id: registration.restaurant?.id,
+        restaurant_name: registration.restaurant?.name,
+        site_url: registration.urls?.login_url || null,
+        site_link_text: language === 'uz' ? 'Boshqaruv panelini ochish' : 'Открыть панель управления',
+        username: registration.credentials?.username,
+        password: registration.credentials?.password,
+        store_url: registration.urls?.store_url || null,
+        bot_username: printMeta.bot_username,
+        bot_link: printMeta.bot_link,
+        qr_url: printMeta.qr_url,
+        qr_url_full: toAbsoluteUrl(printMeta.qr_url),
+        pdf_url: printMeta.pdf_url,
+        pdf_url_full: toAbsoluteUrl(printMeta.pdf_url)
+      },
+      telegram: {
+        chat_id: verified.telegramId,
+        message_sent: Boolean(messageSent)
+      }
+    });
+  } catch (error) {
+    console.error('telegram-webapp-store-registration/complete error:', error);
+    return res.status(500).json({ error: 'Ошибка регистрации магазина' });
   }
 });
 

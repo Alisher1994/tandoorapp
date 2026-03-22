@@ -42,6 +42,7 @@ const Reservations = lazyWithRetry(() => import('./pages/Reservations'), 'reserv
 const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard'), 'admin-dashboard');
 const AdminReservations = lazyWithRetry(() => import('./pages/AdminReservations'), 'admin-reservations');
 const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
+const TelegramStoreRegistration = lazyWithRetry(() => import('./pages/TelegramStoreRegistration'), 'tg-store-registration');
 
 function App() {
   return (
@@ -57,6 +58,7 @@ function App() {
             >
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/webapp/store-registration" element={<TelegramStoreRegistration />} />
                 <Route path="/catalog" element={<CatalogGate />} />
                 <Route
                   path="/"

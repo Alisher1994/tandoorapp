@@ -1,0 +1,200 @@
+.tg-store-registration-page {
+  min-height: 100vh;
+  padding: 18px 14px 22px;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.tg-store-registration-card {
+  width: min(640px, 100%);
+  background: #ffffff;
+  border: 1px solid #dbe3ff;
+  border-radius: 16px;
+  box-shadow: 0 14px 38px rgba(37, 46, 82, 0.14);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tg-store-registration-card h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  color: #1f2937;
+}
+
+.tg-store-registration-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tg-store-registration-card label span {
+  font-size: 13px;
+  color: #3b4456;
+  font-weight: 600;
+}
+
+.tg-store-registration-card input,
+.tg-store-registration-card select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfd8f8;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tg-store-registration-card input:focus,
+.tg-store-registration-card select:focus {
+  border-color: #5b6be8;
+  box-shadow: 0 0 0 3px rgba(91, 107, 232, 0.16);
+}
+
+.tg-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+
+.tg-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.tg-btn-primary {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.tg-btn-secondary {
+  background: #eef2ff;
+  color: #2f3a6d;
+}
+
+.tg-save-btn,
+.tg-close-btn {
+  margin-top: 6px;
+}
+
+.tg-geo-block {
+  border: 1px dashed #c4cef8;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f8faff;
+}
+
+.tg-geo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tg-grid-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.tg-error {
+  background: #ffe6e9;
+  color: #991b1b;
+  border: 1px solid #f7bcc2;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.tg-link {
+  color: #4f46e5;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.tg-link:hover {
+  text-decoration: underline;
+}
+
+.tg-result-block {
+  border: 1px solid #d9e1ff;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tg-result-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tg-row code {
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 4px 7px;
+  color: #111827;
+}
+
+.tg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tg-loading {
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .tg-store-registration-page {
+    padding: 12px 10px 14px;
+  }
+
+  .tg-store-registration-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .tg-store-registration-card h2 {
+    font-size: 19px;
+  }
+
+  .tg-grid-two {
+    grid-template-columns: 1fr;
+  }
+}

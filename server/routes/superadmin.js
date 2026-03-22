@@ -41,6 +41,10 @@ const {
   getSecurityEventsStats,
   setSecurityEventStatus
 } = require('../services/securityEvents');
+const {
+  ensurePrintFormSettingsSchema,
+  normalizePrintFormSettingsPayload
+} = require('../services/printFormSettings');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -543,6 +547,7 @@ const ensureBillingSettingsSchema = async () => {
       ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
       CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
     `).catch(() => {});
+    await ensurePrintFormSettingsSchema();
     billingSettingsSchemaReady = true;
   })();
 
@@ -3932,13 +3937,23 @@ router.put('/billing-settings', async (req, res) => {
       superadmin_bot_token,
       superadmin_telegram_id,
       catalog_animation_season,
-      ai_enabled
+      ai_enabled,
+      print_form_background_url,
+      print_form_qr_position,
+      print_form_caption_ru,
+      print_form_caption_uz
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
+    const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
+      print_form_background_url,
+      print_form_qr_position,
+      print_form_caption_ru,
+      print_form_caption_uz
+    });
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -3953,6 +3968,10 @@ router.put('/billing-settings', async (req, res) => {
           superadmin_telegram_id = $10,
           catalog_animation_season = $11,
           ai_enabled = $12,
+          print_form_background_url = $13,
+          print_form_qr_position = $14,
+          print_form_caption_ru = $15,
+          print_form_caption_uz = $16,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -3964,7 +3983,11 @@ router.put('/billing-settings', async (req, res) => {
       normalizedToken,
       normalizedSuperadminTelegramId,
       normalizedCatalogAnimationSeason,
-      normalizedAiEnabled
+      normalizedAiEnabled,
+      normalizedPrintFormSettings.print_form_background_url,
+      normalizedPrintFormSettings.print_form_qr_position,
+      normalizedPrintFormSettings.print_form_caption_ru,
+      normalizedPrintFormSettings.print_form_caption_uz
     ]);
 
     try {
@@ -10176,13 +10199,23 @@ router.put('/billing/settings', async (req, res) => {
       superadmin_bot_token,
       superadmin_telegram_id,
       catalog_animation_season,
-      ai_enabled
+      ai_enabled,
+      print_form_background_url,
+      print_form_qr_position,
+      print_form_caption_ru,
+      print_form_caption_uz
     } = req.body;
 
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
+    const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
+      print_form_background_url,
+      print_form_qr_position,
+      print_form_caption_ru,
+      print_form_caption_uz
+    });
     const previousSettings = await pool.query(
       'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
     );
@@ -10197,13 +10230,21 @@ router.put('/billing/settings', async (req, res) => {
           superadmin_telegram_id = $10,
           catalog_animation_season = $11,
           ai_enabled = $12,
+          print_form_background_url = $13,
+          print_form_qr_position = $14,
+          print_form_caption_ru = $15,
+          print_form_caption_uz = $16,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, parseFloat(default_starting_balance) || 100000, parseFlexibleAmount(default_order_cost, 1000),
-      normalizedToken, normalizedSuperadminTelegramId, normalizedCatalogAnimationSeason, normalizedAiEnabled
+      normalizedToken, normalizedSuperadminTelegramId, normalizedCatalogAnimationSeason, normalizedAiEnabled,
+      normalizedPrintFormSettings.print_form_background_url,
+      normalizedPrintFormSettings.print_form_qr_position,
+      normalizedPrintFormSettings.print_form_caption_ru,
+      normalizedPrintFormSettings.print_form_caption_uz
     ]);
 
     try {

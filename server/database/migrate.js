@@ -695,6 +695,10 @@ async function migrate() {
         telegram_username VARCHAR(100),
         click_link TEXT,
         payme_link TEXT,
+        print_form_background_url TEXT,
+        print_form_qr_position VARCHAR(16) DEFAULT 'center',
+        print_form_caption_ru TEXT DEFAULT 'Сканируй и заказывай',
+        print_form_caption_uz TEXT DEFAULT 'Skanerlang va buyurtma bering',
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -719,6 +723,22 @@ async function migrate() {
       ADD COLUMN IF NOT EXISTS catalog_animation_season VARCHAR(16) DEFAULT 'off'
     `);
     await client.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS print_form_background_url TEXT
+    `);
+    await client.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS print_form_qr_position VARCHAR(16) DEFAULT 'center'
+    `);
+    await client.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS print_form_caption_ru TEXT DEFAULT 'Сканируй и заказывай'
+    `);
+    await client.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS print_form_caption_uz TEXT DEFAULT 'Skanerlang va buyurtma bering'
+    `);
+    await client.query(`
       UPDATE billing_settings
       SET catalog_animation_season = 'off'
       WHERE catalog_animation_season IS NULL
@@ -726,9 +746,31 @@ async function migrate() {
         OR catalog_animation_season NOT IN ('off', 'spring', 'summer', 'autumn', 'winter')
     `).catch(() => {});
     await client.query(`
+      UPDATE billing_settings
+      SET print_form_qr_position = 'center'
+      WHERE print_form_qr_position IS NULL
+         OR BTRIM(print_form_qr_position) = ''
+         OR LOWER(print_form_qr_position) NOT IN ('center', 'lower')
+    `).catch(() => {});
+    await client.query(`
+      UPDATE billing_settings
+      SET print_form_caption_ru = 'Сканируй и заказывай'
+      WHERE print_form_caption_ru IS NULL OR BTRIM(print_form_caption_ru) = ''
+    `).catch(() => {});
+    await client.query(`
+      UPDATE billing_settings
+      SET print_form_caption_uz = 'Skanerlang va buyurtma bering'
+      WHERE print_form_caption_uz IS NULL OR BTRIM(print_form_caption_uz) = ''
+    `).catch(() => {});
+    await client.query(`
       ALTER TABLE billing_settings
       ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
       CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE billing_settings
+      ADD CONSTRAINT IF NOT EXISTS billing_settings_print_form_qr_position_check
+      CHECK (print_form_qr_position IN ('center', 'lower'))
     `).catch(() => {});
 
     await client.query(`

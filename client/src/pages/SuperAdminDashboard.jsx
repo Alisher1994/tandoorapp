@@ -1637,6 +1637,10 @@ function SuperAdminDashboard() {
     payme_link: '',
     catalog_animation_season: 'off',
     ai_enabled: true,
+    print_form_background_url: '',
+    print_form_qr_position: 'center',
+    print_form_caption_ru: 'Сканируй и заказывай',
+    print_form_caption_uz: 'Skanerlang va buyurtma bering',
     default_starting_balance: 100000,
     default_order_cost: 1000
   });
@@ -1669,6 +1673,7 @@ function SuperAdminDashboard() {
   });
   const [isCentralTokenVisible, setIsCentralTokenVisible] = useState(false);
   const centralTokenHideTimeoutRef = useRef(null);
+  const [uploadingPrintFormBackground, setUploadingPrintFormBackground] = useState(false);
   const [isTestingCentralBot, setIsTestingCentralBot] = useState(false);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
@@ -4197,6 +4202,10 @@ function SuperAdminDashboard() {
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           ai_enabled: response.data.ai_enabled !== false,
+          print_form_background_url: String(response.data.print_form_background_url || '').trim(),
+          print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
+          print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
+          print_form_caption_uz: String(response.data.print_form_caption_uz || 'Skanerlang va buyurtma bering'),
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
@@ -4212,6 +4221,10 @@ function SuperAdminDashboard() {
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
         ai_enabled: billingSettings.ai_enabled !== false,
+        print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
+        print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
+        print_form_caption_ru: String(billingSettings.print_form_caption_ru || '').trim(),
+        print_form_caption_uz: String(billingSettings.print_form_caption_uz || '').trim(),
         default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
       };
       const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
@@ -4222,6 +4235,10 @@ function SuperAdminDashboard() {
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           ai_enabled: response.data.ai_enabled !== false,
+          print_form_background_url: String(response.data.print_form_background_url || '').trim(),
+          print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
+          print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
+          print_form_caption_uz: String(response.data.print_form_caption_uz || 'Skanerlang va buyurtma bering'),
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
@@ -4242,6 +4259,10 @@ function SuperAdminDashboard() {
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
         ai_enabled: !!nextEnabled,
+        print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
+        print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
+        print_form_caption_ru: String(billingSettings.print_form_caption_ru || '').trim(),
+        print_form_caption_uz: String(billingSettings.print_form_caption_uz || '').trim(),
         default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
       };
       const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
@@ -4252,6 +4273,10 @@ function SuperAdminDashboard() {
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           ai_enabled: response.data.ai_enabled !== false,
+          print_form_background_url: String(response.data.print_form_background_url || '').trim(),
+          print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
+          print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
+          print_form_caption_uz: String(response.data.print_form_caption_uz || 'Skanerlang va buyurtma bering'),
           default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
         }));
       }
@@ -4262,6 +4287,37 @@ function SuperAdminDashboard() {
         ai_enabled: !nextEnabled
       }));
       setError('Ошибка сохранения переключателя AI');
+    }
+  };
+
+  const handlePrintFormBackgroundUpload = async (file) => {
+    if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setError('Можно загрузить только изображение PNG/JPG/WebP');
+      return;
+    }
+
+    try {
+      setUploadingPrintFormBackground(true);
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const uploadedUrl = response.data?.url || response.data?.imageUrl || '';
+      if (!uploadedUrl) {
+        throw new Error('Не удалось получить URL загруженного файла');
+      }
+      setBillingSettings((prev) => ({
+        ...prev,
+        print_form_background_url: uploadedUrl
+      }));
+      setSuccess('Фон печатной формы загружен');
+    } catch (uploadError) {
+      console.error('Print form background upload error:', uploadError);
+      setError(uploadError?.response?.data?.error || 'Ошибка загрузки фона');
+    } finally {
+      setUploadingPrintFormBackground(false);
     }
   };
 
@@ -15392,6 +15448,106 @@ function SuperAdminDashboard() {
                               Отправит тестовый текст "Бот работает" на указанный Telegram ID.
                             </div>
                           </div>
+
+                          <hr className="my-4" />
+
+                          <Form.Group className="mb-3">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Настройки печатных форм (A5)
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom mb-2"
+                              placeholder="/uploads/... или https://..."
+                              value={billingSettings.print_form_background_url || ''}
+                              onChange={(e) => setBillingSettings({
+                                ...billingSettings,
+                                print_form_background_url: e.target.value
+                              })}
+                            />
+                            <Form.Control
+                              type="file"
+                              accept="image/*"
+                              className="form-control-custom"
+                              onChange={(e) => handlePrintFormBackgroundUpload(e.target.files?.[0])}
+                              disabled={uploadingPrintFormBackground}
+                            />
+                            {uploadingPrintFormBackground && (
+                              <div className="small text-muted mt-2">Загрузка фона...</div>
+                            )}
+                            <Form.Text className="text-muted small">
+                              Этот фон станет глобальным шаблоном для генерации QR/PDF у всех новых регистраций.
+                            </Form.Text>
+                          </Form.Group>
+
+                          {billingSettings.print_form_background_url && (
+                            <div className="mb-3">
+                              <img
+                                src={resolveAdPreviewImageUrl(billingSettings.print_form_background_url)}
+                                alt="Превью фона"
+                                className="img-fluid rounded border"
+                                style={{ maxHeight: '200px', objectFit: 'cover' }}
+                              />
+                            </div>
+                          )}
+
+                          <Row className="g-3 mb-3">
+                            <Col md={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  Позиция QR
+                                </Form.Label>
+                                <Form.Select
+                                  className="form-control-custom"
+                                  value={billingSettings.print_form_qr_position || 'center'}
+                                  onChange={(e) => setBillingSettings({
+                                    ...billingSettings,
+                                    print_form_qr_position: e.target.value
+                                  })}
+                                >
+                                  <option value="center">По центру</option>
+                                  <option value="lower">Нижняя часть</option>
+                                </Form.Select>
+                              </Form.Group>
+                            </Col>
+                          </Row>
+
+                          <Row className="g-3 mb-4">
+                            <Col md={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  Подпись RU
+                                </Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  className="form-control-custom"
+                                  value={billingSettings.print_form_caption_ru || ''}
+                                  onChange={(e) => setBillingSettings({
+                                    ...billingSettings,
+                                    print_form_caption_ru: e.target.value
+                                  })}
+                                  placeholder="Сканируй и заказывай"
+                                />
+                              </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  Подпись UZ
+                                </Form.Label>
+                                <Form.Control
+                                  type="text"
+                                  className="form-control-custom"
+                                  value={billingSettings.print_form_caption_uz || ''}
+                                  onChange={(e) => setBillingSettings({
+                                    ...billingSettings,
+                                    print_form_caption_uz: e.target.value
+                                  })}
+                                  placeholder="Skanerlang va buyurtma bering"
+                                />
+                              </Form.Group>
+                            </Col>
+                          </Row>
 
                           <Form.Group className="mb-0">
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>

@@ -104,6 +104,7 @@ const BOT_TEXTS = {
     myOrdersButton: '📋 Мои заказы',
     welcomeStart: '👋 Добро пожаловать!\n\nДля регистрации нажмите на кнопку Регистрация магазина',
     registerStoreButton: '🏪 Регистрация магазина',
+    registrationWebAppHint: '🧾 Упрощенная регистрация открывается во внутреннем окне Telegram. Нажмите кнопку ниже.',
     genericError: '❌ Произошла ошибка. Попробуйте позже.',
     notRegisteredStart: '❌ Вы не зарегистрированы. Нажмите /start',
     notRegisteredUseStart: '❌ Вы не зарегистрированы. Используйте /start',
@@ -166,6 +167,7 @@ const BOT_TEXTS = {
     myOrdersButton: '📋 Buyurtmalarim',
     welcomeStart: '👋 Xush kelibsiz!\n\nRo\'yxatdan o\'tish uchun Do\'konni ro\'yxatdan o\'tish tugmasini bosing',
     registerStoreButton: '🏪 Do‘konni ro‘yxatdan o‘tkazish',
+    registrationWebAppHint: '🧾 Soddalashtirilgan ro‘yxatdan o‘tish Telegram ichidagi oynada ochiladi. Quyidagi tugmani bosing.',
     genericError: '❌ Xatolik yuz berdi. Keyinroq urinib ko‘ring.',
     notRegisteredStart: "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing",
     notRegisteredUseStart: "❌ Siz ro'yxatdan o'tmagansiz. /start dan foydalaning",
@@ -381,6 +383,13 @@ function buildWebLoginUrl(params = {}) {
   return appendWebAppCacheVersion(`${trimmed}/login${query ? `?${query}` : ''}`);
 }
 
+function buildStoreRegistrationWebAppUrl() {
+  const base = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
+  if (!base) return null;
+  const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
+  return appendWebAppCacheVersion(`${trimmed}/webapp/store-registration?source=superadmin_bot`);
+}
+
 async function resolvePreferredAdminTelegramUser(telegramId) {
   const linkedAdmin = await pool.query(`
     SELECT u.*
@@ -436,6 +445,44 @@ async function resolvePreferredSuperadminAccessUser(telegramId) {
   if (!user) return null;
   if (user.role === 'customer') return null;
   return user;
+}
+
+async function silentlySyncOperatorTelegramId(telegramId, telegramLanguageCode = '') {
+  if (!telegramId) return;
+  const preferredLang = getTelegramPreferredLanguage(telegramLanguageCode);
+  try {
+    await pool.query(
+      `UPDATE users
+       SET bot_language = COALESCE(NULLIF(bot_language, ''), $2),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE telegram_id = $1
+         AND role IN ('operator', 'superadmin')`,
+      [telegramId, preferredLang]
+    ).catch(() => {});
+
+    const existingLink = await pool.query(
+      'SELECT user_id FROM telegram_admin_links WHERE telegram_id = $1 LIMIT 1',
+      [telegramId]
+    ).catch(() => ({ rows: [] }));
+    if (existingLink.rows.length > 0) return;
+
+    const candidate = await pool.query(
+      `SELECT id
+       FROM users
+       WHERE telegram_id = $1
+         AND role IN ('superadmin', 'operator')
+       ORDER BY
+         CASE WHEN role = 'superadmin' THEN 0 ELSE 1 END,
+         id DESC
+       LIMIT 1`,
+      [telegramId]
+    ).catch(() => ({ rows: [] }));
+    if (candidate.rows.length > 0) {
+      await upsertTelegramAdminLink(pool, telegramId, candidate.rows[0].id);
+    }
+  } catch (error) {
+    console.warn('Silent telegram link sync warning:', error.message);
+  }
 }
 
 async function resolvePrimaryRestaurantIdForAdminUser(user) {
@@ -927,8 +974,12 @@ async function initBot() {
         [{ text: t(language, 'languageMenuButton') }, { text: t(language, 'helpMenuButton') }]
       ];
     } else {
+      const registrationWebAppUrl = buildStoreRegistrationWebAppUrl();
+      const registerButton = registrationWebAppUrl
+        ? { text: t(language, 'registerStoreButton'), web_app: { url: registrationWebAppUrl } }
+        : { text: t(language, 'registerStoreButton') };
       keyboard = [
-        [{ text: t(language, 'registerStoreButton') }, { text: t(language, 'languageMenuButton') }],
+        [registerButton, { text: t(language, 'languageMenuButton') }],
         [{ text: t(language, 'helpMenuButton') }]
       ];
     }
@@ -1657,6 +1708,7 @@ async function initBot() {
     const userId = msg.from.id;
     
     try {
+      await silentlySyncOperatorTelegramId(userId, msg.from?.language_code);
       const preferred = getTelegramPreferredLanguage(msg.from?.language_code);
       await sendLanguagePicker(chatId, userId, 'start', preferred);
     } catch (error) {
@@ -1749,9 +1801,24 @@ async function initBot() {
     const userId = msg.from?.id;
     const sharedChatId = msg.chat_shared?.chat_id;
     const forwardedChatId = msg.forward_from_chat?.id;
+    const webAppDataRaw = String(msg.web_app_data?.data || '').trim();
     if (!chatId || !userId) {
       return;
     }
+
+    if (webAppDataRaw) {
+      try {
+        const payload = JSON.parse(webAppDataRaw);
+        if (payload?.type === 'store_registration_completed') {
+          const payloadLang = normalizeBotLanguage(payload?.lang || languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
+          await sendStartMenu(chatId, userId, payloadLang);
+          return;
+        }
+      } catch (_) {
+        // Ignore unsupported web_app_data payloads.
+      }
+    }
+
     const candidateGroupId = sharedChatId ?? forwardedChatId;
     if (!candidateGroupId) {
       return;
@@ -1787,7 +1854,20 @@ async function initBot() {
     }
 
     if (isRegisterMenuText) {
-      await startOnboarding(chatId, userId);
+      const registrationWebAppUrl = buildStoreRegistrationWebAppUrl();
+      if (registrationWebAppUrl) {
+        await bot.sendMessage(chatId, t(currentLang, 'registrationWebAppHint'), {
+          reply_markup: {
+            inline_keyboard: [[{
+              text: t(currentLang, 'registerStoreButton'),
+              web_app: { url: registrationWebAppUrl }
+            }]]
+          }
+        });
+        return;
+      }
+      // Legacy onboarding flow intentionally hidden from primary menu.
+      // await startOnboarding(chatId, userId);
       return;
     }
 
