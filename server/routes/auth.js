@@ -592,6 +592,30 @@ router.post('/login', loginRateLimiter, async (req, res) => {
   }
 });
 
+// Which restaurant signed this WebApp initData? Used to drop a stale JWT from another bot (shared WebView storage).
+router.post('/telegram-webapp-resolve-restaurant', loginRateLimiter, async (req, res) => {
+  try {
+    const initData = String(req.body?.init_data || '').trim();
+    if (!initData) {
+      return res.status(400).json({ error: 'init_data обязателен' });
+    }
+    const resolved = await resolveRestaurantFromTelegramWebAppInitData(initData);
+    if (!resolved) {
+      return res.status(404).json({
+        error:
+          'Магазин по данным Telegram не найден. Убедитесь, что у магазина в админке указан токен именно этого бота.'
+      });
+    }
+    res.json({
+      restaurant_id: resolved.restaurant.id,
+      restaurant_name: resolved.restaurant.name
+    });
+  } catch (error) {
+    console.error('telegram-webapp-resolve-restaurant error:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
 // Telegram Mini App login (WebApp initData, no password)
 router.post('/telegram-webapp-login', async (req, res) => {
   try {

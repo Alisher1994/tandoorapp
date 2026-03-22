@@ -68,8 +68,11 @@ export function AuthProvider({ children }) {
     return '';
   };
 
-  const tryTelegramWebAppAutoLogin = async (restaurantIdFromUrl) => {
-    const telegramInitData = await waitForTelegramInitData(12, 200);
+  const tryTelegramWebAppAutoLogin = async (restaurantIdFromUrl, initDataOverride = null) => {
+    const telegramInitData =
+      typeof initDataOverride === 'string' && initDataOverride.trim()
+        ? initDataOverride.trim()
+        : await waitForTelegramInitData(12, 200);
     if (!telegramInitData) return false;
 
     const parsedRid = Number.parseInt(String(restaurantIdFromUrl || '').trim(), 10);
@@ -93,6 +96,27 @@ export function AuthProvider({ children }) {
       return true;
     } catch (error) {
       console.warn('Telegram WebApp auto-login skipped:', error?.response?.data?.error || error.message);
+      return false;
+    }
+  };
+
+  const clearSessionIfJwtRestaurantDiffersFromTelegram = async (initData) => {
+    const token = localStorage.getItem('token');
+    if (!token || !initData) return false;
+    const jwtRid = parseRestaurantIdFromToken(token);
+    if (!jwtRid) return false;
+    try {
+      const { data } = await axios.post(`${API_URL}/auth/telegram-webapp-resolve-restaurant`, {
+        init_data: initData
+      });
+      const resolvedRid = data?.restaurant_id;
+      if (resolvedRid === undefined || resolvedRid === null) return false;
+      if (String(resolvedRid) === String(jwtRid)) return false;
+      localStorage.removeItem('token');
+      localStorage.removeItem('active_restaurant_id');
+      delete axios.defaults.headers.common['Authorization'];
+      return true;
+    } catch {
       return false;
     }
   };
@@ -140,10 +164,24 @@ export function AuthProvider({ children }) {
 
     // Telegram Mini App: shared WebView localStorage keeps the last JWT; initData is tied to the current bot.
     if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      const telegramOk = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null);
-      if (telegramOk) {
-        setLoading(false);
-        return;
+      const initSnapshot = await waitForTelegramInitData(20, 220);
+      if (initSnapshot) {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (attempt > 0) await sleep(450);
+          const telegramOk = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null, initSnapshot);
+          if (telegramOk) {
+            setLoading(false);
+            return;
+          }
+        }
+        const clearedStaleJwt = await clearSessionIfJwtRestaurantDiffersFromTelegram(initSnapshot);
+        if (clearedStaleJwt) {
+          const afterClear = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null, initSnapshot);
+          if (afterClear) {
+            setLoading(false);
+            return;
+          }
+        }
       }
     }
 
