@@ -45,6 +45,24 @@ const TELEGRAM_MENU_BUTTON_BACKFILL_DELAY_MS = Math.max(
 const TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED = String(
   process.env.TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED ?? '1'
 ).trim() !== '0';
+// When global is ON, still disable the Open bar only for these restaurant ids (comma-separated). Stagger rollout by editing the list + restart.
+const TELEGRAM_WEBAPP_MENU_BUTTON_DISABLED_RESTAURANT_IDS = new Set(
+  String(process.env.TELEGRAM_WEBAPP_MENU_BUTTON_DISABLED_RESTAURANT_IDS || '')
+    .split(/[,;\s]+/)
+    .map((s) => Number.parseInt(String(s).trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0)
+);
+const TELEGRAM_WEBAPP_MENU_INIT_STAGGER_MS = Math.max(
+  0,
+  Number.parseInt(process.env.TELEGRAM_WEBAPP_MENU_INIT_STAGGER_MS, 10) || 0
+);
+
+function isWebAppChatMenuButtonEnabledForRestaurant(restaurantId) {
+  if (!TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) return false;
+  const id = Number(restaurantId);
+  if (!Number.isFinite(id) || id <= 0) return true;
+  return !TELEGRAM_WEBAPP_MENU_BUTTON_DISABLED_RESTAURANT_IDS.has(id);
+}
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
@@ -213,8 +231,9 @@ async function getKnownPrivateChatIdsForRestaurant(restaurantId) {
 
 async function backfillPrivateChatMenuButtons({ bot, restaurantId, restaurantName, webAppUrl }) {
   if (!TELEGRAM_MENU_BUTTON_BACKFILL_ENABLED || !bot) return;
-  const installWebApp = TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED && webAppUrl;
-  const clearWebAppMenu = !TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED;
+  const webOn = isWebAppChatMenuButtonEnabledForRestaurant(restaurantId);
+  const installWebApp = webOn && webAppUrl;
+  const clearWebAppMenu = !webOn;
   if (!installWebApp && !clearWebAppMenu) return;
 
   try {
@@ -1060,7 +1079,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
   const setPrivateChatMenuButton = async ({ chatId, webAppUrl, lang = 'ru' }) => {
     if (!chatId) return;
     try {
-      if (!TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) {
+      if (!isWebAppChatMenuButtonEnabledForRestaurant(restaurantId)) {
         await bot.setChatMenuButton({
           chat_id: chatId,
           menu_button: JSON.stringify({ type: 'default' })
@@ -3357,9 +3376,9 @@ async function initMultiBots() {
 
         // Set default menu button for all private chats in this bot (the "Open" bar next to the input).
         // Uses a static restaurant-scoped URL; auth is resolved in WebApp via Telegram initData.
-        // Disable with TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED=0 (silent; customers keep "Заказать" keyboard).
+        // Global off: TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED=0. Gradual off: keep global=1 and set TELEGRAM_WEBAPP_MENU_BUTTON_DISABLED_RESTAURANT_IDS.
         try {
-          if (TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) {
+          if (isWebAppChatMenuButtonEnabledForRestaurant(restaurant.id)) {
             const defaultCatalogUrl = buildCatalogPublicUrl(appUrl, restaurant.id);
             if (defaultCatalogUrl) {
               await bot.setChatMenuButton({
@@ -3392,6 +3411,9 @@ async function initMultiBots() {
           console.error(`⚠️ ${restaurant.name}: default menu button setup failed:`, menuError.message);
         }
 
+        if (TELEGRAM_WEBAPP_MENU_INIT_STAGGER_MS > 0) {
+          await delay(TELEGRAM_WEBAPP_MENU_INIT_STAGGER_MS);
+        }
       } catch (error) {
         console.error(`❌ Failed to initialize bot for ${restaurant.name}:`, error.message);
       }
