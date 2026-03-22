@@ -9629,11 +9629,11 @@ function AdminDashboard() {
                         <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </Button>
-                    <Dropdown align="end">
+                    <Dropdown align="end" className="admin-products-add-dropdown" popperConfig={{ strategy: 'fixed' }}>
                       <Dropdown.Toggle variant="dark" className="btn-primary-custom" id="admin-products-add-menu">
                         {language === 'uz' ? "Qo'shish" : 'Добавить'}
                       </Dropdown.Toggle>
-                      <Dropdown.Menu>
+                      <Dropdown.Menu className="admin-products-add-dropdown-menu">
                         <Dropdown.Item onClick={() => openProductModal()}>
                           {language === 'uz' ? "Qo'lda qo'shish" : 'Добавить вручную'}
                         </Dropdown.Item>
@@ -13400,12 +13400,14 @@ function AdminDashboard() {
                                                               >
                                                                 ✕
                                                               </Button>
-                                                              <label
-                                                                htmlFor={`product-variant-image-file-input-${index}-${slotIndex}`}
-                                                                className={`admin-product-image-select-btn admin-product-image-select-btn-variant-inline ${uploadingImage ? 'is-disabled' : ''}`}
-                                                              >
-                                                                {language === 'uz' ? 'Tanlash' : 'Выбрать файл'}
-                                                              </label>
+                                                              {!slot.url && (
+                                                                <label
+                                                                  htmlFor={`product-variant-image-file-input-${index}-${slotIndex}`}
+                                                                  className={`admin-product-image-select-btn admin-product-image-select-btn-variant-inline ${uploadingImage ? 'is-disabled' : ''}`}
+                                                                >
+                                                                  {language === 'uz' ? 'Tanlash' : 'Выбрать файл'}
+                                                                </label>
+                                                              )}
                                                             </div>
                                                           </div>
                                                           <Form.Control
