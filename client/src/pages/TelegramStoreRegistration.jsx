@@ -32,6 +32,24 @@ const waitForTelegramInitData = async (telegramWebApp, attempts = 20, delayMs = 
   return '';
 };
 
+const parseInitDataFromUrl = () => {
+  if (typeof window === 'undefined') return '';
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const fromSearch = String(
+    searchParams.get('init_data')
+    || searchParams.get('tgWebAppData')
+    || ''
+  ).trim();
+  if (fromSearch) return decodeURIComponent(fromSearch);
+
+  const rawHash = String(window.location.hash || '').replace(/^#/, '');
+  if (!rawHash) return '';
+  const hashParams = new URLSearchParams(rawHash);
+  const fromHash = String(hashParams.get('tgWebAppData') || '').trim();
+  return fromHash ? decodeURIComponent(fromHash) : '';
+};
+
 const i18n = {
   ru: {
     title: 'Регистрация магазина',
@@ -142,7 +160,7 @@ function TelegramStoreRegistration() {
         setLang(telegramLang);
       }
 
-      const queryData = new URLSearchParams(window.location.search).get('init_data') || '';
+      const queryData = parseInitDataFromUrl();
       let effectiveInitData = String(tg?.initData || queryData || '').trim();
       if (!effectiveInitData && tg) {
         effectiveInitData = await waitForTelegramInitData(tg, 24, 220);
