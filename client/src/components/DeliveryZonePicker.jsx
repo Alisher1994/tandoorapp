@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
 import {
+  MAP_PROVIDER_VALUES,
   getLeafletTileLayerConfig,
   getSavedMapProvider,
   normalizeMapProvider,
@@ -229,6 +230,11 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
   const zone = useMemo(() => normalizeZone(deliveryZone), [deliveryZone]);
   const safeCenter = useMemo(() => normalizeCenter(center), [center]);
   const [selectedMapProvider, setSelectedMapProvider] = React.useState(() => normalizeMapProvider(mapProvider || getSavedMapProvider()));
+  const activeCrs = useMemo(
+    () => (selectedMapProvider === MAP_PROVIDER_VALUES.YANDEX ? L.CRS.EPSG3395 : L.CRS.EPSG3857),
+    [selectedMapProvider]
+  );
+  const mapKey = useMemo(() => `delivery-zone-picker-${selectedMapProvider}`, [selectedMapProvider]);
   const tileLayerConfig = useMemo(() => getLeafletTileLayerConfig(selectedMapProvider, {
     yandexApiKey: import.meta.env.VITE_YANDEX_MAPS_KEY || ''
   }), [selectedMapProvider]);
@@ -272,7 +278,13 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
           <option value="yandex">Yandex</option>
         </select>
       </div>
-      <MapContainer center={safeCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+      <MapContainer
+        key={mapKey}
+        center={safeCenter}
+        zoom={13}
+        crs={activeCrs}
+        style={{ height: '100%', width: '100%' }}
+      >
         <TileLayer
           url={tileLayerConfig.url}
           attribution={tileLayerConfig.attribution}
