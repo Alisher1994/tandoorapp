@@ -184,6 +184,24 @@ function verifyTelegramWebAppInitData(initData, botToken) {
   };
 }
 
+async function resolveRestaurantFromTelegramWebAppInitData(initData) {
+  const rawInitData = String(initData || '').trim();
+  if (!rawInitData) return null;
+  const result = await pool.query(
+    `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, telegram_bot_token
+     FROM restaurants
+     WHERE is_active = true
+       AND COALESCE(TRIM(telegram_bot_token), '') <> ''`
+  );
+  for (const row of result.rows) {
+    const verified = verifyTelegramWebAppInitData(rawInitData, row.telegram_bot_token);
+    if (verified.ok) {
+      return { restaurant: row, verified };
+    }
+  }
+  return null;
+}
+
 function getPortalRoleRank(role, portal) {
   if (!portal) return 0;
 
@@ -577,36 +595,49 @@ router.post('/login', loginRateLimiter, async (req, res) => {
 // Telegram Mini App login (WebApp initData, no password)
 router.post('/telegram-webapp-login', async (req, res) => {
   try {
-    const restaurantId = parseOptionalInt(req.body?.restaurant_id);
+    const restaurantIdFromBody = parseOptionalInt(req.body?.restaurant_id);
     const initData = String(req.body?.init_data || '').trim();
 
-    if (!restaurantId || restaurantId <= 0) {
-      return res.status(400).json({ error: 'restaurant_id обязателен' });
-    }
     if (!initData) {
       return res.status(400).json({ error: 'init_data обязателен' });
     }
 
-    const restaurantResult = await pool.query(
-      `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, telegram_bot_token
-       FROM restaurants
-       WHERE id = $1 AND is_active = true
-       LIMIT 1`,
-      [restaurantId]
-    );
-    if (restaurantResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Магазин не найден' });
-    }
-    const restaurant = restaurantResult.rows[0];
-    const botToken = String(restaurant.telegram_bot_token || '').trim();
-    if (!botToken) {
-      return res.status(503).json({ error: 'Бот магазина не настроен' });
+    let restaurant;
+    let verified;
+
+    if (Number.isFinite(restaurantIdFromBody) && restaurantIdFromBody > 0) {
+      const restaurantResult = await pool.query(
+        `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, telegram_bot_token
+         FROM restaurants
+         WHERE id = $1 AND is_active = true
+         LIMIT 1`,
+        [restaurantIdFromBody]
+      );
+      if (restaurantResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Магазин не найден' });
+      }
+      restaurant = restaurantResult.rows[0];
+      const botToken = String(restaurant.telegram_bot_token || '').trim();
+      if (!botToken) {
+        return res.status(503).json({ error: 'Бот магазина не настроен' });
+      }
+      verified = verifyTelegramWebAppInitData(initData, botToken);
+      if (!verified.ok) {
+        return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
+      }
+    } else {
+      const resolved = await resolveRestaurantFromTelegramWebAppInitData(initData);
+      if (!resolved) {
+        return res.status(400).json({
+          error:
+            'Не удалось определить магазин по данным Telegram. Добавьте ?restaurant_id=… в URL Web App или привяжите токен бота к магазину.'
+        });
+      }
+      restaurant = resolved.restaurant;
+      verified = resolved.verified;
     }
 
-    const verified = verifyTelegramWebAppInitData(initData, botToken);
-    if (!verified.ok) {
-      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
-    }
+    const restaurantId = restaurant.id;
 
     const candidateResult = await pool.query(
       `

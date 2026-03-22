@@ -68,17 +68,18 @@ export function AuthProvider({ children }) {
     return '';
   };
 
-  const tryTelegramWebAppAutoLogin = async (restaurantId) => {
-    if (!restaurantId) return false;
-
-    const telegramInitData = await waitForTelegramInitData();
+  const tryTelegramWebAppAutoLogin = async (restaurantIdFromUrl) => {
+    const telegramInitData = await waitForTelegramInitData(12, 200);
     if (!telegramInitData) return false;
 
+    const parsedRid = Number.parseInt(String(restaurantIdFromUrl || '').trim(), 10);
+    const payload = { init_data: telegramInitData };
+    if (Number.isFinite(parsedRid) && parsedRid > 0) {
+      payload.restaurant_id = parsedRid;
+    }
+
     try {
-      const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, {
-        init_data: telegramInitData,
-        restaurant_id: restaurantId
-      });
+      const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, payload);
       const nextToken = response.data?.token;
       const nextUser = withNormalizedTheme(response.data?.user || null);
       if (!nextToken || !nextUser) return false;
@@ -108,13 +109,12 @@ export function AuthProvider({ children }) {
   }, [user?.role, user?.active_restaurant_ui_theme]);
 
   const initializeAuth = async () => {
-    // Check for token in URL first (auto-login from Telegram)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
     const restaurantIdFromUrl = getRestaurantIdFromLocation();
     const restaurantIdFromToken = parseRestaurantIdFromToken(tokenFromUrl);
     const effectiveRestaurantId = restaurantIdFromUrl || restaurantIdFromToken;
-    
+
     if (tokenFromUrl) {
       // Save token from URL and try to authenticate
       localStorage.setItem('token', tokenFromUrl);
@@ -137,7 +137,16 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
-    
+
+    // Telegram Mini App: shared WebView localStorage keeps the last JWT; initData is tied to the current bot.
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      const telegramOk = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null);
+      if (telegramOk) {
+        setLoading(false);
+        return;
+      }
+    }
+
     // Check for existing token in localStorage
     const token = localStorage.getItem('token');
     if (token) {
@@ -152,10 +161,12 @@ export function AuthProvider({ children }) {
       }
       setLoading(false);
     } else {
-      const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
-      if (loggedInByTelegram) {
-        setLoading(false);
-        return;
+      if (!window.Telegram?.WebApp) {
+        const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
+        if (loggedInByTelegram) {
+          setLoading(false);
+          return;
+        }
       }
       setLoading(false);
     }

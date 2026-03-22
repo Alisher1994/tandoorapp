@@ -19,6 +19,9 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
 const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
+const catalogSectionTabKey = (id) => (
+  id === null || id === undefined ? '' : String(id)
+);
 const CATALOG_SEARCH_RESULTS_LIMIT = 80;
 const PENDING_PRODUCT_REVIEW_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
@@ -334,9 +337,9 @@ function Catalog() {
     scrollContainer.scrollTo({ top: target, behavior: 'auto' });
   };
   const scrollActiveTabIntoView = (tabId, behavior = 'smooth') => {
-    if (!tabId) return;
+    if (tabId === null || tabId === undefined || tabId === '') return;
     const scroller = level3TabsScrollerRef.current;
-    const btn = level3TabButtonRefs.current[tabId];
+    const btn = level3TabButtonRefs.current[catalogSectionTabKey(tabId)];
     if (!scroller || !btn) return;
 
     const scRect = scroller.getBoundingClientRect();
@@ -1709,7 +1712,9 @@ function Catalog() {
       return;
     }
 
-    const isCurrentTabPresent = activeCatalogTabs.some((section) => section.id === activeSubcategoryTab);
+    const isCurrentTabPresent = activeCatalogTabs.some(
+      (section) => catalogSectionTabKey(section.id) === catalogSectionTabKey(activeSubcategoryTab)
+    );
     if (!isCurrentTabPresent) {
       tabActivationSourceRef.current = 'init';
       setActiveSubcategoryTab(activeCatalogTabs[0].id);
@@ -1717,14 +1722,23 @@ function Catalog() {
   }, [activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading]);
 
   useLayoutEffect(() => {
-    if (!activeSubcategoryTab) return;
+    if (activeSubcategoryTab === null || activeSubcategoryTab === undefined) return;
     const activationSource = tabActivationSourceRef.current;
     const behavior = activationSource === 'click' ? 'smooth' : 'auto';
-    const rafId = requestAnimationFrame(() => {
-      scrollActiveTabIntoView(activeSubcategoryTab, behavior);
+    const tabKey = catalogSectionTabKey(activeSubcategoryTab);
+    let cancelled = false;
+    let innerRaf = 0;
+    const outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => {
+        if (!cancelled) scrollActiveTabIntoView(tabKey, behavior);
+      });
     });
     tabActivationSourceRef.current = 'scroll';
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outerRaf);
+      cancelAnimationFrame(innerRaf);
+    };
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
   useLayoutEffect(() => {
@@ -1757,44 +1771,52 @@ function Catalog() {
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
       const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 700;
+      const probeTop = stickyOffset + 8;
+      const probeBottom = viewportHeight - 20;
+
+      let currentId = null;
+      let bestTop = -Infinity;
+      activeCatalogTabs.forEach((section) => {
+        const sectionElement = productGroupRefs.current[catalogSectionTabKey(section.id)];
+        if (!sectionElement) return;
+        const rect = sectionElement.getBoundingClientRect();
+        const intersects = rect.bottom > probeTop && rect.top < probeBottom;
+        if (intersects && rect.top > bestTop) {
+          bestTop = rect.top;
+          currentId = section.id;
+        }
+      });
+
+      let firstId = null;
       const sectionProbeLine = Math.max(
         stickyOffset + 16,
         Math.min(stickyOffset + 120, viewportHeight * 0.45)
       );
-      let currentId = null;
-      let firstId = null;
+      if (currentId == null) {
+        activeCatalogTabs.forEach((section) => {
+          const sectionElement = productGroupRefs.current[catalogSectionTabKey(section.id)];
+          if (!sectionElement) return;
+          if (firstId === null) firstId = section.id;
+          const rect = sectionElement.getBoundingClientRect();
+          if (rect.top <= sectionProbeLine + 2) {
+            currentId = section.id;
+          }
+        });
+      }
 
-      activeCatalogTabs.forEach((section) => {
-        const sectionElement = productGroupRefs.current[section.id];
-        if (!sectionElement) return;
-        const rect = sectionElement.getBoundingClientRect();
-        // If the top of the section is above our probe line, it's a candidate
-        if (rect.top <= sectionProbeLine + 2) {
-          currentId = section.id;
-        }
-        if (firstId === null) firstId = section.id;
-      });
-
-      // Special case: check if we are at the very bottom of the page
-      let isAtBottom = false;
       const scrollPos = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
       const containerHeight = scrollContainer === window ? window.innerHeight : scrollContainer.clientHeight;
       const totalHeight = scrollContainer === window ? document.documentElement.scrollHeight : scrollContainer.scrollHeight;
-
-      if (scrollPos + containerHeight >= totalHeight - 20) {
-        isAtBottom = true;
-      }
+      const isAtBottom = scrollPos + containerHeight >= totalHeight - 48;
 
       if (isAtBottom && activeCatalogTabs.length > 0) {
         currentId = activeCatalogTabs[activeCatalogTabs.length - 1].id;
       }
 
       const nextActiveId = currentId ?? firstId;
-      if (!nextActiveId) return;
+      if (nextActiveId === null || nextActiveId === undefined) return;
 
-      // Do not call scrollActiveTabIntoView here: it runs on every vertical scroll tick and
-      // resets horizontal scrollLeft on the tab strip, causing "rubber band" when browsing tabs.
-      if (nextActiveId !== activeSubcategoryTab) {
+      if (catalogSectionTabKey(nextActiveId) !== catalogSectionTabKey(activeSubcategoryTab)) {
         tabActivationSourceRef.current = 'scroll';
         setActiveSubcategoryTab(nextActiveId);
       }
@@ -1917,7 +1939,7 @@ function Catalog() {
   };
 
   const scrollToProductGroup = (sectionId) => {
-    const sectionElement = productGroupRefs.current[sectionId];
+    const sectionElement = productGroupRefs.current[catalogSectionTabKey(sectionId)];
     if (!sectionElement) return;
 
     isTabAutoScrollRef.current = true;
@@ -3254,11 +3276,9 @@ function Catalog() {
               {activeCatalogTabs.map((section) => (
                 <button
                   ref={(el) => {
-                    if (el) {
-                      level3TabButtonRefs.current[section.id] = el;
-                    } else {
-                      delete level3TabButtonRefs.current[section.id];
-                    }
+                    const k = catalogSectionTabKey(section.id);
+                    if (el) level3TabButtonRefs.current[k] = el;
+                    else delete level3TabButtonRefs.current[k];
                   }}
                   key={section.id}
                   type="button"
@@ -3279,8 +3299,8 @@ function Catalog() {
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    fontWeight: activeSubcategoryTab === section.id ? 600 : 500,
-                    color: activeSubcategoryTab === section.id ? '#0f172a' : '#64748b',
+                    fontWeight: catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(section.id) ? 600 : 500,
+                    color: catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(section.id) ? '#0f172a' : '#64748b',
                     background: 'transparent',
                     transition: 'color 0.2s ease, font-weight 0.2s ease',
                     pointerEvents: 'auto',
@@ -3288,7 +3308,7 @@ function Catalog() {
                     WebkitTapHighlightColor: 'transparent'
                   }}
                   onClick={() => handleCatalogTabClick(section.id)}
-                  aria-current={activeSubcategoryTab === section.id ? 'true' : undefined}
+                  aria-current={catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(section.id) ? 'true' : undefined}
                 >
                   <span
                     style={{
@@ -3296,7 +3316,7 @@ function Catalog() {
                       maxWidth: '100%',
                       padding: '7px 14px',
                       borderRadius: 999,
-                      background: activeSubcategoryTab === section.id ? 'rgba(148, 163, 184, 0.34)' : 'transparent',
+                      background: catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(section.id) ? 'rgba(148, 163, 184, 0.34)' : 'transparent',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -3452,7 +3472,11 @@ function Catalog() {
                     {visibleProductSections.map((section) => (
                       <section
                         key={section.id}
-                        ref={(el) => { productGroupRefs.current[section.id] = el; }}
+                        ref={(el) => {
+                          const k = catalogSectionTabKey(section.id);
+                          if (el) productGroupRefs.current[k] = el;
+                          else delete productGroupRefs.current[k];
+                        }}
                         className="mb-4"
                       >
                         <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
