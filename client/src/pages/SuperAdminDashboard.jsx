@@ -15635,13 +15635,12 @@ function SuperAdminDashboard() {
                                 {billingSettings.print_form_background_url && (
                                   <Button
                                     type="button"
-                                    size="sm"
-                                    className="print-form-bg-remove-btn"
+                                    className="action-btn print-form-bg-remove-btn"
                                     onClick={handleClearPrintFormBackground}
                                     disabled={uploadingPrintFormBackground}
                                     title={language === 'uz' ? "Fonni o'chirish" : 'Удалить фон'}
                                   >
-                                    <X size={14} aria-hidden="true" />
+                                    <X className="print-form-bg-remove-icon" aria-hidden="true" />
                                   </Button>
                                 )}
                               </div>

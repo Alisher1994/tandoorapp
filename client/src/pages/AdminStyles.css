@@ -5738,9 +5738,9 @@ body::-webkit-scrollbar,
     height: 30px;
     min-height: 30px;
     border-radius: 9px;
-    border: 1px solid rgba(255, 255, 255, 0.72);
-    background: rgba(185, 28, 28, 0.72);
-    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.72) !important;
+    background: rgba(185, 28, 28, 0.78) !important;
+    color: #ffffff !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -5749,9 +5749,18 @@ body::-webkit-scrollbar,
 
 .print-form-bg-remove-btn.btn:hover,
 .print-form-bg-remove-btn.btn:focus-visible {
-    background: rgba(153, 27, 27, 0.92);
+    background: rgba(153, 27, 27, 0.94) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.print-form-bg-remove-icon {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2.6;
     color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.9);
+    display: block;
+    flex-shrink: 0;
 }
 
 @media (hover: none) {
