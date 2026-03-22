@@ -662,9 +662,11 @@ function Catalog() {
       let hasContainerName = false;
       let hasContainerPrice = false;
       let hasContainerNorm = false;
+      let hasContainerId = false;
       let containerNameRaw = null;
       let containerPriceRaw = null;
       let containerNormRaw = null;
+      let containerIdRaw = null;
 
       if (item && typeof item === 'object' && !Array.isArray(item)) {
         name = String(item.name || item.value || item.label || '').trim();
@@ -679,6 +681,7 @@ function Catalog() {
         hasContainerName = hasOwn(item, 'container_name') || hasOwn(item, 'containerName');
         hasContainerPrice = hasOwn(item, 'container_price') || hasOwn(item, 'containerPrice');
         hasContainerNorm = hasOwn(item, 'container_norm') || hasOwn(item, 'containerNorm');
+        hasContainerId = hasOwn(item, 'container_id') || hasOwn(item, 'containerId');
         if (hasContainerName) {
           containerNameRaw = item.container_name ?? item.containerName ?? '';
         }
@@ -687,6 +690,9 @@ function Catalog() {
         }
         if (hasContainerNorm) {
           containerNormRaw = item.container_norm ?? item.containerNorm;
+        }
+        if (hasContainerId) {
+          containerIdRaw = item.container_id ?? item.containerId ?? '';
         }
       } else {
         name = String(item ?? '').trim();
@@ -707,6 +713,13 @@ function Catalog() {
       const normalizedContainerName = hasContainerName
         ? (String(containerNameRaw ?? '').trim() || null)
         : null;
+      const normalizedContainerId = hasContainerId
+        ? (String(containerIdRaw ?? '').trim() || null)
+        : null;
+      const shouldFallbackContainerPriceToProduct = hasContainerPrice
+        && (!Number.isFinite(normalizedContainerPrice) || normalizedContainerPrice <= 0)
+        && !normalizedContainerName
+        && !normalizedContainerId;
       normalized.push({
         name,
         description_ru: descriptionRu.slice(0, 1500),
@@ -716,8 +729,11 @@ function Catalog() {
         image_url: imageUrl,
         thumb_url: thumbUrl,
         product_images: variantImages,
+        container_id: normalizedContainerId,
         container_name: normalizedContainerName,
-        container_price: hasContainerPrice
+        container_price: shouldFallbackContainerPriceToProduct
+          ? null
+          : hasContainerPrice
           ? (Number.isFinite(normalizedContainerPrice) && normalizedContainerPrice >= 0 ? normalizedContainerPrice : 0)
           : null,
         container_norm: hasContainerNorm
@@ -958,16 +974,19 @@ function Catalog() {
     const cartProductImages = selectedVariantDetails && variantImageItems.length > 0
       ? variantImageItems
       : getProductImageItems(product);
-    const resolvedContainerPrice = parseLocalizedNumber(
-      selectedVariantDetails?.container_price ?? product?.container_price ?? 0
-    );
-    const resolvedContainerNorm = parseLocalizedNumber(
-      selectedVariantDetails?.container_norm ?? product?.container_norm ?? 1,
-      1
-    );
-    const resolvedContainerName = String(
-      selectedVariantDetails?.container_name || product?.container_name || ''
-    ).trim() || null;
+    const variantContainerPrice = parseLocalizedNumber(selectedVariantDetails?.container_price, NaN);
+    const productContainerPrice = parseLocalizedNumber(product?.container_price, 0);
+    const resolvedContainerPrice = Number.isFinite(variantContainerPrice) && variantContainerPrice > 0
+      ? variantContainerPrice
+      : productContainerPrice;
+    const variantContainerNorm = parseLocalizedNumber(selectedVariantDetails?.container_norm, NaN);
+    const productContainerNorm = parseLocalizedNumber(product?.container_norm, 1);
+    const resolvedContainerNorm = Number.isFinite(variantContainerNorm) && variantContainerNorm > 0
+      ? variantContainerNorm
+      : productContainerNorm;
+    const variantContainerName = String(selectedVariantDetails?.container_name || '').trim();
+    const productContainerName = String(product?.container_name || '').trim();
+    const resolvedContainerName = (variantContainerName || productContainerName) || null;
     addToCart({
       ...product,
       restaurant_id: selectedRestaurant,

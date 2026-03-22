@@ -236,20 +236,28 @@ export function CartProvider({ children }) {
   
   // Calculate cart total including container prices
   const cartTotal = cart.reduce((sum, item) => {
-    const productTotal = item.price * item.quantity;
+    const quantity = normalizeQuantity(item.quantity, 0);
+    const productPrice = parsePriceValue(item.price);
+    const productTotal = productPrice * quantity;
     const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
-    const containerTotal = item.container_price ? (parseFloat(item.container_price) * containerUnits) : 0;
+    const containerPrice = parsePriceValue(item.container_price);
+    const containerTotal = containerPrice > 0 ? (containerPrice * containerUnits) : 0;
     return sum + productTotal + containerTotal;
   }, 0);
   
   // Calculate container total separately for display
   const containerTotal = cart.reduce((sum, item) => {
     const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
-    return sum + (item.container_price ? (parseFloat(item.container_price) * containerUnits) : 0);
+    const containerPrice = parsePriceValue(item.container_price);
+    return sum + (containerPrice > 0 ? (containerPrice * containerUnits) : 0);
   }, 0);
   
   // Calculate product total without containers
-  const productTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const productTotal = cart.reduce((sum, item) => {
+    const quantity = normalizeQuantity(item.quantity, 0);
+    const productPrice = parsePriceValue(item.price);
+    return sum + (productPrice * quantity);
+  }, 0);
 
   return (
     <CartContext.Provider
