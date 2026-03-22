@@ -50,6 +50,19 @@ const parseInitDataFromUrl = () => {
   return fromHash ? decodeURIComponent(fromHash) : '';
 };
 
+const parseLaunchTokenFromUrl = () => {
+  if (typeof window === 'undefined') return '';
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const fromSearch = String(searchParams.get('launch_token') || '').trim();
+  if (fromSearch) return fromSearch;
+
+  const rawHash = String(window.location.hash || '').replace(/^#/, '');
+  if (!rawHash) return '';
+  const hashParams = new URLSearchParams(rawHash);
+  return String(hashParams.get('launch_token') || '').trim();
+};
+
 const i18n = {
   ru: {
     title: 'Регистрация магазина',
@@ -126,6 +139,7 @@ const i18n = {
 function TelegramStoreRegistration() {
   const [lang, setLang] = useState('ru');
   const [initData, setInitData] = useState('');
+  const [launchToken, setLaunchToken] = useState('');
   const [activityTypes, setActivityTypes] = useState([]);
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -161,6 +175,10 @@ function TelegramStoreRegistration() {
       }
 
       const queryData = parseInitDataFromUrl();
+      const fallbackLaunchToken = parseLaunchTokenFromUrl();
+      if (fallbackLaunchToken) {
+        setLaunchToken(fallbackLaunchToken);
+      }
       let effectiveInitData = String(tg?.initData || queryData || '').trim();
       if (!effectiveInitData && tg) {
         effectiveInitData = await waitForTelegramInitData(tg, 24, 220);
@@ -168,7 +186,7 @@ function TelegramStoreRegistration() {
       if (cancelled) return;
 
       setInitData(effectiveInitData);
-      if (!effectiveInitData) {
+      if (!effectiveInitData && !fallbackLaunchToken) {
         setLoadingMeta(false);
         return;
       }
@@ -176,7 +194,8 @@ function TelegramStoreRegistration() {
       try {
         setLoadingMeta(true);
         const response = await axios.post(`${API_URL}/auth/telegram-webapp-store-registration/meta`, {
-          init_data: effectiveInitData
+          init_data: effectiveInitData || undefined,
+          launch_token: fallbackLaunchToken || undefined
         });
         if (cancelled) return;
 
@@ -236,14 +255,14 @@ function TelegramStoreRegistration() {
   };
 
   const canSubmit = useMemo(() => (
-    initData
+    Boolean(initData || launchToken)
     && form.store_name.trim()
     && form.activity_type_id
     && form.full_name.trim()
     && form.phone.trim()
     && form.latitude.trim()
     && form.longitude.trim()
-  ), [initData, form]);
+  ), [initData, launchToken, form]);
 
   const sendWebAppCompletionSignal = () => {
     const tg = window.Telegram?.WebApp;
@@ -274,7 +293,8 @@ function TelegramStoreRegistration() {
       const payload = {
         ...form,
         activity_type_id: Number(form.activity_type_id),
-        init_data: initData,
+        init_data: initData || undefined,
+        launch_token: launchToken || undefined,
         lang
       };
       const response = await axios.post(`${API_URL}/auth/telegram-webapp-store-registration/complete`, payload);
@@ -295,7 +315,7 @@ function TelegramStoreRegistration() {
     );
   }
 
-  if (!initData) {
+  if (!initData && !launchToken) {
     return (
       <div className="tg-store-registration-page">
         <div className="tg-store-registration-card">

@@ -206,6 +206,85 @@ async function resolveCentralRegistrationBotToken() {
   return String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
 }
 
+function verifyStoreRegistrationLaunchToken(launchToken) {
+  const rawToken = String(launchToken || '').trim();
+  if (!rawToken) {
+    return { ok: false, reason: 'missing_launch_token' };
+  }
+
+  try {
+    const decoded = jwt.verify(rawToken, process.env.JWT_SECRET);
+    if (String(decoded?.purpose || '') !== 'store_registration_launch') {
+      return { ok: false, reason: 'invalid_launch_token_purpose' };
+    }
+    const telegramId = Number.parseInt(decoded?.telegramId || decoded?.telegram_id, 10);
+    if (!Number.isFinite(telegramId) || telegramId <= 0) {
+      return { ok: false, reason: 'invalid_launch_telegram_id' };
+    }
+    const launchLang = normalizeBotLanguage(decoded?.lang || 'ru');
+    return {
+      ok: true,
+      telegramId,
+      authDate: Math.floor(Date.now() / 1000),
+      user: {
+        id: telegramId,
+        language_code: launchLang
+      },
+      source: 'launch_token'
+    };
+  } catch (error) {
+    return { ok: false, reason: 'invalid_launch_token' };
+  }
+}
+
+async function resolveStoreRegistrationIdentity({ initData, launchToken }) {
+  const normalizedInitData = String(initData || '').trim();
+  const normalizedLaunchToken = String(launchToken || '').trim();
+  let centralBotToken = '';
+  let initDataResult = null;
+  let launchTokenResult = null;
+
+  if (normalizedInitData) {
+    centralBotToken = await resolveCentralRegistrationBotToken();
+    if (!centralBotToken) {
+      initDataResult = { ok: false, reason: 'central_bot_not_configured' };
+    } else {
+      initDataResult = verifyTelegramWebAppInitData(normalizedInitData, centralBotToken);
+    }
+  }
+
+  if (normalizedLaunchToken) {
+    launchTokenResult = verifyStoreRegistrationLaunchToken(normalizedLaunchToken);
+  }
+
+  if (initDataResult?.ok) {
+    return {
+      ok: true,
+      verified: initDataResult,
+      source: 'init_data',
+      centralBotToken
+    };
+  }
+
+  if (launchTokenResult?.ok) {
+    return {
+      ok: true,
+      verified: launchTokenResult,
+      source: 'launch_token',
+      centralBotToken
+    };
+  }
+
+  const reason = initDataResult?.reason || launchTokenResult?.reason || 'missing_credentials';
+  return {
+    ok: false,
+    reason,
+    centralBotToken,
+    initDataResult,
+    launchTokenResult
+  };
+}
+
 const registrationErrorMap = {
   STORE_NAME_REQUIRED: { status: 400, error: 'Название магазина обязательно' },
   ACTIVITY_TYPE_REQUIRED: { status: 400, error: 'Выберите вид деятельности' },
@@ -1053,19 +1132,20 @@ router.post('/telegram-webapp-login', async (req, res) => {
 router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async (req, res) => {
   try {
     const initData = String(req.body?.init_data || '').trim();
-    if (!initData) {
-      return res.status(400).json({ error: 'init_data обязателен' });
+    const launchToken = String(req.body?.launch_token || req.query?.launch_token || '').trim();
+    if (!initData && !launchToken) {
+      return res.status(400).json({ error: 'init_data или launch_token обязателен' });
     }
 
-    const centralBotToken = await resolveCentralRegistrationBotToken();
-    if (!centralBotToken) {
-      return res.status(503).json({ error: 'Центральный бот не настроен' });
+    const identity = await resolveStoreRegistrationIdentity({ initData, launchToken });
+    if (!identity.ok) {
+      if (identity.reason === 'central_bot_not_configured') {
+        return res.status(503).json({ error: 'Центральный бот не настроен' });
+      }
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: identity.reason });
     }
 
-    const verified = verifyTelegramWebAppInitData(initData, centralBotToken);
-    if (!verified.ok) {
-      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
-    }
+    const verified = identity.verified;
 
     const activityTypes = await getVisibleActivityTypes(pool);
     const telegramUser = verified.user || {};
@@ -1082,6 +1162,7 @@ router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async 
         last_name: telegramUser.last_name || null,
         language_code: telegramUser.language_code || null
       },
+      auth_source: identity.source,
       suggested_full_name: suggestedFullName || null,
       activity_types: activityTypes
     });
@@ -1094,19 +1175,21 @@ router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async 
 router.post('/telegram-webapp-store-registration/complete', loginRateLimiter, async (req, res) => {
   try {
     const initData = String(req.body?.init_data || '').trim();
-    if (!initData) {
-      return res.status(400).json({ error: 'init_data обязателен' });
+    const launchToken = String(req.body?.launch_token || req.query?.launch_token || '').trim();
+    if (!initData && !launchToken) {
+      return res.status(400).json({ error: 'init_data или launch_token обязателен' });
     }
 
-    const centralBotToken = await resolveCentralRegistrationBotToken();
-    if (!centralBotToken) {
-      return res.status(503).json({ error: 'Центральный бот не настроен' });
+    const identity = await resolveStoreRegistrationIdentity({ initData, launchToken });
+    if (!identity.ok) {
+      if (identity.reason === 'central_bot_not_configured') {
+        return res.status(503).json({ error: 'Центральный бот не настроен' });
+      }
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: identity.reason });
     }
 
-    const verified = verifyTelegramWebAppInitData(initData, centralBotToken);
-    if (!verified.ok) {
-      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: verified.reason });
-    }
+    const verified = identity.verified;
+    const centralBotToken = String(identity.centralBotToken || '').trim();
 
     let registration;
     try {

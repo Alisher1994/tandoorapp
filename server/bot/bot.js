@@ -56,6 +56,18 @@ function generateLoginToken(userId, username, options = {}) {
   );
 }
 
+function generateStoreRegistrationLaunchToken(userId, lang = 'ru') {
+  return jwt.sign(
+    {
+      purpose: 'store_registration_launch',
+      telegramId: Number(userId),
+      lang: normalizeBotLanguage(lang)
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '2h' }
+  );
+}
+
 function buildCatalogUrl(appUrl, token) {
   const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
   return appendWebAppCacheVersion(`${trimmed}/catalog?token=${encodeURIComponent(token)}`);
@@ -383,11 +395,23 @@ function buildWebLoginUrl(params = {}) {
   return appendWebAppCacheVersion(`${trimmed}/login${query ? `?${query}` : ''}`);
 }
 
-function buildStoreRegistrationWebAppUrl() {
+function buildStoreRegistrationWebAppUrl(userId, lang = 'ru') {
   const base = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
   if (!base) return null;
   const trimmed = base.endsWith('/') ? base.slice(0, -1) : base;
-  return appendWebAppCacheVersion(`${trimmed}/webapp/store-registration?source=superadmin_bot`);
+  const search = new URLSearchParams();
+  search.set('source', 'superadmin_bot');
+  if (userId) {
+    try {
+      const launchToken = generateStoreRegistrationLaunchToken(userId, lang);
+      if (launchToken) {
+        search.set('launch_token', launchToken);
+      }
+    } catch (error) {
+      console.warn('Store registration launch token generation warning:', error.message);
+    }
+  }
+  return appendWebAppCacheVersion(`${trimmed}/webapp/store-registration?${search.toString()}`);
 }
 
 async function resolvePreferredAdminTelegramUser(telegramId) {
@@ -974,7 +998,7 @@ async function initBot() {
         [{ text: t(language, 'languageMenuButton') }, { text: t(language, 'helpMenuButton') }]
       ];
     } else {
-      const registrationWebAppUrl = buildStoreRegistrationWebAppUrl();
+      const registrationWebAppUrl = buildStoreRegistrationWebAppUrl(userId, language);
       const registerButton = registrationWebAppUrl
         ? { text: t(language, 'registerStoreButton'), web_app: { url: registrationWebAppUrl } }
         : { text: t(language, 'registerStoreButton') };
@@ -1854,7 +1878,7 @@ async function initBot() {
     }
 
     if (isRegisterMenuText) {
-      const registrationWebAppUrl = buildStoreRegistrationWebAppUrl();
+      const registrationWebAppUrl = buildStoreRegistrationWebAppUrl(userId, currentLang);
       if (registrationWebAppUrl) {
         await bot.sendMessage(chatId, t(currentLang, 'registrationWebAppHint'), {
           reply_markup: {
