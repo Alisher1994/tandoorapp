@@ -5781,6 +5781,23 @@ function AdminDashboard() {
     ];
   }, [language]);
 
+  const handleDownloadOperatorPasteTemplate = useCallback(() => {
+    const headers = OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS;
+    const rows = operatorPasteImportDemoRows;
+    const aoa = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 34 }, { wch: 24 }, { wch: 24 }, { wch: 16 },
+      { wch: 28 }, { wch: 24 }, { wch: 10 }, { wch: 8 }, { wch: 16 },
+      { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, language === 'uz' ? 'Shablon' : 'Шаблон');
+    const stamp = new Date().toISOString().slice(0, 10);
+    const base = language === 'uz' ? 'mahsulotlar_import_shablon' : 'import_tovarov_shablon';
+    XLSX.writeFile(wb, `${base}_${stamp}.xlsx`);
+  }, [operatorPasteImportDemoRows, language]);
+
   const buildPreparedImportRows = (jsonData = [], rowNumberOffset = 2) => (
     (Array.isArray(jsonData) ? jsonData : []).map((row, index) => {
       const rowNo = index + rowNumberOffset;
@@ -9628,9 +9645,9 @@ function AdminDashboard() {
                       onClick={() => setShowPasteImportModal(true)}
                     >
                       <span className="d-none d-md-inline">
-                        {language === 'uz' ? 'Ctrl+V bilan qo‘shish' : 'Вставка Ctrl+V'}
+                        {language === 'uz' ? 'Exceldan import' : 'Импорт из Excel'}
                       </span>
-                      <span className="d-md-none">Ctrl+V</span>
+                      <span className="d-md-none">{language === 'uz' ? 'Excel' : 'Импорт'}</span>
                     </Button>
                     <Button variant="dark" className="btn-primary-custom" onClick={() => openProductModal()}>
                       <span className="d-none d-md-inline">{t('addProduct')}</span>
@@ -14247,7 +14264,7 @@ function AdminDashboard() {
           <Modal.Header closeButton className="sa-global-products-paste-header">
             <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap w-100 me-1">
               <Modal.Title className="sa-global-products-modal-title h6 mb-0">
-                {language === 'uz' ? 'Mahsulotlarni Ctrl+V bilan qo‘shish' : 'Массовая вставка товаров (Ctrl+V)'}
+                {language === 'uz' ? 'Exceldan mahsulotlar importi' : 'Импорт товаров из Excel'}
               </Modal.Title>
               <OverlayTrigger
                 trigger="click"
@@ -14315,7 +14332,15 @@ function AdminDashboard() {
               </Table>
             </div>
 
-            <div className="sa-global-products-paste-toolbar justify-content-end">
+            <div className="sa-global-products-paste-toolbar justify-content-between align-items-center">
+              <Button
+                type="button"
+                size="sm"
+                className="btn-primary-custom sa-global-products-btn"
+                onClick={handleDownloadOperatorPasteTemplate}
+              >
+                {language === 'uz' ? 'Excel shablonni yuklab olish (.xlsx)' : 'Скачать XLS-шаблон (.xlsx)'}
+              </Button>
               <Button
                 variant="outline-danger"
                 size="sm"

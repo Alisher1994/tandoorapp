@@ -7989,13 +7989,37 @@ body::-webkit-scrollbar,
 }
 
 .admin-operator-paste-demo-table.sa-global-products-template-demo-table {
-    min-width: 1280px;
+    min-width: 1420px;
     font-size: 0.72rem;
+    table-layout: auto;
 }
 
 .admin-operator-paste-demo-table.sa-global-products-template-demo-table thead th {
     font-size: 0.65rem;
     padding: 0.32rem 0.28rem;
+}
+
+/* Цена, Штрихкод, ИКПУ — без переноса цифр */
+.admin-operator-paste-demo-table.sa-global-products-template-demo-table th:nth-child(8),
+.admin-operator-paste-demo-table.sa-global-products-template-demo-table td:nth-child(8) {
+    min-width: 5.5rem;
+    white-space: nowrap;
+}
+
+.admin-operator-paste-demo-table.sa-global-products-template-demo-table th:nth-child(10),
+.admin-operator-paste-demo-table.sa-global-products-template-demo-table td:nth-child(10) {
+    min-width: 10.5rem;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.7rem;
+}
+
+.admin-operator-paste-demo-table.sa-global-products-template-demo-table th:nth-child(11),
+.admin-operator-paste-demo-table.sa-global-products-template-demo-table td:nth-child(11) {
+    min-width: 11.5rem;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.7rem;
 }
 
 .admin-global-import-card {
