@@ -20,6 +20,32 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
+if (L.drawLocal) {
+  L.drawLocal.draw.toolbar.actions.title = 'Отменить рисование';
+  L.drawLocal.draw.toolbar.actions.text = 'Отмена';
+  L.drawLocal.draw.toolbar.finish.title = 'Завершить рисование';
+  L.drawLocal.draw.toolbar.finish.text = 'Готово';
+  L.drawLocal.draw.toolbar.undo.title = 'Удалить последнюю точку';
+  L.drawLocal.draw.toolbar.undo.text = 'Шаг назад';
+  L.drawLocal.draw.toolbar.buttons.polygon = 'Рисовать зону по точкам';
+  L.drawLocal.draw.handlers.polygon.tooltip.start = 'Поставьте первую точку границы';
+  L.drawLocal.draw.handlers.polygon.tooltip.cont = 'Поставьте следующую точку';
+  L.drawLocal.draw.handlers.polygon.tooltip.end = 'Нажмите на первую точку, чтобы завершить';
+  L.drawLocal.edit.toolbar.actions.save.title = 'Сохранить изменения';
+  L.drawLocal.edit.toolbar.actions.save.text = 'Сохранить';
+  L.drawLocal.edit.toolbar.actions.cancel.title = 'Отменить редактирование';
+  L.drawLocal.edit.toolbar.actions.cancel.text = 'Отмена';
+  L.drawLocal.edit.toolbar.actions.clearAll.title = 'Очистить все слои';
+  L.drawLocal.edit.toolbar.actions.clearAll.text = 'Очистить';
+  L.drawLocal.edit.toolbar.buttons.edit = 'Редактировать точки зоны';
+  L.drawLocal.edit.toolbar.buttons.editDisabled = 'Нет зоны для редактирования';
+  L.drawLocal.edit.toolbar.buttons.remove = 'Удалить зону';
+  L.drawLocal.edit.toolbar.buttons.removeDisabled = 'Нет зоны для удаления';
+  L.drawLocal.edit.handlers.edit.tooltip.text = 'Перетащите точки, чтобы изменить контур';
+  L.drawLocal.edit.handlers.edit.tooltip.subtext = 'Нажмите отмена, чтобы откатить';
+  L.drawLocal.edit.handlers.remove.tooltip.text = 'Нажмите на зону, чтобы удалить';
+}
+
 const DEFAULT_CENTER = [41.311081, 69.240562];
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
@@ -226,7 +252,23 @@ function DrawLayer({ zone, onZoneChange }) {
   return <FeatureGroup ref={featureGroupRef} />;
 }
 
+function MapResizeTrigger({ trigger }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 120);
+
+    return () => window.clearTimeout(timerId);
+  }, [map, trigger]);
+
+  return null;
+}
+
 const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTER, mapProvider = null, onMapProviderChange = null }) => {
+  const wrapperRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   const zone = useMemo(() => normalizeZone(deliveryZone), [deliveryZone]);
   const safeCenter = useMemo(() => normalizeCenter(center), [center]);
   const [selectedMapProvider, setSelectedMapProvider] = React.useState(() => normalizeMapProvider(mapProvider || getSavedMapProvider()));
@@ -244,6 +286,14 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
     setSelectedMapProvider(normalizeMapProvider(mapProvider));
   }, [mapProvider]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === wrapperRef.current);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   const handleMapProviderSelect = (event) => {
     const nextProvider = normalizeMapProvider(event.target.value);
     setSelectedMapProvider(nextProvider);
@@ -253,18 +303,36 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
     }
   };
 
+  const handleToggleFullscreen = async () => {
+    const target = wrapperRef.current;
+    if (!target) return;
+
+    try {
+      if (document.fullscreenElement === target) {
+        await document.exitFullscreen();
+      } else {
+        await target.requestFullscreen();
+      }
+    } catch (error) {
+      console.error('Fullscreen toggle failed:', error);
+    }
+  };
+
   return (
-    <div style={{ height: '500px', width: '100%', position: 'relative' }}>
+    <div ref={wrapperRef} style={{ height: '500px', width: '100%', position: 'relative', background: '#fff' }}>
       <div
         style={{
           position: 'absolute',
           top: '10px',
-          left: '10px',
+          left: '56px',
           zIndex: 500,
           background: 'rgba(255, 255, 255, 0.96)',
           border: '1px solid #dbe3ee',
           borderRadius: '8px',
           padding: '6px 8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
           boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)'
         }}
       >
@@ -277,6 +345,43 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
           <option value="osm">OpenStreetMap</option>
           <option value="yandex">Yandex</option>
         </select>
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          style={{
+            border: '1px solid #dbe3ee',
+            borderRadius: '6px',
+            background: '#fff',
+            color: '#1f2937',
+            fontSize: '12px',
+            fontWeight: 600,
+            padding: '4px 8px',
+            cursor: 'pointer'
+          }}
+          aria-label={isFullscreen ? 'Выйти из полноэкранного режима карты' : 'Открыть карту во весь экран'}
+        >
+          {isFullscreen ? 'Свернуть' : 'Во весь экран'}
+        </button>
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '56px',
+          zIndex: 500,
+          background: 'rgba(255, 255, 255, 0.96)',
+          border: '1px solid #dbe3ee',
+          borderRadius: '8px',
+          padding: '8px 10px',
+          boxShadow: '0 4px 12px rgba(15, 23, 42, 0.12)',
+          fontSize: '12px',
+          color: '#374151',
+          lineHeight: 1.3
+        }}
+      >
+        <div><strong>⬠</strong> Рисовать точки зоны</div>
+        <div><strong>✎</strong> Редактировать точки</div>
+        <div><strong>🗑</strong> Удалить зону</div>
       </div>
       <MapContainer
         key={mapKey}
@@ -290,6 +395,7 @@ const DeliveryZonePicker = ({ deliveryZone, onZoneChange, center = DEFAULT_CENTE
           attribution={tileLayerConfig.attribution}
           maxZoom={tileLayerConfig.maxZoom}
         />
+        <MapResizeTrigger trigger={`${isFullscreen}-${selectedMapProvider}`} />
         <DrawLayer zone={zone} onZoneChange={onZoneChange} />
       </MapContainer>
       <div className="mt-2 text-center">
