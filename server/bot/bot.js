@@ -1042,23 +1042,10 @@ async function initBot() {
 
       if (user.role === 'operator' || user.role === 'superadmin') {
         const actionKeyboard = await getSuperadminActionReplyMarkup(userId, language);
-        const adminAutoLoginToken = generateLoginToken(user.id, user.username, {
-          expiresIn: '1h',
-          role: user.role
-        });
-        const loginUrl = buildWebLoginUrl({
-          portal: 'admin',
-          source: 'superadmin_bot',
-          token: adminAutoLoginToken
-        });
-        const loginUrlLine = loginUrl
-          ? (language === 'uz' ? `\n\n🔗 Kirish: ${loginUrl}` : `\n\n🔗 Вход: ${loginUrl}`)
-          : '';
         const sent = await bot.sendMessage(
           chatId,
           `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
-          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}` +
-          loginUrlLine,
+          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}`,
           {
             parse_mode: 'HTML',
             reply_markup: actionKeyboard

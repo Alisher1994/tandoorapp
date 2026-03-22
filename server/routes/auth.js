@@ -485,8 +485,8 @@ async function sendStoreRegistrationSummaryToTelegram({
 
   if (fullQrUrl) {
     const qrCaption = normalizedLanguage === 'uz'
-      ? `📌 <b>Do‘kon QR kodi</b>\n🤖 ${botUsername || ''}\n${fullPdfUrl ? `🧾 PDF: ${fullPdfUrl}` : ''}`.trim()
-      : `📌 <b>QR-код магазина</b>\n🤖 ${botUsername || ''}\n${fullPdfUrl ? `🧾 PDF: ${fullPdfUrl}` : ''}`.trim();
+      ? `📌 <b>Do‘kon QR kodi</b>\n🤖 ${botUsername || ''}\n🖨️ QR-kodni chop eting va mijozlardan buyurtma qabul qiling.`.trim()
+      : `📌 <b>QR-код магазина</b>\n🤖 ${botUsername || ''}\n🖨️ Распечатайте QR-код, чтобы принимать заказы от клиентов.`.trim();
     const qrButtons = [];
     if (botLink) {
       qrButtons.push([{
