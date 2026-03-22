@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
@@ -202,6 +202,42 @@ export function AuthProvider({ children }) {
       }
     }
   };
+
+  const fetchUserRef = useRef(fetchUser);
+  fetchUserRef.current = fetchUser;
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (!e.key || (e.key !== 'token' && e.key !== 'active_restaurant_id')) return;
+      if (e.storageArea !== localStorage) return;
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      fetchUserRef.current({ manageLoading: false });
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  useEffect(() => {
+    let timeoutId;
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          fetchUserRef.current({ manageLoading: false });
+        }
+      }, 250);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   const login = async (username, password, options = {}) => {
     try {

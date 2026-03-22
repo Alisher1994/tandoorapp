@@ -422,6 +422,12 @@ function Cart() {
   const effectiveDeliveryCost = isDeliverySelected ? deliveryCost : 0;
   const effectiveDeliveryDistance = isDeliverySelected ? deliveryDistance : 0;
 
+  const minimumOrderAmount = useMemo(
+    () => Math.max(0, toNumber(restaurant?.minimum_order_amount, 0)),
+    [restaurant?.minimum_order_amount]
+  );
+  const meetsMinimumOrder = minimumOrderAmount <= 0 || productTotal + 1e-6 >= minimumOrderAmount;
+
   useEffect(() => {
     if (!isDeliveryEnabled) {
       setFulfillmentType('pickup');
@@ -690,6 +696,15 @@ function Cart() {
       return;
     }
 
+    if (minimumOrderAmount > 0 && !meetsMinimumOrder) {
+      setError(
+        language === 'uz'
+          ? `Minimal buyurtma (faqat mahsulotlar): ${formatPrice(minimumOrderAmount)} ${t('sum')}`
+          : `Минимальная сумма заказа (товары): ${formatPrice(minimumOrderAmount)} ${t('sum')}`
+      );
+      return;
+    }
+
     // Показываем модалку подтверждения адреса
     setShowConfirmOrderModal(true);
   };
@@ -717,6 +732,16 @@ function Cart() {
 
       if (isDeliverySelected && deliveryOutOfZone) {
         setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
+        return;
+      }
+
+      if (minimumOrderAmount > 0 && !meetsMinimumOrder) {
+        setError(
+          language === 'uz'
+            ? `Minimal buyurtma (faqat mahsulotlar): ${formatPrice(minimumOrderAmount)} ${t('sum')}`
+            : `Минимальная сумма заказа (товары): ${formatPrice(minimumOrderAmount)} ${t('sum')}`
+        );
+        setLoading(false);
         return;
       }
 
@@ -811,6 +836,15 @@ function Cart() {
       console.error('❌ Order error:', err);
       console.error('❌ Response:', err.response?.data);
       console.error('❌ Status:', err.response?.status);
+      if (err.response?.status === 400 && err.response?.data?.code === 'MINIMUM_ORDER_NOT_MET') {
+        const min = toNumber(err.response?.data?.minimum_order_amount, minimumOrderAmount);
+        setError(
+          language === 'uz'
+            ? `Minimal buyurtma (faqat mahsulotlar): ${formatPrice(min)} ${t('sum')}`
+            : `Минимальная сумма заказа (товары): ${formatPrice(min)} ${t('sum')}`
+        );
+        return;
+      }
       const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Ошибка создания заказа';
       setError(errorMsg);
     } finally {
@@ -842,6 +876,14 @@ function Cart() {
     }
     if (isDeliverySelected && deliveryOutOfZone) {
       setError(language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки');
+      return;
+    }
+    if (minimumOrderAmount > 0 && !meetsMinimumOrder) {
+      setError(
+        language === 'uz'
+          ? `Minimal buyurtma (faqat mahsulotlar): ${formatPrice(minimumOrderAmount)} ${t('sum')}`
+          : `Минимальная сумма заказа (товары): ${formatPrice(minimumOrderAmount)} ${t('sum')}`
+      );
       return;
     }
     setStep(3);
@@ -1056,6 +1098,22 @@ function Cart() {
 
       <Container className="client-content client-content--compact">
         {error && <Alert ref={errorAlertRef} variant="danger" className="py-2 mb-3">{error}</Alert>}
+
+        {cart.length > 0 && minimumOrderAmount > 0 && !meetsMinimumOrder && (
+          <Alert variant="warning" className="py-2 mb-3">
+            {language === 'uz' ? (
+              <>
+                Minimal buyurtma: <strong>{formatPrice(minimumOrderAmount)} {t('sum')}</strong> (faqat mahsulotlar). Hozir:{' '}
+                <strong>{formatPrice(productTotal)} {t('sum')}</strong>
+              </>
+            ) : (
+              <>
+                Минимальная сумма заказа: <strong>{formatPrice(minimumOrderAmount)} {t('sum')}</strong> (только товары). Сейчас:{' '}
+                <strong>{formatPrice(productTotal)} {t('sum')}</strong>
+              </>
+            )}
+          </Alert>
+        )}
 
         {/* ШАГ 1: Список товаров */}
         {step === 1 && (
@@ -1505,6 +1563,7 @@ function Cart() {
                 size="lg"
                 className="w-100"
                 onClick={() => setStep(2)}
+                disabled={!meetsMinimumOrder}
               >
                 {t('next')} →
               </Button>
@@ -1523,6 +1582,7 @@ function Cart() {
                   variant="primary"
                   className="flex-fill"
                   onClick={handleProceedToFinalStep}
+                  disabled={!meetsMinimumOrder}
                 >
                   {t('next')} →
                 </Button>
@@ -1542,7 +1602,7 @@ function Cart() {
                   variant="primary"
                   className="flex-fill"
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || !meetsMinimumOrder}
                 >
                   {loading ? <Spinner size="sm" /> : t('checkout')}
                 </Button>

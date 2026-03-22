@@ -403,6 +403,9 @@ router.post('/', authenticate, async (req, res) => {
   const client = await pool.connect();
   
   try {
+    await client.query(
+      `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS minimum_order_amount DECIMAL(12, 2) DEFAULT 0`
+    ).catch(() => {});
     await client.query('BEGIN');
     
     const {
@@ -461,7 +464,7 @@ router.post('/', authenticate, async (req, res) => {
                 latitude, longitude,
                 delivery_base_radius, delivery_base_price, delivery_price_per_km,
                 payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
-                card_receipt_target, cash_enabled
+                card_receipt_target, cash_enabled, minimum_order_amount
          FROM restaurants
          WHERE id = $1`,
         [finalRestaurantId]
@@ -529,6 +532,24 @@ router.post('/', authenticate, async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Адрес вне зоны доставки этого магазина' });
       }
+    }
+
+    // Товары без фасовки — для проверки минимальной суммы заказа
+    const goodsSubtotalNoContainers = items.reduce((sum, item) => {
+      const quantity = Number.parseFloat(item.quantity) || 0;
+      const itemPrice = (Number.parseFloat(item.price) || 0) * quantity;
+      return sum + itemPrice;
+    }, 0);
+
+    const minOrderRequired = Math.max(0, Number.parseFloat(restaurantSettings?.minimum_order_amount) || 0);
+    if (finalRestaurantId && minOrderRequired > 0 && goodsSubtotalNoContainers + 1e-6 < minOrderRequired) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: `Минимальная сумма заказа (без доставки, сервиса и фасовки): ${minOrderRequired}`,
+        code: 'MINIMUM_ORDER_NOT_MET',
+        minimum_order_amount: minOrderRequired,
+        goods_subtotal: Math.round(goodsSubtotalNoContainers * 100) / 100
+      });
     }
 
     // Calculate total (items + containers + service fee + delivery)

@@ -9629,30 +9629,22 @@ function AdminDashboard() {
                         <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </Button>
-                    <Button
-                      variant="outline-primary"
-                      className="admin-global-import-open-btn"
-                      onClick={openGlobalImportModal}
-                    >
-                      <span className="d-none d-md-inline">
-                        {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
-                      </span>
-                      <span className="d-md-none">Global</span>
-                    </Button>
-                    <Button
-                      variant="outline-dark"
-                      className="btn-primary-custom"
-                      onClick={() => setShowPasteImportModal(true)}
-                    >
-                      <span className="d-none d-md-inline">
-                        {language === 'uz' ? 'Exceldan import' : 'Импорт из Excel'}
-                      </span>
-                      <span className="d-md-none">{language === 'uz' ? 'Excel' : 'Импорт'}</span>
-                    </Button>
-                    <Button variant="dark" className="btn-primary-custom" onClick={() => openProductModal()}>
-                      <span className="d-none d-md-inline">{t('addProduct')}</span>
-                      <span className="d-md-none">Добавить</span>
-                    </Button>
+                    <Dropdown align="end">
+                      <Dropdown.Toggle variant="dark" className="btn-primary-custom" id="admin-products-add-menu">
+                        {language === 'uz' ? "Qo'shish" : 'Добавить'}
+                      </Dropdown.Toggle>
+                      <Dropdown.Menu>
+                        <Dropdown.Item onClick={() => openProductModal()}>
+                          {language === 'uz' ? "Qo'lda qo'shish" : 'Добавить вручную'}
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={openGlobalImportModal}>
+                          {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
+                        </Dropdown.Item>
+                        <Dropdown.Item onClick={() => setShowPasteImportModal(true)}>
+                          {language === 'uz' ? "Buferdan qo'shish" : 'Добавить из буфера обмена'}
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
                   </div>
                 </div>
 
@@ -11207,6 +11199,28 @@ function AdminDashboard() {
                                     value={restaurantSettings.delivery_price_per_km || 0}
                                     onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_price_per_km: e.target.value })}
                                   />
+                                </Form.Group>
+                              </Col>
+
+                              <Col md={12}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                    Сумма минимального заказа ({t('sum')})
+                                  </Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.minimum_order_amount ?? 0}
+                                    onChange={(e) => setRestaurantSettings({
+                                      ...restaurantSettings,
+                                      minimum_order_amount: e.target.value
+                                    })}
+                                  />
+                                  <Form.Text className="text-muted">
+                                    Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
+                                  </Form.Text>
                                 </Form.Group>
                               </Col>
                             </Row>

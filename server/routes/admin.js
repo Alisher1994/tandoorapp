@@ -299,6 +299,12 @@ const ensureRestaurantCurrencySchema = async () => {
          OR BTRIM(currency_code) = ''
          OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
     `).catch(() => {});
+    await pool.query(
+      `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS minimum_order_amount DECIMAL(12, 2) DEFAULT 0`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants SET minimum_order_amount = 0 WHERE minimum_order_amount IS NULL`
+    ).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();
 
@@ -1414,7 +1420,7 @@ router.put('/restaurant', async (req, res) => {
       delivery_price_per_km, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
-      send_balance_after_confirm, send_daily_close_report
+      send_balance_after_confirm, send_daily_close_report, minimum_order_amount
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1440,6 +1446,12 @@ router.put('/restaurant', async (req, res) => {
     const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
     const normalizedSendBalanceAfterConfirm = normalizeOptionalBoolean(send_balance_after_confirm);
     const normalizedSendDailyCloseReport = normalizeOptionalBoolean(send_daily_close_report);
+    const normalizedMinimumOrderAmount = Math.max(
+      0,
+      Number.isFinite(Number.parseFloat(minimum_order_amount))
+        ? Number.parseFloat(minimum_order_amount)
+        : 0
+    );
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -1514,8 +1526,9 @@ router.put('/restaurant', async (req, res) => {
           send_balance_after_confirm = COALESCE($43, send_balance_after_confirm),
           send_daily_close_report = COALESCE($44, send_daily_close_report),
           currency_code = $45,
+          minimum_order_amount = $46,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $46
+      WHERE id = $47
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1544,6 +1557,7 @@ router.put('/restaurant', async (req, res) => {
       normalizedSendBalanceAfterConfirm,
       normalizedSendDailyCloseReport,
       normalizedCurrencyCode,
+      normalizedMinimumOrderAmount,
       restaurantId
     ]);
 

@@ -182,6 +182,15 @@ const ensureCatalogAnimationSettingsSchema = async () => {
   }
 };
 
+const ensureRestaurantMinimumOrderSchema = async () => {
+  await pool.query(
+    `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS minimum_order_amount DECIMAL(12, 2) DEFAULT 0`
+  ).catch(() => {});
+  await pool.query(
+    `UPDATE restaurants SET minimum_order_amount = 0 WHERE minimum_order_amount IS NULL`
+  ).catch(() => {});
+};
+
 const ensureRestaurantCurrencySchema = async () => {
   if (restaurantCurrencySchemaReady) return;
   if (restaurantCurrencySchemaPromise) {
@@ -190,6 +199,7 @@ const ensureRestaurantCurrencySchema = async () => {
   }
 
   restaurantCurrencySchemaPromise = (async () => {
+    await ensureRestaurantMinimumOrderSchema();
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
@@ -585,6 +595,7 @@ router.get('/', async (req, res) => {
 router.get('/restaurant/:id', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
+    await ensureRestaurantMinimumOrderSchema();
     await ensureReservationSchema();
     const result = await pool.query(
       `SELECT
@@ -606,6 +617,7 @@ router.get('/restaurant/:id', async (req, res) => {
     // Return only safe public fields
     const r = result.rows[0];
     const serviceFee = Number.parseFloat(r.service_fee ?? 0);
+    const minimumOrderAmount = Number.parseFloat(r.minimum_order_amount ?? 0);
     const cardNumber = String(r.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
     const cardTitle = String(r.card_payment_title || '').trim();
     const cardHolder = String(r.card_payment_holder || '').trim();
@@ -626,6 +638,7 @@ router.get('/restaurant/:id', async (req, res) => {
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
+      minimum_order_amount: Number.isFinite(minimumOrderAmount) ? Math.max(0, minimumOrderAmount) : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
       cash_enabled: cashEnabled,
       click_url: r.click_url,

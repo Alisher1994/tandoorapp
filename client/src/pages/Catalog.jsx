@@ -145,6 +145,7 @@ function Catalog() {
   const categoryListScrollOffsetRef = useRef(0);
   const isDataFetchInProgressRef = useRef(false);
   const catalogFetchIdRef = useRef(0);
+  const lastActiveRestaurantForCatalogRef = useRef(null);
   const level3TabsScrollerRef = useRef(null);
   const level3TabButtonRefs = useRef({});
   const tabScrollSpyRafRef = useRef(null);
@@ -166,10 +167,10 @@ function Catalog() {
   ), []);
   const shouldShowDesktopLogout = isDesktopViewport && !isTelegramWebView && !isOperator();
 
-  // Load restaurants (for header/logo and operator selection)
+  // Load restaurants (for header/logo and operator selection); re-sync when active shop changes (tabs / Telegram)
   useEffect(() => {
     fetchRestaurants();
-  }, []);
+  }, [user?.active_restaurant_id]);
 
   useEffect(() => {
     const onResize = () => {
@@ -196,12 +197,34 @@ function Catalog() {
     }
   }, []);
 
-  // For customers: lock to active_restaurant_id from bot
+  // For customers: lock to active_restaurant_id from bot (avoid stale catalog when only other user fields change)
   useEffect(() => {
-    if (!isOperator() && user?.active_restaurant_id) {
+    const role = user?.role;
+    if (role === 'operator' || role === 'superadmin') return;
+    if (user?.active_restaurant_id) {
       setSelectedRestaurant(user.active_restaurant_id);
     }
-  }, [user]);
+  }, [user?.active_restaurant_id, user?.role]);
+
+  useEffect(() => {
+    const raw = user?.active_restaurant_id;
+    if (raw === undefined || raw === null || raw === '') {
+      lastActiveRestaurantForCatalogRef.current = null;
+      return;
+    }
+    const idNum = Number.parseInt(String(raw), 10);
+    if (!Number.isInteger(idNum) || idNum <= 0) return;
+
+    if (lastActiveRestaurantForCatalogRef.current !== null && lastActiveRestaurantForCatalogRef.current !== idNum) {
+      catalogFetchIdRef.current += 1;
+      setProducts([]);
+      setCategories([]);
+      setAdBanners([]);
+      setCatalogAnimationSeason('off');
+      setLoading(true);
+    }
+    lastActiveRestaurantForCatalogRef.current = idNum;
+  }, [user?.active_restaurant_id]);
 
   // Load products when restaurant changes
   useEffect(() => {
