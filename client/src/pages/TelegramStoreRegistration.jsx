@@ -3,6 +3,7 @@ import axios from 'axios';
 import './TelegramStoreRegistration.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const getApiOrigin = () => {
   if (typeof window === 'undefined') return '';
@@ -22,6 +23,14 @@ const toAbsoluteUrl = (rawUrl) => {
 };
 
 const normalizeLang = (value) => String(value || '').toLowerCase().startsWith('uz') ? 'uz' : 'ru';
+const waitForTelegramInitData = async (telegramWebApp, attempts = 20, delayMs = 220) => {
+  for (let i = 0; i < attempts; i += 1) {
+    const snapshot = String(telegramWebApp?.initData || '').trim();
+    if (snapshot) return snapshot;
+    await sleep(delayMs);
+  }
+  return '';
+};
 
 const i18n = {
   ru: {
@@ -121,31 +130,38 @@ function TelegramStoreRegistration() {
   const dict = i18n[lang] || i18n.ru;
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      try {
-        tg.ready();
-        tg.expand();
-      } catch (_) {}
-      const telegramLang = normalizeLang(tg.initDataUnsafe?.user?.language_code);
-      setLang(telegramLang);
-    }
+    let cancelled = false;
+    const bootstrap = async () => {
+      const tg = window.Telegram?.WebApp;
+      if (tg) {
+        try {
+          tg.ready();
+          tg.expand();
+        } catch (_) {}
+        const telegramLang = normalizeLang(tg.initDataUnsafe?.user?.language_code);
+        setLang(telegramLang);
+      }
 
-    const queryData = new URLSearchParams(window.location.search).get('init_data') || '';
-    const effectiveInitData = String(tg?.initData || queryData || '').trim();
-    setInitData(effectiveInitData);
+      const queryData = new URLSearchParams(window.location.search).get('init_data') || '';
+      let effectiveInitData = String(tg?.initData || queryData || '').trim();
+      if (!effectiveInitData && tg) {
+        effectiveInitData = await waitForTelegramInitData(tg, 24, 220);
+      }
+      if (cancelled) return;
 
-    if (!effectiveInitData) {
-      setLoadingMeta(false);
-      return;
-    }
+      setInitData(effectiveInitData);
+      if (!effectiveInitData) {
+        setLoadingMeta(false);
+        return;
+      }
 
-    const loadMeta = async () => {
       try {
         setLoadingMeta(true);
         const response = await axios.post(`${API_URL}/auth/telegram-webapp-store-registration/meta`, {
           init_data: effectiveInitData
         });
+        if (cancelled) return;
+
         const suggestedFullName = String(response.data?.suggested_full_name || '').trim();
         const tgUser = response.data?.telegram_user || {};
         const fallbackName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim();
@@ -156,13 +172,20 @@ function TelegramStoreRegistration() {
           full_name: prev.full_name || nextName
         }));
       } catch (metaError) {
-        setError(metaError?.response?.data?.error || 'Ошибка загрузки метаданных регистрации');
+        if (!cancelled) {
+          setError(metaError?.response?.data?.error || 'Ошибка загрузки метаданных регистрации');
+        }
       } finally {
-        setLoadingMeta(false);
+        if (!cancelled) {
+          setLoadingMeta(false);
+        }
       }
     };
 
-    loadMeta();
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const requestGeoLocation = () => {
