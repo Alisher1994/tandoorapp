@@ -5645,13 +5645,120 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+.action-btn-icon {
+    width: 15px;
+    height: 15px;
+    stroke-width: 2;
+}
+
 .action-btn-db-delete {
-    min-width: 38px !important;
-    width: auto !important;
-    padding: 0 8px !important;
-    font-size: 0.68rem !important;
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    color: #dc2626 !important;
+}
+
+.action-btn-db-delete:hover,
+.action-btn-db-delete:focus-visible {
+    color: #b91c1c !important;
+}
+
+.print-form-bg-slot {
+    position: relative;
+    width: min(100%, 220px);
+    aspect-ratio: 148 / 210;
+    border: 1px dashed #c7d2fe;
+    border-radius: 14px;
+    background: #f8fafc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.print-form-bg-slot.is-filled {
+    border-style: solid;
+    border-color: #bfdbfe;
+    background: #ffffff;
+}
+
+.print-form-bg-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.print-form-bg-empty {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+    padding: 12px;
+}
+
+.print-form-bg-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.04) 30%, rgba(15, 23, 42, 0.52) 100%);
+    transition: opacity 0.16s ease;
+}
+
+.print-form-bg-slot:hover .print-form-bg-overlay,
+.print-form-bg-slot:focus-within .print-form-bg-overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.print-form-bg-pick-btn.btn {
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(15, 23, 42, 0.58);
+    color: #ffffff;
+    border-radius: 9px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.print-form-bg-pick-btn.btn:hover,
+.print-form-bg-pick-btn.btn:focus-visible {
+    background: rgba(15, 23, 42, 0.8);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.9);
+}
+
+.print-form-bg-remove-btn.btn {
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(185, 28, 28, 0.72);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.print-form-bg-remove-btn.btn:hover,
+.print-form-bg-remove-btn.btn:focus-visible {
+    background: rgba(153, 27, 27, 0.92);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.9);
+}
+
+@media (hover: none) {
+    .print-form-bg-overlay {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }
 
 .restaurant-comment-action-btn {

@@ -31,10 +31,12 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  Database,
   FileText,
   FolderTree,
   Globe,
   Megaphone,
+  MessageSquare,
   Package,
   Pencil,
   PieChart,
@@ -45,7 +47,8 @@ import {
   Trash2,
   UserCog,
   Users,
-  Wallet
+  Wallet,
+  X
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -1443,6 +1446,7 @@ function SuperAdminDashboard() {
   const superadminBroadcastFileInputRef = useRef(null);
   const foundersPasswordInputRef = useRef(null);
   const permanentDeletePasswordInputRef = useRef(null);
+  const printFormBackgroundInputRef = useRef(null);
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
@@ -4332,6 +4336,16 @@ function SuperAdminDashboard() {
       setError(uploadError?.response?.data?.error || 'Ошибка загрузки фона');
     } finally {
       setUploadingPrintFormBackground(false);
+    }
+  };
+
+  const handleClearPrintFormBackground = () => {
+    setBillingSettings((prev) => ({
+      ...prev,
+      print_form_background_url: ''
+    }));
+    if (printFormBackgroundInputRef.current) {
+      printFormBackgroundInputRef.current.value = '';
     }
   };
 
@@ -9502,7 +9516,7 @@ function SuperAdminDashboard() {
                                   onClick={() => openTopupModal(item)}
                                   title={language === 'uz' ? 'Balansni to‘ldirish' : 'Пополнить баланс'}
                                 >
-                                  💰
+                                  <Wallet className="action-btn-icon" aria-hidden="true" />
                                 </Button>
                               </td>
                             </tr>
@@ -12011,10 +12025,15 @@ function SuperAdminDashboard() {
                                     onClick={() => openTopupModal(r)}
                                     title={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
                                   >
-                                    💰
+                                    <Wallet className="action-btn-icon" aria-hidden="true" />
                                   </Button>
-                                  <Button variant="light" className="action-btn text-primary" onClick={() => openRestaurantModal(r)} title="Редактировать">
-                                    ✏️
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-primary"
+                                    onClick={() => openRestaurantModal(r)}
+                                    title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                  >
+                                    <Pencil className="action-btn-icon" aria-hidden="true" />
                                   </Button>
                                   <Button
                                     variant="light"
@@ -12022,24 +12041,34 @@ function SuperAdminDashboard() {
                                     onClick={() => openRestaurantCommentModal(r)}
                                     title={getRestaurantCommentTooltip(r.admin_comment, r.admin_comment_checklist)}
                                   >
-                                    📝
+                                    <FileText className="action-btn-icon" aria-hidden="true" />
                                     {(String(r.admin_comment || '').trim() || normalizeRestaurantCommentChecklist(r.admin_comment_checklist).length > 0) && (
                                       <span className="restaurant-comment-indicator" aria-hidden="true" />
                                     )}
                                   </Button>
-                                  <Button variant="light" className="action-btn text-info" onClick={() => openMessagesModal(r)} title="Шаблоны сообщений">
-                                    💬
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-info"
+                                    onClick={() => openMessagesModal(r)}
+                                    title={language === 'uz' ? 'Xabar shablonlari' : 'Шаблоны сообщений'}
+                                  >
+                                    <MessageSquare className="action-btn-icon" aria-hidden="true" />
                                   </Button>
                                   <Button
-                                    variant="outline-danger"
+                                    variant="light"
                                     className="action-btn action-btn-db-delete"
                                     onClick={() => openPermanentDeleteModal({ entity: 'restaurant', id: r.id, name: r.name })}
                                     title={language === 'uz' ? "Bazadan to'liq o'chirish" : 'Полностью удалить из БД'}
                                   >
-                                    DB
+                                    <Database className="action-btn-icon" aria-hidden="true" />
                                   </Button>
-                                  <Button variant="light" className="action-btn text-danger" onClick={() => handleDeleteRestaurant(r.id)} title="Удалить">
-                                    🗑️
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-danger"
+                                    onClick={() => handleDeleteRestaurant(r.id)}
+                                    title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                  >
+                                    <Trash2 className="action-btn-icon" aria-hidden="true" />
                                   </Button>
                                 </div>
                               </td>
@@ -13174,21 +13203,31 @@ function SuperAdminDashboard() {
                               </td>
                               <td className="text-end">
                                 <div className="d-flex gap-2 justify-content-end">
-                                  <Button variant="light" className="action-btn text-primary" onClick={() => openOperatorModal(op)}>
-                                    ✏️
+                                  <Button
+                                    variant="light"
+                                    className="action-btn text-primary"
+                                    onClick={() => openOperatorModal(op)}
+                                    title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                  >
+                                    <Pencil className="action-btn-icon" aria-hidden="true" />
                                   </Button>
                                   {op.role !== 'superadmin' && (
                                     <>
                                       <Button
-                                        variant="outline-danger"
+                                        variant="light"
                                         className="action-btn action-btn-db-delete"
                                         onClick={() => openPermanentDeleteModal({ entity: 'operator', id: op.id, name: op.full_name || op.username })}
                                         title={language === 'uz' ? "Bazadan to'liq o'chirish" : 'Полностью удалить из БД'}
                                       >
-                                        DB
+                                        <Database className="action-btn-icon" aria-hidden="true" />
                                       </Button>
-                                      <Button variant="light" className="action-btn text-danger" onClick={() => handleDeleteOperator(op.id)}>
-                                        🗑️
+                                      <Button
+                                        variant="light"
+                                        className="action-btn text-danger"
+                                        onClick={() => handleDeleteOperator(op.id)}
+                                        title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                      >
+                                        <Trash2 className="action-btn-icon" aria-hidden="true" />
                                       </Button>
                                     </>
                                   )}
@@ -15561,23 +15600,52 @@ function SuperAdminDashboard() {
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
                               Настройки печатных форм (A5)
                             </Form.Label>
-                            <Form.Control
-                              type="text"
-                              className="form-control-custom mb-2"
-                              placeholder="/uploads/... или https://..."
-                              value={billingSettings.print_form_background_url || ''}
-                              onChange={(e) => setBillingSettings({
-                                ...billingSettings,
-                                print_form_background_url: e.target.value
-                              })}
-                            />
-                            <Form.Control
+                            <input
+                              ref={printFormBackgroundInputRef}
                               type="file"
                               accept="image/*"
-                              className="form-control-custom"
+                              className="d-none"
                               onChange={(e) => handlePrintFormBackgroundUpload(e.target.files?.[0])}
                               disabled={uploadingPrintFormBackground}
                             />
+                            <div className={`print-form-bg-slot${billingSettings.print_form_background_url ? ' is-filled' : ''}`}>
+                              {billingSettings.print_form_background_url ? (
+                                <img
+                                  src={resolveAdPreviewImageUrl(billingSettings.print_form_background_url)}
+                                  alt={language === 'uz' ? 'Fon oldindan ko‘rish' : 'Превью фона'}
+                                  className="print-form-bg-image"
+                                />
+                              ) : (
+                                <div className="print-form-bg-empty">
+                                  {language === 'uz' ? 'Fon tanlanmagan' : 'Фон не выбран'}
+                                </div>
+                              )}
+                              <div className="print-form-bg-overlay">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="print-form-bg-pick-btn"
+                                  onClick={() => printFormBackgroundInputRef.current?.click()}
+                                  disabled={uploadingPrintFormBackground}
+                                >
+                                  {uploadingPrintFormBackground
+                                    ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                                    : (language === 'uz' ? 'Tanlash' : 'Выбор')}
+                                </Button>
+                                {billingSettings.print_form_background_url && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="print-form-bg-remove-btn"
+                                    onClick={handleClearPrintFormBackground}
+                                    disabled={uploadingPrintFormBackground}
+                                    title={language === 'uz' ? "Fonni o'chirish" : 'Удалить фон'}
+                                  >
+                                    <X size={14} aria-hidden="true" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
                             {uploadingPrintFormBackground && (
                               <div className="small text-muted mt-2">Загрузка фона...</div>
                             )}
@@ -15585,17 +15653,6 @@ function SuperAdminDashboard() {
                               Этот фон станет глобальным шаблоном для генерации QR/PDF у всех новых регистраций.
                             </Form.Text>
                           </Form.Group>
-
-                          {billingSettings.print_form_background_url && (
-                            <div className="mb-3">
-                              <img
-                                src={resolveAdPreviewImageUrl(billingSettings.print_form_background_url)}
-                                alt="Превью фона"
-                                className="img-fluid rounded border"
-                                style={{ maxHeight: '200px', objectFit: 'cover' }}
-                              />
-                            </div>
-                          )}
 
                           <Row className="g-3 mb-3">
                             <Col md={6}>
