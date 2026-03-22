@@ -1657,8 +1657,31 @@ function Catalog() {
     if (selectedCategory === null) {
       return [];
     }
+    if (level3Tabs.length === 0) {
+      return [];
+    }
+    if (directSelectedProducts.length > 0 && selectedLevel2Category) {
+      return [
+        {
+          id: `direct-${selectedLevel2Category.id}`,
+          title: language === 'uz' && selectedLevel2Category.name_uz
+            ? selectedLevel2Category.name_uz
+            : (selectedLevel2Category.name_ru || ''),
+          products: directSelectedProducts
+        },
+        ...level3Tabs
+      ];
+    }
     return level3Tabs;
-  }, [isSingleListMode, singleListSections, selectedCategory, level3Tabs]);
+  }, [
+    isSingleListMode,
+    singleListSections,
+    selectedCategory,
+    level3Tabs,
+    directSelectedProducts,
+    selectedLevel2Category,
+    language
+  ]);
 
   useEffect(() => {
     level3TabButtonRefs.current = {};
@@ -3186,6 +3209,7 @@ function Catalog() {
           >
             <div
               ref={level3TabsScrollerRef}
+              className="catalog-level3-tabs-scroll"
               onWheel={handleTabsWheelScroll}
               style={{
                 display: 'flex',
@@ -3193,7 +3217,7 @@ function Catalog() {
                 gap: `${catalogTabGap}px`,
                 overflowY: 'hidden',
                 overflowX: 'auto',
-                touchAction: 'pan-x pan-y',
+                touchAction: 'pan-x',
                 overscrollBehaviorX: 'contain',
                 overscrollBehaviorY: 'none',
                 minHeight: 42,
@@ -3205,7 +3229,7 @@ function Catalog() {
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                cursor: 'pointer'
+                zIndex: 2
               }}
             >
               {activeCatalogTabs.map((section) => (
@@ -3240,7 +3264,9 @@ function Catalog() {
                     color: activeSubcategoryTab === section.id ? '#0f172a' : '#64748b',
                     background: 'transparent',
                     transition: 'color 0.2s ease, font-weight 0.2s ease',
-                    pointerEvents: 'auto'
+                    pointerEvents: 'auto',
+                    touchAction: 'manipulation',
+                    WebkitTapHighlightColor: 'transparent'
                   }}
                   onClick={() => handleCatalogTabClick(section.id)}
                   aria-current={activeSubcategoryTab === section.id ? 'true' : undefined}

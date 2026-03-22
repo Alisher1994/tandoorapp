@@ -1490,6 +1490,7 @@ function SuperAdminDashboard() {
   const [operatorForm, setOperatorForm] = useState({
     username: '', password: '', full_name: '', phone: '', restaurant_ids: []
   });
+  const [operatorStoreAccessSearch, setOperatorStoreAccessSearch] = useState('');
   const [showOperatorStoresModal, setShowOperatorStoresModal] = useState(false);
   const [operatorStoresModalPayload, setOperatorStoresModalPayload] = useState({ operatorName: '', restaurants: [] });
 
@@ -7559,6 +7560,7 @@ function SuperAdminDashboard() {
         username: '', password: '', full_name: '', phone: '', restaurant_ids: []
       });
     }
+    setOperatorStoreAccessSearch('');
     setShowOperatorModal(true);
   };
 
@@ -18458,7 +18460,14 @@ function SuperAdminDashboard() {
       </Modal>
 
       {/* Operator Modal */}
-      <Modal show={showOperatorModal} onHide={() => setShowOperatorModal(false)} size="lg">
+      <Modal
+        show={showOperatorModal}
+        onHide={() => {
+          setOperatorStoreAccessSearch('');
+          setShowOperatorModal(false);
+        }}
+        size="lg"
+      >
         <Modal.Header closeButton>
           <Modal.Title>{editingOperator ? t('editOperator') : t('newOperator')}</Modal.Title>
         </Modal.Header>
@@ -18512,24 +18521,52 @@ function SuperAdminDashboard() {
             </Row>
             <Form.Group className="mb-3">
               <Form.Label>Доступ к магазинам</Form.Label>
+              <Form.Control
+                type="search"
+                className="mb-2"
+                value={operatorStoreAccessSearch}
+                onChange={(e) => setOperatorStoreAccessSearch(e.target.value)}
+                placeholder={language === 'uz' ? "Do'kon nomi yoki ID bo'yicha qidirish" : 'Поиск по названию или ID магазина'}
+                aria-label={language === 'uz' ? 'Do‘konlar ro‘yxatini qidirish' : 'Поиск по списку магазинов'}
+                autoComplete="off"
+              />
               <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                {allRestaurants.filter(r => r.is_active).map(r => (
-                  <Form.Check
-                    key={r.id}
-                    type="checkbox"
-                    label={r.name}
-                    checked={operatorForm.restaurant_ids.includes(r.id)}
-                    onChange={(e) => {
-                      const ids = e.target.checked
-                        ? [...operatorForm.restaurant_ids, r.id]
-                        : operatorForm.restaurant_ids.filter(id => id !== r.id);
-                      setOperatorForm({ ...operatorForm, restaurant_ids: ids });
-                    }}
-                  />
-                ))}
-                {allRestaurants.filter(r => r.is_active).length === 0 && (
-                  <p className="text-muted mb-0">Нет активных магазинов</p>
-                )}
+                {(() => {
+                  const activeStores = allRestaurants.filter((r) => r.is_active);
+                  const q = operatorStoreAccessSearch.trim().toLowerCase();
+                  const filteredStores = activeStores.filter((r) => {
+                    if (!q) return true;
+                    const name = String(r.name || '').toLowerCase();
+                    const idStr = String(r.id ?? '');
+                    return name.includes(q) || idStr.includes(q);
+                  });
+                  return (
+                    <>
+                      {filteredStores.map((r) => (
+                        <Form.Check
+                          key={r.id}
+                          type="checkbox"
+                          label={r.name}
+                          checked={operatorForm.restaurant_ids.includes(r.id)}
+                          onChange={(e) => {
+                            const ids = e.target.checked
+                              ? [...operatorForm.restaurant_ids, r.id]
+                              : operatorForm.restaurant_ids.filter((id) => id !== r.id);
+                            setOperatorForm({ ...operatorForm, restaurant_ids: ids });
+                          }}
+                        />
+                      ))}
+                      {activeStores.length === 0 && (
+                        <p className="text-muted mb-0">Нет активных магазинов</p>
+                      )}
+                      {activeStores.length > 0 && filteredStores.length === 0 && q && (
+                        <p className="text-muted mb-0">
+                          {language === 'uz' ? 'Hech narsa topilmadi' : 'Ничего не найдено'}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </Form.Group>
           </Form>
