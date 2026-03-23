@@ -2975,6 +2975,20 @@ function AdminDashboard() {
   }, [productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search || '');
+    if (params.get('quickAddProduct') !== '1') return;
+
+    setMainTab('products');
+    setShowProductModal(true);
+
+    params.delete('quickAddProduct');
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  }, []);
+
+  useEffect(() => {
     if (mainTab === 'settings' && user?.active_restaurant_id) {
       fetchRestaurantSettings();
       fetchOperators();
