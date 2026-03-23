@@ -41,6 +41,7 @@ const Favorites = lazyWithRetry(() => import('./pages/Favorites'), 'favorites');
 const Reservations = lazyWithRetry(() => import('./pages/Reservations'), 'reservations');
 const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard'), 'admin-dashboard');
 const AdminReservations = lazyWithRetry(() => import('./pages/AdminReservations'), 'admin-reservations');
+const OperatorQuickProducts = lazyWithRetry(() => import('./pages/OperatorQuickProducts'), 'operator-quick-products');
 const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
 const TelegramStoreRegistration = lazyWithRetry(() => import('./pages/TelegramStoreRegistration'), 'tg-store-registration');
 
@@ -121,6 +122,14 @@ function App() {
                   element={
                     <AdminRoute>
                       <AdminReservations />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/webapp/operator-products"
+                  element={
+                    <AdminRoute>
+                      <OperatorQuickProducts />
                     </AdminRoute>
                   }
                 />
