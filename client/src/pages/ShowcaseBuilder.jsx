@@ -39,6 +39,7 @@ const SHOWCASE_TEMPLATES = [
   {
     key: 'grid_3_2',
     label: '3 сверху + 2 снизу',
+    description: 'Один блок, 5 категорий',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
       title: 'Сетка 3+2',
@@ -49,6 +50,7 @@ const SHOWCASE_TEMPLATES = [
   {
     key: 'grid_2_3',
     label: '2 сверху + 3 снизу',
+    description: 'Один блок, 5 категорий',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
       title: 'Сетка 2+3',
@@ -59,6 +61,7 @@ const SHOWCASE_TEMPLATES = [
   {
     key: 'grid_1_2',
     label: '1 сверху + 2 снизу',
+    description: 'Один блок, 3 категории',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
       title: 'Сетка 1+2',
@@ -69,6 +72,7 @@ const SHOWCASE_TEMPLATES = [
   {
     key: 'grid_2_1',
     label: '2 сверху + 1 снизу',
+    description: 'Один блок, 3 категории',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
       title: 'Сетка 2+1',
@@ -112,15 +116,31 @@ const getGridCategoryLimit = (block) => {
   return DEFAULT_GRID_LIMITS[block.block_type] || null;
 };
 
+const parseRowPattern = (rawValue) => {
+  if (Array.isArray(rawValue)) return rawValue;
+  if (typeof rawValue === 'string') {
+    const normalized = rawValue.trim();
+    if (!normalized) return [];
+    try {
+      const parsed = JSON.parse(normalized);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      return normalized
+        .split(/[+,xX;|/ ]+/)
+        .map((part) => Number.parseInt(part, 10))
+        .filter((value) => Number.isInteger(value) && value > 0);
+    }
+  }
+  return [];
+};
+
 const getGridRowPattern = (block) => {
   if (!block || !isGridBlockType(block.block_type)) return [];
 
   const limit = getGridCategoryLimit(block) || 0;
   if (limit <= 0) return [];
 
-  const rawPattern = Array.isArray(block?.settings?.rowPattern)
-    ? block.settings.rowPattern
-    : [];
+  const rawPattern = parseRowPattern(block?.settings?.rowPattern);
   const normalizedPattern = rawPattern
     .map((value) => Number.parseInt(value, 10))
     .filter((value) => Number.isInteger(value) && value > 0);
@@ -449,6 +469,19 @@ function ShowcaseBuilder({ embedded = false }) {
               <span className="slot-subtitle">Категория не выбрана. Перетащите одну категорию.</span>
             </div>
           )}
+        </div>
+      );
+    }
+
+    if (block.block_type === BLOCK_TYPES.BANNER) {
+      const ctaText = String(block?.settings?.ctaText || 'Подробнее').trim();
+      return (
+        <div className="block-slots-wrap">
+          <div className="block-slots-title">Баннер</div>
+          <div className="block-slot filled slider-slot">
+            <span className="slot-label">{String(block?.title || 'Без заголовка')}</span>
+            <span className="slot-subtitle-inline">{ctaText}</span>
+          </div>
         </div>
       );
     }
@@ -795,7 +828,24 @@ function ShowcaseBuilder({ embedded = false }) {
                 className="template-option"
                 onClick={() => handleApplyTemplate(template.key)}
               >
-                {template.label}
+                <div className="template-option-preview" aria-hidden="true">
+                  {(parseRowPattern(template?.settings?.rowPattern) || []).map((rowSize, rowIndex) => (
+                    <div
+                      key={`${template.key}_row_${rowIndex}`}
+                      className="template-option-row"
+                      style={{ gridTemplateColumns: `repeat(${rowSize}, minmax(0, 1fr))` }}
+                    >
+                      {Array.from({ length: rowSize }).map((_, rowCellIndex) => (
+                        <span
+                          key={`${template.key}_cell_${rowIndex}_${rowCellIndex}`}
+                          className="template-option-cell"
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div className="template-option-label">{template.label}</div>
+                <div className="template-option-desc">{template.description}</div>
               </button>
             ))}
           </div>
