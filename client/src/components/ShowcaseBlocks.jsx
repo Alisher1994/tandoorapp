@@ -12,7 +12,7 @@ const getCategoryImage = (category) => (
   category?.image
   || category?.icon_url
   || category?.image_url
-  || '/placeholder.png'
+  || ''
 );
 
 const getProductName = (product) => (
@@ -29,16 +29,50 @@ const getProductImage = (product) => (
   || '/placeholder.png'
 );
 
+const normalizeId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const renderCategoryImage = (category, fallbackLogo, imageClassName) => {
+  const primarySrc = getCategoryImage(category);
+  const fallbackSrc = fallbackLogo || '/placeholder.png';
+  const initialSrc = primarySrc || fallbackSrc;
+  const initialFallback = !primarySrc;
+
+  return (
+    <img
+      src={initialSrc}
+      alt={getCategoryName(category)}
+      className={`${imageClassName}${initialFallback ? ' category-image-logo-fallback' : ''}`}
+      onError={(event) => {
+        const img = event.currentTarget;
+        if (img.dataset.fallbackApplied === '1') return;
+        img.dataset.fallbackApplied = '1';
+        img.src = fallbackSrc;
+        img.classList.add('category-image-logo-fallback');
+      }}
+    />
+  );
+};
+
 /**
  * Grid3Block - 3 columns layout with small icons
  * Perfect for quick categories like "Готовая еда", "Кофейня"
  */
-export function Grid3Block({ categories = [], products = [], onCategoryClick, cartItems = [] }) {
+export function Grid3Block({
+  categories = [],
+  products = [],
+  onCategoryClick,
+  cartItems = [],
+  categoryImageFallback = ''
+}) {
   const getCartBadge = (categoryId) => {
+    const normalizedCategoryId = normalizeId(categoryId);
     const total = cartItems
       .filter(item => {
         const product = products.find(p => p.id === item.product_id);
-        return product?.category_id === categoryId;
+        return normalizeId(product?.category_id) === normalizedCategoryId;
       })
       .reduce((sum, item) => sum + item.quantity, 0);
     return total > 0 ? total : null;
@@ -47,32 +81,31 @@ export function Grid3Block({ categories = [], products = [], onCategoryClick, ca
   return (
     <div className="showcase-block grid-3-block">
       <div className="grid-3-container">
-        {categories.map(category => (
-          <div
-            key={category.id}
-            className="grid-3-item"
-            onClick={() => onCategoryClick?.(category.id)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                onCategoryClick?.(category.id);
-              }
-            }}
-          >
-            <div className="grid-3-image-wrapper">
-              <img
-                src={getCategoryImage(category)}
-                alt={getCategoryName(category)}
-                className="grid-3-image"
-              />
-              {getCartBadge(category.id) && (
-                <span className="cart-badge">{getCartBadge(category.id)}</span>
-              )}
+        {categories.map((category) => {
+          const hasCategoryImage = Boolean(getCategoryImage(category));
+          return (
+            <div
+              key={category.id}
+              className="grid-3-item"
+              onClick={() => onCategoryClick?.(category.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  onCategoryClick?.(category.id);
+                }
+              }}
+            >
+              <div className={`grid-3-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
+                {renderCategoryImage(category, categoryImageFallback, 'grid-3-image')}
+                {getCartBadge(category.id) && (
+                  <span className="cart-badge">{getCartBadge(category.id)}</span>
+                )}
+              </div>
+              <div className="grid-3-label">{getCategoryName(category)}</div>
             </div>
-            <div className="grid-3-label">{getCategoryName(category)}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -82,12 +115,19 @@ export function Grid3Block({ categories = [], products = [], onCategoryClick, ca
  * Grid2Block - 2 columns layout with medium cards
  * Standard Tandoor menu style
  */
-export function Grid2Block({ categories = [], products = [], onCategoryClick, cartItems = [] }) {
+export function Grid2Block({
+  categories = [],
+  products = [],
+  onCategoryClick,
+  cartItems = [],
+  categoryImageFallback = ''
+}) {
   const getCartBadge = (categoryId) => {
+    const normalizedCategoryId = normalizeId(categoryId);
     const total = cartItems
       .filter(item => {
         const product = products.find(p => p.id === item.product_id);
-        return product?.category_id === categoryId;
+        return normalizeId(product?.category_id) === normalizedCategoryId;
       })
       .reduce((sum, item) => sum + item.quantity, 0);
     return total > 0 ? total : null;
@@ -96,37 +136,36 @@ export function Grid2Block({ categories = [], products = [], onCategoryClick, ca
   return (
     <div className="showcase-block grid-2-block">
       <div className="grid-2-container">
-        {categories.map(category => (
-          <div
-            key={category.id}
-            className="grid-2-card"
-            onClick={() => onCategoryClick?.(category.id)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                onCategoryClick?.(category.id);
-              }
-            }}
-          >
-            <div className="grid-2-image-wrapper">
-              <img
-                src={getCategoryImage(category)}
-                alt={getCategoryName(category)}
-                className="grid-2-image"
-              />
-              {getCartBadge(category.id) && (
-                <span className="cart-badge">{getCartBadge(category.id)}</span>
-              )}
+        {categories.map((category) => {
+          const hasCategoryImage = Boolean(getCategoryImage(category));
+          return (
+            <div
+              key={category.id}
+              className="grid-2-card"
+              onClick={() => onCategoryClick?.(category.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  onCategoryClick?.(category.id);
+                }
+              }}
+            >
+              <div className={`grid-2-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
+                {renderCategoryImage(category, categoryImageFallback, 'grid-2-image')}
+                {getCartBadge(category.id) && (
+                  <span className="cart-badge">{getCartBadge(category.id)}</span>
+                )}
+              </div>
+              <div className="grid-2-content">
+                <h3 className="grid-2-title">{getCategoryName(category)}</h3>
+                {category.description && (
+                  <p className="grid-2-description">{category.description}</p>
+                )}
+              </div>
             </div>
-            <div className="grid-2-content">
-              <h3 className="grid-2-title">{getCategoryName(category)}</h3>
-              {category.description && (
-                <p className="grid-2-description">{category.description}</p>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -185,8 +224,13 @@ export function BannerBlock({ block, onBannerClick }) {
  * Products from a specific category
  */
 export function ProductSliderBlock({ categoryId, categories = [], products = [], onProductClick, cartItems = [], onCategoryClick }) {
-  const categoryProducts = products.filter(p => p.category_id === categoryId);
-  const categoryFromList = (categories || []).find((category) => category.id === categoryId);
+  const normalizedCategoryId = normalizeId(categoryId);
+  const categoryProducts = products.filter(
+    (product) => normalizeId(product?.category_id) === normalizedCategoryId
+  );
+  const categoryFromList = (categories || []).find(
+    (category) => normalizeId(category?.id) === normalizedCategoryId
+  );
   const categoryNameFromProducts = categoryProducts.find((product) => (
     product?.category_name_ru
     || product?.category_name_uz

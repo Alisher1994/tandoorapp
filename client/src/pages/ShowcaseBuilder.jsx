@@ -288,6 +288,7 @@ function ShowcaseBuilder({ embedded = false }) {
             categories={blockCategories}
             products={products}
             cartItems={[]}
+            categoryImageFallback={user?.active_restaurant_logo || ''}
           />
         );
       case BLOCK_TYPES.GRID_2:
@@ -296,6 +297,7 @@ function ShowcaseBuilder({ embedded = false }) {
             categories={blockCategories}
             products={products}
             cartItems={[]}
+            categoryImageFallback={user?.active_restaurant_logo || ''}
           />
         );
       case BLOCK_TYPES.BANNER:
@@ -668,8 +670,8 @@ function ShowcaseBuilder({ embedded = false }) {
               settings,
               title: settings.title || selectedBlock.title
             });
-            if (selectedBlock.block_type === BLOCK_TYPES.SLIDER && settings.category_id) {
-              setSliderCategory(selectedBlock.id, settings.category_id);
+            if (selectedBlock.block_type === BLOCK_TYPES.SLIDER) {
+              setSliderCategory(selectedBlock.id, settings.category_id ?? null);
             }
           }
           setShowBlockSettingsModal(false);

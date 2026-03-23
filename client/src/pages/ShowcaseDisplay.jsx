@@ -120,6 +120,7 @@ function ShowcaseDisplay() {
             products={products}
             cartItems={cart}
             onCategoryClick={handleCategoryClick}
+            categoryImageFallback={user?.active_restaurant_logo || ''}
           />
         );
       case 'grid_2':
@@ -130,6 +131,7 @@ function ShowcaseDisplay() {
             products={products}
             cartItems={cart}
             onCategoryClick={handleCategoryClick}
+            categoryImageFallback={user?.active_restaurant_logo || ''}
           />
         );
       case 'banner':
