@@ -183,6 +183,17 @@
   margin: 0.75rem 0;
 }
 
+.store-preview-content .grid-3-container,
+.store-preview-content .grid-2-container,
+.store-preview-content .pattern-grid-rows,
+.store-preview-content .pattern-grid-row {
+  gap: 0.5rem;
+}
+
+.store-preview-content .pattern-grid-block {
+  --pattern-card-height: clamp(84px, calc((100% - 1rem) / 3), 112px);
+}
+
 .store-preview-empty {
   margin: 0.9rem;
   padding: 1rem 0.8rem;

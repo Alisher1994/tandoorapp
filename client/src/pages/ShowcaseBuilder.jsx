@@ -268,8 +268,10 @@ function ShowcaseBuilder({ embedded = false }) {
   const [showBlockSettingsModal, setShowBlockSettingsModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [dropTargetBlockId, setDropTargetBlockId] = useState(null);
+  const [hideCategoryTitleBackgroundGlobal, setHideCategoryTitleBackgroundGlobal] = useState(false);
 
   const draggedCategoryRef = useRef(null);
+  const gridBlocks = showcaseLayout.filter((block) => isGridBlockType(block?.block_type));
 
   // Load categories and products
   useEffect(() => {
@@ -316,10 +318,33 @@ function ShowcaseBuilder({ embedded = false }) {
     loadShowcase(restaurantId);
   }, [user?.active_restaurant_id, loadShowcase]);
 
+  useEffect(() => {
+    const showcaseGridBlocks = showcaseLayout.filter((block) => isGridBlockType(block?.block_type));
+    if (showcaseGridBlocks.length === 0) return;
+    setHideCategoryTitleBackgroundGlobal(
+      showcaseGridBlocks.every((block) => block?.settings?.hideCategoryTitleBackground === true)
+    );
+  }, [showcaseLayout]);
+
+  const handleToggleGlobalCategoryTitleBackground = (hidden) => {
+    const normalizedHidden = Boolean(hidden);
+    setHideCategoryTitleBackgroundGlobal(normalizedHidden);
+    gridBlocks.forEach((block) => {
+      if ((block?.settings?.hideCategoryTitleBackground === true) === normalizedHidden) return;
+      updateBlock(block.id, {
+        settings: {
+          ...(block?.settings || {}),
+          hideCategoryTitleBackground: normalizedHidden
+        },
+        title: String(block?.title ?? '')
+      });
+    });
+  };
+
   const handleAddBlock = (blockType) => {
     const defaultSettings = {
-      [BLOCK_TYPES.GRID_3]: { title: '', maxCategories: 3 },
-      [BLOCK_TYPES.GRID_2]: { title: '', maxCategories: 2 },
+      [BLOCK_TYPES.GRID_3]: { title: '', maxCategories: 3, hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal },
+      [BLOCK_TYPES.GRID_2]: { title: '', maxCategories: 2, hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal },
       [BLOCK_TYPES.BANNER]: DEFAULT_BANNER_SETTINGS,
       [BLOCK_TYPES.SLIDER]: { title: '' }
     };
@@ -331,7 +356,13 @@ function ShowcaseBuilder({ embedded = false }) {
   const handleApplyTemplate = (templateKey) => {
     const selectedTemplate = SHOWCASE_TEMPLATES.find((template) => template.key === templateKey);
     if (selectedTemplate?.blockType) {
-      addBlock(selectedTemplate.blockType, selectedTemplate.settings || {});
+      const baseSettings = {
+        ...(selectedTemplate.settings || {})
+      };
+      if (isGridBlockType(selectedTemplate.blockType)) {
+        baseSettings.hideCategoryTitleBackground = hideCategoryTitleBackgroundGlobal;
+      }
+      addBlock(selectedTemplate.blockType, baseSettings);
       setShowBlockTypeModal(false);
     }
   };
@@ -428,21 +459,6 @@ function ShowcaseBuilder({ embedded = false }) {
     updateBlock(block.id, {
       title: nextTitle,
       settings: nextSettings
-    });
-  };
-
-  const isCategoryTitleBackgroundHidden = (block) => (
-    block?.settings?.hideCategoryTitleBackground === true
-  );
-
-  const handleToggleCategoryTitleBackground = (block, hidden) => {
-    const nextSettings = {
-      ...(block?.settings || {}),
-      hideCategoryTitleBackground: Boolean(hidden)
-    };
-    updateBlock(block.id, {
-      settings: nextSettings,
-      title: String(block?.title ?? '')
     });
   };
 
@@ -657,6 +673,14 @@ function ShowcaseBuilder({ embedded = false }) {
             label="Отображать витрину клиенту"
             checked={showcaseVisible}
             onChange={(event) => setShowcaseVisible(event.target.checked)}
+          />
+          <Form.Check
+            type="switch"
+            id="category-title-bg-global-switch"
+            className="header-visibility-switch"
+            label="Скрыть фон названий категорий"
+            checked={hideCategoryTitleBackgroundGlobal}
+            onChange={(event) => handleToggleGlobalCategoryTitleBackground(event.target.checked)}
           />
           {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
           <Button
@@ -909,18 +933,6 @@ function ShowcaseBuilder({ embedded = false }) {
                             placeholder="Название блока (видно клиенту)"
                           />
                         </div>
-                        {isGridBlockType(block.block_type) && (
-                          <div className="block-inline-controls">
-                            <label className="block-inline-switch">
-                              <input
-                                type="checkbox"
-                                checked={isCategoryTitleBackgroundHidden(block)}
-                                onChange={(event) => handleToggleCategoryTitleBackground(block, event.target.checked)}
-                              />
-                              <span>Скрыть фон названия категории</span>
-                            </label>
-                          </div>
-                        )}
                         {renderBlockAssignments(block)}
                         {renderDropHint(block)}
                       </div>
@@ -1097,18 +1109,6 @@ function BlockSettingsModal({ show, block, categories, onHide, onSave }) {
               placeholder="Введите название"
             />
           </Form.Group>
-
-          {(block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2) && (
-            <Form.Group className="mb-3">
-              <Form.Check
-                type="switch"
-                id={`hide-title-bg-${block.id}`}
-                label="Скрыть фон названия категории"
-                checked={settings.hideCategoryTitleBackground === true}
-                onChange={(e) => handleChange('hideCategoryTitleBackground', e.target.checked)}
-              />
-            </Form.Group>
-          )}
 
           {block.block_type === BLOCK_TYPES.SLIDER && (
             <Form.Group className="mb-3">
