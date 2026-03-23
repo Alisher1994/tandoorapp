@@ -5,6 +5,7 @@ import { useCart, formatQuantity } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { useShowcase } from '../context/ShowcaseContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -12,6 +13,7 @@ function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { showcaseVisible, loadShowcase } = useShowcase();
   const { cart } = useCart();
   const { favoriteCount } = useFavorites();
   const { t } = useLanguage();
@@ -55,9 +57,15 @@ function BottomNav() {
       ignore = true;
     };
   }, [user?.active_restaurant_id]);
+
+  useEffect(() => {
+    const restaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+    if (!restaurantId) return;
+    loadShowcase(restaurantId);
+  }, [user?.active_restaurant_id, loadShowcase]);
   
   const navItems = [
-    { path: '/', icon: '🛍️', label: t('showcase') || 'Витрина' },
+    ...(showcaseVisible ? [{ path: '/', icon: '🛍️', label: t('showcase') || 'Витрина' }] : []),
     { path: '/catalog', icon: '📋', label: t('menu') || 'Меню' },
     { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
@@ -79,6 +87,13 @@ function BottomNav() {
     setIsCompact(false);
     lastScrollTopRef.current = 0;
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (showcaseVisible) return;
+    if (location.pathname === '/' || location.pathname === '/showcase/catalog') {
+      navigate('/catalog', { replace: true });
+    }
+  }, [showcaseVisible, location.pathname, navigate]);
 
   useEffect(() => {
     const rootEl = document.getElementById('root');

@@ -196,6 +196,7 @@ function ShowcaseBuilder({ embedded = false }) {
     showcaseLayout,
     showcaseLoading,
     showcaseError,
+    showcaseVisible,
     isDirty,
     loadShowcase,
     saveShowcase,
@@ -205,7 +206,8 @@ function ShowcaseBuilder({ embedded = false }) {
     reorderBlocks,
     addCategoryToBlock,
     removeCategoryFromBlock,
-    setSliderCategory
+    setSliderCategory,
+    setShowcaseVisible
   } = useShowcase();
 
   const [categories, setCategories] = useState([]);
@@ -296,7 +298,7 @@ function ShowcaseBuilder({ embedded = false }) {
     setSaveSuccess(false);
     setErrorMessage('');
 
-    const success = await saveShowcase(restaurantId, showcaseLayout);
+    const success = await saveShowcase(restaurantId, showcaseLayout, showcaseVisible);
     if (success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -496,6 +498,7 @@ function ShowcaseBuilder({ embedded = false }) {
   const renderBlock = (block) => {
     const blockTitle = String(block?.settings?.title || block?.title || '').trim();
     const blockLayoutVariant = String(block?.settings?.layoutVariant || '').trim();
+    const hideCategoryTitleBackground = block?.settings?.hideCategoryTitleBackground === true;
     const limit = isGridBlockType(block.block_type) ? getGridCategoryLimit(block) : null;
     const sourceCategoryIds = Array.isArray(block.content)
       ? (limit ? block.content.slice(0, limit) : block.content)
@@ -526,6 +529,7 @@ function ShowcaseBuilder({ embedded = false }) {
               categoryImageFallback={user?.active_restaurant_logo || ''}
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
+              hideCategoryTitleBackground={hideCategoryTitleBackground}
             />
           );
         }
@@ -536,6 +540,7 @@ function ShowcaseBuilder({ embedded = false }) {
             cartItems={[]}
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
+            hideCategoryTitleBackground={hideCategoryTitleBackground}
           />
         );
       case BLOCK_TYPES.GRID_2:
@@ -549,6 +554,7 @@ function ShowcaseBuilder({ embedded = false }) {
               categoryImageFallback={user?.active_restaurant_logo || ''}
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
+              hideCategoryTitleBackground={hideCategoryTitleBackground}
             />
           );
         }
@@ -559,6 +565,7 @@ function ShowcaseBuilder({ embedded = false }) {
             cartItems={[]}
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
+            hideCategoryTitleBackground={hideCategoryTitleBackground}
           />
         );
       case BLOCK_TYPES.BANNER:
@@ -582,6 +589,14 @@ function ShowcaseBuilder({ embedded = false }) {
       <div className="builder-header">
         <h1>Конструктор Витрины</h1>
         <div className="header-actions">
+          <Form.Check
+            type="switch"
+            id="showcase-visible-switch"
+            className="header-visibility-switch"
+            label="Отображать витрину клиенту"
+            checked={showcaseVisible}
+            onChange={(event) => setShowcaseVisible(event.target.checked)}
+          />
           {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
           <Button
             variant="outline-primary"
@@ -985,6 +1000,18 @@ function BlockSettingsModal({ show, block, categories, onHide, onSave }) {
               placeholder="Введите название"
             />
           </Form.Group>
+
+          {(block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2) && (
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="switch"
+                id={`hide-title-bg-${block.id}`}
+                label="Скрыть фон названия категории"
+                checked={settings.hideCategoryTitleBackground === true}
+                onChange={(e) => handleChange('hideCategoryTitleBackground', e.target.checked)}
+              />
+            </Form.Group>
+          )}
 
           {block.block_type === BLOCK_TYPES.SLIDER && (
             <Form.Group className="mb-3">

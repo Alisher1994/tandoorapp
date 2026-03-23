@@ -181,7 +181,7 @@ function ShowcaseDisplay() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cart } = useCart();
-  const { showcaseLayout, showcaseLoading, loadShowcase, showcaseError } = useShowcase();
+  const { showcaseLayout, showcaseLoading, showcaseVisible, loadShowcase, showcaseError } = useShowcase();
   const { t, language } = useLanguage();
 
   const [categories, setCategories] = useState([]);
@@ -241,6 +241,12 @@ function ShowcaseDisplay() {
     loadShowcase(restaurantId);
   }, [user?.active_restaurant_id, loadShowcase]);
 
+  useEffect(() => {
+    if (!showcaseLoading && showcaseVisible === false) {
+      navigate('/catalog', { replace: true });
+    }
+  }, [showcaseVisible, showcaseLoading, navigate]);
+
   const handleCategoryClick = (categoryId) => {
     navigate('/showcase/catalog', {
       state: {
@@ -278,6 +284,7 @@ function ShowcaseDisplay() {
   const renderBlock = (block) => {
     const blockTitle = String(block?.settings?.title || block?.title || '').trim();
     const blockLayoutVariant = String(block?.settings?.layoutVariant || '').trim();
+    const hideCategoryTitleBackground = block?.settings?.hideCategoryTitleBackground === true;
     const content = Array.isArray(block.content) ? block.content : [];
     const limit = block.block_type === 'grid_3' || block.block_type === 'grid_2'
       ? getGridLimitFromBlock(block)
@@ -304,6 +311,7 @@ function ShowcaseDisplay() {
               categoryImageFallback={user?.active_restaurant_logo || ''}
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
+              hideCategoryTitleBackground={hideCategoryTitleBackground}
             />
           );
         }
@@ -316,6 +324,7 @@ function ShowcaseDisplay() {
             onCategoryClick={handleCategoryClick}
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
+            hideCategoryTitleBackground={hideCategoryTitleBackground}
           />
         );
       case 'grid_2':
@@ -331,6 +340,7 @@ function ShowcaseDisplay() {
               categoryImageFallback={user?.active_restaurant_logo || ''}
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
+              hideCategoryTitleBackground={hideCategoryTitleBackground}
             />
           );
         }
@@ -343,6 +353,7 @@ function ShowcaseDisplay() {
             onCategoryClick={handleCategoryClick}
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
+            hideCategoryTitleBackground={hideCategoryTitleBackground}
           />
         );
       case 'banner':

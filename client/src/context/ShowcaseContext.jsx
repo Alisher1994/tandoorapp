@@ -174,6 +174,7 @@ export function ShowcaseProvider({ children }) {
   const [showcaseLayout, setShowcaseLayout] = useState([]);
   const [showcaseLoading, setShowcaseLoading] = useState(false);
   const [showcaseError, setShowcaseError] = useState('');
+  const [showcaseVisible, setShowcaseVisible] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
 
   const buildShowcaseBlock = useCallback((blockType, settingsInput = {}, order = 0) => {
@@ -232,18 +233,20 @@ export function ShowcaseProvider({ children }) {
         `${API_URL}/products/restaurant/${restaurantId}/showcase`
       );
       setShowcaseLayout(normalizeShowcaseLayout(response.data?.blocks || []));
+      setShowcaseVisible(response.data?.isVisible !== false);
       setIsDirty(false);
     } catch (error) {
       console.error('Failed to load showcase:', error);
       setShowcaseError(error.message || 'Failed to load showcase layout');
       setShowcaseLayout([]);
+      setShowcaseVisible(true);
     } finally {
       setShowcaseLoading(false);
     }
   }, []);
 
   // Save showcase layout to server
-  const saveShowcase = useCallback(async (restaurantId, blocks) => {
+  const saveShowcase = useCallback(async (restaurantId, blocks, visibility = showcaseVisible) => {
     if (!restaurantId) return;
     
     setShowcaseError('');
@@ -252,9 +255,10 @@ export function ShowcaseProvider({ children }) {
       const normalizedBlocks = normalizeShowcaseLayout(blocks || []);
       await axios.post(
         `${API_URL}/products/restaurant/${restaurantId}/showcase`,
-        { blocks: normalizedBlocks }
+        { blocks: normalizedBlocks, isVisible: Boolean(visibility) }
       );
       setShowcaseLayout(normalizedBlocks);
+      setShowcaseVisible(Boolean(visibility));
       setIsDirty(false);
       return true;
     } catch (error) {
@@ -262,7 +266,7 @@ export function ShowcaseProvider({ children }) {
       setShowcaseError(error.message || 'Failed to save showcase layout');
       return false;
     }
-  }, []);
+  }, [showcaseVisible]);
 
   // Add several blocks at once (used by templates)
   const addBlocks = useCallback((blockSpecs = []) => {
@@ -400,11 +404,21 @@ export function ShowcaseProvider({ children }) {
     setIsDirty(false);
   }, []);
 
+  const setShowcaseVisibility = useCallback((nextVisibility) => {
+    const normalizedVisibility = Boolean(nextVisibility);
+    setShowcaseVisible((prevVisibility) => {
+      if (prevVisibility === normalizedVisibility) return prevVisibility;
+      setIsDirty(true);
+      return normalizedVisibility;
+    });
+  }, []);
+
   const value = {
     // State
     showcaseLayout,
     showcaseLoading,
     showcaseError,
+    showcaseVisible,
     isDirty,
     
     // Methods
@@ -418,6 +432,7 @@ export function ShowcaseProvider({ children }) {
     addCategoryToBlock,
     removeCategoryFromBlock,
     setSliderCategory,
+    setShowcaseVisible: setShowcaseVisibility,
     resetShowcase
   };
 

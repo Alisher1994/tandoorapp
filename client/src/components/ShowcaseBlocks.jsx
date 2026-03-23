@@ -89,13 +89,14 @@ export function Grid3Block({
   onCategoryClick,
   cartItems = [],
   categoryImageFallback = '',
-  blockTitle = ''
+  blockTitle = '',
+  hideCategoryTitleBackground = false
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const titleText = getDisplayBlockTitle(blockTitle);
 
   return (
-    <div className="showcase-block grid-3-block">
+    <div className={`showcase-block grid-3-block${hideCategoryTitleBackground ? ' no-title-bg' : ''}`}>
       {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="grid-3-container">
         {categories.map((category) => {
@@ -138,13 +139,14 @@ export function Grid2Block({
   onCategoryClick,
   cartItems = [],
   categoryImageFallback = '',
-  blockTitle = ''
+  blockTitle = '',
+  hideCategoryTitleBackground = false
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const titleText = getDisplayBlockTitle(blockTitle);
 
   return (
-    <div className="showcase-block grid-2-block">
+    <div className={`showcase-block grid-2-block${hideCategoryTitleBackground ? ' no-title-bg' : ''}`}>
       {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="grid-2-container">
         {categories.map((category) => {
@@ -188,7 +190,8 @@ export function PatternGridBlock({
   cartItems = [],
   categoryImageFallback = '',
   blockTitle = '',
-  layoutVariant = ''
+  layoutVariant = '',
+  hideCategoryTitleBackground = false
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const normalizedPattern = normalizeRowPattern(rowPattern, categories.length || 3);
@@ -208,7 +211,7 @@ export function PatternGridBlock({
   }
 
   return (
-    <div className={`showcase-block pattern-grid-block${isZigzagLayout ? ' is-zigzag' : ''}`}>
+    <div className={`showcase-block pattern-grid-block${isZigzagLayout ? ' is-zigzag' : ''}${hideCategoryTitleBackground ? ' no-title-bg' : ''}`}>
       {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="pattern-grid-rows">
         {rows.map((rowItems, rowIndex) => (

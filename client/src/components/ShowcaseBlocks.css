@@ -32,6 +32,14 @@
   line-height: 1.15;
 }
 
+.showcase-block.no-title-bg .category-card-overlay-title {
+  background: transparent;
+  color: #ffffff;
+  box-shadow: none;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.85);
+  padding: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -190,6 +198,7 @@
 
 /* ===== Pattern Grid Layout (3+2 / 2+3 / 1+2 / 2+1) ===== */
 .pattern-grid-block {
+  --pattern-card-height: clamp(136px, 30vw, 184px);
   padding: 0.75rem 0.5rem;
 }
 
@@ -225,7 +234,8 @@
 .pattern-grid-image-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  height: var(--pattern-card-height);
+  aspect-ratio: auto;
   border-radius: 10px;
   overflow: hidden;
   background: #eef2f7;
@@ -263,7 +273,7 @@
 }
 
 .pattern-grid-item.pattern-grid-item-zigzag .pattern-grid-image-wrapper {
-  height: clamp(104px, 30vw, 144px);
+  height: var(--pattern-card-height);
   aspect-ratio: auto;
   border-radius: 14px;
 }

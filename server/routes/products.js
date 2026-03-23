@@ -1458,6 +1458,21 @@ function normalizeShowcaseLayoutFromDb(rawLayout) {
   return [];
 }
 
+function normalizeShowcaseVisibilityFromDb(rawLayout) {
+  if (!rawLayout) return true;
+  if (typeof rawLayout === 'object' && rawLayout !== null && !Array.isArray(rawLayout)) {
+    const candidate = rawLayout.isVisible ?? rawLayout.is_visible;
+    if (typeof candidate === 'boolean') return candidate;
+    if (typeof candidate === 'number') return candidate !== 0;
+    if (typeof candidate === 'string') {
+      const normalized = candidate.trim().toLowerCase();
+      if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    }
+  }
+  return true;
+}
+
 let showcaseLayoutsSchemaReady = false;
 let showcaseLayoutsSchemaPromise = null;
 
@@ -1540,8 +1555,10 @@ router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) 
       [restaurantId]
     );
 
-    const layout = normalizeShowcaseLayoutFromDb(showcaseResult.rows[0]?.layout);
-    res.json({ blocks: layout });
+    const rawLayout = showcaseResult.rows[0]?.layout;
+    const layout = normalizeShowcaseLayoutFromDb(rawLayout);
+    const isVisible = normalizeShowcaseVisibilityFromDb(rawLayout);
+    res.json({ blocks: layout, isVisible });
   } catch (error) {
     console.error('Showcase GET error:', error);
     res.status(500).json({ error: 'Ошибка загрузки витрины' });
@@ -1556,7 +1573,7 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
       return res.status(400).json({ error: 'Invalid restaurant ID' });
     }
 
-    const { blocks = [] } = req.body;
+    const { blocks = [], isVisible = true } = req.body;
     if (!Array.isArray(blocks)) {
       return res.status(400).json({ error: 'Blocks must be an array' });
     }
@@ -1576,6 +1593,20 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
     }
 
     const normalizedBlocks = blocks;
+    let normalizedVisibility = true;
+    if (typeof isVisible === 'boolean') {
+      normalizedVisibility = isVisible;
+    } else if (typeof isVisible === 'number') {
+      normalizedVisibility = isVisible !== 0;
+    } else if (typeof isVisible === 'string') {
+      const normalized = isVisible.trim().toLowerCase();
+      if (['false', '0', 'no', 'off'].includes(normalized)) normalizedVisibility = false;
+      if (['true', '1', 'yes', 'on'].includes(normalized)) normalizedVisibility = true;
+    }
+    const layoutPayload = {
+      blocks: normalizedBlocks,
+      isVisible: normalizedVisibility
+    };
 
     await pool.query(
       `
@@ -1586,10 +1617,10 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
         layout = EXCLUDED.layout,
         updated_at = CURRENT_TIMESTAMP
     `,
-      [restaurantId, JSON.stringify(normalizedBlocks)]
+      [restaurantId, JSON.stringify(layoutPayload)]
     );
 
-    res.json({ success: true, blocks: normalizedBlocks });
+    res.json({ success: true, blocks: normalizedBlocks, isVisible: normalizedVisibility });
   } catch (error) {
     console.error('Showcase POST error:', error);
     res.status(500).json({ error: 'Ошибка сохранения витрины' });
