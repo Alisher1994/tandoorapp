@@ -5445,6 +5445,26 @@ body::-webkit-scrollbar,
     gap: 0.55rem;
 }
 
+.admin-products-mobile-grid-head {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) minmax(126px, auto);
+    gap: 0.55rem;
+    align-items: center;
+    padding: 0 0.45rem;
+}
+
+.admin-products-mobile-grid-head > span {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.admin-products-mobile-grid-head > span:last-child {
+    text-align: right;
+}
+
 .admin-products-mobile-empty {
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 12px;
@@ -5474,6 +5494,15 @@ body::-webkit-scrollbar,
     grid-template-columns: 64px minmax(0, 1fr) minmax(126px, auto);
     gap: 0.55rem;
     align-items: start;
+}
+
+.admin-product-mobile-cell {
+    min-width: 0;
+}
+
+.admin-product-mobile-cell + .admin-product-mobile-cell {
+    border-left: 1px solid rgba(148, 163, 184, 0.28);
+    padding-left: 0.52rem;
 }
 
 .admin-product-mobile-photo-col {
@@ -5587,6 +5616,12 @@ body::-webkit-scrollbar,
 }
 
 @media (max-width: 575.98px) {
+    .admin-products-mobile-grid-head {
+        grid-template-columns: 56px minmax(0, 1fr) minmax(114px, auto);
+        gap: 0.45rem;
+        padding: 0 0.3rem;
+    }
+
     .admin-product-mobile-layout {
         grid-template-columns: 56px minmax(0, 1fr) minmax(114px, auto);
         gap: 0.45rem;

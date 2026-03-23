@@ -10012,6 +10012,13 @@ function AdminDashboard() {
                 </div>
 
                 <div className="d-lg-none admin-products-mobile-grid">
+                  {pagedProducts.length > 0 && (
+                    <div className="admin-products-mobile-grid-head">
+                      <span>{t('photo')}</span>
+                      <span>{t('productName')}</span>
+                      <span>{t('actions')}</span>
+                    </div>
+                  )}
                   {pagedProducts.length === 0 ? (
                     <div className="admin-products-mobile-empty">
                       {t('noData')}
@@ -10037,7 +10044,7 @@ function AdminDashboard() {
                           onClick={() => openProductModal(product)}
                         >
                           <div className="admin-product-mobile-layout">
-                            <div className="admin-product-mobile-photo-col">
+                            <div className="admin-product-mobile-cell admin-product-mobile-photo-col">
                               <Form.Check
                                 type="checkbox"
                                 className="admin-product-mobile-check"
@@ -10069,7 +10076,7 @@ function AdminDashboard() {
                               </button>
                             </div>
 
-                            <div className="admin-product-mobile-main-col">
+                            <div className="admin-product-mobile-cell admin-product-mobile-main-col">
                               <div className="admin-product-mobile-name">{product.name_ru}</div>
                               <div className="admin-product-mobile-price">{formatPrice(product.price)} {t('sum')}</div>
                               <div className="admin-product-mobile-meta">
@@ -10102,7 +10109,7 @@ function AdminDashboard() {
                             </div>
 
                             <div
-                              className="admin-product-mobile-controls-col"
+                              className="admin-product-mobile-cell admin-product-mobile-controls-col"
                               onClick={(e) => e.stopPropagation()}
                               onTouchEnd={(e) => e.stopPropagation()}
                             >
