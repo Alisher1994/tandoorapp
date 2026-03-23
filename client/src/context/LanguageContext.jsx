@@ -89,6 +89,7 @@ const translations = {
     close: 'Закрыть',
 
     // Navigation
+    showcase: 'Витрина',
     menu: 'Меню',
     favorites: 'Избранные',
     cart: 'Корзина',
@@ -533,6 +534,7 @@ const translations = {
     close: 'Yopish',
 
     // Navigation
+    showcase: 'Vitrina',
     menu: 'Menyu',
     favorites: 'Saralanganlar',
     cart: 'Savat',

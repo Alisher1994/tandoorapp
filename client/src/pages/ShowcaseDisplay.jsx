@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
+import Navbar from 'react-bootstrap/Navbar';
 import Spinner from 'react-bootstrap/Spinner';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useShowcase } from '../context/ShowcaseContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
-import ClientTopBar from '../components/ClientTopBar';
 import ClientAccountModal from '../components/ClientAccountModal';
 import {
   Grid3Block,
@@ -48,12 +48,93 @@ const getProductName = (product) => (
   || ''
 );
 
+const SearchLucideIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.3-4.3" />
+  </svg>
+);
+
+const UserLucideIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M19 21a7 7 0 0 0-14 0" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const getRestaurantLogoFrame = (logoDisplayMode) => {
+  const mode = String(logoDisplayMode || '').toLowerCase() === 'horizontal' ? 'horizontal' : 'square';
+  return mode === 'horizontal'
+    ? {
+      box: {
+        width: '112px',
+        height: '42px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden'
+      },
+      img: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        borderRadius: '10px'
+      }
+    }
+    : {
+      box: {
+        width: '42px',
+        height: '42px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden'
+      },
+      img: {
+        width: '42px',
+        height: '42px',
+        objectFit: 'contain',
+        borderRadius: '10px'
+      }
+    };
+};
+
+const resolveLogoUrl = (logoUrl) => (
+  !logoUrl
+    ? ''
+    : (String(logoUrl).startsWith('http')
+      ? logoUrl
+      : `${API_URL.replace('/api', '')}${logoUrl}`)
+);
+
 function ShowcaseDisplay() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cart } = useCart();
   const { showcaseLayout, showcaseLoading, loadShowcase, showcaseError } = useShowcase();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -207,53 +288,135 @@ function ShowcaseDisplay() {
 
   return (
     <div className="showcase-display-container">
-      <div className="showcase-header-shell">
-        <div className="showcase-header-main">
-          <div className="showcase-header-title">
-            {user?.active_restaurant_name || 'Магазин'}
+      <Navbar
+        expand="lg"
+        className="mb-0 showcase-header-shell"
+        style={{
+          position: 'sticky',
+          top: 'env(safe-area-inset-top, 0px)',
+          left: 0,
+          right: 0,
+          zIndex: 1010,
+          transform: 'translateZ(0)',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          backgroundColor: '#f8fafc',
+          borderBottom: '1px solid var(--border-color)'
+        }}
+      >
+        <div
+          className="w-100 px-3 mx-auto"
+          style={{
+            maxWidth: '1280px',
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <div className="d-flex align-items-center justify-content-start">
+            <div style={{ width: '40px', height: '40px' }} aria-hidden="true" />
           </div>
-          <div className="showcase-header-actions">
+
+          <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto mb-0">
+            {resolveLogoUrl(user?.active_restaurant_logo) ? (
+              (() => {
+                const logoFrame = getRestaurantLogoFrame(user?.active_restaurant_logo_display_mode);
+                return (
+                  <div style={logoFrame.box}>
+                    <img
+                      src={resolveLogoUrl(user?.active_restaurant_logo)}
+                      alt={user?.active_restaurant_name || 'Магазин'}
+                      style={logoFrame.img}
+                    />
+                  </div>
+                );
+              })()
+            ) : (
+              <span style={{ fontSize: '1.7rem' }}>🏪</span>
+            )}
+          </Navbar.Brand>
+
+          <div className="d-flex align-items-center justify-content-end gap-2">
             <button
               type="button"
-              className="showcase-header-btn"
               onClick={() => setShowAccountModal(true)}
-              aria-label="Аккаунт"
-              title="Аккаунт"
+              aria-label={language === 'uz' ? 'Akkaunt' : 'Аккаунт'}
+              title={language === 'uz' ? 'Akkaunt' : 'Аккаунт'}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 12,
+                border: showAccountModal
+                  ? '1px solid rgba(71, 85, 105, 0.22)'
+                  : '1px solid transparent',
+                background: showAccountModal
+                  ? 'rgba(255,255,255,0.7)'
+                  : 'transparent',
+                color: '#4b5563',
+                fontSize: '1rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.22s ease'
+              }}
             >
-              👤
+              <UserLucideIcon size={17} color="#4b5563" />
             </button>
+
             <button
               type="button"
-              className={`showcase-header-btn${showSearchField || normalizedSearch ? ' is-active' : ''}`}
               onClick={() => setShowSearchField((prev) => !prev)}
-              aria-label="Поиск"
-              title="Поиск"
+              aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+              title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 12,
+                border: showSearchField || normalizedSearch
+                  ? '1px solid rgba(71, 85, 105, 0.22)'
+                  : '1px solid transparent',
+                background: showSearchField || normalizedSearch
+                  ? 'rgba(255,255,255,0.7)'
+                  : 'transparent',
+                color: '#4b5563',
+                fontSize: '1rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.22s ease'
+              }}
             >
-              🔎
+              <SearchLucideIcon size={17} color="#4b5563" />
             </button>
           </div>
         </div>
 
-        <ClientTopBar
-          logoUrl={user?.active_restaurant_logo || ''}
-          logoDisplayMode={user?.active_restaurant_logo_display_mode || 'square'}
-          restaurantName={user?.active_restaurant_name || 'Магазин'}
-          maxWidth="100%"
-          fallback="🏪"
-        />
-
-        {showSearchField && (
-          <div className="showcase-header-search">
+        <div
+          className="px-3 mx-auto"
+          style={{
+            maxWidth: '1280px',
+            width: '100%',
+            overflow: 'hidden',
+            maxHeight: showSearchField ? 88 : 0,
+            opacity: showSearchField ? 1 : 0,
+            transform: `translateY(${showSearchField ? 0 : -8}px)`,
+            transition: 'max-height 0.28s ease, opacity 0.22s ease, transform 0.28s ease',
+            pointerEvents: showSearchField ? 'auto' : 'none'
+          }}
+        >
+          <div style={{ padding: '0 0 10px' }}>
             <input
               type="text"
               className="showcase-header-search-input"
-              placeholder="Поиск по витрине..."
+              placeholder={language === 'uz' ? 'Tovar qidirish...' : 'Поиск товара...'}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </div>
-        )}
-      </div>
+        </div>
+      </Navbar>
 
       <div className="showcase-content">
         <Container fluid className="showcase-inner">
