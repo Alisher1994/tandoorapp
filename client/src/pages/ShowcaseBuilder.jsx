@@ -14,14 +14,15 @@ import {
   BannerBlock,
   ProductSliderBlock
 } from '../components/ShowcaseBlocks';
-import ClientTopBar from '../components/ClientTopBar';
 import './ShowcaseBuilder.css';
 import {
   ChevronDown,
   ChevronUp,
   Trash2,
   Plus,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  User as UserIcon,
+  Search as SearchIcon
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -106,6 +107,51 @@ const getCategoryImage = (category) => (
   || category?.icon_url
   || category?.image_url
   || ''
+);
+
+const getRestaurantLogoFrame = (logoDisplayMode) => {
+  const mode = String(logoDisplayMode || '').toLowerCase() === 'horizontal' ? 'horizontal' : 'square';
+  return mode === 'horizontal'
+    ? {
+      box: {
+        width: '112px',
+        height: '42px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden'
+      },
+      img: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        borderRadius: '10px'
+      }
+    }
+    : {
+      box: {
+        width: '42px',
+        height: '42px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden'
+      },
+      img: {
+        width: '42px',
+        height: '42px',
+        objectFit: 'contain',
+        borderRadius: '10px'
+      }
+    };
+};
+
+const resolveLogoUrl = (logoUrl) => (
+  !logoUrl
+    ? ''
+    : (String(logoUrl).startsWith('http')
+      ? logoUrl
+      : `${API_URL.replace('/api', '')}${logoUrl}`)
 );
 
 const isProductEnabledForShowcase = (product) => (
@@ -385,6 +431,21 @@ function ShowcaseBuilder({ embedded = false }) {
     });
   };
 
+  const isCategoryTitleBackgroundHidden = (block) => (
+    block?.settings?.hideCategoryTitleBackground === true
+  );
+
+  const handleToggleCategoryTitleBackground = (block, hidden) => {
+    const nextSettings = {
+      ...(block?.settings || {}),
+      hideCategoryTitleBackground: Boolean(hidden)
+    };
+    updateBlock(block.id, {
+      settings: nextSettings,
+      title: String(block?.title ?? '')
+    });
+  };
+
   const renderDropHint = () => null;
 
   const renderBlockAssignments = (block) => {
@@ -641,13 +702,37 @@ function ShowcaseBuilder({ embedded = false }) {
             <h3>Предпросмотр магазина</h3>
             <div className="store-preview-shell">
               <div className="store-preview-screen">
-                <ClientTopBar
-                  logoUrl={user?.active_restaurant_logo || ''}
-                  logoDisplayMode={user?.active_restaurant_logo_display_mode || 'square'}
-                  restaurantName={user?.active_restaurant_name || 'Мой магазин'}
-                  maxWidth="100%"
-                  fallback="🏪"
-                />
+                <div className="store-preview-header">
+                  <div className="store-preview-header-inner">
+                    <div className="store-preview-header-side" aria-hidden="true" />
+                    <div className="store-preview-brand" aria-label={user?.active_restaurant_name || 'Магазин'}>
+                      {resolveLogoUrl(user?.active_restaurant_logo) ? (
+                        (() => {
+                          const logoFrame = getRestaurantLogoFrame(user?.active_restaurant_logo_display_mode);
+                          return (
+                            <div style={logoFrame.box}>
+                              <img
+                                src={resolveLogoUrl(user?.active_restaurant_logo)}
+                                alt={user?.active_restaurant_name || 'Магазин'}
+                                style={logoFrame.img}
+                              />
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <span style={{ fontSize: '1.4rem' }}>🏪</span>
+                      )}
+                    </div>
+                    <div className="store-preview-header-actions">
+                      <button type="button" className="store-preview-header-btn" aria-label="Аккаунт" tabIndex={-1}>
+                        <UserIcon size={14} />
+                      </button>
+                      <button type="button" className="store-preview-header-btn" aria-label="Поиск" tabIndex={-1}>
+                        <SearchIcon size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 <div className="store-preview-content">
                   {showcaseLayout.length === 0 ? (
                     <div className="store-preview-empty">
@@ -824,6 +909,18 @@ function ShowcaseBuilder({ embedded = false }) {
                             placeholder="Название блока (видно клиенту)"
                           />
                         </div>
+                        {isGridBlockType(block.block_type) && (
+                          <div className="block-inline-controls">
+                            <label className="block-inline-switch">
+                              <input
+                                type="checkbox"
+                                checked={isCategoryTitleBackgroundHidden(block)}
+                                onChange={(event) => handleToggleCategoryTitleBackground(block, event.target.checked)}
+                              />
+                              <span>Скрыть фон названия категории</span>
+                            </label>
+                          </div>
+                        )}
                         {renderBlockAssignments(block)}
                         {renderDropHint(block)}
                       </div>
