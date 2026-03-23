@@ -110,25 +110,14 @@
   flex-direction: column;
 }
 
-.store-preview-topbar {
-  min-height: 50px;
-  padding: 16px 14px 10px;
+.store-preview-screen .client-topbar {
   border-bottom: 1px solid var(--border-color, #d1d5db);
-  background: linear-gradient(135deg, var(--accent-soft, #eef2ff) 0%, #ffffff 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgba(248, 250, 252, 0.98);
 }
 
-.store-preview-title {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text-color, #111827);
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+.store-preview-screen .client-topbar-inner.container {
+  max-width: 100% !important;
+  padding: 8px 6px;
 }
 
 .store-preview-content {

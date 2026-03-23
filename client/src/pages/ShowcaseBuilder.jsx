@@ -13,6 +13,7 @@ import {
   BannerBlock,
   ProductSliderBlock
 } from '../components/ShowcaseBlocks';
+import ClientTopBar from '../components/ClientTopBar';
 import './ShowcaseBuilder.css';
 import {
   ChevronDown,
@@ -206,10 +207,10 @@ function ShowcaseBuilder({ embedded = false }) {
       <div className="block-category-chips">
         {block.content.map((categoryId) => {
           const category = categories.find((item) => item.id === categoryId);
-          if (!category) return null;
+          const categoryTitle = category ? getCategoryDisplayName(category) : `Категория #${categoryId}`;
           return (
             <span key={`${block.id}_${categoryId}`} className="block-category-chip">
-              <span className="block-category-chip-text">{getCategoryDisplayName(category)}</span>
+              <span className="block-category-chip-text">{categoryTitle}</span>
               <button
                 type="button"
                 className="block-category-chip-remove"
@@ -230,9 +231,16 @@ function ShowcaseBuilder({ embedded = false }) {
   );
 
   const renderBlock = (block) => {
-    const blockCategories = block.content.map(catId =>
-      categories.find(c => c.id === catId)
-    ).filter(Boolean);
+    const blockCategories = block.content.map((categoryId) => {
+      const category = categories.find((item) => item.id === categoryId);
+      if (category) return category;
+      return {
+        id: categoryId,
+        name_ru: `Категория #${categoryId}`,
+        name_uz: `Kategoriya #${categoryId}`,
+        name: `Категория #${categoryId}`
+      };
+    });
 
     switch (block.block_type) {
       case BLOCK_TYPES.GRID_3:
@@ -310,11 +318,13 @@ function ShowcaseBuilder({ embedded = false }) {
             <div className="store-preview-shell">
               <div className="store-preview-notch" />
               <div className="store-preview-screen">
-                <div className="store-preview-topbar">
-                  <span className="store-preview-title">
-                    {user?.active_restaurant_name || 'Мой магазин'}
-                  </span>
-                </div>
+                <ClientTopBar
+                  logoUrl={user?.active_restaurant_logo || ''}
+                  logoDisplayMode={user?.active_restaurant_logo_display_mode || 'square'}
+                  restaurantName={user?.active_restaurant_name || 'Мой магазин'}
+                  maxWidth="100%"
+                  fallback="🏪"
+                />
                 <div className="store-preview-content">
                   {showcaseLayout.length === 0 ? (
                     <div className="store-preview-empty">
