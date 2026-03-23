@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const CHECK_INTERVAL_MS = 120000;
 const VERSION_STORAGE_KEY = 'app:last_server_version';
@@ -85,16 +85,14 @@ const clearRuntimeCaches = async () => {
 function AppVersionWatcher() {
   const initialVersionRef = useRef(null);
   const reloadingRef = useRef(false);
-  const [updateMessage, setUpdateMessage] = useState('');
 
   useEffect(() => {
     let disposed = false;
 
-    const triggerHardRefresh = async (message, targetVersion) => {
+    const triggerHardRefresh = async (targetVersion) => {
       if (!targetVersion || reloadingRef.current || disposed) return;
 
       reloadingRef.current = true;
-      setUpdateMessage(message);
       setReloadGuardTimestamp();
 
       try {
@@ -127,9 +125,9 @@ function AppVersionWatcher() {
 
         if (!initialVersionRef.current) {
           initialVersionRef.current = nextVersion;
-
+          // Quiet startup sync: keep latest version marker without forcing refresh on first load.
           if (!reloadGuardActive && previousStoredVersion && previousStoredVersion !== nextVersion) {
-            await triggerHardRefresh('Найдена новая версия. Обновляем страницу...', nextVersion);
+            clearReloadGuardTimestamp();
             return;
           }
 
@@ -138,7 +136,7 @@ function AppVersionWatcher() {
         }
 
         if (!reloadGuardActive && initialVersionRef.current !== nextVersion) {
-          await triggerHardRefresh('Доступно обновление. Обновляем страницу...', nextVersion);
+          await triggerHardRefresh(nextVersion);
           return;
         }
 
@@ -156,31 +154,7 @@ function AppVersionWatcher() {
       window.clearInterval(intervalId);
     };
   }, []);
-
-  if (!updateMessage) return null;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 12,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 3000,
-        background: 'rgba(28, 35, 44, 0.92)',
-        color: '#fff',
-        borderRadius: 12,
-        padding: '10px 14px',
-        boxShadow: '0 10px 24px rgba(0,0,0,0.18)',
-        fontSize: 13,
-        fontWeight: 600
-      }}
-      role="status"
-      aria-live="polite"
-    >
-      {updateMessage}
-    </div>
-  );
+  return null;
 }
 
 export default AppVersionWatcher;

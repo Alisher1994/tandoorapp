@@ -329,6 +329,39 @@ function resolveRegistrationLanguage(telegramUser, payloadLang) {
   return telegramLanguage.startsWith('uz') ? 'uz' : 'ru';
 }
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const toAbsoluteHttpUrl = (rawUrl, requestOrigin = '') => {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const base = String(requestOrigin || '').trim().replace(/\/$/, '');
+  if (!base) return '';
+  return `${base}${value.startsWith('/') ? '' : '/'}${value}`;
+};
+
+const parseCoordinate = (value) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const buildYandexMapsUrl = (latitude, longitude) => {
+  const lat = parseCoordinate(latitude);
+  const lng = parseCoordinate(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+  return `https://yandex.ru/maps/?pt=${encodeURIComponent(`${lng},${lat}`)}&z=16&l=map`;
+};
+
+const formatValueOrDash = (value) => {
+  const normalized = String(value ?? '').trim();
+  return normalized ? normalized : '—';
+};
+
 async function resolveBotProfileAndPrintAssets({
   botToken,
   restaurantId,
@@ -511,6 +544,112 @@ async function sendStoreRegistrationSummaryToTelegram({
     }
   }
   return true;
+}
+
+async function sendStoreRegistrationAlertToSuperadmins({
+  registration,
+  payload = {},
+  requestOrigin = '',
+  fallbackBotToken = ''
+}) {
+  let bot = getBot();
+  if (!bot && fallbackBotToken) {
+    try {
+      bot = new TelegramBot(String(fallbackBotToken).trim());
+    } catch (_) {
+      bot = null;
+    }
+  }
+  if (!bot) return { sent: 0, total: 0 };
+
+  const superadminResult = await pool.query(`
+    SELECT DISTINCT COALESCE(tal.telegram_id, u.telegram_id) AS telegram_id
+    FROM users u
+    LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
+    WHERE u.role = 'superadmin'
+      AND COALESCE(u.is_active, true) = true
+      AND COALESCE(tal.telegram_id, u.telegram_id) IS NOT NULL
+  `);
+
+  const recipientIds = Array.from(new Set(
+    superadminResult.rows
+      .map((row) => Number.parseInt(row.telegram_id, 10))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  ));
+  if (!recipientIds.length) return { sent: 0, total: 0 };
+
+  const storeName = formatValueOrDash(payload.store_name || payload.storeName || registration.restaurant?.name);
+  const activityName = formatValueOrDash(registration.meta?.activity_type_name);
+  const operatorFullName = formatValueOrDash(payload.full_name || payload.fullName || registration.operatorUser?.full_name);
+  const operatorPhone = formatValueOrDash(payload.phone || registration.operatorUser?.phone);
+  const latitude = formatValueOrDash(payload.latitude || registration.restaurant?.latitude);
+  const longitude = formatValueOrDash(payload.longitude || registration.restaurant?.longitude);
+  const logoUrl = toAbsoluteHttpUrl(payload.logo_url || payload.logoUrl || registration.restaurant?.logo_url, requestOrigin);
+  const botToken = formatValueOrDash(payload.bot_token || payload.botToken || registration.restaurant?.telegram_bot_token);
+  const groupId = formatValueOrDash(payload.group_id || payload.groupId || registration.restaurant?.telegram_group_id);
+  const loginUrl = toAbsoluteHttpUrl(registration.urls?.login_url, requestOrigin);
+  const storeUrl = toAbsoluteHttpUrl(registration.urls?.store_url, requestOrigin);
+  const yandexMapsUrl = buildYandexMapsUrl(latitude, longitude);
+  const restaurantId = formatValueOrDash(registration.restaurant?.id);
+  const createdAt = registration.restaurant?.created_at
+    ? new Date(registration.restaurant.created_at).toLocaleString('ru-RU')
+    : new Date().toLocaleString('ru-RU');
+
+  const lines = [
+    '🆕 <b>Новый магазин зарегистрирован</b>',
+    '',
+    `🏪 Магазин: <b>${escapeHtml(storeName)}</b>`,
+    `🆔 ID: <code>${escapeHtml(restaurantId)}</code>`,
+    `🧩 Вид деятельности: <b>${escapeHtml(activityName)}</b>`,
+    `👤 ФИО оператора: <b>${escapeHtml(operatorFullName)}</b>`,
+    `📞 Телефон оператора: <code>${escapeHtml(operatorPhone)}</code>`,
+    `📍 Координаты: <code>${escapeHtml(latitude)}, ${escapeHtml(longitude)}</code>`,
+    yandexMapsUrl
+      ? `🗺️ Яндекс.Карты: <a href="${escapeHtml(yandexMapsUrl)}">Открыть точку</a>`
+      : '🗺️ Яндекс.Карты: —',
+    logoUrl
+      ? `🖼️ Логотип: <a href="${escapeHtml(logoUrl)}">Открыть</a>`
+      : '🖼️ Логотип: —',
+    `🤖 Токен бота: <code>${escapeHtml(botToken)}</code>`,
+    `👥 ID группы: <code>${escapeHtml(groupId)}</code>`,
+    '',
+    `🔐 Логин: <code>${escapeHtml(formatValueOrDash(registration.credentials?.username))}</code>`,
+    `🔐 Пароль: <code>${escapeHtml(formatValueOrDash(registration.credentials?.password))}</code>`,
+    `🕒 Время: <code>${escapeHtml(createdAt)}</code>`
+  ];
+
+  const inlineKeyboard = [];
+  if (loginUrl) {
+    inlineKeyboard.push([{ text: '🔐 Открыть панель', url: loginUrl }]);
+  }
+  if (storeUrl) {
+    inlineKeyboard.push([{ text: '🛍️ Открыть витрину', url: storeUrl }]);
+  }
+  if (yandexMapsUrl) {
+    inlineKeyboard.push([{ text: '🗺️ Яндекс.Карты', url: yandexMapsUrl }]);
+  }
+  if (logoUrl) {
+    inlineKeyboard.push([{ text: '🖼️ Логотип', url: logoUrl }]);
+  }
+
+  let sent = 0;
+  for (const telegramId of recipientIds) {
+    try {
+      await bot.sendMessage(telegramId, lines.join('\n'), {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: inlineKeyboard.length ? { inline_keyboard: inlineKeyboard } : undefined
+      });
+      sent += 1;
+    } catch (error) {
+      console.warn(`Superadmin registration alert send warning (chat ${telegramId}):`, error.message);
+    }
+  }
+
+  return {
+    sent,
+    total: recipientIds.length
+  };
 }
 
 async function resolveRestaurantFromTelegramWebAppInitData(initData) {
@@ -1358,6 +1497,15 @@ router.post('/telegram-webapp-store-registration/complete', loginRateLimiter, as
       console.warn('Send registration summary message warning:', error.message);
       return false;
     });
+    const superadminAlert = await sendStoreRegistrationAlertToSuperadmins({
+      registration,
+      payload: req.body || {},
+      requestOrigin: backendBase,
+      fallbackBotToken: centralBotToken
+    }).catch((error) => {
+      console.warn('Send superadmin store-registration alert warning:', error.message);
+      return { sent: 0, total: 0 };
+    });
 
     return res.status(201).json({
       message: language === 'uz' ? "Do'kon muvaffaqiyatli ro'yxatdan o'tkazildi" : 'Магазин успешно зарегистрирован',
@@ -1378,7 +1526,9 @@ router.post('/telegram-webapp-store-registration/complete', loginRateLimiter, as
       },
       telegram: {
         chat_id: verified.telegramId,
-        message_sent: Boolean(messageSent)
+        message_sent: Boolean(messageSent),
+        superadmin_alert_sent: Number(superadminAlert.sent || 0),
+        superadmin_alert_total: Number(superadminAlert.total || 0)
       }
     });
   } catch (error) {
