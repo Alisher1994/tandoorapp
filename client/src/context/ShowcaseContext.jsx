@@ -151,6 +151,43 @@ export function ShowcaseProvider({ children }) {
   const [showcaseError, setShowcaseError] = useState('');
   const [isDirty, setIsDirty] = useState(false);
 
+  const buildShowcaseBlock = useCallback((blockType, settingsInput = {}, order = 0) => {
+    const normalizedBlockType = normalizeBlockType(blockType);
+    const settings = settingsInput && typeof settingsInput === 'object' ? settingsInput : {};
+    const blockSettings = normalizeBlockSettingsInput(settings);
+    const content = [...new Set((Array.isArray(settings.content) ? settings.content : [])
+      .map((item) => normalizeCategoryId(item))
+      .filter((item) => item !== null))];
+    const categoryId = normalizeCategoryId(
+      settings.category_id
+      ?? settings.categoryId
+      ?? blockSettings.category_id
+      ?? blockSettings.categoryId
+      ?? null
+    );
+    const title = settings.title == null ? '' : String(settings.title);
+
+    if (categoryId) {
+      blockSettings.category_id = categoryId;
+    } else {
+      delete blockSettings.category_id;
+    }
+    delete blockSettings.categoryId;
+    if (title && !blockSettings.title) {
+      blockSettings.title = title;
+    }
+
+    return {
+      id: `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      block_type: normalizedBlockType,
+      title,
+      content,
+      category_id: normalizedBlockType === BLOCK_TYPES.SLIDER ? categoryId : null,
+      settings: blockSettings,
+      order: Number.isInteger(order) && order >= 0 ? order : 0
+    };
+  }, []);
+
   // Load showcase layout from server
   const loadShowcase = useCallback(async (restaurantId) => {
     if (!restaurantId) return;
@@ -195,49 +232,36 @@ export function ShowcaseProvider({ children }) {
     }
   }, []);
 
+  // Add several blocks at once (used by templates)
+  const addBlocks = useCallback((blockSpecs = []) => {
+    if (!Array.isArray(blockSpecs) || blockSpecs.length === 0) return;
+
+    setShowcaseLayout((prevLayout) => {
+      const nextBaseOrder = prevLayout.length;
+      const preparedBlocks = blockSpecs
+        .map((spec, index) => {
+          if (typeof spec === 'string') {
+            return buildShowcaseBlock(spec, {}, nextBaseOrder + index);
+          }
+          if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return null;
+          const nextType = spec.blockType || spec.block_type;
+          const nextSettings = spec.settings && typeof spec.settings === 'object'
+            ? spec.settings
+            : spec;
+          return buildShowcaseBlock(nextType, nextSettings, nextBaseOrder + index);
+        })
+        .filter(Boolean);
+
+      if (preparedBlocks.length === 0) return prevLayout;
+      return normalizeShowcaseLayout([...prevLayout, ...preparedBlocks]);
+    });
+    setIsDirty(true);
+  }, [buildShowcaseBlock]);
+
   // Add a new block to showcase
   const addBlock = useCallback((blockType, settingsInput = {}) => {
-    const normalizedBlockType = normalizeBlockType(blockType);
-    const settings = settingsInput && typeof settingsInput === 'object' ? settingsInput : {};
-    const blockSettings = normalizeBlockSettingsInput(settings);
-    const content = [...new Set((Array.isArray(settings.content) ? settings.content : [])
-      .map((item) => normalizeCategoryId(item))
-      .filter((item) => item !== null))];
-    const categoryId = normalizeCategoryId(
-      settings.category_id
-      ?? settings.categoryId
-      ?? blockSettings.category_id
-      ?? blockSettings.categoryId
-      ?? null
-    );
-    const title = settings.title == null ? '' : String(settings.title);
-
-    if (categoryId) {
-      blockSettings.category_id = categoryId;
-    } else {
-      delete blockSettings.category_id;
-    }
-    delete blockSettings.categoryId;
-    if (title && !blockSettings.title) {
-      blockSettings.title = title;
-    }
-
-    const nextOrder = showcaseLayout.length;
-    const newBlock = {
-      id: `block_${Date.now()}`,
-      block_type: normalizedBlockType,
-      title,
-      content,
-      category_id: normalizedBlockType === BLOCK_TYPES.SLIDER ? categoryId : null,
-      settings: blockSettings,
-      order: nextOrder
-    };
-    
-    const newLayout = normalizeShowcaseLayout([...showcaseLayout, newBlock]);
-    setShowcaseLayout(newLayout);
-    setIsDirty(true);
-    return newBlock;
-  }, [showcaseLayout]);
+    addBlocks([{ blockType, settings: settingsInput }]);
+  }, [addBlocks]);
 
   // Remove block from showcase
   const removeBlock = useCallback((blockId) => {
@@ -266,7 +290,11 @@ export function ShowcaseProvider({ children }) {
 
       const newLayout = [...prevLayout];
       [newLayout[currentIndex], newLayout[newIndex]] = [newLayout[newIndex], newLayout[currentIndex]];
-      return normalizeShowcaseLayout(newLayout);
+      const normalizedOrderLayout = newLayout.map((block, index) => ({
+        ...block,
+        order: index
+      }));
+      return normalizeShowcaseLayout(normalizedOrderLayout);
     });
     setIsDirty(true);
   }, []);
@@ -350,6 +378,7 @@ export function ShowcaseProvider({ children }) {
     loadShowcase,
     saveShowcase,
     addBlock,
+    addBlocks,
     removeBlock,
     updateBlock,
     reorderBlocks,

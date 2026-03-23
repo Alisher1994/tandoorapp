@@ -66,6 +66,7 @@ function ShowcaseBuilder({ embedded = false }) {
     loadShowcase,
     saveShowcase,
     addBlock,
+    addBlocks,
     removeBlock,
     updateBlock,
     reorderBlocks,
@@ -139,7 +140,7 @@ function ShowcaseBuilder({ embedded = false }) {
       [BLOCK_TYPES.GRID_3]: { title: 'Готовая еда' },
       [BLOCK_TYPES.GRID_2]: { title: 'Категории' },
       [BLOCK_TYPES.BANNER]: {
-        title: 'Спецпредложение',
+        title: 'Баннер',
         backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
         textColor: '#ffffff',
         ctaText: 'Подробнее'
@@ -149,6 +150,48 @@ function ShowcaseBuilder({ embedded = false }) {
 
     addBlock(blockType, defaultSettings[blockType]);
     setShowBlockTypeModal(false);
+  };
+
+  const handleApplyTemplate = (templateKey) => {
+    const templates = {
+      grid_3_2: [
+        { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Категории 3' } },
+        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } }
+      ],
+      grid_2_3: [
+        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } },
+        { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Категории 3' } }
+      ],
+      banner_2: [
+        {
+          blockType: BLOCK_TYPES.BANNER,
+          settings: {
+            title: 'Баннер',
+            backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
+            textColor: '#ffffff',
+            ctaText: 'Подробнее'
+          }
+        },
+        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } }
+      ],
+      grid_2_banner: [
+        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } },
+        {
+          blockType: BLOCK_TYPES.BANNER,
+          settings: {
+            title: 'Баннер',
+            backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
+            textColor: '#ffffff',
+            ctaText: 'Подробнее'
+          }
+        }
+      ]
+    };
+
+    const payload = templates[templateKey] || [];
+    if (payload.length > 0) {
+      addBlocks(payload);
+    }
   };
 
   const handleSaveShowcase = async () => {
@@ -371,7 +414,6 @@ function ShowcaseBuilder({ embedded = false }) {
           <div className="panel-section">
             <h3>Предпросмотр магазина</h3>
             <div className="store-preview-shell">
-              <div className="store-preview-notch" />
               <div className="store-preview-screen">
                 <ClientTopBar
                   logoUrl={user?.active_restaurant_logo || ''}
@@ -488,6 +530,40 @@ function ShowcaseBuilder({ embedded = false }) {
                 </button>
               </div>
             </div>
+
+            <div className="quick-blocks templates-section">
+              <div className="quick-blocks-title">Шаблоны</div>
+              <div className="quick-blocks-grid">
+                <button
+                  type="button"
+                  className="quick-block-btn template-btn"
+                  onClick={() => handleApplyTemplate('grid_3_2')}
+                >
+                  3 сверху + 2 снизу
+                </button>
+                <button
+                  type="button"
+                  className="quick-block-btn template-btn"
+                  onClick={() => handleApplyTemplate('grid_2_3')}
+                >
+                  2 сверху + 3 снизу
+                </button>
+                <button
+                  type="button"
+                  className="quick-block-btn template-btn"
+                  onClick={() => handleApplyTemplate('banner_2')}
+                >
+                  1 сверху + 2 снизу
+                </button>
+                <button
+                  type="button"
+                  className="quick-block-btn template-btn"
+                  onClick={() => handleApplyTemplate('grid_2_banner')}
+                >
+                  2 сверху + 1 снизу
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -498,7 +574,6 @@ function ShowcaseBuilder({ embedded = false }) {
               <div className="canvas-header">
                 <div className="canvas-header-meta">
                   <h3>Структура витрины</h3>
-                  <p>Соберите экран магазина из блоков и перетащите в них категории</p>
                 </div>
                 <div className="canvas-top-actions">
                   <Button
@@ -508,21 +583,7 @@ function ShowcaseBuilder({ embedded = false }) {
                   >
                     <Plus size={16} /> Добавить блок
                   </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={handleSaveShowcase}
-                    disabled={saveLoading || !isDirty}
-                  >
-                    {saveLoading ? <Spinner size="sm" /> : 'Сохранить'}
-                  </Button>
                 </div>
-              </div>
-
-              <div className="canvas-steps">
-                <span className="canvas-step-chip">1) Добавьте блок</span>
-                <span className="canvas-step-chip">2) Перетащите категории</span>
-                <span className="canvas-step-chip">3) Нажмите «Сохранить»</span>
               </div>
 
               {showcaseLoading ? (
@@ -555,24 +616,27 @@ function ShowcaseBuilder({ embedded = false }) {
                         </div>
                         <div className="button-group">
                           {index > 0 && (
-                            <button
-                              className="btn-icon"
-                              onClick={() => reorderBlocks(block.id, 'up')}
-                              title="Переместить выше"
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            onClick={() => reorderBlocks(block.id, 'up')}
+                            title="Переместить выше"
                             >
                               <ChevronUp size={18} />
                             </button>
                           )}
                           {index < showcaseLayout.length - 1 && (
-                            <button
-                              className="btn-icon"
-                              onClick={() => reorderBlocks(block.id, 'down')}
-                              title="Переместить ниже"
+                          <button
+                            type="button"
+                            className="btn-icon"
+                            onClick={() => reorderBlocks(block.id, 'down')}
+                            title="Переместить ниже"
                             >
                               <ChevronDown size={18} />
                             </button>
                           )}
                           <button
+                            type="button"
                             className="btn-icon"
                             onClick={() => {
                               setSelectedBlock(block);
@@ -583,6 +647,7 @@ function ShowcaseBuilder({ embedded = false }) {
                             <SettingsIcon size={18} />
                           </button>
                           <button
+                            type="button"
                             className="btn-icon danger"
                             onClick={() => removeBlock(block.id)}
                             title="Удалить блок"
@@ -591,7 +656,6 @@ function ShowcaseBuilder({ embedded = false }) {
                           </button>
                         </div>
                       </div>
-                      <div className="block-status-text">{getBlockStatusText(block)}</div>
                       <div className="block-preview">
                         <div
                           className={`preview-content${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}

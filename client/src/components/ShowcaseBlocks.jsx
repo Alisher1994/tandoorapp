@@ -1,5 +1,6 @@
 import React from 'react';
 import './ShowcaseBlocks.css';
+import { formatPrice } from '../context/CartContext';
 
 const getCategoryName = (category) => (
   category?.name_ru
@@ -177,7 +178,7 @@ export function Grid2Block({
 export function BannerBlock({ block, onBannerClick }) {
   const { settings = {}, title } = block;
   const {
-    imageUrl = '/placeholder-banner.png',
+    imageUrl = '',
     ctaText = 'Подробнее',
     backgroundColor = 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
     textColor = '#ffffff'
@@ -299,7 +300,7 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
                 <div className="slider-item-content">
                   <h4 className="slider-item-name">{getProductName(product)}</h4>
                   {product.price && (
-                    <div className="slider-item-price">{product.price} сум</div>
+                    <div className="slider-item-price">{formatPrice(product.price)} сум</div>
                   )}
                 </div>
               </div>

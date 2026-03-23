@@ -34,6 +34,10 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalized = String(value || '').trim().toLowerCase();
   return MENU_VIEW_MODES.includes(normalized) ? normalized : fallback;
 };
+const normalizeId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
 
 const CartLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   <svg
@@ -271,15 +275,6 @@ function Catalog() {
       setPrevRestaurant(selectedRestaurant);
     }
   }, [selectedRestaurant]);
-
-  // Handle category filtering from navigation state (e.g., from Showcase)
-  useEffect(() => {
-    if (location.state?.selectedCategoryId) {
-      setSelectedCategory(location.state.selectedCategoryId);
-      // Clear the state to avoid re-applying it
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state?.selectedCategoryId]);
 
   useEffect(() => {
     pendingProductReviewsLoadedRef.current = false;
@@ -936,7 +931,11 @@ function Catalog() {
         axios.get(`${API_URL}/products/catalog-animation-season`).catch(() => ({ data: { season: 'off' } }))
       ]);
 
-      const nextCategories = (categoriesRes.data || []).sort((a, b) => {
+      const nextCategories = (categoriesRes.data || []).map((category) => ({
+        ...category,
+        id: normalizeId(category?.id),
+        parent_id: normalizeId(category?.parent_id)
+      })).filter((category) => Number.isInteger(category.id)).sort((a, b) => {
         const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
         const orderDiff = getSortVal(a) - getSortVal(b);
         if (orderDiff !== 0) return orderDiff;
@@ -1053,7 +1052,12 @@ function Catalog() {
 
   const categoriesById = useMemo(() => {
     const map = new Map();
-    categories.forEach((category) => map.set(category.id, category));
+    categories.forEach((category) => {
+      const categoryId = normalizeId(category?.id);
+      if (categoryId) {
+        map.set(categoryId, category);
+      }
+    });
     return map;
   }, [categories]);
   const currentRestaurant = useMemo(
@@ -1077,7 +1081,7 @@ function Catalog() {
   const childrenByParent = useMemo(() => {
     const map = new Map();
     categories.forEach((category) => {
-      const key = category.parent_id ?? null;
+      const key = normalizeId(category?.parent_id) ?? null;
       if (!map.has(key)) {
         map.set(key, []);
       }
@@ -1102,7 +1106,7 @@ function Catalog() {
   const productCategoryIds = useMemo(() => (
     new Set(
       products
-        .map((product) => Number(product.category_id))
+        .map((product) => normalizeId(product?.category_id))
         .filter((id) => Number.isFinite(id))
     )
   ), [products]);
@@ -1604,13 +1608,13 @@ function Catalog() {
 
   const selectedLevel2Category = useMemo(() => {
     if (!selectedCategory) return null;
-    return categoriesById.get(Number(selectedCategory)) || null;
+    return categoriesById.get(normalizeId(selectedCategory)) || null;
   }, [selectedCategory, categoriesById]);
   const productsByCategoryId = useMemo(() => {
     const map = new Map();
     products.forEach((product) => {
-      const categoryId = Number(product?.category_id);
-      if (!Number.isFinite(categoryId)) return;
+      const categoryId = normalizeId(product?.category_id);
+      if (!categoryId) return;
       if (!map.has(categoryId)) map.set(categoryId, []);
       map.get(categoryId).push(product);
     });
@@ -1624,7 +1628,7 @@ function Catalog() {
 
   const directSelectedProducts = useMemo(() => {
     if (!selectedLevel2Category) return [];
-    return products.filter((product) => Number(product.category_id) === selectedLevel2Category.id);
+    return products.filter((product) => normalizeId(product?.category_id) === selectedLevel2Category.id);
   }, [products, selectedLevel2Category]);
 
   const level3Sections = useMemo(() => {
@@ -2772,6 +2776,68 @@ function Catalog() {
     productHeroTouchStartYRef.current = null;
     loadProductDetails(product.id, product);
   };
+
+  // Handle category filtering from Showcase navigation
+  useEffect(() => {
+    const requestedCategoryId = normalizeId(location.state?.selectedCategoryId);
+    if (!requestedCategoryId || categories.length === 0) return;
+
+    const requestedCategory = categoriesById.get(requestedCategoryId) || null;
+    let targetLevel2CategoryId = requestedCategoryId;
+    let targetLevel3TabId = null;
+
+    if (requestedCategory) {
+      const parentId = normalizeId(requestedCategory.parent_id);
+      if (parentId === null) {
+        const level2Children = (childrenByParent.get(requestedCategoryId) || [])
+          .map((item) => normalizeId(item?.id))
+          .filter((id) => Number.isInteger(id));
+        targetLevel2CategoryId = level2Children[0] || requestedCategoryId;
+      } else {
+        const parentCategory = categoriesById.get(parentId) || null;
+        const grandParentId = normalizeId(parentCategory?.parent_id);
+        if (parentCategory && grandParentId !== null) {
+          // Selected category is level 3 -> open its level 2 and activate the tab.
+          targetLevel2CategoryId = parentId;
+          targetLevel3TabId = requestedCategoryId;
+        } else {
+          // Selected category is already level 2.
+          targetLevel2CategoryId = requestedCategoryId;
+        }
+      }
+    }
+
+    if (targetLevel2CategoryId) {
+      setSelectedCategory(targetLevel2CategoryId);
+      if (targetLevel3TabId) {
+        setActiveSubcategoryTab(targetLevel3TabId);
+      }
+    }
+
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [
+    location.state?.selectedCategoryId,
+    categories.length,
+    categoriesById,
+    childrenByParent,
+    navigate,
+    location.pathname
+  ]);
+
+  // Handle direct product opening from Showcase navigation
+  useEffect(() => {
+    const requestedProductId = normalizeId(location.state?.selectedProductId);
+    if (!requestedProductId || products.length === 0) return;
+
+    const requestedProduct = products.find(
+      (product) => normalizeId(product?.id) === requestedProductId
+    );
+    if (requestedProduct) {
+      openProductDetailsModal(requestedProduct);
+    }
+
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state?.selectedProductId, products, navigate, location.pathname]);
 
   useEffect(() => {
     if (!showProductDetailsModal) return;

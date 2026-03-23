@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import Navbar from 'react-bootstrap/Navbar';
 import Container from 'react-bootstrap/Container';
 import Spinner from 'react-bootstrap/Spinner';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +9,7 @@ import { useShowcase } from '../context/ShowcaseContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
 import ClientTopBar from '../components/ClientTopBar';
+import ClientAccountModal from '../components/ClientAccountModal';
 import {
   Grid3Block,
   Grid2Block,
@@ -34,17 +34,34 @@ const extractProductsFromResponse = (payload) => {
   return [];
 };
 
+const getCategoryName = (category) => (
+  category?.name_ru
+  || category?.name_uz
+  || category?.name
+  || ''
+);
+
+const getProductName = (product) => (
+  product?.name_ru
+  || product?.name_uz
+  || product?.name
+  || ''
+);
+
 function ShowcaseDisplay() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cart } = useCart();
-  const { showcaseLayout, showcaseLoading, loadShowcase } = useShowcase();
+  const { showcaseLayout, showcaseLoading, loadShowcase, showcaseError } = useShowcase();
   const { t } = useLanguage();
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showSearchField, setShowSearchField] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Load categories and products
   useEffect(() => {
@@ -101,14 +118,28 @@ function ShowcaseDisplay() {
   };
 
   const handleProductClick = (product) => {
-    // Open product details or add to cart
-    // This could open a modal or navigate to product details
     navigate('/catalog', { state: { selectedProductId: product.id } });
   };
 
+  const normalizedSearch = String(searchQuery || '').trim().toLowerCase();
+  const filteredProducts = normalizedSearch
+    ? products.filter((product) => getProductName(product).toLowerCase().includes(normalizedSearch))
+    : products;
+  const searchableCategoryIds = new Set(
+    filteredProducts
+      .map((product) => normalizeId(product?.category_id))
+      .filter((id) => Number.isInteger(id))
+  );
+  const filteredCategories = normalizedSearch
+    ? categories.filter((category) => {
+      const categoryName = getCategoryName(category).toLowerCase();
+      return categoryName.includes(normalizedSearch) || searchableCategoryIds.has(normalizeId(category?.id));
+    })
+    : categories;
+
   const renderBlock = (block) => {
     const blockCategories = block.content
-      .map(catId => categories.find(c => normalizeId(c?.id) === normalizeId(catId)))
+      .map(catId => filteredCategories.find(c => normalizeId(c?.id) === normalizeId(catId)))
       .filter(Boolean);
 
     switch (block.block_type) {
@@ -117,7 +148,7 @@ function ShowcaseDisplay() {
           <Grid3Block
             key={block.id}
             categories={blockCategories}
-            products={products}
+            products={filteredProducts}
             cartItems={cart}
             onCategoryClick={handleCategoryClick}
             categoryImageFallback={user?.active_restaurant_logo || ''}
@@ -128,7 +159,7 @@ function ShowcaseDisplay() {
           <Grid2Block
             key={block.id}
             categories={blockCategories}
-            products={products}
+            products={filteredProducts}
             cartItems={cart}
             onCategoryClick={handleCategoryClick}
             categoryImageFallback={user?.active_restaurant_logo || ''}
@@ -153,8 +184,8 @@ function ShowcaseDisplay() {
           <ProductSliderBlock
             key={block.id}
             categoryId={block.category_id}
-            categories={categories}
-            products={products}
+            categories={filteredCategories}
+            products={filteredProducts}
             cartItems={cart}
             onProductClick={handleProductClick}
             onCategoryClick={handleCategoryClick}
@@ -176,13 +207,64 @@ function ShowcaseDisplay() {
 
   return (
     <div className="showcase-display-container">
-      <ClientTopBar />
+      <div className="showcase-header-shell">
+        <div className="showcase-header-main">
+          <div className="showcase-header-title">
+            {user?.active_restaurant_name || 'Магазин'}
+          </div>
+          <div className="showcase-header-actions">
+            <button
+              type="button"
+              className="showcase-header-btn"
+              onClick={() => setShowAccountModal(true)}
+              aria-label="Аккаунт"
+              title="Аккаунт"
+            >
+              👤
+            </button>
+            <button
+              type="button"
+              className={`showcase-header-btn${showSearchField || normalizedSearch ? ' is-active' : ''}`}
+              onClick={() => setShowSearchField((prev) => !prev)}
+              aria-label="Поиск"
+              title="Поиск"
+            >
+              🔎
+            </button>
+          </div>
+        </div>
+
+        <ClientTopBar
+          logoUrl={user?.active_restaurant_logo || ''}
+          logoDisplayMode={user?.active_restaurant_logo_display_mode || 'square'}
+          restaurantName={user?.active_restaurant_name || 'Магазин'}
+          maxWidth="100%"
+          fallback="🏪"
+        />
+
+        {showSearchField && (
+          <div className="showcase-header-search">
+            <input
+              type="text"
+              className="showcase-header-search-input"
+              placeholder="Поиск по витрине..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="showcase-content">
         <Container fluid className="showcase-inner">
           {error && (
             <div className="alert alert-warning" role="alert">
               {error}
+            </div>
+          )}
+          {showcaseError && (
+            <div className="alert alert-warning" role="alert">
+              {showcaseError}
             </div>
           )}
 
@@ -197,6 +279,10 @@ function ShowcaseDisplay() {
       </div>
 
       <BottomNav />
+      <ClientAccountModal
+        show={showAccountModal}
+        onHide={() => setShowAccountModal(false)}
+      />
     </div>
   );
 }
