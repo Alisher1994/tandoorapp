@@ -30,6 +30,7 @@ import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { formatPrice, formatQuantity } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useShowcase } from '../context/ShowcaseContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import * as XLSX from 'xlsx';
 import YandexLocationPicker from '../components/YandexLocationPicker';
@@ -1398,16 +1399,317 @@ const OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS = [
   'Скрыть из каталога'
 ];
 
-// Showcase Builder Tab Component
+// Showcase Builder Tab Component - встроенный конструктор витрины
 function ShowcaseBuilderTab() {
+  const { user } = useAuth();
+  const restaurantId = Number.parseInt(user?.active_restaurant_id, 10) || null;
+  const { showcaseLayout, addBlock, removeBlock, updateBlock, reorderBlocks, saveShowcase, showcaseLoading } = useShowcase();
+  const { t } = useLanguage();
+  
+  // Получить список категорий из админки
+  const [categories, setCategories] = useState([]);
+  const [selectedBlockType, setSelectedBlockType] = useState(null);
+  const [draggedCategory, setDraggedCategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (restaurantId) {
+      // Загрузить категории для этого ресторана
+      axios.get(`${API_URL}/products/restaurants/${restaurantId}/categories`)
+        .then(res => setCategories(res.data || []))
+        .catch(err => console.error('Failed to load categories:', err));
+    }
+  }, [restaurantId]);
+
+  const filteredCategories = (categories || []).filter(cat => 
+    (cat.name_ru || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (cat.name_uz || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleAddBlock = (blockType) => {
+    const settings = {};
+    if (blockType === 'banner') {
+      settings = { backgroundColor: '#667eea', textColor: '#ffffff', title: 'Новый баннер', description: '' };
+    }
+    if (blockType === 'product_slider') {
+      settings = { categoryId: null };
+    }
+    addBlock(blockType, settings);
+    setSelectedBlockType(null);
+  };
+
+  const handleSave = async () => {
+    if (!restaurantId) {
+      alert('Ошибка: не выбран ресторан');
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveShowcase(restaurantId, showcaseLayout);
+      alert('✅ Витрина сохранена!');
+    } catch (error) {
+      alert('❌ Ошибка при сохранении: ' + (error.message || 'неизвестная ошибка'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDragStart = (e, category) => {
+    setDraggedCategory(category);
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDropOnBlock = (e, blockId) => {
+    e.preventDefault();
+    if (draggedCategory && ['grid_3', 'grid_2'].includes(showcaseLayout.find(b => b.id === blockId)?.block_type)) {
+      const block = showcaseLayout.find(b => b.id === blockId);
+      if (block && !block.content.includes(draggedCategory.id)) {
+        updateBlock(blockId, { content: [...(block.content || []), draggedCategory.id] });
+      }
+      setDraggedCategory(null);
+    }
+  };
+
+  const handleRemoveCategory = (blockId, categoryId) => {
+    const block = showcaseLayout.find(b => b.id === blockId);
+    if (block) {
+      updateBlock(blockId, { content: block.content.filter(id => id !== categoryId) });
+    }
+  };
+
+  const getBlockTypeLabel = (blockType) => {
+    const labels = {
+      grid_3: '📊 Сетка 3x',
+      grid_2: '📑 Сетка 2x',
+      banner: '🎯 Баннер',
+      product_slider: '🔄 Слайдер'
+    };
+    return labels[blockType] || blockType;
+  };
+
+  if (showcaseLoading) return <div style={{ padding: '1rem', textAlign: 'center' }}>⏳ Загрузка витрины...</div>;
+
   return (
-    <div style={{ padding: '1rem', textAlign: 'center', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div>
-        <p>Перейдите к конструктору витрины на отдельной странице</p>
-        <a href="/admin/showcase" style={{ color: '#667eea', textDecoration: 'none', fontWeight: 'bold' }}>
-          Открыть конструктор →
-        </a>
+    <div style={{ display: 'flex', height: 'calc(100vh - 300px)', gap: '1rem', padding: '1rem', backgroundColor: '#f5f7fa' }}>
+      {/* Left Panel - Categories */}
+      <div style={{ width: '280px', backgroundColor: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <h5 style={{ marginTop: 0, marginBottom: '1rem' }}>📁 Категории</h5>
+        <input
+          type="text"
+          placeholder="Поиск категорий..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box', fontSize: '0.9rem' }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflow: 'auto', marginBottom: '1rem' }}>
+          {filteredCategories.length === 0 ? (
+            <div style={{ color: '#999', textAlign: 'center', padding: '1rem' }}>Нет категорий</div>
+          ) : (
+            filteredCategories.map(cat => (
+              <div
+                key={cat.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, cat)}
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: '#f0f2f5',
+                  borderRadius: '4px',
+                  cursor: 'grab',
+                  border: '1px solid #e0e0e0',
+                  fontSize: '0.9rem',
+                  userSelect: 'none',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e0e0ff'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f0f2f5'}
+              >
+                {cat.name_ru || cat.name_uz || cat.name || `Категория ${cat.id}`}
+              </div>
+            ))
+          )}
+        </div>
+        
+        <div style={{ borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+          <h6 style={{ marginBottom: '0.5rem' }}>➕ Типы блоков</h6>
+          <button
+            onClick={() => setSelectedBlockType('grid_3')}
+            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Сетка 3x
+          </button>
+          <button
+            onClick={() => setSelectedBlockType('grid_2')}
+            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Сетка 2x
+          </button>
+          <button
+            onClick={() => setSelectedBlockType('banner')}
+            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Баннер
+          </button>
+          <button
+            onClick={() => setSelectedBlockType('product_slider')}
+            style={{ width: '100%', padding: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Слайдер
+          </button>
+        </div>
       </div>
+
+      {/* Right Panel - Canvas */}
+      <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #eee' }}>
+          <h5 style={{ margin: 0 }}>🎨 Конструктор витрины</h5>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding: '0.5rem 1.5rem', backgroundColor: saving ? '#999' : '#22c55e', color: 'white', border: 'none', borderRadius: '4px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.9rem' }}
+          >
+            {saving ? '⏳ Сохраняю...' : '💾 Сохранить'}
+          </button>
+        </div>
+
+        {showcaseLayout.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#999', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div>
+              <p style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Витрина пуста</p>
+              <p style={{ fontSize: '0.9rem' }}>Добавьте блоки, нажав на кнопки слева →</p>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflow: 'auto' }}>
+            {showcaseLayout.map((block, index) => (
+              <div
+                key={block.id}
+                draggable
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDropOnBlock(e, block.id)}
+                style={{
+                  padding: '1rem',
+                  backgroundColor: '#f9fafb',
+                  border: draggedCategory ? '2px solid #667eea' : '2px solid #e0e0e0',
+                  borderRadius: '8px',
+                  cursor: 'grab',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <strong style={{ fontSize: '0.95rem' }}>#{index + 1} {getBlockTypeLabel(block.block_type)}</strong>
+                  <button
+                    onClick={() => removeBlock(block.id)}
+                    style={{ padding: '0.25rem 0.75rem', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  >
+                    Удалить
+                  </button>
+                </div>
+                
+                {['grid_3', 'grid_2'].includes(block.block_type) ? (
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+                      {block.content.length > 0 
+                        ? `✓ Категорий: ${block.content.length}`
+                        : '↓ Перетащите категории сюда'}
+                    </div>
+                    {block.content.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {block.content.map(catId => {
+                          const cat = categories.find(c => c.id === catId);
+                          return (
+                            <span
+                              key={catId}
+                              style={{
+                                padding: '0.3rem 0.6rem',
+                                backgroundColor: '#dbeafe',
+                                borderRadius: '3px',
+                                fontSize: '0.85rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.4rem'
+                              }}
+                            >
+                              {cat?.name_ru || `Cat ${catId}`}
+                              <button
+                                onClick={() => handleRemoveCategory(block.id, catId)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  fontSize: '0.9rem',
+                                  lineHeight: 1
+                                }}
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : block.block_type === 'banner' ? (
+                  <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                    <p style={{ margin: '0.25rem 0' }}>Заголовок: <strong>{block.settings?.title || 'Без названия'}</strong></p>
+                    {block.settings?.description && <p style={{ margin: '0.25rem 0' }}>Описание: {block.settings.description}</p>}
+                  </div>
+                ) : block.block_type === 'product_slider' ? (
+                  <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                    {block.settings?.categoryId ? (
+                      <p>Категория: <strong>{categories.find(c => c.id === block.settings.categoryId)?.name_ru || `Cat ${block.settings.categoryId}`}</strong></p>
+                    ) : (
+                      <p style={{ color: '#f97316' }}>⚠️ Категория не выбрана</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal для выбора типа блока */}
+      {selectedBlockType && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', minWidth: '350px', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+            <h4 style={{ marginTop: 0 }}>Добавить блок: {getBlockTypeLabel(selectedBlockType)}</h4>
+            <p style={{ color: '#666', fontSize: '0.95rem' }}>Новый блок будет добавлен в конец витрины. Вы сможете переместить его позже.</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setSelectedBlockType(null)}
+                style={{ padding: '0.5rem 1rem', backgroundColor: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => { handleAddBlock(selectedBlockType); }}
+                style={{ padding: '0.5rem 1rem', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '500' }}
+              >
+                Добавить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
