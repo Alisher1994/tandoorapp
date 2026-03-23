@@ -24,6 +24,50 @@ import {
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const DEFAULT_BANNER_SETTINGS = {
+  title: 'Спецпредложение',
+  backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
+  textColor: '#ffffff',
+  ctaText: 'Подробнее'
+};
+const DEFAULT_GRID_LIMITS = {
+  [BLOCK_TYPES.GRID_3]: 3,
+  [BLOCK_TYPES.GRID_2]: 2
+};
+const SHOWCASE_TEMPLATES = [
+  {
+    key: 'grid_3_2',
+    label: '3 сверху + 2 снизу',
+    blocks: [
+      { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Верхний ряд', maxCategories: 3 } },
+      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Нижний ряд', maxCategories: 2 } }
+    ]
+  },
+  {
+    key: 'grid_2_3',
+    label: '2 сверху + 3 снизу',
+    blocks: [
+      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Верхний ряд', maxCategories: 2 } },
+      { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Нижний ряд', maxCategories: 3 } }
+    ]
+  },
+  {
+    key: 'banner_2',
+    label: '1 сверху + 2 снизу',
+    blocks: [
+      { blockType: BLOCK_TYPES.BANNER, settings: DEFAULT_BANNER_SETTINGS },
+      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Нижний ряд', maxCategories: 2 } }
+    ]
+  },
+  {
+    key: 'grid_2_banner',
+    label: '2 сверху + 1 снизу',
+    blocks: [
+      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Верхний ряд', maxCategories: 2 } },
+      { blockType: BLOCK_TYPES.BANNER, settings: DEFAULT_BANNER_SETTINGS }
+    ]
+  }
+];
 
 const getCategoryDisplayName = (category) => (
   category?.name_ru
@@ -46,6 +90,17 @@ const isProductEnabledForShowcase = (product) => (
 const normalizeId = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) ? parsed : null;
+};
+
+const isGridBlockType = (blockType) => (
+  blockType === BLOCK_TYPES.GRID_3 || blockType === BLOCK_TYPES.GRID_2
+);
+
+const getGridCategoryLimit = (block) => {
+  if (!block || !isGridBlockType(block.block_type)) return null;
+  const settingsLimit = Number.parseInt(block?.settings?.maxCategories, 10);
+  if (Number.isInteger(settingsLimit) && settingsLimit > 0) return settingsLimit;
+  return DEFAULT_GRID_LIMITS[block.block_type] || null;
 };
 
 const extractProductsFromResponse = (payload) => {
@@ -137,14 +192,9 @@ function ShowcaseBuilder({ embedded = false }) {
 
   const handleAddBlock = (blockType) => {
     const defaultSettings = {
-      [BLOCK_TYPES.GRID_3]: { title: 'Готовая еда' },
-      [BLOCK_TYPES.GRID_2]: { title: 'Категории' },
-      [BLOCK_TYPES.BANNER]: {
-        title: 'Баннер',
-        backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
-        textColor: '#ffffff',
-        ctaText: 'Подробнее'
-      },
+      [BLOCK_TYPES.GRID_3]: { title: 'Категории 3', maxCategories: 3 },
+      [BLOCK_TYPES.GRID_2]: { title: 'Категории 2', maxCategories: 2 },
+      [BLOCK_TYPES.BANNER]: DEFAULT_BANNER_SETTINGS,
       [BLOCK_TYPES.SLIDER]: { title: 'Популярное' }
     };
 
@@ -153,44 +203,11 @@ function ShowcaseBuilder({ embedded = false }) {
   };
 
   const handleApplyTemplate = (templateKey) => {
-    const templates = {
-      grid_3_2: [
-        { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Категории 3' } },
-        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } }
-      ],
-      grid_2_3: [
-        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } },
-        { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Категории 3' } }
-      ],
-      banner_2: [
-        {
-          blockType: BLOCK_TYPES.BANNER,
-          settings: {
-            title: 'Баннер',
-            backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
-            textColor: '#ffffff',
-            ctaText: 'Подробнее'
-          }
-        },
-        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } }
-      ],
-      grid_2_banner: [
-        { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Категории 2' } },
-        {
-          blockType: BLOCK_TYPES.BANNER,
-          settings: {
-            title: 'Баннер',
-            backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
-            textColor: '#ffffff',
-            ctaText: 'Подробнее'
-          }
-        }
-      ]
-    };
-
-    const payload = templates[templateKey] || [];
+    const selectedTemplate = SHOWCASE_TEMPLATES.find((template) => template.key === templateKey);
+    const payload = selectedTemplate?.blocks || [];
     if (payload.length > 0) {
       addBlocks(payload);
+      setShowBlockTypeModal(false);
     }
   };
 
@@ -240,7 +257,14 @@ function ShowcaseBuilder({ embedded = false }) {
 
       if (targetBlock.block_type === BLOCK_TYPES.SLIDER) {
         setSliderCategory(blockId, normalizedCategoryId);
-      } else {
+      } else if (isGridBlockType(targetBlock.block_type)) {
+        const limit = getGridCategoryLimit(targetBlock);
+        const content = Array.isArray(targetBlock.content) ? targetBlock.content : [];
+        if (content.includes(normalizedCategoryId)) return;
+        if (limit && content.length >= limit) {
+          setErrorMessage(`В блок "${getBlockTypeLabel(targetBlock.block_type)}" можно добавить максимум ${limit} категорий`);
+          return;
+        }
         addCategoryToBlock(blockId, normalizedCategoryId);
       }
     }
@@ -265,53 +289,114 @@ function ShowcaseBuilder({ embedded = false }) {
     }
   };
 
-  const getBlockStatusText = (block) => {
-    if (block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2) {
-      return block.content.length > 0
-        ? `Назначено категорий: ${block.content.length}`
-        : 'Перетащите категории в эту область';
-    }
-    if (block.block_type === BLOCK_TYPES.SLIDER) {
-      const selectedCategory = categories.find(
-        (category) => normalizeId(category?.id) === normalizeId(block?.category_id)
+  const getCategoryById = (categoryId) => (
+    categories.find((item) => normalizeId(item?.id) === normalizeId(categoryId)) || null
+  );
+
+  const renderDropHint = (block) => {
+    if (isGridBlockType(block.block_type)) {
+      const limit = getGridCategoryLimit(block) || 0;
+      const assignedCount = Array.isArray(block.content) ? block.content.length : 0;
+      const isFull = limit > 0 && assignedCount >= limit;
+      return (
+        <div className={`block-drop-hint${isFull ? ' is-full' : ''}`}>
+          {isFull
+            ? `Лимит заполнен: ${assignedCount}/${limit}. Удалите одну категорию в слотах ниже.`
+            : `Перетащите категории сюда (${assignedCount}/${limit})`}
+        </div>
       );
-      return selectedCategory
-        ? `Категория слайдера: ${getCategoryDisplayName(selectedCategory)}`
-        : 'Перетащите сюда категорию или выберите её в настройках блока';
     }
+
+    if (block.block_type === BLOCK_TYPES.SLIDER) {
+      const selectedCategory = getCategoryById(block.category_id);
+      return (
+        <div className="block-drop-hint">
+          {selectedCategory
+            ? `Категория слайдера: ${getCategoryDisplayName(selectedCategory)}`
+            : 'Перетащите одну категорию сюда для слайдера'}
+        </div>
+      );
+    }
+
     if (block.block_type === BLOCK_TYPES.BANNER) {
-      return block.title ? `Заголовок: ${block.title}` : 'Настройте заголовок, цвет и CTA в настройках блока';
+      return (
+        <div className="block-drop-hint">
+          Баннер: редактируется через кнопку настроек
+        </div>
+      );
     }
-    return '';
+
+    return null;
   };
 
-  const renderGridBlockCategoryChips = (block) => {
-    if (!(block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2)) return null;
-    if (!Array.isArray(block.content) || block.content.length === 0) return null;
+  const renderBlockAssignments = (block) => {
+    if (isGridBlockType(block.block_type)) {
+      const limit = getGridCategoryLimit(block) || 0;
+      const assigned = Array.isArray(block.content) ? block.content.slice(0, limit) : [];
+      return (
+        <div className="block-slots-wrap">
+          <div className="block-slots-title">Слоты категорий: {assigned.length}/{limit}</div>
+          <div className={`block-slots-grid ${block.block_type === BLOCK_TYPES.GRID_2 ? 'grid-two' : 'grid-three'}`}>
+            {Array.from({ length: limit }).map((_, slotIndex) => {
+              const categoryId = assigned[slotIndex];
+              if (!categoryId) {
+                return (
+                  <div key={`${block.id}_slot_${slotIndex}`} className="block-slot empty">
+                    <span className="slot-index">Слот {slotIndex + 1}</span>
+                    <span className="slot-subtitle">Перетащите категорию</span>
+                  </div>
+                );
+              }
 
-    return (
-      <div className="block-category-chips">
-        {block.content.map((categoryId) => {
-          const category = categories.find(
-            (item) => normalizeId(item?.id) === normalizeId(categoryId)
-          );
-          const categoryTitle = category ? getCategoryDisplayName(category) : `Категория #${categoryId}`;
-          return (
-            <span key={`${block.id}_${categoryId}`} className="block-category-chip">
-              <span className="block-category-chip-text">{categoryTitle}</span>
+              const category = getCategoryById(categoryId);
+              const categoryTitle = category ? getCategoryDisplayName(category) : `Категория #${categoryId}`;
+              return (
+                <div key={`${block.id}_slot_${categoryId}`} className="block-slot filled">
+                  <span className="slot-index">{slotIndex + 1}</span>
+                  <span className="slot-label">{categoryTitle}</span>
+                  <button
+                    type="button"
+                    className="slot-remove-btn"
+                    onClick={() => removeCategoryFromBlock(block.id, categoryId)}
+                    title="Удалить категорию из слота"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (block.block_type === BLOCK_TYPES.SLIDER) {
+      const selectedCategory = getCategoryById(block.category_id);
+      return (
+        <div className="block-slots-wrap">
+          <div className="block-slots-title">Категория слайдера</div>
+          {selectedCategory ? (
+            <div className="block-slot filled slider-slot">
+              <span className="slot-label">{getCategoryDisplayName(selectedCategory)}</span>
               <button
                 type="button"
-                className="block-category-chip-remove"
-                title="Убрать категорию из блока"
-                onClick={() => removeCategoryFromBlock(block.id, categoryId)}
+                className="slot-remove-btn"
+                onClick={() => setSliderCategory(block.id, null)}
+                title="Очистить категорию слайдера"
               >
                 ×
               </button>
-            </span>
-          );
-        })}
-      </div>
-    );
+            </div>
+          ) : (
+            <div className="block-slot empty slider-slot">
+              <span className="slot-subtitle">Категория не выбрана. Перетащите одну категорию.</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const filteredCategories = categories.filter(cat =>
@@ -325,7 +410,11 @@ function ShowcaseBuilder({ embedded = false }) {
   };
 
   const renderBlock = (block) => {
-    const blockCategories = block.content.map((categoryId) => {
+    const limit = isGridBlockType(block.block_type) ? getGridCategoryLimit(block) : null;
+    const sourceCategoryIds = Array.isArray(block.content)
+      ? (limit ? block.content.slice(0, limit) : block.content)
+      : [];
+    const blockCategories = sourceCategoryIds.map((categoryId) => {
       const category = categories.find(
         (item) => normalizeId(item?.id) === normalizeId(categoryId)
       );
@@ -380,6 +469,13 @@ function ShowcaseBuilder({ embedded = false }) {
         <div className="header-actions">
           {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
           <Button
+            variant="outline-primary"
+            size="sm"
+            onClick={() => setShowBlockTypeModal(true)}
+          >
+            <Plus size={16} /> Добавить блок
+          </Button>
+          <Button
             variant="primary"
             size="sm"
             onClick={handleSaveShowcase}
@@ -425,7 +521,7 @@ function ShowcaseBuilder({ embedded = false }) {
                 <div className="store-preview-content">
                   {showcaseLayout.length === 0 ? (
                     <div className="store-preview-empty">
-                      Добавьте блоки справа, чтобы увидеть экран магазина
+                      Нажмите «Добавить блок», чтобы собрать экран магазина
                     </div>
                   ) : (
                     showcaseLayout.map((block) => (
@@ -497,73 +593,6 @@ function ShowcaseBuilder({ embedded = false }) {
               </div>
             )}
 
-            <div className="quick-blocks">
-              <div className="quick-blocks-title">Типы блоков</div>
-              <div className="quick-blocks-grid">
-                <button
-                  type="button"
-                  className="quick-block-btn"
-                  onClick={() => handleAddBlock(BLOCK_TYPES.GRID_3)}
-                >
-                  Сетка 3x
-                </button>
-                <button
-                  type="button"
-                  className="quick-block-btn"
-                  onClick={() => handleAddBlock(BLOCK_TYPES.GRID_2)}
-                >
-                  Сетка 2x
-                </button>
-                <button
-                  type="button"
-                  className="quick-block-btn"
-                  onClick={() => handleAddBlock(BLOCK_TYPES.BANNER)}
-                >
-                  Баннер
-                </button>
-                <button
-                  type="button"
-                  className="quick-block-btn"
-                  onClick={() => handleAddBlock(BLOCK_TYPES.SLIDER)}
-                >
-                  Слайдер
-                </button>
-              </div>
-            </div>
-
-            <div className="quick-blocks templates-section">
-              <div className="quick-blocks-title">Шаблоны</div>
-              <div className="quick-blocks-grid">
-                <button
-                  type="button"
-                  className="quick-block-btn template-btn"
-                  onClick={() => handleApplyTemplate('grid_3_2')}
-                >
-                  3 сверху + 2 снизу
-                </button>
-                <button
-                  type="button"
-                  className="quick-block-btn template-btn"
-                  onClick={() => handleApplyTemplate('grid_2_3')}
-                >
-                  2 сверху + 3 снизу
-                </button>
-                <button
-                  type="button"
-                  className="quick-block-btn template-btn"
-                  onClick={() => handleApplyTemplate('banner_2')}
-                >
-                  1 сверху + 2 снизу
-                </button>
-                <button
-                  type="button"
-                  className="quick-block-btn template-btn"
-                  onClick={() => handleApplyTemplate('grid_2_banner')}
-                >
-                  2 сверху + 1 снизу
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -574,15 +603,6 @@ function ShowcaseBuilder({ embedded = false }) {
               <div className="canvas-header">
                 <div className="canvas-header-meta">
                   <h3>Структура витрины</h3>
-                </div>
-                <div className="canvas-top-actions">
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={() => setShowBlockTypeModal(true)}
-                  >
-                    <Plus size={16} /> Добавить блок
-                  </Button>
                 </div>
               </div>
 
@@ -657,15 +677,16 @@ function ShowcaseBuilder({ embedded = false }) {
                         </div>
                       </div>
                       <div className="block-preview">
+                        {renderBlockAssignments(block)}
                         <div
                           className={`preview-content${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
                           onDragOver={(e) => handleDragOver(e, block.id)}
                           onDragLeave={() => handleDragLeave(block.id)}
                           onDrop={(e) => handleDropOnBlock(e, block.id)}
                         >
+                          {renderDropHint(block)}
                           {renderBlock(block)}
                         </div>
-                        {renderGridBlockCategoryChips(block)}
                       </div>
                     </div>
                   ))}
@@ -682,10 +703,24 @@ function ShowcaseBuilder({ embedded = false }) {
         onHide={() => setShowBlockTypeModal(false)}
         centered
       >
-        <Modal.Header closeButton>
-          <Modal.Title>Выберите тип блока</Modal.Title>
+      <Modal.Header closeButton>
+          <Modal.Title>Добавление в витрину</Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          <div className="modal-section-title">Готовые шаблоны</div>
+          <div className="template-options">
+            {SHOWCASE_TEMPLATES.map((template) => (
+              <button
+                key={template.key}
+                className="template-option"
+                onClick={() => handleApplyTemplate(template.key)}
+              >
+                {template.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="modal-section-title">Отдельные блоки</div>
           <div className="block-type-options">
             <button
               className="block-type-option"

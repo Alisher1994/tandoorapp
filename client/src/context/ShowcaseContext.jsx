@@ -32,6 +32,10 @@ const VALID_BLOCK_TYPES = new Set(Object.values(BLOCK_TYPES));
 const BLOCK_TYPE_ALIASES = Object.freeze({
   product_slider: BLOCK_TYPES.SLIDER
 });
+const DEFAULT_GRID_LIMITS = Object.freeze({
+  [BLOCK_TYPES.GRID_3]: 3,
+  [BLOCK_TYPES.GRID_2]: 2
+});
 
 const normalizeCategoryId = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -43,6 +47,20 @@ const normalizeBlockType = (value) => {
   const alias = BLOCK_TYPE_ALIASES[normalized];
   if (alias) return alias;
   return VALID_BLOCK_TYPES.has(normalized) ? normalized : BLOCK_TYPES.GRID_3;
+};
+
+const normalizePositiveInt = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const getGridCategoryLimit = (blockType, settings = {}) => {
+  if (!(blockType === BLOCK_TYPES.GRID_3 || blockType === BLOCK_TYPES.GRID_2)) return null;
+
+  const explicitLimit = normalizePositiveInt(settings?.maxCategories);
+  if (explicitLimit) return explicitLimit;
+
+  return DEFAULT_GRID_LIMITS[blockType] || null;
 };
 
 const pickLegacySettings = (raw = {}) => {
@@ -102,6 +120,13 @@ const normalizeShowcaseBlock = (rawBlock, index = 0) => {
   if (title && !settings.title) {
     settings.title = title;
   }
+  const gridLimit = getGridCategoryLimit(blockType, settings);
+  if (gridLimit) {
+    settings.maxCategories = gridLimit;
+  } else {
+    delete settings.maxCategories;
+  }
+  const limitedContent = gridLimit ? content.slice(0, gridLimit) : content;
 
   const rawOrder = Number.parseInt(rawBlock.order, 10);
   const fallbackId = `showcase_block_${index + 1}`;
@@ -110,7 +135,7 @@ const normalizeShowcaseBlock = (rawBlock, index = 0) => {
     id: String(rawBlock.id || fallbackId),
     block_type: blockType,
     title,
-    content,
+    content: limitedContent,
     category_id: blockType === BLOCK_TYPES.SLIDER ? categoryId : null,
     settings,
     order: Number.isInteger(rawOrder) && rawOrder >= 0 ? rawOrder : index
@@ -176,12 +201,19 @@ export function ShowcaseProvider({ children }) {
     if (title && !blockSettings.title) {
       blockSettings.title = title;
     }
+    const gridLimit = getGridCategoryLimit(normalizedBlockType, blockSettings);
+    if (gridLimit) {
+      blockSettings.maxCategories = gridLimit;
+    } else {
+      delete blockSettings.maxCategories;
+    }
+    const limitedContent = gridLimit ? content.slice(0, gridLimit) : content;
 
     return {
       id: `block_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       block_type: normalizedBlockType,
       title,
-      content,
+      content: limitedContent,
       category_id: normalizedBlockType === BLOCK_TYPES.SLIDER ? categoryId : null,
       settings: blockSettings,
       order: Number.isInteger(order) && order >= 0 ? order : 0
@@ -307,11 +339,12 @@ export function ShowcaseProvider({ children }) {
     setShowcaseLayout((prevLayout) => normalizeShowcaseLayout(prevLayout.map((block) => {
       if (block.id === blockId && (block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2)) {
         const blockContent = Array.isArray(block.content) ? block.content : [];
+        const gridLimit = getGridCategoryLimit(block.block_type, block.settings);
+        if (blockContent.includes(normalizedCategoryId)) return block;
+        if (gridLimit && blockContent.length >= gridLimit) return block;
         return {
           ...block,
-          content: blockContent.includes(normalizedCategoryId)
-            ? blockContent
-            : [...blockContent, normalizedCategoryId]
+          content: [...blockContent, normalizedCategoryId]
         };
       }
       return block;
