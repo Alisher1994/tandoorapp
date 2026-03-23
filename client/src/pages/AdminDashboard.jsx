@@ -1653,6 +1653,7 @@ function AdminDashboard() {
   const [botProfileLookupLoading, setBotProfileLookupLoading] = useState(false);
   const [botProfileLookupError, setBotProfileLookupError] = useState('');
   const [copiedTelegramField, setCopiedTelegramField] = useState('');
+  const [downloadingRegistrationQr, setDownloadingRegistrationQr] = useState(false);
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
@@ -5022,6 +5023,59 @@ function AdminDashboard() {
         product_images: slots
       };
     });
+  };
+
+  const downloadRestaurantRegistrationQr = async () => {
+    if (downloadingRegistrationQr) return;
+    const currentToken = String(restaurantSettings?.telegram_bot_token || '').trim();
+    if (!currentToken) {
+      setAlertMessage({ type: 'warning', text: 'Сначала укажите и сохраните Bot Token.' });
+      return;
+    }
+
+    setDownloadingRegistrationQr(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/restaurant/registration-qr`, {
+        params: { lang: language }
+      });
+      const qrUrl = response.data?.qr_url_full || response.data?.qr_url || '';
+      if (!qrUrl) {
+        throw new Error('QR URL отсутствует');
+      }
+
+      const imageResponse = await axios.get(qrUrl, { responseType: 'blob' });
+      const qrBlob = imageResponse?.data;
+      if (!qrBlob) {
+        throw new Error('Не удалось получить файл QR');
+      }
+
+      const restaurantPartRaw = String(
+        response.data?.restaurant_name || restaurantSettings?.name || 'store'
+      ).trim();
+      const botPartRaw = String(response.data?.bot_username || '').replace(/^@/, '').trim();
+      const restaurantPart = restaurantPartRaw.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48) || 'store';
+      const botPart = botPartRaw.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48) || 'bot';
+      const filename = `registration-qr-${restaurantPart}-${botPart}.png`;
+
+      const objectUrl = window.URL.createObjectURL(qrBlob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+
+      setAlertMessage({ type: 'success', text: 'QR-код скачан.' });
+    } catch (error) {
+      console.error('Download restaurant registration QR error:', error);
+      setAlertMessage({
+        type: 'danger',
+        text: error.response?.data?.error || 'Не удалось скачать QR-код'
+      });
+    } finally {
+      setDownloadingRegistrationQr(false);
+    }
   };
   const addProductImageSlot = () => {
     setVisibleProductImageSlotsCount((prev) => clampProductVisibleSlotsCount(prev + 1));
@@ -11155,6 +11209,24 @@ function AdminDashboard() {
                                   )}
                                 </Col>
                               )}
+                              <Col md={12}>
+                                <div className="admin-telegram-qr-download-panel">
+                                  <div className="admin-telegram-qr-download-copy">
+                                    <div className="small fw-bold text-muted text-uppercase">QR-код магазина</div>
+                                    <div className="small text-muted">
+                                      Скачайте регистрационный QR (как при первичной регистрации). Полезно, если Bot Token добавили позже.
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="outline-primary"
+                                    className="fw-bold"
+                                    onClick={downloadRestaurantRegistrationQr}
+                                    disabled={downloadingRegistrationQr || !String(restaurantSettings.telegram_bot_token || '').trim()}
+                                  >
+                                    {downloadingRegistrationQr ? '⌛ Подготовка QR...' : '⬇️ Скачать QR'}
+                                  </Button>
+                                </div>
+                              </Col>
                             </Row>
 
                             <div className="mt-4 pt-3 border-top text-end">

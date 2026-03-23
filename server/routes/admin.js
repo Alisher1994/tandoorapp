@@ -1,4 +1,5 @@
 const express = require('express');
+const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const { authenticate, requireOperator, requireRestaurantAccess } = require('../middleware/auth');
 const {
@@ -23,6 +24,8 @@ const {
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureBroadcastSchema } = require('../services/broadcastSchema');
+const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
+const { generateStorePrintForm } = require('../services/printFormGenerator');
 const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
@@ -52,6 +55,19 @@ const normalizeProductPrice = (value, fallback = null) => {
   const parsed = Number.parseFloat(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.round((parsed + Number.EPSILON) * 100) / 100;
+};
+const normalizeBotInterfaceLanguage = (value) => (
+  String(value || '').trim().toLowerCase().startsWith('uz') ? 'uz' : 'ru'
+);
+const toAbsoluteFileUrl = (req, rawUrl) => {
+  const normalized = String(rawUrl || '').trim();
+  if (!normalized) return null;
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+  const backendBaseRaw = String(process.env.BACKEND_URL || '').trim();
+  const backendBase = backendBaseRaw
+    ? backendBaseRaw.replace(/\/api\/?$/i, '').replace(/\/$/, '')
+    : `${req.protocol}://${req.get('host')}`;
+  return `${backendBase}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
 };
 const normalizeProductOrderStep = (value, unit, fallback = null) => {
   if (String(unit || '').trim() !== 'кг') return null;
@@ -1392,6 +1408,80 @@ router.get('/restaurant', async (req, res) => {
   } catch (error) {
     console.error('Get restaurant settings error:', error);
     res.status(500).json({ error: 'Ошибка получения настроек ресторана' });
+  }
+});
+
+// Сгенерировать и вернуть ссылку на регистрационный QR (print form)
+router.get('/restaurant/registration-qr', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Ресторан не выбран' });
+    }
+
+    const restaurantResult = await pool.query(
+      `SELECT id, name, telegram_bot_token
+       FROM restaurants
+       WHERE id = $1
+       LIMIT 1`,
+      [restaurantId]
+    );
+    if (!restaurantResult.rows.length) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    const restaurant = restaurantResult.rows[0];
+    const botToken = String(restaurant.telegram_bot_token || '').trim();
+    if (!botToken) {
+      return res.status(400).json({ error: 'Сначала сохраните Bot Token' });
+    }
+
+    let botProfile = null;
+    try {
+      const bot = getRestaurantBot(botToken) || new TelegramBot(botToken);
+      botProfile = await bot.getMe();
+    } catch (error) {
+      return res.status(400).json({ error: `Не удалось проверить Bot Token: ${error.message}` });
+    }
+
+    const botUsernameRaw = String(botProfile?.username || '').trim();
+    if (!botUsernameRaw) {
+      return res.status(400).json({ error: 'Не удалось получить username бота' });
+    }
+
+    await ensurePrintFormSettingsSchema();
+    const settingsResult = await pool.query(
+      `SELECT print_form_background_url, print_form_qr_position, print_form_caption_ru, print_form_caption_uz
+       FROM billing_settings
+       WHERE id = 1
+       LIMIT 1`
+    );
+    const printSettings = settingsResult.rows[0] || {};
+    const language = normalizeBotInterfaceLanguage(req.query?.lang || req.user?.bot_language || 'ru');
+    const botUsername = `@${botUsernameRaw}`;
+    const botLink = `https://t.me/${botUsernameRaw}`;
+
+    const assets = await generateStorePrintForm({
+      restaurantId: restaurant.id,
+      botUsername,
+      botLink,
+      language,
+      settings: printSettings
+    });
+
+    res.json({
+      restaurant_id: restaurant.id,
+      restaurant_name: restaurant.name || '',
+      bot_username: botUsername,
+      bot_link: botLink,
+      qr_url: assets?.png_url || null,
+      qr_url_full: toAbsoluteFileUrl(req, assets?.png_url),
+      pdf_url: assets?.pdf_url || null,
+      pdf_url_full: toAbsoluteFileUrl(req, assets?.pdf_url)
+    });
+  } catch (error) {
+    console.error('Generate restaurant registration QR error:', error);
+    res.status(500).json({ error: 'Ошибка генерации QR-кода' });
   }
 });
 
