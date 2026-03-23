@@ -7620,29 +7620,6 @@ body::-webkit-scrollbar,
     width: 184px;
 }
 
-.admin-product-images-add-slot {
-    min-width: 34px;
-    width: 34px;
-    height: 34px;
-    border-radius: 999px !important;
-    border: 1px solid rgba(71, 85, 105, 0.24) !important;
-    background: #ffffff !important;
-    color: #334155 !important;
-    font-size: 1.2rem;
-    font-weight: 700;
-    line-height: 1;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-}
-
-.admin-product-images-add-slot:hover {
-    border-color: rgba(71, 85, 105, 0.4) !important;
-    background: #f8fafc !important;
-    color: #0f172a !important;
-}
-
 .admin-product-image-slot {
     width: 100%;
     height: 100%;
@@ -7655,6 +7632,27 @@ body::-webkit-scrollbar,
     flex-direction: column;
     gap: 0.55rem;
     transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.admin-product-image-slot-add {
+    border-style: solid;
+    border-color: rgba(71, 85, 105, 0.22);
+    background: rgba(255, 255, 255, 0.72);
+    color: #334155;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 196px;
+    cursor: pointer;
+}
+
+.admin-product-image-slot-add:hover {
+    border-color: rgba(71, 85, 105, 0.42);
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f172a;
 }
 
 .admin-product-image-slot.is-main {
@@ -7724,7 +7722,8 @@ body::-webkit-scrollbar,
 .admin-product-image-dropzone {
     height: 144px;
     min-height: 144px;
-    border: 1px dashed rgba(71, 85, 105, 0.34);
+    border: 1px solid rgba(71, 85, 105, 0.34);
+    border-style: solid;
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.74);
     display: flex;
@@ -7775,6 +7774,12 @@ body::-webkit-scrollbar,
 .admin-product-image-placeholder-icon {
     font-size: 1.7rem;
     line-height: 1;
+}
+
+.admin-product-image-placeholder-icon.is-add {
+    font-size: 1.95rem;
+    font-weight: 700;
+    color: #64748b;
 }
 
 .admin-product-image-slot-overlay {
@@ -9354,6 +9359,10 @@ body::-webkit-scrollbar,
 
     .admin-product-image-slot {
         padding: 0.4rem;
+    }
+
+    .admin-product-image-slot-add {
+        min-height: 168px;
     }
 
     .admin-product-image-dropzone {

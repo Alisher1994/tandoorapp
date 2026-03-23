@@ -13910,21 +13910,7 @@ function AdminDashboard() {
                 <Row>
                   <Col xs={12}>
                     <Form.Group className="mb-3">
-                      <Form.Label className="mb-2 d-flex align-items-center justify-content-between gap-2">
-                        <span>{t('image')} (до 5)</span>
-                        {isProductImagesMobileLayout && visibleProductImageSlotsCount < PRODUCT_IMAGE_SLOTS_COUNT && (
-                          <Button
-                            type="button"
-                            variant="light"
-                            size="sm"
-                            className="admin-product-images-add-slot"
-                            onClick={addProductImageSlot}
-                            title={language === 'uz' ? "Foto slot qo'shish" : 'Добавить фото-слот'}
-                          >
-                            +
-                          </Button>
-                        )}
-                      </Form.Label>
+                      <Form.Label className="mb-2">{t('image')} (до 5)</Form.Label>
                       <div className="admin-product-images-shell">
                         <div className="admin-product-images-row">
                           {(() => {
@@ -13936,7 +13922,7 @@ function AdminDashboard() {
                             const renderedSlotsCount = isProductImagesMobileLayout
                               ? visibleProductImageSlotsCount
                               : PRODUCT_IMAGE_SLOTS_COUNT;
-                            return allProductImageSlots.slice(0, renderedSlotsCount).map((slot, slotIndex) => (
+                            const renderedSlotItems = allProductImageSlots.slice(0, renderedSlotsCount).map((slot, slotIndex) => (
                               <div key={`product-image-slot-${slotIndex}`} className="admin-product-image-item">
                                 <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
                                   <div
@@ -13968,7 +13954,7 @@ function AdminDashboard() {
                                       />
                                     ) : (
                                       <div className="admin-product-image-placeholder">
-                                        <div className="admin-product-image-placeholder-icon">📷</div>
+                                        <div className="admin-product-image-placeholder-icon is-add">+</div>
                                       </div>
                                     )}
                                     <div className="admin-product-image-slot-overlay">
@@ -14024,6 +14010,22 @@ function AdminDashboard() {
                                 </div>
                               </div>
                             ));
+                            if (isProductImagesMobileLayout && visibleProductImageSlotsCount < PRODUCT_IMAGE_SLOTS_COUNT) {
+                              renderedSlotItems.push(
+                                <div key="product-image-slot-add" className="admin-product-image-item">
+                                  <button
+                                    type="button"
+                                    className="admin-product-image-slot admin-product-image-slot-add"
+                                    onClick={addProductImageSlot}
+                                    title={language === 'uz' ? "Foto slot qo'shish" : 'Добавить фото-слот'}
+                                    aria-label={language === 'uz' ? "Foto slot qo'shish" : 'Добавить фото-слот'}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              );
+                            }
+                            return renderedSlotItems;
                           })()}
                         </div>
                       </div>
