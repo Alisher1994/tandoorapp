@@ -953,6 +953,17 @@ const createProductImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl 
   return slots;
 };
 const serializeProductImageSlots = (slots) => normalizeProductImageItems(slots).slice(0, PRODUCT_IMAGE_SLOTS_COUNT);
+const clampProductVisibleSlotsCount = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(PRODUCT_IMAGE_SLOTS_COUNT, Math.max(1, parsed));
+};
+const resolveProductVisibleSlotsCount = (slots) => {
+  const lastFilledSlotIndex = (Array.isArray(slots) ? slots : []).reduce((maxIndex, slot, slotIndex) => (
+    String(slot?.url || '').trim() ? slotIndex : maxIndex
+  ), -1);
+  return clampProductVisibleSlotsCount(lastFilledSlotIndex + 1);
+};
 const createVariantImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl = '') => (
   createProductImageSlots(value, fallbackImageUrl, fallbackThumbUrl).slice(0, VARIANT_IMAGE_SLOTS_COUNT)
 );
@@ -1483,6 +1494,12 @@ function AdminDashboard() {
     container_id: '',
     container_norm: 1
   });
+  const [isProductImagesMobileLayout, setIsProductImagesMobileLayout] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 992 : false
+  ));
+  const [visibleProductImageSlotsCount, setVisibleProductImageSlotsCount] = useState(() => (
+    (typeof window !== 'undefined' && window.innerWidth < 992) ? 1 : PRODUCT_IMAGE_SLOTS_COUNT
+  ));
   const [productContainerLabelWordIndex, setProductContainerLabelWordIndex] = useState(0);
   const [isGeneratingProductLocalizedText, setIsGeneratingProductLocalizedText] = useState(false);
   const [isProductSortHintsPopupOpen, setIsProductSortHintsPopupOpen] = useState(false);
@@ -2975,12 +2992,31 @@ function AdminDashboard() {
   }, [productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mediaQuery = window.matchMedia('(max-width: 991.98px)');
+    const syncLayoutMode = () => {
+      const isMobile = Boolean(mediaQuery.matches);
+      setIsProductImagesMobileLayout(isMobile);
+      setVisibleProductImageSlotsCount((prev) => (
+        isMobile ? clampProductVisibleSlotsCount(prev) : PRODUCT_IMAGE_SLOTS_COUNT
+      ));
+    };
+    syncLayoutMode();
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncLayoutMode);
+      return () => mediaQuery.removeEventListener('change', syncLayoutMode);
+    }
+    mediaQuery.addListener(syncLayoutMode);
+    return () => mediaQuery.removeListener(syncLayoutMode);
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search || '');
     if (params.get('quickAddProduct') !== '1') return;
 
     setMainTab('products');
-    setShowProductModal(true);
+    openProductModal();
 
     params.delete('quickAddProduct');
     const nextQuery = params.toString();
@@ -4886,6 +4922,11 @@ function AdminDashboard() {
         container_id: product.container_id || '',
         container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
       });
+      setVisibleProductImageSlotsCount(
+        isProductImagesMobileLayout
+          ? resolveProductVisibleSlotsCount(imageSlots)
+          : PRODUCT_IMAGE_SLOTS_COUNT
+      );
     } else {
       setSelectedProduct(null);
       setProductForm({
@@ -4912,6 +4953,7 @@ function AdminDashboard() {
         container_id: '',
         container_norm: 1
       });
+      setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     }
     setIsGeneratingProductLocalizedText(false);
     setProductContainerLabelWordIndex(0);
@@ -4980,6 +5022,9 @@ function AdminDashboard() {
         product_images: slots
       };
     });
+  };
+  const addProductImageSlot = () => {
+    setVisibleProductImageSlotsCount((prev) => clampProductVisibleSlotsCount(prev + 1));
   };
   const toggleProductVariantsEnabled = (isEnabled) => {
     setProductForm((prev) => {
@@ -5736,6 +5781,7 @@ function AdminDashboard() {
       container_id: product.container_id || '',
       container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
     });
+    setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     setShowProductModal(true);
   };
 
@@ -13864,105 +13910,121 @@ function AdminDashboard() {
                 <Row>
                   <Col xs={12}>
                     <Form.Group className="mb-3">
-                      <Form.Label className="mb-2">{t('image')} (до 5)</Form.Label>
+                      <Form.Label className="mb-2 d-flex align-items-center justify-content-between gap-2">
+                        <span>{t('image')} (до 5)</span>
+                        {isProductImagesMobileLayout && visibleProductImageSlotsCount < PRODUCT_IMAGE_SLOTS_COUNT && (
+                          <Button
+                            type="button"
+                            variant="light"
+                            size="sm"
+                            className="admin-product-images-add-slot"
+                            onClick={addProductImageSlot}
+                            title={language === 'uz' ? "Foto slot qo'shish" : 'Добавить фото-слот'}
+                          >
+                            +
+                          </Button>
+                        )}
+                      </Form.Label>
                       <div className="admin-product-images-shell">
                         <div className="admin-product-images-row">
-                          {createProductImageSlots(productForm.product_images, productForm.image_url, productForm.thumb_url).map((slot, slotIndex) => (
-                            <div key={`product-image-slot-${slotIndex}`} className="admin-product-image-item">
-                              <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
-                              <div
-                                className={`admin-product-image-dropzone ${slot.url ? 'has-image' : ''}`}
-                                tabIndex={0}
-                                onPaste={(e) => handlePaste(
-                                  e,
-                                  (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
-                                  { preset: 'product' }
-                                )}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  const file = e.dataTransfer.files[0];
-                                  if (file) {
-                                    handleImageUpload(
-                                      file,
+                          {(() => {
+                            const allProductImageSlots = createProductImageSlots(
+                              productForm.product_images,
+                              productForm.image_url,
+                              productForm.thumb_url
+                            );
+                            const renderedSlotsCount = isProductImagesMobileLayout
+                              ? visibleProductImageSlotsCount
+                              : PRODUCT_IMAGE_SLOTS_COUNT;
+                            return allProductImageSlots.slice(0, renderedSlotsCount).map((slot, slotIndex) => (
+                              <div key={`product-image-slot-${slotIndex}`} className="admin-product-image-item">
+                                <div className={`admin-product-image-slot ${slotIndex === 0 ? 'is-main' : ''}`}>
+                                  <div
+                                    className={`admin-product-image-dropzone ${slot.url ? 'has-image' : ''}`}
+                                    tabIndex={0}
+                                    onPaste={(e) => handlePaste(
+                                      e,
                                       (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
                                       { preset: 'product' }
-                                    );
-                                  }
-                                }}
-                                onDragOver={(e) => e.preventDefault()}
-                              >
-                                {slot.url ? (
-                                  <img
-                                    src={slot.url}
-                                    alt={`Preview ${slotIndex + 1}`}
-                                    className="admin-product-image-preview"
-                                  />
-                                ) : (
-                                  <div className="admin-product-image-placeholder">
-                                    <div className="admin-product-image-placeholder-icon">📷</div>
+                                    )}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      const file = e.dataTransfer.files[0];
+                                      if (file) {
+                                        handleImageUpload(
+                                          file,
+                                          (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                          { preset: 'product' }
+                                        );
+                                      }
+                                    }}
+                                    onDragOver={(e) => e.preventDefault()}
+                                  >
+                                    {slot.url ? (
+                                      <img
+                                        src={slot.url}
+                                        alt={`Preview ${slotIndex + 1}`}
+                                        className="admin-product-image-preview"
+                                      />
+                                    ) : (
+                                      <div className="admin-product-image-placeholder">
+                                        <div className="admin-product-image-placeholder-icon">📷</div>
+                                      </div>
+                                    )}
+                                    <div className="admin-product-image-slot-overlay">
+                                      <Button
+                                        type="button"
+                                        variant="light"
+                                        size="sm"
+                                        className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''} admin-product-image-slot-btn-top-left`}
+                                        title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
+                                        onClick={() => setMainProductImageSlot(slotIndex)}
+                                        disabled={!slot.url}
+                                      >
+                                        ★
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="light"
+                                        size="sm"
+                                        className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
+                                        title="Удалить фото"
+                                        onClick={() => clearProductImageSlot(slotIndex)}
+                                        disabled={!slot.url}
+                                      >
+                                        ✕
+                                      </Button>
+                                      <label
+                                        htmlFor={`product-image-file-input-${slotIndex}`}
+                                        className={`admin-product-image-select-btn ${uploadingImage ? 'is-disabled' : ''}`}
+                                      >
+                                        {language === 'uz' ? 'Tanlash' : 'Выбрать'}
+                                      </label>
+                                    </div>
                                   </div>
-                                )}
-                                <div className="admin-product-image-slot-overlay">
-                                  <Button
-                                    type="button"
-                                    variant="light"
-                                    size="sm"
-                                    className={`admin-product-image-slot-btn admin-product-image-slot-btn-star ${slotIndex === 0 ? 'is-main' : ''} admin-product-image-slot-btn-top-left`}
-                                    title={slotIndex === 0 ? 'Главное фото' : 'Сделать главным'}
-                                    onClick={() => setMainProductImageSlot(slotIndex)}
-                                    disabled={!slot.url}
-                                  >
-                                    ★
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="light"
-                                    size="sm"
-                                    className="admin-product-image-slot-btn admin-product-image-slot-btn-clear admin-product-image-slot-btn-top-right"
-                                    title="Удалить фото"
-                                    onClick={() => clearProductImageSlot(slotIndex)}
-                                    disabled={!slot.url}
-                                  >
-                                    ✕
-                                  </Button>
-                                  <label
-                                    htmlFor={`product-image-file-input-${slotIndex}`}
-                                    className={`admin-product-image-select-btn ${uploadingImage ? 'is-disabled' : ''}`}
-                                  >
-                                    {language === 'uz' ? 'Tanlash' : 'Выбрать'}
-                                  </label>
+
+                                  <Form.Control
+                                    className="admin-product-image-file-input"
+                                    id={`product-image-file-input-${slotIndex}`}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const file = e.target.files[0];
+                                      if (file) {
+                                        handleImageUpload(
+                                          file,
+                                          (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
+                                          { preset: 'product' }
+                                        );
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                    disabled={uploadingImage}
+                                  />
                                 </div>
                               </div>
-
-                              <Form.Control
-                                className="admin-product-image-file-input"
-                                id={`product-image-file-input-${slotIndex}`}
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files[0];
-                                  if (file) {
-                                    handleImageUpload(
-                                      file,
-                                      (url, meta) => updateProductImageSlot(slotIndex, url, meta?.thumbUrl || meta?.thumb_url || ''),
-                                      { preset: 'product' }
-                                    );
-                                    e.target.value = '';
-                                  }
-                                }}
-                                disabled={uploadingImage}
-                              />
-                              <Form.Control
-                                className="admin-product-image-url-input"
-                                type="text"
-                                value={slot.url}
-                                onChange={(e) => updateProductImageSlot(slotIndex, e.target.value, slot.thumb_url)}
-                                placeholder="https://example.com/image.jpg"
-                                inputMode="url"
-                              />
-                              </div>
-                            </div>
-                          ))}
+                            ));
+                          })()}
                         </div>
                       </div>
                       {uploadingImage && (
