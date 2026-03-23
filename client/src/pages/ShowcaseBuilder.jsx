@@ -10,6 +10,7 @@ import { useShowcase, BLOCK_TYPES } from '../context/ShowcaseContext';
 import {
   Grid3Block,
   Grid2Block,
+  PatternGridBlock,
   BannerBlock,
   ProductSliderBlock
 } from '../components/ShowcaseBlocks';
@@ -38,34 +39,42 @@ const SHOWCASE_TEMPLATES = [
   {
     key: 'grid_3_2',
     label: '3 сверху + 2 снизу',
-    blocks: [
-      { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Верхний ряд', maxCategories: 3 } },
-      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Нижний ряд', maxCategories: 2 } }
-    ]
+    blockType: BLOCK_TYPES.GRID_3,
+    settings: {
+      title: 'Сетка 3+2',
+      maxCategories: 5,
+      rowPattern: [3, 2]
+    }
   },
   {
     key: 'grid_2_3',
     label: '2 сверху + 3 снизу',
-    blocks: [
-      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Верхний ряд', maxCategories: 2 } },
-      { blockType: BLOCK_TYPES.GRID_3, settings: { title: 'Нижний ряд', maxCategories: 3 } }
-    ]
+    blockType: BLOCK_TYPES.GRID_3,
+    settings: {
+      title: 'Сетка 2+3',
+      maxCategories: 5,
+      rowPattern: [2, 3]
+    }
   },
   {
-    key: 'banner_2',
+    key: 'grid_1_2',
     label: '1 сверху + 2 снизу',
-    blocks: [
-      { blockType: BLOCK_TYPES.BANNER, settings: DEFAULT_BANNER_SETTINGS },
-      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Нижний ряд', maxCategories: 2 } }
-    ]
+    blockType: BLOCK_TYPES.GRID_3,
+    settings: {
+      title: 'Сетка 1+2',
+      maxCategories: 3,
+      rowPattern: [1, 2]
+    }
   },
   {
-    key: 'grid_2_banner',
+    key: 'grid_2_1',
     label: '2 сверху + 1 снизу',
-    blocks: [
-      { blockType: BLOCK_TYPES.GRID_2, settings: { title: 'Верхний ряд', maxCategories: 2 } },
-      { blockType: BLOCK_TYPES.BANNER, settings: DEFAULT_BANNER_SETTINGS }
-    ]
+    blockType: BLOCK_TYPES.GRID_3,
+    settings: {
+      title: 'Сетка 2+1',
+      maxCategories: 3,
+      rowPattern: [2, 1]
+    }
   }
 ];
 
@@ -103,6 +112,44 @@ const getGridCategoryLimit = (block) => {
   return DEFAULT_GRID_LIMITS[block.block_type] || null;
 };
 
+const getGridRowPattern = (block) => {
+  if (!block || !isGridBlockType(block.block_type)) return [];
+
+  const limit = getGridCategoryLimit(block) || 0;
+  if (limit <= 0) return [];
+
+  const rawPattern = Array.isArray(block?.settings?.rowPattern)
+    ? block.settings.rowPattern
+    : [];
+  const normalizedPattern = rawPattern
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  if (normalizedPattern.length === 0) return [limit];
+
+  let remaining = limit;
+  const resolved = [];
+  normalizedPattern.forEach((value) => {
+    if (remaining <= 0) return;
+    const take = Math.min(value, remaining);
+    if (take > 0) {
+      resolved.push(take);
+      remaining -= take;
+    }
+  });
+
+  if (remaining > 0) {
+    resolved.push(remaining);
+  }
+
+  return resolved.length > 0 ? resolved : [limit];
+};
+
+const getGridPatternLabel = (block) => {
+  const pattern = getGridRowPattern(block);
+  return pattern.length > 1 ? pattern.join('+') : null;
+};
+
 const extractProductsFromResponse = (payload) => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.products)) return payload.products;
@@ -121,7 +168,6 @@ function ShowcaseBuilder({ embedded = false }) {
     loadShowcase,
     saveShowcase,
     addBlock,
-    addBlocks,
     removeBlock,
     updateBlock,
     reorderBlocks,
@@ -204,9 +250,8 @@ function ShowcaseBuilder({ embedded = false }) {
 
   const handleApplyTemplate = (templateKey) => {
     const selectedTemplate = SHOWCASE_TEMPLATES.find((template) => template.key === templateKey);
-    const payload = selectedTemplate?.blocks || [];
-    if (payload.length > 0) {
-      addBlocks(payload);
+    if (selectedTemplate?.blockType) {
+      addBlock(selectedTemplate.blockType, selectedTemplate.settings || {});
       setShowBlockTypeModal(false);
     }
   };
@@ -262,7 +307,7 @@ function ShowcaseBuilder({ embedded = false }) {
         const content = Array.isArray(targetBlock.content) ? targetBlock.content : [];
         if (content.includes(normalizedCategoryId)) return;
         if (limit && content.length >= limit) {
-          setErrorMessage(`В блок "${getBlockTypeLabel(targetBlock.block_type)}" можно добавить максимум ${limit} категорий`);
+          setErrorMessage(`В блок "${getBlockTypeLabel(targetBlock)}" можно добавить максимум ${limit} категорий`);
           return;
         }
         addCategoryToBlock(blockId, normalizedCategoryId);
@@ -274,19 +319,16 @@ function ShowcaseBuilder({ embedded = false }) {
     setDropTargetBlockId((prevBlockId) => (prevBlockId === blockId ? null : prevBlockId));
   };
 
-  const getBlockTypeLabel = (blockType) => {
-    switch (blockType) {
-      case BLOCK_TYPES.GRID_3:
-        return 'Сетка 3x';
-      case BLOCK_TYPES.GRID_2:
-        return 'Сетка 2x';
-      case BLOCK_TYPES.BANNER:
-        return 'Баннер';
-      case BLOCK_TYPES.SLIDER:
-        return 'Слайдер';
-      default:
-        return 'Блок';
+  const getBlockTypeLabel = (block) => {
+    const blockType = block?.block_type;
+    if (isGridBlockType(blockType)) {
+      const customPattern = getGridPatternLabel(block);
+      if (customPattern) return `Сетка ${customPattern}`;
+      return blockType === BLOCK_TYPES.GRID_2 ? 'Сетка 2x' : 'Сетка 3x';
     }
+    if (blockType === BLOCK_TYPES.BANNER) return 'Баннер';
+    if (blockType === BLOCK_TYPES.SLIDER) return 'Слайдер';
+    return 'Блок';
   };
 
   const getCategoryById = (categoryId) => (
@@ -333,35 +375,50 @@ function ShowcaseBuilder({ embedded = false }) {
     if (isGridBlockType(block.block_type)) {
       const limit = getGridCategoryLimit(block) || 0;
       const assigned = Array.isArray(block.content) ? block.content.slice(0, limit) : [];
+      const rowPattern = getGridRowPattern(block);
+      let currentSlotIndex = 0;
       return (
         <div className="block-slots-wrap">
           <div className="block-slots-title">Слоты категорий: {assigned.length}/{limit}</div>
-          <div className={`block-slots-grid ${block.block_type === BLOCK_TYPES.GRID_2 ? 'grid-two' : 'grid-three'}`}>
-            {Array.from({ length: limit }).map((_, slotIndex) => {
-              const categoryId = assigned[slotIndex];
-              if (!categoryId) {
-                return (
-                  <div key={`${block.id}_slot_${slotIndex}`} className="block-slot empty">
-                    <span className="slot-index">Слот {slotIndex + 1}</span>
-                    <span className="slot-subtitle">Перетащите категорию</span>
-                  </div>
-                );
-              }
-
-              const category = getCategoryById(categoryId);
-              const categoryTitle = category ? getCategoryDisplayName(category) : `Категория #${categoryId}`;
+          <div className="block-slots-pattern">
+            {rowPattern.map((rowSize, rowIndex) => {
+              const rowStartIndex = currentSlotIndex;
+              currentSlotIndex += rowSize;
               return (
-                <div key={`${block.id}_slot_${categoryId}`} className="block-slot filled">
-                  <span className="slot-index">{slotIndex + 1}</span>
-                  <span className="slot-label">{categoryTitle}</span>
-                  <button
-                    type="button"
-                    className="slot-remove-btn"
-                    onClick={() => removeCategoryFromBlock(block.id, categoryId)}
-                    title="Удалить категорию из слота"
-                  >
-                    ×
-                  </button>
+                <div
+                  key={`${block.id}_row_${rowIndex}`}
+                  className="block-slots-row"
+                  style={{ gridTemplateColumns: `repeat(${rowSize}, minmax(0, 1fr))` }}
+                >
+                  {Array.from({ length: rowSize }).map((_, rowSlotIndex) => {
+                    const slotIndex = rowStartIndex + rowSlotIndex;
+                    const categoryId = assigned[slotIndex];
+                    if (!categoryId) {
+                      return (
+                        <div key={`${block.id}_slot_${slotIndex}`} className="block-slot empty">
+                          <span className="slot-index">Слот {slotIndex + 1}</span>
+                          <span className="slot-subtitle">Перетащите категорию</span>
+                        </div>
+                      );
+                    }
+
+                    const category = getCategoryById(categoryId);
+                    const categoryTitle = category ? getCategoryDisplayName(category) : `Категория #${categoryId}`;
+                    return (
+                      <div key={`${block.id}_slot_${categoryId}`} className="block-slot filled">
+                        <span className="slot-index">{slotIndex + 1}</span>
+                        <span className="slot-label">{categoryTitle}</span>
+                        <button
+                          type="button"
+                          className="slot-remove-btn"
+                          onClick={() => removeCategoryFromBlock(block.id, categoryId)}
+                          title="Удалить категорию из слота"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -414,6 +471,7 @@ function ShowcaseBuilder({ embedded = false }) {
     const sourceCategoryIds = Array.isArray(block.content)
       ? (limit ? block.content.slice(0, limit) : block.content)
       : [];
+    const rowPattern = isGridBlockType(block.block_type) ? getGridRowPattern(block) : [];
     const blockCategories = sourceCategoryIds.map((categoryId) => {
       const category = categories.find(
         (item) => normalizeId(item?.id) === normalizeId(categoryId)
@@ -429,6 +487,17 @@ function ShowcaseBuilder({ embedded = false }) {
 
     switch (block.block_type) {
       case BLOCK_TYPES.GRID_3:
+        if (rowPattern.length > 1) {
+          return (
+            <PatternGridBlock
+              categories={blockCategories}
+              rowPattern={rowPattern}
+              products={products}
+              cartItems={[]}
+              categoryImageFallback={user?.active_restaurant_logo || ''}
+            />
+          );
+        }
         return (
           <Grid3Block
             categories={blockCategories}
@@ -438,6 +507,17 @@ function ShowcaseBuilder({ embedded = false }) {
           />
         );
       case BLOCK_TYPES.GRID_2:
+        if (rowPattern.length > 1) {
+          return (
+            <PatternGridBlock
+              categories={blockCategories}
+              rowPattern={rowPattern}
+              products={products}
+              cartItems={[]}
+              categoryImageFallback={user?.active_restaurant_logo || ''}
+            />
+          );
+        }
         return (
           <Grid2Block
             categories={blockCategories}
@@ -628,13 +708,13 @@ function ShowcaseBuilder({ embedded = false }) {
                   {showcaseLayout.map((block, index) => (
                     <div
                       key={block.id}
-                      className={`canvas-block-wrapper${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
+                      className={`canvas-block-wrapper block-type-${block.block_type}${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
                     >
                       <div className="block-head">
                         <div className="block-head-main">
                           <span className="block-order">#{index + 1}</span>
                           <span className={`block-type-badge type-${block.block_type}`}>
-                            {getBlockTypeLabel(block.block_type)}
+                            {getBlockTypeLabel(block)}
                           </span>
                         </div>
                         <div className="button-group">

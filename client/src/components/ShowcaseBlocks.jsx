@@ -35,6 +35,26 @@ const normalizeId = (value) => {
   return Number.isInteger(parsed) ? parsed : null;
 };
 
+const normalizeRowPattern = (rowPattern = [], fallback = 3) => {
+  const normalized = Array.isArray(rowPattern)
+    ? rowPattern
+      .map((value) => Number.parseInt(value, 10))
+      .filter((value) => Number.isInteger(value) && value > 0)
+    : [];
+  return normalized.length > 0 ? normalized : [Math.max(1, Number.parseInt(fallback, 10) || 3)];
+};
+
+const createCategoryCartBadgeResolver = (products = [], cartItems = []) => (categoryId) => {
+  const normalizedCategoryId = normalizeId(categoryId);
+  const total = cartItems
+    .filter(item => {
+      const product = products.find(p => p.id === item.product_id);
+      return normalizeId(product?.category_id) === normalizedCategoryId;
+    })
+    .reduce((sum, item) => sum + item.quantity, 0);
+  return total > 0 ? total : null;
+};
+
 const renderCategoryImage = (category, fallbackLogo, imageClassName) => {
   const primarySrc = getCategoryImage(category);
   const fallbackSrc = fallbackLogo || '/placeholder.png';
@@ -68,16 +88,7 @@ export function Grid3Block({
   cartItems = [],
   categoryImageFallback = ''
 }) {
-  const getCartBadge = (categoryId) => {
-    const normalizedCategoryId = normalizeId(categoryId);
-    const total = cartItems
-      .filter(item => {
-        const product = products.find(p => p.id === item.product_id);
-        return normalizeId(product?.category_id) === normalizedCategoryId;
-      })
-      .reduce((sum, item) => sum + item.quantity, 0);
-    return total > 0 ? total : null;
-  };
+  const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
 
   return (
     <div className="showcase-block grid-3-block">
@@ -123,16 +134,7 @@ export function Grid2Block({
   cartItems = [],
   categoryImageFallback = ''
 }) {
-  const getCartBadge = (categoryId) => {
-    const normalizedCategoryId = normalizeId(categoryId);
-    const total = cartItems
-      .filter(item => {
-        const product = products.find(p => p.id === item.product_id);
-        return normalizeId(product?.category_id) === normalizedCategoryId;
-      })
-      .reduce((sum, item) => sum + item.quantity, 0);
-    return total > 0 ? total : null;
-  };
+  const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
 
   return (
     <div className="showcase-block grid-2-block">
@@ -167,6 +169,73 @@ export function Grid2Block({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PatternGridBlock - mixed row templates (e.g. 3+2, 2+3, 1+2, 2+1)
+ */
+export function PatternGridBlock({
+  categories = [],
+  rowPattern = [],
+  products = [],
+  onCategoryClick,
+  cartItems = [],
+  categoryImageFallback = ''
+}) {
+  const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
+  const normalizedPattern = normalizeRowPattern(rowPattern, categories.length || 3);
+  const rows = [];
+  let cursor = 0;
+  normalizedPattern.forEach((count) => {
+    const rowItems = categories.slice(cursor, cursor + count);
+    if (rowItems.length > 0) {
+      rows.push(rowItems);
+    }
+    cursor += count;
+  });
+  if (cursor < categories.length) {
+    rows.push(categories.slice(cursor));
+  }
+
+  return (
+    <div className="showcase-block pattern-grid-block">
+      <div className="pattern-grid-rows">
+        {rows.map((rowItems, rowIndex) => (
+          <div
+            key={`pattern_row_${rowIndex}`}
+            className="pattern-grid-row"
+            style={{ gridTemplateColumns: `repeat(${rowItems.length}, minmax(0, 1fr))` }}
+          >
+            {rowItems.map((category) => {
+              const hasCategoryImage = Boolean(getCategoryImage(category));
+              return (
+                <div
+                  key={category.id}
+                  className="pattern-grid-item"
+                  onClick={() => onCategoryClick?.(category.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      onCategoryClick?.(category.id);
+                    }
+                  }}
+                >
+                  <div className={`pattern-grid-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
+                    {renderCategoryImage(category, categoryImageFallback, 'pattern-grid-image')}
+                    {getCartBadge(category.id) && (
+                      <span className="cart-badge">{getCartBadge(category.id)}</span>
+                    )}
+                  </div>
+                  <div className="pattern-grid-label">{getCategoryName(category)}</div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

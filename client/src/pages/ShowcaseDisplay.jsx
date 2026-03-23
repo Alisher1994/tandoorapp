@@ -13,6 +13,7 @@ import ClientAccountModal from '../components/ClientAccountModal';
 import {
   Grid3Block,
   Grid2Block,
+  PatternGridBlock,
   BannerBlock,
   ProductSliderBlock,
   EmptyShowcaseBlock
@@ -47,6 +48,37 @@ const getProductName = (product) => (
   || product?.name
   || ''
 );
+
+const getGridLimitFromBlock = (block) => {
+  const settingsLimit = Number.parseInt(block?.settings?.maxCategories, 10);
+  if (Number.isInteger(settingsLimit) && settingsLimit > 0) return settingsLimit;
+  return block?.block_type === 'grid_2' ? 2 : 3;
+};
+
+const getGridRowPattern = (block) => {
+  const limit = getGridLimitFromBlock(block);
+  const rawPattern = Array.isArray(block?.settings?.rowPattern)
+    ? block.settings.rowPattern
+    : [];
+  const normalized = rawPattern
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  if (normalized.length === 0) return [limit];
+
+  let remaining = limit;
+  const resolved = [];
+  normalized.forEach((value) => {
+    if (remaining <= 0) return;
+    const take = Math.min(value, remaining);
+    if (take > 0) {
+      resolved.push(take);
+      remaining -= take;
+    }
+  });
+  if (remaining > 0) resolved.push(remaining);
+  return resolved.length > 0 ? resolved : [limit];
+};
 
 const SearchLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   <svg
@@ -219,12 +251,33 @@ function ShowcaseDisplay() {
     : categories;
 
   const renderBlock = (block) => {
-    const blockCategories = block.content
+    const content = Array.isArray(block.content) ? block.content : [];
+    const limit = block.block_type === 'grid_3' || block.block_type === 'grid_2'
+      ? getGridLimitFromBlock(block)
+      : null;
+    const categoryIds = limit ? content.slice(0, limit) : content;
+    const rowPattern = block.block_type === 'grid_3' || block.block_type === 'grid_2'
+      ? getGridRowPattern(block)
+      : [];
+    const blockCategories = categoryIds
       .map(catId => filteredCategories.find(c => normalizeId(c?.id) === normalizeId(catId)))
       .filter(Boolean);
 
     switch (block.block_type) {
       case 'grid_3':
+        if (rowPattern.length > 1) {
+          return (
+            <PatternGridBlock
+              key={block.id}
+              categories={blockCategories}
+              rowPattern={rowPattern}
+              products={filteredProducts}
+              cartItems={cart}
+              onCategoryClick={handleCategoryClick}
+              categoryImageFallback={user?.active_restaurant_logo || ''}
+            />
+          );
+        }
         return (
           <Grid3Block
             key={block.id}
@@ -236,6 +289,19 @@ function ShowcaseDisplay() {
           />
         );
       case 'grid_2':
+        if (rowPattern.length > 1) {
+          return (
+            <PatternGridBlock
+              key={block.id}
+              categories={blockCategories}
+              rowPattern={rowPattern}
+              products={filteredProducts}
+              cartItems={cart}
+              onCategoryClick={handleCategoryClick}
+              categoryImageFallback={user?.active_restaurant_logo || ''}
+            />
+          );
+        }
         return (
           <Grid2Block
             key={block.id}

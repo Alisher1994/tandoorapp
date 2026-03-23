@@ -160,6 +160,68 @@
   -webkit-box-orient: vertical;
 }
 
+/* ===== Pattern Grid Layout (3+2 / 2+3 / 1+2 / 2+1) ===== */
+.pattern-grid-block {
+  padding: 0.75rem 0.5rem;
+}
+
+.pattern-grid-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pattern-grid-row {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pattern-grid-item {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pattern-grid-item:active {
+  transform: scale(0.95);
+}
+
+.pattern-grid-item:hover {
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.1);
+}
+
+.pattern-grid-image-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #eef2f7;
+}
+
+.pattern-grid-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pattern-grid-label {
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-color, #111827);
+  line-height: 1.2;
+  max-width: 100%;
+  word-wrap: break-word;
+  padding: 0 0.25rem;
+}
+
 /* ===== Banner/Hero Block ===== */
 .banner-block {
   position: relative;
@@ -394,6 +456,11 @@
     gap: 0.5rem;
   }
 
+  .pattern-grid-rows,
+  .pattern-grid-row {
+    gap: 0.5rem;
+  }
+
   .banner-block {
     min-height: 140px;
     margin: 0.75rem 0.5rem;
@@ -416,6 +483,11 @@
 
   .grid-2-container {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .pattern-grid-rows,
+  .pattern-grid-row {
     gap: 1rem;
   }
 

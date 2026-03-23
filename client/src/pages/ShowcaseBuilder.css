@@ -440,13 +440,29 @@
 .block-preview {
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: 0.28rem;
   padding: 0.38rem 0.56rem 0.56rem;
   background: #fcfdff;
+  min-height: 128px;
+}
+
+.canvas-block-wrapper.block-type-grid_3 .block-preview,
+.canvas-block-wrapper.block-type-grid_2 .block-preview {
+  min-height: 132px;
+}
+
+.canvas-block-wrapper.block-type-slider .block-preview {
+  min-height: 110px;
+}
+
+.canvas-block-wrapper.block-type-banner .block-preview {
+  min-height: 90px;
 }
 
 .block-slots-wrap {
   padding: 0.2rem 0;
+  min-height: 72px;
 }
 
 .block-slots-title {
@@ -456,23 +472,21 @@
   margin-bottom: 0.35rem;
 }
 
-.block-slots-grid {
-  display: grid;
+.block-slots-pattern {
+  display: flex;
+  flex-direction: column;
   gap: 0.34rem;
 }
 
-.block-slots-grid.grid-three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.block-slots-grid.grid-two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.block-slots-row {
+  display: grid;
+  gap: 0.34rem;
 }
 
 .block-slot {
   border: 1px dashed var(--border-color, #d1d5db);
   border-radius: 8px;
-  min-height: 34px;
+  min-height: 40px;
   padding: 0.24rem 0.3rem;
   display: flex;
   align-items: center;
@@ -494,7 +508,7 @@
 }
 
 .slider-slot {
-  min-height: 34px;
+  min-height: 40px;
   justify-content: space-between;
 }
 
@@ -549,6 +563,9 @@
   font-size: 0.71rem;
   color: var(--text-secondary, #6b7280);
   background: #f8faff;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
 }
 
 .block-drop-hint.is-full {
