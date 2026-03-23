@@ -226,11 +226,21 @@ function ShowcaseDisplay() {
   }, [user?.active_restaurant_id, loadShowcase]);
 
   const handleCategoryClick = (categoryId) => {
-    navigate('/showcase/catalog', { state: { selectedCategoryId: categoryId } });
+    navigate('/showcase/catalog', {
+      state: {
+        selectedCategoryId: categoryId,
+        navigationSource: 'showcase'
+      }
+    });
   };
 
   const handleProductClick = (product) => {
-    navigate('/showcase/catalog', { state: { selectedProductId: product.id } });
+    navigate('/showcase/catalog', {
+      state: {
+        selectedProductId: product.id,
+        navigationSource: 'showcase'
+      }
+    });
   };
 
   const normalizedSearch = String(searchQuery || '').trim().toLowerCase();

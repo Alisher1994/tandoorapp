@@ -2044,6 +2044,11 @@ function Catalog() {
   };
 
   const closeLevel2Category = () => {
+    if (location.pathname === '/showcase/catalog') {
+      navigate('/');
+      return;
+    }
+
     isTabAutoScrollRef.current = false;
     const restoreOffset = categoryListScrollOffsetRef.current;
     setSelectedCategory(null);
