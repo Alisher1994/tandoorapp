@@ -271,7 +271,8 @@ function ClientAccountModal({ show, onHide }) {
     setOwnerError('');
     try {
       const response = await axios.get(`${API_URL}/products/restaurant/${restaurantId}`);
-      const ownerUsername = normalizeUsername(response.data?.owner_username || response.data?.support_username);
+      // In client account footer we should show the configured support contact first.
+      const ownerUsername = normalizeUsername(response.data?.support_username || response.data?.owner_username);
       const ownerPhone = String(response.data?.owner_phone || '').trim();
       setRestaurantOwner({
         username: ownerUsername,
