@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -21,6 +21,9 @@ import {
 import './ShowcaseDisplay.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const getShowcaseScrollStorageKey = (restaurantId) => (
+  `showcase_scroll:${Number.isInteger(restaurantId) ? restaurantId : 0}`
+);
 
 const normalizeId = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -241,6 +244,20 @@ function ShowcaseDisplay() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showSearchField, setShowSearchField] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const showcaseContentRef = useRef(null);
+  const hasRestoredShowcaseScrollRef = useRef(false);
+  const activeRestaurantId = normalizeId(user?.active_restaurant_id);
+  const showcaseScrollStorageKey = getShowcaseScrollStorageKey(activeRestaurantId);
+
+  const persistShowcaseScroll = () => {
+    if (!activeRestaurantId || typeof window === 'undefined') return;
+    const scrollContainer = showcaseContentRef.current;
+    if (!scrollContainer) return;
+    window.sessionStorage.setItem(
+      showcaseScrollStorageKey,
+      String(Math.max(0, Math.round(scrollContainer.scrollTop || 0)))
+    );
+  };
 
   // Load categories and products
   useEffect(() => {
@@ -297,7 +314,49 @@ function ShowcaseDisplay() {
     }
   }, [showcaseVisible, showcaseLoading, navigate]);
 
+  useEffect(() => {
+    hasRestoredShowcaseScrollRef.current = false;
+  }, [activeRestaurantId]);
+
+  useEffect(() => {
+    if (!activeRestaurantId || hasRestoredShowcaseScrollRef.current) return undefined;
+    if (loading || showcaseLoading) return undefined;
+    const scrollContainer = showcaseContentRef.current;
+    if (!scrollContainer || typeof window === 'undefined') return undefined;
+
+    hasRestoredShowcaseScrollRef.current = true;
+    const rawValue = window.sessionStorage.getItem(showcaseScrollStorageKey);
+    const savedScroll = Number.parseInt(rawValue || '0', 10);
+    if (!Number.isInteger(savedScroll) || savedScroll <= 0) return undefined;
+
+    let rafId = 0;
+    rafId = window.requestAnimationFrame(() => {
+      scrollContainer.scrollTop = savedScroll;
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [activeRestaurantId, showcaseScrollStorageKey, loading, showcaseLoading, showcaseLayout.length]);
+
+  useEffect(() => {
+    if (!activeRestaurantId || typeof window === 'undefined') return undefined;
+    const scrollContainer = showcaseContentRef.current;
+    if (!scrollContainer) return undefined;
+
+    const handleScroll = () => {
+      window.sessionStorage.setItem(
+        showcaseScrollStorageKey,
+        String(Math.max(0, Math.round(scrollContainer.scrollTop || 0)))
+      );
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      handleScroll();
+      scrollContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, [activeRestaurantId, showcaseScrollStorageKey]);
+
   const handleCategoryClick = (categoryId) => {
+    persistShowcaseScroll();
     navigate('/showcase/catalog', {
       state: {
         selectedCategoryId: categoryId,
@@ -307,6 +366,7 @@ function ShowcaseDisplay() {
   };
 
   const handleProductClick = (product) => {
+    persistShowcaseScroll();
     navigate('/showcase/catalog', {
       state: {
         selectedProductId: product.id,
@@ -578,7 +638,7 @@ function ShowcaseDisplay() {
         </div>
       </Navbar>
 
-      <div className="showcase-content">
+      <div ref={showcaseContentRef} className="showcase-content">
         <Container fluid className="showcase-inner">
           {error && (
             <div className="alert alert-warning" role="alert">

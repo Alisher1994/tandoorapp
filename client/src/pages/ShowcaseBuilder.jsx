@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
@@ -645,15 +645,30 @@ function ShowcaseBuilder({ embedded = false }) {
     return null;
   };
 
-  const filteredCategories = categories.filter(cat =>
-    getCategoryDisplayName(cat).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const categoryProductCountMap = useMemo(() => {
+    const map = new Map();
+    products.forEach((product) => {
+      const categoryId = normalizeId(product?.category_id);
+      if (!categoryId) return;
+      map.set(categoryId, (map.get(categoryId) || 0) + 1);
+    });
+    return map;
+  }, [products]);
 
   const getCategoryProductCount = (categoryId) => {
     const normalizedCategoryId = normalizeId(categoryId);
     if (!normalizedCategoryId) return 0;
-    return products.filter((product) => normalizeId(product.category_id) === normalizedCategoryId).length;
+    return categoryProductCountMap.get(normalizedCategoryId) || 0;
   };
+
+  const availableCategories = useMemo(
+    () => categories.filter((cat) => getCategoryProductCount(cat?.id) > 0),
+    [categories, categoryProductCountMap]
+  );
+
+  const filteredCategories = availableCategories.filter(cat =>
+    getCategoryDisplayName(cat).toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const renderBlock = (block) => {
     const blockTitle = String(block?.settings?.title || block?.title || '').trim();
@@ -885,8 +900,8 @@ function ShowcaseBuilder({ embedded = false }) {
               <div className="categories-list">
                 {filteredCategories.length === 0 ? (
                   <div className="empty-categories">
-                    {categories.length === 0
-                      ? 'Нет категорий в магазине'
+                    {availableCategories.length === 0
+                      ? 'Нет категорий с товарами'
                       : 'Нет результатов поиска'}
                   </div>
                 ) : (
@@ -1185,7 +1200,7 @@ function ShowcaseBuilder({ embedded = false }) {
       <BlockSettingsModal
         show={showBlockSettingsModal}
         block={selectedBlock}
-        categories={categories}
+        categories={availableCategories}
         onHide={() => setShowBlockSettingsModal(false)}
         onSave={(settings) => {
           if (selectedBlock) {

@@ -3256,6 +3256,17 @@ function Catalog() {
   }
 
   const isCategoryView = !isSingleListMode && selectedCategory !== null;
+  const isShowcaseCatalogRoute = location.pathname === '/showcase/catalog';
+  const shouldShowHeaderBackButton = isCategoryView || isShowcaseCatalogRoute;
+  const handleHeaderBackAction = () => {
+    if (isCategoryView) {
+      closeLevel2Category();
+      return;
+    }
+    if (isShowcaseCatalogRoute) {
+      navigate('/');
+    }
+  };
   const shouldShowCatalogTabs = Boolean(
     selectedRestaurant
     && !loading
@@ -3312,10 +3323,10 @@ function Catalog() {
           }}
         >
           <div className="d-flex align-items-center justify-content-start">
-            {isCategoryView ? (
+            {shouldShowHeaderBackButton ? (
               <button
                 type="button"
-                onClick={closeLevel2Category}
+                onClick={handleHeaderBackAction}
                 aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
                 title={language === 'uz' ? 'Orqaga' : 'Назад'}
                 style={{
