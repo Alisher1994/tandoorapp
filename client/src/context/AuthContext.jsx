@@ -4,6 +4,10 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const AUTH_REQUEST_TIMEOUT_MS = 8000;
+const TELEGRAM_INIT_DATA_ATTEMPTS = 10;
+const TELEGRAM_INIT_DATA_DELAY_MS = 140;
+const TELEGRAM_AUTO_LOGIN_ATTEMPTS = 2;
 const UI_THEME_VALUES = new Set([
   'classic',
   'modern',
@@ -59,7 +63,10 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const waitForTelegramInitData = async (attempts = 5, delayMs = 250) => {
+  const waitForTelegramInitData = async (
+    attempts = TELEGRAM_INIT_DATA_ATTEMPTS,
+    delayMs = TELEGRAM_INIT_DATA_DELAY_MS
+  ) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const telegramInitData = window.Telegram?.WebApp?.initData || '';
       if (telegramInitData) return telegramInitData;
@@ -72,7 +79,7 @@ export function AuthProvider({ children }) {
     const telegramInitData =
       typeof initDataOverride === 'string' && initDataOverride.trim()
         ? initDataOverride.trim()
-        : await waitForTelegramInitData(12, 200);
+        : await waitForTelegramInitData();
     if (!telegramInitData) return false;
 
     const parsedRid = Number.parseInt(String(restaurantIdFromUrl || '').trim(), 10);
@@ -82,7 +89,9 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, payload);
+      const response = await axios.post(`${API_URL}/auth/telegram-webapp-login`, payload, {
+        timeout: AUTH_REQUEST_TIMEOUT_MS
+      });
       const nextToken = response.data?.token;
       const nextUser = withNormalizedTheme(response.data?.user || null);
       if (!nextToken || !nextUser) return false;
@@ -108,6 +117,8 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await axios.post(`${API_URL}/auth/telegram-webapp-resolve-restaurant`, {
         init_data: initData
+      }, {
+        timeout: AUTH_REQUEST_TIMEOUT_MS
       });
       const resolvedRid = data?.restaurant_id;
       if (resolvedRid === undefined || resolvedRid === null) return false;
@@ -133,86 +144,93 @@ export function AuthProvider({ children }) {
   }, [user?.role, user?.active_restaurant_ui_theme]);
 
   const initializeAuth = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token');
-    const restaurantIdFromUrl = getRestaurantIdFromLocation();
-    const restaurantIdFromToken = parseRestaurantIdFromToken(tokenFromUrl);
-    const effectiveRestaurantId = restaurantIdFromUrl || restaurantIdFromToken;
+    const loadingGuardId = window.setTimeout(() => setLoading(false), AUTH_REQUEST_TIMEOUT_MS + 2000);
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenFromUrl = urlParams.get('token');
+      const restaurantIdFromUrl = getRestaurantIdFromLocation();
+      const restaurantIdFromToken = parseRestaurantIdFromToken(tokenFromUrl);
+      const effectiveRestaurantId = restaurantIdFromUrl || restaurantIdFromToken;
 
-    if (tokenFromUrl) {
-      // Save token from URL and try to authenticate
-      localStorage.setItem('token', tokenFromUrl);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${tokenFromUrl}`;
-      
-      // Remove only token from URL, keep portal/restaurant context for login page behavior
-      urlParams.delete('token');
-      const remainingQuery = urlParams.toString();
-      const nextUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}`;
-      window.history.replaceState({}, document.title, nextUrl);
+      if (tokenFromUrl) {
+        // Save token from URL and try to authenticate
+        localStorage.setItem('token', tokenFromUrl);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${tokenFromUrl}`;
 
-      const authResult = await fetchUser({ manageLoading: false });
-      if (authResult?.unauthorized) {
-        const loggedInByTelegram = await tryTelegramWebAppAutoLogin(effectiveRestaurantId);
-        if (loggedInByTelegram) {
-          setLoading(false);
-          return;
-        }
-      }
-      setLoading(false);
-      return;
-    }
+        // Remove only token from URL, keep portal/restaurant context for login page behavior
+        urlParams.delete('token');
+        const remainingQuery = urlParams.toString();
+        const nextUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}`;
+        window.history.replaceState({}, document.title, nextUrl);
 
-    // Telegram Mini App: shared WebView localStorage keeps the last JWT; initData is tied to the current bot.
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      const initSnapshot = await waitForTelegramInitData(20, 220);
-      if (initSnapshot) {
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          if (attempt > 0) await sleep(450);
-          const telegramOk = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null, initSnapshot);
-          if (telegramOk) {
+        const authResult = await fetchUser({ manageLoading: false, timeoutMs: AUTH_REQUEST_TIMEOUT_MS });
+        if (authResult?.unauthorized) {
+          const loggedInByTelegram = await tryTelegramWebAppAutoLogin(effectiveRestaurantId);
+          if (loggedInByTelegram) {
             setLoading(false);
             return;
           }
         }
-        const clearedStaleJwt = await clearSessionIfJwtRestaurantDiffersFromTelegram(initSnapshot);
-        if (clearedStaleJwt) {
-          const afterClear = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null, initSnapshot);
-          if (afterClear) {
+        setLoading(false);
+        return;
+      }
+
+      // Telegram Mini App: shared WebView localStorage keeps the last JWT; initData is tied to the current bot.
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+        const initSnapshot = await waitForTelegramInitData();
+        if (initSnapshot) {
+          for (let attempt = 0; attempt < TELEGRAM_AUTO_LOGIN_ATTEMPTS; attempt += 1) {
+            if (attempt > 0) await sleep(250);
+            const telegramOk = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null, initSnapshot);
+            if (telegramOk) {
+              setLoading(false);
+              return;
+            }
+          }
+          const clearedStaleJwt = await clearSessionIfJwtRestaurantDiffersFromTelegram(initSnapshot);
+          if (clearedStaleJwt) {
+            const afterClear = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl || null, initSnapshot);
+            if (afterClear) {
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      }
+
+      // Check for existing token in localStorage
+      const token = localStorage.getItem('token');
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        const authResult = await fetchUser({ manageLoading: false, timeoutMs: AUTH_REQUEST_TIMEOUT_MS });
+        if (authResult?.unauthorized) {
+          const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
+          if (loggedInByTelegram) {
             setLoading(false);
             return;
           }
         }
-      }
-    }
-
-    // Check for existing token in localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      const authResult = await fetchUser({ manageLoading: false });
-      if (authResult?.unauthorized) {
-        const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
-        if (loggedInByTelegram) {
-          setLoading(false);
-          return;
+        setLoading(false);
+      } else {
+        if (!window.Telegram?.WebApp) {
+          const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
+          if (loggedInByTelegram) {
+            setLoading(false);
+            return;
+          }
         }
+        setLoading(false);
       }
-      setLoading(false);
-    } else {
-      if (!window.Telegram?.WebApp) {
-        const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
-        if (loggedInByTelegram) {
-          setLoading(false);
-          return;
-        }
-      }
-      setLoading(false);
+    } finally {
+      window.clearTimeout(loadingGuardId);
     }
   };
 
-  const fetchUser = async ({ manageLoading = true } = {}) => {
+  const fetchUser = async ({ manageLoading = true, timeoutMs = AUTH_REQUEST_TIMEOUT_MS } = {}) => {
     try {
-      const response = await axios.get(`${API_URL}/auth/me`);
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        timeout: timeoutMs
+      });
       const normalizedUser = withNormalizedTheme(response.data.user);
       setUser(normalizedUser);
       localStorage.setItem('active_restaurant_id', String(normalizedUser?.active_restaurant_id || ''));
@@ -262,7 +280,7 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem('token');
       if (!token) return;
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUserRef.current({ manageLoading: false });
+      fetchUserRef.current({ manageLoading: false, timeoutMs: 5000 });
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -277,7 +295,7 @@ export function AuthProvider({ children }) {
         const token = localStorage.getItem('token');
         if (token) {
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          fetchUserRef.current({ manageLoading: false });
+          fetchUserRef.current({ manageLoading: false, timeoutMs: 5000 });
         }
       }, 250);
     };

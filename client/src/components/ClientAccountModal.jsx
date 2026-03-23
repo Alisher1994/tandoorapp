@@ -15,7 +15,6 @@ const SCREEN_MENU = 'menu';
 const SCREEN_PROFILE = 'profile';
 const SCREEN_ORDERS = 'orders';
 const SCREEN_FEEDBACK = 'feedback';
-const SCREEN_LANGUAGE = 'language';
 const LANGUAGE_OPTIONS = [
   {
     code: 'uz',
@@ -50,6 +49,39 @@ const formatOwnerUsername = (value) => {
   return normalized ? `@${normalized}` : '';
 };
 
+function MenuIcon({ type }) {
+  if (type === 'profile') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 2a5 5 0 1 1 0 10a5 5 0 0 1 0-10Zm0 12c4.42 0 8 2.24 8 5v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1c0-2.76 3.58-5 8-5Z"
+        />
+      </svg>
+    );
+  }
+
+  if (type === 'orders') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M6 2h12a2 2 0 0 1 2 2v16l-3-1.8L14 20l-2-1.8L10 20l-3-1.8L4 20V4a2 2 0 0 1 2-2Zm2 5v2h8V7H8Zm0 4v2h8v-2H8Z"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M4 4h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm3 4v2h10V8H7Zm0 4v2h6v-2H7Z"
+      />
+    </svg>
+  );
+}
+
 function ClientAccountModal({ show, onHide }) {
   const { user } = useAuth();
   const { language, setLanguage, t } = useLanguage();
@@ -76,21 +108,16 @@ function ClientAccountModal({ show, onHide }) {
 
   const strings = useMemo(() => ({
     title: isUz ? 'Akkaunt' : 'Аккаунт',
-    menuHint: isUz ? "Kerakli bo'limni tanlang" : 'Выберите нужный раздел',
     profile: isUz ? "Mening ma'lumotlarim" : 'Мои данные',
-    profileSubtitle: isUz ? "Profil va do'kon egasi" : 'Профиль и владелец магазина',
     orders: isUz ? 'Mening buyurtmalarim' : 'Мои заказы',
-    ordersSubtitle: isUz ? 'Buyurtmalar tarixi' : 'История заказов',
     feedback: isUz ? 'Shikoyatlar va takliflar' : 'Жалобы и предложения',
-    feedbackSubtitle: isUz ? 'Murojaatlar va javoblar' : 'Ваши обращения и ответы',
     systemLanguage: isUz ? 'Tizim tili' : 'Язык системы',
-    systemLanguageSubtitle: isUz ? 'Interfeys tili sozlamasi' : 'Настройка языка интерфейса',
+    operatorInfo: isUz ? "Do'kon operatori" : 'Оператор магазина',
     fullName: isUz ? 'F.I.Sh.' : 'ФИО',
     phone: isUz ? 'Telefon raqami' : 'Номер телефона',
     ownerUsername: isUz ? 'Operator username' : 'Username оператора',
     ownerPhone: isUz ? 'Operator telefoni' : 'Номер телефона оператора',
     notSpecified: isUz ? "Ko'rsatilmagan" : 'Не указано',
-    chooseLanguage: isUz ? 'Tilni tanlang' : 'Выберите язык',
     emptyOrders: isUz ? "Hali buyurtmalar yo'q" : 'История заказов пока пуста',
     emptyFeedback: isUz ? "Murojaatlar hali yo'q" : 'Обращений пока нет',
     showDetails: isUz ? 'Batafsil' : 'Подробнее',
@@ -117,32 +144,26 @@ function ClientAccountModal({ show, onHide }) {
     {
       key: SCREEN_PROFILE,
       title: strings.profile,
-      subtitle: strings.profileSubtitle
+      icon: 'profile'
     },
     {
       key: SCREEN_ORDERS,
       title: strings.orders,
-      subtitle: strings.ordersSubtitle
+      icon: 'orders'
     },
     {
       key: SCREEN_FEEDBACK,
       title: strings.feedback,
-      subtitle: strings.feedbackSubtitle
-    },
-    {
-      key: SCREEN_LANGUAGE,
-      title: strings.systemLanguage,
-      subtitle: strings.systemLanguageSubtitle
+      icon: 'feedback'
     }
-  ]), [strings.profile, strings.profileSubtitle, strings.orders, strings.ordersSubtitle, strings.feedback, strings.feedbackSubtitle, strings.systemLanguage, strings.systemLanguageSubtitle]);
+  ]), [strings.profile, strings.orders, strings.feedback]);
 
   const screenTitleByKey = useMemo(() => ({
     [SCREEN_MENU]: strings.title,
     [SCREEN_PROFILE]: strings.profile,
     [SCREEN_ORDERS]: strings.orders,
-    [SCREEN_FEEDBACK]: strings.feedback,
-    [SCREEN_LANGUAGE]: strings.systemLanguage
-  }), [strings.title, strings.profile, strings.orders, strings.feedback, strings.systemLanguage]);
+    [SCREEN_FEEDBACK]: strings.feedback
+  }), [strings.title, strings.profile, strings.orders, strings.feedback]);
 
   const formatDateTime = (value) => {
     const date = new Date(value);
@@ -288,9 +309,9 @@ function ClientAccountModal({ show, onHide }) {
   }, [show, activeScreen, feedbackLoaded, fetchFeedback]);
 
   useEffect(() => {
-    if (!show || activeScreen !== SCREEN_PROFILE || ownerLoaded) return;
+    if (!show || ownerLoaded) return;
     fetchOwnerDetails();
-  }, [show, activeScreen, ownerLoaded, fetchOwnerDetails]);
+  }, [show, ownerLoaded, fetchOwnerDetails]);
 
   const submitFeedback = async (event) => {
     event.preventDefault();
@@ -322,33 +343,68 @@ function ClientAccountModal({ show, onHide }) {
 
   const renderMenu = () => (
     <div className="client-account-menu">
-      <div className="client-account-menu-hint">{strings.menuHint}</div>
-      {menuItems.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          className="client-account-menu-item"
-          onClick={() => setActiveScreen(item.key)}
-        >
-          <div className="client-account-menu-item-title">{item.title}</div>
-          <div className="client-account-menu-item-subtitle">{item.subtitle}</div>
-          <span className="client-account-menu-item-arrow" aria-hidden="true">›</span>
-        </button>
-      ))}
+      <div className="client-account-menu-list">
+        {menuItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className="client-account-menu-item"
+            onClick={() => setActiveScreen(item.key)}
+          >
+            <span className="client-account-menu-item-icon" aria-hidden="true">
+              <MenuIcon type={item.icon} />
+            </span>
+            <span className="client-account-menu-item-title">{item.title}</span>
+            <span className="client-account-menu-item-arrow" aria-hidden="true">›</span>
+          </button>
+        ))}
+      </div>
+
+      <section className="client-account-language-outside">
+        <h6 className="client-account-language-outside-title">{strings.systemLanguage}</h6>
+        <div className="client-account-language-grid client-account-language-grid-compact">
+          {LANGUAGE_OPTIONS.map((option) => {
+            const isActive = language === option.code;
+            return (
+              <button
+                key={option.code}
+                type="button"
+                onClick={() => setLanguage(option.code)}
+                className={`client-account-language-btn ${isActive ? 'is-active' : ''}`}
+                aria-pressed={isActive}
+              >
+                <img src={option.flag} alt={option.code.toUpperCase()} />
+                <span>{isUz ? option.labelUz : option.labelRu}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="client-account-operator-footer">
+        <div className="client-account-operator-title">{strings.operatorInfo}</div>
+        {loadingOwner ? (
+          <div className="client-account-loading">
+            <Spinner size="sm" animation="border" />
+            <span>{strings.loading}</span>
+          </div>
+        ) : (
+          <>
+            <div>
+              {strings.ownerUsername}: <strong>{formatOwnerUsername(restaurantOwner.username) || strings.notSpecified}</strong>
+            </div>
+            <div>
+              {strings.ownerPhone}: <strong>{restaurantOwner.phone || strings.notSpecified}</strong>
+            </div>
+            {ownerError && <div className="client-account-operator-error">{ownerError}</div>}
+          </>
+        )}
+      </div>
     </div>
   );
 
   const renderProfileScreen = () => (
     <div className="client-account-screen">
-      {loadingOwner && (
-        <div className="client-account-loading">
-          <Spinner size="sm" animation="border" />
-          <span>{strings.loading}</span>
-        </div>
-      )}
-
-      {ownerError && <Alert variant="warning" className="py-2 mb-3">{ownerError}</Alert>}
-
       <section className="client-account-section">
         <h6 className="client-account-section-title">{strings.profile}</h6>
         <div className="client-account-profile-grid">
@@ -359,20 +415,6 @@ function ClientAccountModal({ show, onHide }) {
           <div className="client-account-field">
             <span>{strings.phone}</span>
             <strong>{user?.phone || strings.notSpecified}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="client-account-section">
-        <h6 className="client-account-section-title">{isUz ? "Do'kon egasi" : 'Владелец магазина'}</h6>
-        <div className="client-account-profile-grid">
-          <div className="client-account-field">
-            <span>{strings.ownerUsername}</span>
-            <strong>{formatOwnerUsername(restaurantOwner.username) || strings.notSpecified}</strong>
-          </div>
-          <div className="client-account-field">
-            <span>{strings.ownerPhone}</span>
-            <strong>{restaurantOwner.phone || strings.notSpecified}</strong>
           </div>
         </div>
       </section>
@@ -537,37 +579,10 @@ function ClientAccountModal({ show, onHide }) {
     </div>
   );
 
-  const renderLanguageScreen = () => (
-    <div className="client-account-screen">
-      <section className="client-account-section">
-        <h6 className="client-account-section-title">{strings.systemLanguage}</h6>
-        <div className="small text-muted mb-2">{strings.chooseLanguage}</div>
-        <div className="client-account-language-grid">
-          {LANGUAGE_OPTIONS.map((option) => {
-            const isActive = language === option.code;
-            return (
-              <button
-                key={option.code}
-                type="button"
-                onClick={() => setLanguage(option.code)}
-                className={`client-account-language-btn ${isActive ? 'is-active' : ''}`}
-                aria-pressed={isActive}
-              >
-                <img src={option.flag} alt={option.code.toUpperCase()} />
-                <span>{isUz ? option.labelUz : option.labelRu}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-    </div>
-  );
-
   const renderCurrentScreen = () => {
     if (activeScreen === SCREEN_PROFILE) return renderProfileScreen();
     if (activeScreen === SCREEN_ORDERS) return renderOrdersScreen();
     if (activeScreen === SCREEN_FEEDBACK) return renderFeedbackScreen();
-    if (activeScreen === SCREEN_LANGUAGE) return renderLanguageScreen();
     return renderMenu();
   };
 

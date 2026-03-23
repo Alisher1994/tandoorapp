@@ -1,6 +1,6 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -45,6 +45,74 @@ const OperatorQuickProducts = lazyWithRetry(() => import('./pages/OperatorQuickP
 const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
 const TelegramStoreRegistration = lazyWithRetry(() => import('./pages/TelegramStoreRegistration'), 'tg-store-registration');
 
+function RoutePrefetcher() {
+  const { user, loading } = useAuth();
+  const prefetchedRef = useRef(new Set());
+
+  useEffect(() => {
+    if (loading || !user) return undefined;
+    if (typeof window === 'undefined') return undefined;
+
+    const connection = window.navigator?.connection;
+    if (connection?.saveData) return undefined;
+
+    const role = String(user?.role || '');
+    const tasks = [];
+
+    if (role === 'superadmin') {
+      tasks.push(
+        { key: 'admin-dashboard', load: () => import('./pages/AdminDashboard') },
+        { key: 'superadmin-dashboard', load: () => import('./pages/SuperAdminDashboard') }
+      );
+    } else if (role === 'operator') {
+      tasks.push(
+        { key: 'admin-dashboard', load: () => import('./pages/AdminDashboard') },
+        { key: 'admin-reservations', load: () => import('./pages/AdminReservations') },
+        { key: 'operator-quick-products', load: () => import('./pages/OperatorQuickProducts') }
+      );
+    } else {
+      tasks.push(
+        { key: 'cart', load: () => import('./pages/Cart') },
+        { key: 'orders', load: () => import('./pages/Orders') },
+        { key: 'favorites', load: () => import('./pages/Favorites') },
+        { key: 'feedback', load: () => import('./pages/Feedback') }
+      );
+    }
+
+    const pending = tasks.filter((task) => !prefetchedRef.current.has(task.key));
+    if (pending.length === 0) return undefined;
+
+    const runPrefetch = () => {
+      pending.forEach((task) => {
+        prefetchedRef.current.add(task.key);
+        task.load().catch(() => {
+          prefetchedRef.current.delete(task.key);
+        });
+      });
+    };
+
+    let timeoutId = null;
+    let idleId = null;
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleId = window.requestIdleCallback(runPrefetch, { timeout: 2500 });
+    } else {
+      timeoutId = window.setTimeout(runPrefetch, 900);
+    }
+
+    return () => {
+      if (idleId !== null && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [loading, user?.id, user?.role]);
+
+  return null;
+}
+
 function App() {
   return (
     <LanguageProvider>
@@ -53,6 +121,7 @@ function App() {
           <FavoritesProvider>
             <AppVersionWatcher />
             <ClientRoutePersistence />
+            <RoutePrefetcher />
             <Suspense fallback={(
               <PageSkeleton fullscreen label="Загрузка приложения" cards={8} />
             )}

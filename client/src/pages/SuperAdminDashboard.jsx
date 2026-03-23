@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -18,8 +17,6 @@ import {
   Cell,
   LabelList
 } from 'recharts';
-import ReactECharts from 'echarts-for-react';
-import * as echarts from 'echarts';
 import {
   Container, Row, Col, Card, Table, Button, Form, Modal,
   Tabs, Tab, Badge, Navbar, Nav, Alert, Pagination, Spinner,
@@ -70,6 +67,15 @@ import {
 
 // Lazy load map components (heavy)
 const DeliveryZoneMap = lazy(() => import('../components/DeliveryZoneMap'));
+const ReactECharts = lazy(() => import('echarts-for-react'));
+
+let xlsxModulePromise = null;
+const loadXlsxModule = async () => {
+  if (!xlsxModulePromise) {
+    xlsxModulePromise = import('xlsx');
+  }
+  return xlsxModulePromise;
+};
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
@@ -3253,6 +3259,7 @@ function SuperAdminDashboard() {
 
   const exportBillingTransactionsXls = async () => {
     try {
+      const XLSX = await loadXlsxModule();
       const response = await axios.get(`${API_URL}/superadmin/billing/transactions`, {
         params: {
           ...billingOpsFilter,
@@ -6284,71 +6291,76 @@ function SuperAdminDashboard() {
     }
   };
 
-  const handleExportCategories = () => {
+  const handleExportCategories = async () => {
     if (!categories?.length) {
       setError('Нет категорий для экспорта');
       return;
     }
+    try {
+      const XLSX = await loadXlsxModule();
 
-    const sortCategories = (list) => [...list].sort((a, b) => {
-      const aSort = a.sort_order ?? 9999;
-      const bSort = b.sort_order ?? 9999;
-      if (aSort !== bSort) return aSort - bSort;
-      return String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru');
-    });
+      const sortCategories = (list) => [...list].sort((a, b) => {
+        const aSort = a.sort_order ?? 9999;
+        const bSort = b.sort_order ?? 9999;
+        if (aSort !== bSort) return aSort - bSort;
+        return String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru');
+      });
 
-    const childrenMap = new Map();
-    categories.forEach((cat) => {
-      const parentKey = cat.parent_id ?? 'root';
-      if (!childrenMap.has(parentKey)) childrenMap.set(parentKey, []);
-      childrenMap.get(parentKey).push(cat);
-    });
-    for (const [key, value] of childrenMap.entries()) {
-      childrenMap.set(key, sortCategories(value));
-    }
-
-    const rows = [];
-    const walk = (node, path = []) => {
-      const currentPath = [...path, {
-        ru: node.name_ru || '',
-        uz: node.name_uz || ''
-      }];
-      const children = childrenMap.get(node.id) || [];
-
-      if (currentPath.length >= CATEGORY_LEVEL_COUNT || children.length === 0) {
-        rows.push({
-          'Уровень 1 (RU)': currentPath[0]?.ru || '',
-          'Уровень 1 (UZ)': currentPath[0]?.uz || '',
-          'Уровень 2 (RU)': currentPath[1]?.ru || '',
-          'Уровень 2 (UZ)': currentPath[1]?.uz || '',
-          'Уровень 3 (RU)': currentPath[2]?.ru || '',
-          'Уровень 3 (UZ)': currentPath[2]?.uz || '',
-          'Путь (RU)': currentPath.map((p) => p.ru).filter(Boolean).join(' > '),
-          'Путь (UZ)': currentPath.map((p) => p.uz).filter(Boolean).join(' > ')
-        });
-        return;
+      const childrenMap = new Map();
+      categories.forEach((cat) => {
+        const parentKey = cat.parent_id ?? 'root';
+        if (!childrenMap.has(parentKey)) childrenMap.set(parentKey, []);
+        childrenMap.get(parentKey).push(cat);
+      });
+      for (const [key, value] of childrenMap.entries()) {
+        childrenMap.set(key, sortCategories(value));
       }
 
-      children.forEach((child) => walk(child, currentPath));
-    };
+      const rows = [];
+      const walk = (node, path = []) => {
+        const currentPath = [...path, {
+          ru: node.name_ru || '',
+          uz: node.name_uz || ''
+        }];
+        const children = childrenMap.get(node.id) || [];
 
-    (childrenMap.get('root') || []).forEach((root) => walk(root, []));
+        if (currentPath.length >= CATEGORY_LEVEL_COUNT || children.length === 0) {
+          rows.push({
+            'Уровень 1 (RU)': currentPath[0]?.ru || '',
+            'Уровень 1 (UZ)': currentPath[0]?.uz || '',
+            'Уровень 2 (RU)': currentPath[1]?.ru || '',
+            'Уровень 2 (UZ)': currentPath[1]?.uz || '',
+            'Уровень 3 (RU)': currentPath[2]?.ru || '',
+            'Уровень 3 (UZ)': currentPath[2]?.uz || '',
+            'Путь (RU)': currentPath.map((p) => p.ru).filter(Boolean).join(' > '),
+            'Путь (UZ)': currentPath.map((p) => p.uz).filter(Boolean).join(' > ')
+          });
+          return;
+        }
 
-    const sheet = XLSX.utils.json_to_sheet(rows, {
-      header: [
-        'Уровень 1 (RU)', 'Уровень 1 (UZ)',
-        'Уровень 2 (RU)', 'Уровень 2 (UZ)',
-        'Уровень 3 (RU)', 'Уровень 3 (UZ)',
-        'Путь (RU)', 'Путь (UZ)'
-      ]
-    });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, sheet, 'Категории');
+        children.forEach((child) => walk(child, currentPath));
+      };
 
-    const now = new Date();
-    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `categories_export_${stamp}.xlsx`);
-    setSuccess(`Экспортировано категорий: ${rows.length}`);
+      (childrenMap.get('root') || []).forEach((root) => walk(root, []));
+
+      const sheet = XLSX.utils.json_to_sheet(rows, {
+        header: [
+          'Уровень 1 (RU)', 'Уровень 1 (UZ)',
+          'Уровень 2 (RU)', 'Уровень 2 (UZ)',
+          'Уровень 3 (RU)', 'Уровень 3 (UZ)',
+          'Путь (RU)', 'Путь (UZ)'
+        ]
+      });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, 'Категории');
+
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      XLSX.writeFile(wb, `categories_export_${stamp}.xlsx`);
+      setSuccess(`Экспортировано категорий: ${rows.length}`);
+    } catch (error) {
+      setError(error?.message || 'Ошибка экспорта категорий');
+    }
   };
 
   const parseCategoryImportLevels = (row, index) => {
@@ -6441,6 +6453,7 @@ function SuperAdminDashboard() {
 
     setIsImportingCategories(true);
     try {
+      const XLSX = await loadXlsxModule();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
@@ -6592,8 +6605,9 @@ function SuperAdminDashboard() {
     }
   };
 
-  const handleDownloadGlobalProductsImportTemplate = () => {
+  const handleDownloadGlobalProductsImportTemplate = async () => {
     try {
+      const XLSX = await loadXlsxModule();
       const headers = globalProductsImportTemplateColumns.map((item) => item.header);
       const exampleRow = globalProductsImportTemplateColumns.map((item) => item.sample || '');
       const templateSheet = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
@@ -7012,6 +7026,7 @@ function SuperAdminDashboard() {
     }
 
     try {
+      const XLSX = await loadXlsxModule();
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
@@ -8607,10 +8622,17 @@ function SuperAdminDashboard() {
             data: [{ type: 'max', name: 'max' }]
           },
           areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(99,102,241,0.28)' },
-              { offset: 1, color: 'rgba(99,102,241,0.02)' }
-            ])
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(99,102,241,0.28)' },
+                { offset: 1, color: 'rgba(99,102,241,0.02)' }
+              ]
+            }
           }
         }
       ]
@@ -8673,10 +8695,17 @@ function SuperAdminDashboard() {
             data: [{ type: 'max', name: 'max' }]
           },
           areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(244,63,94,0.24)' },
-              { offset: 1, color: 'rgba(244,63,94,0.02)' }
-            ])
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(244,63,94,0.24)' },
+                { offset: 1, color: 'rgba(244,63,94,0.02)' }
+              ]
+            }
           }
         }
       ]
@@ -9402,12 +9431,20 @@ function SuperAdminDashboard() {
                               : (language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам')}
                         </small>
                       </div>
-                      <ReactECharts
-                        option={revenueChartOption}
-                        notMerge
-                        lazyUpdate
-                        style={{ width: '100%', height: 240 }}
-                      />
+                      <Suspense fallback={(
+                        <div className="d-flex align-items-center justify-content-center text-muted" style={{ width: '100%', height: 240 }}>
+                          <Spinner size="sm" animation="border" className="me-2" />
+                          {t('loading')}
+                        </div>
+                      )}
+                      >
+                        <ReactECharts
+                          option={revenueChartOption}
+                          notMerge
+                          lazyUpdate
+                          style={{ width: '100%', height: 240 }}
+                        />
+                      </Suspense>
                     </div>
 
                     <div className="admin-analytics-chart-box admin-analytics-chart-box-secondary">
@@ -9421,12 +9458,20 @@ function SuperAdminDashboard() {
                               : (language === 'uz' ? 'oylar bo‘yicha' : 'по месяцам')}
                         </small>
                       </div>
-                      <ReactECharts
-                        option={ordersChartOption}
-                        notMerge
-                        lazyUpdate
-                        style={{ width: '100%', height: 240 }}
-                      />
+                      <Suspense fallback={(
+                        <div className="d-flex align-items-center justify-content-center text-muted" style={{ width: '100%', height: 240 }}>
+                          <Spinner size="sm" animation="border" className="me-2" />
+                          {t('loading')}
+                        </div>
+                      )}
+                      >
+                        <ReactECharts
+                          option={ordersChartOption}
+                          notMerge
+                          lazyUpdate
+                          style={{ width: '100%', height: 240 }}
+                        />
+                      </Suspense>
                     </div>
                   </Card.Body>
                 </Card>
@@ -9444,12 +9489,20 @@ function SuperAdminDashboard() {
                   <Card.Body>
                     <div className="admin-funnel-donut-wrap">
                       <div className="admin-funnel-donut-chart">
-                        <ReactECharts
-                          option={funnelChartOption}
-                          notMerge
-                          lazyUpdate
-                          style={{ width: 220, height: 220 }}
-                        />
+                        <Suspense fallback={(
+                          <div className="d-flex align-items-center justify-content-center text-muted" style={{ width: 220, height: 220 }}>
+                            <Spinner size="sm" animation="border" className="me-2" />
+                            {t('loading')}
+                          </div>
+                        )}
+                        >
+                          <ReactECharts
+                            option={funnelChartOption}
+                            notMerge
+                            lazyUpdate
+                            style={{ width: 220, height: 220 }}
+                          />
+                        </Suspense>
                       </div>
                       <div className="admin-funnel-donut-legend">
                         {donutSegments.map((segment) => (

@@ -2585,12 +2585,12 @@ h6 {
   border: 0;
   border-radius: 0;
   min-height: 100vh;
-  background: #f3f4f6;
+  background: #ffffff;
 }
 
 .client-account-modal-header {
   padding: 12px 12px 10px;
-  border-bottom: 1px solid rgba(71, 85, 105, 0.14);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   background: #fff;
   position: sticky;
   top: 0;
@@ -2612,8 +2612,8 @@ h6 {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(71, 85, 105, 0.18);
-  background: #fff;
+  border: none;
+  background: transparent;
   color: #334155;
   display: inline-flex;
   align-items: center;
@@ -2629,59 +2629,72 @@ h6 {
 }
 
 .client-account-modal-body {
-  padding: 12px;
-  background: #f3f4f6;
+  padding: 12px 14px 14px;
+  background: #fff;
   overflow-y: auto;
+  display: flex;
 }
 
 .client-account-menu,
 .client-account-screen {
   width: min(760px, 100%);
   margin: 0 auto;
+  min-height: 100%;
+  flex: 1;
 }
 
-.client-account-menu-hint {
-  font-size: 0.84rem;
-  color: #64748b;
-  margin-bottom: 10px;
+.client-account-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.client-account-menu-list {
+  display: flex;
+  flex-direction: column;
 }
 
 .client-account-menu-item {
   width: 100%;
-  border: 1px solid rgba(71, 85, 105, 0.16);
-  border-radius: 14px;
-  background: #fff;
-  padding: 12px 38px 12px 12px;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 2px;
   text-align: left;
-  position: relative;
-  transition: border-color 0.18s ease, transform 0.18s ease;
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.18s ease;
 }
 
 .client-account-menu-item:hover {
-  border-color: rgba(51, 65, 85, 0.35);
-  transform: translateY(-1px);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.client-account-menu-item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .client-account-menu-item-title {
-  font-size: 1rem;
+  font-size: 1.02rem;
   font-weight: 700;
   color: #111827;
-}
-
-.client-account-menu-item-subtitle {
-  margin-top: 2px;
-  font-size: 0.82rem;
-  color: #64748b;
+  flex: 1;
 }
 
 .client-account-menu-item-arrow {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  margin-left: auto;
   color: #64748b;
   font-size: 1.2rem;
+  line-height: 1;
 }
 
 .client-account-loading {
@@ -2691,6 +2704,17 @@ h6 {
   font-size: 0.86rem;
   color: #475569;
   margin-bottom: 8px;
+}
+
+.client-account-language-outside {
+  margin-top: 14px;
+}
+
+.client-account-language-outside-title {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1f2937;
 }
 
 .client-account-section {
@@ -2746,15 +2770,21 @@ h6 {
 .client-account-language-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+}
+
+.client-account-language-grid-compact .client-account-language-btn {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 0.86rem;
 }
 
 .client-account-language-btn {
   min-height: 52px;
   border-radius: 12px;
-  border: 1px solid rgba(71, 85, 105, 0.2);
+  border: 1px solid rgba(71, 85, 105, 0.18);
   background: #fff;
-  padding: 8px 10px;
+  padding: 6px 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2782,6 +2812,32 @@ h6 {
   object-fit: cover;
   border-radius: 2px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+}
+
+.client-account-operator-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 0.76rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.client-account-operator-title {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  color: #94a3b8;
+}
+
+.client-account-operator-footer strong {
+  color: #334155;
+  font-weight: 600;
+}
+
+.client-account-operator-error {
+  margin-top: 3px;
+  color: #b45309;
 }
 
 .client-account-empty {

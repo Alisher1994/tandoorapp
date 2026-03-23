@@ -9,15 +9,7 @@ import './index.css';
 // Telegram WebApp expand - раскрыть на полный экран
 if (window.Telegram?.WebApp) {
   window.Telegram.WebApp.ready?.();
-  window.Telegram.WebApp.expand();
-  window.Telegram.WebApp.enableClosingConfirmation?.();
-  window.Telegram.WebApp.setBackgroundColor?.('#f3f4f6');
-  window.Telegram.WebApp.setBottomBarColor?.('#f3f4f6');
-
-  // Disable swipe to close in Telegram
-  if (window.Telegram.WebApp.disableVerticalSwipes) {
-    window.Telegram.WebApp.disableVerticalSwipes();
-  }
+  window.Telegram.WebApp.expand?.();
 }
 
 // Prevent pinch-zoom scaling on mobile browsers (iOS/Android)
