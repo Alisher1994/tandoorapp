@@ -174,6 +174,11 @@ function ShowcaseBuilder({ embedded = false }) {
     e.dataTransfer.effectAllowed = 'copy';
   };
 
+  const handleDragEnd = () => {
+    draggedCategoryRef.current = null;
+    setDropTargetBlockId(null);
+  };
+
   const handleDragOver = (e, blockId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
@@ -183,9 +188,18 @@ function ShowcaseBuilder({ embedded = false }) {
   const handleDropOnBlock = (e, blockId) => {
     e.preventDefault();
     const categoryId = draggedCategoryRef.current;
+    draggedCategoryRef.current = null;
     setDropTargetBlockId(null);
     if (categoryId) {
-      addCategoryToBlock(blockId, Number.parseInt(categoryId, 10));
+      const normalizedCategoryId = Number.parseInt(categoryId, 10);
+      const targetBlock = showcaseLayout.find((block) => String(block.id) === String(blockId));
+      if (!targetBlock || !Number.isInteger(normalizedCategoryId)) return;
+
+      if (targetBlock.block_type === BLOCK_TYPES.SLIDER) {
+        setSliderCategory(blockId, normalizedCategoryId);
+      } else {
+        addCategoryToBlock(blockId, normalizedCategoryId);
+      }
     }
   };
 
@@ -220,7 +234,7 @@ function ShowcaseBuilder({ embedded = false }) {
       );
       return selectedCategory
         ? `Категория слайдера: ${getCategoryDisplayName(selectedCategory)}`
-        : 'Выберите категорию в настройках блока';
+        : 'Перетащите сюда категорию или выберите её в настройках блока';
     }
     if (block.block_type === BLOCK_TYPES.BANNER) {
       return block.title ? `Заголовок: ${block.title}` : 'Настройте заголовок, цвет и CTA в настройках блока';
@@ -420,6 +434,7 @@ function ShowcaseBuilder({ embedded = false }) {
                       className="category-item"
                       draggable
                       onDragStart={(e) => handleDragStart(e, category.id)}
+                      onDragEnd={handleDragEnd}
                     >
                       {getCategoryImage(category) && (
                         <img
