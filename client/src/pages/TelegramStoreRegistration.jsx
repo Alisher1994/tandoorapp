@@ -365,8 +365,10 @@ function TelegramStoreRegistration() {
 
   if (loadingMeta) {
     return (
-      <div className="tg-store-registration-page">
-        <div className="tg-store-registration-card tg-loading">{dict.loading}</div>
+      <div className="tg-store-registration-page tg-store-registration-page--loading">
+        <div className="tg-store-loader" role="status" aria-label={dict.loading}>
+          <span className="tg-store-loader-ring" aria-hidden="true" />
+        </div>
       </div>
     );
   }

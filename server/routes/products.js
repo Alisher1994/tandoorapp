@@ -616,6 +616,32 @@ router.get('/restaurant/:id', async (req, res) => {
 
     // Return only safe public fields
     const r = result.rows[0];
+    let ownerUsername = '';
+    let ownerPhone = '';
+    try {
+      const ownerResult = await pool.query(
+        `SELECT u.username, u.phone
+         FROM operator_restaurants opr
+         INNER JOIN users u ON u.id = opr.user_id
+         WHERE opr.restaurant_id = $1
+           AND u.role IN ('operator', 'superadmin')
+           AND COALESCE(u.is_active, true) = true
+         ORDER BY
+           CASE WHEN u.role = 'operator' THEN 0 ELSE 1 END,
+           opr.created_at ASC,
+           u.id ASC
+         LIMIT 1`,
+        [req.params.id]
+      );
+      if (ownerResult.rows[0]) {
+        ownerUsername = String(ownerResult.rows[0].username || '').trim().replace(/^@+/, '');
+        ownerPhone = String(ownerResult.rows[0].phone || '').trim();
+      }
+    } catch (_) {
+      ownerUsername = '';
+      ownerPhone = '';
+    }
+
     const serviceFee = Number.parseFloat(r.service_fee ?? 0);
     const minimumOrderAmount = Number.parseFloat(r.minimum_order_amount ?? 0);
     const cardNumber = String(r.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
@@ -657,7 +683,9 @@ router.get('/restaurant/:id', async (req, res) => {
       card_payment_number: cardPaymentEnabled ? cardNumber : '',
       card_payment_holder: cardPaymentEnabled ? cardHolder : '',
       card_receipt_target: cardReceiptTarget,
-      support_username: r.support_username || ''
+      support_username: r.support_username || '',
+      owner_username: ownerUsername || String(r.support_username || '').trim().replace(/^@+/, ''),
+      owner_phone: ownerPhone || ''
     });
   } catch (error) {
     console.error('Restaurant error:', error);

@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const CHECK_INTERVAL_MS = 30000;
+const CHECK_INTERVAL_MS = 120000;
 const VERSION_STORAGE_KEY = 'app:last_server_version';
 const VERSION_QUERY_PARAM = 'app_v';
 const RELOAD_GUARD_KEY = 'app:version_reload_guard';
 const RELOAD_GUARD_TTL_MS = 15000;
-
-const isTelegramWebView = () => Boolean(window.Telegram?.WebApp);
 
 const getReloadGuardTimestamp = () => {
   try {
@@ -125,7 +123,6 @@ function AppVersionWatcher() {
 
         const previousStoredVersion = readStoredVersion();
         writeStoredVersion(nextVersion);
-        const currentUrlVersion = new URL(window.location.href).searchParams.get(VERSION_QUERY_PARAM) || '';
         const reloadGuardActive = hasActiveReloadGuard();
 
         if (!initialVersionRef.current) {
@@ -136,22 +133,12 @@ function AppVersionWatcher() {
             return;
           }
 
-          if (isTelegramWebView() && !reloadGuardActive && currentUrlVersion !== nextVersion) {
-            await triggerHardRefresh('Синхронизируем версию приложения...', nextVersion);
-            return;
-          }
-
           clearReloadGuardTimestamp();
           return;
         }
 
         if (!reloadGuardActive && initialVersionRef.current !== nextVersion) {
           await triggerHardRefresh('Доступно обновление. Обновляем страницу...', nextVersion);
-          return;
-        }
-
-        if (isTelegramWebView() && !reloadGuardActive && currentUrlVersion !== nextVersion) {
-          await triggerHardRefresh('Обновляем кеш Telegram WebView...', nextVersion);
           return;
         }
 
