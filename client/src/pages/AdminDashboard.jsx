@@ -109,6 +109,7 @@ const DAILY_REPORT_HOURS_COUNT = 24;
 const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
 const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
 const MAX_ORDER_RATING = 5;
+const ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS = 7000;
 const CONTAINER_LABEL_WORDS_BY_LANGUAGE = Object.freeze({
   ru: ['Пакет', 'Посуда', 'Коробка', 'Мешок'],
   uz: ['Paket', 'Idish', 'Quti', 'Qop']
@@ -2720,7 +2721,9 @@ function AdminDashboard() {
   const fetchYearlyAnalytics = async (year) => {
     setLoadingYearlyAnalytics(true);
     try {
-      const response = await axios.get(`${API_URL}/admin/analytics/yearly?year=${year}`);
+      const response = await axios.get(`${API_URL}/admin/analytics/yearly?year=${year}`, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
       setYearlyAnalytics(response.data);
     } catch (error) {
       console.error('Error fetching yearly analytics:', error);
@@ -2751,7 +2754,8 @@ function AdminDashboard() {
     setLoadingAnalyticsProductReviews(true);
     try {
       const response = await axios.get(`${API_URL}/admin/analytics/product-reviews`, {
-        params: buildProductReviewAnalyticsParams()
+        params: buildProductReviewAnalyticsParams(),
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
       });
       const payload = response.data || {};
       setAnalyticsProductReviews({
@@ -2773,10 +2777,10 @@ function AdminDashboard() {
   }, [user?.active_restaurant_id, buildProductReviewAnalyticsParams]);
 
   useEffect(() => {
-    if (user?.active_restaurant_id) {
+    if (mainTab === 'dashboard' && user?.active_restaurant_id) {
       fetchYearlyAnalytics(dashboardYear);
     }
-  }, [dashboardYear, user?.active_restaurant_id]);
+  }, [dashboardYear, user?.active_restaurant_id, mainTab]);
 
   useEffect(() => {
     if (mainTab !== 'dashboard') return;
@@ -2799,34 +2803,94 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!user?.active_restaurant_id) {
-      // No active restaurant yet -> avoid periodic 400 requests (e.g. /admin/containers)
-      if (user?.role === 'operator' || user?.role === 'superadmin') {
-        fetchUser();
-      }
+      // No active restaurant yet -> avoid periodic requests (e.g. /admin/containers)
+      setLoading(false);
       return;
     }
 
-    fetchData();
-    if (user?.role === 'operator' || user?.role === 'superadmin') {
-      fetchUser();
+    const runFetchByTab = () => {
+      if (mainTab === 'orders') {
+        fetchData({
+          includeOrders: true,
+          includeAllOrders: false,
+          includeProducts: false,
+          includeCategories: false,
+          includeContainers: false,
+          includeFeedbackStats: false
+        });
+        return;
+      }
+      if (mainTab === 'dashboard') {
+        fetchData({
+          includeOrders: true,
+          includeAllOrders: true,
+          includeProducts: false,
+          includeCategories: false,
+          includeContainers: false,
+          includeFeedbackStats: true
+        });
+        return;
+      }
+      if (mainTab === 'products') {
+        fetchData({
+          includeOrders: false,
+          includeAllOrders: false,
+          includeProducts: true,
+          includeCategories: true,
+          includeContainers: true,
+          includeFeedbackStats: false
+        });
+        return;
+      }
+      if (mainTab === 'containers') {
+        fetchData({
+          includeOrders: false,
+          includeAllOrders: false,
+          includeProducts: false,
+          includeCategories: false,
+          includeContainers: true,
+          includeFeedbackStats: false
+        });
+      }
+    };
+
+    runFetchByTab();
+
+    let interval = null;
+    if (mainTab === 'orders') {
+      interval = setInterval(() => {
+        fetchData({
+          includeOrders: true,
+          includeAllOrders: false,
+          includeProducts: false,
+          includeCategories: false,
+          includeContainers: false,
+          includeFeedbackStats: false
+        });
+      }, 12000);
+    } else if (mainTab === 'dashboard') {
+      interval = setInterval(() => {
+        fetchData({
+          includeOrders: true,
+          includeAllOrders: true,
+          includeProducts: false,
+          includeCategories: false,
+          includeContainers: false,
+          includeFeedbackStats: true
+        });
+      }, 30000);
     }
 
-    const refreshIntervalMs = mainTab === 'orders' ? 3000 : 10000;
-    const interval = setInterval(() => {
-      fetchData();
-      if (user?.role === 'operator' || user?.role === 'superadmin') {
-        fetchUser();
-      }
-    }, refreshIntervalMs);
-
-    return () => clearInterval(interval);
-  }, [effectiveOrdersStatusFilter, user?.active_restaurant_id, user?.role, mainTab]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [effectiveOrdersStatusFilter, user?.active_restaurant_id, mainTab]);
 
   useEffect(() => {
-    if (user?.active_restaurant_id) {
+    if (mainTab === 'feedback' && user?.active_restaurant_id) {
       fetchFeedback();
     }
-  }, [feedbackFilter, user?.active_restaurant_id]);
+  }, [feedbackFilter, user?.active_restaurant_id, mainTab]);
 
   useEffect(() => {
     if (mainTab !== 'clients' || !user?.active_restaurant_id) return;
@@ -2911,12 +2975,12 @@ function AdminDashboard() {
   }, [productSearch, productCategoryFilter, productSubcategoryFilter, productThirdCategoryFilter, productStatusFilter]);
 
   useEffect(() => {
-    if (user?.active_restaurant_id) {
+    if (mainTab === 'settings' && user?.active_restaurant_id) {
       fetchRestaurantSettings();
       fetchOperators();
       fetchBillingInfo();
     }
-  }, [user?.active_restaurant_id]);
+  }, [user?.active_restaurant_id, mainTab]);
   useEffect(() => {
     if (user?.active_restaurant_currency_code) {
       setCountryCurrency(user.active_restaurant_currency_code);
@@ -3391,53 +3455,89 @@ function AdminDashboard() {
     applyCategoriesData(response.data || []);
   };
 
-  const fetchData = async () => {
+  const fetchData = async (options = {}) => {
+    const {
+      includeOrders = true,
+      includeAllOrders = true,
+      includeProducts = true,
+      includeCategories = true,
+      includeContainers = true,
+      includeFeedbackStats = false
+    } = options;
+
     try {
       const hasActiveRestaurant = Boolean(user?.active_restaurant_id);
       const filteredOrdersUrl = `${API_URL}/admin/orders${effectiveOrdersStatusFilter !== 'all' ? `?status=${effectiveOrdersStatusFilter}` : ''}`;
-      const [ordersRes, productsRes, categoriesRes, containersRes] = await Promise.allSettled([
-        axios.get(filteredOrdersUrl),
-        axios.get(`${API_URL}/admin/products`),
-        axios.get(`${API_URL}/admin/categories`),
-        hasActiveRestaurant
-          ? axios.get(`${API_URL}/admin/containers`)
-          : Promise.resolve({ data: [] })
-      ]);
-      const allOrdersRes = await axios.get(`${API_URL}/admin/orders`).catch((error) => {
-        console.error('Orders counts fetch error:', error);
-        return null;
-      });
 
-      if (ordersRes.status === 'fulfilled') {
-        const normalizedFilteredOrders = (ordersRes.value.data || []).map(normalizeAdminOrderForUI);
-        setOrders(normalizedFilteredOrders);
+      if (includeOrders) {
+        try {
+          const filteredOrdersRes = await axios.get(filteredOrdersUrl, {
+            timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+          });
+          const normalizedFilteredOrders = (filteredOrdersRes.data || []).map(normalizeAdminOrderForUI);
+          setOrders(normalizedFilteredOrders);
 
-        const normalizedAllOrders = (allOrdersRes?.data || []).map(normalizeAdminOrderForUI);
-        setAllOrdersForAnalytics(normalizedAllOrders.length ? normalizedAllOrders : normalizedFilteredOrders);
-      } else {
-        console.error('Orders fetch error:', ordersRes.reason);
+          if (includeAllOrders) {
+            if (effectiveOrdersStatusFilter === 'all') {
+              setAllOrdersForAnalytics(normalizedFilteredOrders);
+            } else {
+              try {
+                const allOrdersRes = await axios.get(`${API_URL}/admin/orders`, {
+                  timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+                });
+                const normalizedAllOrders = (allOrdersRes.data || []).map(normalizeAdminOrderForUI);
+                setAllOrdersForAnalytics(normalizedAllOrders.length ? normalizedAllOrders : normalizedFilteredOrders);
+              } catch (error) {
+                console.error('Orders counts fetch error:', error);
+                setAllOrdersForAnalytics(normalizedFilteredOrders);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Orders fetch error:', error);
+        }
       }
 
-      if (productsRes.status === 'fulfilled') {
-        setProducts(productsRes.value.data || []);
-      } else {
-        console.error('Products fetch error:', productsRes.reason);
+      if (includeProducts) {
+        try {
+          const productsRes = await axios.get(`${API_URL}/admin/products`, {
+            timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+          });
+          setProducts(productsRes.data || []);
+        } catch (error) {
+          console.error('Products fetch error:', error);
+        }
       }
 
-      if (categoriesRes.status === 'fulfilled') {
-        applyCategoriesData(categoriesRes.value.data || []);
-      } else {
-        console.error('Categories fetch error:', categoriesRes.reason);
+      if (includeCategories) {
+        try {
+          const categoriesRes = await axios.get(`${API_URL}/admin/categories`, {
+            timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+          });
+          applyCategoriesData(categoriesRes.data || []);
+        } catch (error) {
+          console.error('Categories fetch error:', error);
+        }
       }
 
-      if (containersRes.status === 'fulfilled') {
-        setContainers(containersRes.value.data || []);
-      } else {
-        console.error('Containers fetch error:', containersRes.reason);
+      if (includeContainers) {
+        if (!hasActiveRestaurant) {
+          setContainers([]);
+        } else {
+          try {
+            const containersRes = await axios.get(`${API_URL}/admin/containers`, {
+              timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+            });
+            setContainers(containersRes.data || []);
+          } catch (error) {
+            console.error('Containers fetch error:', error);
+          }
+        }
       }
 
-      // Fetch feedback stats
-      fetchFeedbackStats();
+      if (includeFeedbackStats) {
+        fetchFeedbackStats();
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -3679,7 +3779,9 @@ function AdminDashboard() {
       let url = `${API_URL}/admin/feedback?`;
       if (feedbackFilter.status) url += `status=${feedbackFilter.status}&`;
       if (feedbackFilter.type) url += `type=${feedbackFilter.type}&`;
-      const response = await axios.get(url);
+      const response = await axios.get(url, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
       setFeedback(response.data.feedback || []);
     } catch (error) {
       console.error('Error fetching feedback:', error);
@@ -3688,7 +3790,9 @@ function AdminDashboard() {
 
   const fetchFeedbackStats = async () => {
     try {
-      const response = await axios.get(`${API_URL}/admin/feedback/stats`);
+      const response = await axios.get(`${API_URL}/admin/feedback/stats`, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
       setFeedbackStats(response.data);
     } catch (error) {
       console.error('Error fetching feedback stats:', error);
@@ -4044,7 +4148,9 @@ function AdminDashboard() {
 
   const fetchBillingInfo = async () => {
     try {
-      const response = await axios.get(`${API_URL}/admin/billing/info`);
+      const response = await axios.get(`${API_URL}/admin/billing/info`, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
       setBillingInfo(response.data);
     } catch (error) {
       console.error('Fetch billing info error:', error);
@@ -4065,7 +4171,9 @@ function AdminDashboard() {
 
   const fetchRestaurantSettings = async () => {
     try {
-      const response = await axios.get(`${API_URL}/admin/restaurant`);
+      const response = await axios.get(`${API_URL}/admin/restaurant`, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
       const settings = {
         ...(response.data || {}),
         cash_enabled: response.data?.cash_enabled === false ? false : true,
@@ -4229,7 +4337,9 @@ function AdminDashboard() {
 
   const fetchOperators = async () => {
     try {
-      const response = await axios.get(`${API_URL}/admin/operators`);
+      const response = await axios.get(`${API_URL}/admin/operators`, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
       setOperators(response.data);
     } catch (error) {
       console.error('Fetch operators error:', error);

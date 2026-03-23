@@ -78,6 +78,8 @@ const loadXlsxModule = async () => {
 };
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const SUPERADMIN_REQUEST_TIMEOUT_MS = 8000;
+const SUPERADMIN_DIRECTORY_CACHE_TTL_MS = 120000;
 const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
@@ -1450,6 +1452,8 @@ function SuperAdminDashboard() {
   const globalProductAiRequestIdRef = useRef(0);
   const hiddenOpsConsoleInputRef = useRef(null);
   const hiddenOpsHotkeyLastPressedRef = useRef(0);
+  const internalDirectoryLoadedAtRef = useRef(0);
+  const internalDirectoryInFlightRef = useRef(null);
   const superadminBroadcastFileInputRef = useRef(null);
   const foundersPasswordInputRef = useRef(null);
   const permanentDeletePasswordInputRef = useRef(null);
@@ -2054,16 +2058,12 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     loadStats();
-    loadInternalRestaurants();
-    loadActivityTypes();
-    loadBillingSettings();
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'restaurants') loadRestaurants();
-    if (activeTab === 'operators') loadOperators();
-    if (activeTab === 'customers') loadCustomers();
-    if (activeTab === 'logs') loadLogs();
+    if (['restaurants', 'operators', 'customers', 'billing_transactions', 'ads'].includes(activeTab)) {
+      loadInternalRestaurants({ preferCache: true });
+    }
     if (activeTab === 'security') {
       loadSecurityStats();
     }
@@ -2072,15 +2072,6 @@ function SuperAdminDashboard() {
     if (activeTab === 'reservation_templates') loadReservationTemplates();
     if (activeTab === 'help_instructions') loadHelpInstructions();
     if (activeTab === 'broadcast') loadSuperadminBroadcastHistory();
-    if (activeTab === 'ads') loadAdBanners();
-    if (activeTab === 'billing') {
-      loadBillingSettings();
-    }
-    if (activeTab === 'ai_settings') {
-      loadBillingSettings();
-      loadAiProviders();
-      loadAiUsageSummary(aiUsageDays);
-    }
     if (activeTab === 'global_products') {
       if (!categories.length) loadCategories();
     }
@@ -2105,7 +2096,7 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (activeTab === 'restaurants') loadRestaurants();
-  }, [restaurantsPage, restaurantsLimit]);
+  }, [activeTab, restaurantsPage, restaurantsLimit]);
 
   useEffect(() => {
     return () => {
@@ -2117,15 +2108,15 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (activeTab === 'operators') loadOperators();
-  }, [operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter]);
+  }, [activeTab, operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter]);
 
   useEffect(() => {
     if (activeTab === 'customers') loadCustomers();
-  }, [customerPage, customerLimit, customerSearch, customerStatusFilter, customerRestaurantFilter]);
+  }, [activeTab, customerPage, customerLimit, customerSearch, customerStatusFilter, customerRestaurantFilter]);
 
   useEffect(() => {
     if (activeTab === 'logs') loadLogs();
-  }, [logsFilter]);
+  }, [activeTab, logsFilter]);
 
   useEffect(() => {
     if (activeTab === 'security') loadSecurityEvents();
@@ -2177,6 +2168,17 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'ads') loadAdBanners();
   }, [activeTab, adBannerStatusFilter]);
+
+  useEffect(() => {
+    if (activeTab !== 'billing') return;
+    loadBillingSettings();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'ai_settings') return;
+    loadBillingSettings();
+    loadAiProviders();
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'ai_settings') return;
@@ -2348,7 +2350,9 @@ function SuperAdminDashboard() {
   // API calls
   const loadStats = async () => {
     try {
-      const response = await axios.get(`${API_URL}/superadmin/stats`);
+      const response = await axios.get(`${API_URL}/superadmin/stats`, {
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
       setStats(response.data);
     } catch (err) {
       console.error('Load stats error:', err);
@@ -2605,7 +2609,8 @@ function SuperAdminDashboard() {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
-        params: { page: restaurantsPage, limit: restaurantsLimit }
+        params: { page: restaurantsPage, limit: restaurantsLimit },
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
       });
       const data = Array.isArray(response.data)
         ? { restaurants: response.data, total: response.data.length }
@@ -2618,22 +2623,44 @@ function SuperAdminDashboard() {
     }
   };
 
-  const loadInternalRestaurants = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
-        params: { limit: 1000 } // Load all for filters
-      });
-      // Handle both formats: [r1, r2] or { restaurants: [r1, r2] }
-      const restaurantData = Array.isArray(response.data) ? response.data : (response.data?.restaurants || []);
-      setAllRestaurants(restaurantData);
+  const loadInternalRestaurants = async ({ preferCache = false } = {}) => {
+    const hasCachedDirectory = allRestaurants.length > 0 && allOperators.length > 0;
+    const isCacheFresh = (Date.now() - internalDirectoryLoadedAtRef.current) < SUPERADMIN_DIRECTORY_CACHE_TTL_MS;
+    if (preferCache && hasCachedDirectory && isCacheFresh) {
+      return;
+    }
 
-      const opResponse = await axios.get(`${API_URL}/superadmin/operators`, {
-        params: { limit: 1000 }
-      });
-      const operatorData = Array.isArray(opResponse.data) ? opResponse.data : (opResponse.data?.operators || []);
-      setAllOperators(operatorData);
-    } catch (err) {
-      console.error('Load filter data error:', err);
+    if (internalDirectoryInFlightRef.current) {
+      return internalDirectoryInFlightRef.current;
+    }
+
+    const requestPromise = (async () => {
+      try {
+        const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
+          params: { limit: 1000 }, // Load all for filters
+          timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+        });
+        // Handle both formats: [r1, r2] or { restaurants: [r1, r2] }
+        const restaurantData = Array.isArray(response.data) ? response.data : (response.data?.restaurants || []);
+        setAllRestaurants(restaurantData);
+
+        const opResponse = await axios.get(`${API_URL}/superadmin/operators`, {
+          params: { limit: 1000 },
+          timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+        });
+        const operatorData = Array.isArray(opResponse.data) ? opResponse.data : (opResponse.data?.operators || []);
+        setAllOperators(operatorData);
+        internalDirectoryLoadedAtRef.current = Date.now();
+      } catch (err) {
+        console.error('Load filter data error:', err);
+      }
+    })();
+
+    internalDirectoryInFlightRef.current = requestPromise;
+    try {
+      await requestPromise;
+    } finally {
+      internalDirectoryInFlightRef.current = null;
     }
   };
 
@@ -2935,7 +2962,8 @@ function SuperAdminDashboard() {
           role: operatorRoleFilter,
           status: operatorStatusFilter,
           restaurant_id: operatorRestaurantFilter
-        }
+        },
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
       });
       const data = Array.isArray(response.data)
         ? { operators: response.data, total: response.data.length }
@@ -2952,7 +2980,8 @@ function SuperAdminDashboard() {
     setLoading(true);
     try {
       const response = await axios.get(`${API_URL}/superadmin/customers`, {
-        params: { page: customerPage, search: customerSearch.trim(), status: customerStatusFilter, restaurant_id: customerRestaurantFilter, limit: customerLimit }
+        params: { page: customerPage, search: customerSearch.trim(), status: customerStatusFilter, restaurant_id: customerRestaurantFilter, limit: customerLimit },
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
       });
       setCustomers(response.data);
     } catch (err) {
@@ -3688,7 +3717,9 @@ function SuperAdminDashboard() {
   const loadCategories = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/superadmin/categories`);
+      const response = await axios.get(`${API_URL}/superadmin/categories`, {
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
       setCategories(response.data);
     } catch (err) {
       setError('Ошибка загрузки категорий');
@@ -4220,7 +4251,9 @@ function SuperAdminDashboard() {
   // Billing functions
   const loadBillingSettings = async () => {
     try {
-      const response = await axios.get(`${API_URL}/superadmin/billing/settings`);
+      const response = await axios.get(`${API_URL}/superadmin/billing/settings`, {
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
       if (response.data) {
         setBillingSettings((prev) => ({
           ...prev,
