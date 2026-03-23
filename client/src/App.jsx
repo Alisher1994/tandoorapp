@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { ShowcaseProvider } from './context/ShowcaseContext';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
@@ -33,6 +34,7 @@ const lazyWithRetry = (importer, chunkName) => lazy(async () => {
 });
 
 const Login = lazyWithRetry(() => import('./pages/Login'), 'login');
+const ShowcaseDisplay = lazyWithRetry(() => import('./pages/ShowcaseDisplay'), 'showcase-display');
 const Catalog = lazyWithRetry(() => import('./pages/Catalog'), 'catalog');
 const Cart = lazyWithRetry(() => import('./pages/Cart'), 'cart');
 const Orders = lazyWithRetry(() => import('./pages/Orders'), 'orders');
@@ -42,6 +44,7 @@ const Reservations = lazyWithRetry(() => import('./pages/Reservations'), 'reserv
 const AdminDashboard = lazyWithRetry(() => import('./pages/AdminDashboard'), 'admin-dashboard');
 const AdminReservations = lazyWithRetry(() => import('./pages/AdminReservations'), 'admin-reservations');
 const OperatorQuickProducts = lazyWithRetry(() => import('./pages/OperatorQuickProducts'), 'operator-quick-products');
+const ShowcaseBuilder = lazyWithRetry(() => import('./pages/ShowcaseBuilder'), 'showcase-builder');
 const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
 const TelegramStoreRegistration = lazyWithRetry(() => import('./pages/TelegramStoreRegistration'), 'tg-store-registration');
 
@@ -68,7 +71,8 @@ function RoutePrefetcher() {
       tasks.push(
         { key: 'admin-dashboard', load: () => import('./pages/AdminDashboard') },
         { key: 'admin-reservations', load: () => import('./pages/AdminReservations') },
-        { key: 'operator-quick-products', load: () => import('./pages/OperatorQuickProducts') }
+        { key: 'operator-quick-products', load: () => import('./pages/OperatorQuickProducts') },
+        { key: 'showcase-builder', load: () => import('./pages/ShowcaseBuilder') }
       );
     } else {
       tasks.push(
@@ -119,100 +123,110 @@ function App() {
       <AuthProvider>
         <CartProvider>
           <FavoritesProvider>
-            <AppVersionWatcher />
-            <ClientRoutePersistence />
-            <RoutePrefetcher />
-            <Suspense fallback={(
-              <PageSkeleton fullscreen label="Загрузка приложения" cards={8} />
-            )}
-            >
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/webapp/store-registration" element={<TelegramStoreRegistration />} />
-                <Route path="/catalog" element={<CatalogGate />} />
-                <Route
-                  path="/"
-                  element={
-                    <PrivateRoute>
-                      <Catalog />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/cart"
-                  element={
-                    <PrivateRoute>
-                      <Cart />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/orders"
-                  element={
-                    <PrivateRoute>
-                      <Orders />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/feedback"
-                  element={
-                    <PrivateRoute>
-                      <Feedback />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/favorites"
-                  element={
-                    <PrivateRoute>
-                      <Favorites />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/reservations"
-                  element={
-                    <PrivateRoute>
-                      <Reservations />
-                    </PrivateRoute>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <AdminRoute>
-                      <AdminDashboard />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/reservations"
-                  element={
-                    <AdminRoute>
-                      <AdminReservations />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/webapp/operator-products"
-                  element={
-                    <AdminRoute>
-                      <OperatorQuickProducts />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/superadmin"
-                  element={
-                    <SuperAdminRoute>
-                      <SuperAdminDashboard />
-                    </SuperAdminRoute>
-                  }
-                />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
+            <ShowcaseProvider>
+              <AppVersionWatcher />
+              <ClientRoutePersistence />
+              <RoutePrefetcher />
+              <Suspense fallback={(
+                <PageSkeleton fullscreen label="Загрузка приложения" cards={8} />
+              )}
+              >
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/webapp/store-registration" element={<TelegramStoreRegistration />} />
+                  <Route
+                    path="/"
+                    element={
+                      <PrivateRoute>
+                        <ShowcaseDisplay />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route path="/catalog" element={<CatalogGate />} />
+                  <Route
+                    path="/cart"
+                    element={
+                      <PrivateRoute>
+                        <Cart />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/orders"
+                    element={
+                      <PrivateRoute>
+                        <Orders />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/feedback"
+                    element={
+                      <PrivateRoute>
+                        <Feedback />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/favorites"
+                    element={
+                      <PrivateRoute>
+                        <Favorites />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/reservations"
+                    element={
+                      <PrivateRoute>
+                        <Reservations />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin"
+                    element={
+                      <AdminRoute>
+                        <AdminDashboard />
+                      </AdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/reservations"
+                    element={
+                      <AdminRoute>
+                        <AdminReservations />
+                      </AdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/showcase"
+                    element={
+                      <AdminRoute>
+                        <ShowcaseBuilder />
+                      </AdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/webapp/operator-products"
+                    element={
+                      <AdminRoute>
+                        <OperatorQuickProducts />
+                      </AdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/superadmin"
+                    element={
+                      <SuperAdminRoute>
+                        <SuperAdminDashboard />
+                      </SuperAdminRoute>
+                    }
+                  />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </ShowcaseProvider>
           </FavoritesProvider>
         </CartProvider>
       </AuthProvider>

@@ -1346,4 +1346,79 @@ router.get('/restaurants/list', async (req, res) => {
   }
 });
 
+// ===== Showcase Constructor Routes =====
+
+// GET showcase layout
+router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) => {
+  try {
+    const restaurantId = Number.parseInt(req.params.restaurantId, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Invalid restaurant ID' });
+    }
+
+    // Verify restaurant ownership (operator only)
+    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    // Get showcase layout
+    const [showcase] = await pool.query(
+      'SELECT layout FROM showcase_layouts WHERE restaurant_id = ?',
+      [restaurantId]
+    );
+
+    const layout = showcase && showcase.layout ? JSON.parse(showcase.layout) : [];
+    res.json({ blocks: layout });
+  } catch (error) {
+    console.error('Showcase GET error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки витрины' });
+  }
+});
+
+// POST/PUT showcase layout
+router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res) => {
+  try {
+    const restaurantId = Number.parseInt(req.params.restaurantId, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Invalid restaurant ID' });
+    }
+
+    const { blocks = [] } = req.body;
+    if (!Array.isArray(blocks)) {
+      return res.status(400).json({ error: 'Blocks must be an array' });
+    }
+
+    // Verify restaurant exists
+    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    // Save or update showcase layout
+    const layoutJson = JSON.stringify(blocks);
+    const [existing] = await pool.query(
+      'SELECT id FROM showcase_layouts WHERE restaurant_id = ?',
+      [restaurantId]
+    );
+
+    if (existing) {
+      await pool.query(
+        'UPDATE showcase_layouts SET layout = ?, updated_at = NOW() WHERE restaurant_id = ?',
+        [layoutJson, restaurantId]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO showcase_layouts (restaurant_id, layout, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+        [restaurantId, layoutJson]
+      );
+    }
+
+    res.json({ success: true, blocks });
+  } catch (error) {
+    console.error('Showcase POST error:', error);
+    res.status(500).json({ error: 'Ошибка сохранения витрины' });
+  }
+});
+
 module.exports = router;

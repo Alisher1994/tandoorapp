@@ -339,6 +339,15 @@ CREATE TABLE IF NOT EXISTS payme_transactions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Showcase Layouts (витрина конструктора)
+CREATE TABLE IF NOT EXISTS showcase_layouts (
+  id SERIAL PRIMARY KEY,
+  restaurant_id INTEGER NOT NULL UNIQUE REFERENCES restaurants(id) ON DELETE CASCADE,
+  layout JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- =====================================================
 -- ИНДЕКСЫ
 -- =====================================================

@@ -1398,6 +1398,20 @@ const OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS = [
   'Скрыть из каталога'
 ];
 
+// Showcase Builder Tab Component
+function ShowcaseBuilderTab() {
+  return (
+    <div style={{ padding: '1rem', textAlign: 'center', minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div>
+        <p>Перейдите к конструктору витрины на отдельной странице</p>
+        <a href="/admin/showcase" style={{ color: '#667eea', textDecoration: 'none', fontWeight: 'bold' }}>
+          Открыть конструктор →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard() {
   const normalizeAdminOrderForUI = (order) => ({
     ...order,
@@ -1861,7 +1875,7 @@ function AdminDashboard() {
   const operatorHotkeyTabOrder = useMemo(() => {
     const tabs = ['dashboard', 'orders'];
     if (isReservationModuleEnabled) tabs.push('reservations');
-    tabs.push('products', 'containers', 'feedback', 'clients', 'settings', 'help');
+    tabs.push('products', 'showcase', 'containers', 'feedback', 'clients', 'settings', 'help');
     return tabs;
   }, [isReservationModuleEnabled]);
   const orderStatusPillItems = [
@@ -1906,6 +1920,7 @@ function AdminDashboard() {
     }
 
     tabs.products = { label: t('products'), icon: Boxes };
+    tabs.showcase = { label: language === 'uz' ? "Vitrina" : 'Витрина', icon: Boxes };
     tabs.containers = { label: t('containers'), icon: Package };
     tabs.feedback = { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle };
     tabs.clients = { label: t('clients'), icon: Users };
@@ -10397,6 +10412,10 @@ function AdminDashboard() {
                   }}
                 />
 
+              </Tab>
+
+              <Tab eventKey="showcase" title={renderAdminSidebarTabTitle('showcase')}>
+                <ShowcaseBuilderTab />
               </Tab>
 
               <Tab eventKey="containers" title={renderAdminSidebarTabTitle('containers')}>

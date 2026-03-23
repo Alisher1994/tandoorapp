@@ -1,0 +1,71 @@
+/* Showcase Display Page Styles */
+
+.showcase-display-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+.showcase-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 80px;
+}
+
+.showcase-inner {
+  padding: 0;
+}
+
+.showcase-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.showcase-display-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 1rem;
+  color: #666;
+}
+
+.showcase-display-loading p {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* Hide bottom padding on last block */
+.showcase-blocks > :last-child {
+  margin-bottom: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .showcase-content {
+    padding-bottom: 70px;
+  }
+}
+
+@media (max-width: 480px) {
+  .showcase-content {
+    padding-bottom: 60px;
+  }
+}
+
+/* Alert styling */
+.alert {
+  margin: 1rem 0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.alert-warning {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}

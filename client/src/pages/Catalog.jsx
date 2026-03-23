@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useDeferredValue } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
@@ -158,6 +158,7 @@ function Catalog() {
   const { toggleFavorite, isFavorite } = useFavorites();
   const { language, t, setCountryCurrency, setLanguage } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= 992 : false
   ));
@@ -270,6 +271,15 @@ function Catalog() {
       setPrevRestaurant(selectedRestaurant);
     }
   }, [selectedRestaurant]);
+
+  // Handle category filtering from navigation state (e.g., from Showcase)
+  useEffect(() => {
+    if (location.state?.selectedCategoryId) {
+      setSelectedCategory(location.state.selectedCategoryId);
+      // Clear the state to avoid re-applying it
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state?.selectedCategoryId]);
 
   useEffect(() => {
     pendingProductReviewsLoadedRef.current = false;

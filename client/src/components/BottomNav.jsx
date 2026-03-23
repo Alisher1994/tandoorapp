@@ -52,7 +52,8 @@ function BottomNav() {
   }, [user?.active_restaurant_id]);
   
   const navItems = [
-    { path: '/', icon: '🏠', label: t('menu') },
+    { path: '/', icon: '🛍️', label: t('showcase') || 'Витрина' },
+    { path: '/catalog', icon: '📋', label: t('menu') || 'Меню' },
     { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
     ...(isReservationMenuVisible ? [{ path: '/reservations', icon: '🪑', label: t('reservations') || 'Бронь' }] : []),
