@@ -55,11 +55,27 @@ const getGridLimitFromBlock = (block) => {
   return block?.block_type === 'grid_2' ? 2 : 3;
 };
 
+const parseRowPattern = (rawValue) => {
+  if (Array.isArray(rawValue)) return rawValue;
+  if (typeof rawValue === 'string') {
+    const normalized = rawValue.trim();
+    if (!normalized) return [];
+    try {
+      const parsed = JSON.parse(normalized);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      return normalized
+        .split(/[+,xX;|/ ]+/)
+        .map((part) => Number.parseInt(part, 10))
+        .filter((value) => Number.isInteger(value) && value > 0);
+    }
+  }
+  return [];
+};
+
 const getGridRowPattern = (block) => {
   const limit = getGridLimitFromBlock(block);
-  const rawPattern = Array.isArray(block?.settings?.rowPattern)
-    ? block.settings.rowPattern
-    : [];
+  const rawPattern = parseRowPattern(block?.settings?.rowPattern);
   const normalized = rawPattern
     .map((value) => Number.parseInt(value, 10))
     .filter((value) => Number.isInteger(value) && value > 0);
@@ -260,6 +276,8 @@ function ShowcaseDisplay() {
     : categories;
 
   const renderBlock = (block) => {
+    const blockTitle = String(block?.settings?.title || block?.title || '').trim();
+    const blockLayoutVariant = String(block?.settings?.layoutVariant || '').trim();
     const content = Array.isArray(block.content) ? block.content : [];
     const limit = block.block_type === 'grid_3' || block.block_type === 'grid_2'
       ? getGridLimitFromBlock(block)
@@ -284,6 +302,8 @@ function ShowcaseDisplay() {
               cartItems={cart}
               onCategoryClick={handleCategoryClick}
               categoryImageFallback={user?.active_restaurant_logo || ''}
+              blockTitle={blockTitle}
+              layoutVariant={blockLayoutVariant}
             />
           );
         }
@@ -295,6 +315,7 @@ function ShowcaseDisplay() {
             cartItems={cart}
             onCategoryClick={handleCategoryClick}
             categoryImageFallback={user?.active_restaurant_logo || ''}
+            blockTitle={blockTitle}
           />
         );
       case 'grid_2':
@@ -308,6 +329,8 @@ function ShowcaseDisplay() {
               cartItems={cart}
               onCategoryClick={handleCategoryClick}
               categoryImageFallback={user?.active_restaurant_logo || ''}
+              blockTitle={blockTitle}
+              layoutVariant={blockLayoutVariant}
             />
           );
         }
@@ -319,6 +342,7 @@ function ShowcaseDisplay() {
             cartItems={cart}
             onCategoryClick={handleCategoryClick}
             categoryImageFallback={user?.active_restaurant_logo || ''}
+            blockTitle={blockTitle}
           />
         );
       case 'banner':

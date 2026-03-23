@@ -44,6 +44,8 @@ const normalizeRowPattern = (rowPattern = [], fallback = 3) => {
   return normalized.length > 0 ? normalized : [Math.max(1, Number.parseInt(fallback, 10) || 3)];
 };
 
+const getDisplayBlockTitle = (title) => String(title || '').trim();
+
 const createCategoryCartBadgeResolver = (products = [], cartItems = []) => (categoryId) => {
   const normalizedCategoryId = normalizeId(categoryId);
   const total = cartItems
@@ -86,12 +88,15 @@ export function Grid3Block({
   products = [],
   onCategoryClick,
   cartItems = [],
-  categoryImageFallback = ''
+  categoryImageFallback = '',
+  blockTitle = ''
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
+  const titleText = getDisplayBlockTitle(blockTitle);
 
   return (
     <div className="showcase-block grid-3-block">
+      {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="grid-3-container">
         {categories.map((category) => {
           const hasCategoryImage = Boolean(getCategoryImage(category));
@@ -132,12 +137,15 @@ export function Grid2Block({
   products = [],
   onCategoryClick,
   cartItems = [],
-  categoryImageFallback = ''
+  categoryImageFallback = '',
+  blockTitle = ''
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
+  const titleText = getDisplayBlockTitle(blockTitle);
 
   return (
     <div className="showcase-block grid-2-block">
+      {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="grid-2-container">
         {categories.map((category) => {
           const hasCategoryImage = Boolean(getCategoryImage(category));
@@ -183,10 +191,14 @@ export function PatternGridBlock({
   products = [],
   onCategoryClick,
   cartItems = [],
-  categoryImageFallback = ''
+  categoryImageFallback = '',
+  blockTitle = '',
+  layoutVariant = ''
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const normalizedPattern = normalizeRowPattern(rowPattern, categories.length || 3);
+  const isZigzagLayout = String(layoutVariant || '').trim().toLowerCase() === 'zigzag_2';
+  const titleText = getDisplayBlockTitle(blockTitle);
   const rows = [];
   let cursor = 0;
   normalizedPattern.forEach((count) => {
@@ -201,40 +213,59 @@ export function PatternGridBlock({
   }
 
   return (
-    <div className="showcase-block pattern-grid-block">
+    <div className={`showcase-block pattern-grid-block${isZigzagLayout ? ' is-zigzag' : ''}`}>
+      {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="pattern-grid-rows">
         {rows.map((rowItems, rowIndex) => (
-          <div
-            key={`pattern_row_${rowIndex}`}
-            className="pattern-grid-row"
-            style={{ gridTemplateColumns: `repeat(${rowItems.length}, minmax(0, 1fr))` }}
-          >
-            {rowItems.map((category) => {
-              const hasCategoryImage = Boolean(getCategoryImage(category));
-              return (
-                <div
-                  key={category.id}
-                  className="pattern-grid-item"
-                  onClick={() => onCategoryClick?.(category.id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      onCategoryClick?.(category.id);
-                    }
-                  }}
-                >
-                  <div className={`pattern-grid-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
-                    {renderCategoryImage(category, categoryImageFallback, 'pattern-grid-image')}
-                    {getCartBadge(category.id) && (
-                      <span className="cart-badge">{getCartBadge(category.id)}</span>
-                    )}
-                  </div>
-                  <div className="pattern-grid-label">{getCategoryName(category)}</div>
-                </div>
-              );
-            })}
-          </div>
+          (() => {
+            const isZigzagTwoSlots = isZigzagLayout && rowItems.length === 2;
+            const rowColumns = isZigzagTwoSlots
+              ? (rowIndex % 2 === 0 ? '1.7fr 1fr' : '1fr 1.7fr')
+              : `repeat(${rowItems.length}, minmax(0, 1fr))`;
+            return (
+              <div
+                key={`pattern_row_${rowIndex}`}
+                className={`pattern-grid-row${isZigzagTwoSlots ? ' pattern-grid-row-zigzag' : ''}`}
+                style={{ gridTemplateColumns: rowColumns }}
+              >
+                {rowItems.map((category, rowItemIndex) => {
+                  const isWideZigzagCard = isZigzagTwoSlots
+                    && ((rowIndex % 2 === 0 && rowItemIndex === 0) || (rowIndex % 2 === 1 && rowItemIndex === 1));
+                  const zigzagTypeClass = isZigzagTwoSlots
+                    ? (isWideZigzagCard ? ' is-wide' : ' is-square')
+                    : '';
+                  const hasCategoryImage = Boolean(getCategoryImage(category));
+                  return (
+                    <div
+                      key={category.id}
+                      className={`pattern-grid-item${isZigzagLayout ? ' pattern-grid-item-zigzag' : ''}${zigzagTypeClass}`}
+                      onClick={() => onCategoryClick?.(category.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          onCategoryClick?.(category.id);
+                        }
+                      }}
+                    >
+                      <div className={`pattern-grid-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
+                        {renderCategoryImage(category, categoryImageFallback, 'pattern-grid-image')}
+                        {getCartBadge(category.id) && (
+                          <span className="cart-badge">{getCartBadge(category.id)}</span>
+                        )}
+                        {isZigzagLayout && (
+                          <div className="pattern-grid-overlay-title">{getCategoryName(category)}</div>
+                        )}
+                      </div>
+                      {!isZigzagLayout && (
+                        <div className="pattern-grid-label">{getCategoryName(category)}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
         ))}
       </div>
     </div>

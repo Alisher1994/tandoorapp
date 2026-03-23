@@ -42,7 +42,7 @@ const SHOWCASE_TEMPLATES = [
     description: 'Один блок, 5 категорий',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
-      title: 'Сетка 3+2',
+      title: '',
       maxCategories: 5,
       rowPattern: [3, 2]
     }
@@ -53,7 +53,7 @@ const SHOWCASE_TEMPLATES = [
     description: 'Один блок, 5 категорий',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
-      title: 'Сетка 2+3',
+      title: '',
       maxCategories: 5,
       rowPattern: [2, 3]
     }
@@ -64,7 +64,7 @@ const SHOWCASE_TEMPLATES = [
     description: 'Один блок, 3 категории',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
-      title: 'Сетка 1+2',
+      title: '',
       maxCategories: 3,
       rowPattern: [1, 2]
     }
@@ -75,9 +75,21 @@ const SHOWCASE_TEMPLATES = [
     description: 'Один блок, 3 категории',
     blockType: BLOCK_TYPES.GRID_3,
     settings: {
-      title: 'Сетка 2+1',
+      title: '',
       maxCategories: 3,
       rowPattern: [2, 1]
+    }
+  },
+  {
+    key: 'zigzag_2',
+    label: 'Широкий + квадратный',
+    description: 'Шахматный 2-колоночный блок',
+    blockType: BLOCK_TYPES.GRID_3,
+    settings: {
+      title: '',
+      maxCategories: 6,
+      rowPattern: [2, 2, 2],
+      layoutVariant: 'zigzag_2'
     }
   }
 ];
@@ -258,10 +270,10 @@ function ShowcaseBuilder({ embedded = false }) {
 
   const handleAddBlock = (blockType) => {
     const defaultSettings = {
-      [BLOCK_TYPES.GRID_3]: { title: 'Категории 3', maxCategories: 3 },
-      [BLOCK_TYPES.GRID_2]: { title: 'Категории 2', maxCategories: 2 },
+      [BLOCK_TYPES.GRID_3]: { title: '', maxCategories: 3 },
+      [BLOCK_TYPES.GRID_2]: { title: '', maxCategories: 2 },
       [BLOCK_TYPES.BANNER]: DEFAULT_BANNER_SETTINGS,
-      [BLOCK_TYPES.SLIDER]: { title: 'Популярное' }
+      [BLOCK_TYPES.SLIDER]: { title: '' }
     };
 
     addBlock(blockType, defaultSettings[blockType]);
@@ -342,6 +354,9 @@ function ShowcaseBuilder({ embedded = false }) {
   const getBlockTypeLabel = (block) => {
     const blockType = block?.block_type;
     if (isGridBlockType(blockType)) {
+      if (String(block?.settings?.layoutVariant || '').trim().toLowerCase() === 'zigzag_2') {
+        return 'Зигзаг 2x';
+      }
       const customPattern = getGridPatternLabel(block);
       if (customPattern) return `Сетка ${customPattern}`;
       return blockType === BLOCK_TYPES.GRID_2 ? 'Сетка 2x' : 'Сетка 3x';
@@ -355,41 +370,7 @@ function ShowcaseBuilder({ embedded = false }) {
     categories.find((item) => normalizeId(item?.id) === normalizeId(categoryId)) || null
   );
 
-  const renderDropHint = (block) => {
-    if (isGridBlockType(block.block_type)) {
-      const limit = getGridCategoryLimit(block) || 0;
-      const assignedCount = Array.isArray(block.content) ? block.content.length : 0;
-      const isFull = limit > 0 && assignedCount >= limit;
-      return (
-        <div className={`block-drop-hint${isFull ? ' is-full' : ''}`}>
-          {isFull
-            ? `Лимит заполнен: ${assignedCount}/${limit}. Удалите одну категорию в слотах ниже.`
-            : `Перетащите категории сюда (${assignedCount}/${limit})`}
-        </div>
-      );
-    }
-
-    if (block.block_type === BLOCK_TYPES.SLIDER) {
-      const selectedCategory = getCategoryById(block.category_id);
-      return (
-        <div className="block-drop-hint">
-          {selectedCategory
-            ? `Категория слайдера: ${getCategoryDisplayName(selectedCategory)}`
-            : 'Перетащите одну категорию сюда для слайдера'}
-        </div>
-      );
-    }
-
-    if (block.block_type === BLOCK_TYPES.BANNER) {
-      return (
-        <div className="block-drop-hint">
-          Баннер: редактируется через кнопку настроек
-        </div>
-      );
-    }
-
-    return null;
-  };
+  const renderDropHint = () => null;
 
   const renderBlockAssignments = (block) => {
     if (isGridBlockType(block.block_type)) {
@@ -500,6 +481,8 @@ function ShowcaseBuilder({ embedded = false }) {
   };
 
   const renderBlock = (block) => {
+    const blockTitle = String(block?.settings?.title || block?.title || '').trim();
+    const blockLayoutVariant = String(block?.settings?.layoutVariant || '').trim();
     const limit = isGridBlockType(block.block_type) ? getGridCategoryLimit(block) : null;
     const sourceCategoryIds = Array.isArray(block.content)
       ? (limit ? block.content.slice(0, limit) : block.content)
@@ -528,6 +511,8 @@ function ShowcaseBuilder({ embedded = false }) {
               products={products}
               cartItems={[]}
               categoryImageFallback={user?.active_restaurant_logo || ''}
+              blockTitle={blockTitle}
+              layoutVariant={blockLayoutVariant}
             />
           );
         }
@@ -537,6 +522,7 @@ function ShowcaseBuilder({ embedded = false }) {
             products={products}
             cartItems={[]}
             categoryImageFallback={user?.active_restaurant_logo || ''}
+            blockTitle={blockTitle}
           />
         );
       case BLOCK_TYPES.GRID_2:
@@ -548,6 +534,8 @@ function ShowcaseBuilder({ embedded = false }) {
               products={products}
               cartItems={[]}
               categoryImageFallback={user?.active_restaurant_logo || ''}
+              blockTitle={blockTitle}
+              layoutVariant={blockLayoutVariant}
             />
           );
         }
@@ -557,6 +545,7 @@ function ShowcaseBuilder({ embedded = false }) {
             products={products}
             cartItems={[]}
             categoryImageFallback={user?.active_restaurant_logo || ''}
+            blockTitle={blockTitle}
           />
         );
       case BLOCK_TYPES.BANNER:
@@ -815,6 +804,7 @@ function ShowcaseBuilder({ embedded = false }) {
         show={showBlockTypeModal}
         onHide={() => setShowBlockTypeModal(false)}
         centered
+        dialogClassName="showcase-builder-modal"
       >
       <Modal.Header closeButton>
           <Modal.Title>Добавление в витрину</Modal.Title>
@@ -830,18 +820,26 @@ function ShowcaseBuilder({ embedded = false }) {
               >
                 <div className="template-option-preview" aria-hidden="true">
                   {(parseRowPattern(template?.settings?.rowPattern) || []).map((rowSize, rowIndex) => (
-                    <div
-                      key={`${template.key}_row_${rowIndex}`}
-                      className="template-option-row"
-                      style={{ gridTemplateColumns: `repeat(${rowSize}, minmax(0, 1fr))` }}
-                    >
-                      {Array.from({ length: rowSize }).map((_, rowCellIndex) => (
-                        <span
-                          key={`${template.key}_cell_${rowIndex}_${rowCellIndex}`}
-                          className="template-option-cell"
-                        />
-                      ))}
-                    </div>
+                    (() => {
+                      const isZigzagTemplate = String(template?.settings?.layoutVariant || '').trim().toLowerCase() === 'zigzag_2';
+                      const rowColumns = isZigzagTemplate && rowSize === 2
+                        ? (rowIndex % 2 === 0 ? '1.7fr 1fr' : '1fr 1.7fr')
+                        : `repeat(${rowSize}, minmax(0, 1fr))`;
+                      return (
+                        <div
+                          key={`${template.key}_row_${rowIndex}`}
+                          className="template-option-row"
+                          style={{ gridTemplateColumns: rowColumns }}
+                        >
+                          {Array.from({ length: rowSize }).map((_, rowCellIndex) => (
+                            <span
+                              key={`${template.key}_cell_${rowIndex}_${rowCellIndex}`}
+                              className="template-option-cell"
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()
                   ))}
                 </div>
                 <div className="template-option-label">{template.label}</div>
@@ -910,9 +908,10 @@ function ShowcaseBuilder({ embedded = false }) {
         onHide={() => setShowBlockSettingsModal(false)}
         onSave={(settings) => {
           if (selectedBlock) {
+            const nextTitle = settings.title == null ? '' : String(settings.title);
             updateBlock(selectedBlock.id, {
               settings,
-              title: settings.title || selectedBlock.title
+              title: nextTitle
             });
             if (selectedBlock.block_type === BLOCK_TYPES.SLIDER) {
               setSliderCategory(selectedBlock.id, settings.category_id ?? null);
@@ -949,7 +948,7 @@ function BlockSettingsModal({ show, block, categories, onHide, onSave }) {
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered>
+    <Modal show={show} onHide={onHide} centered dialogClassName="showcase-builder-modal">
       <Modal.Header closeButton>
         <Modal.Title>Настройки блока</Modal.Title>
       </Modal.Header>
