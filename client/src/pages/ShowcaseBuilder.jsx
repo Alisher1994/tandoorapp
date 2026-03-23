@@ -39,6 +39,23 @@ const getCategoryImage = (category) => (
   || ''
 );
 
+const isProductEnabledForShowcase = (product) => (
+  product?.is_active !== false
+);
+
+const normalizeId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const extractProductsFromResponse = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.products)) return payload.products;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
 function ShowcaseBuilder({ embedded = false }) {
   const { user } = useAuth();
   const {
@@ -82,10 +99,20 @@ function ShowcaseBuilder({ embedded = false }) {
       try {
         const [categoriesRes, productsRes] = await Promise.all([
           axios.get(`${API_URL}/products/restaurants/${restaurantId}/categories`),
-          axios.get(`${API_URL}/products/restaurant/${restaurantId}`)
+          axios
+            .get(`${API_URL}/admin/products`, { params: { restaurant_id: restaurantId } })
+            .catch(() => axios.get(`${API_URL}/products`, { params: { restaurant_id: restaurantId } }))
         ]);
-        const fetchedCategories = Array.isArray(categoriesRes.data) ? categoriesRes.data : [];
-        const fetchedProducts = Array.isArray(productsRes.data) ? productsRes.data : [];
+        const fetchedCategories = Array.isArray(categoriesRes.data)
+          ? categoriesRes.data
+          : (Array.isArray(categoriesRes.data?.categories) ? categoriesRes.data.categories : []);
+        const fetchedProductsRaw = extractProductsFromResponse(productsRes.data);
+        const fetchedProducts = fetchedProductsRaw
+          .filter((product) => isProductEnabledForShowcase(product))
+          .filter((product) => {
+            const productRestaurantId = normalizeId(product?.restaurant_id);
+            return !productRestaurantId || productRestaurantId === restaurantId;
+          });
 
         setCategories(fetchedCategories);
         setProducts(fetchedProducts);
@@ -188,7 +215,9 @@ function ShowcaseBuilder({ embedded = false }) {
         : 'Перетащите категории в эту область';
     }
     if (block.block_type === BLOCK_TYPES.SLIDER) {
-      const selectedCategory = categories.find((category) => category.id === block.category_id);
+      const selectedCategory = categories.find(
+        (category) => normalizeId(category?.id) === normalizeId(block?.category_id)
+      );
       return selectedCategory
         ? `Категория слайдера: ${getCategoryDisplayName(selectedCategory)}`
         : 'Выберите категорию в настройках блока';
@@ -206,7 +235,9 @@ function ShowcaseBuilder({ embedded = false }) {
     return (
       <div className="block-category-chips">
         {block.content.map((categoryId) => {
-          const category = categories.find((item) => item.id === categoryId);
+          const category = categories.find(
+            (item) => normalizeId(item?.id) === normalizeId(categoryId)
+          );
           const categoryTitle = category ? getCategoryDisplayName(category) : `Категория #${categoryId}`;
           return (
             <span key={`${block.id}_${categoryId}`} className="block-category-chip">
@@ -230,9 +261,17 @@ function ShowcaseBuilder({ embedded = false }) {
     getCategoryDisplayName(cat).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getCategoryProductCount = (categoryId) => {
+    const normalizedCategoryId = normalizeId(categoryId);
+    if (!normalizedCategoryId) return 0;
+    return products.filter((product) => normalizeId(product.category_id) === normalizedCategoryId).length;
+  };
+
   const renderBlock = (block) => {
     const blockCategories = block.content.map((categoryId) => {
-      const category = categories.find((item) => item.id === categoryId);
+      const category = categories.find(
+        (item) => normalizeId(item?.id) === normalizeId(categoryId)
+      );
       if (category) return category;
       return {
         id: categoryId,
@@ -390,7 +429,7 @@ function ShowcaseBuilder({ embedded = false }) {
                       <div className="category-info">
                         <div className="category-name">{getCategoryDisplayName(category)}</div>
                         <div className="category-count">
-                          {products.filter(p => p.category_id === category.id).length} товаров
+                          {getCategoryProductCount(category.id)} товаров
                         </div>
                       </div>
                     </div>

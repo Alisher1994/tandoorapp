@@ -2722,7 +2722,25 @@ router.post('/products/description-preview', async (req, res) => {
 // Получить товары (фильтруются по активному ресторану)
 router.get('/products', async (req, res) => {
   try {
-    const restaurantId = req.user.active_restaurant_id;
+    const requestedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
+    const hasRequestedRestaurantId = Number.isInteger(requestedRestaurantId) && requestedRestaurantId > 0;
+    let restaurantId = req.user.active_restaurant_id;
+
+    if (hasRequestedRestaurantId) {
+      if (req.user.role !== 'superadmin') {
+        const accessResult = await pool.query(
+          `SELECT 1
+           FROM operator_restaurants
+           WHERE user_id = $1 AND restaurant_id = $2
+           LIMIT 1`,
+          [req.user.id, requestedRestaurantId]
+        );
+        if (accessResult.rows.length === 0) {
+          return res.status(403).json({ error: 'Нет доступа к этому ресторану' });
+        }
+      }
+      restaurantId = requestedRestaurantId;
+    }
 
     let query = `
       SELECT p.*, c.name_ru as category_name,

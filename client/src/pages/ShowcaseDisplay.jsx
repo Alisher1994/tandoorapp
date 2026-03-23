@@ -21,6 +21,19 @@ import './ShowcaseDisplay.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+const normalizeId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : null;
+};
+
+const extractProductsFromResponse = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.products)) return payload.products;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
 function ShowcaseDisplay() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -45,18 +58,25 @@ function ShowcaseDisplay() {
       try {
         const [categoriesRes, productsRes] = await Promise.all([
           axios.get(`${API_URL}/products/restaurants/${restaurantId}/categories`),
-          axios.get(`${API_URL}/products/restaurant/${restaurantId}`)
+          axios.get(`${API_URL}/products`, { params: { restaurant_id: restaurantId } })
         ]);
 
-        // Filter categories that have at least one active product
-        const activeCategories = categoriesRes.data.filter(cat =>
-          productsRes.data.some(prod =>
-            prod.category_id === cat.id && prod.is_active
+        const categoryList = Array.isArray(categoriesRes.data)
+          ? categoriesRes.data
+          : (Array.isArray(categoriesRes.data?.categories) ? categoriesRes.data.categories : []);
+        const productList = extractProductsFromResponse(productsRes.data);
+        const isProductVisible = (product) => product?.is_active !== false;
+        const visibleProducts = productList.filter(isProductVisible);
+
+        // Filter categories that have at least one visible product
+        const activeCategories = categoryList.filter(cat =>
+          visibleProducts.some(prod =>
+            normalizeId(prod?.category_id) === normalizeId(cat?.id)
           )
         );
 
         setCategories(activeCategories);
-        setProducts(productsRes.data.filter(p => p.is_active));
+        setProducts(visibleProducts);
       } catch (err) {
         console.error('Failed to load data:', err);
         setError('Ошибка загрузки данных');
@@ -88,7 +108,7 @@ function ShowcaseDisplay() {
 
   const renderBlock = (block) => {
     const blockCategories = block.content
-      .map(catId => categories.find(c => c.id === catId))
+      .map(catId => categories.find(c => normalizeId(c?.id) === normalizeId(catId)))
       .filter(Boolean);
 
     switch (block.block_type) {
