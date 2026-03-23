@@ -10012,13 +10012,6 @@ function AdminDashboard() {
                 </div>
 
                 <div className="d-lg-none admin-products-mobile-grid">
-                  {pagedProducts.length > 0 && (
-                    <div className="admin-products-mobile-grid-head">
-                      <span>{t('photo')}</span>
-                      <span>{t('productName')}</span>
-                      <span>{t('actions')}</span>
-                    </div>
-                  )}
                   {pagedProducts.length === 0 ? (
                     <div className="admin-products-mobile-empty">
                       {t('noData')}
