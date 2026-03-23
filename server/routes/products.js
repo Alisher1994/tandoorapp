@@ -562,6 +562,65 @@ router.get('/restaurants/:restaurantId/categories', authenticate, async (req, re
 
 // GET showcase layout
 router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) => {
+  try {
+    const restaurantId = Number.parseInt(req.params.restaurantId, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Invalid restaurant ID' });
+    }
+
+    // Verify restaurant ownership (operator only)
+    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    // Get showcase layout
+    const [showcase] = await pool.query(
+      'SELECT layout FROM showcase_layouts WHERE restaurant_id = ?',
+      [restaurantId]
+    );
+
+    const layout = showcase && showcase.layout ? JSON.parse(showcase.layout) : [];
+    res.json({ blocks: layout });
+  } catch (error) {
+    console.error('Showcase GET error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки витрины' });
+  }
+});
+
+// Get all categories (public - for customers, global/shared)
+router.get('/categories', async (req, res) => {
+  try {
+    // Categories are global/shared across restaurants.
+    // We intentionally do not filter by restaurant_id here, because
+    // products are already filtered by restaurant on the catalog side.
+    const result = await pool.query(
+      'SELECT * FROM categories WHERE is_active = true ORDER BY name_ru'
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Categories error:', error);
+    res.status(500).json({ error: 'Ошибка получения категорий' });
+  }
+});
+
+// Get all products (public - for customers, filtered by restaurant)
+router.get('/', async (req, res) => {
+  try {
+    const { category_id, in_stock, restaurant_id } = req.query;
+    const currentSeasonScope = getCurrentSeasonScope();
+    
+    let query = `
+      SELECT p.*, c.name_ru as category_name,
+             cnt.id as container_id, cnt.name as container_name, cnt.price as container_price
+      FROM products p 
+      LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN containers cnt ON p.container_id = cnt.id
+      WHERE 1=1
+        AND COALESCE(p.is_hidden_catalog, false) = false
+        AND COALESCE(NULLIF(p.season_scope, ''), 'all') IN ('all', $1)
+    `;
+    const params = [currentSeasonScope];
     let paramCount = 2;
     
     if (restaurant_id) {
