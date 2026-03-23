@@ -107,7 +107,9 @@ const BOT_TEXTS = {
     supportButton: '📞 Связаться с поддержкой',
     loginButton: '🔐 Войти в систему',
     myStoreButton: '🏪 Мой магазин',
+    addProductButton: '➕ Добавить товар',
     myStoreOpenHint: 'Откройте ваш магазин по кнопке ниже.',
+    addProductOpenHint: 'Откройте окно добавления товара по кнопке ниже.',
     myStoreMissing: '❌ Для вашего аккаунта не найден привязанный магазин.',
     resetButton: '🔐 Восстановить логин и пароль',
     helpMenuButton: '🆘 Помощь',
@@ -170,7 +172,9 @@ const BOT_TEXTS = {
     supportButton: '📞 Yordam bilan bog‘lanish',
     loginButton: '🔐 Tizimga kirish',
     myStoreButton: "🏪 Mening do'konim",
+    addProductButton: "➕ Mahsulot qo'shish",
     myStoreOpenHint: "Do'koningizni quyidagi tugma orqali oching.",
+    addProductOpenHint: "Mahsulot qo'shish oynasini quyidagi tugma orqali oching.",
     myStoreMissing: "❌ Hisobingizga bog'langan do'kon topilmadi.",
     resetButton: '🔐 Login va parolni tiklash',
     helpMenuButton: '🆘 Yordam',
@@ -540,6 +544,30 @@ async function buildOperatorStoreWebAppUrl(user) {
   const username = user.username || `user_${user.id}`;
   const token = generateLoginToken(user.id, username, { restaurantId });
   return buildCatalogUrl(appUrl, token);
+}
+
+async function buildOperatorProductWebAppUrl(user, autoLoginToken = null, forcedRestaurantId = null) {
+  const appUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
+  if (!appUrl || !user?.id) return null;
+
+  const restaurantId = Number.isFinite(Number.parseInt(forcedRestaurantId, 10))
+    ? Number.parseInt(forcedRestaurantId, 10)
+    : await resolvePrimaryRestaurantIdForAdminUser(user);
+  if (!restaurantId || restaurantId <= 0) return null;
+
+  const username = user.username || `user_${user.id}`;
+  const token = String(autoLoginToken || '').trim() || generateLoginToken(user.id, username, {
+    expiresIn: '1h',
+    role: user.role,
+    restaurantId
+  });
+  if (!token) return null;
+
+  const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+  const search = new URLSearchParams();
+  search.set('token', token);
+  search.set('restaurant_id', String(restaurantId));
+  return appendWebAppCacheVersion(`${trimmed}/webapp/operator-products?${search.toString()}`);
 }
 
 function normalizeBotLanguage(value) {
@@ -974,9 +1002,11 @@ async function initBot() {
     let keyboard;
     if (isAdminUser) {
       const username = user.username || `user_${user.id}`;
+      const restaurantId = await resolvePrimaryRestaurantIdForAdminUser(user);
       const adminAutoLoginToken = generateLoginToken(user.id, username, {
         expiresIn: '1h',
-        role: user.role
+        role: user.role,
+        restaurantId
       });
       const adminLoginUrl = buildWebLoginUrl({
         portal: 'admin',
@@ -984,6 +1014,7 @@ async function initBot() {
         token: adminAutoLoginToken
       });
       const storeUrl = await buildOperatorStoreWebAppUrl(user);
+      const addProductUrl = await buildOperatorProductWebAppUrl(user, adminAutoLoginToken, restaurantId);
 
       const loginButton = adminLoginUrl
         ? { text: t(language, 'loginButton'), web_app: { url: adminLoginUrl } }
@@ -991,9 +1022,13 @@ async function initBot() {
       const storeButton = storeUrl
         ? { text: t(language, 'myStoreButton'), web_app: { url: storeUrl } }
         : { text: t(language, 'myStoreButton') };
+      const addProductButton = addProductUrl
+        ? { text: t(language, 'addProductButton'), web_app: { url: addProductUrl } }
+        : { text: t(language, 'addProductButton') };
 
       keyboard = [
         [loginButton, storeButton],
+        [addProductButton],
         [{ text: t(language, 'resetButton') }],
         [{ text: t(language, 'languageMenuButton') }, { text: t(language, 'helpMenuButton') }]
       ];
@@ -1854,6 +1889,7 @@ async function initBot() {
     const isLanguageMenuText = [t('ru', 'languageMenuButton'), t('uz', 'languageMenuButton')].includes(text);
     const isLoginMenuText = [t('ru', 'loginButton'), t('uz', 'loginButton')].includes(text);
     const isStoreMenuText = [t('ru', 'myStoreButton'), t('uz', 'myStoreButton')].includes(text);
+    const isAddProductMenuText = [t('ru', 'addProductButton'), t('uz', 'addProductButton')].includes(text);
     const isResetMenuText = [t('ru', 'resetButton'), t('uz', 'resetButton')].includes(text);
     const isHelpMenuText = [t('ru', 'helpMenuButton'), t('uz', 'helpMenuButton')].includes(text);
 
@@ -1903,6 +1939,27 @@ async function initBot() {
       await bot.sendMessage(chatId, t(currentLang, 'myStoreOpenHint'), {
         reply_markup: {
           inline_keyboard: [[{ text: t(currentLang, 'myStoreButton'), url: storeUrl }]]
+        }
+      });
+      return;
+    }
+
+    if (isAddProductMenuText) {
+      const user = await resolvePreferredSuperadminAccessUser(userId);
+      if (!user) {
+        await sendStartMenu(chatId, userId, currentLang);
+        return;
+      }
+
+      const addProductUrl = await buildOperatorProductWebAppUrl(user);
+      if (!addProductUrl) {
+        await bot.sendMessage(chatId, t(currentLang, 'myStoreMissing'));
+        return;
+      }
+
+      await bot.sendMessage(chatId, t(currentLang, 'addProductOpenHint'), {
+        reply_markup: {
+          inline_keyboard: [[{ text: t(currentLang, 'addProductButton'), url: addProductUrl }]]
         }
       });
       return;
