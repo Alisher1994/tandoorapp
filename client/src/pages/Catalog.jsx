@@ -13,6 +13,7 @@ import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../co
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import BottomNav from '../components/BottomNav';
+import ClientAccountModal from '../components/ClientAccountModal';
 import HeartIcon from '../components/HeartIcon';
 import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 
@@ -24,6 +25,7 @@ const catalogSectionTabKey = (id) => (
 );
 const CATALOG_SEARCH_RESULTS_LIMIT = 80;
 const PENDING_PRODUCT_REVIEW_SNOOZE_MS = 24 * 60 * 60 * 1000;
+const LANGUAGE_STORAGE_KEY = 'language';
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
@@ -70,6 +72,24 @@ const SearchLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
+const UserLucideIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M19 21a7 7 0 0 0-14 0" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
 function Catalog() {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
@@ -81,6 +101,7 @@ function Catalog() {
   const [entryPopupBanner, setEntryPopupBanner] = useState(null);
   const [showEntryPopupModal, setShowEntryPopupModal] = useState(false);
   const [showLanguageSetupModal, setShowLanguageSetupModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState('ru');
   const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
@@ -194,12 +215,15 @@ function Catalog() {
   }, [isTelegramWebView, user?.active_restaurant_id, selectedRestaurant]);
 
   useEffect(() => {
-    const languagePromptShown = sessionStorage.getItem('client_language_prompt_done') === '1';
-    if (!languagePromptShown) {
-      setPendingLanguage(language === 'uz' ? 'uz' : 'ru');
-      setShowLanguageSetupModal(true);
+    if (typeof window === 'undefined') return;
+    const savedLanguage = String(localStorage.getItem(LANGUAGE_STORAGE_KEY) || '').trim().toLowerCase();
+    if (savedLanguage === 'ru' || savedLanguage === 'uz') {
+      setPendingLanguage(savedLanguage);
+      return;
     }
-  }, []);
+    setPendingLanguage(language === 'uz' ? 'uz' : 'ru');
+    setShowLanguageSetupModal(true);
+  }, [language]);
 
   // For customers: lock to active_restaurant_id from bot (avoid stale catalog when only other user fields change)
   useEffect(() => {
@@ -948,7 +972,7 @@ function Catalog() {
   const handleSaveLanguagePreference = () => {
     const nextLanguage = pendingLanguage === 'uz' ? 'uz' : 'ru';
     setLanguage(nextLanguage);
-    sessionStorage.setItem('client_language_prompt_done', '1');
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
     setShowLanguageSetupModal(false);
   };
 
@@ -1510,6 +1534,12 @@ function Catalog() {
 
   const toggleHeaderSearch = () => {
     setIsHeaderSearchOpen((prev) => !prev);
+  };
+  const handleOpenAccountModal = () => {
+    setShowAccountModal(true);
+    if (isHeaderSearchOpen) {
+      setIsHeaderSearchOpen(false);
+    }
   };
   const handleDesktopLogout = async () => {
     await logout();
@@ -3252,6 +3282,32 @@ function Catalog() {
           <div className="d-flex align-items-center justify-content-end gap-2">
             <button
               type="button"
+              onClick={handleOpenAccountModal}
+              aria-label={language === 'uz' ? 'Akkaunt' : 'Аккаунт'}
+              title={language === 'uz' ? 'Akkaunt' : 'Аккаунт'}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: 12,
+                border: showAccountModal
+                  ? '1px solid rgba(71, 85, 105, 0.22)'
+                  : '1px solid transparent',
+                background: showAccountModal
+                  ? 'rgba(255,255,255,0.7)'
+                  : 'transparent',
+                color: '#4b5563',
+                fontSize: '1rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.22s ease'
+              }}
+            >
+              <UserLucideIcon size={17} color="#4b5563" />
+            </button>
+
+            <button
+              type="button"
               onClick={toggleHeaderSearch}
               aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
               title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
@@ -3622,7 +3678,7 @@ function Catalog() {
               onClick={() => setPendingLanguage('uz')}
             >
               <img
-                src="/uz.svg"
+                src="/flags/uz.svg"
                 alt="UZ"
                 style={{ width: 22, height: 16, objectFit: 'cover', borderRadius: 2 }}
               />
@@ -3644,7 +3700,7 @@ function Catalog() {
               onClick={() => setPendingLanguage('ru')}
             >
               <img
-                src="/ru.svg"
+                src="/flags/ru.svg"
                 alt="RU"
                 style={{ width: 22, height: 16, objectFit: 'cover', borderRadius: 2 }}
               />
@@ -3661,6 +3717,8 @@ function Catalog() {
           </Button>
         </Modal.Body>
       </Modal>
+
+      <ClientAccountModal show={showAccountModal} onHide={() => setShowAccountModal(false)} />
 
       <Modal
         show={showEntryPopupModal && !!entryPopupBanner}
