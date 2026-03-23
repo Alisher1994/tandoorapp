@@ -813,12 +813,16 @@ function ShowcaseBuilder({ embedded = false }) {
                       onDragStart={(e) => handleDragStart(e, category.id)}
                       onDragEnd={handleDragEnd}
                     >
-                      {getCategoryImage(category) && (
+                      {getCategoryImage(category) ? (
                         <img
                           src={getCategoryImage(category)}
                           alt={getCategoryDisplayName(category)}
                           className="category-thumbnail"
                         />
+                      ) : (
+                        <div className="category-thumbnail category-thumbnail-placeholder">
+                          нет фото
+                        </div>
                       )}
                       <div className="category-info">
                         <div className="category-name">{getCategoryDisplayName(category)}</div>

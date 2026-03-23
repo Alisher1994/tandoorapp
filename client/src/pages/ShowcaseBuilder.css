@@ -33,7 +33,7 @@
 .builder-header h1 {
   margin: 0;
   font-size: 1.2rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-color, #111827);
   letter-spacing: -0.01em;
 }
@@ -47,7 +47,7 @@
 
 .unsaved-indicator {
   color: #d97706;
-  font-weight: 700;
+  font-weight: 500;
   font-size: 0.82rem;
 }
 
@@ -180,7 +180,7 @@
 }
 
 .store-preview-content .showcase-block {
-  margin: 0.75rem 0;
+  margin: 0.58rem 0;
 }
 
 .store-preview-content .grid-3-container,
@@ -191,7 +191,18 @@
 }
 
 .store-preview-content .pattern-grid-block {
-  --pattern-card-height: clamp(84px, calc((100% - 1rem) / 3), 112px);
+  --pattern-card-height: clamp(86px, calc((100% - 1rem) / 3), 108px) !important;
+}
+
+.store-preview-content .pattern-grid-image-wrapper,
+.store-preview-content .pattern-grid-item.pattern-grid-item-zigzag .pattern-grid-image-wrapper {
+  height: var(--pattern-card-height) !important;
+}
+
+.store-preview-content .showcase-block-title {
+  margin: 0 0 0.4rem 0.1rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .store-preview-empty {
@@ -221,7 +232,7 @@
 
 /* ===== Left Panel ===== */
 .builder-left-panel {
-  flex: 0 0 290px;
+  flex: 0 0 330px;
   background: var(--surface-color, #ffffff);
   border-right: 1px solid var(--border-color, #d1d5db);
   display: flex;
@@ -240,7 +251,7 @@
 .panel-section h3 {
   margin: 0 0 0.85rem 0;
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-color, #111827);
 }
 
@@ -291,6 +302,22 @@
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid var(--border-color, #d1d5db);
+  display: block;
+}
+
+.category-thumbnail-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  color: #b4bfd4;
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+  text-align: center;
+  line-height: 1.1;
+  padding: 0 0.2rem;
 }
 
 .category-info {
@@ -299,7 +326,7 @@
 }
 
 .category-name {
-  font-weight: 700;
+  font-weight: 500;
   font-size: 0.84rem;
   color: var(--text-color, #111827);
   white-space: nowrap;
@@ -383,7 +410,7 @@
 .canvas-header h3 {
   margin: 0;
   font-size: 1.03rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-color, #111827);
 }
 
@@ -406,7 +433,7 @@
   color: var(--primary-color, #4f46e5);
   border: 1px solid rgba(79, 70, 229, 0.2);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .canvas {
@@ -458,7 +485,7 @@
 .block-order {
   font-size: 0.8rem;
   color: var(--text-secondary, #6b7280);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .block-type-badge {
@@ -468,7 +495,7 @@
   padding: 0 0.62rem;
   border-radius: 999px;
   font-size: 0.73rem;
-  font-weight: 800;
+  font-weight: 600;
   border: 1px solid transparent;
 }
 
@@ -609,7 +636,7 @@
 
 .block-slots-title {
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary, #6b7280);
   margin-bottom: 0.35rem;
 }
@@ -657,14 +684,14 @@
 .slot-index {
   font-size: 0.64rem;
   color: var(--text-secondary, #6b7280);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .slot-label {
   flex: 1;
   min-width: 0;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-color, #111827);
   white-space: nowrap;
   overflow: hidden;
@@ -686,7 +713,7 @@
   background: rgba(238, 242, 255, 0.9);
   color: var(--primary-color, #4f46e5);
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -1014,7 +1041,7 @@
   }
 
   .builder-left-panel {
-    flex: 0 0 260px;
+    flex: 0 0 280px;
   }
 }
 
