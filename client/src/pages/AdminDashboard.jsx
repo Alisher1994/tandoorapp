@@ -9996,7 +9996,172 @@ function AdminDashboard() {
                   </Alert>
                 )}
 
-                <div className="admin-table-container">
+                <div className="d-lg-none mb-2 admin-products-mobile-bulk">
+                  <Form.Check
+                    type="checkbox"
+                    checked={(() => {
+                      const filteredIds = filteredProductsForTable.map(p => p.id);
+                      return filteredIds.length > 0 && filteredIds.every(id => selectedProducts.includes(id));
+                    })()}
+                    onChange={() => {
+                      const filteredIds = filteredProductsForTable.map(p => p.id);
+                      toggleSelectAllProducts(filteredIds);
+                    }}
+                    label={`${t('selectedProducts')}: ${selectedProducts.length}`}
+                  />
+                </div>
+
+                <div className="d-lg-none admin-products-mobile-grid">
+                  {pagedProducts.length === 0 ? (
+                    <div className="admin-products-mobile-empty">
+                      {t('noData')}
+                    </div>
+                  ) : (
+                    pagedProducts.map((product, index) => {
+                      const categoryHierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
+                      const categoryPath = categoryHierarchy.length > 0
+                        ? categoryHierarchy.map((category) => formatCategoryWithSort(category)).join(' • ')
+                        : (product.category_name || '-');
+                      const thumbSource = product.thumb_url || product.image_url || '';
+                      const previewSourceRaw = product.image_url || product.thumb_url || '';
+                      const thumbSourceResolved = thumbSource
+                        ? (thumbSource.startsWith('http') ? thumbSource : `${API_URL.replace('/api', '')}${thumbSource}`)
+                        : '';
+                      const previewSourceResolved = previewSourceRaw
+                        ? (previewSourceRaw.startsWith('http') ? previewSourceRaw : `${API_URL.replace('/api', '')}${previewSourceRaw}`)
+                        : '';
+                      return (
+                        <article
+                          key={`mobile-product-${product.id}`}
+                          className={`admin-product-mobile-card${selectedProducts.includes(product.id) ? ' is-selected' : ''}`}
+                          onClick={() => openProductModal(product)}
+                        >
+                          <div className="admin-product-mobile-layout">
+                            <div className="admin-product-mobile-photo-col">
+                              <Form.Check
+                                type="checkbox"
+                                className="admin-product-mobile-check"
+                                checked={selectedProducts.includes(product.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                onTouchEnd={(e) => e.stopPropagation()}
+                                onChange={() => toggleProductSelection(product.id)}
+                              />
+                              <button
+                                type="button"
+                                className="admin-product-mobile-photo-btn"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (!previewSourceResolved) return;
+                                  setPreviewImageUrl(previewSourceResolved);
+                                  setShowImagePreview(true);
+                                }}
+                              >
+                                {thumbSourceResolved ? (
+                                  <img
+                                    src={thumbSourceResolved}
+                                    alt={product.name_ru}
+                                    className="admin-product-mobile-photo"
+                                  />
+                                ) : (
+                                  <span className="admin-product-mobile-photo-empty">+</span>
+                                )}
+                              </button>
+                            </div>
+
+                            <div className="admin-product-mobile-main-col">
+                              <div className="admin-product-mobile-name">{product.name_ru}</div>
+                              <div className="admin-product-mobile-price">{formatPrice(product.price)} {t('sum')}</div>
+                              <div className="admin-product-mobile-meta">
+                                <span>#{(productsPage - 1) * productsLimit + index + 1}</span>
+                                <span>•</span>
+                                <span>{product.unit || '-'}</span>
+                                {Number.parseFloat(product.order_step) > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{formatQuantity(product.order_step)}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="admin-product-mobile-category" title={categoryPath}>{categoryPath}</div>
+                              <div className="admin-product-mobile-status-row">
+                                {product.is_hidden_catalog && (
+                                  <Badge bg="dark" className="admin-product-mobile-badge">Скрыт</Badge>
+                                )}
+                                {(product.season_scope && product.season_scope !== 'all') && (
+                                  <Badge bg="info" className="admin-product-mobile-badge">
+                                    {{
+                                      spring: 'Весна',
+                                      summer: 'Лето',
+                                      autumn: 'Осень',
+                                      winter: 'Зима'
+                                    }[product.season_scope] || product.season_scope}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            <div
+                              className="admin-product-mobile-controls-col"
+                              onClick={(e) => e.stopPropagation()}
+                              onTouchEnd={(e) => e.stopPropagation()}
+                            >
+                              <Form.Check
+                                type="switch"
+                                id={`mobile-product-stock-${product.id}`}
+                                label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
+                                checked={!product.in_stock}
+                                disabled={productStockUpdatingIds.includes(product.id)}
+                                className="small mb-2 admin-product-mobile-stock-switch"
+                                onChange={(e) => handleProductStockToggle(product, e.target.checked)}
+                              />
+                              <div className="d-inline-flex flex-nowrap gap-1 product-table-actions admin-product-mobile-actions">
+                                <Button
+                                  className="action-btn bg-primary bg-opacity-10 text-primary border-0"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openProductModal(product);
+                                  }}
+                                  title="Редактировать"
+                                >
+                                  <EditIcon />
+                                </Button>
+                                <Button
+                                  className="action-btn bg-info bg-opacity-10 text-info border-0"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    duplicateProduct(product);
+                                  }}
+                                  title="Дублировать"
+                                >
+                                  <CopyIcon />
+                                </Button>
+                                <Button
+                                  className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteProduct(product.id);
+                                  }}
+                                  title="Удалить"
+                                >
+                                  <TrashIcon />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="admin-table-container d-none d-lg-block">
                   <Table responsive hover className="admin-table admin-product-table mb-0">
                     <thead className="table-light">
                       <tr>

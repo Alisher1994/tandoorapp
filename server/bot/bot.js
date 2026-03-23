@@ -534,16 +534,28 @@ async function resolvePrimaryRestaurantIdForAdminUser(user) {
     : null;
 }
 
-async function buildOperatorStoreWebAppUrl(user) {
+async function buildOperatorStoreWebAppUrl(user, autoLoginToken = null, forcedRestaurantId = null) {
   const appUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
   if (!appUrl || !user?.id) return null;
 
-  const restaurantId = await resolvePrimaryRestaurantIdForAdminUser(user);
+  const restaurantId = Number.isFinite(Number.parseInt(forcedRestaurantId, 10))
+    ? Number.parseInt(forcedRestaurantId, 10)
+    : await resolvePrimaryRestaurantIdForAdminUser(user);
   if (!restaurantId) return null;
 
   const username = user.username || `user_${user.id}`;
-  const token = generateLoginToken(user.id, username, { restaurantId });
-  return buildCatalogUrl(appUrl, token);
+  const token = String(autoLoginToken || '').trim() || generateLoginToken(user.id, username, {
+    expiresIn: '30d',
+    role: user.role,
+    restaurantId
+  });
+  if (!token) return null;
+
+  const trimmed = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+  const search = new URLSearchParams();
+  search.set('token', token);
+  search.set('restaurant_id', String(restaurantId));
+  return appendWebAppCacheVersion(`${trimmed}/admin?${search.toString()}`);
 }
 
 async function buildOperatorProductWebAppUrl(user, autoLoginToken = null, forcedRestaurantId = null) {
@@ -557,7 +569,7 @@ async function buildOperatorProductWebAppUrl(user, autoLoginToken = null, forced
 
   const username = user.username || `user_${user.id}`;
   const token = String(autoLoginToken || '').trim() || generateLoginToken(user.id, username, {
-    expiresIn: '1h',
+    expiresIn: '30d',
     role: user.role,
     restaurantId
   });
@@ -1004,7 +1016,7 @@ async function initBot() {
       const username = user.username || `user_${user.id}`;
       const restaurantId = await resolvePrimaryRestaurantIdForAdminUser(user);
       const adminAutoLoginToken = generateLoginToken(user.id, username, {
-        expiresIn: '1h',
+        expiresIn: '30d',
         role: user.role,
         restaurantId
       });
@@ -1013,7 +1025,7 @@ async function initBot() {
         source: 'superadmin_bot',
         token: adminAutoLoginToken
       });
-      const storeUrl = await buildOperatorStoreWebAppUrl(user);
+      const storeUrl = await buildOperatorStoreWebAppUrl(user, adminAutoLoginToken, restaurantId);
       const addProductUrl = await buildOperatorProductWebAppUrl(user, adminAutoLoginToken, restaurantId);
 
       const loginButton = adminLoginUrl
@@ -1938,7 +1950,7 @@ async function initBot() {
 
       await bot.sendMessage(chatId, t(currentLang, 'myStoreOpenHint'), {
         reply_markup: {
-          inline_keyboard: [[{ text: t(currentLang, 'myStoreButton'), url: storeUrl }]]
+          inline_keyboard: [[{ text: t(currentLang, 'myStoreButton'), web_app: { url: storeUrl } }]]
         }
       });
       return;
@@ -1959,7 +1971,7 @@ async function initBot() {
 
       await bot.sendMessage(chatId, t(currentLang, 'addProductOpenHint'), {
         reply_markup: {
-          inline_keyboard: [[{ text: t(currentLang, 'addProductButton'), url: addProductUrl }]]
+          inline_keyboard: [[{ text: t(currentLang, 'addProductButton'), web_app: { url: addProductUrl } }]]
         }
       });
       return;
