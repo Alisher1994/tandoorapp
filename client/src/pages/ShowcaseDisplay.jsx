@@ -44,7 +44,7 @@ function ShowcaseDisplay() {
     const loadData = async () => {
       try {
         const [categoriesRes, productsRes] = await Promise.all([
-          axios.get(`${API_URL}/products/categories/restaurant/${restaurantId}`),
+          axios.get(`${API_URL}/products/restaurants/${restaurantId}/categories`),
           axios.get(`${API_URL}/products/restaurant/${restaurantId}`)
         ]);
 
@@ -119,8 +119,9 @@ function ShowcaseDisplay() {
             block={block}
             onBannerClick={() => {
               // Handle banner click - could navigate to a promo or product
-              if (block.content.length > 0) {
-                handleCategoryClick(block.content[0]);
+              const bannerCategories = Array.isArray(block.content) ? block.content : [];
+              if (bannerCategories.length > 0) {
+                handleCategoryClick(bannerCategories[0]);
               }
             }}
           />
@@ -130,6 +131,7 @@ function ShowcaseDisplay() {
           <ProductSliderBlock
             key={block.id}
             categoryId={block.category_id}
+            categories={categories}
             products={products}
             cartItems={cart}
             onProductClick={handleProductClick}

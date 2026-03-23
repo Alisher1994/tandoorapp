@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -26,6 +26,110 @@ export const BLOCK_TYPES = {
   GRID_2: 'grid_2',
   BANNER: 'banner',
   SLIDER: 'slider'
+};
+
+const VALID_BLOCK_TYPES = new Set(Object.values(BLOCK_TYPES));
+const BLOCK_TYPE_ALIASES = Object.freeze({
+  product_slider: BLOCK_TYPES.SLIDER
+});
+
+const normalizeCategoryId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizeBlockType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  const alias = BLOCK_TYPE_ALIASES[normalized];
+  if (alias) return alias;
+  return VALID_BLOCK_TYPES.has(normalized) ? normalized : BLOCK_TYPES.GRID_3;
+};
+
+const pickLegacySettings = (raw = {}) => {
+  const result = { ...raw };
+  delete result.id;
+  delete result.block_type;
+  delete result.title;
+  delete result.content;
+  delete result.category_id;
+  delete result.categoryId;
+  delete result.order;
+  return result;
+};
+
+const normalizeBlockSettingsInput = (rawInput = {}) => {
+  if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) return {};
+
+  const nestedSettings = rawInput.settings;
+  if (nestedSettings && typeof nestedSettings === 'object' && !Array.isArray(nestedSettings)) {
+    return { ...nestedSettings };
+  }
+
+  const blockSettings = rawInput.blockSettings;
+  if (blockSettings && typeof blockSettings === 'object' && !Array.isArray(blockSettings)) {
+    return { ...blockSettings };
+  }
+
+  return pickLegacySettings(rawInput);
+};
+
+const normalizeShowcaseBlock = (rawBlock, index = 0) => {
+  if (!rawBlock || typeof rawBlock !== 'object' || Array.isArray(rawBlock)) return null;
+
+  const blockType = normalizeBlockType(rawBlock.block_type);
+  const rawContent = Array.isArray(rawBlock.content)
+    ? rawBlock.content
+    : [];
+  const content = [...new Set(rawContent
+    .map((item) => normalizeCategoryId(item))
+    .filter((item) => item !== null))];
+  const settings = normalizeBlockSettingsInput(rawBlock);
+  const rawTitle = settings.title ?? rawBlock.title;
+  const title = rawTitle == null ? '' : String(rawTitle);
+  const categoryId = normalizeCategoryId(
+    rawBlock.category_id
+      ?? rawBlock.categoryId
+      ?? settings.category_id
+      ?? settings.categoryId
+      ?? null
+  );
+  if (categoryId) {
+    settings.category_id = categoryId;
+  } else {
+    delete settings.category_id;
+  }
+  delete settings.categoryId;
+  if (title && !settings.title) {
+    settings.title = title;
+  }
+
+  const rawOrder = Number.parseInt(rawBlock.order, 10);
+  const fallbackId = `showcase_block_${index + 1}`;
+
+  return {
+    id: String(rawBlock.id || fallbackId),
+    block_type: blockType,
+    title,
+    content,
+    category_id: blockType === BLOCK_TYPES.SLIDER ? categoryId : null,
+    settings,
+    order: Number.isInteger(rawOrder) && rawOrder >= 0 ? rawOrder : index
+  };
+};
+
+const normalizeShowcaseLayout = (rawBlocks = []) => {
+  if (!Array.isArray(rawBlocks)) return [];
+
+  const normalized = rawBlocks
+    .map((block, index) => normalizeShowcaseBlock(block, index))
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order)
+    .map((block, index) => ({
+      ...block,
+      order: index
+    }));
+
+  return normalized;
 };
 
 /**
@@ -58,7 +162,7 @@ export function ShowcaseProvider({ children }) {
       const response = await axios.get(
         `${API_URL}/products/restaurant/${restaurantId}/showcase`
       );
-      setShowcaseLayout(response.data?.blocks || []);
+      setShowcaseLayout(normalizeShowcaseLayout(response.data?.blocks || []));
       setIsDirty(false);
     } catch (error) {
       console.error('Failed to load showcase:', error);
@@ -76,11 +180,12 @@ export function ShowcaseProvider({ children }) {
     setShowcaseError('');
     
     try {
+      const normalizedBlocks = normalizeShowcaseLayout(blocks || []);
       await axios.post(
         `${API_URL}/products/restaurant/${restaurantId}/showcase`,
-        { blocks }
+        { blocks: normalizedBlocks }
       );
-      setShowcaseLayout(blocks);
+      setShowcaseLayout(normalizedBlocks);
       setIsDirty(false);
       return true;
     } catch (error) {
@@ -91,18 +196,44 @@ export function ShowcaseProvider({ children }) {
   }, []);
 
   // Add a new block to showcase
-  const addBlock = useCallback((blockType, settings = {}) => {
+  const addBlock = useCallback((blockType, settingsInput = {}) => {
+    const normalizedBlockType = normalizeBlockType(blockType);
+    const settings = settingsInput && typeof settingsInput === 'object' ? settingsInput : {};
+    const blockSettings = normalizeBlockSettingsInput(settings);
+    const content = [...new Set((Array.isArray(settings.content) ? settings.content : [])
+      .map((item) => normalizeCategoryId(item))
+      .filter((item) => item !== null))];
+    const categoryId = normalizeCategoryId(
+      settings.category_id
+      ?? settings.categoryId
+      ?? blockSettings.category_id
+      ?? blockSettings.categoryId
+      ?? null
+    );
+    const title = settings.title == null ? '' : String(settings.title);
+
+    if (categoryId) {
+      blockSettings.category_id = categoryId;
+    } else {
+      delete blockSettings.category_id;
+    }
+    delete blockSettings.categoryId;
+    if (title && !blockSettings.title) {
+      blockSettings.title = title;
+    }
+
+    const nextOrder = showcaseLayout.length;
     const newBlock = {
       id: `block_${Date.now()}`,
-      block_type: blockType,
-      title: settings.title || '',
-      content: settings.content || [],
-      category_id: settings.category_id || null,
-      settings: settings.blockSettings || {},
-      order: showcaseLayout.length
+      block_type: normalizedBlockType,
+      title,
+      content,
+      category_id: normalizedBlockType === BLOCK_TYPES.SLIDER ? categoryId : null,
+      settings: blockSettings,
+      order: nextOrder
     };
     
-    const newLayout = [...showcaseLayout, newBlock];
+    const newLayout = normalizeShowcaseLayout([...showcaseLayout, newBlock]);
     setShowcaseLayout(newLayout);
     setIsDirty(true);
     return newBlock;
@@ -110,84 +241,97 @@ export function ShowcaseProvider({ children }) {
 
   // Remove block from showcase
   const removeBlock = useCallback((blockId) => {
-    const newLayout = showcaseLayout.filter(b => b.id !== blockId);
-    setShowcaseLayout(newLayout);
+    setShowcaseLayout((prevLayout) => normalizeShowcaseLayout(prevLayout.filter((block) => block.id !== blockId)));
     setIsDirty(true);
-  }, [showcaseLayout]);
+  }, []);
 
   // Update block content/settings
   const updateBlock = useCallback((blockId, updates) => {
-    const newLayout = showcaseLayout.map(b =>
-      b.id === blockId ? { ...b, ...updates } : b
-    );
-    setShowcaseLayout(newLayout);
+    setShowcaseLayout((prevLayout) => normalizeShowcaseLayout(prevLayout.map((block) => (
+      block.id === blockId
+        ? { ...block, ...updates }
+        : block
+    ))));
     setIsDirty(true);
-  }, [showcaseLayout]);
+  }, []);
 
   // Reorder blocks (move block up or down)
   const reorderBlocks = useCallback((blockId, direction = 'down') => {
-    const currentIndex = showcaseLayout.findIndex(b => b.id === blockId);
-    if (currentIndex === -1) return;
+    setShowcaseLayout((prevLayout) => {
+      const currentIndex = prevLayout.findIndex((block) => block.id === blockId);
+      if (currentIndex === -1) return prevLayout;
 
-    const newIndex = direction === 'down' ? currentIndex + 1 : currentIndex - 1;
-    if (newIndex < 0 || newIndex >= showcaseLayout.length) return;
+      const newIndex = direction === 'down' ? currentIndex + 1 : currentIndex - 1;
+      if (newIndex < 0 || newIndex >= prevLayout.length) return prevLayout;
 
-    const newLayout = [...showcaseLayout];
-    [newLayout[currentIndex], newLayout[newIndex]] = [newLayout[newIndex], newLayout[currentIndex]];
-    
-    // Update order numbers
-    newLayout.forEach((block, idx) => {
-      block.order = idx;
+      const newLayout = [...prevLayout];
+      [newLayout[currentIndex], newLayout[newIndex]] = [newLayout[newIndex], newLayout[currentIndex]];
+      return normalizeShowcaseLayout(newLayout);
     });
-
-    setShowcaseLayout(newLayout);
     setIsDirty(true);
-  }, [showcaseLayout]);
+  }, []);
 
   // Add category to a grid block
   const addCategoryToBlock = useCallback((blockId, categoryId) => {
-    const newLayout = showcaseLayout.map(b => {
-      if (b.id === blockId && (b.block_type === 'grid_3' || b.block_type === 'grid_2')) {
+    const normalizedCategoryId = normalizeCategoryId(categoryId);
+    if (!normalizedCategoryId) return;
+
+    setShowcaseLayout((prevLayout) => normalizeShowcaseLayout(prevLayout.map((block) => {
+      if (block.id === blockId && (block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2)) {
+        const blockContent = Array.isArray(block.content) ? block.content : [];
         return {
-          ...b,
-          content: b.content.includes(categoryId) ? b.content : [...b.content, categoryId]
+          ...block,
+          content: blockContent.includes(normalizedCategoryId)
+            ? blockContent
+            : [...blockContent, normalizedCategoryId]
         };
       }
-      return b;
-    });
-    setShowcaseLayout(newLayout);
+      return block;
+    })));
     setIsDirty(true);
-  }, [showcaseLayout]);
+  }, []);
 
   // Remove category from a grid block
   const removeCategoryFromBlock = useCallback((blockId, categoryId) => {
-    const newLayout = showcaseLayout.map(b => {
-      if (b.id === blockId && (b.block_type === 'grid_3' || b.block_type === 'grid_2')) {
+    const normalizedCategoryId = normalizeCategoryId(categoryId);
+    if (!normalizedCategoryId) return;
+
+    setShowcaseLayout((prevLayout) => normalizeShowcaseLayout(prevLayout.map((block) => {
+      if (block.id === blockId && (block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2)) {
+        const blockContent = Array.isArray(block.content) ? block.content : [];
         return {
-          ...b,
-          content: b.content.filter(id => id !== categoryId)
+          ...block,
+          content: blockContent.filter((id) => id !== normalizedCategoryId)
         };
       }
-      return b;
-    });
-    setShowcaseLayout(newLayout);
+      return block;
+    })));
     setIsDirty(true);
-  }, [showcaseLayout]);
+  }, []);
 
   // Set slider category
   const setSliderCategory = useCallback((blockId, categoryId) => {
-    const newLayout = showcaseLayout.map(b => {
-      if (b.id === blockId && b.block_type === 'slider') {
+    const normalizedCategoryId = normalizeCategoryId(categoryId);
+    setShowcaseLayout((prevLayout) => normalizeShowcaseLayout(prevLayout.map((block) => {
+      if (block.id === blockId && block.block_type === BLOCK_TYPES.SLIDER) {
+        const nextSettings = {
+          ...(block.settings || {})
+        };
+        if (normalizedCategoryId) {
+          nextSettings.category_id = normalizedCategoryId;
+        } else {
+          delete nextSettings.category_id;
+        }
         return {
-          ...b,
-          category_id: categoryId
+          ...block,
+          category_id: normalizedCategoryId,
+          settings: nextSettings
         };
       }
-      return b;
-    });
-    setShowcaseLayout(newLayout);
+      return block;
+    })));
     setIsDirty(true);
-  }, [showcaseLayout]);
+  }, []);
 
   // Reset showcase to default state
   const resetShowcase = useCallback(() => {

@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #f9fafb;
+  background: var(--background-color, #f5f7ff);
   overflow: hidden;
 }
 
@@ -31,7 +31,7 @@
   justify-content: center;
   height: 100vh;
   gap: 1rem;
-  color: #666;
+  color: var(--text-secondary, #6b7280);
 }
 
 .showcase-display-loading p {
@@ -65,7 +65,7 @@
 }
 
 .alert-warning {
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  color: #92400e;
+  background: #fff8dc;
+  border: 1px solid #f5d57b;
+  color: #8a5a00;
 }

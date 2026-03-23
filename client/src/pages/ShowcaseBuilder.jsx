@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
@@ -19,13 +19,26 @@ import {
   ChevronUp,
   Trash2,
   Plus,
-  Copy,
   Settings as SettingsIcon
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-function ShowcaseBuilder() {
+const getCategoryDisplayName = (category) => (
+  category?.name_ru
+  || category?.name_uz
+  || category?.name
+  || `Категория ${category?.id || ''}`
+);
+
+const getCategoryImage = (category) => (
+  category?.image
+  || category?.icon_url
+  || category?.image_url
+  || ''
+);
+
+function ShowcaseBuilder({ embedded = false }) {
   const { user } = useAuth();
   const {
     showcaseLayout,
@@ -54,7 +67,7 @@ function ShowcaseBuilder() {
   const [showBlockTypeModal, setShowBlockTypeModal] = useState(false);
   const [showBlockSettingsModal, setShowBlockSettingsModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null);
-  const [blockSettings, setBlockSettings] = useState({});
+  const [dropTargetBlockId, setDropTargetBlockId] = useState(null);
 
   const draggedCategoryRef = useRef(null);
 
@@ -67,19 +80,14 @@ function ShowcaseBuilder() {
       setCategoriesLoading(true);
       try {
         const [categoriesRes, productsRes] = await Promise.all([
-          axios.get(`${API_URL}/products/categories/restaurant/${restaurantId}`),
+          axios.get(`${API_URL}/products/restaurants/${restaurantId}/categories`),
           axios.get(`${API_URL}/products/restaurant/${restaurantId}`)
         ]);
+        const fetchedCategories = Array.isArray(categoriesRes.data) ? categoriesRes.data : [];
+        const fetchedProducts = Array.isArray(productsRes.data) ? productsRes.data : [];
 
-        // Filter categories that have at least one active product
-        const activeCategories = categoriesRes.data.filter(cat =>
-          productsRes.data.some(prod =>
-            prod.category_id === cat.id && prod.is_active
-          )
-        );
-
-        setCategories(activeCategories);
-        setProducts(productsRes.data);
+        setCategories(fetchedCategories);
+        setProducts(fetchedProducts);
       } catch (error) {
         console.error('Failed to load data:', error);
         setErrorMessage('Ошибка загрузки данных');
@@ -104,7 +112,7 @@ function ShowcaseBuilder() {
       [BLOCK_TYPES.GRID_2]: { title: 'Категории' },
       [BLOCK_TYPES.BANNER]: {
         title: 'Спецпредложение',
-        backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        backgroundColor: 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
         textColor: '#ffffff',
         ctaText: 'Подробнее'
       },
@@ -138,21 +146,87 @@ function ShowcaseBuilder() {
     e.dataTransfer.effectAllowed = 'copy';
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e, blockId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
+    if (blockId) setDropTargetBlockId(blockId);
   };
 
   const handleDropOnBlock = (e, blockId) => {
     e.preventDefault();
     const categoryId = draggedCategoryRef.current;
+    setDropTargetBlockId(null);
     if (categoryId) {
       addCategoryToBlock(blockId, Number.parseInt(categoryId, 10));
     }
   };
 
+  const handleDragLeave = (blockId) => {
+    setDropTargetBlockId((prevBlockId) => (prevBlockId === blockId ? null : prevBlockId));
+  };
+
+  const getBlockTypeLabel = (blockType) => {
+    switch (blockType) {
+      case BLOCK_TYPES.GRID_3:
+        return 'Сетка 3x';
+      case BLOCK_TYPES.GRID_2:
+        return 'Сетка 2x';
+      case BLOCK_TYPES.BANNER:
+        return 'Баннер';
+      case BLOCK_TYPES.SLIDER:
+        return 'Слайдер';
+      default:
+        return 'Блок';
+    }
+  };
+
+  const getBlockStatusText = (block) => {
+    if (block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2) {
+      return block.content.length > 0
+        ? `Назначено категорий: ${block.content.length}`
+        : 'Перетащите категории в эту область';
+    }
+    if (block.block_type === BLOCK_TYPES.SLIDER) {
+      const selectedCategory = categories.find((category) => category.id === block.category_id);
+      return selectedCategory
+        ? `Категория слайдера: ${getCategoryDisplayName(selectedCategory)}`
+        : 'Выберите категорию в настройках блока';
+    }
+    if (block.block_type === BLOCK_TYPES.BANNER) {
+      return block.title ? `Заголовок: ${block.title}` : 'Настройте заголовок, цвет и CTA в настройках блока';
+    }
+    return '';
+  };
+
+  const renderGridBlockCategoryChips = (block) => {
+    if (!(block.block_type === BLOCK_TYPES.GRID_3 || block.block_type === BLOCK_TYPES.GRID_2)) return null;
+    if (!Array.isArray(block.content) || block.content.length === 0) return null;
+
+    return (
+      <div className="block-category-chips">
+        {block.content.map((categoryId) => {
+          const category = categories.find((item) => item.id === categoryId);
+          if (!category) return null;
+          return (
+            <span key={`${block.id}_${categoryId}`} className="block-category-chip">
+              <span className="block-category-chip-text">{getCategoryDisplayName(category)}</span>
+              <button
+                type="button"
+                className="block-category-chip-remove"
+                title="Убрать категорию из блока"
+                onClick={() => removeCategoryFromBlock(block.id, categoryId)}
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   const filteredCategories = categories.filter(cat =>
-    cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+    getCategoryDisplayName(cat).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const renderBlock = (block) => {
@@ -183,6 +257,7 @@ function ShowcaseBuilder() {
         return (
           <ProductSliderBlock
             categoryId={block.category_id}
+            categories={categories}
             products={products}
             cartItems={[]}
           />
@@ -193,7 +268,7 @@ function ShowcaseBuilder() {
   };
 
   return (
-    <div className="showcase-builder-container">
+    <div className={`showcase-builder-container${embedded ? ' showcase-builder-embedded' : ''}`}>
       <div className="builder-header">
         <h1>Конструктор Витрины</h1>
         <div className="header-actions">
@@ -228,10 +303,45 @@ function ShowcaseBuilder() {
       )}
 
       <div className="builder-content">
+        {/* Preview Panel */}
+        <div className="builder-preview-panel">
+          <div className="panel-section">
+            <h3>Предпросмотр магазина</h3>
+            <div className="store-preview-shell">
+              <div className="store-preview-notch" />
+              <div className="store-preview-screen">
+                <div className="store-preview-topbar">
+                  <span className="store-preview-title">
+                    {user?.active_restaurant_name || 'Мой магазин'}
+                  </span>
+                </div>
+                <div className="store-preview-content">
+                  {showcaseLayout.length === 0 ? (
+                    <div className="store-preview-empty">
+                      Добавьте блоки справа, чтобы увидеть экран магазина
+                    </div>
+                  ) : (
+                    showcaseLayout.map((block) => (
+                      <div key={`preview_${block.id}`}>
+                        {renderBlock(block)}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="store-preview-nav">
+                  <span>Витрина</span>
+                  <span>Каталог</span>
+                  <span>Корзина</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Left Panel - Categories */}
         <div className="builder-left-panel">
           <div className="panel-section">
-            <h3>Ресурсная база</h3>
+            <h3>Категории</h3>
             <Form.Control
               type="text"
               placeholder="Поиск категории..."
@@ -249,7 +359,7 @@ function ShowcaseBuilder() {
                 {filteredCategories.length === 0 ? (
                   <div className="empty-categories">
                     {categories.length === 0
-                      ? 'Нет активных категорий'
+                      ? 'Нет категорий в магазине'
                       : 'Нет результатов поиска'}
                   </div>
                 ) : (
@@ -260,15 +370,15 @@ function ShowcaseBuilder() {
                       draggable
                       onDragStart={(e) => handleDragStart(e, category.id)}
                     >
-                      {category.image && (
+                      {getCategoryImage(category) && (
                         <img
-                          src={category.image}
-                          alt={category.name}
+                          src={getCategoryImage(category)}
+                          alt={getCategoryDisplayName(category)}
                           className="category-thumbnail"
                         />
                       )}
                       <div className="category-info">
-                        <div className="category-name">{category.name}</div>
+                        <div className="category-name">{getCategoryDisplayName(category)}</div>
                         <div className="category-count">
                           {products.filter(p => p.category_id === category.id).length} товаров
                         </div>
@@ -278,59 +388,105 @@ function ShowcaseBuilder() {
                 )}
               </div>
             )}
+
+            <div className="quick-blocks">
+              <div className="quick-blocks-title">Типы блоков</div>
+              <div className="quick-blocks-grid">
+                <button
+                  type="button"
+                  className="quick-block-btn"
+                  onClick={() => handleAddBlock(BLOCK_TYPES.GRID_3)}
+                >
+                  Сетка 3x
+                </button>
+                <button
+                  type="button"
+                  className="quick-block-btn"
+                  onClick={() => handleAddBlock(BLOCK_TYPES.GRID_2)}
+                >
+                  Сетка 2x
+                </button>
+                <button
+                  type="button"
+                  className="quick-block-btn"
+                  onClick={() => handleAddBlock(BLOCK_TYPES.BANNER)}
+                >
+                  Баннер
+                </button>
+                <button
+                  type="button"
+                  className="quick-block-btn"
+                  onClick={() => handleAddBlock(BLOCK_TYPES.SLIDER)}
+                >
+                  Слайдер
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Right Panel - Canvas */}
         <div className="builder-right-panel">
           <div className="panel-section">
-            <div className="canvas-header">
-              <h3>Визуальный холст</h3>
-              <Button
-                variant="outline-primary"
-                size="sm"
-                onClick={() => setShowBlockTypeModal(true)}
-              >
-                <Plus size={16} /> Добавить блок
-              </Button>
-            </div>
-
-            {showcaseLoading ? (
-              <div className="loading-state">
-                <Spinner animation="border" /> Загрузка витрины...
-              </div>
-            ) : showcaseLayout.length === 0 ? (
-              <div className="canvas-empty">
-                <div className="empty-canvas-message">
-                  <p>Нажмите «Добавить блок» для создания витрины</p>
+            <div className="canvas-workspace-card">
+              <div className="canvas-header">
+                <div className="canvas-header-meta">
+                  <h3>Структура витрины</h3>
+                  <p>Соберите экран магазина из блоков и перетащите в них категории</p>
+                </div>
+                <div className="canvas-top-actions">
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={() => setShowBlockTypeModal(true)}
+                  >
+                    <Plus size={16} /> Добавить блок
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSaveShowcase}
+                    disabled={saveLoading || !isDirty}
+                  >
+                    {saveLoading ? <Spinner size="sm" /> : 'Сохранить'}
+                  </Button>
                 </div>
               </div>
-            ) : (
-              <div className="canvas">
-                {showcaseLayout.map((block, index) => (
-                  <div key={block.id} className="canvas-block-wrapper">
-                    <div className="block-preview">
-                      <div
-                        className="preview-content"
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDropOnBlock(e, block.id)}
-                      >
-                        {renderBlock(block)}
-                      </div>
-                      <div className="block-controls">
-                        {block.block_type === 'grid_3' ||
-                        block.block_type === 'grid_2' ? (
-                          <span className="block-info">
-                            {block.content.length} категорий
-                          </span>
-                        ) : block.block_type === 'slider' ? (
-                          <span className="block-info">
-                            {block.category_id
-                              ? 'Категория выбрана'
-                              : 'Категория не выбрана'}
-                          </span>
-                        ) : null}
 
+              <div className="canvas-steps">
+                <span className="canvas-step-chip">1) Добавьте блок</span>
+                <span className="canvas-step-chip">2) Перетащите категории</span>
+                <span className="canvas-step-chip">3) Нажмите «Сохранить»</span>
+              </div>
+
+              {showcaseLoading ? (
+                <div className="loading-state">
+                  <Spinner animation="border" /> Загрузка витрины...
+                </div>
+              ) : showcaseLayout.length === 0 ? (
+                <div className="canvas-empty">
+                  <div className="empty-canvas-message">
+                    <p>Пока нет блоков. Добавьте первый блок, чтобы собрать витрину.</p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setShowBlockTypeModal(true)}
+                    >
+                      <Plus size={14} /> Добавить блок
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="canvas">
+                  {showcaseLayout.map((block, index) => (
+                    <div key={block.id} className="canvas-block-wrapper">
+                      <div className="block-head">
+                        <div className="block-head-main">
+                          <span className="block-order">#{index + 1}</span>
+                          <span className={`block-type-badge type-${block.block_type}`}>
+                            {getBlockTypeLabel(block.block_type)}
+                          </span>
+                        </div>
                         <div className="button-group">
                           {index > 0 && (
                             <button
@@ -354,7 +510,6 @@ function ShowcaseBuilder() {
                             className="btn-icon"
                             onClick={() => {
                               setSelectedBlock(block);
-                              setBlockSettings(block.settings || {});
                               setShowBlockSettingsModal(true);
                             }}
                             title="Настройки блока"
@@ -370,11 +525,23 @@ function ShowcaseBuilder() {
                           </button>
                         </div>
                       </div>
+                      <div className="block-status-text">{getBlockStatusText(block)}</div>
+                      <div className="block-preview">
+                        <div
+                          className={`preview-content${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
+                          onDragOver={(e) => handleDragOver(e, block.id)}
+                          onDragLeave={() => handleDragLeave(block.id)}
+                          onDrop={(e) => handleDropOnBlock(e, block.id)}
+                        >
+                          {renderBlock(block)}
+                        </div>
+                        {renderGridBlockCategoryChips(block)}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -513,7 +680,7 @@ function BlockSettingsModal({ show, block, categories, onHide, onSave }) {
                 <option value="">-- Выберите категорию --</option>
                 {categories.map(cat => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                    {getCategoryDisplayName(cat)}
                   </option>
                 ))}
               </Form.Select>
@@ -535,9 +702,10 @@ function BlockSettingsModal({ show, block, categories, onHide, onSave }) {
               <Form.Group className="mb-3">
                 <Form.Label>Цвет фона</Form.Label>
                 <Form.Control
-                  type="color"
+                  type="text"
                   value={settings.backgroundColor || '#667eea'}
                   onChange={(e) => handleChange('backgroundColor', e.target.value)}
+                  placeholder="#4f46e5 или linear-gradient(...)"
                 />
               </Form.Group>
 

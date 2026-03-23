@@ -530,17 +530,23 @@ const insertAdBannerEvent = async ({
   );
 };
 
-// Get categories for a restaurant (for admin/operator showcase builder)
-router.get('/restaurants/:restaurantId/categories', authenticate, async (req, res) => {
+const getShowcaseRestaurantCategories = async (req, res) => {
   try {
     const restaurantId = Number.parseInt(req.params.restaurantId, 10);
     if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
       return res.status(400).json({ error: 'Invalid restaurant ID' });
     }
 
+    if (!(await hasShowcaseRestaurantAccess(req.user, restaurantId))) {
+      return res.status(403).json({ error: 'Нет доступа к этому ресторану' });
+    }
+
     // Verify restaurant exists
-    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
-    if (!restaurant) {
+    const restaurantResult = await pool.query(
+      'SELECT id FROM restaurants WHERE id = $1 LIMIT 1',
+      [restaurantId]
+    );
+    if (restaurantResult.rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
@@ -549,7 +555,9 @@ router.get('/restaurants/:restaurantId/categories', authenticate, async (req, re
       SELECT DISTINCT c.id, c.name_ru, c.name_uz, c.name, c.icon_url 
       FROM categories c
       INNER JOIN products p ON c.id = p.category_id
-      WHERE p.restaurant_id = ? AND c.is_active = true AND COALESCE(p.is_hidden_catalog, false) = false
+      WHERE p.restaurant_id = $1
+        AND c.is_active = true
+        AND COALESCE(p.is_hidden_catalog, false) = false
       ORDER BY c.name_ru
     `, [restaurantId]);
 
@@ -558,35 +566,12 @@ router.get('/restaurants/:restaurantId/categories', authenticate, async (req, re
     console.error('Restaurant categories error:', error);
     res.status(500).json({ error: 'Ошибка получения категорий' });
   }
-});
+};
 
-// GET showcase layout
-router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) => {
-  try {
-    const restaurantId = Number.parseInt(req.params.restaurantId, 10);
-    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
-      return res.status(400).json({ error: 'Invalid restaurant ID' });
-    }
-
-    // Verify restaurant ownership (operator only)
-    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
-    if (!restaurant) {
-      return res.status(404).json({ error: 'Restaurant not found' });
-    }
-
-    // Get showcase layout
-    const [showcase] = await pool.query(
-      'SELECT layout FROM showcase_layouts WHERE restaurant_id = ?',
-      [restaurantId]
-    );
-
-    const layout = showcase && showcase.layout ? JSON.parse(showcase.layout) : [];
-    res.json({ blocks: layout });
-  } catch (error) {
-    console.error('Showcase GET error:', error);
-    res.status(500).json({ error: 'Ошибка загрузки витрины' });
-  }
-});
+// Category endpoints for showcase builder.
+router.get('/restaurants/:restaurantId/categories', authenticate, getShowcaseRestaurantCategories);
+// Backward-compatible alias used by legacy builder pages.
+router.get('/categories/restaurant/:restaurantId', authenticate, getShowcaseRestaurantCategories);
 
 // Get all categories (public - for customers, global/shared)
 router.get('/categories', async (req, res) => {
@@ -1406,6 +1391,38 @@ router.get('/restaurants/list', async (req, res) => {
 
 // ===== Showcase Constructor Routes =====
 
+function normalizeShowcaseLayoutFromDb(rawLayout) {
+  if (Array.isArray(rawLayout)) return rawLayout;
+  if (!rawLayout) return [];
+  if (typeof rawLayout === 'string') {
+    try {
+      const parsed = JSON.parse(rawLayout);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  if (typeof rawLayout === 'object' && rawLayout !== null && Array.isArray(rawLayout.blocks)) {
+    return rawLayout.blocks;
+  }
+  return [];
+}
+
+async function hasShowcaseRestaurantAccess(user, restaurantId) {
+  const role = String(user?.role || '').trim().toLowerCase();
+  if (role === 'superadmin') return true;
+  if (role !== 'operator') return false;
+
+  const userId = Number.parseInt(user?.id, 10);
+  if (!Number.isInteger(userId) || userId <= 0) return false;
+
+  const accessResult = await pool.query(
+    'SELECT 1 FROM operator_restaurants WHERE user_id = $1 AND restaurant_id = $2 LIMIT 1',
+    [userId, restaurantId]
+  );
+  return accessResult.rows.length > 0;
+}
+
 // GET showcase layout
 router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) => {
   try {
@@ -1414,19 +1431,24 @@ router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) 
       return res.status(400).json({ error: 'Invalid restaurant ID' });
     }
 
-    // Verify restaurant ownership (operator only)
-    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
-    if (!restaurant) {
+    if (!(await hasShowcaseRestaurantAccess(req.user, restaurantId))) {
+      return res.status(403).json({ error: 'Нет доступа к этому ресторану' });
+    }
+
+    const restaurantResult = await pool.query(
+      'SELECT id FROM restaurants WHERE id = $1 LIMIT 1',
+      [restaurantId]
+    );
+    if (restaurantResult.rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    // Get showcase layout
-    const [showcase] = await pool.query(
-      'SELECT layout FROM showcase_layouts WHERE restaurant_id = ?',
+    const showcaseResult = await pool.query(
+      'SELECT layout FROM showcase_layouts WHERE restaurant_id = $1 LIMIT 1',
       [restaurantId]
     );
 
-    const layout = showcase && showcase.layout ? JSON.parse(showcase.layout) : [];
+    const layout = normalizeShowcaseLayoutFromDb(showcaseResult.rows[0]?.layout);
     res.json({ blocks: layout });
   } catch (error) {
     console.error('Showcase GET error:', error);
@@ -1447,32 +1469,33 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
       return res.status(400).json({ error: 'Blocks must be an array' });
     }
 
-    // Verify restaurant exists
-    const [restaurant] = await pool.query('SELECT id FROM restaurants WHERE id = ?', [restaurantId]);
-    if (!restaurant) {
+    if (!(await hasShowcaseRestaurantAccess(req.user, restaurantId))) {
+      return res.status(403).json({ error: 'Нет доступа к этому ресторану' });
+    }
+
+    const restaurantResult = await pool.query(
+      'SELECT id FROM restaurants WHERE id = $1 LIMIT 1',
+      [restaurantId]
+    );
+    if (restaurantResult.rows.length === 0) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    // Save or update showcase layout
-    const layoutJson = JSON.stringify(blocks);
-    const [existing] = await pool.query(
-      'SELECT id FROM showcase_layouts WHERE restaurant_id = ?',
-      [restaurantId]
+    const normalizedBlocks = blocks;
+
+    await pool.query(
+      `
+      INSERT INTO showcase_layouts (restaurant_id, layout, created_at, updated_at)
+      VALUES ($1, $2::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (restaurant_id)
+      DO UPDATE SET
+        layout = EXCLUDED.layout,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+      [restaurantId, JSON.stringify(normalizedBlocks)]
     );
 
-    if (existing) {
-      await pool.query(
-        'UPDATE showcase_layouts SET layout = ?, updated_at = NOW() WHERE restaurant_id = ?',
-        [layoutJson, restaurantId]
-      );
-    } else {
-      await pool.query(
-        'INSERT INTO showcase_layouts (restaurant_id, layout, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
-        [restaurantId, layoutJson]
-      );
-    }
-
-    res.json({ success: true, blocks });
+    res.json({ success: true, blocks: normalizedBlocks });
   } catch (error) {
     console.error('Showcase POST error:', error);
     res.status(500).json({ error: 'Ошибка сохранения витрины' });

@@ -1,11 +1,39 @@
 import React from 'react';
 import './ShowcaseBlocks.css';
 
+const getCategoryName = (category) => (
+  category?.name_ru
+  || category?.name_uz
+  || category?.name
+  || ''
+);
+
+const getCategoryImage = (category) => (
+  category?.image
+  || category?.icon_url
+  || category?.image_url
+  || '/placeholder.png'
+);
+
+const getProductName = (product) => (
+  product?.name_ru
+  || product?.name_uz
+  || product?.name
+  || ''
+);
+
+const getProductImage = (product) => (
+  product?.thumb_url
+  || product?.image_url
+  || product?.image
+  || '/placeholder.png'
+);
+
 /**
  * Grid3Block - 3 columns layout with small icons
  * Perfect for quick categories like "Готовая еда", "Кофейня"
  */
-export function Grid3Block({ categories, products, onCategoryClick, cartItems }) {
+export function Grid3Block({ categories = [], products = [], onCategoryClick, cartItems = [] }) {
   const getCartBadge = (categoryId) => {
     const total = cartItems
       .filter(item => {
@@ -34,15 +62,15 @@ export function Grid3Block({ categories, products, onCategoryClick, cartItems })
           >
             <div className="grid-3-image-wrapper">
               <img
-                src={category.image || '/placeholder.png'}
-                alt={category.name}
+                src={getCategoryImage(category)}
+                alt={getCategoryName(category)}
                 className="grid-3-image"
               />
               {getCartBadge(category.id) && (
                 <span className="cart-badge">{getCartBadge(category.id)}</span>
               )}
             </div>
-            <div className="grid-3-label">{category.name}</div>
+            <div className="grid-3-label">{getCategoryName(category)}</div>
           </div>
         ))}
       </div>
@@ -54,7 +82,7 @@ export function Grid3Block({ categories, products, onCategoryClick, cartItems })
  * Grid2Block - 2 columns layout with medium cards
  * Standard Tandoor menu style
  */
-export function Grid2Block({ categories, products, onCategoryClick, cartItems }) {
+export function Grid2Block({ categories = [], products = [], onCategoryClick, cartItems = [] }) {
   const getCartBadge = (categoryId) => {
     const total = cartItems
       .filter(item => {
@@ -83,8 +111,8 @@ export function Grid2Block({ categories, products, onCategoryClick, cartItems })
           >
             <div className="grid-2-image-wrapper">
               <img
-                src={category.image || '/placeholder.png'}
-                alt={category.name}
+                src={getCategoryImage(category)}
+                alt={getCategoryName(category)}
                 className="grid-2-image"
               />
               {getCartBadge(category.id) && (
@@ -92,7 +120,7 @@ export function Grid2Block({ categories, products, onCategoryClick, cartItems })
               )}
             </div>
             <div className="grid-2-content">
-              <h3 className="grid-2-title">{category.name}</h3>
+              <h3 className="grid-2-title">{getCategoryName(category)}</h3>
               {category.description && (
                 <p className="grid-2-description">{category.description}</p>
               )}
@@ -112,7 +140,7 @@ export function BannerBlock({ block, onBannerClick }) {
   const {
     imageUrl = '/placeholder-banner.png',
     ctaText = 'Подробнее',
-    backgroundColor = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor = 'linear-gradient(135deg, var(--primary-light, #6366f1) 0%, var(--primary-color, #4f46e5) 100%)',
     textColor = '#ffffff'
   } = settings;
 
@@ -156,9 +184,25 @@ export function BannerBlock({ block, onBannerClick }) {
  * ProductSliderBlock - Horizontal scrollable product slider
  * Products from a specific category
  */
-export function ProductSliderBlock({ categoryId, products, onProductClick, cartItems, onCategoryClick }) {
+export function ProductSliderBlock({ categoryId, categories = [], products = [], onProductClick, cartItems = [], onCategoryClick }) {
   const categoryProducts = products.filter(p => p.category_id === categoryId);
-  const categoryName = products.find(p => p.category_id === categoryId)?.category?.name || '';
+  const categoryFromList = (categories || []).find((category) => category.id === categoryId);
+  const categoryNameFromProducts = categoryProducts.find((product) => (
+    product?.category_name_ru
+    || product?.category_name_uz
+    || product?.category_name
+    || product?.category?.name_ru
+    || product?.category?.name_uz
+    || product?.category?.name
+  ));
+  const categoryName = getCategoryName(categoryFromList)
+    || categoryNameFromProducts?.category_name_ru
+    || categoryNameFromProducts?.category_name_uz
+    || categoryNameFromProducts?.category_name
+    || categoryNameFromProducts?.category?.name_ru
+    || categoryNameFromProducts?.category?.name_uz
+    || categoryNameFromProducts?.category?.name
+    || '';
 
   if (categoryProducts.length === 0) {
     return (
@@ -200,8 +244,8 @@ export function ProductSliderBlock({ categoryId, products, onProductClick, cartI
               >
                 <div className="slider-image-wrapper">
                   <img
-                    src={product.image || '/placeholder.png'}
-                    alt={product.name}
+                    src={getProductImage(product)}
+                    alt={getProductName(product)}
                     className="slider-image"
                   />
                   {quantity > 0 && (
@@ -209,7 +253,7 @@ export function ProductSliderBlock({ categoryId, products, onProductClick, cartI
                   )}
                 </div>
                 <div className="slider-item-content">
-                  <h4 className="slider-item-name">{product.name}</h4>
+                  <h4 className="slider-item-name">{getProductName(product)}</h4>
                   {product.price && (
                     <div className="slider-item-price">{product.price} сум</div>
                   )}
