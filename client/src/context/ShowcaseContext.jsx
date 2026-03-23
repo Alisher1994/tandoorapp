@@ -54,8 +54,31 @@ const normalizePositiveInt = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const normalizeBooleanLike = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  }
+  return false;
+};
+
+const isUnlimitedGridSettings = (settings = {}) => {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return false;
+  return normalizeBooleanLike(
+    settings.unlimitedRows
+      ?? settings.unlimited_rows
+      ?? settings.isUnlimited
+      ?? settings.is_unlimited
+      ?? false
+  );
+};
+
 const getGridCategoryLimit = (blockType, settings = {}) => {
   if (!(blockType === BLOCK_TYPES.GRID_3 || blockType === BLOCK_TYPES.GRID_2)) return null;
+  if (isUnlimitedGridSettings(settings)) return null;
 
   const explicitLimit = normalizePositiveInt(settings?.maxCategories);
   if (explicitLimit) return explicitLimit;
@@ -120,6 +143,15 @@ const normalizeShowcaseBlock = (rawBlock, index = 0) => {
   if (title && !settings.title) {
     settings.title = title;
   }
+  const unlimitedGrid = isUnlimitedGridSettings(settings);
+  if (unlimitedGrid) {
+    settings.unlimitedRows = true;
+  } else {
+    delete settings.unlimitedRows;
+  }
+  delete settings.unlimited_rows;
+  delete settings.isUnlimited;
+  delete settings.is_unlimited;
   const gridLimit = getGridCategoryLimit(blockType, settings);
   if (gridLimit) {
     settings.maxCategories = gridLimit;
@@ -202,6 +234,15 @@ export function ShowcaseProvider({ children }) {
     if (title && !blockSettings.title) {
       blockSettings.title = title;
     }
+    const unlimitedGrid = isUnlimitedGridSettings(blockSettings);
+    if (unlimitedGrid) {
+      blockSettings.unlimitedRows = true;
+    } else {
+      delete blockSettings.unlimitedRows;
+    }
+    delete blockSettings.unlimited_rows;
+    delete blockSettings.isUnlimited;
+    delete blockSettings.is_unlimited;
     const gridLimit = getGridCategoryLimit(normalizedBlockType, blockSettings);
     if (gridLimit) {
       blockSettings.maxCategories = gridLimit;

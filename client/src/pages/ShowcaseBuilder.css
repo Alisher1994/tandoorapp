@@ -987,6 +987,28 @@
   min-height: 28px;
 }
 
+.grid-3n-preview,
+.grid-2n-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+}
+
+.grid-3n-preview .preview-row,
+.grid-2n-preview .preview-row {
+  display: grid;
+  gap: 0.34rem;
+  flex: 1;
+}
+
+.grid-3n-preview .preview-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-2n-preview .preview-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .banner-preview {
   background: linear-gradient(
     135deg,

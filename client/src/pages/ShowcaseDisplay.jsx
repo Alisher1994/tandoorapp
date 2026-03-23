@@ -49,7 +49,39 @@ const getProductName = (product) => (
   || ''
 );
 
+const normalizeBooleanLike = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  }
+  return false;
+};
+
+const isUnlimitedGridBlock = (block) => (
+  (block?.block_type === 'grid_3' || block?.block_type === 'grid_2')
+  && normalizeBooleanLike(
+    block?.settings?.unlimitedRows
+      ?? block?.settings?.unlimited_rows
+      ?? block?.settings?.isUnlimited
+      ?? block?.settings?.is_unlimited
+  )
+);
+
+const getGridColumns = (block) => {
+  const explicitColumns = Number.parseInt(
+    block?.settings?.columns
+      ?? block?.settings?.gridColumns,
+    10
+  );
+  if (Number.isInteger(explicitColumns) && explicitColumns > 0) return explicitColumns;
+  return block?.block_type === 'grid_2' ? 2 : 3;
+};
+
 const getGridLimitFromBlock = (block) => {
+  if (isUnlimitedGridBlock(block)) return null;
   const settingsLimit = Number.parseInt(block?.settings?.maxCategories, 10);
   if (Number.isInteger(settingsLimit) && settingsLimit > 0) return settingsLimit;
   return block?.block_type === 'grid_2' ? 2 : 3;
@@ -73,8 +105,26 @@ const parseRowPattern = (rawValue) => {
   return [];
 };
 
-const getGridRowPattern = (block) => {
+const getGridRowPattern = (block, categoryCount = null) => {
+  const totalCategories = Number.isInteger(categoryCount) && categoryCount >= 0
+    ? categoryCount
+    : (Array.isArray(block?.content) ? block.content.length : 0);
+  if (isUnlimitedGridBlock(block)) {
+    const columns = getGridColumns(block);
+    if (columns <= 0) return [];
+    const totalSlots = Math.max(columns, totalCategories);
+    const resolved = [];
+    let remaining = totalSlots;
+    while (remaining > 0) {
+      const take = Math.min(columns, remaining);
+      resolved.push(take);
+      remaining -= take;
+    }
+    return resolved;
+  }
+
   const limit = getGridLimitFromBlock(block);
+  if (!Number.isInteger(limit) || limit <= 0) return [];
   const rawPattern = parseRowPattern(block?.settings?.rowPattern);
   const normalized = rawPattern
     .map((value) => Number.parseInt(value, 10))
@@ -289,9 +339,9 @@ function ShowcaseDisplay() {
     const limit = block.block_type === 'grid_3' || block.block_type === 'grid_2'
       ? getGridLimitFromBlock(block)
       : null;
-    const categoryIds = limit ? content.slice(0, limit) : content;
+    const categoryIds = Number.isInteger(limit) ? content.slice(0, limit) : content;
     const rowPattern = block.block_type === 'grid_3' || block.block_type === 'grid_2'
-      ? getGridRowPattern(block)
+      ? getGridRowPattern(block, categoryIds.length)
       : [];
     const blockCategories = categoryIds
       .map(catId => filteredCategories.find(c => normalizeId(c?.id) === normalizeId(catId)))

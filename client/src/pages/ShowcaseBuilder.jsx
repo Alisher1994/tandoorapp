@@ -60,6 +60,17 @@ const SHOWCASE_TEMPLATES = [
     }
   },
   {
+    key: 'grid_3_3',
+    label: '3 сверху + 3 снизу + 3',
+    description: 'Один блок, 9 категорий',
+    blockType: BLOCK_TYPES.GRID_3,
+    settings: {
+      title: '',
+      maxCategories: 9,
+      rowPattern: [3, 3, 3]
+    }
+  },
+  {
     key: 'grid_1_2',
     label: '1 сверху + 2 снизу',
     description: 'Один блок, 3 категории',
@@ -163,12 +174,45 @@ const normalizeId = (value) => {
   return Number.isInteger(parsed) ? parsed : null;
 };
 
+const normalizeBooleanLike = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  }
+  return false;
+};
+
 const isGridBlockType = (blockType) => (
   blockType === BLOCK_TYPES.GRID_3 || blockType === BLOCK_TYPES.GRID_2
 );
 
+const isUnlimitedGridBlock = (block) => (
+  isGridBlockType(block?.block_type)
+  && normalizeBooleanLike(
+    block?.settings?.unlimitedRows
+      ?? block?.settings?.unlimited_rows
+      ?? block?.settings?.isUnlimited
+      ?? block?.settings?.is_unlimited
+  )
+);
+
+const getGridColumns = (block) => {
+  if (!block || !isGridBlockType(block.block_type)) return 0;
+  const explicitColumns = Number.parseInt(
+    block?.settings?.columns
+      ?? block?.settings?.gridColumns,
+    10
+  );
+  if (Number.isInteger(explicitColumns) && explicitColumns > 0) return explicitColumns;
+  return block.block_type === BLOCK_TYPES.GRID_2 ? 2 : 3;
+};
+
 const getGridCategoryLimit = (block) => {
   if (!block || !isGridBlockType(block.block_type)) return null;
+  if (isUnlimitedGridBlock(block)) return null;
   const settingsLimit = Number.parseInt(block?.settings?.maxCategories, 10);
   if (Number.isInteger(settingsLimit) && settingsLimit > 0) return settingsLimit;
   return DEFAULT_GRID_LIMITS[block.block_type] || null;
@@ -192,11 +236,32 @@ const parseRowPattern = (rawValue) => {
   return [];
 };
 
-const getGridRowPattern = (block) => {
+const getGridRowPattern = (block, assignedCount = null, includeTrailingEmptyRow = false) => {
   if (!block || !isGridBlockType(block.block_type)) return [];
 
-  const limit = getGridCategoryLimit(block) || 0;
-  if (limit <= 0) return [];
+  const totalAssigned = Number.isInteger(assignedCount) && assignedCount >= 0
+    ? assignedCount
+    : (Array.isArray(block?.content) ? block.content.length : 0);
+  const columns = getGridColumns(block);
+  if (columns <= 0) return [];
+
+  if (isUnlimitedGridBlock(block)) {
+    const totalSlots = Math.max(
+      columns,
+      totalAssigned + (includeTrailingEmptyRow ? columns : 0)
+    );
+    const resolved = [];
+    let remaining = totalSlots;
+    while (remaining > 0) {
+      const take = Math.min(columns, remaining);
+      resolved.push(take);
+      remaining -= take;
+    }
+    return resolved;
+  }
+
+  const limit = getGridCategoryLimit(block);
+  if (!Number.isInteger(limit) || limit <= 0) return [];
 
   const rawPattern = parseRowPattern(block?.settings?.rowPattern);
   const normalizedPattern = rawPattern
@@ -224,6 +289,9 @@ const getGridRowPattern = (block) => {
 };
 
 const getGridPatternLabel = (block) => {
+  if (isUnlimitedGridBlock(block)) {
+    return `${getGridColumns(block)}xN`;
+  }
   const pattern = getGridRowPattern(block);
   return pattern.length > 1 ? pattern.join('+') : null;
 };
@@ -341,7 +409,7 @@ function ShowcaseBuilder({ embedded = false }) {
     });
   };
 
-  const handleAddBlock = (blockType) => {
+  const handleAddBlock = (blockType, customSettings = null) => {
     const defaultSettings = {
       [BLOCK_TYPES.GRID_3]: { title: '', maxCategories: 3, hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal },
       [BLOCK_TYPES.GRID_2]: { title: '', maxCategories: 2, hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal },
@@ -349,7 +417,20 @@ function ShowcaseBuilder({ embedded = false }) {
       [BLOCK_TYPES.SLIDER]: { title: '' }
     };
 
-    addBlock(blockType, defaultSettings[blockType]);
+    const nextSettings = {
+      ...(defaultSettings[blockType] || {}),
+      ...(customSettings && typeof customSettings === 'object' ? customSettings : {})
+    };
+    if (isGridBlockType(blockType) && normalizeBooleanLike(nextSettings.unlimitedRows)) {
+      delete nextSettings.maxCategories;
+      const fallbackColumns = blockType === BLOCK_TYPES.GRID_2 ? 2 : 3;
+      const normalizedColumns = Number.parseInt(nextSettings.columns, 10);
+      nextSettings.columns = Number.isInteger(normalizedColumns) && normalizedColumns > 0
+        ? normalizedColumns
+        : fallbackColumns;
+      nextSettings.unlimitedRows = true;
+    }
+    addBlock(blockType, nextSettings);
     setShowBlockTypeModal(false);
   };
 
@@ -466,13 +547,15 @@ function ShowcaseBuilder({ embedded = false }) {
 
   const renderBlockAssignments = (block) => {
     if (isGridBlockType(block.block_type)) {
-      const limit = getGridCategoryLimit(block) || 0;
-      const assigned = Array.isArray(block.content) ? block.content.slice(0, limit) : [];
-      const rowPattern = getGridRowPattern(block);
+      const limit = getGridCategoryLimit(block);
+      const assignedSource = Array.isArray(block.content) ? block.content : [];
+      const assigned = Number.isInteger(limit) ? assignedSource.slice(0, limit) : assignedSource;
+      const rowPattern = getGridRowPattern(block, assigned.length, true);
+      const limitLabel = Number.isInteger(limit) ? limit : '∞';
       let currentSlotIndex = 0;
       return (
         <div className="block-slots-wrap">
-          <div className="block-slots-title">Слоты категорий: {assigned.length}/{limit}</div>
+          <div className="block-slots-title">Слоты категорий: {assigned.length}/{limitLabel}</div>
           <div className="block-slots-pattern">
             {rowPattern.map((rowSize, rowIndex) => {
               const rowStartIndex = currentSlotIndex;
@@ -578,9 +661,11 @@ function ShowcaseBuilder({ embedded = false }) {
     const hideCategoryTitleBackground = block?.settings?.hideCategoryTitleBackground === true;
     const limit = isGridBlockType(block.block_type) ? getGridCategoryLimit(block) : null;
     const sourceCategoryIds = Array.isArray(block.content)
-      ? (limit ? block.content.slice(0, limit) : block.content)
+      ? (Number.isInteger(limit) ? block.content.slice(0, limit) : block.content)
       : [];
-    const rowPattern = isGridBlockType(block.block_type) ? getGridRowPattern(block) : [];
+    const rowPattern = isGridBlockType(block.block_type)
+      ? getGridRowPattern(block, sourceCategoryIds.length, false)
+      : [];
     const blockCategories = sourceCategoryIds.map((categoryId) => {
       const category = categories.find(
         (item) => normalizeId(item?.id) === normalizeId(categoryId)
@@ -1023,6 +1108,52 @@ function ShowcaseBuilder({ embedded = false }) {
               </div>
               <div className="block-type-name">Сетка 2x (2 колонны)</div>
               <div className="block-type-desc">Средние карточки</div>
+            </button>
+
+            <button
+              className="block-type-option"
+              onClick={() => handleAddBlock(BLOCK_TYPES.GRID_3, {
+                title: '',
+                columns: 3,
+                unlimitedRows: true
+              })}
+            >
+              <div className="block-type-preview grid-3n-preview">
+                <div className="preview-row">
+                  <div className="preview-item" />
+                  <div className="preview-item" />
+                  <div className="preview-item" />
+                </div>
+                <div className="preview-row">
+                  <div className="preview-item" />
+                  <div className="preview-item" />
+                  <div className="preview-item" />
+                </div>
+              </div>
+              <div className="block-type-name">Сетка 3xN (без лимита)</div>
+              <div className="block-type-desc">Любое количество категорий</div>
+            </button>
+
+            <button
+              className="block-type-option"
+              onClick={() => handleAddBlock(BLOCK_TYPES.GRID_2, {
+                title: '',
+                columns: 2,
+                unlimitedRows: true
+              })}
+            >
+              <div className="block-type-preview grid-2n-preview">
+                <div className="preview-row">
+                  <div className="preview-item" />
+                  <div className="preview-item" />
+                </div>
+                <div className="preview-row">
+                  <div className="preview-item" />
+                  <div className="preview-item" />
+                </div>
+              </div>
+              <div className="block-type-name">Сетка 2xN (без лимита)</div>
+              <div className="block-type-desc">Любое количество категорий</div>
             </button>
 
             <button
