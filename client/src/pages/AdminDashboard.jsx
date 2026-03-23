@@ -1422,6 +1422,12 @@ function ShowcaseBuilderTab() {
     }
   }, [restaurantId]);
 
+  useEffect(() => {
+    if (restaurantId) {
+      // Загрузить витрину при первой загрузке
+    }
+  }, [restaurantId]);
+
   const filteredCategories = (categories || []).filter(cat => 
     (cat.name_ru || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (cat.name_uz || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -1493,23 +1499,209 @@ function ShowcaseBuilderTab() {
     return labels[blockType] || blockType;
   };
 
+  // Мобильный мокап компонент
+  const MobilePreview = () => {
+    const getCategoryIcon = (catId) => {
+      const cat = categories.find(c => c.id === catId);
+      return cat?.icon_url ? <img src={cat.icon_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : '📦';
+    };
+
+    return (
+      <div style={{
+        width: '320px',
+        height: '640px',
+        backgroundColor: '#f5f7fa',
+        borderRadius: '20px',
+        border: '8px solid #333',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.3)',
+        position: 'relative'
+      }}>
+        {/* Phone notch */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '150px',
+          height: '25px',
+          backgroundColor: '#333',
+          borderRadius: '0 0 20px 20px',
+          zIndex: 10
+        }} />
+
+        {/* Screen content */}
+        <div style={{
+          flex: 1,
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'white',
+          paddingTop: '8px'
+        }}>
+          {/* Header */}
+          <div style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '1px solid #eee', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#333' }}>9:41</div>
+          </div>
+
+          {/* Showcase content */}
+          {showcaseLayout.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', textAlign: 'center', padding: '1rem' }}>
+              <div style={{ fontSize: '0.75rem' }}>
+                <div>📱</div>
+                <div>Витрина пуста</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, overflow: 'auto', padding: '0.5rem' }}>
+              {showcaseLayout.map((block) => {
+                if (block.block_type === 'grid_3') {
+                  return (
+                    <div key={block.id} style={{ marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.3rem' }}>
+                        {block.content.slice(0, 3).map((catId) => (
+                          <div key={catId} style={{
+                            aspectRatio: '1',
+                            backgroundColor: '#f0f2f5',
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '1.2rem',
+                            overflow: 'hidden'
+                          }}>
+                            {getCategoryIcon(catId)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (block.block_type === 'grid_2') {
+                  return (
+                    <div key={block.id} style={{ marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem' }}>
+                        {block.content.slice(0, 2).map((catId) => {
+                          const cat = categories.find(c => c.id === catId);
+                          return (
+                            <div key={catId} style={{
+                              aspectRatio: '1',
+                              backgroundColor: '#f0f2f5',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              position: 'relative'
+                            }}>
+                              {cat?.icon_url ? (
+                                <img src={cat.icon_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                              ) : (
+                                <div style={{ textAlign: 'center', fontSize: '0.65rem', padding: '0.25rem' }}>
+                                  {cat?.name_ru || `Cat ${catId}`}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (block.block_type === 'banner') {
+                  return (
+                    <div key={block.id} style={{
+                      marginBottom: '0.5rem',
+                      backgroundColor: block.settings?.backgroundColor || '#667eea',
+                      color: block.settings?.textColor || '#ffffff',
+                      padding: '0.75rem',
+                      borderRadius: '6px',
+                      minHeight: '60px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {block.settings?.title || 'Баннер'}
+                    </div>
+                  );
+                }
+
+                if (block.block_type === 'product_slider') {
+                  return (
+                    <div key={block.id} style={{
+                      marginBottom: '0.5rem',
+                      backgroundColor: '#f9fafb',
+                      padding: '0.4rem',
+                      borderRadius: '6px',
+                      height: '50px',
+                      display: 'flex',
+                      gap: '0.3rem',
+                      overflow: 'auto'
+                    }}>
+                      {[1, 2, 3].map(i => (
+                        <div key={i} style={{
+                          minWidth: '45px',
+                          backgroundColor: '#e5e7eb',
+                          borderRadius: '4px',
+                          flexShrink: 0
+                        }} />
+                      ))}
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Home indicator */}
+        <div style={{
+          height: '20px',
+          backgroundColor: '#f5f7fa',
+          borderTop: '1px solid #ddd',
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          paddingBottom: '2px'
+        }}>
+          <div style={{ width: '40px', height: '4px', backgroundColor: '#999', borderRadius: '2px' }} />
+        </div>
+      </div>
+    );
+  };
+
   if (showcaseLoading) return <div style={{ padding: '1rem', textAlign: 'center' }}>⏳ Загрузка витрины...</div>;
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 300px)', gap: '1rem', padding: '1rem', backgroundColor: '#f5f7fa' }}>
-      {/* Left Panel - Categories */}
-      <div style={{ width: '280px', backgroundColor: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 300px)', gap: '2rem', padding: '1rem', backgroundColor: '#f5f7fa' }}>
+      {/* Left: Mobile Preview */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', minWidth: '350px' }}>
+        <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#333' }}>📱 Предпросмотр</div>
+        <MobilePreview />
+      </div>
+
+      {/* Middle: Categories */}
+      <div style={{ width: '250px', backgroundColor: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         <h5 style={{ marginTop: 0, marginBottom: '1rem' }}>📁 Категории</h5>
         <input
           type="text"
-          placeholder="Поиск категорий..."
+          placeholder="Поиск..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box', fontSize: '0.9rem' }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflow: 'auto', marginBottom: '1rem' }}>
           {filteredCategories.length === 0 ? (
-            <div style={{ color: '#999', textAlign: 'center', padding: '1rem' }}>Нет категорий</div>
+            <div style={{ color: '#999', textAlign: 'center', padding: '1rem', fontSize: '0.85rem' }}>Нет категорий</div>
           ) : (
             filteredCategories.map(cat => (
               <div
@@ -1522,7 +1714,7 @@ function ShowcaseBuilderTab() {
                   borderRadius: '4px',
                   cursor: 'grab',
                   border: '1px solid #e0e0e0',
-                  fontSize: '0.9rem',
+                  fontSize: '0.85rem',
                   userSelect: 'none',
                   transition: 'all 0.2s'
                 }}
@@ -1536,38 +1728,38 @@ function ShowcaseBuilderTab() {
         </div>
         
         <div style={{ borderTop: '1px solid #eee', paddingTop: '1rem' }}>
-          <h6 style={{ marginBottom: '0.5rem' }}>➕ Типы блоков</h6>
+          <h6 style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>➕ Типы блоков</h6>
           <button
             onClick={() => setSelectedBlockType('grid_3')}
-            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+            style={{ width: '100%', padding: '0.4rem', marginBottom: '0.4rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
           >
             Сетка 3x
           </button>
           <button
             onClick={() => setSelectedBlockType('grid_2')}
-            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+            style={{ width: '100%', padding: '0.4rem', marginBottom: '0.4rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
           >
             Сетка 2x
           </button>
           <button
             onClick={() => setSelectedBlockType('banner')}
-            style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+            style={{ width: '100%', padding: '0.4rem', marginBottom: '0.4rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
           >
             Баннер
           </button>
           <button
             onClick={() => setSelectedBlockType('product_slider')}
-            style={{ width: '100%', padding: '0.5rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem' }}
+            style={{ width: '100%', padding: '0.4rem', backgroundColor: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
           >
             Слайдер
           </button>
         </div>
       </div>
 
-      {/* Right Panel - Canvas */}
+      {/* Right: Canvas & Settings */}
       <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #eee' }}>
-          <h5 style={{ margin: 0 }}>🎨 Конструктор витрины</h5>
+          <h5 style={{ margin: 0, fontSize: '1rem' }}>🎨 Структура витрины</h5>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -1580,8 +1772,8 @@ function ShowcaseBuilderTab() {
         {showcaseLayout.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#999', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div>
-              <p style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Витрина пуста</p>
-              <p style={{ fontSize: '0.9rem' }}>Добавьте блоки, нажав на кнопки слева →</p>
+              <p style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Витрина пуста</p>
+              <p style={{ fontSize: '0.9rem' }}>Добавьте блоки, нажав на кнопки слева</p>
             </div>
           </div>
         ) : (
