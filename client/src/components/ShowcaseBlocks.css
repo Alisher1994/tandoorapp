@@ -13,6 +13,25 @@
   line-height: 1.25;
 }
 
+.category-card-overlay-title {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: auto;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: calc(100% - 16px);
+  padding: 0.18rem 0.42rem;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #111827;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.15;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -70,7 +89,8 @@
 }
 
 .category-logo-fallback-wrapper {
-  background: transparent !important;
+  background: rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(148, 163, 184, 0.28);
 }
 
 .category-image-logo-fallback {
@@ -80,7 +100,7 @@
   border: none !important;
   box-shadow: none !important;
   filter: none !important;
-  opacity: 1;
+  opacity: 0.68;
 }
 
 .grid-3-label {
@@ -252,25 +272,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.pattern-grid-overlay-title {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: auto;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  max-width: calc(100% - 16px);
-  padding: 0.18rem 0.42rem;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #111827;
-  font-size: 0.76rem;
-  font-weight: 500;
-  line-height: 1.15;
 }
 
 /* ===== Banner/Hero Block ===== */

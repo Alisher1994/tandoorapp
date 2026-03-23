@@ -338,10 +338,7 @@ function ShowcaseBuilder({ embedded = false }) {
         const limit = getGridCategoryLimit(targetBlock);
         const content = Array.isArray(targetBlock.content) ? targetBlock.content : [];
         if (content.includes(normalizedCategoryId)) return;
-        if (limit && content.length >= limit) {
-          setErrorMessage(`В блок "${getBlockTypeLabel(targetBlock)}" можно добавить максимум ${limit} категорий`);
-          return;
-        }
+        if (limit && content.length >= limit) return;
         addCategoryToBlock(blockId, normalizedCategoryId);
       }
     }
@@ -369,6 +366,22 @@ function ShowcaseBuilder({ embedded = false }) {
   const getCategoryById = (categoryId) => (
     categories.find((item) => normalizeId(item?.id) === normalizeId(categoryId)) || null
   );
+
+  const getBlockDisplayTitle = (block) => (
+    String(block?.settings?.title ?? block?.title ?? '')
+  );
+
+  const handleBlockTitleInputChange = (block, rawTitle) => {
+    const nextTitle = String(rawTitle ?? '');
+    const nextSettings = {
+      ...(block?.settings || {}),
+      title: nextTitle
+    };
+    updateBlock(block.id, {
+      title: nextTitle,
+      settings: nextSettings
+    });
+  };
 
   const renderDropHint = () => null;
 
@@ -787,6 +800,15 @@ function ShowcaseBuilder({ embedded = false }) {
                         onDragLeave={() => handleDragLeave(block.id)}
                         onDrop={(e) => handleDropOnBlock(e, block.id)}
                       >
+                        <div className="block-title-input-row">
+                          <input
+                            type="text"
+                            className="block-title-input"
+                            value={getBlockDisplayTitle(block)}
+                            onChange={(event) => handleBlockTitleInputChange(block, event.target.value)}
+                            placeholder="Название блока (видно клиенту)"
+                          />
+                        </div>
                         {renderBlockAssignments(block)}
                         {renderDropHint(block)}
                       </div>

@@ -448,6 +448,32 @@
   min-height: 142px;
 }
 
+.block-title-input-row {
+  padding: 0.1rem 0 0.3rem;
+}
+
+.block-title-input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-color, #111827);
+  font-size: 0.82rem;
+  font-weight: 400;
+  padding: 0.42rem 0.56rem;
+}
+
+.block-title-input::placeholder {
+  color: #94a3b8;
+}
+
+.block-title-input:focus {
+  outline: none;
+  border-color: rgba(79, 70, 229, 0.42);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
 .canvas-block-wrapper.block-type-grid_3 .block-preview,
 .canvas-block-wrapper.block-type-grid_2 .block-preview {
   min-height: 174px;

@@ -118,8 +118,8 @@ export function Grid3Block({
                 {getCartBadge(category.id) && (
                   <span className="cart-badge">{getCartBadge(category.id)}</span>
                 )}
+                <div className="category-card-overlay-title">{getCategoryName(category)}</div>
               </div>
-              <div className="grid-3-label">{getCategoryName(category)}</div>
             </div>
           );
         })}
@@ -167,12 +167,7 @@ export function Grid2Block({
                 {getCartBadge(category.id) && (
                   <span className="cart-badge">{getCartBadge(category.id)}</span>
                 )}
-              </div>
-              <div className="grid-2-content">
-                <h3 className="grid-2-title">{getCategoryName(category)}</h3>
-                {category.description && (
-                  <p className="grid-2-description">{category.description}</p>
-                )}
+                <div className="category-card-overlay-title">{getCategoryName(category)}</div>
               </div>
             </div>
           );
@@ -253,13 +248,8 @@ export function PatternGridBlock({
                         {getCartBadge(category.id) && (
                           <span className="cart-badge">{getCartBadge(category.id)}</span>
                         )}
-                        {isZigzagLayout && (
-                          <div className="pattern-grid-overlay-title">{getCategoryName(category)}</div>
-                        )}
+                        <div className="category-card-overlay-title">{getCategoryName(category)}</div>
                       </div>
-                      {!isZigzagLayout && (
-                        <div className="pattern-grid-label">{getCategoryName(category)}</div>
-                      )}
                     </div>
                   );
                 })}
