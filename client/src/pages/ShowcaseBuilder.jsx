@@ -626,7 +626,10 @@ function ShowcaseBuilder({ embedded = false }) {
               ) : (
                 <div className="canvas">
                   {showcaseLayout.map((block, index) => (
-                    <div key={block.id} className="canvas-block-wrapper">
+                    <div
+                      key={block.id}
+                      className={`canvas-block-wrapper${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
+                    >
                       <div className="block-head">
                         <div className="block-head-main">
                           <span className="block-order">#{index + 1}</span>
@@ -676,17 +679,14 @@ function ShowcaseBuilder({ embedded = false }) {
                           </button>
                         </div>
                       </div>
-                      <div className="block-preview">
+                      <div
+                        className="block-preview"
+                        onDragOver={(e) => handleDragOver(e, block.id)}
+                        onDragLeave={() => handleDragLeave(block.id)}
+                        onDrop={(e) => handleDropOnBlock(e, block.id)}
+                      >
                         {renderBlockAssignments(block)}
-                        <div
-                          className={`preview-content${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
-                          onDragOver={(e) => handleDragOver(e, block.id)}
-                          onDragLeave={() => handleDragLeave(block.id)}
-                          onDrop={(e) => handleDropOnBlock(e, block.id)}
-                        >
-                          {renderDropHint(block)}
-                          {renderBlock(block)}
-                        </div>
+                        {renderDropHint(block)}
                       </div>
                     </div>
                   ))}
