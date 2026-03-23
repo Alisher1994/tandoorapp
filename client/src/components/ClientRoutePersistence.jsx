@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const CLIENT_LAST_ROUTE_KEY = 'client_last_route';
-const CLIENT_ROUTES = new Set(['/', '/catalog', '/cart', '/orders', '/feedback', '/favorites', '/reservations']);
+const CLIENT_ROUTES = new Set(['/', '/catalog', '/showcase/catalog', '/cart', '/orders', '/feedback', '/favorites', '/reservations']);
 
 const isReloadNavigation = () => {
   if (typeof window === 'undefined') return false;
@@ -49,10 +49,10 @@ function ClientRoutePersistence() {
     if (loading || !user || resolveIsOperator()) return;
     if (!isReloadNavigation()) return;
 
-    if (location.pathname !== '/' && location.pathname !== '/catalog') return;
+    if (location.pathname !== '/' && location.pathname !== '/catalog' && location.pathname !== '/showcase/catalog') return;
 
     const savedRoute = localStorage.getItem(CLIENT_LAST_ROUTE_KEY);
-    if (!savedRoute || savedRoute === '/' || savedRoute === '/catalog') return;
+    if (!savedRoute || savedRoute === '/' || savedRoute === '/catalog' || savedRoute === '/showcase/catalog') return;
 
     let savedPathname = savedRoute;
     try {

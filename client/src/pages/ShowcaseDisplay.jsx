@@ -226,12 +226,11 @@ function ShowcaseDisplay() {
   }, [user?.active_restaurant_id, loadShowcase]);
 
   const handleCategoryClick = (categoryId) => {
-    // Navigate to catalog with filtered category
-    navigate('/catalog', { state: { selectedCategoryId: categoryId } });
+    navigate('/showcase/catalog', { state: { selectedCategoryId: categoryId } });
   };
 
   const handleProductClick = (product) => {
-    navigate('/catalog', { state: { selectedProductId: product.id } });
+    navigate('/showcase/catalog', { state: { selectedProductId: product.id } });
   };
 
   const normalizedSearch = String(searchQuery || '').trim().toLowerCase();

@@ -143,6 +143,7 @@ function App() {
                     }
                   />
                   <Route path="/catalog" element={<CatalogGate />} />
+                  <Route path="/showcase/catalog" element={<CatalogGate />} />
                   <Route
                     path="/cart"
                     element={

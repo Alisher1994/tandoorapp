@@ -25,7 +25,12 @@ function BottomNav() {
   
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    if (path === '/') {
+      return location.pathname === '/' || location.pathname === '/showcase/catalog';
+    }
+    return location.pathname === path;
+  };
 
   useEffect(() => {
     let ignore = false;
