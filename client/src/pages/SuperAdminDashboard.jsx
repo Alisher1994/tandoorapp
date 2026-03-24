@@ -137,6 +137,17 @@ const RESTAURANT_WORKFLOW_STATUSES = [
   { value: 'active', icon: '✅', ru: 'Активные', uz: 'Faol' },
   { value: 'inactive', icon: '⛔', ru: 'Не активные', uz: 'Nofaol' }
 ];
+const RESTAURANT_WORKFLOW_STATUS_COLORS = {
+  all: '#64748b',
+  new: '#3b82f6',
+  negotiation: '#d97706',
+  queue: '#ca8a04',
+  token: '#7c3aed',
+  store_settings: '#475569',
+  products: '#65a30d',
+  active: '#16a34a',
+  inactive: '#475569'
+};
 const RESTAURANT_WORKFLOW_STATUS_SET = new Set(RESTAURANT_WORKFLOW_STATUSES.map((item) => item.value).filter((value) => value !== 'all'));
 const RESTAURANT_AUTO_INACTIVE_DAYS = 30;
 const normalizeRestaurantWorkflowStatusValue = (value, fallback = 'new') => {
@@ -207,6 +218,10 @@ const getRestaurantWorkflowStatusLabel = (status, language = 'ru') => {
   const entry = RESTAURANT_WORKFLOW_STATUSES.find((item) => item.value === normalized);
   if (!entry) return normalized;
   return language === 'uz' ? entry.uz : entry.ru;
+};
+const getRestaurantWorkflowStatusColor = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  return RESTAURANT_WORKFLOW_STATUS_COLORS[normalized] || RESTAURANT_WORKFLOW_STATUS_COLORS.all;
 };
 const getRestaurantWorkflowBadgeClass = (status) => {
   const normalized = normalizeRestaurantWorkflowStatusValue(status, 'new');
@@ -1061,6 +1076,7 @@ const SearchableRestaurantFilter = ({
 
   return (
     <Dropdown
+      className="sa-searchable-restaurant-dropdown"
       show={show}
       onToggle={(nextShow) => {
         setShow(nextShow);
@@ -1072,14 +1088,14 @@ const SearchableRestaurantFilter = ({
     >
       <Dropdown.Toggle
         variant="light"
-        className="form-control-custom w-100 d-flex align-items-center justify-content-between text-start"
+        className="form-control-custom sa-searchable-restaurant-toggle w-100 d-flex align-items-center justify-content-between text-start"
         style={{ minHeight: '40px' }}
       >
         <span className="text-truncate">{selectedRestaurant?.name || t('saAllShops')}</span>
       </Dropdown.Toggle>
 
-      <Dropdown.Menu style={{ width, maxHeight: '320px', overflowY: 'auto', zIndex: 1210 }}>
-        <div className="px-2 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <Dropdown.Menu className="sa-searchable-restaurant-menu" style={{ width, maxHeight: '320px', overflowY: 'auto', zIndex: 1210 }}>
+        <div className="sa-searchable-restaurant-search" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <Form.Control
             className="form-control-custom"
             type="search"
@@ -1091,6 +1107,7 @@ const SearchableRestaurantFilter = ({
         </div>
         <Dropdown.Divider className="my-1" />
         <Dropdown.Item
+          className="sa-searchable-restaurant-item"
           active={!value}
           onClick={() => {
             onChange('');
@@ -1104,6 +1121,7 @@ const SearchableRestaurantFilter = ({
         ) : (
           restaurants.map((restaurant) => (
             <Dropdown.Item
+              className="sa-searchable-restaurant-item"
               key={restaurant.id}
               active={String(value) === String(restaurant.id)}
               onClick={() => {
@@ -5794,6 +5812,20 @@ function SuperAdminDashboard() {
       label: language === 'uz' ? item.uz : item.ru
     }))
   ), [language]);
+  const restaurantWorkflowFilterOptions = useMemo(() => (
+    restaurantWorkflowTabs.map((item) => ({
+      value: item.value === 'all' ? '' : item.value,
+      label: `${item.icon} ${item.label}`
+    }))
+  ), [restaurantWorkflowTabs]);
+  const restaurantWorkflowManualOptions = useMemo(() => (
+    restaurantWorkflowTabs
+      .filter((item) => item.value !== 'all')
+      .map((item) => ({
+        value: item.value,
+        label: `${item.icon} ${item.label}`
+      }))
+  ), [restaurantWorkflowTabs]);
   const restaurantWorkflowCounts = useMemo(() => {
     const counts = { all: 0 };
     (restaurants?.restaurants || []).forEach((restaurant) => {
@@ -10716,20 +10748,15 @@ function SuperAdminDashboard() {
               setRestaurantsPage(1);
             }}
           />
-          <Form.Select
-            className="form-control-custom"
+          <CustomSelectDropdown
             value={restaurantsStatusFilter}
-            onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
-          >
-            {restaurantWorkflowTabs.map((statusItem) => (
-              <option
-                key={`restaurants-mobile-status-${statusItem.value}`}
-                value={statusItem.value === 'all' ? '' : statusItem.value}
-              >
-                {statusItem.label}
-              </option>
-            ))}
-          </Form.Select>
+            onChange={(nextValue) => { setRestaurantsStatusFilter(String(nextValue || '')); setRestaurantsPage(1); }}
+            options={restaurantWorkflowFilterOptions}
+            placeholder={language === 'uz' ? 'Status' : 'Статус'}
+            menuClassName="sa-restaurant-dropdown-menu"
+            toggleClassName="form-control-custom sa-restaurant-dropdown-toggle"
+            toggleStyle={{ minHeight: '40px' }}
+          />
           <Form.Select
             className="form-control-custom"
             value={restaurantsActivityTypeFilter}
@@ -12000,7 +12027,7 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
-                <div className="sa-restaurants-status-tabs mb-3" role="tablist" aria-label={language === 'uz' ? "Do'kon statuslari" : 'Статусы магазинов'}>
+                <div className="admin-order-status-tabs sa-restaurants-orderlike-tabs mb-3" role="tablist" aria-label={language === 'uz' ? "Do'kon statuslari" : 'Статусы магазинов'}>
                   {restaurantWorkflowTabs.map((statusItem) => {
                     const tabValue = statusItem.value === 'all' ? '' : statusItem.value;
                     const isActive = (statusItem.value === 'all' && !restaurantsStatusFilter)
@@ -12010,15 +12037,20 @@ function SuperAdminDashboard() {
                       <button
                         key={`restaurant-status-tab-${statusItem.value}`}
                         type="button"
-                        className={`sa-restaurants-status-tab${isActive ? ' is-active' : ''}`}
+                        role="tab"
+                        aria-selected={isActive}
+                        className={`admin-order-status-pill sa-restaurants-orderlike-pill${isActive ? ' is-active' : ''}`}
                         onClick={() => {
                           setRestaurantsStatusFilter(tabValue);
                           setRestaurantsPage(1);
                         }}
+                        style={{ '--order-status-color': getRestaurantWorkflowStatusColor(statusItem.value) }}
                       >
-                        <span className="sa-restaurants-status-tab-icon" aria-hidden="true">{statusItem.icon}</span>
-                        <span>{statusItem.label}</span>
-                        <span className="sa-restaurants-status-tab-count">{tabCount}</span>
+                        <span className="admin-order-status-pill-label">
+                          <span className="admin-order-status-pill-emoji" aria-hidden="true">{statusItem.icon}</span>
+                          <span>{statusItem.label}</span>
+                        </span>
+                        <span className="admin-order-status-pill-count">{tabCount}</span>
                       </button>
                     );
                   })}
@@ -12047,21 +12079,17 @@ function SuperAdminDashboard() {
                         setRestaurantsPage(1);
                       }}
                     />
-                    <Form.Select
-                      className="form-control-custom"
-                      style={{ width: '170px' }}
-                      value={restaurantsStatusFilter}
-                      onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
-                    >
-                      {restaurantWorkflowTabs.map((statusItem) => (
-                        <option
-                          key={`restaurants-status-filter-${statusItem.value}`}
-                          value={statusItem.value === 'all' ? '' : statusItem.value}
-                        >
-                          {statusItem.label}
-                        </option>
-                      ))}
-                    </Form.Select>
+                    <div style={{ width: '170px' }}>
+                      <CustomSelectDropdown
+                        value={restaurantsStatusFilter}
+                        onChange={(nextValue) => { setRestaurantsStatusFilter(String(nextValue || '')); setRestaurantsPage(1); }}
+                        options={restaurantWorkflowFilterOptions}
+                        placeholder={language === 'uz' ? 'Status' : 'Статус'}
+                        menuClassName="sa-restaurant-dropdown-menu"
+                        toggleClassName="form-control-custom sa-restaurant-dropdown-toggle"
+                        toggleStyle={{ minHeight: '40px' }}
+                      />
+                    </div>
                     <Form.Select
                       className="form-control-custom"
                       style={{ width: '220px' }}
@@ -12338,21 +12366,16 @@ function SuperAdminDashboard() {
                                           </>
                                         )}
                                       </div>
-                                      <Form.Select
-                                        size="sm"
-                                        className="form-control-custom sa-shop-status-select"
+                                      <CustomSelectDropdown
                                         value={workflowMeta.manual}
-                                        onChange={(event) => handleRestaurantWorkflowStatusChange(r, event.target.value)}
+                                        onChange={(nextValue) => handleRestaurantWorkflowStatusChange(r, nextValue)}
                                         disabled={restaurantWorkflowUpdatingId === r.id}
-                                      >
-                                        {restaurantWorkflowTabs
-                                          .filter((statusItem) => statusItem.value !== 'all')
-                                          .map((statusItem) => (
-                                            <option key={`shop-status-option-${r.id}-${statusItem.value}`} value={statusItem.value}>
-                                              {statusItem.label}
-                                            </option>
-                                          ))}
-                                      </Form.Select>
+                                        options={restaurantWorkflowManualOptions}
+                                        placeholder={language === 'uz' ? 'Status tanlang' : 'Выберите статус'}
+                                        menuClassName="sa-restaurant-dropdown-menu"
+                                        toggleClassName="form-control-custom sa-shop-status-select sa-restaurant-dropdown-toggle"
+                                        toggleStyle={{ minHeight: '34px' }}
+                                      />
                                       {workflowMeta.autoInactive && autoReasonLabels.length > 0 && (
                                         <small className="text-muted">
                                           {(language === 'uz' ? 'Auto' : 'Авто')}: {autoReasonLabels.join(', ')}
@@ -12372,7 +12395,7 @@ function SuperAdminDashboard() {
                                 })()}
                               </td>
                               <td className="text-end">
-                                <div className="d-flex gap-2 justify-content-end text-nowrap">
+                                <div className="sa-restaurant-actions-grid">
                                   <Button
                                     variant="light"
                                     className="action-btn text-success"

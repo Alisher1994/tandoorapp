@@ -2294,6 +2294,19 @@ body::-webkit-scrollbar,
     padding: 0 6px;
 }
 
+.sa-restaurants-orderlike-tabs {
+    width: 100%;
+    max-width: 100%;
+}
+
+.sa-restaurants-orderlike-pill {
+    min-height: 34px;
+}
+
+.sa-restaurants-orderlike-pill .admin-order-status-pill-count {
+    min-width: 22px;
+}
+
 .admin-products-filter-panel {
     padding: 12px;
     border: 1px solid #dbe2ea;
@@ -5486,6 +5499,93 @@ body::-webkit-scrollbar,
 
 .sa-shop-status-select {
     min-width: 185px;
+}
+
+.sa-restaurant-dropdown-toggle {
+    border-color: #dbe2ea !important;
+    background: #f8fafc !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+}
+
+.sa-restaurant-dropdown-menu {
+    min-width: 100% !important;
+    border-radius: 12px;
+    border: 1px solid #dbe2ea;
+    background: #ffffff;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+    padding: 6px;
+}
+
+.sa-restaurant-dropdown-menu .dropdown-item {
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.sa-restaurant-dropdown-menu .dropdown-item:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.sa-restaurant-dropdown-menu .dropdown-item.active,
+.sa-restaurant-dropdown-menu .dropdown-item:active {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.sa-searchable-restaurant-dropdown {
+    position: relative;
+}
+
+.sa-searchable-restaurant-toggle {
+    border-color: #dbe2ea !important;
+    background: #f8fafc !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+}
+
+.sa-searchable-restaurant-menu {
+    border-radius: 12px;
+    border: 1px solid #dbe2ea;
+    background: #ffffff;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+    padding: 6px;
+}
+
+.sa-searchable-restaurant-search {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #ffffff;
+    padding: 2px 2px 8px;
+}
+
+.sa-searchable-restaurant-item {
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.sa-searchable-restaurant-item:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.sa-searchable-restaurant-item.active,
+.sa-searchable-restaurant-item:active {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.sa-restaurant-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 32px);
+    grid-auto-rows: 32px;
+    gap: 8px;
+    justify-content: end;
 }
 
 .sa-auto-reason-hint-btn {

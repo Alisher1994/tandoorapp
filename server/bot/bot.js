@@ -431,30 +431,19 @@ function buildStoreRegistrationWebAppUrl(userId, lang = 'ru') {
 }
 
 async function resolvePreferredAdminTelegramUser(telegramId) {
-  const linkedAdmin = await pool.query(`
-    SELECT u.*
-    FROM telegram_admin_links tal
-    JOIN users u ON u.id = tal.user_id
-    WHERE tal.telegram_id = $1
-    ORDER BY
-      CASE
-        WHEN u.role = 'superadmin' THEN 0
-        WHEN u.role = 'operator' THEN 1
-        WHEN u.role = 'customer' THEN 2
-        ELSE 3
-      END,
-      u.id DESC
-    LIMIT 1
-  `, [telegramId]).catch(() => ({ rows: [] }));
-
-  if (linkedAdmin.rows.length > 0) {
-    return linkedAdmin.rows[0];
-  }
-
   const result = await pool.query(`
+    WITH candidates AS (
+      SELECT u.*, 0 AS source_priority
+      FROM users u
+      WHERE u.telegram_id = $1
+      UNION ALL
+      SELECT u.*, 1 AS source_priority
+      FROM telegram_admin_links tal
+      JOIN users u ON u.id = tal.user_id
+      WHERE tal.telegram_id = $1
+    )
     SELECT *
-    FROM users
-    WHERE telegram_id = $1
+    FROM candidates
     ORDER BY
       CASE
         WHEN role = 'superadmin' THEN 0
@@ -462,6 +451,7 @@ async function resolvePreferredAdminTelegramUser(telegramId) {
         WHEN role = 'customer' THEN 2
         ELSE 3
       END,
+      source_priority ASC,
       id DESC
     LIMIT 1
   `, [telegramId]);
@@ -485,6 +475,26 @@ async function resolvePreferredSuperadminAccessUser(telegramId) {
   if (!user) return null;
   if (user.role === 'customer') return null;
   return user;
+}
+
+async function hasSuperadminAccessByTelegram(telegramId) {
+  if (!telegramId) return false;
+  const result = await pool.query(`
+    SELECT 1
+    FROM (
+      SELECT role
+      FROM users
+      WHERE telegram_id = $1
+      UNION ALL
+      SELECT u.role
+      FROM telegram_admin_links tal
+      JOIN users u ON u.id = tal.user_id
+      WHERE tal.telegram_id = $1
+    ) roles
+    WHERE role = 'superadmin'
+    LIMIT 1
+  `, [telegramId]).catch(() => ({ rows: [] }));
+  return result.rows.length > 0;
 }
 
 async function silentlySyncOperatorTelegramId(telegramId, telegramLanguageCode = '') {
@@ -1021,6 +1031,7 @@ async function initBot() {
   async function getSuperadminActionReplyMarkup(userId, lang) {
     const language = normalizeBotLanguage(lang);
     const user = await resolvePreferredSuperadminAccessUser(userId);
+    const isSuperadminAccess = await hasSuperadminAccessByTelegram(userId);
     const isAdminUser = !!user && (user.role === 'operator' || user.role === 'superadmin');
 
     let keyboard;
@@ -1054,7 +1065,7 @@ async function initBot() {
         [loginButton, storeButton],
         [addProductButton],
         [{ text: t(language, 'resetButton') }],
-        ...(user.role === 'superadmin' ? [[{ text: t(language, 'serverStatsButton') }]] : []),
+        ...(isSuperadminAccess ? [[{ text: t(language, 'serverStatsButton') }]] : []),
         [{ text: t(language, 'languageMenuButton') }, { text: t(language, 'helpMenuButton') }]
       ];
     } else {
@@ -1101,11 +1112,13 @@ async function initBot() {
       }
 
       if (user.role === 'operator' || user.role === 'superadmin') {
+        const isSuperadminAccess = await hasSuperadminAccessByTelegram(userId);
+        const displayRole = isSuperadminAccess ? 'superadmin' : user.role;
         const actionKeyboard = await getSuperadminActionReplyMarkup(userId, language);
         const sent = await bot.sendMessage(
           chatId,
           `${t(language, 'welcomeBack', { name: user.full_name || user.username })}\n\n` +
-          `${t(language, 'roleLine', { role: user.role === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}`,
+          `${t(language, 'roleLine', { role: displayRole === 'superadmin' ? t(language, 'roleSuperadmin') : t(language, 'roleOperator') })}`,
           {
             parse_mode: 'HTML',
             reply_markup: actionKeyboard
@@ -1182,8 +1195,9 @@ async function initBot() {
   async function handleSuperadminServerStatsRequest(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
     const user = await resolvePreferredSuperadminAccessUser(userId);
+    const isSuperadminAccess = await hasSuperadminAccessByTelegram(userId);
 
-    if (!user || user.role !== 'superadmin') {
+    if (!user || !isSuperadminAccess) {
       await bot.sendMessage(chatId, t(language, 'serverStatsOnlyForSuperadmins'));
       return;
     }
