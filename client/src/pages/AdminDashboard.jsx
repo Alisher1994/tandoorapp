@@ -1712,31 +1712,6 @@ function AdminDashboard() {
     productStatusFilter !== 'all'
   );
 
-  const getProductPriceDisplayLabel = useCallback((product) => {
-    const basePrice = normalizeProductPriceValue(product?.price, NaN);
-    const fallbackLabel = Number.isFinite(basePrice) ? `${formatPrice(basePrice)} ${t('sum')}` : '-';
-    if (!Boolean(product?.size_enabled)) return fallbackLabel;
-
-    const variants = normalizeProductVariantOptions(
-      product?.size_options ?? product?.variant_options,
-      {
-        fallbackPrice: basePrice,
-        unit: product?.unit || 'шт'
-      }
-    );
-    const prices = variants
-      .map((variant) => normalizeProductPriceValue(variant?.price, NaN))
-      .filter((price) => Number.isFinite(price) && price > 0);
-    if (prices.length === 0) return fallbackLabel;
-
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    if (Number.isFinite(maxPrice) && maxPrice > minPrice) {
-      return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)} ${t('sum')}`;
-    }
-    return `${formatPrice(minPrice)} ${t('sum')}`;
-  }, [t]);
-
   // Image preview modal
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
@@ -1866,6 +1841,77 @@ function AdminDashboard() {
     countryCurrencyOptions,
     setCountryCurrency
   } = useLanguage();
+  const getProductPriceDisplayLabel = useCallback((product) => {
+    const basePrice = normalizeProductPriceValue(product?.price, NaN);
+    const fallbackLabel = Number.isFinite(basePrice) ? `${formatPrice(basePrice)} ${t('sum')}` : '-';
+    if (!Boolean(product?.size_enabled)) return fallbackLabel;
+
+    const variants = normalizeProductVariantOptions(
+      product?.size_options ?? product?.variant_options,
+      {
+        fallbackPrice: basePrice,
+        unit: product?.unit || 'шт'
+      }
+    );
+    const prices = variants
+      .map((variant) => normalizeProductPriceValue(variant?.price, NaN))
+      .filter((price) => Number.isFinite(price) && price > 0);
+    if (prices.length === 0) return fallbackLabel;
+
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    if (Number.isFinite(maxPrice) && maxPrice > minPrice) {
+      return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)} ${t('sum')}`;
+    }
+    return `${formatPrice(minPrice)} ${t('sum')}`;
+  }, [t]);
+
+  const getProductListImageSources = useCallback((product) => {
+    const resolveAbsoluteUrl = (value) => {
+      const normalized = String(value || '').trim();
+      if (!normalized) return '';
+      return normalized.startsWith('http') ? normalized : `${API_URL.replace('/api', '')}${normalized}`;
+    };
+
+    const baseThumb = String(product?.thumb_url || '').trim();
+    const baseImage = String(product?.image_url || '').trim();
+    if (baseThumb || baseImage) {
+      return {
+        thumb: resolveAbsoluteUrl(baseThumb || baseImage),
+        preview: resolveAbsoluteUrl(baseImage || baseThumb)
+      };
+    }
+
+    if (!Boolean(product?.size_enabled)) {
+      return { thumb: '', preview: '' };
+    }
+
+    const basePrice = normalizeProductPriceValue(product?.price, NaN);
+    const variants = normalizeProductVariantOptions(
+      product?.size_options ?? product?.variant_options,
+      {
+        fallbackPrice: basePrice,
+        unit: product?.unit || 'шт'
+      }
+    );
+
+    const firstVariantWithImage = variants.find((variant) => {
+      const variantThumb = String(variant?.thumb_url || '').trim();
+      const variantImage = String(variant?.image_url || '').trim();
+      return Boolean(variantThumb || variantImage);
+    });
+
+    if (!firstVariantWithImage) {
+      return { thumb: '', preview: '' };
+    }
+
+    const variantThumb = String(firstVariantWithImage.thumb_url || '').trim();
+    const variantImage = String(firstVariantWithImage.image_url || '').trim();
+    return {
+      thumb: resolveAbsoluteUrl(variantThumb || variantImage),
+      preview: resolveAbsoluteUrl(variantImage || variantThumb)
+    };
+  }, []);
   const mapProviderOptions = useMemo(() => ([
     { value: 'osm', label: 'OpenStreetMap' },
     { value: 'yandex', label: 'Yandex' }
@@ -10332,14 +10378,9 @@ function AdminDashboard() {
                       const categoryPath = categoryHierarchy.length > 0
                         ? categoryHierarchy.map((category) => formatCategoryWithSort(category)).join(' • ')
                         : (product.category_name || '-');
-                      const thumbSource = product.thumb_url || product.image_url || '';
-                      const previewSourceRaw = product.image_url || product.thumb_url || '';
-                      const thumbSourceResolved = thumbSource
-                        ? (thumbSource.startsWith('http') ? thumbSource : `${API_URL.replace('/api', '')}${thumbSource}`)
-                        : '';
-                      const previewSourceResolved = previewSourceRaw
-                        ? (previewSourceRaw.startsWith('http') ? previewSourceRaw : `${API_URL.replace('/api', '')}${previewSourceRaw}`)
-                        : '';
+                      const productImageSources = getProductListImageSources(product);
+                      const thumbSourceResolved = productImageSources.thumb;
+                      const previewSourceResolved = productImageSources.preview;
                       const productPriceLabel = getProductPriceDisplayLabel(product);
                       return (
                         <article
@@ -10508,6 +10549,7 @@ function AdminDashboard() {
                           const categoryHierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
                           const categoryTooltip = categoryHierarchy.map((category) => formatCategoryWithSort(category)).join(' > ');
                           const productPriceLabel = getProductPriceDisplayLabel(product);
+                          const productImageSources = getProductListImageSources(product);
                           return (
                             <tr
                               key={product.id}
@@ -10526,9 +10568,9 @@ function AdminDashboard() {
                             </td>
                             <td className="text-muted admin-product-col-index">{(productsPage - 1) * productsLimit + index + 1}</td>
                             <td className="admin-product-col-photo">
-                              {(product.thumb_url || product.image_url) ? (
+                              {(productImageSources.thumb || productImageSources.preview) ? (
                                 <img
-                                  src={(product.thumb_url || product.image_url).startsWith('http') ? (product.thumb_url || product.image_url) : `${API_URL.replace('/api', '')}${product.thumb_url || product.image_url}`}
+                                  src={productImageSources.thumb || productImageSources.preview}
                                   alt={product.name_ru}
                                   style={{
                                     width: 40,
@@ -10538,8 +10580,9 @@ function AdminDashboard() {
                                     cursor: 'pointer'
                                   }}
                                   onClick={() => {
-                                    const previewSrc = product.image_url || product.thumb_url;
-                                    setPreviewImageUrl(previewSrc.startsWith('http') ? previewSrc : `${API_URL.replace('/api', '')}${previewSrc}`);
+                                    const previewSrc = productImageSources.preview || productImageSources.thumb;
+                                    if (!previewSrc) return;
+                                    setPreviewImageUrl(previewSrc);
                                     setShowImagePreview(true);
                                   }}
                                 />
