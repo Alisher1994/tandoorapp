@@ -7779,11 +7779,27 @@ body::-webkit-scrollbar,
     padding: 0;
 }
 
+.admin-settings-single-column {
+    width: min(900px, 100%);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+}
+
+.admin-settings-surface-block {
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 0.95rem;
+}
+
 .admin-store-logo-slot {
     border: 1px dashed rgba(71, 85, 105, 0.28);
     border-radius: 14px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
     padding: 0.75rem;
+    position: relative;
 }
 
 .admin-store-logo-preview {
@@ -7831,13 +7847,70 @@ body::-webkit-scrollbar,
 }
 
 .admin-store-logo-slot-actions {
-    margin-top: 0.7rem;
+    position: absolute;
+    left: 1.1rem;
+    right: 1.1rem;
+    bottom: 1.1rem;
     display: flex;
     gap: 0.55rem;
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 3;
 }
 
 .admin-store-logo-slot-actions .btn {
     min-width: 0;
+    border: 1px solid rgba(148, 163, 184, 0.58);
+    background: rgba(255, 255, 255, 0.96) !important;
+    color: #1f2937 !important;
+    box-shadow: none !important;
+}
+
+.admin-store-logo-slot-actions .btn:hover:not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.46);
+    background: #ffffff !important;
+    color: #111827 !important;
+}
+
+.admin-store-logo-slot:hover .admin-store-logo-slot-actions,
+.admin-store-logo-slot:focus-within .admin-store-logo-slot-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.admin-store-logo-remove-x {
+    position: absolute;
+    top: 1.05rem;
+    right: 1.05rem;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(255, 255, 255, 0.95);
+    color: #dc2626;
+    font-size: 1.05rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.18s ease;
+    z-index: 4;
+}
+
+.admin-store-logo-slot:hover .admin-store-logo-remove-x,
+.admin-store-logo-slot:focus-within .admin-store-logo-remove-x {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.admin-store-logo-remove-x:hover {
+    border-color: rgba(220, 38, 38, 0.5);
+    background: #fff5f5;
 }
 
 .admin-store-logo-mode-block {
@@ -7975,7 +8048,8 @@ body::-webkit-scrollbar,
     background: var(--admin-segment-bg);
     box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
     flex-wrap: wrap;
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .admin-delivery-pricing-tab {
@@ -7989,8 +8063,9 @@ body::-webkit-scrollbar,
     font-weight: 600;
     line-height: 1;
     transition: all 0.2s ease;
-    flex: 1 1 240px;
+    flex: 0 1 170px;
     text-align: center;
+    white-space: nowrap;
 }
 
 .admin-delivery-pricing-tab:hover {
@@ -9922,11 +9997,21 @@ body::-webkit-scrollbar,
     }
 
     .admin-store-logo-slot-actions {
+        position: static;
+        margin-top: 0.6rem;
         flex-direction: column;
+        opacity: 1;
+        transform: none;
+        pointer-events: auto;
     }
 
     .admin-store-logo-slot-actions .btn {
         width: 100%;
+    }
+
+    .admin-store-logo-remove-x {
+        opacity: 1;
+        pointer-events: auto;
     }
 
     .admin-general-qr-preview {

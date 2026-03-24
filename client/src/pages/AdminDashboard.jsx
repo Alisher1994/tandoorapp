@@ -504,6 +504,26 @@ const normalizeSettingsNumber = (value, fallback = 0) => {
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const parseNumberInputWithGrouping = (value) => {
+  const raw = String(value ?? '');
+  if (!raw.trim()) return '';
+  const normalized = raw
+    .replace(/\s+/g, '')
+    .replace(/[^\d.,-]/g, '')
+    .replace(',', '.');
+  if (!normalized || normalized === '.' || normalized === '-') return '';
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? String(parsed) : '';
+};
+const formatNumberInputWithGrouping = (value, maximumFractionDigits = 2) => {
+  if (value === undefined || value === null || value === '') return '';
+  const parsed = normalizeSettingsNumber(value, Number.NaN);
+  if (!Number.isFinite(parsed)) return String(value || '');
+  return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits
+  }).format(parsed);
+};
 const normalizeSettingsText = (value) => String(value || '').trim();
 const sortObjectKeysDeep = (value) => {
   if (Array.isArray(value)) {
@@ -10921,9 +10941,11 @@ function AdminDashboard() {
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
                       { key: 'general', icon: '⚙️', label: language === 'uz' ? 'Umumiy' : 'Общие' },
+                      { key: 'appearance', icon: '🎨', label: language === 'uz' ? "Dizayn va uslub" : 'Оформление и стиль' },
                       { key: 'telegram', icon: '✈️', label: 'Telegram' },
                       { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
                       { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
+                      { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
                       { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
                     ].map((tab) => {
                       const isActive = settingsTab === tab.key;
@@ -10952,8 +10974,8 @@ function AdminDashboard() {
                             <Row className="gy-4">
                               <Col md={12}>
                                 <div className="admin-store-profile-group">
-                                  <Row className="g-4 align-items-stretch admin-store-profile-layout">
-                                    <Col xl={4} lg={5} className="admin-store-profile-layout-side">
+                                  <Row className="g-4 justify-content-center admin-store-profile-layout">
+                                    <Col xxl={8} xl={9} lg={10} md={11} className="admin-store-profile-layout-side">
                                       <div className="admin-store-profile-side h-100">
                                         <Form.Group className="mb-4">
                                           <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Логотип магазина</Form.Label>
@@ -10985,12 +11007,22 @@ function AdminDashboard() {
                                                 </div>
                                               )}
                                             </button>
+                                            {restaurantSettings.logo_url ? (
+                                              <button
+                                                type="button"
+                                                className="admin-store-logo-remove-x"
+                                                onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
+                                                aria-label="Удалить логотип"
+                                              >
+                                                ×
+                                              </button>
+                                            ) : null}
                                             <div className="admin-store-logo-slot-actions">
                                               <Button
                                                 type="button"
-                                                variant="outline-primary"
+                                                variant="light"
                                                 size="sm"
-                                                className="fw-bold flex-fill"
+                                                className="flex-fill"
                                                 onClick={() => restaurantLogoInputRef.current?.click()}
                                                 disabled={uploadingRestaurantLogo}
                                               >
@@ -10998,9 +11030,9 @@ function AdminDashboard() {
                                               </Button>
                                               <Button
                                                 type="button"
-                                                variant="outline-secondary"
+                                                variant="light"
                                                 size="sm"
-                                                className="fw-bold flex-fill"
+                                                className="flex-fill"
                                                 onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
                                                 disabled={!restaurantSettings.logo_url}
                                               >
@@ -11066,10 +11098,10 @@ function AdminDashboard() {
                                       </div>
                                     </Col>
 
-                                    <Col xl={8} lg={7} className="admin-store-profile-layout-main">
+                                    <Col xxl={8} xl={9} lg={10} md={11} className="admin-store-profile-layout-main">
                                       <div className="admin-store-profile-fields h-100">
                                         <Row className="gy-4">
-                                          <Col md={6}>
+                                          <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название магазина</Form.Label>
                                               <Form.Control
@@ -11080,7 +11112,7 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
-                                          <Col md={6}>
+                                          <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Телефон</Form.Label>
                                               <Form.Control
@@ -11102,7 +11134,7 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
-                                          <Col md={6}>
+                                          <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Начало работы</Form.Label>
                                               <Form.Control
@@ -11113,7 +11145,7 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
-                                          <Col md={6}>
+                                          <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Конец работы</Form.Label>
                                               <Form.Control
@@ -11124,85 +11156,7 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
-                                          <Col md={6}>
-                                            <Form.Group>
-                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
-                                              <div className="admin-theme-slots" role="radiogroup" aria-label="Стиль интерфейса магазина">
-                                                {UI_THEME_OPTIONS.map((themeOption) => {
-                                                  const isActive = normalizeUiTheme(restaurantSettings.ui_theme, 'classic') === themeOption.value;
-                                                  return (
-                                                    <button
-                                                      key={themeOption.value}
-                                                      type="button"
-                                                      role="radio"
-                                                      aria-checked={isActive}
-                                                      className={`admin-theme-slot${isActive ? ' is-active' : ''}`}
-                                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_theme: themeOption.value })}
-                                                    >
-                                                      <span
-                                                        className="admin-theme-slot-preview"
-                                                        style={{
-                                                          '--theme-slot-c1': themeOption.preview[0],
-                                                          '--theme-slot-c2': themeOption.preview[1],
-                                                          '--theme-slot-c3': themeOption.preview[2]
-                                                        }}
-                                                      />
-                                                      <span className="admin-theme-slot-title">{themeOption.label}</span>
-                                                    </button>
-                                                  );
-                                                })}
-                                              </div>
-                                              <Form.Text className="text-muted d-block mt-2">
-                                                Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
-                                              </Form.Text>
-                                            </Form.Group>
-                                          </Col>
-                                          <Col md={6}>
-                                            <Form.Group>
-                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения каталога</Form.Label>
-                                              <Form.Select
-                                                className="form-control-custom"
-                                                value={restaurantSettings.menu_view_mode || 'grid_categories'}
-                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: e.target.value })}
-                                              >
-                                                <option value="grid_categories">Папки (Grid Categories)</option>
-                                                <option value="single_list">Прямой список (Single List)</option>
-                                              </Form.Select>
-                                              <div className="admin-menu-mode-preview-grid mt-3">
-                                                <button
-                                                  type="button"
-                                                  className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
-                                                  onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
-                                                >
-                                                  <span className="admin-menu-mode-preview-visual is-grid">
-                                                    <span />
-                                                    <span />
-                                                    <span />
-                                                    <span />
-                                                  </span>
-                                                  <span className="admin-menu-mode-preview-title">Папки</span>
-                                                  <span className="admin-menu-mode-preview-desc">Категории плиткой, затем товары</span>
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
-                                                  onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
-                                                >
-                                                  <span className="admin-menu-mode-preview-visual is-list">
-                                                    <span />
-                                                    <span />
-                                                    <span />
-                                                  </span>
-                                                  <span className="admin-menu-mode-preview-title">Прямой список</span>
-                                                  <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
-                                                </button>
-                                              </div>
-                                              <Form.Text className="text-muted d-block mt-2">
-                                                Папки: сначала плитка категорий. Прямой список: сразу все товары по категориям с верхними табами.
-                                              </Form.Text>
-                                            </Form.Group>
-                                          </Col>
-                                          <Col md={6}>
+                                          <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
                                                 {language === 'uz' ? 'Do\'kon valyutasi' : 'Валюта магазина'}
@@ -11247,46 +11201,6 @@ function AdminDashboard() {
                                               />
                                             </div>
                                           </Col>
-                                          <Col md={12}>
-                                            <div className="admin-store-automation-panel">
-                                              <div className="fw-bold mb-1">
-                                                {language === 'uz' ? "Telegram avtomatik xabarlari" : 'Автоматические уведомления в Telegram'}
-                                              </div>
-                                              <div className="small text-muted mb-3">
-                                                {language === 'uz'
-                                                  ? "Buyurtma tasdiqlangandan keyin balans qoldig'ini va do'kon yopilgandan keyin kunlik hisobotni guruhga yuborish."
-                                                  : 'Отправка остатка баланса после подтверждения заказа и детального отчёта после закрытия магазина.'}
-                                              </div>
-                                              <div className="d-flex flex-column gap-2">
-                                                <Form.Check
-                                                  type="switch"
-                                                  id="send-balance-after-confirm-switch"
-                                                  className="fw-semibold"
-                                                  label={language === 'uz'
-                                                    ? "Tasdiqlangandan keyin balans qoldig'ini yuborish"
-                                                    : 'Отправлять остаток баланса после подтверждения'}
-                                                  checked={Boolean(restaurantSettings.send_balance_after_confirm)}
-                                                  onChange={(e) => setRestaurantSettings({
-                                                    ...restaurantSettings,
-                                                    send_balance_after_confirm: e.target.checked
-                                                  })}
-                                                />
-                                                <Form.Check
-                                                  type="switch"
-                                                  id="send-daily-close-report-switch"
-                                                  className="fw-semibold"
-                                                  label={language === 'uz'
-                                                    ? "Do'kon yopilganda kunlik hisobotni yuborish"
-                                                    : 'Отправлять отчёт после закрытия магазина'}
-                                                  checked={Boolean(restaurantSettings.send_daily_close_report)}
-                                                  onChange={(e) => setRestaurantSettings({
-                                                    ...restaurantSettings,
-                                                    send_daily_close_report: e.target.checked
-                                                  })}
-                                                />
-                                              </div>
-                                            </div>
-                                          </Col>
                                         </Row>
                                       </div>
                                     </Col>
@@ -11295,6 +11209,103 @@ function AdminDashboard() {
                               </Col>
 
                             </Row>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                onClick={saveRestaurantSettings}
+                                disabled={isRestaurantSettingsSaveDisabled}
+                              >
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'appearance' && (
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="admin-settings-single-column">
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
+                                  <div className="admin-theme-slots" role="radiogroup" aria-label="Стиль интерфейса магазина">
+                                    {UI_THEME_OPTIONS.map((themeOption) => {
+                                      const isActive = normalizeUiTheme(restaurantSettings.ui_theme, 'classic') === themeOption.value;
+                                      return (
+                                        <button
+                                          key={themeOption.value}
+                                          type="button"
+                                          role="radio"
+                                          aria-checked={isActive}
+                                          className={`admin-theme-slot${isActive ? ' is-active' : ''}`}
+                                          onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_theme: themeOption.value })}
+                                        >
+                                          <span
+                                            className="admin-theme-slot-preview"
+                                            style={{
+                                              '--theme-slot-c1': themeOption.preview[0],
+                                              '--theme-slot-c2': themeOption.preview[1],
+                                              '--theme-slot-c3': themeOption.preview[2]
+                                            }}
+                                          />
+                                          <span className="admin-theme-slot-title">{themeOption.label}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
+                                  </Form.Text>
+                                </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения каталога</Form.Label>
+                                  <div className="admin-menu-mode-preview-grid">
+                                    <button
+                                      type="button"
+                                      className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
+                                    >
+                                      <span className="admin-menu-mode-preview-visual is-grid">
+                                        <span />
+                                        <span />
+                                        <span />
+                                        <span />
+                                      </span>
+                                      <span className="admin-menu-mode-preview-title">Папки</span>
+                                      <span className="admin-menu-mode-preview-desc">Категории плиткой, затем товары</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
+                                    >
+                                      <span className="admin-menu-mode-preview-visual is-list">
+                                        <span />
+                                        <span />
+                                        <span />
+                                      </span>
+                                      <span className="admin-menu-mode-preview-title">Прямой список</span>
+                                      <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
+                                    </button>
+                                  </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    Выберите один режим отображения без выпадающего списка.
+                                  </Form.Text>
+                                </Form.Group>
+                              </div>
+                            </div>
 
                             <div className="mt-4 pt-3 border-top text-end">
                               <Button
@@ -11858,7 +11869,7 @@ function AdminDashboard() {
                                         delivery_pricing_mode: 'fixed'
                                       })}
                                     >
-                                      Фиксированная цена доставки
+                                      Фиксированная
                                     </button>
                                     <button
                                       type="button"
@@ -11868,9 +11879,12 @@ function AdminDashboard() {
                                         delivery_pricing_mode: 'dynamic'
                                       })}
                                     >
-                                      Динамичная цена доставки
+                                      Динамичная
                                     </button>
                                   </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    Фиксированная: одна цена на любую дистанцию. Динамичная: расчет по радиусу и километрам.
+                                  </Form.Text>
                                 </Form.Group>
                               </Col>
 
@@ -11879,14 +11893,13 @@ function AdminDashboard() {
                                   <Form.Group>
                                     <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Фиксированная цена доставки ({t('sum')})</Form.Label>
                                     <Form.Control
-                                      type="number"
-                                      min={0}
-                                      step="0.01"
+                                      type="text"
+                                      inputMode="decimal"
                                       className="form-control-custom"
-                                      value={restaurantSettings.delivery_fixed_price ?? 0}
+                                      value={formatNumberInputWithGrouping(restaurantSettings.delivery_fixed_price, 2)}
                                       onChange={e => setRestaurantSettings({
                                         ...restaurantSettings,
-                                        delivery_fixed_price: e.target.value
+                                        delivery_fixed_price: parseNumberInputWithGrouping(e.target.value)
                                       })}
                                     />
                                   </Form.Group>
@@ -11908,10 +11921,14 @@ function AdminDashboard() {
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовая цена ({t('sum')})</Form.Label>
                                       <Form.Control
-                                        type="number"
+                                        type="text"
+                                        inputMode="decimal"
                                         className="form-control-custom"
-                                        value={restaurantSettings.delivery_base_price || 0}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_price: e.target.value })}
+                                        value={formatNumberInputWithGrouping(restaurantSettings.delivery_base_price, 2)}
+                                        onChange={e => setRestaurantSettings({
+                                          ...restaurantSettings,
+                                          delivery_base_price: parseNumberInputWithGrouping(e.target.value)
+                                        })}
                                       />
                                     </Form.Group>
                                   </Col>
@@ -11919,10 +11936,14 @@ function AdminDashboard() {
                                     <Form.Group>
                                       <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Цена за доп. км ({t('sum')})</Form.Label>
                                       <Form.Control
-                                        type="number"
+                                        type="text"
+                                        inputMode="decimal"
                                         className="form-control-custom"
-                                        value={restaurantSettings.delivery_price_per_km || 0}
-                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_price_per_km: e.target.value })}
+                                        value={formatNumberInputWithGrouping(restaurantSettings.delivery_price_per_km, 2)}
+                                        onChange={e => setRestaurantSettings({
+                                          ...restaurantSettings,
+                                          delivery_price_per_km: parseNumberInputWithGrouping(e.target.value)
+                                        })}
                                       />
                                     </Form.Group>
                                   </Col>
@@ -11962,6 +11983,72 @@ function AdminDashboard() {
                                 🗺️ {restaurantSettings.delivery_zone ? 'Редактировать зону доставки' : 'Настроить зону доставки'}
                               </Button>
                             </Col>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom shadow-none"
+                                onClick={saveRestaurantSettings}
+                                disabled={isRestaurantSettingsSaveDisabled}
+                              >
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'reports' && (
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="admin-settings-single-column">
+                              <div className="admin-settings-surface-block">
+                                <div className="admin-store-automation-panel">
+                                  <div className="fw-bold mb-1">
+                                    {language === 'uz' ? "Telegram avtomatik xabarlari" : 'Автоматические уведомления в Telegram'}
+                                  </div>
+                                  <div className="small text-muted mb-3">
+                                    {language === 'uz'
+                                      ? "Buyurtma tasdiqlangandan keyin balans qoldig'ini va do'kon yopilgandan keyin kunlik hisobotni guruhga yuborish."
+                                      : 'Отправка остатка баланса после подтверждения заказа и детального отчёта после закрытия магазина.'}
+                                  </div>
+                                  <div className="d-flex flex-column gap-2">
+                                    <Form.Check
+                                      type="switch"
+                                      id="send-balance-after-confirm-switch"
+                                      className="fw-semibold"
+                                      label={language === 'uz'
+                                        ? "Tasdiqlangandan keyin balans qoldig'ini yuborish"
+                                        : 'Отправлять остаток баланса после подтверждения'}
+                                      checked={Boolean(restaurantSettings.send_balance_after_confirm)}
+                                      onChange={(e) => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        send_balance_after_confirm: e.target.checked
+                                      })}
+                                    />
+                                    <Form.Check
+                                      type="switch"
+                                      id="send-daily-close-report-switch"
+                                      className="fw-semibold"
+                                      label={language === 'uz'
+                                        ? "Do'kon yopilganda kunlik hisobotni yuborish"
+                                        : 'Отправлять отчёт после закрытия магазина'}
+                                      checked={Boolean(restaurantSettings.send_daily_close_report)}
+                                      onChange={(e) => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        send_daily_close_report: e.target.checked
+                                      })}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
 
                             <div className="mt-4 pt-3 border-top text-end">
                               <Button
