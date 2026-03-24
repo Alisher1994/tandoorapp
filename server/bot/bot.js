@@ -13,6 +13,10 @@ const {
   getHelpInstructionByCode,
   incrementHelpInstructionViewCount
 } = require('../services/helpInstructions');
+const {
+  sendServerStatsToChat,
+  initSuperadminServerMonitoring
+} = require('../services/superadminServerMonitoring');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -112,6 +116,10 @@ const BOT_TEXTS = {
     addProductOpenHint: 'Откройте окно добавления товара по кнопке ниже.',
     myStoreMissing: '❌ Для вашего аккаунта не найден привязанный магазин.',
     resetButton: '🔐 Восстановить логин и пароль',
+    serverStatsButton: '🖥 Статистика сервера',
+    serverStatsPreparing: '⏳ Собираю статистику сервера...',
+    serverStatsOnlyForSuperadmins: '⛔ Эта функция доступна только супер-админам.',
+    serverStatsFailed: '❌ Не удалось получить статистику сервера. Попробуйте позже.',
     helpMenuButton: '🆘 Помощь',
     languageMenuButton: '🌐 Язык',
     newOrderButton: '🛒 Новый заказ',
@@ -177,6 +185,10 @@ const BOT_TEXTS = {
     addProductOpenHint: "Mahsulot qo'shish oynasini quyidagi tugma orqali oching.",
     myStoreMissing: "❌ Hisobingizga bog'langan do'kon topilmadi.",
     resetButton: '🔐 Login va parolni tiklash',
+    serverStatsButton: '🖥 Server statistikasi',
+    serverStatsPreparing: '⏳ Server statistikasi yig‘ilmoqda...',
+    serverStatsOnlyForSuperadmins: '⛔ Bu funksiya faqat superadminlar uchun.',
+    serverStatsFailed: '❌ Server statistikasini olib bo‘lmadi. Keyinroq urinib ko‘ring.',
     helpMenuButton: '🆘 Yordam',
     languageMenuButton: '🌐 Til',
     newOrderButton: '🛒 Yangi buyurtma',
@@ -1042,6 +1054,7 @@ async function initBot() {
         [loginButton, storeButton],
         [addProductButton],
         [{ text: t(language, 'resetButton') }],
+        ...(user.role === 'superadmin' ? [[{ text: t(language, 'serverStatsButton') }]] : []),
         [{ text: t(language, 'languageMenuButton') }, { text: t(language, 'helpMenuButton') }]
       ];
     } else {
@@ -1163,6 +1176,24 @@ async function initBot() {
     } catch (error) {
       console.error('Send superadmin help info error:', error);
       await bot.sendMessage(chatId, t(language, 'genericError'));
+    }
+  }
+
+  async function handleSuperadminServerStatsRequest(chatId, userId, lang) {
+    const language = normalizeBotLanguage(lang);
+    const user = await resolvePreferredSuperadminAccessUser(userId);
+
+    if (!user || user.role !== 'superadmin') {
+      await bot.sendMessage(chatId, t(language, 'serverStatsOnlyForSuperadmins'));
+      return;
+    }
+
+    await bot.sendMessage(chatId, t(language, 'serverStatsPreparing'));
+    try {
+      await sendServerStatsToChat(bot, chatId, { reason: 'manual', lang: language });
+    } catch (error) {
+      console.error('Manual server stats error:', error?.message || error);
+      await bot.sendMessage(chatId, t(language, 'serverStatsFailed'));
     }
   }
 
@@ -1903,6 +1934,7 @@ async function initBot() {
     const isStoreMenuText = [t('ru', 'myStoreButton'), t('uz', 'myStoreButton')].includes(text);
     const isAddProductMenuText = [t('ru', 'addProductButton'), t('uz', 'addProductButton')].includes(text);
     const isResetMenuText = [t('ru', 'resetButton'), t('uz', 'resetButton')].includes(text);
+    const isServerStatsMenuText = [t('ru', 'serverStatsButton'), t('uz', 'serverStatsButton')].includes(text);
     const isHelpMenuText = [t('ru', 'helpMenuButton'), t('uz', 'helpMenuButton')].includes(text);
 
     if (isLanguageMenuText) {
@@ -1989,6 +2021,11 @@ async function initBot() {
 
     if (isHelpMenuText) {
       await sendSuperadminHelpInfo(chatId, currentLang);
+      return;
+    }
+
+    if (isServerStatsMenuText) {
+      await handleSuperadminServerStatsRequest(chatId, userId, currentLang);
       return;
     }
 
@@ -2456,6 +2493,13 @@ async function initBot() {
     const userId = msg.from.id;
     const lang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
     await sendSuperadminHelpInfo(chatId, lang);
+  });
+
+  bot.onText(/\/server/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const lang = normalizeBotLanguage(languagePreferences.get(userId) || getTelegramPreferredLanguage(msg.from?.language_code));
+    await handleSuperadminServerStatsRequest(chatId, userId, lang);
   });
   
   // =====================================================
@@ -3194,6 +3238,7 @@ async function stopBot() {
 async function reloadBot() {
   await stopBot();
   await initBot();
+  initSuperadminServerMonitoring({ bot });
 }
 
 module.exports = { initBot, getBot, reloadBot, getActiveSuperadminBotToken };

@@ -22,6 +22,7 @@ const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 const { initBroadcastWorker } = require('./services/broadcastWorker');
 const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorker');
+const { initSuperadminServerMonitoring } = require('./services/superadminServerMonitoring');
 const { logSecurityEvent } = require('./services/securityEvents');
 
 const app = express();
@@ -490,6 +491,7 @@ async function startServer() {
 
     // Initialize legacy Telegram bot (fallback for old system)
     await initBot();
+    initSuperadminServerMonitoring({ bot: getBot() });
 
     // Initialize multi-bot system for all restaurants
     await initMultiBots();
