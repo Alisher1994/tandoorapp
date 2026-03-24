@@ -5591,14 +5591,6 @@ body::-webkit-scrollbar,
     color: #3730a3;
 }
 
-.sa-restaurant-actions-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 32px);
-    grid-auto-rows: 32px;
-    gap: 6px;
-    justify-content: end;
-}
-
 .sa-restaurants-table-compact thead th,
 .sa-restaurants-table-compact tbody td {
     font-size: 12px;
@@ -5616,14 +5608,54 @@ body::-webkit-scrollbar,
     font-size: 12px !important;
 }
 
+.sa-restaurant-row {
+    transition: background-color 0.18s ease;
+}
+
+.sa-restaurant-row td {
+    background: #ffffff;
+}
+
+.sa-restaurant-row.is-expanded td {
+    background: #fcfdff;
+    border-bottom-color: transparent !important;
+}
+
+.sa-restaurant-logo-fallback {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: linear-gradient(180deg, #f8fafc, #eef2ff);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+}
+
+.sa-restaurant-logo-fallback i {
+    font-size: 13px;
+}
+
 .sa-restaurant-row-meta {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     color: #64748b;
     font-size: 12px;
     line-height: 1.25;
     margin-top: 0;
+}
+
+.sa-restaurant-row-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sa-restaurant-row-meta-chip i {
+    font-size: 11px;
+    color: #64748b;
 }
 
 .sa-restaurant-copy-btn {
@@ -5643,42 +5675,118 @@ body::-webkit-scrollbar,
     min-width: 30px !important;
     padding: 0 !important;
     border-radius: 8px !important;
+    border-color: #d7deea !important;
+    background: #f8fafc !important;
 }
 
 .sa-restaurant-accordion-row td {
-    padding-top: 0 !important;
-    padding-bottom: 6px !important;
-    background: #f8fafc;
+    padding-top: 2px !important;
+    padding-bottom: 8px !important;
+    background: #f3f7ff;
 }
 
 .sa-restaurant-accordion-wrap {
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    background: #ffffff;
-    padding: 7px;
+    border: 1px solid #dbe5f3;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f3f7ff 100%);
+    box-shadow: inset 0 1px 0 #ffffff;
+    padding: 10px 12px;
 }
 
 .sa-restaurant-accordion-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(220px, 1fr));
-    gap: 7px;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .sa-restaurant-accordion-item {
+    position: relative;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 10px 12px 10px 14px;
+    min-height: 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 6px;
+}
+
+.sa-restaurant-accordion-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 12px 0 0 12px;
+    background: #d4dff1;
+}
+
+.sa-accordion-service {
+    grid-column: span 3;
+}
+
+.sa-accordion-tariff {
+    grid-column: span 2;
+}
+
+.sa-accordion-problems {
+    grid-column: span 2;
+}
+
+.sa-accordion-access {
+    grid-column: span 2;
+}
+
+.sa-accordion-operator {
+    grid-column: span 3;
+}
+
+.sa-accordion-actions {
+    grid-column: 1 / -1;
     background: #f8fafc;
-    padding: 7px;
-    min-height: 72px;
+}
+
+.sa-accordion-service::before {
+    background: #93c5fd;
+}
+
+.sa-accordion-tariff::before {
+    background: #fde68a;
+}
+
+.sa-accordion-problems::before {
+    background: #fca5a5;
+}
+
+.sa-accordion-access::before {
+    background: #a7f3d0;
+}
+
+.sa-accordion-operator::before {
+    background: #c4b5fd;
+}
+
+.sa-accordion-actions::before {
+    background: #bfdbfe;
 }
 
 .sa-restaurant-accordion-label {
-    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
     font-weight: 700;
     text-transform: uppercase;
+    color: #5b6b82;
+    margin-bottom: 0;
+    letter-spacing: 0.03em;
+}
+
+.sa-restaurant-accordion-label i {
+    font-size: 12px;
     color: #64748b;
-    margin-bottom: 4px;
-    letter-spacing: 0.02em;
 }
 
 .sa-restaurant-accordion-value {
@@ -5690,15 +5798,56 @@ body::-webkit-scrollbar,
 .sa-restaurant-operator-stack {
     font-size: 12px;
     color: #334155;
-    line-height: 1.3;
+    line-height: 1.35;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
+}
+
+.sa-restaurant-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 32px);
+    grid-auto-rows: 32px;
+    gap: 8px;
+    justify-content: flex-start;
+    align-content: start;
+}
+
+.sa-accordion-actions .action-btn {
+    border: 1px solid #d7e0ec !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+.sa-accordion-actions .action-btn:hover,
+.sa-accordion-actions .action-btn:focus-visible {
+    border-color: #b8c6db !important;
+    transform: translateY(-1px);
 }
 
 @media (max-width: 1399.98px) {
     .sa-restaurant-accordion-grid {
-        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
+
+    .sa-accordion-service {
+        grid-column: span 3;
+    }
+
+    .sa-accordion-tariff {
+        grid-column: span 2;
+    }
+
+    .sa-accordion-problems {
+        grid-column: span 3;
+    }
+
+    .sa-accordion-access {
+        grid-column: span 2;
+    }
+
+    .sa-accordion-operator {
+        grid-column: span 6;
     }
 }
 
@@ -5714,7 +5863,43 @@ body::-webkit-scrollbar,
     }
 
     .sa-restaurant-accordion-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .sa-accordion-service,
+    .sa-accordion-tariff,
+    .sa-accordion-problems,
+    .sa-accordion-access {
+        grid-column: span 2;
+    }
+
+    .sa-accordion-operator,
+    .sa-accordion-actions {
+        grid-column: 1 / -1;
+    }
+
+    .sa-restaurant-actions-grid {
+        grid-template-columns: repeat(3, 32px);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .sa-restaurant-accordion-grid {
         grid-template-columns: 1fr;
+    }
+
+    .sa-accordion-service,
+    .sa-accordion-tariff,
+    .sa-accordion-problems,
+    .sa-accordion-access,
+    .sa-accordion-operator,
+    .sa-accordion-actions {
+        grid-column: auto;
+    }
+
+    .sa-restaurant-actions-grid {
+        grid-template-columns: repeat(2, 32px);
     }
 }
 

@@ -12250,19 +12250,25 @@ function SuperAdminDashboard() {
                                         style={{ width: '30px', height: '30px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #eee' }}
                                       />
                                     ) : (
-                                      <div style={{ width: '30px', height: '30px', background: '#f8fafc', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eee' }}>
-                                        🏪
+                                      <div className="sa-restaurant-logo-fallback">
+                                        <i className="bi bi-shop-window" aria-hidden="true" />
                                       </div>
                                     )}
                                   </td>
                                   <td>
                                     <strong className="text-dark">{r.name}</strong>
                                     <div className="sa-restaurant-row-meta">
-                                      <span>🧩 {r.activity_type_name || 'Вид деятельности не выбран'}</span>
+                                      <span className="sa-restaurant-row-meta-chip">
+                                        <i className="bi bi-diagram-3" aria-hidden="true" />
+                                        {r.activity_type_name || 'Вид деятельности не выбран'}
+                                      </span>
                                       {r.activity_type_name && r.activity_type_is_visible === false ? <span>(скрыт)</span> : null}
                                     </div>
                                     <div className="sa-restaurant-row-meta d-flex align-items-center gap-1">
-                                      <span>{r.telegram_bot_username || '—'}</span>
+                                      <span className="sa-restaurant-row-meta-chip">
+                                        <i className="bi bi-telegram" aria-hidden="true" />
+                                        {r.telegram_bot_username || '—'}
+                                      </span>
                                       {!!r.telegram_bot_username && (
                                         <button
                                           type="button"
@@ -12393,14 +12399,20 @@ function SuperAdminDashboard() {
                                     <td colSpan="8">
                                       <div className="sa-restaurant-accordion-wrap">
                                         <div className="sa-restaurant-accordion-grid">
-                                          <div className="sa-restaurant-accordion-item">
-                                            <div className="sa-restaurant-accordion-label">{t('saServiceFee') || 'Сбор за обслуживание'}</div>
+                                          <div className="sa-restaurant-accordion-item sa-accordion-service">
+                                            <div className="sa-restaurant-accordion-label">
+                                              <i className="bi bi-cash-coin" aria-hidden="true" />
+                                              {t('saServiceFee') || 'Сбор за обслуживание'}
+                                            </div>
                                             <div className="sa-restaurant-accordion-value">
                                               {formatBalanceAmount(r.service_fee || 0)} {getCurrencyLabelByCode(r.currency_code || countryCurrency?.code)}
                                             </div>
                                           </div>
-                                          <div className="sa-restaurant-accordion-item">
-                                            <div className="sa-restaurant-accordion-label">{t('saTableTier') || 'Тариф'}</div>
+                                          <div className="sa-restaurant-accordion-item sa-accordion-tariff">
+                                            <div className="sa-restaurant-accordion-label">
+                                              <i className="bi bi-tags" aria-hidden="true" />
+                                              {t('saTableTier') || 'Тариф'}
+                                            </div>
                                             <div className="sa-restaurant-accordion-value">
                                               <Badge
                                                 className={`badge-custom ${r.is_free_tier ? 'bg-info bg-opacity-10 text-info' : 'bg-warning bg-opacity-10 text-warning'}`}
@@ -12412,8 +12424,11 @@ function SuperAdminDashboard() {
                                               </Badge>
                                             </div>
                                           </div>
-                                          <div className="sa-restaurant-accordion-item">
-                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Muammolar' : 'Проблемы'}</div>
+                                          <div className="sa-restaurant-accordion-item sa-accordion-problems">
+                                            <div className="sa-restaurant-accordion-label">
+                                              <i className="bi bi-shield-exclamation" aria-hidden="true" />
+                                              {language === 'uz' ? 'Muammolar' : 'Проблемы'}
+                                            </div>
                                             <div className="sa-restaurant-accordion-value">
                                               <Button
                                                 size="sm"
@@ -12429,9 +12444,12 @@ function SuperAdminDashboard() {
                                               </Button>
                                             </div>
                                           </div>
-                                          <div className="sa-restaurant-accordion-item">
-                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Kirish' : 'Доступ'}</div>
-                                            <div className="sa-restaurant-accordion-value d-flex align-items-center gap-2">
+                                          <div className="sa-restaurant-accordion-item sa-accordion-access">
+                                            <div className="sa-restaurant-accordion-label">
+                                              <i className="bi bi-door-open" aria-hidden="true" />
+                                              {language === 'uz' ? 'Kirish' : 'Доступ'}
+                                            </div>
+                                            <div className="sa-restaurant-accordion-value d-flex align-items-center justify-content-between gap-2">
                                               <small className="text-muted">{language === 'uz' ? 'Yopish/Ochish' : 'Закрыть доступ'}</small>
                                               <Form.Check
                                                 type="switch"
@@ -12441,8 +12459,11 @@ function SuperAdminDashboard() {
                                               />
                                             </div>
                                           </div>
-                                          <div className="sa-restaurant-accordion-item">
-                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Operator' : 'Оператор'}</div>
+                                          <div className="sa-restaurant-accordion-item sa-accordion-operator">
+                                            <div className="sa-restaurant-accordion-label">
+                                              <i className="bi bi-person-badge" aria-hidden="true" />
+                                              {language === 'uz' ? 'Operator' : 'Оператор'}
+                                            </div>
                                             <div className="sa-restaurant-operator-stack">
                                               <div><strong>{r.primary_operator_full_name || '-'}</strong></div>
                                               <div>{language === 'uz' ? 'Telefon' : 'Телефон'}: {r.primary_operator_phone || '-'}</div>
@@ -12450,8 +12471,11 @@ function SuperAdminDashboard() {
                                               <div>{language === 'uz' ? 'Oxirgi faollik' : 'Последняя активность'}: {formatOperatorLastActivity(r.primary_operator_last_activity_at || r.latest_operator_activity_at)}</div>
                                             </div>
                                           </div>
-                                          <div className="sa-restaurant-accordion-item">
-                                            <div className="sa-restaurant-accordion-label">{t('saTableActions')}</div>
+                                          <div className="sa-restaurant-accordion-item sa-accordion-actions">
+                                            <div className="sa-restaurant-accordion-label">
+                                              <i className="bi bi-lightning-charge" aria-hidden="true" />
+                                              {t('saTableActions')}
+                                            </div>
                                             <div className="sa-restaurant-actions-grid">
                                               <Button
                                                 variant="light"
