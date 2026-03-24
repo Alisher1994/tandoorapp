@@ -249,13 +249,52 @@ function ShowcaseDisplay() {
   const activeRestaurantId = normalizeId(user?.active_restaurant_id);
   const showcaseScrollStorageKey = getShowcaseScrollStorageKey(activeRestaurantId);
 
+  const getShowcaseScrollContainer = () => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+
+    const showcaseContentNode = showcaseContentRef.current;
+    if (showcaseContentNode && showcaseContentNode.scrollHeight > showcaseContentNode.clientHeight + 2) {
+      return showcaseContentNode;
+    }
+
+    const rootNode = document.getElementById('root');
+    if (rootNode) {
+      const style = window.getComputedStyle(rootNode);
+      const overflowRule = `${style.overflow || ''} ${style.overflowY || ''}`.toLowerCase();
+      const canScrollVertically = /(auto|scroll|overlay)/.test(overflowRule);
+      if (canScrollVertically && rootNode.scrollHeight > rootNode.clientHeight + 2) {
+        return rootNode;
+      }
+    }
+
+    return window;
+  };
+
+  const readShowcaseScrollOffset = () => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return 0;
+    const scrollContainer = getShowcaseScrollContainer();
+    if (!scrollContainer || scrollContainer === window) {
+      return window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || 0;
+    }
+    return scrollContainer.scrollTop || 0;
+  };
+
+  const writeShowcaseScrollOffset = (offsetTop) => {
+    if (typeof window === 'undefined') return;
+    const targetOffset = Math.max(0, Number(offsetTop) || 0);
+    const scrollContainer = getShowcaseScrollContainer();
+    if (!scrollContainer || scrollContainer === window) {
+      window.scrollTo({ top: targetOffset, behavior: 'auto' });
+      return;
+    }
+    scrollContainer.scrollTop = targetOffset;
+  };
+
   const persistShowcaseScroll = () => {
     if (!activeRestaurantId || typeof window === 'undefined') return;
-    const scrollContainer = showcaseContentRef.current;
-    if (!scrollContainer) return;
     window.sessionStorage.setItem(
       showcaseScrollStorageKey,
-      String(Math.max(0, Math.round(scrollContainer.scrollTop || 0)))
+      String(Math.max(0, Math.round(readShowcaseScrollOffset())))
     );
   };
 
@@ -321,37 +360,57 @@ function ShowcaseDisplay() {
   useEffect(() => {
     if (!activeRestaurantId || hasRestoredShowcaseScrollRef.current) return undefined;
     if (loading || showcaseLoading) return undefined;
-    const scrollContainer = showcaseContentRef.current;
-    if (!scrollContainer || typeof window === 'undefined') return undefined;
+    if (typeof window === 'undefined') return undefined;
 
     hasRestoredShowcaseScrollRef.current = true;
     const rawValue = window.sessionStorage.getItem(showcaseScrollStorageKey);
     const savedScroll = Number.parseInt(rawValue || '0', 10);
     if (!Number.isInteger(savedScroll) || savedScroll <= 0) return undefined;
 
+    const timeoutIds = [];
     let rafId = 0;
+    const restorePosition = () => {
+      writeShowcaseScrollOffset(savedScroll);
+    };
+
     rafId = window.requestAnimationFrame(() => {
-      scrollContainer.scrollTop = savedScroll;
+      restorePosition();
     });
-    return () => window.cancelAnimationFrame(rafId);
+    [90, 220, 420, 760].forEach((delay) => {
+      timeoutIds.push(window.setTimeout(restorePosition, delay));
+    });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      timeoutIds.forEach((id) => window.clearTimeout(id));
+    };
   }, [activeRestaurantId, showcaseScrollStorageKey, loading, showcaseLoading, showcaseLayout.length]);
 
   useEffect(() => {
-    if (!activeRestaurantId || typeof window === 'undefined') return undefined;
-    const scrollContainer = showcaseContentRef.current;
-    if (!scrollContainer) return undefined;
+    if (!activeRestaurantId || typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
     const handleScroll = () => {
       window.sessionStorage.setItem(
         showcaseScrollStorageKey,
-        String(Math.max(0, Math.round(scrollContainer.scrollTop || 0)))
+        String(Math.max(0, Math.round(readShowcaseScrollOffset())))
       );
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    const scrollTargets = [
+      showcaseContentRef.current,
+      document.getElementById('root'),
+      window
+    ].filter(Boolean);
+    const uniqueTargets = [...new Set(scrollTargets)];
+
+    uniqueTargets.forEach((target) => {
+      target.addEventListener('scroll', handleScroll, { passive: true });
+    });
+
     return () => {
       handleScroll();
-      scrollContainer.removeEventListener('scroll', handleScroll);
+      uniqueTargets.forEach((target) => {
+        target.removeEventListener('scroll', handleScroll);
+      });
     };
   }, [activeRestaurantId, showcaseScrollStorageKey]);
 
