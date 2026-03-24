@@ -8,6 +8,12 @@ const MAX_STATS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ALERT_THROTTLE_MS = 5 * 60 * 1000;
 const BOT_TIME_ZONE = process.env.BOT_TIMEZONE || process.env.TELEGRAM_TIMEZONE || process.env.TZ || 'Asia/Tashkent';
 const DISK_STATS_PATH = String(process.env.SUPERADMIN_SERVER_DISK_PATH || '/').trim() || '/';
+const SUPERADMIN_EXTRA_TELEGRAM_IDS = new Set(
+  String(process.env.SUPERADMIN_EXTRA_TELEGRAM_IDS || '')
+    .split(',')
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+);
 
 let statsTimer = null;
 let activeMonitoringBot = null;
@@ -251,19 +257,39 @@ const fetchDatabaseHealth = async () => {
 };
 
 const fetchSuperadminTelegramIds = async () => {
-  const result = await pool.query(`
-    SELECT DISTINCT COALESCE(tal.telegram_id, u.telegram_id) AS telegram_id
-    FROM users u
-    LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
-    WHERE u.role = 'superadmin'
-      AND u.is_active = true
-      AND COALESCE(tal.telegram_id, u.telegram_id) IS NOT NULL
-    ORDER BY 1
-  `);
+  const envIds = Array.from(SUPERADMIN_EXTRA_TELEGRAM_IDS);
 
-  return (result.rows || [])
-    .map((row) => String(row.telegram_id || '').trim())
-    .filter(Boolean);
+  try {
+    const result = await pool.query(`
+      WITH candidates AS (
+        SELECT DISTINCT COALESCE(tal.telegram_id, u.telegram_id) AS telegram_id
+        FROM users u
+        LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
+        WHERE u.role = 'superadmin'
+          AND u.is_active = true
+          AND COALESCE(tal.telegram_id, u.telegram_id) IS NOT NULL
+
+        UNION
+
+        SELECT BTRIM(COALESCE(bs.superadmin_telegram_id, '')) AS telegram_id
+        FROM billing_settings bs
+        WHERE bs.id = 1
+          AND BTRIM(COALESCE(bs.superadmin_telegram_id, '')) <> ''
+      )
+      SELECT DISTINCT BTRIM(COALESCE(telegram_id, '')) AS telegram_id
+      FROM candidates
+      WHERE BTRIM(COALESCE(telegram_id, '')) <> ''
+      ORDER BY 1
+    `);
+
+    return Array.from(new Set([
+      ...envIds,
+      ...(result.rows || []).map((row) => String(row.telegram_id || '').trim()).filter(Boolean)
+    ]));
+  } catch (error) {
+    console.warn('Fetch superadmin telegram ids warning:', error?.message || error);
+    return envIds;
+  }
 };
 
 const buildReasonTitle = (lang, reason) => {

@@ -3627,6 +3627,11 @@ router.get('/restaurants', async (req, res) => {
         bat.is_visible AS activity_type_is_visible,
         COALESCE(rs.enabled, false) AS reservation_enabled_setting,
         COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
+        op.full_name AS primary_operator_full_name,
+        op.phone AS primary_operator_phone,
+        op.username AS primary_operator_username,
+        op.telegram_id AS primary_operator_telegram_id,
+        op.last_activity_at AS primary_operator_last_activity_at,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
         (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id) as orders_count,
         (SELECT COUNT(*) FROM products WHERE restaurant_id = r.id) as products_count,
@@ -3648,6 +3653,20 @@ router.get('/restaurants', async (req, res) => {
       FROM restaurants r
       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
+      LEFT JOIN LATERAL (
+        SELECT
+          u.full_name,
+          u.phone,
+          u.username,
+          u.telegram_id,
+          u.last_activity_at
+        FROM operator_restaurants opr
+        INNER JOIN users u ON u.id = opr.user_id
+        WHERE opr.restaurant_id = r.id
+          AND u.role = 'operator'
+        ORDER BY COALESCE(u.last_activity_at, u.created_at) DESC NULLS LAST, u.id DESC
+        LIMIT 1
+      ) op ON true
       ORDER BY r.created_at DESC
     `);
     const restaurants = await Promise.all(result.rows.map(async (row) => {

@@ -27,6 +27,12 @@ const WEB_APP_CACHE_VERSION = String(
   || process.env.npm_package_version
   || ''
 ).trim();
+const SUPERADMIN_EXTRA_TELEGRAM_IDS = new Set(
+  String(process.env.SUPERADMIN_EXTRA_TELEGRAM_IDS || '')
+    .split(',')
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+);
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
@@ -479,6 +485,10 @@ async function resolvePreferredSuperadminAccessUser(telegramId) {
 
 async function hasSuperadminAccessByTelegram(telegramId) {
   if (!telegramId) return false;
+  const normalizedTelegramId = String(telegramId || '').trim();
+  if (SUPERADMIN_EXTRA_TELEGRAM_IDS.has(normalizedTelegramId)) {
+    return true;
+  }
   const result = await pool.query(`
     SELECT 1
     FROM (
@@ -490,10 +500,15 @@ async function hasSuperadminAccessByTelegram(telegramId) {
       FROM telegram_admin_links tal
       JOIN users u ON u.id = tal.user_id
       WHERE tal.telegram_id = $1
+      UNION ALL
+      SELECT 'superadmin' AS role
+      FROM billing_settings bs
+      WHERE bs.id = 1
+        AND BTRIM(COALESCE(bs.superadmin_telegram_id, '')) = $1
     ) roles
     WHERE role = 'superadmin'
     LIMIT 1
-  `, [telegramId]).catch(() => ({ rows: [] }));
+  `, [normalizedTelegramId]).catch(() => ({ rows: [] }));
   return result.rows.length > 0;
 }
 
@@ -1075,6 +1090,7 @@ async function initBot() {
         : { text: t(language, 'registerStoreButton') };
       keyboard = [
         [registerButton, { text: t(language, 'languageMenuButton') }],
+        ...(isSuperadminAccess ? [[{ text: t(language, 'serverStatsButton') }]] : []),
         [{ text: t(language, 'helpMenuButton') }]
       ];
     }
@@ -1194,10 +1210,9 @@ async function initBot() {
 
   async function handleSuperadminServerStatsRequest(chatId, userId, lang) {
     const language = normalizeBotLanguage(lang);
-    const user = await resolvePreferredSuperadminAccessUser(userId);
     const isSuperadminAccess = await hasSuperadminAccessByTelegram(userId);
 
-    if (!user || !isSuperadminAccess) {
+    if (!isSuperadminAccess) {
       await bot.sendMessage(chatId, t(language, 'serverStatsOnlyForSuperadmins'));
       return;
     }
