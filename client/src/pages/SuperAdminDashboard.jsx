@@ -12203,11 +12203,16 @@ function SuperAdminDashboard() {
                               : getQuickRestaurantIssueCount(r);
                             const isProblem = issuesCount > 0;
                             const isExpanded = !!expandedRestaurantRows[r.id];
+                            const operatorPhoneRaw = String(r.primary_operator_phone || '').trim();
+                            const operatorPhoneDigits = operatorPhoneRaw.replace(/[^\d]/g, '');
+                            const operatorPhoneTelegramLink = operatorPhoneDigits ? `https://t.me/+${operatorPhoneDigits}` : '';
+                            const operatorUsernameClean = String(r.primary_operator_username || '').trim().replace(/^@/, '');
+                            const operatorUsernameLink = operatorUsernameClean ? `https://t.me/${operatorUsernameClean}` : '';
                           
                             return (
                               <React.Fragment key={r.id}>
                                 <tr className={`sa-restaurant-row${isExpanded ? ' is-expanded' : ''}`}>
-                                  <td><span className="text-muted">#{r.id}</span></td>
+                                  <td><span className="text-muted">{r.id}</span></td>
                                   <td>
                                     {r.logo_url ? (
                                       <img
@@ -12394,9 +12399,37 @@ function SuperAdminDashboard() {
                                             <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Operator' : 'Оператор'}</div>
                                             <div className="sa-restaurant-operator-stack">
                                               <div><strong>{r.primary_operator_full_name || '-'}</strong></div>
-                                              <div>{language === 'uz' ? 'Telefon' : 'Телефон'}: {r.primary_operator_phone || '-'}</div>
-                                              <div>Telegram: {r.primary_operator_username ? `@${String(r.primary_operator_username).replace(/^@/, '')}` : '-'}</div>
-                                              <div>{language === 'uz' ? 'Oxirgi faollik' : 'Последняя активность'}: {formatOperatorLastActivity(r.primary_operator_last_activity_at || r.latest_operator_activity_at)}</div>
+                                              <div className="sa-restaurant-operator-inline">
+                                                <span>{language === 'uz' ? 'Telefon' : 'Телефон'}:</span>
+                                                {operatorPhoneTelegramLink ? (
+                                                  <a
+                                                    href={operatorPhoneTelegramLink}
+                                                    target="_blank"
+                                                    rel="noreferrer noopener"
+                                                    className="sa-restaurant-operator-link"
+                                                  >
+                                                    {operatorPhoneRaw}
+                                                  </a>
+                                                ) : (
+                                                  <span>-</span>
+                                                )}
+                                                <span className="sa-restaurant-operator-separator">•</span>
+                                                <span>Telegram:</span>
+                                                {operatorUsernameLink ? (
+                                                  <a
+                                                    href={operatorUsernameLink}
+                                                    target="_blank"
+                                                    rel="noreferrer noopener"
+                                                    className="sa-restaurant-operator-link"
+                                                  >
+                                                    @{operatorUsernameClean}
+                                                  </a>
+                                                ) : (
+                                                  <span>-</span>
+                                                )}
+                                                <span className="sa-restaurant-operator-separator">•</span>
+                                                <span>{language === 'uz' ? 'Oxirgi faollik' : 'Последняя активность'}: {formatOperatorLastActivity(r.primary_operator_last_activity_at || r.latest_operator_activity_at)}</span>
+                                              </div>
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-actions">
