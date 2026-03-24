@@ -1361,6 +1361,7 @@ function SuperAdminDashboard() {
     total: 0,
     rows: [],
     truncated: false,
+    inferred: false,
     created_at: null
   });
   const [logs, setLogs] = useState({ logs: [], total: 0 });
@@ -3087,6 +3088,7 @@ function SuperAdminDashboard() {
       total: Number.isFinite(total) ? total : rows.length,
       rows,
       truncated,
+      inferred: safeMode === 'sent' && item?.sent_recipients_inferred === true,
       created_at: item?.created_at || null
     });
     setShowSuperadminBroadcastRecipientsModal(true);
@@ -13177,6 +13179,13 @@ function SuperAdminDashboard() {
                         {language === 'uz'
                           ? "Telegram o'qilgan statusini bermaydi. Bu yerda faqat muvaffaqiyatli yetkazilganlar ko'rsatiladi."
                           : 'Telegram не передает статус прочтения. Здесь отображаются только успешно доставленные сообщения.'}
+                      </div>
+                    ) : null}
+                    {superadminBroadcastRecipientsModalData.mode === 'sent' && superadminBroadcastRecipientsModalData.inferred ? (
+                      <div className="small text-warning mb-2">
+                        {language === 'uz'
+                          ? "Ushbu ro'yxat tarixiy log bo'yicha tiklandi (hozirgi foydalanuvchi bazasidan)."
+                          : 'Этот список восстановлен для старой рассылки на основе логов и текущей базы пользователей.'}
                       </div>
                     ) : null}
                     <div className="small text-muted mb-2">

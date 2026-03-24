@@ -7891,6 +7891,16 @@ router.get('/broadcast/history', async (req, res) => {
     const requestedPage = Number.parseInt(req.query?.page, 10);
     const page = Number.isFinite(requestedPage) ? Math.max(requestedPage, 1) : 1;
     const offset = (page - 1) * limit;
+    const normalizeBroadcastRole = (value) => {
+      const normalized = String(value || '').trim().toLowerCase();
+      return (normalized === 'operator' || normalized === 'customer') ? normalized : '';
+    };
+    const normalizeBroadcastUserLabel = (value) => (
+      String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+    );
 
     const historyResult = await pool.query(
       `
@@ -7916,15 +7926,59 @@ router.get('/broadcast/history', async (req, res) => {
         AND al.entity_type = 'notification'
     `);
 
+    const roleRecipientCache = new Map();
+    const getRecipientsSnapshotByRoles = async (roles = []) => {
+      const normalizedRoles = Array.from(new Set(
+        (Array.isArray(roles) ? roles : [])
+          .map((item) => normalizeBroadcastRole(item))
+          .filter(Boolean)
+      ));
+      if (!normalizedRoles.length) return [];
+
+      const cacheKey = normalizedRoles.slice().sort().join('|');
+      if (roleRecipientCache.has(cacheKey)) return roleRecipientCache.get(cacheKey);
+
+      const recipientsResult = await pool.query(
+        `
+          SELECT DISTINCT ON (u.telegram_id)
+            u.id,
+            u.full_name,
+            u.username,
+            u.role,
+            u.telegram_id
+          FROM users u
+          WHERE u.is_active = true
+            AND u.telegram_id IS NOT NULL
+            AND u.role = ANY($1::text[])
+          ORDER BY u.telegram_id, u.id ASC
+        `,
+        [normalizedRoles]
+      );
+
+      const snapshot = (recipientsResult.rows || []).map((recipient) => ({
+        id: Number(recipient.id || 0),
+        role: normalizeBroadcastRole(recipient.role),
+        telegram_id: String(recipient.telegram_id || ''),
+        user: recipient.full_name || recipient.username || `ID ${recipient.id}`
+      }));
+      roleRecipientCache.set(cacheKey, snapshot);
+      return snapshot;
+    };
+
     const items = (historyResult.rows || []).map((row) => {
       const payload = row?.new_values && typeof row.new_values === 'object' ? row.new_values : {};
       const rolesRaw = Array.isArray(payload.roles) ? payload.roles : [];
       const roles = Array.from(new Set(
         rolesRaw
-          .map((item) => String(item || '').trim().toLowerCase())
-          .filter((item) => item === 'operator' || item === 'customer')
+          .map((item) => normalizeBroadcastRole(item))
+          .filter(Boolean)
       ));
       const roleStats = payload?.roleStats && typeof payload.roleStats === 'object' ? payload.roleStats : {};
+      const sent = Number.parseInt(payload.sent, 10) || 0;
+      const failed = Number.parseInt(payload.failed, 10) || 0;
+      const total = Number.parseInt(payload.total, 10) || 0;
+      const sentRecipients = Array.isArray(payload.sent_recipients) ? payload.sent_recipients.slice(0, 1000) : [];
+      const errors = Array.isArray(payload.errors) ? payload.errors.slice(0, 1000) : [];
 
       return {
         id: Number(row.id || 0),
@@ -7935,19 +7989,67 @@ router.get('/broadcast/history', async (req, res) => {
         image_url: toOptionalTrimmedText(payload.image_url),
         video_url: toOptionalTrimmedText(payload.video_url),
         roles,
-        sent: Number.parseInt(payload.sent, 10) || 0,
-        failed: Number.parseInt(payload.failed, 10) || 0,
-        total: Number.parseInt(payload.total, 10) || 0,
+        sent,
+        failed,
+        total,
         role_stats: {
           operator: Number.parseInt(roleStats.operator, 10) || 0,
           customer: Number.parseInt(roleStats.customer, 10) || 0
         },
-        sent_recipients: Array.isArray(payload.sent_recipients) ? payload.sent_recipients.slice(0, 1000) : [],
+        sent_recipients: sentRecipients,
         sent_recipients_truncated: payload.sent_recipients_truncated === true,
-        errors: Array.isArray(payload.errors) ? payload.errors.slice(0, 1000) : [],
+        sent_recipients_inferred: false,
+        errors,
         errors_truncated: payload.errors_truncated === true
       };
     });
+
+    for (const item of items) {
+      if (item.sent_recipients.length > 0 || item.sent <= 0 || item.roles.length === 0) continue;
+
+      const recipientsSnapshot = await getRecipientsSnapshotByRoles(item.roles);
+      if (!recipientsSnapshot.length) continue;
+
+      const failedIdSet = new Set();
+      const failedTelegramSet = new Set();
+      const failedRoleNameSet = new Set();
+
+      for (const failedEntry of item.errors) {
+        const failedRole = normalizeBroadcastRole(failedEntry?.role);
+        const parsedFailedId = Number.parseInt(failedEntry?.id, 10);
+        if (Number.isInteger(parsedFailedId) && parsedFailedId > 0) {
+          failedIdSet.add(parsedFailedId);
+        }
+
+        const failedTelegramId = String(failedEntry?.telegram_id || '').trim();
+        if (failedTelegramId) {
+          failedTelegramSet.add(failedTelegramId);
+        }
+
+        const failedNameKey = normalizeBroadcastUserLabel(failedEntry?.user || failedEntry?.username || '');
+        if (failedRole && failedNameKey) {
+          failedRoleNameSet.add(`${failedRole}|${failedNameKey}`);
+        }
+      }
+
+      const inferredSentRecipients = recipientsSnapshot.filter((recipient) => {
+        if (failedIdSet.has(recipient.id)) return false;
+        if (failedTelegramSet.has(recipient.telegram_id)) return false;
+        const recipientNameKey = normalizeBroadcastUserLabel(recipient.user);
+        if (recipient.role && recipientNameKey && failedRoleNameSet.has(`${recipient.role}|${recipientNameKey}`)) {
+          return false;
+        }
+        return true;
+      });
+
+      const expectedSent = item.sent > 0 ? item.sent : inferredSentRecipients.length;
+      const resolvedSentRecipients = inferredSentRecipients.slice(0, Math.max(0, expectedSent));
+      item.sent_recipients = resolvedSentRecipients;
+      item.sent_recipients_inferred = true;
+      item.sent_recipients_truncated = item.sent_recipients_truncated
+        || inferredSentRecipients.length > resolvedSentRecipients.length
+        || expectedSent > resolvedSentRecipients.length;
+    }
 
     res.json({
       items,
