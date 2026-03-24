@@ -84,6 +84,11 @@ const UI_THEME_OPTIONS = [
   { value: 'violet_wave', label: 'Violet Wave (фиолетовый)', preview: ['#8b5cf6', '#6d28d9', '#22d3ee'] },
   { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] }
 ];
+const MENU_MODE_PREVIEW_MEDIA = Object.freeze({
+  categoryPhoto: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=480&q=80',
+  categoryPhotoAlt: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=480&q=80',
+  productPhoto: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=480&q=80'
+});
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (UI_THEME_VALUES.has(normalized)) return normalized;
@@ -11277,11 +11282,20 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual is-grid">
-                                        <span />
-                                        <span />
-                                        <span />
-                                        <span />
+                                      <span className="admin-menu-mode-preview-visual is-grid-real">
+                                        <span className="admin-menu-mode-grid-photo-wrap">
+                                          <img
+                                            src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
+                                            alt="Категория Книжки"
+                                            className="admin-menu-mode-grid-photo"
+                                            loading="lazy"
+                                          />
+                                        </span>
+                                        <span className="admin-menu-mode-grid-list">
+                                          <span>Книжки</span>
+                                          <span>Игрушки</span>
+                                          <span>Уход</span>
+                                        </span>
                                       </span>
                                       <span className="admin-menu-mode-preview-title">Папки</span>
                                       <span className="admin-menu-mode-preview-desc">Категории плиткой, затем товары</span>
@@ -11291,10 +11305,20 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual is-list">
-                                        <span />
-                                        <span />
-                                        <span />
+                                      <span className="admin-menu-mode-preview-visual is-list-real">
+                                        <span className="admin-menu-mode-list-photo-wrap">
+                                          <img
+                                            src={MENU_MODE_PREVIEW_MEDIA.productPhoto}
+                                            alt="Пример карточки товара"
+                                            className="admin-menu-mode-list-photo"
+                                            loading="lazy"
+                                          />
+                                        </span>
+                                        <span className="admin-menu-mode-list-copy">
+                                          <span className="admin-menu-mode-list-name">Развивающая книга</span>
+                                          <span className="admin-menu-mode-list-price">45 000 сум</span>
+                                        </span>
+                                        <span className="admin-menu-mode-list-add-btn">+</span>
                                       </span>
                                       <span className="admin-menu-mode-preview-title">Прямой список</span>
                                       <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
