@@ -55,11 +55,33 @@ const { sendBalanceNotification, getRestaurantBot } = require('../bot/notificati
 const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const RESTAURANT_WORKFLOW_STATUS_VALUES = new Set([
+  'new',
+  'negotiation',
+  'queue',
+  'token',
+  'store_settings',
+  'products',
+  'active',
+  'inactive'
+]);
+const RESTAURANT_AUTO_INACTIVE_DAYS = 30;
 const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (RESTAURANT_CURRENCY_CODES.has(normalized)) return normalized;
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return RESTAURANT_CURRENCY_CODES.has(normalizedFallback) ? normalizedFallback : 'uz';
+};
+const parseRestaurantWorkflowStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return null;
+  return RESTAURANT_WORKFLOW_STATUS_VALUES.has(normalized) ? normalized : null;
+};
+const normalizeRestaurantWorkflowStatus = (value, fallback = 'new') => {
+  const parsed = parseRestaurantWorkflowStatus(value);
+  if (parsed) return parsed;
+  const fallbackParsed = parseRestaurantWorkflowStatus(fallback);
+  return fallbackParsed || 'new';
 };
 let activityTypesSchemaReady = false;
 let activityTypesSchemaPromise = null;
@@ -69,6 +91,8 @@ let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
 let restaurantAdminCommentSchemaReady = false;
 let restaurantAdminCommentSchemaPromise = null;
+let restaurantWorkflowSchemaReady = false;
+let restaurantWorkflowSchemaPromise = null;
 let globalProductsSchemaReady = false;
 let globalProductsSchemaPromise = null;
 let aiProvidersSchemaReady = false;
@@ -2758,6 +2782,71 @@ const notifySuperadminTokenChanged = async (telegramId) => {
 const normalizeRestaurantTokenForCompare = (value) => (
   value === undefined || value === null ? '' : String(value).trim()
 );
+const parseDateOrNull = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const isBotBlockedOrDeletedByMetaError = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('401')
+    || normalized.includes('403')
+    || normalized.includes('404')
+    || normalized.includes('unauthorized')
+    || normalized.includes('forbidden')
+    || normalized.includes('not found')
+    || normalized.includes('bot was blocked')
+    || normalized.includes('deactivated')
+  );
+};
+const deriveRestaurantWorkflowStatusMeta = (restaurant) => {
+  const manualStatus = normalizeRestaurantWorkflowStatus(
+    restaurant?.workflow_status_manual || restaurant?.workflow_status,
+    'new'
+  );
+  const reasons = [];
+
+  if (restaurant?.is_active === false) {
+    reasons.push('disabled_by_admin');
+  }
+  if (isBotBlockedOrDeletedByMetaError(restaurant?.telegram_bot_meta_error)) {
+    reasons.push('bot_blocked_or_deleted');
+  }
+
+  const nowMs = Date.now();
+  const inactiveAfterMs = RESTAURANT_AUTO_INACTIVE_DAYS * 24 * 60 * 60 * 1000;
+  const latestOperatorActivityAt = parseDateOrNull(restaurant?.latest_operator_activity_at);
+  const createdAt = parseDateOrNull(restaurant?.created_at);
+  const inactivityReference = latestOperatorActivityAt || createdAt;
+  if (inactivityReference && (nowMs - inactivityReference.getTime()) >= inactiveAfterMs) {
+    reasons.push('operator_inactive_30d');
+  }
+
+  const autoInactive = reasons.length > 0;
+  const effectiveStatus = autoInactive
+    ? 'inactive'
+    : normalizeRestaurantWorkflowStatus(restaurant?.workflow_status, manualStatus);
+
+  return {
+    manualStatus,
+    effectiveStatus,
+    autoInactive,
+    reasons
+  };
+};
+const enrichRestaurantWithWorkflowStatus = (restaurant) => {
+  const source = restaurant || {};
+  const meta = deriveRestaurantWorkflowStatusMeta(source);
+  return {
+    ...source,
+    workflow_status_manual: meta.manualStatus,
+    workflow_status: meta.effectiveStatus,
+    workflow_auto_inactive: meta.autoInactive,
+    workflow_auto_inactive_reasons: meta.reasons
+  };
+};
 
 const notifyCustomersAboutRestaurantBotMigration = async ({
   restaurantId,
@@ -3078,6 +3167,37 @@ const ensureRestaurantAdminCommentSchema = async () => {
     await restaurantAdminCommentSchemaPromise;
   } finally {
     restaurantAdminCommentSchemaPromise = null;
+  }
+};
+const ensureRestaurantWorkflowStatusSchema = async () => {
+  if (restaurantWorkflowSchemaReady) return;
+  if (restaurantWorkflowSchemaPromise) {
+    await restaurantWorkflowSchemaPromise;
+    return;
+  }
+
+  restaurantWorkflowSchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS workflow_status VARCHAR(32) DEFAULT 'new'`).catch(() => { });
+    await pool.query(`
+      UPDATE restaurants
+      SET workflow_status = 'new'
+      WHERE workflow_status IS NULL
+         OR BTRIM(workflow_status) = ''
+         OR LOWER(workflow_status) NOT IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive')
+    `).catch(() => { });
+    await pool.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT IF NOT EXISTS restaurants_workflow_status_check
+      CHECK (workflow_status IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive'))
+    `).catch(() => { });
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_restaurants_workflow_status ON restaurants(workflow_status)`).catch(() => { });
+    restaurantWorkflowSchemaReady = true;
+  })();
+
+  try {
+    await restaurantWorkflowSchemaPromise;
+  } finally {
+    restaurantWorkflowSchemaPromise = null;
   }
 };
 
@@ -3499,6 +3619,7 @@ router.get('/restaurants', async (req, res) => {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
     await ensureRestaurantAdminCommentSchema();
+    await ensureRestaurantWorkflowStatusSchema();
     await ensureReservationSchema();
     const result = await pool.query(`
       SELECT r.*, 
@@ -3508,16 +3629,34 @@ router.get('/restaurants', async (req, res) => {
         COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
         (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
         (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id) as orders_count,
-        (SELECT COUNT(*) FROM products WHERE restaurant_id = r.id) as products_count
+        (SELECT COUNT(*) FROM products WHERE restaurant_id = r.id) as products_count,
+        (
+          SELECT MAX(u.last_activity_at)
+          FROM operator_restaurants opr
+          INNER JOIN users u ON u.id = opr.user_id
+          WHERE opr.restaurant_id = r.id
+            AND u.role = 'operator'
+        ) AS latest_operator_activity_at,
+        (
+          SELECT COUNT(*)
+          FROM operator_restaurants opr
+          INNER JOIN users u ON u.id = opr.user_id
+          WHERE opr.restaurant_id = r.id
+            AND u.role = 'operator'
+            AND u.is_active = true
+        ) AS active_operators_count
       FROM restaurants r
       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
       ORDER BY r.created_at DESC
     `);
-    const restaurants = await Promise.all(result.rows.map((row) => enrichRestaurantWithBotMeta({
-      ...row,
-      reservation_enabled: row.reservation_enabled_setting === true || row.reservation_enabled_setting === 'true'
-    })));
+    const restaurants = await Promise.all(result.rows.map(async (row) => {
+      const restaurantWithBotMeta = await enrichRestaurantWithBotMeta({
+        ...row,
+        reservation_enabled: row.reservation_enabled_setting === true || row.reservation_enabled_setting === 'true'
+      });
+      return enrichRestaurantWithWorkflowStatus(restaurantWithBotMeta);
+    }));
     res.json(restaurants);
   } catch (error) {
     console.error('Get restaurants error:', error);
@@ -5390,6 +5529,7 @@ router.get('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
+    await ensureRestaurantWorkflowStatusSchema();
     await ensureReservationSchema();
     const result = await pool.query(`
       SELECT r.*,
@@ -5397,7 +5537,22 @@ router.get('/restaurants/:id', async (req, res) => {
         bat.is_visible AS activity_type_is_visible,
         COALESCE(rs.enabled, false) AS reservation_enabled_setting,
         COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
-        (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count
+        (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
+        (
+          SELECT MAX(u.last_activity_at)
+          FROM operator_restaurants opr
+          INNER JOIN users u ON u.id = opr.user_id
+          WHERE opr.restaurant_id = r.id
+            AND u.role = 'operator'
+        ) AS latest_operator_activity_at,
+        (
+          SELECT COUNT(*)
+          FROM operator_restaurants opr
+          INNER JOIN users u ON u.id = opr.user_id
+          WHERE opr.restaurant_id = r.id
+            AND u.role = 'operator'
+            AND u.is_active = true
+        ) AS active_operators_count
       FROM restaurants r
       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
@@ -5416,11 +5571,13 @@ router.get('/restaurants/:id', async (req, res) => {
       WHERE opr.restaurant_id = $1
     `, [req.params.id]);
 
-    const restaurant = {
+    let restaurant = {
       ...result.rows[0],
       reservation_enabled: result.rows[0].reservation_enabled_setting === true || result.rows[0].reservation_enabled_setting === 'true'
     };
     restaurant.operators = operatorsResult.rows;
+    restaurant = await enrichRestaurantWithBotMeta(restaurant);
+    restaurant = enrichRestaurantWithWorkflowStatus(restaurant);
 
     res.json(restaurant);
   } catch (error) {
@@ -5434,6 +5591,7 @@ router.post('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
+    await ensureRestaurantWorkflowStatusSchema();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled,
@@ -5576,6 +5734,7 @@ router.put('/restaurants/:id', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
+    await ensureRestaurantWorkflowStatusSchema();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, is_active, start_time, end_time, click_url, payme_url, support_username, service_fee, reservation_cost,
@@ -5844,6 +6003,95 @@ router.put('/restaurants/:id', async (req, res) => {
   } catch (error) {
     console.error('Update restaurant error:', error);
     res.status(500).json({ error: 'Ошибка обновления ресторана' });
+  }
+});
+
+// Обновить workflow-статус магазина (для супер-админа)
+router.patch('/restaurants/:id/workflow-status', async (req, res) => {
+  try {
+    await ensureRestaurantWorkflowStatusSchema();
+    const restaurantId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID ресторана' });
+    }
+
+    const workflowStatus = parseRestaurantWorkflowStatus(req.body?.workflow_status);
+    if (!workflowStatus) {
+      return res.status(400).json({ error: 'Некорректный статус магазина' });
+    }
+
+    const oldResult = await pool.query(
+      `SELECT id, name, workflow_status
+       FROM restaurants
+       WHERE id = $1
+       LIMIT 1`,
+      [restaurantId]
+    );
+    if (oldResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ресторан не найден' });
+    }
+
+    const updateResult = await pool.query(
+      `UPDATE restaurants
+       SET workflow_status = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING
+         id,
+         name,
+         workflow_status,
+         is_active,
+         created_at,
+         telegram_bot_token,
+         (
+           SELECT MAX(u.last_activity_at)
+           FROM operator_restaurants opr
+           INNER JOIN users u ON u.id = opr.user_id
+           WHERE opr.restaurant_id = restaurants.id
+             AND u.role = 'operator'
+         ) AS latest_operator_activity_at`,
+      [workflowStatus, restaurantId]
+    );
+
+    const updatedRow = updateResult.rows[0];
+    let restaurant = await enrichRestaurantWithBotMeta(updatedRow);
+    restaurant = enrichRestaurantWithWorkflowStatus(restaurant);
+
+    await logActivity({
+      userId: req.user.id,
+      restaurantId,
+      actionType: ACTION_TYPES.UPDATE_RESTAURANT,
+      entityType: ENTITY_TYPES.RESTAURANT,
+      entityId: restaurantId,
+      entityName: restaurant.name,
+      oldValues: {
+        workflow_status: normalizeRestaurantWorkflowStatus(oldResult.rows[0]?.workflow_status, 'new')
+      },
+      newValues: {
+        workflow_status: restaurant.workflow_status_manual,
+        workflow_status_effective: restaurant.workflow_status,
+        workflow_auto_inactive: restaurant.workflow_auto_inactive === true,
+        workflow_auto_inactive_reasons: Array.isArray(restaurant.workflow_auto_inactive_reasons)
+          ? restaurant.workflow_auto_inactive_reasons
+          : []
+      },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    return res.json({
+      id: restaurant.id,
+      name: restaurant.name,
+      workflow_status: restaurant.workflow_status,
+      workflow_status_manual: restaurant.workflow_status_manual,
+      workflow_auto_inactive: restaurant.workflow_auto_inactive === true,
+      workflow_auto_inactive_reasons: Array.isArray(restaurant.workflow_auto_inactive_reasons)
+        ? restaurant.workflow_auto_inactive_reasons
+        : []
+    });
+  } catch (error) {
+    console.error('Update restaurant workflow status error:', error);
+    return res.status(500).json({ error: 'Ошибка обновления статуса магазина' });
   }
 });
 

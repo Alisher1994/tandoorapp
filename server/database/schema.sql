@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   activity_type_id INTEGER,
   operator_registration_code VARCHAR(64),
   admin_comment TEXT,
+  workflow_status VARCHAR(32) DEFAULT 'new' CHECK (workflow_status IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive')),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -376,6 +377,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
 CREATE INDEX IF NOT EXISTS idx_orders_processed_by ON orders(processed_by);
 CREATE INDEX IF NOT EXISTS idx_orders_reservation_id ON orders(reservation_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_payme_login_unique ON restaurants(payme_api_login) WHERE payme_api_login IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_restaurants_workflow_status ON restaurants(workflow_status);
 CREATE INDEX IF NOT EXISTS idx_payme_transactions_restaurant ON payme_transactions(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_payme_transactions_order ON payme_transactions(order_id);
 CREATE INDEX IF NOT EXISTS idx_payme_transactions_state ON payme_transactions(state);

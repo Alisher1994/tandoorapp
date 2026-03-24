@@ -126,6 +126,108 @@ const RESTAURANT_COMMENT_CHECKLIST_OPTIONS = [
   }
 ];
 const RESTAURANT_COMMENT_CHECKLIST_CODE_SET = new Set(RESTAURANT_COMMENT_CHECKLIST_OPTIONS.map((item) => item.code));
+const RESTAURANT_WORKFLOW_STATUSES = [
+  { value: 'all', icon: '📋', ru: 'Все статусы', uz: 'Barcha statuslar' },
+  { value: 'new', icon: '🆕', ru: 'Новый', uz: 'Yangi' },
+  { value: 'negotiation', icon: '🤝', ru: 'Переговор', uz: 'Muzokara' },
+  { value: 'queue', icon: '⏳', ru: 'В очереди', uz: 'Navbatda' },
+  { value: 'token', icon: '🔑', ru: 'Токен', uz: 'Token' },
+  { value: 'store_settings', icon: '⚙️', ru: 'Настройки магазина', uz: "Do'kon sozlamalari" },
+  { value: 'products', icon: '📦', ru: 'Товары', uz: 'Mahsulotlar' },
+  { value: 'active', icon: '✅', ru: 'Активные', uz: 'Faol' },
+  { value: 'inactive', icon: '⛔', ru: 'Не активные', uz: 'Nofaol' }
+];
+const RESTAURANT_WORKFLOW_STATUS_SET = new Set(RESTAURANT_WORKFLOW_STATUSES.map((item) => item.value).filter((value) => value !== 'all'));
+const RESTAURANT_AUTO_INACTIVE_DAYS = 30;
+const normalizeRestaurantWorkflowStatusValue = (value, fallback = 'new') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (RESTAURANT_WORKFLOW_STATUS_SET.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  if (RESTAURANT_WORKFLOW_STATUS_SET.has(normalizedFallback)) return normalizedFallback;
+  return 'new';
+};
+const parseSafeDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const hasBotBlockedOrDeletedMetaError = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('401')
+    || normalized.includes('403')
+    || normalized.includes('404')
+    || normalized.includes('unauthorized')
+    || normalized.includes('forbidden')
+    || normalized.includes('not found')
+    || normalized.includes('bot was blocked')
+    || normalized.includes('deactivated')
+  );
+};
+const deriveRestaurantWorkflowMeta = (restaurant) => {
+  const source = restaurant || {};
+  const manual = normalizeRestaurantWorkflowStatusValue(
+    source.workflow_status_manual || source.workflow_status,
+    'new'
+  );
+  const reasons = [];
+  if (source.is_active === false) {
+    reasons.push('disabled_by_admin');
+  }
+  if (hasBotBlockedOrDeletedMetaError(source.telegram_bot_meta_error)) {
+    reasons.push('bot_blocked_or_deleted');
+  }
+  const latestOperatorActivityAt = parseSafeDate(source.latest_operator_activity_at);
+  const createdAt = parseSafeDate(source.created_at);
+  const referenceDate = latestOperatorActivityAt || createdAt;
+  const inactivityThresholdMs = RESTAURANT_AUTO_INACTIVE_DAYS * 24 * 60 * 60 * 1000;
+  if (referenceDate && (Date.now() - referenceDate.getTime()) >= inactivityThresholdMs) {
+    reasons.push('operator_inactive_30d');
+  }
+
+  const serverReasons = Array.isArray(source.workflow_auto_inactive_reasons)
+    ? source.workflow_auto_inactive_reasons.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const mergedReasons = [...new Set([...serverReasons, ...reasons])];
+  const autoInactive = source.workflow_auto_inactive === true || mergedReasons.length > 0;
+  const effective = autoInactive
+    ? 'inactive'
+    : normalizeRestaurantWorkflowStatusValue(source.workflow_status, manual);
+
+  return {
+    manual,
+    effective,
+    autoInactive,
+    reasons: mergedReasons
+  };
+};
+const getRestaurantWorkflowStatusLabel = (status, language = 'ru') => {
+  const normalized = normalizeRestaurantWorkflowStatusValue(status, 'new');
+  const entry = RESTAURANT_WORKFLOW_STATUSES.find((item) => item.value === normalized);
+  if (!entry) return normalized;
+  return language === 'uz' ? entry.uz : entry.ru;
+};
+const getRestaurantWorkflowBadgeClass = (status) => {
+  const normalized = normalizeRestaurantWorkflowStatusValue(status, 'new');
+  if (normalized === 'active') return 'sa-status-badge-active';
+  if (normalized === 'inactive') return 'sa-status-badge-inactive';
+  if (normalized === 'negotiation') return 'sa-status-badge-negotiation';
+  if (normalized === 'queue') return 'sa-status-badge-queue';
+  if (normalized === 'token') return 'sa-status-badge-token';
+  if (normalized === 'store_settings') return 'sa-status-badge-store-settings';
+  if (normalized === 'products') return 'sa-status-badge-products';
+  return 'sa-status-badge-new';
+};
+const getRestaurantAutoInactiveReasonLabel = (reason, language = 'ru') => {
+  const normalized = String(reason || '').trim().toLowerCase();
+  const labels = {
+    disabled_by_admin: language === 'uz' ? 'Admin tomonidan o‘chirildi' : 'Отключен админом',
+    bot_blocked_or_deleted: language === 'uz' ? "Bot bloklangan yoki o'chirilgan" : 'Бот заблокирован или удалён',
+    operator_inactive_30d: language === 'uz' ? 'Operatorlar 30 kun tizimga kirmagan' : 'Операторы не заходили 30+ дней'
+  };
+  return labels[normalized] || (language === 'uz' ? 'Auto qoida ishladi' : 'Сработало авто-правило');
+};
 const MAX_ORDER_RATING = 5;
 const DAVRON_SCAM_PRANK_SESSION_KEY = 'sa_davron_scam_prank_v1_shown';
 const CATALOG_ANIMATION_SEASON_OPTIONS = [
@@ -1652,6 +1754,7 @@ function SuperAdminDashboard() {
   const [restaurantIssuesData, setRestaurantIssuesData] = useState(null);
   const [restaurantIssuesLoading, setRestaurantIssuesLoading] = useState(false);
   const [restaurantIssueCountMap, setRestaurantIssueCountMap] = useState({});
+  const [restaurantWorkflowUpdatingId, setRestaurantWorkflowUpdatingId] = useState(null);
 
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
@@ -5685,6 +5788,22 @@ function SuperAdminDashboard() {
     const normalizedIds = (Array.isArray(ids) ? ids : []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
     return normalizedIds.map((id) => mapById.get(id)?.name || `#${id}`);
   };
+  const restaurantWorkflowTabs = useMemo(() => (
+    RESTAURANT_WORKFLOW_STATUSES.map((item) => ({
+      ...item,
+      label: language === 'uz' ? item.uz : item.ru
+    }))
+  ), [language]);
+  const restaurantWorkflowCounts = useMemo(() => {
+    const counts = { all: 0 };
+    (restaurants?.restaurants || []).forEach((restaurant) => {
+      const workflowMeta = deriveRestaurantWorkflowMeta(restaurant);
+      const effectiveStatus = normalizeRestaurantWorkflowStatusValue(workflowMeta.effective, 'new');
+      counts.all += 1;
+      counts[effectiveStatus] = (counts[effectiveStatus] || 0) + 1;
+    });
+    return counts;
+  }, [restaurants]);
 
   const filteredRestaurants = useMemo(() => {
     const source = restaurants?.restaurants || [];
@@ -5693,8 +5812,9 @@ function SuperAdminDashboard() {
       const nameMatch = !normalizedNameFilter ||
         String(restaurant.name || '').toLowerCase().includes(normalizedNameFilter);
       const selectedMatch = !restaurantsSelectFilter || String(restaurant.id) === String(restaurantsSelectFilter);
-      const statusMatch = !restaurantsStatusFilter ||
-        (restaurantsStatusFilter === 'active' ? !!restaurant.is_active : !restaurant.is_active);
+      const workflowMeta = deriveRestaurantWorkflowMeta(restaurant);
+      const effectiveStatus = normalizeRestaurantWorkflowStatusValue(workflowMeta.effective, 'new');
+      const statusMatch = !restaurantsStatusFilter || effectiveStatus === restaurantsStatusFilter;
       const restaurantActivityId = Number.parseInt(restaurant?.activity_type_id, 10);
       const activityTypeMatch = !restaurantsActivityTypeFilter || (
         restaurantsActivityTypeFilter === 'none'
@@ -7593,6 +7713,29 @@ function SuperAdminDashboard() {
       loadRestaurants();
     } catch (err) {
       setError('Ошибка изменения статуса');
+    }
+  };
+  const handleRestaurantWorkflowStatusChange = async (restaurant, nextStatus) => {
+    const restaurantId = Number.parseInt(restaurant?.id, 10);
+    const normalizedStatus = String(nextStatus || '').trim().toLowerCase();
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0 || !RESTAURANT_WORKFLOW_STATUS_SET.has(normalizedStatus)) {
+      return;
+    }
+
+    setRestaurantWorkflowUpdatingId(restaurantId);
+    try {
+      await axios.patch(`${API_URL}/superadmin/restaurants/${restaurantId}/workflow-status`, {
+        workflow_status: normalizedStatus
+      });
+      setSuccess(language === 'uz' ? "Do'kon statusi yangilandi" : 'Статус магазина обновлен');
+      await loadRestaurants();
+      await loadInternalRestaurants({ preferCache: false });
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Do'kon statusini yangilab bo'lmadi"
+        : 'Не удалось обновить статус магазина'));
+    } finally {
+      setRestaurantWorkflowUpdatingId(null);
     }
   };
 
@@ -10578,9 +10721,14 @@ function SuperAdminDashboard() {
             value={restaurantsStatusFilter}
             onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
           >
-            <option value="">Все статусы</option>
-            <option value="active">Активные</option>
-            <option value="inactive">Неактивные</option>
+            {restaurantWorkflowTabs.map((statusItem) => (
+              <option
+                key={`restaurants-mobile-status-${statusItem.value}`}
+                value={statusItem.value === 'all' ? '' : statusItem.value}
+              >
+                {statusItem.label}
+              </option>
+            ))}
           </Form.Select>
           <Form.Select
             className="form-control-custom"
@@ -11852,6 +12000,30 @@ function SuperAdminDashboard() {
                   </Button>
                 </div>
 
+                <div className="sa-restaurants-status-tabs mb-3" role="tablist" aria-label={language === 'uz' ? "Do'kon statuslari" : 'Статусы магазинов'}>
+                  {restaurantWorkflowTabs.map((statusItem) => {
+                    const tabValue = statusItem.value === 'all' ? '' : statusItem.value;
+                    const isActive = (statusItem.value === 'all' && !restaurantsStatusFilter)
+                      || (tabValue === restaurantsStatusFilter);
+                    const tabCount = Number(restaurantWorkflowCounts[statusItem.value] || 0);
+                    return (
+                      <button
+                        key={`restaurant-status-tab-${statusItem.value}`}
+                        type="button"
+                        className={`sa-restaurants-status-tab${isActive ? ' is-active' : ''}`}
+                        onClick={() => {
+                          setRestaurantsStatusFilter(tabValue);
+                          setRestaurantsPage(1);
+                        }}
+                      >
+                        <span className="sa-restaurants-status-tab-icon" aria-hidden="true">{statusItem.icon}</span>
+                        <span>{statusItem.label}</span>
+                        <span className="sa-restaurants-status-tab-count">{tabCount}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {showRestaurantsFilterPanel && (
                   <div className="d-none d-lg-flex gap-2 flex-wrap align-items-center mb-3">
                     <Form.Control
@@ -11881,9 +12053,14 @@ function SuperAdminDashboard() {
                       value={restaurantsStatusFilter}
                       onChange={(e) => { setRestaurantsStatusFilter(e.target.value); setRestaurantsPage(1); }}
                     >
-                      <option value="">Все статусы</option>
-                      <option value="active">Активные</option>
-                      <option value="inactive">Неактивные</option>
+                      {restaurantWorkflowTabs.map((statusItem) => (
+                        <option
+                          key={`restaurants-status-filter-${statusItem.value}`}
+                          value={statusItem.value === 'all' ? '' : statusItem.value}
+                        >
+                          {statusItem.label}
+                        </option>
+                      ))}
                     </Form.Select>
                     <Form.Select
                       className="form-control-custom"
@@ -12126,17 +12303,73 @@ function SuperAdminDashboard() {
                                 })()}
                               </td>
                               <td>
-                                <div className="d-flex align-items-center gap-2">
-                                  <Badge className={`badge-custom sa-status-badge ${r.is_active ? 'sa-status-badge-active' : 'sa-status-badge-inactive'}`}>
-                                    {r.is_active ? (language === 'uz' ? 'Faol' : 'Активен') : (language === 'uz' ? 'Nofaol' : 'Неактивен')}
-                                  </Badge>
-                                  <Form.Check
-                                    type="switch"
-                                    checked={r.is_active}
-                                    onChange={() => handleToggleRestaurant(r)}
-                                    className="custom-switch"
-                                  />
-                                </div>
+                                {(() => {
+                                  const workflowMeta = deriveRestaurantWorkflowMeta(r);
+                                  const autoReasonLabels = workflowMeta.autoInactive
+                                    ? workflowMeta.reasons
+                                      .map((reason) => getRestaurantAutoInactiveReasonLabel(reason, language))
+                                      .filter(Boolean)
+                                    : [];
+                                  const autoReasonTooltip = autoReasonLabels.length > 0
+                                    ? `${language === 'uz' ? 'Auto nofaol sabablari' : 'Причины авто-неактивности'}:\n• ${autoReasonLabels.join('\n• ')}`
+                                    : '';
+                                  return (
+                                    <div className="sa-shop-status-stack">
+                                      <div className="d-flex align-items-center gap-2 flex-wrap">
+                                        <Badge className={`badge-custom sa-status-badge ${getRestaurantWorkflowBadgeClass(workflowMeta.effective)}`}>
+                                          {getRestaurantWorkflowStatusLabel(workflowMeta.effective, language)}
+                                        </Badge>
+                                        {workflowMeta.autoInactive && (
+                                          <>
+                                            <Badge
+                                              className="badge-custom sa-status-badge sa-status-badge-auto"
+                                              title={autoReasonTooltip || undefined}
+                                            >
+                                              {language === 'uz' ? 'Auto' : 'Авто'}
+                                            </Badge>
+                                            <button
+                                              type="button"
+                                              className="sa-auto-reason-hint-btn"
+                                              title={autoReasonTooltip || undefined}
+                                              aria-label={language === 'uz' ? 'Auto sabablarini ko‘rsatish' : 'Показать причины авто-статуса'}
+                                            >
+                                              <i className="bi bi-info-circle" aria-hidden="true" />
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                      <Form.Select
+                                        size="sm"
+                                        className="form-control-custom sa-shop-status-select"
+                                        value={workflowMeta.manual}
+                                        onChange={(event) => handleRestaurantWorkflowStatusChange(r, event.target.value)}
+                                        disabled={restaurantWorkflowUpdatingId === r.id}
+                                      >
+                                        {restaurantWorkflowTabs
+                                          .filter((statusItem) => statusItem.value !== 'all')
+                                          .map((statusItem) => (
+                                            <option key={`shop-status-option-${r.id}-${statusItem.value}`} value={statusItem.value}>
+                                              {statusItem.label}
+                                            </option>
+                                          ))}
+                                      </Form.Select>
+                                      {workflowMeta.autoInactive && autoReasonLabels.length > 0 && (
+                                        <small className="text-muted">
+                                          {(language === 'uz' ? 'Auto' : 'Авто')}: {autoReasonLabels.join(', ')}
+                                        </small>
+                                      )}
+                                      <div className="d-flex align-items-center gap-2">
+                                        <small className="text-muted">{language === 'uz' ? 'Kirish' : 'Доступ'}</small>
+                                        <Form.Check
+                                          type="switch"
+                                          checked={r.is_active}
+                                          onChange={() => handleToggleRestaurant(r)}
+                                          className="custom-switch"
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td className="text-end">
                                 <div className="d-flex gap-2 justify-content-end text-nowrap">
