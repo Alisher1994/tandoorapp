@@ -106,6 +106,25 @@ const SHOWCASE_TEMPLATES = [
   }
 ];
 
+const PREVIEW_NAV_ITEMS = [
+  {
+    key: 'showcase',
+    label: 'Витрина',
+    icon: '🛍️',
+    isActive: true
+  },
+  {
+    key: 'catalog',
+    label: 'Каталог',
+    icon: '📋'
+  },
+  {
+    key: 'cart',
+    label: 'Корзина',
+    icon: '🛒'
+  }
+];
+
 const getCategoryDisplayName = (category) => (
   category?.name_ru
   || category?.name_uz
@@ -871,9 +890,20 @@ function ShowcaseBuilder({ embedded = false }) {
                   )}
                 </div>
                 <div className="store-preview-nav">
-                  <span>Витрина</span>
-                  <span>Каталог</span>
-                  <span>Корзина</span>
+                  <div className="store-preview-nav-shell">
+                    {PREVIEW_NAV_ITEMS.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={`store-preview-nav-item${item.isActive ? ' is-active' : ''}`}
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      >
+                        <span className="store-preview-nav-icon">{item.icon}</span>
+                        <span className="store-preview-nav-label">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
