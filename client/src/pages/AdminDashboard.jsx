@@ -3180,8 +3180,13 @@ function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (mainTab === 'settings' && user?.active_restaurant_id) {
+    if (user?.active_restaurant_id) {
       fetchRestaurantSettings();
+    }
+  }, [user?.active_restaurant_id]);
+
+  useEffect(() => {
+    if (mainTab === 'settings' && user?.active_restaurant_id) {
       fetchOperators();
       fetchBillingInfo();
     }
@@ -14712,7 +14717,7 @@ function AdminDashboard() {
                 </Row>
               )}
 
-              {!Boolean(restaurantSettings?.size_variants_enabled) && (
+              {restaurantSettings && !Boolean(restaurantSettings?.size_variants_enabled) && (
                 <Row className="g-3 mt-1">
                   <Col xs={12}>
                     <div className="p-2 rounded-3 border bg-light small admin-product-variant-support-line">
