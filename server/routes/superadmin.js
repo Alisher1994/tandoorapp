@@ -7794,7 +7794,9 @@ router.post('/broadcast', async (req, res) => {
     let sent = 0;
     let failed = 0;
     const errors = [];
+    const sentRecipients = [];
     const roleStats = { operator: 0, customer: 0 };
+    const MAX_LOGGED_BROADCAST_RECIPIENTS = 1000;
     const broadcastMessage = `📢 <b>SuperAdmin</b>\n\n${normalizedMessage}`;
 
     for (const recipient of recipients) {
@@ -7817,14 +7819,26 @@ router.post('/broadcast', async (req, res) => {
         sent += 1;
         if (recipient.role === 'operator') roleStats.operator += 1;
         if (recipient.role === 'customer') roleStats.customer += 1;
+        if (sentRecipients.length < MAX_LOGGED_BROADCAST_RECIPIENTS) {
+          sentRecipients.push({
+            id: recipient.id,
+            role: recipient.role,
+            telegram_id: String(recipient.telegram_id || ''),
+            user: recipient.full_name || recipient.username || `ID ${recipient.id}`
+          });
+        }
         await new Promise((resolve) => setTimeout(resolve, 35));
       } catch (err) {
         failed += 1;
-        errors.push({
-          user: recipient.full_name || recipient.username || `ID ${recipient.id}`,
-          role: recipient.role,
-          error: err?.message || 'Unknown error'
-        });
+        if (errors.length < MAX_LOGGED_BROADCAST_RECIPIENTS) {
+          errors.push({
+            id: recipient.id,
+            telegram_id: String(recipient.telegram_id || ''),
+            user: recipient.full_name || recipient.username || `ID ${recipient.id}`,
+            role: recipient.role,
+            error: err?.message || 'Unknown error'
+          });
+        }
       }
     }
 
@@ -7843,7 +7857,10 @@ router.post('/broadcast', async (req, res) => {
         failed,
         total: recipients.length,
         roleStats,
-        errors: errors.slice(0, 20)
+        sent_recipients: sentRecipients,
+        sent_recipients_truncated: sent > sentRecipients.length,
+        errors,
+        errors_truncated: failed > errors.length
       },
       ipAddress: getIpFromRequest(req),
       userAgent: getUserAgentFromRequest(req)
@@ -7856,7 +7873,10 @@ router.post('/broadcast', async (req, res) => {
       failed,
       total: recipients.length,
       role_stats: roleStats,
-      errors: errors.slice(0, 5)
+      sent_recipients: sentRecipients.slice(0, 200),
+      sent_recipients_truncated: sent > sentRecipients.length,
+      errors: errors.slice(0, 200),
+      errors_truncated: failed > errors.length
     });
   } catch (error) {
     console.error('Superadmin broadcast error:', error);
@@ -7921,7 +7941,11 @@ router.get('/broadcast/history', async (req, res) => {
         role_stats: {
           operator: Number.parseInt(roleStats.operator, 10) || 0,
           customer: Number.parseInt(roleStats.customer, 10) || 0
-        }
+        },
+        sent_recipients: Array.isArray(payload.sent_recipients) ? payload.sent_recipients.slice(0, 1000) : [],
+        sent_recipients_truncated: payload.sent_recipients_truncated === true,
+        errors: Array.isArray(payload.errors) ? payload.errors.slice(0, 1000) : [],
+        errors_truncated: payload.errors_truncated === true
       };
     });
 

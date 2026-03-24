@@ -1355,6 +1355,14 @@ function SuperAdminDashboard() {
   const [superadminBroadcastResult, setSuperadminBroadcastResult] = useState(null);
   const [superadminBroadcastHistory, setSuperadminBroadcastHistory] = useState([]);
   const [superadminBroadcastHistoryLoading, setSuperadminBroadcastHistoryLoading] = useState(false);
+  const [showSuperadminBroadcastRecipientsModal, setShowSuperadminBroadcastRecipientsModal] = useState(false);
+  const [superadminBroadcastRecipientsModalData, setSuperadminBroadcastRecipientsModalData] = useState({
+    mode: 'sent',
+    total: 0,
+    rows: [],
+    truncated: false,
+    created_at: null
+  });
   const [logs, setLogs] = useState({ logs: [], total: 0 });
   const [securityEventsData, setSecurityEventsData] = useState({ events: [], total: 0, page: 1, limit: 20 });
   const [securityStats, setSecurityStats] = useState({
@@ -3062,6 +3070,30 @@ function SuperAdminDashboard() {
     if (normalized === 'operator') return language === 'uz' ? 'Operatorlar' : 'Операторы';
     if (normalized === 'customer') return language === 'uz' ? 'Mijozlar' : 'Клиенты';
     return normalized || '-';
+  };
+
+  const openSuperadminBroadcastRecipientsModal = (item, mode = 'sent') => {
+    const safeMode = mode === 'failed' ? 'failed' : 'sent';
+    const rows = safeMode === 'failed'
+      ? (Array.isArray(item?.errors) ? item.errors : [])
+      : (Array.isArray(item?.sent_recipients) ? item.sent_recipients : []);
+    const total = Number.parseInt(safeMode === 'failed' ? item?.failed : item?.sent, 10);
+    const truncated = safeMode === 'failed'
+      ? item?.errors_truncated === true
+      : item?.sent_recipients_truncated === true;
+
+    setSuperadminBroadcastRecipientsModalData({
+      mode: safeMode,
+      total: Number.isFinite(total) ? total : rows.length,
+      rows,
+      truncated,
+      created_at: item?.created_at || null
+    });
+    setShowSuperadminBroadcastRecipientsModal(true);
+  };
+
+  const closeSuperadminBroadcastRecipientsModal = () => {
+    setShowSuperadminBroadcastRecipientsModal(false);
   };
 
   const sendSuperadminBroadcast = async () => {
@@ -12852,6 +12884,30 @@ function SuperAdminDashboard() {
                         <div>{language === 'uz' ? 'Operatorlar' : 'Операторы'}: <strong>{Number(superadminBroadcastResult?.role_stats?.operator || 0)}</strong></div>
                         <div>{language === 'uz' ? 'Mijozlar' : 'Клиенты'}: <strong>{Number(superadminBroadcastResult?.role_stats?.customer || 0)}</strong></div>
                       </div>
+                      <div className="d-flex flex-wrap gap-2 mt-2">
+                        {Number(superadminBroadcastResult?.sent || 0) > 0 ? (
+                          <Button
+                            type="button"
+                            variant="outline-primary"
+                            size="sm"
+                            className="sa-broadcast-list-btn"
+                            onClick={() => openSuperadminBroadcastRecipientsModal(superadminBroadcastResult, 'sent')}
+                          >
+                            {language === 'uz' ? "Yetkazilganlar ro'yxati" : 'Список доставленных'}
+                          </Button>
+                        ) : null}
+                        {Number(superadminBroadcastResult?.failed || 0) > 0 ? (
+                          <Button
+                            type="button"
+                            variant="outline-danger"
+                            size="sm"
+                            className="sa-broadcast-list-btn"
+                            onClick={() => openSuperadminBroadcastRecipientsModal(superadminBroadcastResult, 'failed')}
+                          >
+                            {language === 'uz' ? "Xatolar ro'yxati" : 'Список ошибок'}
+                          </Button>
+                        ) : null}
+                      </div>
                     </Card.Body>
                   </Card>
                 ) : null}
@@ -12928,8 +12984,30 @@ function SuperAdminDashboard() {
                               <div className="small text-muted">
                                 {language === 'uz' ? 'Operatorlar' : 'Операторы'}: {Number(item?.role_stats?.operator || 0)}, {language === 'uz' ? 'Mijozlar' : 'Клиенты'}: {Number(item?.role_stats?.customer || 0)}
                               </div>
+                              {Number(item.sent || 0) > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="sa-broadcast-inline-link"
+                                  onClick={() => openSuperadminBroadcastRecipientsModal(item, 'sent')}
+                                >
+                                  {language === 'uz' ? "Ro'yxatni ko'rish" : 'Список'}
+                                </Button>
+                              ) : null}
                             </td>
-                            <td className="fw-semibold">{Number(item.failed || 0)}</td>
+                            <td>
+                              <div className="fw-semibold">{Number(item.failed || 0)}</div>
+                              {Number(item.failed || 0) > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="sa-broadcast-inline-link is-error"
+                                  onClick={() => openSuperadminBroadcastRecipientsModal(item, 'failed')}
+                                >
+                                  {language === 'uz' ? 'Detallar' : 'Детали'}
+                                </Button>
+                              ) : null}
+                            </td>
                           </tr>
                         ))}
                         {superadminBroadcastHistory.length === 0 && (
@@ -13076,6 +13154,81 @@ function SuperAdminDashboard() {
                       {superadminBroadcastSending
                         ? (language === 'uz' ? "Yuborilmoqda..." : 'Отправка...')
                         : (language === 'uz' ? 'Yuborish' : 'Отправить')}
+                    </Button>
+                  </Modal.Footer>
+                </Modal>
+
+                <Modal
+                  show={showSuperadminBroadcastRecipientsModal}
+                  onHide={closeSuperadminBroadcastRecipientsModal}
+                  centered
+                  className="admin-modal sa-broadcast-modal"
+                >
+                  <Modal.Header closeButton>
+                    <Modal.Title>
+                      {superadminBroadcastRecipientsModalData.mode === 'failed'
+                        ? (language === 'uz' ? "Xatolar ro'yxati" : 'Список ошибок')
+                        : (language === 'uz' ? "Yetkazilganlar ro'yxati" : 'Список доставленных')}
+                    </Modal.Title>
+                  </Modal.Header>
+                  <Modal.Body>
+                    {superadminBroadcastRecipientsModalData.mode === 'sent' ? (
+                      <div className="small text-muted mb-2">
+                        {language === 'uz'
+                          ? "Telegram o'qilgan statusini bermaydi. Bu yerda faqat muvaffaqiyatli yetkazilganlar ko'rsatiladi."
+                          : 'Telegram не передает статус прочтения. Здесь отображаются только успешно доставленные сообщения.'}
+                      </div>
+                    ) : null}
+                    <div className="small text-muted mb-2">
+                      {language === 'uz' ? 'Jami' : 'Всего'}: {Number(superadminBroadcastRecipientsModalData.total || 0)}
+                      {superadminBroadcastRecipientsModalData.created_at
+                        ? ` · ${formatDate(superadminBroadcastRecipientsModalData.created_at)}`
+                        : ''}
+                    </div>
+                    <div className="sa-broadcast-recipient-list">
+                      {Array.isArray(superadminBroadcastRecipientsModalData.rows) && superadminBroadcastRecipientsModalData.rows.length > 0 ? (
+                        superadminBroadcastRecipientsModalData.rows.map((entry, index) => (
+                          <div
+                            key={`sa-broadcast-recipient-${superadminBroadcastRecipientsModalData.mode}-${index}-${entry?.id || entry?.telegram_id || 'row'}`}
+                            className="sa-broadcast-recipient-item"
+                          >
+                            <div className="sa-broadcast-recipient-head">
+                              <div className="sa-broadcast-recipient-title">
+                                {index + 1}. {entry?.user || entry?.username || '-'}
+                              </div>
+                              <Badge className="badge-custom bg-secondary bg-opacity-10 text-muted">
+                                {getSuperadminBroadcastRoleLabel(entry?.role)}
+                              </Badge>
+                            </div>
+                            <div className="sa-broadcast-recipient-meta">
+                              {entry?.telegram_id ? (
+                                <span className="font-monospace">{entry.telegram_id}</span>
+                              ) : (
+                                <span>-</span>
+                              )}
+                            </div>
+                            {superadminBroadcastRecipientsModalData.mode === 'failed' ? (
+                              <div className="sa-broadcast-recipient-error">{entry?.error || 'Unknown error'}</div>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-muted small py-3 text-center">
+                          {language === 'uz' ? "Ro'yxat bo'sh" : 'Список пуст'}
+                        </div>
+                      )}
+                    </div>
+                    {superadminBroadcastRecipientsModalData.truncated ? (
+                      <div className="small text-warning mt-2">
+                        {language === 'uz'
+                          ? "Ro'yxat qisman ko'rsatilgan (log hajmi cheklangan)."
+                          : 'Список показан частично (ограничение размера лога).'}
+                      </div>
+                    ) : null}
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button variant="outline-secondary" onClick={closeSuperadminBroadcastRecipientsModal}>
+                      {language === 'uz' ? 'Yopish' : 'Закрыть'}
                     </Button>
                   </Modal.Footer>
                 </Modal>
