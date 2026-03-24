@@ -213,35 +213,9 @@ const deriveRestaurantWorkflowMeta = (restaurant) => {
     reasons: mergedReasons
   };
 };
-const getRestaurantWorkflowStatusLabel = (status, language = 'ru') => {
-  const normalized = normalizeRestaurantWorkflowStatusValue(status, 'new');
-  const entry = RESTAURANT_WORKFLOW_STATUSES.find((item) => item.value === normalized);
-  if (!entry) return normalized;
-  return language === 'uz' ? entry.uz : entry.ru;
-};
 const getRestaurantWorkflowStatusColor = (status) => {
   const normalized = String(status || '').trim().toLowerCase();
   return RESTAURANT_WORKFLOW_STATUS_COLORS[normalized] || RESTAURANT_WORKFLOW_STATUS_COLORS.all;
-};
-const getRestaurantWorkflowBadgeClass = (status) => {
-  const normalized = normalizeRestaurantWorkflowStatusValue(status, 'new');
-  if (normalized === 'active') return 'sa-status-badge-active';
-  if (normalized === 'inactive') return 'sa-status-badge-inactive';
-  if (normalized === 'negotiation') return 'sa-status-badge-negotiation';
-  if (normalized === 'queue') return 'sa-status-badge-queue';
-  if (normalized === 'token') return 'sa-status-badge-token';
-  if (normalized === 'store_settings') return 'sa-status-badge-store-settings';
-  if (normalized === 'products') return 'sa-status-badge-products';
-  return 'sa-status-badge-new';
-};
-const getRestaurantAutoInactiveReasonLabel = (reason, language = 'ru') => {
-  const normalized = String(reason || '').trim().toLowerCase();
-  const labels = {
-    disabled_by_admin: language === 'uz' ? 'Admin tomonidan o‘chirildi' : 'Отключен админом',
-    bot_blocked_or_deleted: language === 'uz' ? "Bot bloklangan yoki o'chirilgan" : 'Бот заблокирован или удалён',
-    operator_inactive_30d: language === 'uz' ? 'Operatorlar 30 kun tizimga kirmagan' : 'Операторы не заходили 30+ дней'
-  };
-  return labels[normalized] || (language === 'uz' ? 'Auto qoida ishladi' : 'Сработало авто-правило');
 };
 const MAX_ORDER_RATING = 5;
 const DAVRON_SCAM_PRANK_SESSION_KEY = 'sa_davron_scam_prank_v1_shown';
@@ -5829,7 +5803,7 @@ function SuperAdminDashboard() {
   const restaurantWorkflowFilterOptions = useMemo(() => (
     restaurantWorkflowTabs.map((item) => ({
       value: item.value === 'all' ? '' : item.value,
-      label: `${item.icon} ${item.label}`
+      label: item.label
     }))
   ), [restaurantWorkflowTabs]);
   const restaurantWorkflowManualOptions = useMemo(() => (
@@ -5837,7 +5811,7 @@ function SuperAdminDashboard() {
       .filter((item) => item.value !== 'all')
       .map((item) => ({
         value: item.value,
-        label: `${item.icon} ${item.label}`
+        label: item.label
       }))
   ), [restaurantWorkflowTabs]);
   const restaurantWorkflowCounts = useMemo(() => {
@@ -12223,14 +12197,6 @@ function SuperAdminDashboard() {
                         <tbody>
                           {paginatedRestaurants?.map((r) => {
                             const workflowMeta = deriveRestaurantWorkflowMeta(r);
-                            const autoReasonLabels = workflowMeta.autoInactive
-                              ? workflowMeta.reasons
-                                .map((reason) => getRestaurantAutoInactiveReasonLabel(reason, language))
-                                .filter(Boolean)
-                              : [];
-                            const autoReasonTooltip = autoReasonLabels.length > 0
-                              ? `${language === 'uz' ? 'Auto nofaol sabablari' : 'Причины авто-неактивности'}:\n• ${autoReasonLabels.join('\n• ')}`
-                              : '';
                             const mappedIssueCount = restaurantIssueCountMap[r.id];
                             const issuesCount = Number.isFinite(mappedIssueCount)
                               ? mappedIssueCount
@@ -12346,31 +12312,8 @@ function SuperAdminDashboard() {
                                   </td>
                                   <td>
                                     <div className="sa-shop-status-stack">
-                                      <div className="d-flex align-items-center gap-2 flex-wrap">
-                                        <Badge className={`badge-custom sa-status-badge ${getRestaurantWorkflowBadgeClass(workflowMeta.effective)}`}>
-                                          {getRestaurantWorkflowStatusLabel(workflowMeta.effective, language)}
-                                        </Badge>
-                                        {workflowMeta.autoInactive && (
-                                          <>
-                                            <Badge
-                                              className="badge-custom sa-status-badge sa-status-badge-auto"
-                                              title={autoReasonTooltip || undefined}
-                                            >
-                                              {language === 'uz' ? 'Auto' : 'Авто'}
-                                            </Badge>
-                                            <button
-                                              type="button"
-                                              className="sa-auto-reason-hint-btn"
-                                              title={autoReasonTooltip || undefined}
-                                              aria-label={language === 'uz' ? 'Auto sabablarini ko‘rsatish' : 'Показать причины авто-статуса'}
-                                            >
-                                              <i className="bi bi-info-circle" aria-hidden="true" />
-                                            </button>
-                                          </>
-                                        )}
-                                      </div>
                                       <CustomSelectDropdown
-                                        value={workflowMeta.manual}
+                                        value={workflowMeta.effective}
                                         onChange={(nextValue) => handleRestaurantWorkflowStatusChange(r, nextValue)}
                                         disabled={restaurantWorkflowUpdatingId === r.id}
                                         options={restaurantWorkflowManualOptions}
@@ -12400,19 +12343,13 @@ function SuperAdminDashboard() {
                                       <div className="sa-restaurant-accordion-wrap">
                                         <div className="sa-restaurant-accordion-grid">
                                           <div className="sa-restaurant-accordion-item sa-accordion-service">
-                                            <div className="sa-restaurant-accordion-label">
-                                              <i className="bi bi-cash-coin" aria-hidden="true" />
-                                              {t('saServiceFee') || 'Сбор за обслуживание'}
-                                            </div>
+                                            <div className="sa-restaurant-accordion-label">{t('saServiceFee') || 'Сбор за обслуживание'}</div>
                                             <div className="sa-restaurant-accordion-value">
                                               {formatBalanceAmount(r.service_fee || 0)} {getCurrencyLabelByCode(r.currency_code || countryCurrency?.code)}
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-tariff">
-                                            <div className="sa-restaurant-accordion-label">
-                                              <i className="bi bi-tags" aria-hidden="true" />
-                                              {t('saTableTier') || 'Тариф'}
-                                            </div>
+                                            <div className="sa-restaurant-accordion-label">{t('saTableTier') || 'Тариф'}</div>
                                             <div className="sa-restaurant-accordion-value">
                                               <Badge
                                                 className={`badge-custom ${r.is_free_tier ? 'bg-info bg-opacity-10 text-info' : 'bg-warning bg-opacity-10 text-warning'}`}
@@ -12425,10 +12362,7 @@ function SuperAdminDashboard() {
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-problems">
-                                            <div className="sa-restaurant-accordion-label">
-                                              <i className="bi bi-shield-exclamation" aria-hidden="true" />
-                                              {language === 'uz' ? 'Muammolar' : 'Проблемы'}
-                                            </div>
+                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Muammolar' : 'Проблемы'}</div>
                                             <div className="sa-restaurant-accordion-value">
                                               <Button
                                                 size="sm"
@@ -12445,10 +12379,7 @@ function SuperAdminDashboard() {
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-access">
-                                            <div className="sa-restaurant-accordion-label">
-                                              <i className="bi bi-door-open" aria-hidden="true" />
-                                              {language === 'uz' ? 'Kirish' : 'Доступ'}
-                                            </div>
+                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Kirish' : 'Доступ'}</div>
                                             <div className="sa-restaurant-accordion-value d-flex align-items-center justify-content-between gap-2">
                                               <small className="text-muted">{language === 'uz' ? 'Yopish/Ochish' : 'Закрыть доступ'}</small>
                                               <Form.Check
@@ -12460,10 +12391,7 @@ function SuperAdminDashboard() {
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-operator">
-                                            <div className="sa-restaurant-accordion-label">
-                                              <i className="bi bi-person-badge" aria-hidden="true" />
-                                              {language === 'uz' ? 'Operator' : 'Оператор'}
-                                            </div>
+                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Operator' : 'Оператор'}</div>
                                             <div className="sa-restaurant-operator-stack">
                                               <div><strong>{r.primary_operator_full_name || '-'}</strong></div>
                                               <div>{language === 'uz' ? 'Telefon' : 'Телефон'}: {r.primary_operator_phone || '-'}</div>
@@ -12472,10 +12400,7 @@ function SuperAdminDashboard() {
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-actions">
-                                            <div className="sa-restaurant-accordion-label">
-                                              <i className="bi bi-lightning-charge" aria-hidden="true" />
-                                              {t('saTableActions')}
-                                            </div>
+                                            <div className="sa-restaurant-accordion-label">{t('saTableActions')}</div>
                                             <div className="sa-restaurant-actions-grid">
                                               <Button
                                                 variant="light"
