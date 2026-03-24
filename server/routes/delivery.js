@@ -3,6 +3,16 @@ const router = express.Router();
 const pool = require('../database/connection');
 const axios = require('axios');
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const DELIVERY_PRICING_MODE_DYNAMIC = 'dynamic';
+const DELIVERY_PRICING_MODE_FIXED = 'fixed';
+const normalizeDeliveryPricingMode = (value, fallback = DELIVERY_PRICING_MODE_DYNAMIC) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === DELIVERY_PRICING_MODE_FIXED || normalized === DELIVERY_PRICING_MODE_DYNAMIC) {
+    return normalized;
+  }
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === DELIVERY_PRICING_MODE_FIXED ? DELIVERY_PRICING_MODE_FIXED : DELIVERY_PRICING_MODE_DYNAMIC;
+};
 
 function isPointInPolygon(point, polygon) {
   const [x, y] = point;
@@ -77,17 +87,6 @@ function getHaversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Расчет стоимости доставки
- */
-function calculateDeliveryPrice(distanceKm) {
-  if (distanceKm <= BASE_RADIUS_KM) {
-    return BASE_PRICE;
-  }
-  const extraKm = Math.ceil(distanceKm - BASE_RADIUS_KM);
-  return BASE_PRICE + (extraKm * PRICE_PER_KM);
-}
-
-/**
  * POST /api/delivery/calculate
  * Рассчитать стоимость доставки
  * Body: { restaurant_id, customer_lat, customer_lng }
@@ -106,9 +105,10 @@ router.post('/calculate', async (req, res) => {
     
     // Получаем координаты и настройки доставки ресторана
     const result = await pool.query(
-      `SELECT latitude, longitude, name,
+        `SELECT latitude, longitude, name,
               delivery_zone,
               delivery_base_radius, delivery_base_price, delivery_price_per_km,
+              delivery_pricing_mode, delivery_fixed_price,
               is_delivery_enabled
        FROM restaurants WHERE id = $1`,
       [restaurant_id]
@@ -135,14 +135,40 @@ router.post('/calculate', async (req, res) => {
       lng: restaurant.longitude,
       delivery_base_radius: restaurant.delivery_base_radius,
       delivery_base_price: restaurant.delivery_base_price,
-      delivery_price_per_km: restaurant.delivery_price_per_km
+      delivery_price_per_km: restaurant.delivery_price_per_km,
+      delivery_pricing_mode: restaurant.delivery_pricing_mode,
+      delivery_fixed_price: restaurant.delivery_fixed_price
     });
     
     // Используем настройки ресторана или дефолтные значения
     const baseRadius = parseFloat(restaurant.delivery_base_radius) || BASE_RADIUS_KM;
     const basePrice = parseFloat(restaurant.delivery_base_price) || BASE_PRICE;
     const pricePerKm = parseFloat(restaurant.delivery_price_per_km) || PRICE_PER_KM;
+    const pricingMode = normalizeDeliveryPricingMode(restaurant.delivery_pricing_mode, DELIVERY_PRICING_MODE_DYNAMIC);
+    const fixedPrice = Math.max(0, parseFloat(restaurant.delivery_fixed_price) || 0);
+    const custLat = parseFloat(customer_lat);
+    const custLng = parseFloat(customer_lng);
     
+    if (!isInDeliveryZone(restaurant.delivery_zone, custLat, custLng)) {
+      return res.json({
+        delivery_cost: 0,
+        distance_km: 0,
+        out_of_zone: true,
+        message: 'Адрес вне зоны доставки'
+      });
+    }
+
+    if (pricingMode === DELIVERY_PRICING_MODE_FIXED) {
+      return res.json({
+        delivery_cost: fixedPrice,
+        distance_km: 0,
+        distance_type: 'fixed',
+        delivery_pricing_mode: DELIVERY_PRICING_MODE_FIXED,
+        base_price: fixedPrice,
+        restaurant_name: restaurant.name
+      });
+    }
+
     // Если у ресторана нет координат
     if (!restaurant.latitude || !restaurant.longitude) {
       console.log('⚠️ Restaurant has no coordinates, returning free delivery');
@@ -156,17 +182,6 @@ router.post('/calculate', async (req, res) => {
     
     const restaurantLat = parseFloat(restaurant.latitude);
     const restaurantLng = parseFloat(restaurant.longitude);
-    const custLat = parseFloat(customer_lat);
-    const custLng = parseFloat(customer_lng);
-
-    if (!isInDeliveryZone(restaurant.delivery_zone, custLat, custLng)) {
-      return res.json({
-        delivery_cost: 0,
-        distance_km: 0,
-        out_of_zone: true,
-        message: 'Адрес вне зоны доставки'
-      });
-    }
     
     // Пробуем получить реальное дорожное расстояние через OSRM
     let distanceKm = await getRoadDistance(restaurantLat, restaurantLng, custLat, custLng);
@@ -193,6 +208,7 @@ router.post('/calculate', async (req, res) => {
       base_radius_km: baseRadius,
       base_price: basePrice,
       price_per_km: pricePerKm,
+      delivery_pricing_mode: DELIVERY_PRICING_MODE_DYNAMIC,
       restaurant_name: restaurant.name
     });
     
@@ -212,11 +228,18 @@ router.get('/info', async (req, res) => {
   let baseRadius = BASE_RADIUS_KM;
   let basePrice = BASE_PRICE;
   let pricePerKm = PRICE_PER_KM;
+  let pricingMode = DELIVERY_PRICING_MODE_DYNAMIC;
+  let fixedPrice = 0;
   
   if (restaurant_id) {
     try {
       const result = await pool.query(
-        `SELECT delivery_base_radius, delivery_base_price, delivery_price_per_km 
+        `SELECT
+           delivery_base_radius,
+           delivery_base_price,
+           delivery_price_per_km,
+           delivery_pricing_mode,
+           delivery_fixed_price
          FROM restaurants WHERE id = $1`,
         [restaurant_id]
       );
@@ -226,6 +249,8 @@ router.get('/info', async (req, res) => {
         baseRadius = parseFloat(r.delivery_base_radius) || BASE_RADIUS_KM;
         basePrice = parseFloat(r.delivery_base_price) || BASE_PRICE;
         pricePerKm = parseFloat(r.delivery_price_per_km) || PRICE_PER_KM;
+        pricingMode = normalizeDeliveryPricingMode(r.delivery_pricing_mode, DELIVERY_PRICING_MODE_DYNAMIC);
+        fixedPrice = Math.max(0, parseFloat(r.delivery_fixed_price) || 0);
       }
     } catch (error) {
       console.error('Error fetching restaurant delivery settings:', error);
@@ -236,7 +261,11 @@ router.get('/info', async (req, res) => {
     base_radius_km: baseRadius,
     base_price: basePrice,
     price_per_km: pricePerKm,
-    description: `Доставка в радиусе ${baseRadius} км - ${basePrice} сум. Каждый дополнительный км - ${pricePerKm} сум.`
+    delivery_pricing_mode: pricingMode,
+    delivery_fixed_price: fixedPrice,
+    description: pricingMode === DELIVERY_PRICING_MODE_FIXED
+      ? `Фиксированная стоимость доставки: ${fixedPrice} сум.`
+      : `Доставка в радиусе ${baseRadius} км - ${basePrice} сум. Каждый дополнительный км - ${pricePerKm} сум.`
   });
 });
 

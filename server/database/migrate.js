@@ -86,6 +86,8 @@ async function migrate() {
       'delivery_base_radius DECIMAL(5, 2) DEFAULT 2',
       'delivery_base_price DECIMAL(10, 2) DEFAULT 5000',
       'delivery_price_per_km DECIMAL(10, 2) DEFAULT 2000',
+      `delivery_pricing_mode VARCHAR(16) DEFAULT 'dynamic'`,
+      'delivery_fixed_price DECIMAL(10, 2) DEFAULT 0',
       'is_delivery_enabled BOOLEAN DEFAULT true',
       'size_variants_enabled BOOLEAN DEFAULT false',
       `currency_code VARCHAR(8) DEFAULT 'uz'`,
@@ -154,6 +156,18 @@ async function migrate() {
         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
     `).catch(() => {});
     await client.query(`
+      UPDATE restaurants
+      SET delivery_pricing_mode = 'dynamic'
+      WHERE delivery_pricing_mode IS NULL
+        OR BTRIM(COALESCE(delivery_pricing_mode, '')) = ''
+        OR LOWER(delivery_pricing_mode) NOT IN ('dynamic', 'fixed')
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET delivery_fixed_price = 0
+      WHERE delivery_fixed_price IS NULL OR delivery_fixed_price < 0
+    `).catch(() => {});
+    await client.query(`
       ALTER TABLE restaurants
       DROP CONSTRAINT IF EXISTS restaurants_logo_display_mode_check
     `).catch(() => {});
@@ -188,6 +202,15 @@ async function migrate() {
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_card_receipt_target_check
       CHECK (card_receipt_target IN ('bot', 'admin'))
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_delivery_pricing_mode_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_delivery_pricing_mode_check
+      CHECK (delivery_pricing_mode IN ('dynamic', 'fixed'))
     `).catch(() => {});
 
     console.log('✅ Restaurants table ready');

@@ -290,6 +290,13 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
+const DELIVERY_PRICING_MODES = new Set(['dynamic', 'fixed']);
+const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (DELIVERY_PRICING_MODES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return DELIVERY_PRICING_MODES.has(normalizedFallback) ? normalizedFallback : 'dynamic';
+};
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
 const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -321,6 +328,31 @@ const ensureRestaurantCurrencySchema = async () => {
     await pool.query(
       `UPDATE restaurants SET minimum_order_amount = 0 WHERE minimum_order_amount IS NULL`
     ).catch(() => {});
+    await pool.query(
+      `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_pricing_mode VARCHAR(16) DEFAULT 'dynamic'`
+    ).catch(() => {});
+    await pool.query(
+      `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_fixed_price DECIMAL(10, 2) DEFAULT 0`
+    ).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET delivery_pricing_mode = 'dynamic'
+      WHERE delivery_pricing_mode IS NULL
+         OR BTRIM(COALESCE(delivery_pricing_mode, '')) = ''
+         OR LOWER(delivery_pricing_mode) NOT IN ('dynamic', 'fixed')
+    `).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants SET delivery_fixed_price = 0 WHERE delivery_fixed_price IS NULL OR delivery_fixed_price < 0`
+    ).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_delivery_pricing_mode_check
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_delivery_pricing_mode_check
+      CHECK (delivery_pricing_mode IN ('dynamic', 'fixed'))
+    `).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();
 
@@ -1492,7 +1524,17 @@ router.put('/restaurant', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
     const previousRestaurantResult = await pool.query(
-      'SELECT name, telegram_bot_token, logo_display_mode, ui_theme, menu_view_mode, currency_code FROM restaurants WHERE id = $1',
+      `SELECT
+         name,
+         telegram_bot_token,
+         logo_display_mode,
+         ui_theme,
+         menu_view_mode,
+         currency_code,
+         delivery_pricing_mode,
+         delivery_fixed_price
+       FROM restaurants
+       WHERE id = $1`,
       [restaurantId]
     );
     if (!previousRestaurantResult.rows.length) {
@@ -1507,7 +1549,7 @@ router.put('/restaurant', async (req, res) => {
       card_payment_title, card_payment_number, card_payment_holder, card_receipt_target, support_username,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       latitude, longitude, delivery_base_radius, delivery_base_price,
-      delivery_price_per_km, is_delivery_enabled, delivery_zone,
+      delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount
@@ -1529,6 +1571,17 @@ router.put('/restaurant', async (req, res) => {
     const normalizedMenuViewMode = normalizeMenuViewMode(
       menu_view_mode,
       previousRestaurant.menu_view_mode || 'grid_categories'
+    );
+    const normalizedDeliveryPricingMode = normalizeDeliveryPricingMode(
+      delivery_pricing_mode,
+      previousRestaurant.delivery_pricing_mode || 'dynamic'
+    );
+    const normalizedDeliveryFixedPrice = Math.max(
+      0,
+      parseFlexibleAmount(
+        delivery_fixed_price,
+        parseFlexibleAmount(previousRestaurant.delivery_fixed_price, 0)
+      )
     );
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, previousRestaurant.currency_code || 'uz');
     const normalizedCardReceiptTarget = normalizeCardReceiptTarget(card_receipt_target, 'bot');
@@ -1613,12 +1666,14 @@ router.put('/restaurant', async (req, res) => {
            ui_theme = $40,
            menu_view_mode = $41,
           payment_placeholders = COALESCE($42::jsonb, payment_placeholders),
-          send_balance_after_confirm = COALESCE($43, send_balance_after_confirm),
+           send_balance_after_confirm = COALESCE($43, send_balance_after_confirm),
           send_daily_close_report = COALESCE($44, send_daily_close_report),
           currency_code = $45,
           minimum_order_amount = $46,
+          delivery_pricing_mode = $47,
+          delivery_fixed_price = $48,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $47
+      WHERE id = $49
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1648,6 +1703,8 @@ router.put('/restaurant', async (req, res) => {
       normalizedSendDailyCloseReport,
       normalizedCurrencyCode,
       normalizedMinimumOrderAmount,
+      normalizedDeliveryPricingMode,
+      normalizedDeliveryFixedPrice,
       restaurantId
     ]);
 

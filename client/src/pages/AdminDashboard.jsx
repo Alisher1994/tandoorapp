@@ -90,6 +90,12 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
 };
+const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'fixed' || normalized === 'dynamic') return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === 'fixed' ? 'fixed' : 'dynamic';
+};
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const VARIANT_IMAGE_SLOTS_COUNT = 5;
@@ -482,6 +488,106 @@ const normalizePaymentPlaceholders = (value) => {
     };
   }
   return normalized;
+};
+const normalizeSettingsBoolean = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'false' || normalized === '0') return false;
+  return fallback;
+};
+const normalizeSettingsNumber = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const normalizeSettingsText = (value) => String(value || '').trim();
+const sortObjectKeysDeep = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => sortObjectKeysDeep(item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = sortObjectKeysDeep(value[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+};
+const buildRestaurantSettingsSignature = (settings) => {
+  if (!settings || typeof settings !== 'object') return '';
+
+  const placeholders = normalizePaymentPlaceholders(settings.payment_placeholders);
+  const normalizedPlaceholders = PAYMENT_PLACEHOLDER_SYSTEMS.reduce((acc, key) => {
+    const item = placeholders[key] || getDefaultPaymentPlaceholder();
+    acc[key] = {
+      enabled: normalizeSettingsBoolean(item.enabled, false),
+      merchant_id: normalizeSettingsText(item.merchant_id),
+      api_login: normalizeSettingsText(item.api_login),
+      api_password: normalizeSettingsText(item.api_password),
+      callback_timeout_ms: Math.max(0, Math.trunc(normalizeSettingsNumber(item.callback_timeout_ms, 2000))),
+      test_mode: normalizeSettingsBoolean(item.test_mode, false)
+    };
+    return acc;
+  }, {});
+
+  return JSON.stringify({
+    name: normalizeSettingsText(settings.name),
+    address: normalizeSettingsText(settings.address),
+    phone: normalizeSettingsText(settings.phone),
+    logo_url: normalizeSettingsText(settings.logo_url),
+    logo_display_mode: String(settings.logo_display_mode || '').trim().toLowerCase() === 'horizontal'
+      ? 'horizontal'
+      : 'square',
+    ui_theme: normalizeUiTheme(settings.ui_theme, 'classic'),
+    menu_view_mode: String(settings.menu_view_mode || '').trim().toLowerCase() === 'single_list'
+      ? 'single_list'
+      : 'grid_categories',
+    currency_code: String(settings.currency_code || 'uz').trim().toLowerCase() || 'uz',
+    telegram_bot_token: normalizeSettingsText(settings.telegram_bot_token),
+    telegram_group_id: normalizeSettingsText(settings.telegram_group_id),
+    operator_registration_code: normalizeSettingsText(settings.operator_registration_code),
+    support_username: normalizeSettingsText(settings.support_username),
+    start_time: normalizeSettingsText(settings.start_time),
+    end_time: normalizeSettingsText(settings.end_time),
+    click_url: normalizeSettingsText(settings.click_url),
+    payme_url: normalizeSettingsText(settings.payme_url),
+    uzum_url: normalizeSettingsText(settings.uzum_url),
+    xazna_url: normalizeSettingsText(settings.xazna_url),
+    cash_enabled: normalizeSettingsBoolean(settings.cash_enabled, true),
+    card_payment_title: normalizeSettingsText(settings.card_payment_title),
+    card_payment_number: normalizeSettingsText(settings.card_payment_number),
+    card_payment_holder: normalizeSettingsText(settings.card_payment_holder),
+    card_receipt_target: String(settings.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot',
+    payme_enabled: normalizeSettingsBoolean(settings.payme_enabled, false),
+    payme_merchant_id: normalizeSettingsText(settings.payme_merchant_id),
+    payme_api_login: normalizeSettingsText(settings.payme_api_login),
+    payme_api_password: normalizeSettingsText(settings.payme_api_password),
+    payme_account_key: normalizeSettingsText(settings.payme_account_key) || 'order_id',
+    payme_test_mode: normalizeSettingsBoolean(settings.payme_test_mode, false),
+    payme_callback_timeout_ms: Math.max(0, Math.trunc(normalizeSettingsNumber(settings.payme_callback_timeout_ms, 2000))),
+    latitude: normalizeSettingsNumber(settings.latitude, 0),
+    longitude: normalizeSettingsNumber(settings.longitude, 0),
+    delivery_base_radius: normalizeSettingsNumber(settings.delivery_base_radius, 0),
+    delivery_base_price: normalizeSettingsNumber(settings.delivery_base_price, 0),
+    delivery_price_per_km: normalizeSettingsNumber(settings.delivery_price_per_km, 0),
+    delivery_pricing_mode: normalizeDeliveryPricingMode(settings.delivery_pricing_mode, 'dynamic'),
+    delivery_fixed_price: normalizeSettingsNumber(settings.delivery_fixed_price, 0),
+    is_delivery_enabled: normalizeSettingsBoolean(settings.is_delivery_enabled, true),
+    delivery_zone: sortObjectKeysDeep(settings.delivery_zone || null),
+    minimum_order_amount: normalizeSettingsNumber(settings.minimum_order_amount, 0),
+    send_balance_after_confirm: normalizeSettingsBoolean(settings.send_balance_after_confirm, false),
+    send_daily_close_report: normalizeSettingsBoolean(settings.send_daily_close_report, false),
+    msg_new: normalizeSettingsText(settings.msg_new),
+    msg_preparing: normalizeSettingsText(settings.msg_preparing),
+    msg_delivering: normalizeSettingsText(settings.msg_delivering),
+    msg_delivered: normalizeSettingsText(settings.msg_delivered),
+    msg_cancelled: normalizeSettingsText(settings.msg_cancelled),
+    payment_placeholders: normalizedPlaceholders
+  });
 };
 const extractYouTubeVideoId = (value) => {
   const raw = String(value || '').trim();
@@ -1667,6 +1773,10 @@ function AdminDashboard() {
   const [downloadingRegistrationQr, setDownloadingRegistrationQr] = useState(false);
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
+  const [restaurantSettingsBaselineSignature, setRestaurantSettingsBaselineSignature] = useState('');
+  const [registrationQrPreviewMeta, setRegistrationQrPreviewMeta] = useState(null);
+  const [loadingRegistrationQrPreview, setLoadingRegistrationQrPreview] = useState(false);
+  const [registrationQrPreviewError, setRegistrationQrPreviewError] = useState('');
   const [tokenSaveCountdown, setTokenSaveCountdown] = useState(0);
   const [isRestaurantBotTokenVisible, setIsRestaurantBotTokenVisible] = useState(false);
   const tokenCountdownArmedRef = useRef(false);
@@ -1867,7 +1977,14 @@ function AdminDashboard() {
   const normalizedCurrentRestaurantBotToken = (restaurantSettings?.telegram_bot_token || '').trim();
   const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
     normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
+  const currentRestaurantSettingsSignature = useMemo(
+    () => buildRestaurantSettingsSignature(restaurantSettings),
+    [restaurantSettings]
+  );
+  const isRestaurantSettingsDirty = Boolean(restaurantSettings)
+    && currentRestaurantSettingsSignature !== restaurantSettingsBaselineSignature;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
+  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty;
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const operatorHotkeyTabOrder = useMemo(() => {
     const tabs = ['dashboard', 'orders'];
@@ -4240,19 +4357,27 @@ function AdminDashboard() {
       const settings = {
         ...(response.data || {}),
         cash_enabled: response.data?.cash_enabled === false ? false : true,
+        is_delivery_enabled: response.data?.is_delivery_enabled === false ? false : true,
         currency_code: response.data?.currency_code || 'uz',
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        delivery_pricing_mode: normalizeDeliveryPricingMode(response.data?.delivery_pricing_mode, 'dynamic'),
+        delivery_fixed_price: Number.isFinite(Number(response.data?.delivery_fixed_price))
+          ? Number(response.data?.delivery_fixed_price)
+          : 0,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
+      setRestaurantSettingsBaselineSignature(buildRestaurantSettingsSignature(settings));
       if (settings.currency_code) {
         setCountryCurrency(settings.currency_code);
       }
       setInitialRestaurantBotToken((settings.telegram_bot_token || '').trim());
       setTokenSaveCountdown(0);
       tokenCountdownArmedRef.current = false;
+      setRegistrationQrPreviewMeta(null);
+      setRegistrationQrPreviewError('');
     } catch (error) {
       console.error('Fetch restaurant settings error:', error);
     }
@@ -4265,11 +4390,34 @@ function AdminDashboard() {
     try {
       const response = await axios.put(`${API_URL}/admin/restaurant`, restaurantSettings);
       const savedSettings = response.data || {};
-      setRestaurantSettings((prev) => ({ ...prev, ...savedSettings }));
+      const mergedSettings = {
+        ...(restaurantSettings || {}),
+        ...savedSettings,
+        cash_enabled: savedSettings?.cash_enabled === false ? false : (restaurantSettings?.cash_enabled !== false),
+        is_delivery_enabled: savedSettings?.is_delivery_enabled === false ? false : (restaurantSettings?.is_delivery_enabled !== false),
+        currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
+        logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
+        ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
+        menu_view_mode: savedSettings?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        delivery_pricing_mode: normalizeDeliveryPricingMode(
+          savedSettings?.delivery_pricing_mode,
+          restaurantSettings?.delivery_pricing_mode || 'dynamic'
+        ),
+        delivery_fixed_price: Number.isFinite(Number(savedSettings?.delivery_fixed_price))
+          ? Number(savedSettings?.delivery_fixed_price)
+          : Number.isFinite(Number(restaurantSettings?.delivery_fixed_price))
+            ? Number(restaurantSettings?.delivery_fixed_price)
+            : 0,
+        payment_placeholders: normalizePaymentPlaceholders(
+          savedSettings?.payment_placeholders ?? restaurantSettings?.payment_placeholders
+        )
+      };
+      setRestaurantSettings(mergedSettings);
+      setRestaurantSettingsBaselineSignature(buildRestaurantSettingsSignature(mergedSettings));
       if (savedSettings.currency_code) {
         setCountryCurrency(savedSettings.currency_code);
       }
-      setInitialRestaurantBotToken((savedSettings.telegram_bot_token || '').trim());
+      setInitialRestaurantBotToken((mergedSettings.telegram_bot_token || '').trim());
       setTokenSaveCountdown(0);
       tokenCountdownArmedRef.current = false;
 
@@ -5037,6 +5185,42 @@ function AdminDashboard() {
     });
   };
 
+  const requestRestaurantRegistrationQrMeta = useCallback(async () => {
+    const response = await axios.get(`${API_URL}/admin/restaurant/registration-qr`, {
+      params: { lang: language },
+      timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+    });
+    return response.data || {};
+  }, [language]);
+
+  const fetchRestaurantRegistrationQrPreview = useCallback(async () => {
+    const currentToken = String(restaurantSettings?.telegram_bot_token || '').trim();
+    if (!currentToken) {
+      setRegistrationQrPreviewMeta(null);
+      setRegistrationQrPreviewError('');
+      setLoadingRegistrationQrPreview(false);
+      return;
+    }
+
+    setLoadingRegistrationQrPreview(true);
+    setRegistrationQrPreviewError('');
+    try {
+      const qrMeta = await requestRestaurantRegistrationQrMeta();
+      const qrUrl = qrMeta?.qr_url_full || qrMeta?.qr_url || '';
+      if (!qrUrl) {
+        throw new Error('QR URL отсутствует');
+      }
+      setRegistrationQrPreviewMeta({ ...qrMeta, qr_url_full: qrUrl });
+    } catch (error) {
+      setRegistrationQrPreviewMeta(null);
+      setRegistrationQrPreviewError(
+        error.response?.data?.error || error.message || 'Не удалось загрузить QR-код'
+      );
+    } finally {
+      setLoadingRegistrationQrPreview(false);
+    }
+  }, [requestRestaurantRegistrationQrMeta, restaurantSettings?.telegram_bot_token]);
+
   const downloadRestaurantRegistrationQr = async () => {
     if (downloadingRegistrationQr) return;
     const currentToken = String(restaurantSettings?.telegram_bot_token || '').trim();
@@ -5047,13 +5231,12 @@ function AdminDashboard() {
 
     setDownloadingRegistrationQr(true);
     try {
-      const response = await axios.get(`${API_URL}/admin/restaurant/registration-qr`, {
-        params: { lang: language }
-      });
-      const qrUrl = response.data?.qr_url_full || response.data?.qr_url || '';
+      const qrMeta = await requestRestaurantRegistrationQrMeta();
+      const qrUrl = qrMeta?.qr_url_full || qrMeta?.qr_url || '';
       if (!qrUrl) {
         throw new Error('QR URL отсутствует');
       }
+      setRegistrationQrPreviewMeta((prev) => ({ ...(prev || {}), ...qrMeta, qr_url_full: qrUrl }));
 
       const imageResponse = await axios.get(qrUrl, { responseType: 'blob' });
       const qrBlob = imageResponse?.data;
@@ -5062,9 +5245,9 @@ function AdminDashboard() {
       }
 
       const restaurantPartRaw = String(
-        response.data?.restaurant_name || restaurantSettings?.name || 'store'
+        qrMeta?.restaurant_name || restaurantSettings?.name || 'store'
       ).trim();
-      const botPartRaw = String(response.data?.bot_username || '').replace(/^@/, '').trim();
+      const botPartRaw = String(qrMeta?.bot_username || '').replace(/^@/, '').trim();
       const restaurantPart = restaurantPartRaw.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48) || 'store';
       const botPart = botPartRaw.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 48) || 'bot';
       const filename = `registration-qr-${restaurantPart}-${botPart}.png`;
@@ -5089,6 +5272,12 @@ function AdminDashboard() {
       setDownloadingRegistrationQr(false);
     }
   };
+
+  useEffect(() => {
+    if (settingsTab !== 'general') return;
+    fetchRestaurantRegistrationQrPreview();
+  }, [settingsTab, fetchRestaurantRegistrationQrPreview]);
+
   const addProductImageSlot = () => {
     setVisibleProductImageSlotsCount((prev) => clampProductVisibleSlotsCount(prev + 1));
   };
@@ -10818,6 +11007,17 @@ function AdminDashboard() {
                                                 Удалить
                                               </Button>
                                             </div>
+                                            <div className="admin-store-logo-mode-block">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения логотипа</Form.Label>
+                                              <Form.Select
+                                                className="form-control-custom"
+                                                value={restaurantSettings.logo_display_mode || 'square'}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_display_mode: e.target.value })}
+                                              >
+                                                <option value="square">Квадратный</option>
+                                                <option value="horizontal">Горизонтальный</option>
+                                              </Form.Select>
+                                            </div>
                                           </div>
                                           <Form.Text className="text-muted d-block mt-2">
                                             Система автоматически уменьшит логотип и впишет его в шапку без изменения высоты header.
@@ -10826,6 +11026,42 @@ function AdminDashboard() {
                                             Квадратный: рекомендуется `512x512 px` (PNG). Горизонтальный: `1200x400 px` (PNG, прозрачный фон).
                                           </Form.Text>
                                         </Form.Group>
+
+                                        <div className="admin-general-qr-panel">
+                                          <div className="admin-general-qr-head">
+                                            <div className="small fw-bold text-muted text-uppercase">QR-код магазина</div>
+                                            <div className="small text-muted">
+                                              Быстрый доступ к QR-коду регистрации прямо во вкладке «Общие».
+                                            </div>
+                                          </div>
+                                          <div className="admin-general-qr-preview">
+                                            {loadingRegistrationQrPreview ? (
+                                              <div className="admin-general-qr-placeholder">
+                                                <Spinner animation="border" size="sm" />
+                                                <span>Подготовка превью QR...</span>
+                                              </div>
+                                            ) : registrationQrPreviewMeta?.qr_url_full ? (
+                                              <img
+                                                src={registrationQrPreviewMeta.qr_url_full}
+                                                alt="QR-код магазина"
+                                                className="admin-general-qr-image"
+                                              />
+                                            ) : (
+                                              <div className="admin-general-qr-placeholder">
+                                                <i className="bi bi-qr-code" aria-hidden="true" />
+                                                <span>{registrationQrPreviewError || 'Сохраните Bot Token для генерации QR'}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <Button
+                                            variant="outline-primary"
+                                            className="w-100"
+                                            onClick={downloadRestaurantRegistrationQr}
+                                            disabled={downloadingRegistrationQr || !String(restaurantSettings.telegram_bot_token || '').trim()}
+                                          >
+                                            {downloadingRegistrationQr ? '⌛ Подготовка QR...' : '⬇️ Скачать QR'}
+                                          </Button>
+                                        </div>
 
                                       </div>
                                     </Col>
@@ -10890,22 +11126,6 @@ function AdminDashboard() {
                                           </Col>
                                           <Col md={6}>
                                             <Form.Group>
-                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения логотипа</Form.Label>
-                                              <Form.Select
-                                                className="form-control-custom"
-                                                value={restaurantSettings.logo_display_mode || 'square'}
-                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, logo_display_mode: e.target.value })}
-                                              >
-                                                <option value="square">Квадратный</option>
-                                                <option value="horizontal">Горизонтальный</option>
-                                              </Form.Select>
-                                              <Form.Text className="text-muted d-block mt-2">
-                                                Выберите, как логотип будет отображаться у клиентов в шапке магазина.
-                                              </Form.Text>
-                                            </Form.Group>
-                                          </Col>
-                                          <Col md={6}>
-                                            <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
                                               <div className="admin-theme-slots" role="radiogroup" aria-label="Стиль интерфейса магазина">
                                                 {UI_THEME_OPTIONS.map((themeOption) => {
@@ -10948,6 +11168,35 @@ function AdminDashboard() {
                                                 <option value="grid_categories">Папки (Grid Categories)</option>
                                                 <option value="single_list">Прямой список (Single List)</option>
                                               </Form.Select>
+                                              <div className="admin-menu-mode-preview-grid mt-3">
+                                                <button
+                                                  type="button"
+                                                  className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
+                                                  onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
+                                                >
+                                                  <span className="admin-menu-mode-preview-visual is-grid">
+                                                    <span />
+                                                    <span />
+                                                    <span />
+                                                    <span />
+                                                  </span>
+                                                  <span className="admin-menu-mode-preview-title">Папки</span>
+                                                  <span className="admin-menu-mode-preview-desc">Категории плиткой, затем товары</span>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
+                                                  onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
+                                                >
+                                                  <span className="admin-menu-mode-preview-visual is-list">
+                                                    <span />
+                                                    <span />
+                                                    <span />
+                                                  </span>
+                                                  <span className="admin-menu-mode-preview-title">Прямой список</span>
+                                                  <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
+                                                </button>
+                                              </div>
                                               <Form.Text className="text-muted d-block mt-2">
                                                 Папки: сначала плитка категорий. Прямой список: сразу все товары по категориям с верхними табами.
                                               </Form.Text>
@@ -11052,13 +11301,15 @@ function AdminDashboard() {
                                 variant="primary"
                                 className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
                                 onClick={saveRestaurantSettings}
-                                disabled={savingSettings || isTokenSaveLocked}
+                                disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
                                   ? 'Сохранение...'
                                   : isTokenSaveLocked
                                     ? `Подождите ${tokenSaveCountdown}с...`
-                                    : 'Сохранить изменения'}
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
                               </Button>
                             </div>
                           </Card.Body>
@@ -11250,13 +11501,15 @@ function AdminDashboard() {
                                 variant="primary"
                                 className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
                                 onClick={saveRestaurantSettings}
-                                disabled={savingSettings || isTokenSaveLocked}
+                                disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
                                   ? 'Сохранение...'
                                   : isTokenSaveLocked
                                     ? `Подождите ${tokenSaveCountdown}с...`
-                                    : 'Сохранить изменения'}
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
                               </Button>
                             </div>
                           </Card.Body>
@@ -11526,13 +11779,15 @@ function AdminDashboard() {
                                 variant="primary"
                                 className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
                                 onClick={saveRestaurantSettings}
-                                disabled={savingSettings || isTokenSaveLocked}
+                                disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
                                   ? 'Сохранение...'
                                   : isTokenSaveLocked
                                     ? `Подождите ${tokenSaveCountdown}с...`
-                                    : 'Сохранить изменения'}
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
                               </Button>
                             </div>
                           </Card.Body>
@@ -11591,39 +11846,88 @@ function AdminDashboard() {
                                 </Form.Group>
                               </Col>
 
-                              <Col md={4}>
+                              <Col md={12}>
                                 <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовый радиус (км)</Form.Label>
-                                  <Form.Control
-                                    type="number"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.delivery_base_radius || 0}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_radius: e.target.value })}
-                                  />
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим цены доставки</Form.Label>
+                                  <div className="admin-delivery-pricing-tabs">
+                                    <button
+                                      type="button"
+                                      className={`admin-delivery-pricing-tab ${(restaurantSettings.delivery_pricing_mode || 'dynamic') === 'fixed' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        delivery_pricing_mode: 'fixed'
+                                      })}
+                                    >
+                                      Фиксированная цена доставки
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`admin-delivery-pricing-tab ${(restaurantSettings.delivery_pricing_mode || 'dynamic') === 'dynamic' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        delivery_pricing_mode: 'dynamic'
+                                      })}
+                                    >
+                                      Динамичная цена доставки
+                                    </button>
+                                  </div>
                                 </Form.Group>
                               </Col>
-                              <Col md={4}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовая цена ({t('sum')})</Form.Label>
-                                  <Form.Control
-                                    type="number"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.delivery_base_price || 0}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_price: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
-                              <Col md={4}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Цена за доп. км ({t('sum')})</Form.Label>
-                                  <Form.Control
-                                    type="number"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.delivery_price_per_km || 0}
-                                    onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_price_per_km: e.target.value })}
-                                  />
-                                </Form.Group>
-                              </Col>
+
+                              {(restaurantSettings.delivery_pricing_mode || 'dynamic') === 'fixed' ? (
+                                <Col md={6}>
+                                  <Form.Group>
+                                    <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Фиксированная цена доставки ({t('sum')})</Form.Label>
+                                    <Form.Control
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      className="form-control-custom"
+                                      value={restaurantSettings.delivery_fixed_price ?? 0}
+                                      onChange={e => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        delivery_fixed_price: e.target.value
+                                      })}
+                                    />
+                                  </Form.Group>
+                                </Col>
+                              ) : (
+                                <>
+                                  <Col md={4}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовый радиус (км)</Form.Label>
+                                      <Form.Control
+                                        type="number"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.delivery_base_radius || 0}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_radius: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={4}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Базовая цена ({t('sum')})</Form.Label>
+                                      <Form.Control
+                                        type="number"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.delivery_base_price || 0}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_base_price: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={4}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Цена за доп. км ({t('sum')})</Form.Label>
+                                      <Form.Control
+                                        type="number"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.delivery_price_per_km || 0}
+                                        onChange={e => setRestaurantSettings({ ...restaurantSettings, delivery_price_per_km: e.target.value })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                </>
+                              )}
 
                               <Col md={12}>
                                 <Form.Group>
@@ -11664,13 +11968,15 @@ function AdminDashboard() {
                                 variant="primary"
                                 className="px-5 py-2 rounded-pill fw-bold btn-primary-custom shadow-none"
                                 onClick={saveRestaurantSettings}
-                                disabled={savingSettings || isTokenSaveLocked}
+                                disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
                                   ? 'Сохранение...'
                                   : isTokenSaveLocked
                                     ? `Подождите ${tokenSaveCountdown}с...`
-                                    : 'Сохранить изменения'}
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
                               </Button>
                             </div>
                           </Card.Body>

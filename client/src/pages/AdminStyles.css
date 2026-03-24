@@ -7840,6 +7840,170 @@ body::-webkit-scrollbar,
     min-width: 0;
 }
 
+.admin-store-logo-mode-block {
+    margin-top: 0.85rem;
+}
+
+.admin-general-qr-panel {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 14px;
+    background: #f8fafc;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.admin-general-qr-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.admin-general-qr-preview {
+    border: 1px dashed rgba(148, 163, 184, 0.48);
+    border-radius: 12px;
+    background: #ffffff;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.admin-general-qr-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    padding: 0.75rem;
+}
+
+.admin-general-qr-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.9rem;
+    color: #64748b;
+    font-size: 0.84rem;
+    text-align: center;
+}
+
+.admin-general-qr-placeholder i {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.admin-menu-mode-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.admin-menu-mode-preview-card {
+    border: 1px solid rgba(148, 163, 184, 0.42);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    text-align: left;
+    color: #334155;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.admin-menu-mode-preview-card:hover {
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08);
+}
+
+.admin-menu-mode-preview-card.is-active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), 0.14);
+    background: #f8faff;
+}
+
+.admin-menu-mode-preview-visual {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 9px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.36rem;
+    display: grid;
+    gap: 0.28rem;
+}
+
+.admin-menu-mode-preview-visual.is-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-menu-mode-preview-visual.is-list {
+    grid-template-columns: 1fr;
+}
+
+.admin-menu-mode-preview-visual span {
+    display: block;
+    border-radius: 7px;
+    background: #d8e0f4;
+    min-height: 12px;
+}
+
+.admin-menu-mode-preview-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+}
+
+.admin-menu-mode-preview-desc {
+    font-size: 0.72rem;
+    line-height: 1.25;
+    color: #64748b;
+}
+
+.admin-delivery-pricing-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--admin-segment-gap);
+    padding: 4px;
+    border-radius: var(--admin-segment-radius);
+    border: 1px solid var(--admin-segment-border);
+    background: var(--admin-segment-bg);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.admin-delivery-pricing-tab {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    padding: 0 14px;
+    min-height: var(--admin-segment-item-height);
+    border-radius: var(--admin-segment-item-radius);
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1;
+    transition: all 0.2s ease;
+    flex: 1 1 240px;
+    text-align: center;
+}
+
+.admin-delivery-pricing-tab:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.admin-delivery-pricing-tab.is-active {
+    background: var(--admin-segment-active-bg);
+    color: var(--admin-segment-active-color);
+    box-shadow: var(--admin-segment-active-shadow);
+}
+
 .admin-theme-slots {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
@@ -9763,6 +9927,18 @@ body::-webkit-scrollbar,
 
     .admin-store-logo-slot-actions .btn {
         width: 100%;
+    }
+
+    .admin-general-qr-preview {
+        min-height: 150px;
+    }
+
+    .admin-menu-mode-preview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-delivery-pricing-tab {
+        flex: 1 1 100%;
     }
 
     .admin-theme-slots {

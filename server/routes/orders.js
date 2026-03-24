@@ -82,6 +82,13 @@ function isInDeliveryZone(deliveryZone, lat, lng) {
 const DEFAULT_DELIVERY_BASE_RADIUS_KM = 2;
 const DEFAULT_DELIVERY_BASE_PRICE = 5000;
 const DEFAULT_DELIVERY_PRICE_PER_KM = 2000;
+const DEFAULT_DELIVERY_FIXED_PRICE = 0;
+const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'fixed' || normalized === 'dynamic') return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === 'fixed' ? 'fixed' : 'dynamic';
+};
 
 async function getRoadDistanceKm(fromLat, fromLng, toLat, toLng) {
   try {
@@ -469,6 +476,7 @@ router.post('/', authenticate, async (req, res) => {
         `SELECT start_time, end_time, is_delivery_enabled, delivery_zone,
                 latitude, longitude,
                 delivery_base_radius, delivery_base_price, delivery_price_per_km,
+                delivery_pricing_mode, delivery_fixed_price,
                 payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
                 card_receipt_target, cash_enabled, minimum_order_amount
          FROM restaurants
@@ -648,7 +656,12 @@ router.post('/', authenticate, async (req, res) => {
     const serviceFee = parseFloat(service_fee) || 0;
     let deliveryCost = !isPickupOrder ? (parseFloat(delivery_cost) || 0) : 0;
     let deliveryDistanceKm = !isPickupOrder ? (parseFloat(delivery_distance_km) || 0) : 0;
-    if (!isPickupOrder && Number.isFinite(deliveryPointLat) && Number.isFinite(deliveryPointLng)) {
+    const deliveryPricingMode = normalizeDeliveryPricingMode(restaurantSettings?.delivery_pricing_mode, 'dynamic');
+    const deliveryFixedPrice = Math.max(0, toNumeric(restaurantSettings?.delivery_fixed_price, DEFAULT_DELIVERY_FIXED_PRICE));
+    if (!isPickupOrder && deliveryPricingMode === 'fixed') {
+      deliveryCost = deliveryFixedPrice;
+      deliveryDistanceKm = 0;
+    } else if (!isPickupOrder && Number.isFinite(deliveryPointLat) && Number.isFinite(deliveryPointLng)) {
       const restaurantLat = Number.parseFloat(restaurantSettings?.latitude);
       const restaurantLng = Number.parseFloat(restaurantSettings?.longitude);
       if (Number.isFinite(restaurantLat) && Number.isFinite(restaurantLng)) {
