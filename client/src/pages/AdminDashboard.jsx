@@ -1712,6 +1712,31 @@ function AdminDashboard() {
     productStatusFilter !== 'all'
   );
 
+  const getProductPriceDisplayLabel = useCallback((product) => {
+    const basePrice = normalizeProductPriceValue(product?.price, NaN);
+    const fallbackLabel = Number.isFinite(basePrice) ? `${formatPrice(basePrice)} ${t('sum')}` : '-';
+    if (!Boolean(product?.size_enabled)) return fallbackLabel;
+
+    const variants = normalizeProductVariantOptions(
+      product?.size_options ?? product?.variant_options,
+      {
+        fallbackPrice: basePrice,
+        unit: product?.unit || 'шт'
+      }
+    );
+    const prices = variants
+      .map((variant) => normalizeProductPriceValue(variant?.price, NaN))
+      .filter((price) => Number.isFinite(price) && price > 0);
+    if (prices.length === 0) return fallbackLabel;
+
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    if (Number.isFinite(maxPrice) && maxPrice > minPrice) {
+      return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)} ${t('sum')}`;
+    }
+    return `${formatPrice(minPrice)} ${t('sum')}`;
+  }, [t]);
+
   // Image preview modal
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
@@ -10315,6 +10340,7 @@ function AdminDashboard() {
                       const previewSourceResolved = previewSourceRaw
                         ? (previewSourceRaw.startsWith('http') ? previewSourceRaw : `${API_URL.replace('/api', '')}${previewSourceRaw}`)
                         : '';
+                      const productPriceLabel = getProductPriceDisplayLabel(product);
                       return (
                         <article
                           key={`mobile-product-${product.id}`}
@@ -10356,7 +10382,7 @@ function AdminDashboard() {
 
                             <div className="admin-product-mobile-cell admin-product-mobile-main-col">
                               <div className="admin-product-mobile-name">{product.name_ru}</div>
-                              <div className="admin-product-mobile-price">{formatPrice(product.price)} {t('sum')}</div>
+                              <div className="admin-product-mobile-price">{productPriceLabel}</div>
                               <div className="admin-product-mobile-meta">
                                 <span>#{(productsPage - 1) * productsLimit + index + 1}</span>
                                 <span>•</span>
@@ -10481,6 +10507,7 @@ function AdminDashboard() {
                         .map((product, index) => {
                           const categoryHierarchy = categoryHierarchyById.get(Number(product.category_id)) || [];
                           const categoryTooltip = categoryHierarchy.map((category) => formatCategoryWithSort(category)).join(' > ');
+                          const productPriceLabel = getProductPriceDisplayLabel(product);
                           return (
                             <tr
                               key={product.id}
@@ -10545,7 +10572,7 @@ function AdminDashboard() {
                                 })}
                               </div>
                             </td>
-                            <td className="admin-product-col-price">{formatPrice(product.price)} {t('sum')}</td>
+                            <td className="admin-product-col-price">{productPriceLabel}</td>
                             <td className="admin-product-col-unit"><span className="admin-product-nowrap">{product.unit || '-'}</span></td>
                             <td className="admin-product-col-step"><span className="admin-product-nowrap">{Number.parseFloat(product.order_step) > 0 ? formatQuantity(product.order_step) : '-'}</span></td>
                             <td className="admin-product-col-container"><span className="admin-product-ellipsis">{product.container_name || '-'}</span></td>
