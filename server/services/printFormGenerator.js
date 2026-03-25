@@ -73,8 +73,9 @@ const buildTextOverlaySvg = ({
 }) => `
 <svg width="${A5_WIDTH_PX_300_DPI}" height="${A5_HEIGHT_PX_300_DPI}" viewBox="0 0 ${A5_WIDTH_PX_300_DPI} ${A5_HEIGHT_PX_300_DPI}" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#000000" flood-opacity="0.16" />
+    <filter id="strongShadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="3" stdDeviation="7" flood-color="#020617" flood-opacity="0.72" />
+      <feDropShadow dx="0" dy="1" stdDeviation="2.6" flood-color="#000000" flood-opacity="0.55" />
     </filter>
   </defs>
   <text
@@ -83,10 +84,13 @@ const buildTextOverlaySvg = ({
     text-anchor="middle"
     dominant-baseline="middle"
     font-family="Arial, Helvetica, sans-serif"
-    font-size="76"
-    font-weight="700"
-    fill="#111111"
-    filter="url(#softShadow)"
+    font-size="90"
+    font-weight="800"
+    fill="#ffffff"
+    stroke="#0f172a"
+    stroke-width="4"
+    paint-order="stroke fill"
+    filter="url(#strongShadow)"
   >${escapeSvgText(botUsername)}</text>
   <text
     x="50%"
@@ -94,9 +98,11 @@ const buildTextOverlaySvg = ({
     text-anchor="middle"
     dominant-baseline="middle"
     font-family="Arial, Helvetica, sans-serif"
-    font-size="52"
+    font-size="50"
     font-weight="600"
-    fill="#1f2937"
+    fill="#ffffff"
+    fill-opacity="0.93"
+    filter="url(#strongShadow)"
   >${escapeSvgText(caption)}</text>
 </svg>
 `;
@@ -130,6 +136,28 @@ const createBaseCanvas = async (backgroundBuffer) => {
     })
     .png({ quality: 100 })
     .toBuffer();
+};
+
+const normalizeBotUsernameForPrint = (botUsername, botLink) => {
+  const rawUsername = String(botUsername || '').trim();
+  if (rawUsername) {
+    return rawUsername.startsWith('@') ? rawUsername : `@${rawUsername.replace(/^@+/, '')}`;
+  }
+
+  const rawLink = String(botLink || '').trim();
+  if (rawLink) {
+    try {
+      const parsed = new URL(rawLink);
+      const usernameFromPath = String(parsed.pathname || '').replace(/\//g, '').trim();
+      if (usernameFromPath) {
+        return `@${usernameFromPath.replace(/^@+/, '')}`;
+      }
+    } catch (_) {
+      // ignore malformed URL and fall through
+    }
+  }
+
+  return '';
 };
 
 const createPdfFromPng = async (pngBuffer) => {
@@ -169,8 +197,8 @@ const generateStorePrintForm = async ({
     : Math.round(A5_HEIGHT_PX_300_DPI * 0.45);
   const qrX = Math.round(centerX - qrSize / 2);
   const qrY = Math.round(centerY - qrSize / 2);
-  const usernameY = qrY + qrSize + 130;
-  const captionY = qrY + qrSize + 220;
+  const usernameY = Math.min(qrY + qrSize + 120, A5_HEIGHT_PX_300_DPI - 170);
+  const captionY = Math.min(usernameY + 84, A5_HEIGHT_PX_300_DPI - 86);
 
   let backgroundBuffer = null;
   try {
@@ -193,7 +221,7 @@ const generateStorePrintForm = async ({
 
   const qrBackgroundSvg = buildQrBackgroundSvg({ x: qrX, y: qrY, size: qrSize });
   const textSvg = buildTextOverlaySvg({
-    botUsername: botUsername || botLink,
+    botUsername: normalizeBotUsernameForPrint(botUsername, botLink),
     caption,
     usernameY,
     captionY
