@@ -1814,6 +1814,7 @@ function SuperAdminDashboard() {
     superadmin_telegram_id: '',
     server_group_chat_id: '',
     server_stats_interval_ms: 30 * 60 * 1000,
+    server_railway_projects: '',
     card_number: '',
     card_holder: '',
     phone_number: '',
@@ -4452,6 +4453,7 @@ function SuperAdminDashboard() {
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
+          server_railway_projects: String(response.data.server_railway_projects || ''),
           ai_enabled: response.data.ai_enabled !== false,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4472,6 +4474,7 @@ function SuperAdminDashboard() {
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
         server_stats_interval_ms: normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000),
+        server_railway_projects: String(billingSettings.server_railway_projects || '').trim(),
         ai_enabled: billingSettings.ai_enabled !== false,
         print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
         print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4487,6 +4490,7 @@ function SuperAdminDashboard() {
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
+          server_railway_projects: String(response.data.server_railway_projects || ''),
           ai_enabled: response.data.ai_enabled !== false,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4512,6 +4516,7 @@ function SuperAdminDashboard() {
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
         server_stats_interval_ms: normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000),
+        server_railway_projects: String(billingSettings.server_railway_projects || '').trim(),
         ai_enabled: !!nextEnabled,
         print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
         print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4527,6 +4532,7 @@ function SuperAdminDashboard() {
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
           server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
+          server_railway_projects: String(response.data.server_railway_projects || ''),
           ai_enabled: response.data.ai_enabled !== false,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -16344,6 +16350,33 @@ function SuperAdminDashboard() {
                         <Form.Text className="text-muted small">
                           Если заполнено, периодическая статистика и server alerts будут отправляться в этот Telegram group chat.
                         </Form.Text>
+                      </Form.Group>
+
+                      <Form.Group className="mb-4">
+                        <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                          railway projects (name:id)
+                        </Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={4}
+                          className="form-control-custom"
+                          placeholder={'Talablar: ecb20b03-9878-4264-86c1-a4472d518f65\nIndex: 440ad277-ee7d-40b8-b639-b842f2a7cf63\nOka: b9cb0cdf-6e9a-44ef-8132-d295c4ad848f\nFK: 9e25c3ed-75b8-4f65-91fd-37d2eb063a44'}
+                          value={billingSettings.server_railway_projects || ''}
+                          onChange={(e) => setBillingSettings({
+                            ...billingSettings,
+                            server_railway_projects: e.target.value
+                          })}
+                        />
+                        <Form.Text className="text-muted small">
+                          {language === 'uz'
+                            ? "Har bir qator: Nomi: ProjectID. Bu loyihalar bo'yicha usage alohida yuboriladi."
+                            : 'Каждая строка: Название: ProjectID. По этим проектам usage будет отправляться отдельно.'}
+                        </Form.Text>
+                        <div className="text-muted small mt-2">
+                          {language === 'uz'
+                            ? 'Railway API uchun env kiriting: SUPERADMIN_RAILWAY_API_TOKEN (yoki RAILWAY_API_TOKEN).'
+                            : 'Для Railway API задайте env: SUPERADMIN_RAILWAY_API_TOKEN (или RAILWAY_API_TOKEN).'}
+                        </div>
                       </Form.Group>
 
                       <Form.Group className="mb-0">

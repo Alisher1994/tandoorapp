@@ -16,6 +16,19 @@ const SERVER_STATS_ALLOWED_INTERVALS_MS = new Set([
 const ALERT_THROTTLE_MS = 5 * 60 * 1000;
 const BOT_TIME_ZONE = process.env.BOT_TIMEZONE || process.env.TELEGRAM_TIMEZONE || process.env.TZ || 'Asia/Tashkent';
 const DISK_STATS_PATH = String(process.env.SUPERADMIN_SERVER_DISK_PATH || '/').trim() || '/';
+const RAILWAY_GRAPHQL_ENDPOINT = String(
+  process.env.SUPERADMIN_RAILWAY_GRAPHQL_ENDPOINT
+    || process.env.RAILWAY_GRAPHQL_ENDPOINT
+    || 'https://backboard.railway.com/graphql/v2'
+).trim();
+const DEFAULT_RAILWAY_PROJECTS_SPEC = String(process.env.SUPERADMIN_RAILWAY_PROJECTS || '').trim();
+const RAILWAY_USAGE_MEASUREMENTS = Object.freeze([
+  'CPU_USAGE',
+  'MEMORY_USAGE_GB',
+  'NETWORK_TX_GB',
+  'DISK_USAGE_GB',
+  'BACKUP_USAGE_GB'
+]);
 const SUPERADMIN_EXTRA_TELEGRAM_IDS = new Set(
   String(process.env.SUPERADMIN_EXTRA_TELEGRAM_IDS || '')
     .split(',')
@@ -69,6 +82,17 @@ const MONITORING_TEXTS = {
     railway_service: 'Service',
     railway_env: 'Environment',
     railway_replica: 'Replica',
+    railway_projects: 'Railway проекты (API)',
+    railway_projects_not_configured: 'Проекты для мониторинга не настроены',
+    railway_projects_token_missing: 'Не задан RAILWAY_API_TOKEN / SUPERADMIN_RAILWAY_API_TOKEN',
+    railway_projects_fetch_failed: 'Ошибка запроса',
+    railway_project_current: 'Current usage',
+    railway_project_estimated: 'Estimated usage',
+    railway_project_cpu: 'CPU usage',
+    railway_project_memory: 'Memory usage',
+    railway_project_network: 'Network usage',
+    railway_project_volume: 'Volume usage',
+    railway_project_backup: 'Backup usage',
     lifecycle_signal: '⚠️ <b>Сервер получил сигнал остановки</b>',
     lifecycle_unhandled: '⚠️ <b>Unhandled rejection в процессе</b>',
     lifecycle_exception: '🛑 <b>Uncaught exception в процессе</b>',
@@ -107,6 +131,17 @@ const MONITORING_TEXTS = {
     railway_service: 'Service',
     railway_env: 'Environment',
     railway_replica: 'Replica',
+    railway_projects: 'Railway loyihalari (API)',
+    railway_projects_not_configured: 'Monitoring uchun loyihalar sozlanmagan',
+    railway_projects_token_missing: 'RAILWAY_API_TOKEN / SUPERADMIN_RAILWAY_API_TOKEN kiritilmagan',
+    railway_projects_fetch_failed: "So'rov xatosi",
+    railway_project_current: 'Current usage',
+    railway_project_estimated: 'Estimated usage',
+    railway_project_cpu: 'CPU usage',
+    railway_project_memory: 'Memory usage',
+    railway_project_network: 'Network usage',
+    railway_project_volume: 'Volume usage',
+    railway_project_backup: 'Backup usage',
     lifecycle_signal: '⚠️ <b>Server to‘xtash signalini oldi</b>',
     lifecycle_unhandled: '⚠️ <b>Jarayonda unhandled rejection</b>',
     lifecycle_exception: '🛑 <b>Jarayonda uncaught exception</b>',
@@ -194,6 +229,236 @@ const getRailwayMetadata = () => ({
   environmentId: String(process.env.RAILWAY_ENVIRONMENT_ID || '').trim() || null,
   replicaId: String(process.env.RAILWAY_REPLICA_ID || '').trim() || null
 });
+
+const normalizeRailwayTokenValue = (value) => {
+  const token = String(value || '').trim();
+  return token || null;
+};
+
+const formatUsd = (value) => {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '$0.00';
+  return `$${numeric.toFixed(2)}`;
+};
+
+const normalizeRailwayProjectId = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const match = raw.match(/[a-z0-9-]{16,}/i);
+  if (!match) return null;
+  return String(match[0] || '').trim().toLowerCase() || null;
+};
+
+const parseRailwayProjectsSpec = (rawSpec) => {
+  const source = String(rawSpec || '');
+  const chunks = source
+    .replace(/\r/g, '\n')
+    .split(/[\n;,]+/)
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const parsed = [];
+
+  for (const chunk of chunks) {
+    const cleaned = chunk.replace(/^[\-*•\s]+/, '').trim();
+    if (!cleaned) continue;
+
+    let name = '';
+    let projectId = null;
+
+    const withLabel = cleaned.match(/^(.+?)\s*[|:=]\s*(.+)$/);
+    if (withLabel) {
+      name = String(withLabel[1] || '').trim();
+      projectId = normalizeRailwayProjectId(withLabel[2]);
+    } else {
+      projectId = normalizeRailwayProjectId(cleaned);
+    }
+
+    if (!projectId || seen.has(projectId)) continue;
+    seen.add(projectId);
+    parsed.push({
+      id: projectId,
+      name: name || projectId
+    });
+  }
+
+  return parsed;
+};
+
+const fetchConfiguredRailwayProjectsSpec = async () => {
+  let dbSpec = '';
+  try {
+    const result = await pool.query(`
+      SELECT BTRIM(COALESCE(server_railway_projects, '')) AS server_railway_projects
+      FROM billing_settings
+      WHERE id = 1
+      LIMIT 1
+    `);
+    dbSpec = String(result.rows?.[0]?.server_railway_projects || '').trim();
+  } catch (error) {
+    console.warn('Fetch railway projects spec warning:', error?.message || error);
+  }
+
+  const preferredSpec = dbSpec || DEFAULT_RAILWAY_PROJECTS_SPEC;
+  const parsed = parseRailwayProjectsSpec(preferredSpec);
+  if (parsed.length > 0) return parsed;
+
+  const currentProjectId = normalizeRailwayProjectId(process.env.RAILWAY_PROJECT_ID);
+  if (!currentProjectId) return [];
+  return [{ id: currentProjectId, name: 'Current project' }];
+};
+
+const RAILWAY_PROJECT_USAGE_QUERY = `
+query SuperadminProjectUsage($projectId: String!, $measurements: [MetricMeasurement!]!) {
+  project(id: $projectId) {
+    id
+    name
+  }
+  usage(projectId: $projectId, measurements: $measurements) {
+    measurement
+    value
+  }
+  estimatedUsage(projectId: $projectId, measurements: $measurements) {
+    measurement
+    estimatedValue
+  }
+}
+`;
+
+const callRailwayGraphql = async ({ query, variables = {}, token }) => {
+  const resolvedToken = normalizeRailwayTokenValue(token);
+  if (!resolvedToken) {
+    const error = new Error('RAILWAY_TOKEN_REQUIRED');
+    error.code = 'RAILWAY_TOKEN_REQUIRED';
+    throw error;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(RAILWAY_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${resolvedToken}`
+      },
+      body: JSON.stringify({ query, variables }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`HTTP_${response.status}${text ? `: ${text.slice(0, 180)}` : ''}`);
+    }
+
+    const payload = await response.json();
+    if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+      const firstError = payload.errors[0] || {};
+      const firstCode = String(firstError?.extensions?.code || '').trim();
+      const firstMessage = String(firstError?.message || 'GraphQL error').trim();
+      throw new Error(firstCode ? `${firstCode}: ${firstMessage}` : firstMessage);
+    }
+
+    return payload?.data || {};
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const normalizeUsageValue = (value) => {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const fetchRailwayProjectUsageSnapshot = async ({ id, name }, token) => {
+  const data = await callRailwayGraphql({
+    token,
+    query: RAILWAY_PROJECT_USAGE_QUERY,
+    variables: {
+      projectId: id,
+      measurements: RAILWAY_USAGE_MEASUREMENTS
+    }
+  });
+
+  const usageMap = {};
+  for (const row of Array.isArray(data?.usage) ? data.usage : []) {
+    const key = String(row?.measurement || '').trim();
+    if (!key) continue;
+    usageMap[key] = normalizeUsageValue(row?.value);
+  }
+
+  const estimatedMap = {};
+  for (const row of Array.isArray(data?.estimatedUsage) ? data.estimatedUsage : []) {
+    const key = String(row?.measurement || '').trim();
+    if (!key) continue;
+    estimatedMap[key] = normalizeUsageValue(row?.estimatedValue);
+  }
+
+  const cpuUsage = usageMap.CPU_USAGE || 0;
+  const memoryUsage = usageMap.MEMORY_USAGE_GB || 0;
+  const networkUsage = usageMap.NETWORK_TX_GB || 0;
+  const volumeUsage = usageMap.DISK_USAGE_GB || 0;
+  const backupUsage = usageMap.BACKUP_USAGE_GB || 0;
+
+  const estimatedCpuUsage = estimatedMap.CPU_USAGE || 0;
+  const estimatedMemoryUsage = estimatedMap.MEMORY_USAGE_GB || 0;
+  const estimatedNetworkUsage = estimatedMap.NETWORK_TX_GB || 0;
+  const estimatedVolumeUsage = estimatedMap.DISK_USAGE_GB || 0;
+  const estimatedBackupUsage = estimatedMap.BACKUP_USAGE_GB || 0;
+
+  return {
+    id,
+    name: String(data?.project?.name || name || id).trim() || id,
+    currentUsageTotal: cpuUsage + memoryUsage + networkUsage + volumeUsage + backupUsage,
+    estimatedUsageTotal: estimatedCpuUsage + estimatedMemoryUsage + estimatedNetworkUsage + estimatedVolumeUsage + estimatedBackupUsage,
+    usage: {
+      cpu: cpuUsage,
+      memory: memoryUsage,
+      network: networkUsage,
+      volume: volumeUsage,
+      backup: backupUsage
+    }
+  };
+};
+
+const fetchRailwayProjectsUsageSummaries = async () => {
+  const configuredProjects = await fetchConfiguredRailwayProjectsSpec();
+  if (!configuredProjects.length) {
+    return { items: [], tokenMissing: false };
+  }
+
+  const railwayToken = normalizeRailwayTokenValue(
+    process.env.SUPERADMIN_RAILWAY_API_TOKEN
+      || process.env.RAILWAY_API_TOKEN
+      || process.env.RAILWAY_TOKEN
+  );
+
+  if (!railwayToken) {
+    return {
+      items: configuredProjects.map((project) => ({
+        ...project,
+        errorCode: 'TOKEN_MISSING',
+        errorMessage: 'RAILWAY_TOKEN_REQUIRED'
+      })),
+      tokenMissing: true
+    };
+  }
+
+  const items = await Promise.all(configuredProjects.map(async (project) => {
+    try {
+      return await fetchRailwayProjectUsageSnapshot(project, railwayToken);
+    } catch (error) {
+      return {
+        ...project,
+        errorCode: 'REQUEST_FAILED',
+        errorMessage: String(error?.message || 'request_failed').slice(0, 220)
+      };
+    }
+  }));
+
+  return { items, tokenMissing: false };
+};
 
 const getCpuSnapshot = () => {
   const cpuInfo = os.cpus() || [];
@@ -360,6 +625,7 @@ const buildServerStatsMessage = async ({ reason = 'manual', lang = 'ru' } = {}) 
   const memory = getMemorySnapshot();
   const disk = getDiskSnapshot();
   const railway = getRailwayMetadata();
+  const railwayProjectsSummary = await fetchRailwayProjectsUsageSummaries();
   const db = await fetchDatabaseHealth();
   const uptimeText = formatDuration(process.uptime());
   const osUptimeText = formatDuration(os.uptime());
@@ -409,6 +675,36 @@ const buildServerStatsMessage = async ({ reason = 'manual', lang = 'ru' } = {}) 
     `• ${t(language, 'railway_env')}: <code>${escapeHtml(railway.environmentId || '—')}</code>`,
     `• ${t(language, 'railway_replica')}: <code>${escapeHtml(railway.replicaId || '—')}</code>`
   ];
+
+  if (railwayProjectsSummary.items.length > 0) {
+    lines.push('');
+    lines.push(`📦 <b>${t(language, 'railway_projects')}</b>`);
+    for (const item of railwayProjectsSummary.items) {
+      lines.push(`• <b>${escapeHtml(item.name || item.id || 'Project')}</b> (<code>${escapeHtml(item.id || '—')}</code>)`);
+
+      if (item.errorCode === 'TOKEN_MISSING') {
+        lines.push(`  ${t(language, 'railway_projects_token_missing')}`);
+        continue;
+      }
+
+      if (item.errorMessage) {
+        lines.push(`  ${t(language, 'railway_projects_fetch_failed')}: <code>${escapeHtml(item.errorMessage)}</code>`);
+        continue;
+      }
+
+      lines.push(`  ${t(language, 'railway_project_current')}: <b>${escapeHtml(formatUsd(item.currentUsageTotal))}</b>`);
+      lines.push(`  ${t(language, 'railway_project_estimated')}: <b>${escapeHtml(formatUsd(item.estimatedUsageTotal))}</b>`);
+      lines.push(`  ${t(language, 'railway_project_cpu')}: <b>${escapeHtml(formatUsd(item.usage?.cpu || 0))}</b>`);
+      lines.push(`  ${t(language, 'railway_project_memory')}: <b>${escapeHtml(formatUsd(item.usage?.memory || 0))}</b>`);
+      lines.push(`  ${t(language, 'railway_project_network')}: <b>${escapeHtml(formatUsd(item.usage?.network || 0))}</b>`);
+      lines.push(`  ${t(language, 'railway_project_volume')}: <b>${escapeHtml(formatUsd(item.usage?.volume || 0))}</b>`);
+      lines.push(`  ${t(language, 'railway_project_backup')}: <b>${escapeHtml(formatUsd(item.usage?.backup || 0))}</b>`);
+    }
+  } else {
+    lines.push('');
+    lines.push(`📦 <b>${t(language, 'railway_projects')}</b>`);
+    lines.push(`• ${t(language, 'railway_projects_not_configured')}`);
+  }
 
   return lines.join('\n');
 };

@@ -601,6 +601,7 @@ const ensureBillingSettingsSchema = async () => {
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_group_chat_id VARCHAR(64)`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_stats_interval_ms INTEGER DEFAULT 1800000`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN server_stats_interval_ms SET DEFAULT 1800000`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_railway_projects TEXT`).catch(() => {});
     await pool.query(`
       UPDATE billing_settings
       SET catalog_animation_season = 'off'
@@ -4149,6 +4150,7 @@ router.put('/billing-settings', async (req, res) => {
       superadmin_telegram_id,
       server_group_chat_id,
       server_stats_interval_ms,
+      server_railway_projects,
       catalog_animation_season,
       ai_enabled,
       print_form_background_url,
@@ -4161,6 +4163,7 @@ router.put('/billing-settings', async (req, res) => {
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedServerGroupChatId = normalizeTelegramIdValue(server_group_chat_id);
     const normalizedServerStatsIntervalMs = normalizeStatsInterval(server_stats_interval_ms, null);
+    const normalizedServerRailwayProjects = String(server_railway_projects || '').trim();
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
     const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
@@ -4183,12 +4186,13 @@ router.put('/billing-settings', async (req, res) => {
           superadmin_telegram_id = $10,
           server_group_chat_id = $11,
           server_stats_interval_ms = COALESCE($12, server_stats_interval_ms, 1800000),
-          catalog_animation_season = $13,
-          ai_enabled = $14,
-          print_form_background_url = $15,
-          print_form_qr_position = $16,
-          print_form_caption_ru = $17,
-          print_form_caption_uz = $18,
+          server_railway_projects = $13,
+          catalog_animation_season = $14,
+          ai_enabled = $15,
+          print_form_background_url = $16,
+          print_form_qr_position = $17,
+          print_form_caption_ru = $18,
+          print_form_caption_uz = $19,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -4201,6 +4205,7 @@ router.put('/billing-settings', async (req, res) => {
       normalizedSuperadminTelegramId,
       normalizedServerGroupChatId,
       normalizedServerStatsIntervalMs,
+      normalizedServerRailwayProjects,
       normalizedCatalogAnimationSeason,
       normalizedAiEnabled,
       normalizedPrintFormSettings.print_form_background_url,
@@ -10806,6 +10811,7 @@ router.put('/billing/settings', async (req, res) => {
       superadmin_telegram_id,
       server_group_chat_id,
       server_stats_interval_ms,
+      server_railway_projects,
       catalog_animation_season,
       ai_enabled,
       print_form_background_url,
@@ -10818,6 +10824,7 @@ router.put('/billing/settings', async (req, res) => {
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedServerGroupChatId = normalizeTelegramIdValue(server_group_chat_id);
     const normalizedServerStatsIntervalMs = normalizeStatsInterval(server_stats_interval_ms, null);
+    const normalizedServerRailwayProjects = String(server_railway_projects || '').trim();
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
     const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
@@ -10840,19 +10847,20 @@ router.put('/billing/settings', async (req, res) => {
           superadmin_telegram_id = $10,
           server_group_chat_id = $11,
           server_stats_interval_ms = COALESCE($12, server_stats_interval_ms, 1800000),
-          catalog_animation_season = $13,
-          ai_enabled = $14,
-          print_form_background_url = $15,
-          print_form_qr_position = $16,
-          print_form_caption_ru = $17,
-          print_form_caption_uz = $18,
+          server_railway_projects = $13,
+          catalog_animation_season = $14,
+          ai_enabled = $15,
+          print_form_background_url = $16,
+          print_form_qr_position = $17,
+          print_form_caption_ru = $18,
+          print_form_caption_uz = $19,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, parseFloat(default_starting_balance) || 100000, parseFlexibleAmount(default_order_cost, 1000),
-      normalizedToken, normalizedSuperadminTelegramId, normalizedServerGroupChatId, normalizedServerStatsIntervalMs, normalizedCatalogAnimationSeason, normalizedAiEnabled,
+      normalizedToken, normalizedSuperadminTelegramId, normalizedServerGroupChatId, normalizedServerStatsIntervalMs, normalizedServerRailwayProjects, normalizedCatalogAnimationSeason, normalizedAiEnabled,
       normalizedPrintFormSettings.print_form_background_url,
       normalizedPrintFormSettings.print_form_qr_position,
       normalizedPrintFormSettings.print_form_caption_ru,

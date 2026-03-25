@@ -31,6 +31,7 @@ async function migrate() {
         superadmin_telegram_id VARCHAR(64),
         server_group_chat_id VARCHAR(64),
         server_stats_interval_ms INTEGER DEFAULT 1800000,
+        server_railway_projects TEXT,
         catalog_animation_season VARCHAR(16) DEFAULT 'off',
         card_number VARCHAR(50),
         card_holder VARCHAR(255),
@@ -65,6 +66,10 @@ async function migrate() {
         await pool.query(`
       ALTER TABLE billing_settings
       ADD COLUMN IF NOT EXISTS server_stats_interval_ms INTEGER DEFAULT 1800000;
+    `);
+        await pool.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS server_railway_projects TEXT;
     `);
         await pool.query(`
       ALTER TABLE billing_settings
