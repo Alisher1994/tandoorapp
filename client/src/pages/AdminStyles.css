@@ -5975,6 +5975,12 @@ body::-webkit-scrollbar,
     text-overflow: ellipsis;
 }
 
+.sa-restaurant-operator-meta {
+    font-size: 11px;
+    color: #64748b;
+    white-space: normal;
+}
+
 .sa-restaurant-operator-link {
     color: #2563eb;
     text-decoration: none;

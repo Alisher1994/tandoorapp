@@ -13004,8 +13004,10 @@ function SuperAdminDashboard() {
                                                 ) : (
                                                   <span>-</span>
                                                 )}
-                                                <span className="sa-restaurant-operator-separator">•</span>
-                                                <span>{language === 'uz' ? 'Oxirgi faollik' : 'Последняя активность'}: {formatOperatorLastActivity(r.primary_operator_last_activity_at || r.latest_operator_activity_at)}</span>
+                                              </div>
+                                              <div className="sa-restaurant-operator-meta">
+                                                {language === 'uz' ? 'Oxirgi faollik' : 'Последняя активность'}:{' '}
+                                                {formatOperatorLastActivity(r.primary_operator_last_activity_at || r.latest_operator_activity_at)}
                                               </div>
                                             </div>
                                           </div>
