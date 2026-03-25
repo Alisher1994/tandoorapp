@@ -5685,6 +5685,24 @@ body::-webkit-scrollbar,
     letter-spacing: 0.02em;
 }
 
+.sa-restaurant-name-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    line-height: 1.2;
+    text-align: left;
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+}
+
+.sa-restaurant-name-link:hover .sa-restaurant-name-main,
+.sa-restaurant-name-link:focus-visible .sa-restaurant-name-main {
+    color: #4338ca;
+    text-decoration: underline;
+}
+
 .sa-telegram-brand-icon {
     color: #4f46e5 !important;
 }
@@ -5700,6 +5718,12 @@ body::-webkit-scrollbar,
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+
+.sa-shop-quick-divider {
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1;
 }
 
 .sa-shop-quick-toggle-btn {
@@ -5732,9 +5756,36 @@ body::-webkit-scrollbar,
     background: #fff1f2;
 }
 
+.sa-shop-quick-toggle-btn.is-neutral {
+    color: #4f46e5;
+    border-color: #dbe2ea;
+    background: #ffffff;
+}
+
 .sa-shop-quick-toggle-btn:hover,
 .sa-shop-quick-toggle-btn:focus-visible {
     filter: brightness(0.98);
+}
+
+.sa-shop-currency-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sa-shop-currency-flag {
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid #dbe2ea;
+    object-fit: cover;
+}
+
+.sa-shop-currency-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
 }
 
 .sa-restaurant-copy-btn {
@@ -5802,16 +5853,46 @@ body::-webkit-scrollbar,
     grid-column: span 4;
 }
 
+.sa-accordion-map {
+    grid-column: span 3;
+}
+
 .sa-accordion-problems {
     grid-column: span 2;
 }
 
 .sa-accordion-operator {
-    grid-column: span 7;
+    grid-column: span 4;
 }
 
 .sa-accordion-actions {
     grid-column: span 3;
+}
+
+.sa-restaurant-map-preview {
+    height: 74px;
+    border-radius: 10px;
+    border: 1px solid #dbe2ea;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.sa-restaurant-map-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.sa-restaurant-map-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #64748b;
+    font-size: 12px;
 }
 
 .sa-restaurant-pricing-mini {
@@ -5945,8 +6026,12 @@ body::-webkit-scrollbar,
         grid-template-columns: repeat(12, minmax(0, 1fr));
     }
 
+    .sa-accordion-map {
+        grid-column: span 3;
+    }
+
     .sa-accordion-pricing {
-        grid-column: span 4;
+        grid-column: span 3;
     }
 
     .sa-accordion-problems {
@@ -5954,7 +6039,7 @@ body::-webkit-scrollbar,
     }
 
     .sa-accordion-operator {
-        grid-column: span 4;
+        grid-column: span 2;
     }
 
     .sa-accordion-actions {
@@ -5979,6 +6064,7 @@ body::-webkit-scrollbar,
         gap: 8px;
     }
 
+    .sa-accordion-map,
     .sa-accordion-pricing,
     .sa-accordion-problems {
         grid-column: auto;

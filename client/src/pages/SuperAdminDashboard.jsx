@@ -8217,6 +8217,22 @@ function SuperAdminDashboard() {
     return `${start || '--:--'} - ${end || '--:--'}`;
   };
 
+  const toValidCoordinate = (value, min, max) => {
+    const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
+    if (!Number.isFinite(parsed)) return null;
+    if (parsed < min || parsed > max) return null;
+    return parsed;
+  };
+
+  const getRestaurantStaticMapUrl = (restaurant) => {
+    const lat = toValidCoordinate(restaurant?.latitude, -90, 90);
+    const lon = toValidCoordinate(restaurant?.longitude, -180, 180);
+    if (lat === null || lon === null) return '';
+    const size = '320x140';
+    const marker = `${lat.toFixed(6)},${lon.toFixed(6)},red-pushpin`;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat.toFixed(6)},${lon.toFixed(6)}&zoom=14&size=${size}&markers=${marker}`;
+  };
+
   const appendHiddenOpsConsoleLine = (line) => {
     const text = String(line || '').trim();
     if (!text) return;
@@ -12618,7 +12634,9 @@ function SuperAdminDashboard() {
                             const operatorUsernameClean = String(r.primary_operator_username || '').trim().replace(/^@/, '');
                             const operatorUsernameLink = operatorUsernameClean ? `https://t.me/${operatorUsernameClean}` : '';
                             const currencyLabel = getCurrencyLabelByCode(r.currency_code || countryCurrency?.code);
+                            const currencyFlagUrl = resolveCurrencyFlagSvgUrl(r.currency_code || countryCurrency?.code);
                             const checksCount = formatChecksCount(r.balance || 0, r.order_cost || 0, r.is_free_tier);
+                            const locationPreviewMapUrl = getRestaurantStaticMapUrl(r);
                             const reservationToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:reservation_enabled`]);
                             const variantsToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:size_variants_enabled`]);
                           
@@ -12646,7 +12664,14 @@ function SuperAdminDashboard() {
                                     )}
                                   </td>
                                   <td>
-                                    <strong className="sa-restaurant-name-main">{String(r.name || '').toUpperCase()}</strong>
+                                    <button
+                                      type="button"
+                                      className="sa-restaurant-name-link"
+                                      onClick={() => openRestaurantModal(r)}
+                                      title={language === 'uz' ? "Do'konni tahrirlash" : 'Редактировать магазин'}
+                                    >
+                                      <strong className="sa-restaurant-name-main">{String(r.name || '').toUpperCase()}</strong>
+                                    </button>
                                     <div className="sa-restaurant-row-meta">
                                       <span className="sa-restaurant-row-meta-chip">
                                         <i className="bi bi-diagram-3" aria-hidden="true" />
@@ -12722,7 +12747,17 @@ function SuperAdminDashboard() {
                                         <span className="sa-shop-balance-label">
                                           {language === 'uz' ? 'Valyuta' : 'Валюта'}
                                         </span>
-                                        <span className="sa-shop-balance-value">{currencyLabel}</span>
+                                        <span className="sa-shop-balance-value sa-shop-currency-value">
+                                          {currencyFlagUrl ? (
+                                            <img
+                                              src={currencyFlagUrl}
+                                              alt={String(r.currency_code || '').toUpperCase() || 'CUR'}
+                                              className="sa-shop-currency-flag"
+                                              loading="lazy"
+                                            />
+                                          ) : null}
+                                          <span>{currencyLabel}</span>
+                                        </span>
                                       </div>
                                     </div>
                                   </td>
@@ -12757,6 +12792,28 @@ function SuperAdminDashboard() {
                                         >
                                           <i className="bi bi-ui-checks-grid" aria-hidden="true" />
                                         </button>
+                                        <span className="sa-shop-quick-divider" aria-hidden="true">|</span>
+                                        <button
+                                          type="button"
+                                          className="sa-shop-quick-toggle-btn is-neutral"
+                                          title={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
+                                          onClick={() => openTopupModal(r)}
+                                          aria-label={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
+                                        >
+                                          <i className="bi bi-credit-card-2-front" aria-hidden="true" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="sa-shop-quick-toggle-btn is-neutral restaurant-comment-action-btn"
+                                          onClick={() => openRestaurantCommentModal(r)}
+                                          title={getRestaurantCommentTooltip(r.admin_comment, r.admin_comment_checklist)}
+                                          aria-label={language === 'uz' ? "Do'kon izohi" : 'Комментарий магазина'}
+                                        >
+                                          <i className="bi bi-chat-left-text" aria-hidden="true" />
+                                          {(String(r.admin_comment || '').trim() || normalizeRestaurantCommentChecklist(r.admin_comment_checklist).length > 0) && (
+                                            <span className="restaurant-comment-indicator" aria-hidden="true" />
+                                          )}
+                                        </button>
                                       </div>
                                       <CustomSelectDropdown
                                         value={workflowMeta.effective}
@@ -12776,6 +12833,23 @@ function SuperAdminDashboard() {
                                     <td colSpan="7">
                                       <div className="sa-restaurant-accordion-wrap">
                                         <div className="sa-restaurant-accordion-grid">
+                                          <div className="sa-restaurant-accordion-item sa-accordion-map">
+                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Lokatsiya' : 'Локация'}</div>
+                                            <div className="sa-restaurant-map-preview">
+                                              {locationPreviewMapUrl ? (
+                                                <img
+                                                  src={locationPreviewMapUrl}
+                                                  alt={language === 'uz' ? "Do'kon xaritasi" : 'Карта магазина'}
+                                                  loading="lazy"
+                                                />
+                                              ) : (
+                                                <div className="sa-restaurant-map-placeholder">
+                                                  <i className="bi bi-geo-alt" aria-hidden="true" />
+                                                  <span>{language === 'uz' ? "Koordinata yo'q" : 'Нет координат'}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-pricing">
                                             <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Tarif va xizmatlar' : 'Тариф и услуги'}</div>
                                             <div className="sa-restaurant-pricing-mini">
@@ -12785,7 +12859,38 @@ function SuperAdminDashboard() {
                                                   {t('saServiceFee') || 'Сбор'}
                                                 </span>
                                                 <span className="sa-restaurant-pricing-line-value">
-                                                  {formatBalanceAmount(r.service_fee || 0)} {currencyLabel}
+                                                  {formatBalanceAmount(r.service_fee || 0)}
+                                                  <span className="sa-shop-currency-inline">
+                                                    {currencyFlagUrl ? (
+                                                      <img
+                                                        src={currencyFlagUrl}
+                                                        alt={String(r.currency_code || '').toUpperCase() || 'CUR'}
+                                                        className="sa-shop-currency-flag"
+                                                        loading="lazy"
+                                                      />
+                                                    ) : null}
+                                                    <span>{currencyLabel}</span>
+                                                  </span>
+                                                </span>
+                                              </div>
+                                              <div className="sa-restaurant-pricing-line">
+                                                <span className="sa-restaurant-pricing-line-title">
+                                                  <i className="bi bi-calendar-check" aria-hidden="true" />
+                                                  {language === 'uz' ? 'Bronlash' : 'Бронирование'}
+                                                </span>
+                                                <span className="sa-restaurant-pricing-line-value">
+                                                  {formatBalanceAmount(r.reservation_service_cost || r.reservation_cost || 0)}
+                                                  <span className="sa-shop-currency-inline">
+                                                    {currencyFlagUrl ? (
+                                                      <img
+                                                        src={currencyFlagUrl}
+                                                        alt={String(r.currency_code || '').toUpperCase() || 'CUR'}
+                                                        className="sa-shop-currency-flag"
+                                                        loading="lazy"
+                                                      />
+                                                    ) : null}
+                                                    <span>{currencyLabel}</span>
+                                                  </span>
                                                 </span>
                                               </div>
                                               <div className="sa-restaurant-pricing-line">
@@ -12801,15 +12906,6 @@ function SuperAdminDashboard() {
                                                 >
                                                   {r.is_free_tier ? 'Бесплатный' : 'Платный'}
                                                 </Badge>
-                                              </div>
-                                              <div className="sa-restaurant-pricing-line">
-                                                <span className="sa-restaurant-pricing-line-title">
-                                                  <i className="bi bi-calendar-check" aria-hidden="true" />
-                                                  {language === 'uz' ? 'Bronlash' : 'Бронирование'}
-                                                </span>
-                                                <span className="sa-restaurant-pricing-line-value">
-                                                  {formatBalanceAmount(r.reservation_service_cost || r.reservation_cost || 0)} {currencyLabel}
-                                                </span>
                                               </div>
                                             </div>
                                           </div>
@@ -12870,33 +12966,6 @@ function SuperAdminDashboard() {
                                           <div className="sa-restaurant-accordion-item sa-accordion-actions">
                                             <div className="sa-restaurant-accordion-label">{t('saTableActions')}</div>
                                             <div className="sa-restaurant-actions-grid">
-                                              <Button
-                                                variant="light"
-                                                className="action-btn sa-action-btn-theme"
-                                                onClick={() => openTopupModal(r)}
-                                                title={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
-                                              >
-                                                <Wallet className="action-btn-icon" aria-hidden="true" />
-                                              </Button>
-                                              <Button
-                                                variant="light"
-                                                className="action-btn sa-action-btn-theme"
-                                                onClick={() => openRestaurantModal(r)}
-                                                title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
-                                              >
-                                                <Pencil className="action-btn-icon" aria-hidden="true" />
-                                              </Button>
-                                              <Button
-                                                variant="light"
-                                                className="action-btn sa-action-btn-theme restaurant-comment-action-btn"
-                                                onClick={() => openRestaurantCommentModal(r)}
-                                                title={getRestaurantCommentTooltip(r.admin_comment, r.admin_comment_checklist)}
-                                              >
-                                                <FileText className="action-btn-icon" aria-hidden="true" />
-                                                {(String(r.admin_comment || '').trim() || normalizeRestaurantCommentChecklist(r.admin_comment_checklist).length > 0) && (
-                                                  <span className="restaurant-comment-indicator" aria-hidden="true" />
-                                                )}
-                                              </Button>
                                               <Button
                                                 variant="light"
                                                 className="action-btn sa-action-btn-theme"
