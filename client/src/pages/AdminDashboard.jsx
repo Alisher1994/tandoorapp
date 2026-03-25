@@ -6603,6 +6603,17 @@ function AdminDashboard() {
     const normalizedDigits = digits.length === 9 ? `998${digits}` : digits;
     return `https://t.me/+${normalizedDigits}`;
   };
+  const renderCustomerPhoneLink = (rawPhone) => {
+    const phoneValue = String(rawPhone || '').trim();
+    const telegramHref = getTelegramPhoneHref(phoneValue);
+    if (!phoneValue) return '-';
+    if (!telegramHref) return phoneValue;
+    return (
+      <a href={telegramHref} target="_blank" rel="noopener noreferrer">
+        {phoneValue}
+      </a>
+    );
+  };
 
   const getPaymentMethodLabel = (paymentMethod) => {
     if (paymentMethod === 'cash') return 'Наличные';
@@ -10959,7 +10970,7 @@ function AdminDashboard() {
                               <tr key={`admin-customer-${c.user_id}`}>
                                 <td>
                                   <div className="fw-semibold">{c.full_name || c.username || `ID ${c.user_id}`}</div>
-                                  <small className="text-muted">{c.phone || '-'}</small>
+                                  <small className="text-muted">{renderCustomerPhoneLink(c.phone)}</small>
                                 </td>
                                 <td>
                                   {c.telegram_id ? (
