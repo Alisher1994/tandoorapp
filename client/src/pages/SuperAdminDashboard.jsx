@@ -92,8 +92,13 @@ const SERVER_STATS_INTERVAL_OPTIONS = [
 const SERVER_STATS_INTERVAL_SET = new Set(SERVER_STATS_INTERVAL_OPTIONS.map((item) => item.value));
 const SUPERADMIN_SETTINGS_TARGET_TABS = new Set([
   'categories',
+  'activity_types',
+  'reservation_templates',
   'broadcast',
   'billing',
+  'bot_settings',
+  'themes',
+  'qr_settings',
   'ai_settings',
   'help_instructions',
   'logs',
@@ -103,8 +108,6 @@ const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'analytics',
   'restaurants',
   'global_products',
-  'activity_types',
-  'reservation_templates',
   'operators',
   'customers',
   'ads',
@@ -113,7 +116,6 @@ const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'settings'
 ];
 const resolveSettingsNavTargetTab = (key) => {
-  if (key === 'bot_settings') return 'billing';
   return SUPERADMIN_SETTINGS_TARGET_TABS.has(key) ? key : 'categories';
 };
 const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
@@ -10386,10 +10388,6 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (!SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab)) return;
-    if (activeTab === 'billing') {
-      setActiveSettingsNavKey((prev) => (prev === 'bot_settings' || prev === 'billing' ? prev : 'billing'));
-      return;
-    }
     setActiveSettingsNavKey(activeTab);
   }, [activeTab]);
 
@@ -10660,20 +10658,27 @@ function SuperAdminDashboard() {
     billing_transactions: { label: language === 'uz' ? "To'lovlar" : 'Поступления', icon: Receipt },
     founders: { label: language === 'uz' ? 'Ta’sischilar' : 'Учредители', icon: PieChart },
     billing: { label: t('billingSettings'), icon: Wallet },
+    bot_settings: { label: language === 'uz' ? 'Telegram' : 'Телеграм', icon: MessageSquare },
+    themes: { label: language === 'uz' ? 'Mavzular' : 'Темы', icon: Settings },
+    qr_settings: { label: language === 'uz' ? 'QR sozlamalari' : 'Настройки QR-кода', icon: Receipt },
     ai_settings: { label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки', icon: Bot },
     security: { label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность', icon: Shield },
     logs: { label: t('logs'), icon: FileText },
     settings: { label: language === 'uz' ? 'Sozlamalar' : 'Настройки', icon: Settings }
   }), [adI18n.tab, language, t]);
   const settingsSidebarNavItems = useMemo(() => ([
-    { key: 'categories', label: t('categories') },
-    { key: 'broadcast', label: language === 'uz' ? 'Xabar tarqatish' : 'Рассылка' },
-    { key: 'billing', label: t('billingSettings') },
-    { key: 'ai_settings', label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки' },
-    { key: 'help_instructions', label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции' },
-    { key: 'bot_settings', label: language === 'uz' ? 'Bot sozlamalari' : 'Настройки бота' },
-    { key: 'logs', label: t('logs') },
-    { key: 'security', label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность' }
+    { key: 'categories', icon: '🗂️', label: t('categories') },
+    { key: 'activity_types', icon: '🧩', label: language === 'uz' ? 'Faoliyat turlari' : 'Виды деятельности' },
+    { key: 'reservation_templates', icon: '🪑', label: language === 'uz' ? 'Bron shablonlari' : 'Шаблоны бронирования' },
+    { key: 'broadcast', icon: '📣', label: language === 'uz' ? 'Xabar tarqatish' : 'Рассылка' },
+    { key: 'billing', icon: '💳', label: t('billingSettings') },
+    { key: 'bot_settings', icon: '✈️', label: language === 'uz' ? 'Telegram' : 'Телеграм' },
+    { key: 'themes', icon: '🎨', label: language === 'uz' ? 'Mavzular' : 'Темы' },
+    { key: 'qr_settings', icon: '🧾', label: language === 'uz' ? 'QR sozlamalari' : 'Настройки QR-кода' },
+    { key: 'ai_settings', icon: '🤖', label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки' },
+    { key: 'help_instructions', icon: '📘', label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции' },
+    { key: 'logs', icon: '📄', label: t('logs') },
+    { key: 'security', icon: '🛡️', label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность' }
   ]), [language, t]);
   const sidebarVisibleTabKeys = useMemo(
     () => SUPERADMIN_SIDEBAR_NAV_ORDER.filter((key) => Boolean(superAdminSidebarTabsMeta[key])),
@@ -12125,22 +12130,23 @@ function SuperAdminDashboard() {
               <div className="admin-tab-content-shell">
               {isSettingsSectionActive && (
                 <div className="sa-settings-tabs-shell">
-                  <div className="sa-settings-tabs-head">
-                    {language === 'uz' ? 'Sozlamalar bo‘limi' : 'Раздел настроек'}
-                  </div>
-                  <div className="sa-settings-tabs-row" role="tablist" aria-label={language === 'uz' ? "Sozlamalar bo'limlari" : 'Вкладки раздела Настройки'}>
+                  <div className="admin-order-status-tabs sa-settings-orderlike-tabs" role="tablist" aria-label={language === 'uz' ? "Sozlamalar bo'limlari" : 'Вкладки раздела Настройки'}>
                     {settingsSidebarNavItems.map((item) => {
                       const targetTab = resolveSettingsNavTargetTab(item.key);
-                      const isActive = activeSettingsNavKey === item.key
-                        || (activeTab === targetTab && item.key !== 'bot_settings' && activeSettingsNavKey !== 'bot_settings');
+                      const isActive = activeSettingsNavKey === item.key || activeTab === targetTab;
                       return (
                         <button
                           key={`settings-nav-${item.key}`}
                           type="button"
-                          className={`sa-settings-tab-btn${isActive ? ' is-active' : ''}`}
+                          className={`admin-order-status-pill sa-settings-orderlike-pill${isActive ? ' is-active' : ''}`}
                           onClick={() => handleSettingsNavSelect(item.key)}
+                          role="tab"
+                          aria-selected={isActive}
                         >
-                          {item.label}
+                          <span className="admin-order-status-pill-label">
+                            <span className="admin-order-status-pill-emoji" aria-hidden="true">{item.icon}</span>
+                            <span>{item.label}</span>
+                          </span>
                         </button>
                       );
                     })}
@@ -15628,45 +15634,6 @@ function SuperAdminDashboard() {
                       </div>
                     </Alert>
 
-                    <Alert
-                      variant="light"
-                      className="superadmin-setting-surface mb-0"
-                      style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
-                    >
-                      <div className="d-flex flex-column gap-3">
-                        <div>
-                          <div className="fw-bold">Сезонная анимация каталога для клиентов</div>
-                          <div className="small text-muted">
-                            Можно включить только один сезон. Если выключить активный переключатель, останется режим "Все выключено".
-                          </div>
-                        </div>
-                        <Row className="g-2">
-                          {CATALOG_ANIMATION_SEASON_OPTIONS.map((option) => (
-                            <Col xs={12} md={6} key={option.value}>
-                              <Form.Check
-                                type="switch"
-                                id={`catalog-animation-season-${option.value}`}
-                                className="fw-semibold"
-                                label={option.label}
-                                checked={billingSettings.catalog_animation_season === option.value}
-                                onChange={(e) => {
-                                  const isChecked = !!e.target.checked;
-                                  setBillingSettings((prev) => ({
-                                    ...prev,
-                                    catalog_animation_season: isChecked ? option.value : 'off'
-                                  }));
-                                }}
-                              />
-                            </Col>
-                          ))}
-                        </Row>
-                        <div className="small text-muted">
-                          Текущий режим: <strong>{billingSettings.catalog_animation_season === 'off'
-                            ? 'Все выключено'
-                            : (CATALOG_ANIMATION_SEASON_OPTIONS.find((item) => item.value === billingSettings.catalog_animation_season)?.label || 'Все выключено')}</strong>
-                        </div>
-                      </div>
-                    </Alert>
                   </div>
 
                   {false && (
@@ -16187,290 +16154,6 @@ function SuperAdminDashboard() {
                           <h6 className="mb-0 fw-bold">{t('defaultFinancialParams')}</h6>
                         </Card.Header>
                         <Card.Body className="p-4">
-                          <Form.Group className="mb-4">
-                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                              Токен центрального Telegram-бота
-                            </Form.Label>
-                            <div className="position-relative">
-                              <Form.Control
-                                type={isCentralTokenVisible ? 'text' : 'password'}
-                                className="form-control-custom"
-                                placeholder="123456789:AA..."
-                                value={billingSettings.superadmin_bot_token || ''}
-                                style={{ paddingRight: '2.4rem' }}
-                                onChange={e => {
-                                  setIsCentralTokenVisible(false);
-                                  setBillingSettings({
-                                    ...billingSettings,
-                                    superadmin_bot_token: e.target.value,
-                                    superadmin_bot_name: '',
-                                    superadmin_bot_username: ''
-                                  });
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                variant="link"
-                                className="position-absolute top-50 end-0 translate-middle-y text-muted p-0 me-2"
-                                style={{ lineHeight: 1 }}
-                                onClick={handleCentralTokenPreview}
-                                disabled={!billingSettings.superadmin_bot_token}
-                                title={isCentralTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
-                                aria-label={isCentralTokenVisible ? 'Скрыть токен' : 'Показать токен'}
-                              >
-                                <i className={`bi ${isCentralTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
-                              </Button>
-                            </div>
-                            <Form.Text className="text-muted small">
-                              Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
-                            </Form.Text>
-                          </Form.Group>
-
-                          <Row className="g-3 mb-4">
-                            <Col md={6}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  Название бота
-                                </Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  className="form-control-custom"
-                                  value={billingSettings.superadmin_bot_name || ''}
-                                  readOnly
-                                  placeholder="Появится после сохранения/проверки токена"
-                                />
-                              </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  Никнейм бота
-                                </Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  className="form-control-custom"
-                                  value={billingSettings.superadmin_bot_username || ''}
-                                  readOnly
-                                  placeholder="@username"
-                                />
-                              </Form.Group>
-                            </Col>
-                          </Row>
-
-                          <Form.Group className="mb-4">
-                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                              Telegram ID владельца суперадминки
-                            </Form.Label>
-                            <div className="sa-inline-action-field">
-                              <Form.Control
-                                type="text"
-                                className="form-control-custom sa-inline-action-input"
-                                placeholder="например: 123456789"
-                                value={billingSettings.superadmin_telegram_id || ''}
-                                onChange={e => setBillingSettings({ ...billingSettings, superadmin_telegram_id: e.target.value })}
-                              />
-                              <Button
-                                type="button"
-                                variant="light"
-                                className="action-btn sa-inline-action-btn"
-                                onClick={testCentralBot}
-                                disabled={isTestingCentralBot || !billingSettings.superadmin_bot_token || !billingSettings.superadmin_telegram_id}
-                                title={language === 'uz' ? 'Telegram ID ni tekshirish' : 'Проверить Telegram ID'}
-                              >
-                                {isTestingCentralBot ? (
-                                  <Spinner animation="border" size="sm" />
-                                ) : (
-                                  <Send className="action-btn-icon" aria-hidden="true" />
-                                )}
-                              </Button>
-                            </div>
-                            <Form.Text className="text-muted small">
-                              На этот ID отправляется подтверждение при смене токена центрального бота.
-                            </Form.Text>
-                            <div className="text-muted small mt-2">
-                              Отправит тестовый текст "Бот работает" на указанный Telegram ID.
-                            </div>
-                          </Form.Group>
-
-                          <Form.Group className="mb-4">
-                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                              server group chat id
-                            </Form.Label>
-                            <div className="sa-inline-action-field">
-                              <Form.Control
-                                type="text"
-                                className="form-control-custom sa-inline-action-input"
-                                placeholder="например: -1001234567890"
-                                value={billingSettings.server_group_chat_id || ''}
-                                onChange={e => setBillingSettings({ ...billingSettings, server_group_chat_id: e.target.value })}
-                              />
-                              <Button
-                                type="button"
-                                variant="light"
-                                className="action-btn sa-inline-action-btn sa-inline-send-report-btn"
-                                onClick={sendServerReportFromSettings}
-                                disabled={isSendingServerReport || !billingSettings.superadmin_bot_token || !billingSettings.server_group_chat_id}
-                                title={language === 'uz' ? "Server hisobotini yuborish" : 'Отправить отчёт сервера'}
-                              >
-                                {isSendingServerReport ? (
-                                  <Spinner animation="border" size="sm" />
-                                ) : (
-                                  <Send className="action-btn-icon" aria-hidden="true" />
-                                )}
-                              </Button>
-                            </div>
-                            <Form.Text className="text-muted small">
-                              Если заполнено, периодическая статистика и server alerts будут отправляться в этот Telegram group chat.
-                            </Form.Text>
-                            <div className="text-muted small mt-2">
-                              {language === 'uz'
-                                ? "Qog'ozcha ikonkasini bossangiz, hisobot darhol shu chatga yuboriladi."
-                                : 'Иконка отправки внутри поля отправляет отчёт сразу в этот чат.'}
-                            </div>
-                          </Form.Group>
-
-                          <Form.Group className="mb-4">
-                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                              {language === 'uz' ? "Server hisoboti intervali" : 'Интервал отправки отчёта'}
-                            </Form.Label>
-                            <Form.Select
-                              className="form-control-custom"
-                              value={normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000)}
-                              onChange={(e) => setBillingSettings({
-                                ...billingSettings,
-                                server_stats_interval_ms: normalizeServerStatsIntervalMs(e.target.value, 30 * 60 * 1000)
-                              })}
-                            >
-                              {SERVER_STATS_INTERVAL_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </Form.Select>
-                            <Form.Text className="text-muted small">
-                              {language === 'uz'
-                                ? "Yuborish oralig'ini tanlang va sozlamalarni saqlang."
-                                : 'Выберите период и сохраните настройки, чтобы запустить автоотправку.'}
-                            </Form.Text>
-                          </Form.Group>
-
-                          <hr className="my-4" />
-
-                          <Form.Group className="mb-3">
-                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                              Настройки печатных форм (A5)
-                            </Form.Label>
-                            <input
-                              ref={printFormBackgroundInputRef}
-                              type="file"
-                              accept="image/*"
-                              className="d-none"
-                              onChange={(e) => handlePrintFormBackgroundUpload(e.target.files?.[0])}
-                              disabled={uploadingPrintFormBackground}
-                            />
-                            <div className={`print-form-bg-slot${billingSettings.print_form_background_url ? ' is-filled' : ''}`}>
-                              {billingSettings.print_form_background_url ? (
-                                <img
-                                  src={resolveAdPreviewImageUrl(billingSettings.print_form_background_url)}
-                                  alt={language === 'uz' ? 'Fon oldindan ko‘rish' : 'Превью фона'}
-                                  className="print-form-bg-image"
-                                />
-                              ) : (
-                                <div className="print-form-bg-empty">
-                                  {language === 'uz' ? 'Fon tanlanmagan' : 'Фон не выбран'}
-                                </div>
-                              )}
-                              <div className="print-form-bg-overlay">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="print-form-bg-pick-btn"
-                                  onClick={() => printFormBackgroundInputRef.current?.click()}
-                                  disabled={uploadingPrintFormBackground}
-                                >
-                                  {uploadingPrintFormBackground
-                                    ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
-                                    : (language === 'uz' ? 'Tanlash' : 'Выбор')}
-                                </Button>
-                                {billingSettings.print_form_background_url && (
-                                  <Button
-                                    type="button"
-                                    className="action-btn print-form-bg-remove-btn"
-                                    onClick={handleClearPrintFormBackground}
-                                    disabled={uploadingPrintFormBackground}
-                                    title={language === 'uz' ? "Fonni o'chirish" : 'Удалить фон'}
-                                  >
-                                    <X className="print-form-bg-remove-icon" aria-hidden="true" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                            {uploadingPrintFormBackground && (
-                              <div className="small text-muted mt-2">Загрузка фона...</div>
-                            )}
-                            <Form.Text className="text-muted small">
-                              Этот фон станет глобальным шаблоном для генерации QR/PDF у всех новых регистраций.
-                            </Form.Text>
-                          </Form.Group>
-
-                          <Row className="g-3 mb-3">
-                            <Col md={6}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  Позиция QR
-                                </Form.Label>
-                                <Form.Select
-                                  className="form-control-custom"
-                                  value={billingSettings.print_form_qr_position || 'center'}
-                                  onChange={(e) => setBillingSettings({
-                                    ...billingSettings,
-                                    print_form_qr_position: e.target.value
-                                  })}
-                                >
-                                  <option value="center">По центру</option>
-                                  <option value="lower">Нижняя часть</option>
-                                </Form.Select>
-                              </Form.Group>
-                            </Col>
-                          </Row>
-
-                          <Row className="g-3 mb-4">
-                            <Col md={6}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  Подпись RU
-                                </Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  className="form-control-custom"
-                                  value={billingSettings.print_form_caption_ru || ''}
-                                  onChange={(e) => setBillingSettings({
-                                    ...billingSettings,
-                                    print_form_caption_ru: e.target.value
-                                  })}
-                                  placeholder="Сканируй и заказывай"
-                                />
-                              </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  Подпись UZ
-                                </Form.Label>
-                                <Form.Control
-                                  type="text"
-                                  className="form-control-custom"
-                                  value={billingSettings.print_form_caption_uz || ''}
-                                  onChange={(e) => setBillingSettings({
-                                    ...billingSettings,
-                                    print_form_caption_uz: e.target.value
-                                  })}
-                                  placeholder="Skanerlang va buyurtma bering"
-                                />
-                              </Form.Group>
-                            </Col>
-                          </Row>
-
                           <Form.Group className="mb-0">
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">{t('defaultStartingBalance')}</Form.Label>
                             <Form.Control
@@ -16491,6 +16174,359 @@ function SuperAdminDashboard() {
                       </Card>
                     </Col>
                   </Row>
+                </Form>
+              </Tab>
+
+              <Tab eventKey="bot_settings" title={renderSuperAdminSidebarTabTitle('bot_settings')}>
+                <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{language === 'uz' ? 'Telegram sozlamalari' : 'Настройки Telegram'}</h5>
+                    <Button type="submit" className="btn-primary-custom px-4">
+                      <span className="d-none d-sm-inline">{t('saveSettings')}</span>
+                      <span className="d-sm-none">Сохранить</span>
+                    </Button>
+                  </div>
+
+                  <Card className="admin-card admin-section-panel mb-0">
+                    <Card.Body className="p-4">
+                      <Form.Group className="mb-4">
+                        <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                          Токен центрального Telegram-бота
+                        </Form.Label>
+                        <div className="position-relative">
+                          <Form.Control
+                            type={isCentralTokenVisible ? 'text' : 'password'}
+                            className="form-control-custom"
+                            placeholder="123456789:AA..."
+                            value={billingSettings.superadmin_bot_token || ''}
+                            style={{ paddingRight: '2.4rem' }}
+                            onChange={e => {
+                              setIsCentralTokenVisible(false);
+                              setBillingSettings({
+                                ...billingSettings,
+                                superadmin_bot_token: e.target.value,
+                                superadmin_bot_name: '',
+                                superadmin_bot_username: ''
+                              });
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="position-absolute top-50 end-0 translate-middle-y text-muted p-0 me-2"
+                            style={{ lineHeight: 1 }}
+                            onClick={handleCentralTokenPreview}
+                            disabled={!billingSettings.superadmin_bot_token}
+                            title={isCentralTokenVisible ? 'Скрыть токен' : 'Показать на 2 секунды'}
+                            aria-label={isCentralTokenVisible ? 'Скрыть токен' : 'Показать токен'}
+                          >
+                            <i className={`bi ${isCentralTokenVisible ? 'bi-eye-slash' : 'bi-eye'}`} />
+                          </Button>
+                        </div>
+                        <Form.Text className="text-muted small">
+                          Используется для центрального onboarding-бота. После сохранения бот перезапускается автоматически.
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Row className="g-3 mb-4">
+                        <Col md={6}>
+                          <Form.Group className="mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Название бота
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom"
+                              value={billingSettings.superadmin_bot_name || ''}
+                              readOnly
+                              placeholder="Появится после сохранения/проверки токена"
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={6}>
+                          <Form.Group className="mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Никнейм бота
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom"
+                              value={billingSettings.superadmin_bot_username || ''}
+                              readOnly
+                              placeholder="@username"
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+
+                      <Form.Group className="mb-4">
+                        <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                          Telegram ID владельца суперадминки
+                        </Form.Label>
+                        <div className="sa-inline-action-field">
+                          <Form.Control
+                            type="text"
+                            className="form-control-custom sa-inline-action-input"
+                            placeholder="например: 123456789"
+                            value={billingSettings.superadmin_telegram_id || ''}
+                            onChange={e => setBillingSettings({ ...billingSettings, superadmin_telegram_id: e.target.value })}
+                          />
+                          <Button
+                            type="button"
+                            variant="light"
+                            className="action-btn sa-inline-action-btn"
+                            onClick={testCentralBot}
+                            disabled={isTestingCentralBot || !billingSettings.superadmin_bot_token || !billingSettings.superadmin_telegram_id}
+                            title={language === 'uz' ? 'Telegram ID ni tekshirish' : 'Проверить Telegram ID'}
+                          >
+                            {isTestingCentralBot ? (
+                              <Spinner animation="border" size="sm" />
+                            ) : (
+                              <Send className="action-btn-icon" aria-hidden="true" />
+                            )}
+                          </Button>
+                        </div>
+                        <Form.Text className="text-muted small">
+                          На этот ID отправляется подтверждение при смене токена центрального бота.
+                        </Form.Text>
+                        <div className="text-muted small mt-2">
+                          Отправит тестовый текст "Бот работает" на указанный Telegram ID.
+                        </div>
+                      </Form.Group>
+
+                      <Form.Group className="mb-4">
+                        <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                          server group chat id
+                        </Form.Label>
+                        <div className="sa-inline-action-field">
+                          <Form.Control
+                            type="text"
+                            className="form-control-custom sa-inline-action-input"
+                            placeholder="например: -1001234567890"
+                            value={billingSettings.server_group_chat_id || ''}
+                            onChange={e => setBillingSettings({ ...billingSettings, server_group_chat_id: e.target.value })}
+                          />
+                          <Button
+                            type="button"
+                            variant="light"
+                            className="action-btn sa-inline-action-btn sa-inline-send-report-btn"
+                            onClick={sendServerReportFromSettings}
+                            disabled={isSendingServerReport || !billingSettings.superadmin_bot_token || !billingSettings.server_group_chat_id}
+                            title={language === 'uz' ? "Server hisobotini yuborish" : 'Отправить отчёт сервера'}
+                          >
+                            {isSendingServerReport ? (
+                              <Spinner animation="border" size="sm" />
+                            ) : (
+                              <Send className="action-btn-icon" aria-hidden="true" />
+                            )}
+                          </Button>
+                        </div>
+                        <Form.Text className="text-muted small">
+                          Если заполнено, периодическая статистика и server alerts будут отправляться в этот Telegram group chat.
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Form.Group className="mb-0">
+                        <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                          {language === 'uz' ? "Server hisoboti intervali" : 'Интервал отправки отчёта'}
+                        </Form.Label>
+                        <Form.Select
+                          className="form-control-custom"
+                          value={normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000)}
+                          onChange={(e) => setBillingSettings({
+                            ...billingSettings,
+                            server_stats_interval_ms: normalizeServerStatsIntervalMs(e.target.value, 30 * 60 * 1000)
+                          })}
+                        >
+                          {SERVER_STATS_INTERVAL_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Form.Select>
+                        <Form.Text className="text-muted small">
+                          {language === 'uz'
+                            ? "Yuborish oralig'ini tanlang va sozlamalarni saqlang."
+                            : 'Выберите период и сохраните настройки, чтобы запустить автоотправку.'}
+                        </Form.Text>
+                      </Form.Group>
+                    </Card.Body>
+                  </Card>
+                </Form>
+              </Tab>
+
+              <Tab eventKey="themes" title={renderSuperAdminSidebarTabTitle('themes')}>
+                <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{language === 'uz' ? 'Mavzular' : 'Темы'}</h5>
+                    <Button type="submit" className="btn-primary-custom px-4">
+                      <span className="d-none d-sm-inline">{t('saveSettings')}</span>
+                      <span className="d-sm-none">Сохранить</span>
+                    </Button>
+                  </div>
+                  <Card className="admin-card admin-section-panel mb-0">
+                    <Card.Body className="p-4">
+                      <div className="fw-bold">Сезонная анимация каталога для клиентов</div>
+                      <div className="small text-muted mt-1 mb-3">
+                        Можно включить только один сезон. Если выключить активный переключатель, останется режим "Все выключено".
+                      </div>
+                      <Row className="g-2">
+                        {CATALOG_ANIMATION_SEASON_OPTIONS.map((option) => (
+                          <Col xs={12} md={6} key={option.value}>
+                            <Form.Check
+                              type="switch"
+                              id={`catalog-animation-season-settings-${option.value}`}
+                              className="fw-semibold"
+                              label={option.label}
+                              checked={billingSettings.catalog_animation_season === option.value}
+                              onChange={(e) => {
+                                const isChecked = !!e.target.checked;
+                                setBillingSettings((prev) => ({
+                                  ...prev,
+                                  catalog_animation_season: isChecked ? option.value : 'off'
+                                }));
+                              }}
+                            />
+                          </Col>
+                        ))}
+                      </Row>
+                      <div className="small text-muted mt-3">
+                        Текущий режим: <strong>{billingSettings.catalog_animation_season === 'off'
+                          ? 'Все выключено'
+                          : (CATALOG_ANIMATION_SEASON_OPTIONS.find((item) => item.value === billingSettings.catalog_animation_season)?.label || 'Все выключено')}</strong>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </Form>
+              </Tab>
+
+              <Tab eventKey="qr_settings" title={renderSuperAdminSidebarTabTitle('qr_settings')}>
+                <Form onSubmit={(e) => { e.preventDefault(); saveBillingSettings(); }}>
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{language === 'uz' ? 'QR sozlamalari' : 'Настройки QR-кода'}</h5>
+                    <Button type="submit" className="btn-primary-custom px-4">
+                      <span className="d-none d-sm-inline">{t('saveSettings')}</span>
+                      <span className="d-sm-none">Сохранить</span>
+                    </Button>
+                  </div>
+                  <Card className="admin-card admin-section-panel mb-0">
+                    <Card.Body className="p-4">
+                      <Form.Group className="mb-3">
+                        <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                          Настройки печатных форм (A5)
+                        </Form.Label>
+                        <input
+                          ref={printFormBackgroundInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="d-none"
+                          onChange={(e) => handlePrintFormBackgroundUpload(e.target.files?.[0])}
+                          disabled={uploadingPrintFormBackground}
+                        />
+                        <div className={`print-form-bg-slot${billingSettings.print_form_background_url ? ' is-filled' : ''}`}>
+                          {billingSettings.print_form_background_url ? (
+                            <img
+                              src={resolveAdPreviewImageUrl(billingSettings.print_form_background_url)}
+                              alt={language === 'uz' ? 'Fon oldindan ko‘rish' : 'Превью фона'}
+                              className="print-form-bg-image"
+                            />
+                          ) : (
+                            <div className="print-form-bg-empty">
+                              {language === 'uz' ? 'Fon tanlanmagan' : 'Фон не выбран'}
+                            </div>
+                          )}
+                          <div className="print-form-bg-overlay">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="print-form-bg-pick-btn"
+                              onClick={() => printFormBackgroundInputRef.current?.click()}
+                              disabled={uploadingPrintFormBackground}
+                            >
+                              {uploadingPrintFormBackground
+                                ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                                : (language === 'uz' ? 'Tanlash' : 'Выбор')}
+                            </Button>
+                            {billingSettings.print_form_background_url && (
+                              <Button
+                                type="button"
+                                className="action-btn print-form-bg-remove-btn"
+                                onClick={handleClearPrintFormBackground}
+                                disabled={uploadingPrintFormBackground}
+                                title={language === 'uz' ? "Fonni o'chirish" : 'Удалить фон'}
+                              >
+                                <X className="print-form-bg-remove-icon" aria-hidden="true" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        {uploadingPrintFormBackground && (
+                          <div className="small text-muted mt-2">Загрузка фона...</div>
+                        )}
+                        <Form.Text className="text-muted small">
+                          Этот фон станет глобальным шаблоном для генерации QR/PDF у всех новых регистраций.
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Row className="g-3 mb-3">
+                        <Col md={6}>
+                          <Form.Group className="mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Позиция QR
+                            </Form.Label>
+                            <Form.Select
+                              className="form-control-custom"
+                              value={billingSettings.print_form_qr_position || 'center'}
+                              onChange={(e) => setBillingSettings({
+                                ...billingSettings,
+                                print_form_qr_position: e.target.value
+                              })}
+                            >
+                              <option value="center">По центру</option>
+                              <option value="lower">Нижняя часть</option>
+                            </Form.Select>
+                          </Form.Group>
+                        </Col>
+                      </Row>
+
+                      <Row className="g-3 mb-0">
+                        <Col md={6}>
+                          <Form.Group className="mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Подпись RU
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom"
+                              value={billingSettings.print_form_caption_ru || ''}
+                              onChange={(e) => setBillingSettings({
+                                ...billingSettings,
+                                print_form_caption_ru: e.target.value
+                              })}
+                              placeholder="Сканируй и заказывай"
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col md={6}>
+                          <Form.Group className="mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              Подпись UZ
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom"
+                              value={billingSettings.print_form_caption_uz || ''}
+                              onChange={(e) => setBillingSettings({
+                                ...billingSettings,
+                                print_form_caption_uz: e.target.value
+                              })}
+                              placeholder="Skanerlang va buyurtma bering"
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+                    </Card.Body>
+                  </Card>
                 </Form>
               </Tab>
 
