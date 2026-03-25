@@ -5781,13 +5781,6 @@ body::-webkit-scrollbar,
     object-fit: cover;
 }
 
-.sa-shop-currency-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 4px;
-}
-
 .sa-restaurant-copy-btn {
     border: none;
     background: transparent;

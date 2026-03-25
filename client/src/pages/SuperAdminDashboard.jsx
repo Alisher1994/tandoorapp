@@ -8228,9 +8228,9 @@ function SuperAdminDashboard() {
     const lat = toValidCoordinate(restaurant?.latitude, -90, 90);
     const lon = toValidCoordinate(restaurant?.longitude, -180, 180);
     if (lat === null || lon === null) return '';
-    const size = '320x140';
-    const marker = `${lat.toFixed(6)},${lon.toFixed(6)},red-pushpin`;
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat.toFixed(6)},${lon.toFixed(6)}&zoom=14&size=${size}&markers=${marker}`;
+    const lonText = lon.toFixed(6);
+    const latText = lat.toFixed(6);
+    return `https://static-maps.yandex.ru/1.x/?lang=ru_RU&ll=${lonText},${latText}&z=15&l=map&size=320,140&pt=${lonText},${latText},pm2rdm`;
   };
 
   const appendHiddenOpsConsoleLine = (line) => {
@@ -12837,11 +12837,22 @@ function SuperAdminDashboard() {
                                             <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Lokatsiya' : 'Локация'}</div>
                                             <div className="sa-restaurant-map-preview">
                                               {locationPreviewMapUrl ? (
-                                                <img
-                                                  src={locationPreviewMapUrl}
-                                                  alt={language === 'uz' ? "Do'kon xaritasi" : 'Карта магазина'}
-                                                  loading="lazy"
-                                                />
+                                                <>
+                                                  <img
+                                                    src={locationPreviewMapUrl}
+                                                    alt={language === 'uz' ? "Do'kon xaritasi" : 'Карта магазина'}
+                                                    loading="lazy"
+                                                    onError={(event) => {
+                                                      event.currentTarget.style.display = 'none';
+                                                      const fallback = event.currentTarget.parentElement?.querySelector('.sa-restaurant-map-placeholder');
+                                                      if (fallback) fallback.style.display = 'flex';
+                                                    }}
+                                                  />
+                                                  <div className="sa-restaurant-map-placeholder" style={{ display: 'none' }}>
+                                                    <i className="bi bi-geo-alt" aria-hidden="true" />
+                                                    <span>{language === 'uz' ? "Xaritani yuklab bo'lmadi" : 'Карта не загрузилась'}</span>
+                                                  </div>
+                                                </>
                                               ) : (
                                                 <div className="sa-restaurant-map-placeholder">
                                                   <i className="bi bi-geo-alt" aria-hidden="true" />
@@ -12859,18 +12870,7 @@ function SuperAdminDashboard() {
                                                   {t('saServiceFee') || 'Сбор'}
                                                 </span>
                                                 <span className="sa-restaurant-pricing-line-value">
-                                                  {formatBalanceAmount(r.service_fee || 0)}
-                                                  <span className="sa-shop-currency-inline">
-                                                    {currencyFlagUrl ? (
-                                                      <img
-                                                        src={currencyFlagUrl}
-                                                        alt={String(r.currency_code || '').toUpperCase() || 'CUR'}
-                                                        className="sa-shop-currency-flag"
-                                                        loading="lazy"
-                                                      />
-                                                    ) : null}
-                                                    <span>{currencyLabel}</span>
-                                                  </span>
+                                                  {formatBalanceAmount(r.service_fee || 0)} {currencyLabel}
                                                 </span>
                                               </div>
                                               <div className="sa-restaurant-pricing-line">
@@ -12879,18 +12879,7 @@ function SuperAdminDashboard() {
                                                   {language === 'uz' ? 'Bronlash' : 'Бронирование'}
                                                 </span>
                                                 <span className="sa-restaurant-pricing-line-value">
-                                                  {formatBalanceAmount(r.reservation_service_cost || r.reservation_cost || 0)}
-                                                  <span className="sa-shop-currency-inline">
-                                                    {currencyFlagUrl ? (
-                                                      <img
-                                                        src={currencyFlagUrl}
-                                                        alt={String(r.currency_code || '').toUpperCase() || 'CUR'}
-                                                        className="sa-shop-currency-flag"
-                                                        loading="lazy"
-                                                      />
-                                                    ) : null}
-                                                    <span>{currencyLabel}</span>
-                                                  </span>
+                                                  {formatBalanceAmount(r.reservation_service_cost || r.reservation_cost || 0)} {currencyLabel}
                                                 </span>
                                               </div>
                                               <div className="sa-restaurant-pricing-line">
