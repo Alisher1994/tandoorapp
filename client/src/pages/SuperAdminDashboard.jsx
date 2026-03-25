@@ -40,6 +40,7 @@ import {
   Puzzle,
   Receipt,
   Send,
+  Settings,
   Shield,
   Store,
   Trash2,
@@ -89,6 +90,32 @@ const SERVER_STATS_INTERVAL_OPTIONS = [
   { value: 24 * 60 * 60 * 1000, label: '1 день' }
 ];
 const SERVER_STATS_INTERVAL_SET = new Set(SERVER_STATS_INTERVAL_OPTIONS.map((item) => item.value));
+const SUPERADMIN_SETTINGS_TARGET_TABS = new Set([
+  'categories',
+  'broadcast',
+  'billing',
+  'ai_settings',
+  'help_instructions',
+  'logs',
+  'security'
+]);
+const SUPERADMIN_SIDEBAR_NAV_ORDER = [
+  'analytics',
+  'restaurants',
+  'global_products',
+  'activity_types',
+  'reservation_templates',
+  'operators',
+  'customers',
+  'ads',
+  'billing_transactions',
+  'founders',
+  'settings'
+];
+const resolveSettingsNavTargetTab = (key) => {
+  if (key === 'bot_settings') return 'billing';
+  return SUPERADMIN_SETTINGS_TARGET_TABS.has(key) ? key : 'categories';
+};
 const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
@@ -1775,6 +1802,7 @@ function SuperAdminDashboard() {
   const [restaurantIssueCountMap, setRestaurantIssueCountMap] = useState({});
   const [restaurantWorkflowUpdatingId, setRestaurantWorkflowUpdatingId] = useState(null);
   const [expandedRestaurantRows, setExpandedRestaurantRows] = useState({});
+  const [activeSettingsNavKey, setActiveSettingsNavKey] = useState('categories');
 
   // Billing settings
   const [billingSettings, setBillingSettings] = useState({
@@ -10335,8 +10363,14 @@ function SuperAdminDashboard() {
   const handleSidebarTabSelect = (key) => {
     if (!key) return;
     const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
-    if (isDesktopSidebar && key === activeTab) {
+    if (isDesktopSidebar && key === sidebarActiveKey) {
       setIsSidebarCollapsed((prev) => !prev);
+      return;
+    }
+    if (key === 'settings') {
+      const resolvedTab = resolveSettingsNavTargetTab(activeSettingsNavKey);
+      setActiveTab(resolvedTab);
+      setIsMobileSidebarOpen(false);
       return;
     }
     if (key === 'founders' && (!foundersAccessGranted || !foundersAccessPassword)) {
@@ -10347,6 +10381,22 @@ function SuperAdminDashboard() {
       return;
     }
     setActiveTab(key);
+    setIsMobileSidebarOpen(false);
+  };
+
+  useEffect(() => {
+    if (!SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab)) return;
+    if (activeTab === 'billing') {
+      setActiveSettingsNavKey((prev) => (prev === 'bot_settings' || prev === 'billing' ? prev : 'billing'));
+      return;
+    }
+    setActiveSettingsNavKey(activeTab);
+  }, [activeTab]);
+
+  const handleSettingsNavSelect = (key) => {
+    const resolvedTab = resolveSettingsNavTargetTab(key);
+    setActiveSettingsNavKey(key);
+    setActiveTab(resolvedTab);
     setIsMobileSidebarOpen(false);
   };
 
@@ -10612,8 +10662,25 @@ function SuperAdminDashboard() {
     billing: { label: t('billingSettings'), icon: Wallet },
     ai_settings: { label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки', icon: Bot },
     security: { label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность', icon: Shield },
-    logs: { label: t('logs'), icon: FileText }
+    logs: { label: t('logs'), icon: FileText },
+    settings: { label: language === 'uz' ? 'Sozlamalar' : 'Настройки', icon: Settings }
   }), [adI18n.tab, language, t]);
+  const settingsSidebarNavItems = useMemo(() => ([
+    { key: 'categories', label: t('categories') },
+    { key: 'broadcast', label: language === 'uz' ? 'Xabar tarqatish' : 'Рассылка' },
+    { key: 'billing', label: t('billingSettings') },
+    { key: 'ai_settings', label: language === 'uz' ? 'AI sozlamalar' : 'AI настройки' },
+    { key: 'help_instructions', label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции' },
+    { key: 'bot_settings', label: language === 'uz' ? 'Bot sozlamalari' : 'Настройки бота' },
+    { key: 'logs', label: t('logs') },
+    { key: 'security', label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность' }
+  ]), [language, t]);
+  const sidebarVisibleTabKeys = useMemo(
+    () => SUPERADMIN_SIDEBAR_NAV_ORDER.filter((key) => Boolean(superAdminSidebarTabsMeta[key])),
+    [superAdminSidebarTabsMeta]
+  );
+  const sidebarActiveKey = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab) ? 'settings' : activeTab;
+  const isSettingsSectionActive = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab);
   const renderSuperAdminSidebarTabTitle = (key) => {
     const meta = superAdminSidebarTabsMeta[key] || { label: key, icon: FileText };
     const Icon = meta.icon;
@@ -10625,7 +10692,7 @@ function SuperAdminDashboard() {
     );
   };
   const renderSuperAdminSidebarNavItems = () => (
-    Object.keys(superAdminSidebarTabsMeta).map((key) => (
+    sidebarVisibleTabKeys.map((key) => (
       <Nav.Item key={`superadmin-sidebar-${key}`}>
         <Nav.Link eventKey={key}>
           {renderSuperAdminSidebarTabTitle(key)}
@@ -12045,7 +12112,7 @@ function SuperAdminDashboard() {
         <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
           <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
             <Nav
-              activeKey={activeTab}
+              activeKey={sidebarActiveKey}
               onSelect={handleSidebarTabSelect}
               className={`admin-tabs admin-tabs-sidebar mb-0${isSidebarCollapsed ? ' is-collapsed' : ''}`}
             >
@@ -12056,6 +12123,30 @@ function SuperAdminDashboard() {
           <Card className="admin-card admin-workspace-main border-0 shadow-sm">
             <Card.Body className="p-4">
               <div className="admin-tab-content-shell">
+              {isSettingsSectionActive && (
+                <div className="sa-settings-tabs-shell">
+                  <div className="sa-settings-tabs-head">
+                    {language === 'uz' ? 'Sozlamalar bo‘limi' : 'Раздел настроек'}
+                  </div>
+                  <div className="sa-settings-tabs-row" role="tablist" aria-label={language === 'uz' ? "Sozlamalar bo'limlari" : 'Вкладки раздела Настройки'}>
+                    {settingsSidebarNavItems.map((item) => {
+                      const targetTab = resolveSettingsNavTargetTab(item.key);
+                      const isActive = activeSettingsNavKey === item.key
+                        || (activeTab === targetTab && item.key !== 'bot_settings' && activeSettingsNavKey !== 'bot_settings');
+                      return (
+                        <button
+                          key={`settings-nav-${item.key}`}
+                          type="button"
+                          className={`sa-settings-tab-btn${isActive ? ' is-active' : ''}`}
+                          onClick={() => handleSettingsNavSelect(item.key)}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <Tabs
                 activeKey={activeTab}
                 onSelect={handleSidebarTabSelect}
@@ -16205,77 +16296,63 @@ function SuperAdminDashboard() {
                             <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
                               server group chat id
                             </Form.Label>
-                            <Form.Control
-                              type="text"
-                              className="form-control-custom"
-                              placeholder="например: -1001234567890"
-                              value={billingSettings.server_group_chat_id || ''}
-                              onChange={e => setBillingSettings({ ...billingSettings, server_group_chat_id: e.target.value })}
-                            />
+                            <div className="sa-inline-action-field">
+                              <Form.Control
+                                type="text"
+                                className="form-control-custom sa-inline-action-input"
+                                placeholder="например: -1001234567890"
+                                value={billingSettings.server_group_chat_id || ''}
+                                onChange={e => setBillingSettings({ ...billingSettings, server_group_chat_id: e.target.value })}
+                              />
+                              <Button
+                                type="button"
+                                variant="light"
+                                className="action-btn sa-inline-action-btn sa-inline-send-report-btn"
+                                onClick={sendServerReportFromSettings}
+                                disabled={isSendingServerReport || !billingSettings.superadmin_bot_token || !billingSettings.server_group_chat_id}
+                                title={language === 'uz' ? "Server hisobotini yuborish" : 'Отправить отчёт сервера'}
+                              >
+                                {isSendingServerReport ? (
+                                  <Spinner animation="border" size="sm" />
+                                ) : (
+                                  <Send className="action-btn-icon" aria-hidden="true" />
+                                )}
+                              </Button>
+                            </div>
                             <Form.Text className="text-muted small">
                               Если заполнено, периодическая статистика и server alerts будут отправляться в этот Telegram group chat.
                             </Form.Text>
+                            <div className="text-muted small mt-2">
+                              {language === 'uz'
+                                ? "Qog'ozcha ikonkasini bossangiz, hisobot darhol shu chatga yuboriladi."
+                                : 'Иконка отправки внутри поля отправляет отчёт сразу в этот чат.'}
+                            </div>
                           </Form.Group>
 
-                          <Row className="g-3 mb-4">
-                            <Col md={7}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  {language === 'uz' ? "Server hisoboti intervali" : 'Интервал отправки отчёта'}
-                                </Form.Label>
-                                <Form.Select
-                                  className="form-control-custom"
-                                  value={normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000)}
-                                  onChange={(e) => setBillingSettings({
-                                    ...billingSettings,
-                                    server_stats_interval_ms: normalizeServerStatsIntervalMs(e.target.value, 30 * 60 * 1000)
-                                  })}
-                                >
-                                  {SERVER_STATS_INTERVAL_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </Form.Select>
-                                <Form.Text className="text-muted small">
-                                  {language === 'uz'
-                                    ? "Yuborish oralig'ini tanlang va sozlamalarni saqlang."
-                                    : 'Выберите период и сохраните настройки, чтобы запустить автоотправку.'}
-                                </Form.Text>
-                              </Form.Group>
-                            </Col>
-                            <Col md={5}>
-                              <Form.Group className="mb-0">
-                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
-                                  {language === 'uz' ? "Qo'lda yuborish" : 'Ручная отправка'}
-                                </Form.Label>
-                                <Button
-                                  type="button"
-                                  variant="primary"
-                                  className="w-100 d-inline-flex align-items-center justify-content-center gap-2"
-                                  onClick={sendServerReportFromSettings}
-                                  disabled={isSendingServerReport || !billingSettings.superadmin_bot_token || !billingSettings.server_group_chat_id}
-                                >
-                                  {isSendingServerReport ? (
-                                    <>
-                                      <Spinner animation="border" size="sm" />
-                                      <span>{language === 'uz' ? 'Yuborilmoqda...' : 'Отправка...'}</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Send size={14} />
-                                      <span>{language === 'uz' ? 'Hisobot yuborish' : 'Отправить отчёт'}</span>
-                                    </>
-                                  )}
-                                </Button>
-                                <Form.Text className="text-muted small">
-                                  {language === 'uz'
-                                    ? "Darhol guruhga server holati hisobotini yuboradi."
-                                    : 'Сразу отправляет в группу текущую статистику сервера.'}
-                                </Form.Text>
-                              </Form.Group>
-                            </Col>
-                          </Row>
+                          <Form.Group className="mb-4">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              {language === 'uz' ? "Server hisoboti intervali" : 'Интервал отправки отчёта'}
+                            </Form.Label>
+                            <Form.Select
+                              className="form-control-custom"
+                              value={normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000)}
+                              onChange={(e) => setBillingSettings({
+                                ...billingSettings,
+                                server_stats_interval_ms: normalizeServerStatsIntervalMs(e.target.value, 30 * 60 * 1000)
+                              })}
+                            >
+                              {SERVER_STATS_INTERVAL_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </Form.Select>
+                            <Form.Text className="text-muted small">
+                              {language === 'uz'
+                                ? "Yuborish oralig'ini tanlang va sozlamalarni saqlang."
+                                : 'Выберите период и сохраните настройки, чтобы запустить автоотправку.'}
+                            </Form.Text>
+                          </Form.Group>
 
                           <hr className="my-4" />
 
@@ -17033,7 +17110,7 @@ function SuperAdminDashboard() {
           </Modal.Header>
           <Modal.Body className="admin-sidebar-mobile-modal-body">
             <Nav
-              activeKey={activeTab}
+              activeKey={sidebarActiveKey}
               onSelect={handleSidebarTabSelect}
               className="admin-tabs admin-tabs-sidebar admin-sidebar-mobile-nav"
             >
