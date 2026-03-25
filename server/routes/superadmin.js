@@ -281,6 +281,55 @@ const normalizeTelegramIdValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   return normalized || null;
 };
+const normalizePreservedText = (incomingValue, previousValue, { digitsOnly = false } = {}) => {
+  const previousRaw = previousValue === undefined || previousValue === null ? '' : String(previousValue);
+  const previousNormalized = digitsOnly ? previousRaw.replace(/\D/g, '') : previousRaw.trim();
+
+  if (incomingValue === undefined || incomingValue === null) {
+    return previousNormalized;
+  }
+
+  const incomingRaw = String(incomingValue);
+  const incomingNormalized = digitsOnly ? incomingRaw.replace(/\D/g, '') : incomingRaw.trim();
+  if (!incomingNormalized) {
+    return previousNormalized;
+  }
+  return incomingNormalized;
+};
+const normalizePreservedNumber = (incomingValue, previousValue, defaultValue) => {
+  const incomingParsed = Number(incomingValue);
+  if (Number.isFinite(incomingParsed) && incomingParsed > 0) {
+    return incomingParsed;
+  }
+
+  const previousParsed = Number(previousValue);
+  if (Number.isFinite(previousParsed) && previousParsed > 0) {
+    return previousParsed;
+  }
+
+  return defaultValue;
+};
+const appendBillingSettingsHistory = async ({ before = null, after = null, userId = null, source = 'api' } = {}) => {
+  try {
+    await pool.query(`
+      INSERT INTO billing_settings_history (
+        billing_settings_id,
+        changed_by_user_id,
+        source,
+        before_data,
+        after_data
+      ) VALUES ($1, $2, $3, $4, $5)
+    `, [
+      Number(after?.id || before?.id || 1),
+      Number.isFinite(Number(userId)) ? Number(userId) : null,
+      String(source || 'api').slice(0, 64),
+      before || null,
+      after || null
+    ]);
+  } catch (error) {
+    console.warn('Append billing settings history warning:', error?.message || error);
+  }
+};
 const resolveServerReportLanguage = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'uz' ? 'uz' : 'ru';
@@ -602,6 +651,21 @@ const ensureBillingSettingsSchema = async () => {
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_stats_interval_ms INTEGER DEFAULT 1800000`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN server_stats_interval_ms SET DEFAULT 1800000`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_railway_projects TEXT`).catch(() => {});
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_settings_history (
+        id BIGSERIAL PRIMARY KEY,
+        billing_settings_id INTEGER NOT NULL,
+        changed_by_user_id INTEGER,
+        source VARCHAR(64) DEFAULT 'api',
+        before_data JSONB,
+        after_data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_billing_settings_history_created_at
+      ON billing_settings_history(created_at DESC)
+    `).catch(() => {});
     await pool.query(`
       UPDATE billing_settings
       SET catalog_animation_season = 'off'
@@ -4172,15 +4236,30 @@ router.put('/billing-settings', async (req, res) => {
       print_form_caption_ru,
       print_form_caption_uz
     });
-    const previousSettings = await pool.query(
-      'SELECT superadmin_bot_token, superadmin_telegram_id, server_group_chat_id FROM billing_settings WHERE id = 1'
-    );
-    const previousToken = normalizeTokenValue(previousSettings.rows[0]?.superadmin_bot_token);
-    const previousSuperadminTelegramId = normalizeTelegramIdValue(previousSettings.rows[0]?.superadmin_telegram_id);
-    const previousServerGroupChatId = normalizeTelegramIdValue(previousSettings.rows[0]?.server_group_chat_id);
+    const previousSettings = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
+    const previousSettingsRow = previousSettings.rows[0] || {};
+    const previousToken = normalizeTokenValue(previousSettingsRow.superadmin_bot_token);
+    const previousSuperadminTelegramId = normalizeTelegramIdValue(previousSettingsRow.superadmin_telegram_id);
+    const previousServerGroupChatId = normalizeTelegramIdValue(previousSettingsRow.server_group_chat_id);
     const normalizedToken = normalizedTokenInput ?? previousToken;
     const normalizedSuperadminTelegramId = normalizedSuperadminTelegramIdInput ?? previousSuperadminTelegramId;
     const normalizedServerGroupChatId = normalizedServerGroupChatIdInput ?? previousServerGroupChatId;
+    const normalizedCardNumber = normalizePreservedText(card_number, previousSettingsRow.card_number, { digitsOnly: true });
+    const normalizedCardHolder = normalizePreservedText(card_holder, previousSettingsRow.card_holder);
+    const normalizedPhoneNumber = normalizePreservedText(phone_number, previousSettingsRow.phone_number);
+    const normalizedTelegramUsername = normalizePreservedText(telegram_username, previousSettingsRow.telegram_username);
+    const normalizedClickLink = normalizePreservedText(click_link, previousSettingsRow.click_link);
+    const normalizedPaymeLink = normalizePreservedText(payme_link, previousSettingsRow.payme_link);
+    const normalizedDefaultStartingBalance = normalizePreservedNumber(
+      default_starting_balance,
+      previousSettingsRow.default_starting_balance,
+      100000
+    );
+    const normalizedDefaultOrderCost = normalizePreservedNumber(
+      parseFlexibleAmount(default_order_cost, Number.NaN),
+      previousSettingsRow.default_order_cost,
+      1000
+    );
 
     const result = await pool.query(`
       UPDATE billing_settings 
@@ -4202,10 +4281,14 @@ router.put('/billing-settings', async (req, res) => {
       WHERE id = 1
       RETURNING *
     `, [
-      card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link,
-      parseFloat(default_starting_balance) || 100000,
-      parseFlexibleAmount(default_order_cost, 1000),
+      normalizedCardNumber,
+      normalizedCardHolder,
+      normalizedPhoneNumber,
+      normalizedTelegramUsername,
+      normalizedClickLink,
+      normalizedPaymeLink,
+      normalizedDefaultStartingBalance,
+      normalizedDefaultOrderCost,
       normalizedToken,
       normalizedSuperadminTelegramId,
       normalizedServerGroupChatId,
@@ -4218,6 +4301,12 @@ router.put('/billing-settings', async (req, res) => {
       normalizedPrintFormSettings.print_form_caption_ru,
       normalizedPrintFormSettings.print_form_caption_uz
     ]);
+    await appendBillingSettingsHistory({
+      before: previousSettingsRow,
+      after: result.rows[0] || null,
+      userId: req.user?.id,
+      source: '/billing-settings'
+    });
 
     try {
       await reloadBot();
@@ -10838,15 +10927,30 @@ router.put('/billing/settings', async (req, res) => {
       print_form_caption_ru,
       print_form_caption_uz
     });
-    const previousSettings = await pool.query(
-      'SELECT superadmin_bot_token, superadmin_telegram_id, server_group_chat_id FROM billing_settings WHERE id = 1'
-    );
-    const previousToken = normalizeTokenValue(previousSettings.rows[0]?.superadmin_bot_token);
-    const previousSuperadminTelegramId = normalizeTelegramIdValue(previousSettings.rows[0]?.superadmin_telegram_id);
-    const previousServerGroupChatId = normalizeTelegramIdValue(previousSettings.rows[0]?.server_group_chat_id);
+    const previousSettings = await pool.query('SELECT * FROM billing_settings WHERE id = 1');
+    const previousSettingsRow = previousSettings.rows[0] || {};
+    const previousToken = normalizeTokenValue(previousSettingsRow.superadmin_bot_token);
+    const previousSuperadminTelegramId = normalizeTelegramIdValue(previousSettingsRow.superadmin_telegram_id);
+    const previousServerGroupChatId = normalizeTelegramIdValue(previousSettingsRow.server_group_chat_id);
     const normalizedToken = normalizedTokenInput ?? previousToken;
     const normalizedSuperadminTelegramId = normalizedSuperadminTelegramIdInput ?? previousSuperadminTelegramId;
     const normalizedServerGroupChatId = normalizedServerGroupChatIdInput ?? previousServerGroupChatId;
+    const normalizedCardNumber = normalizePreservedText(card_number, previousSettingsRow.card_number, { digitsOnly: true });
+    const normalizedCardHolder = normalizePreservedText(card_holder, previousSettingsRow.card_holder);
+    const normalizedPhoneNumber = normalizePreservedText(phone_number, previousSettingsRow.phone_number);
+    const normalizedTelegramUsername = normalizePreservedText(telegram_username, previousSettingsRow.telegram_username);
+    const normalizedClickLink = normalizePreservedText(click_link, previousSettingsRow.click_link);
+    const normalizedPaymeLink = normalizePreservedText(payme_link, previousSettingsRow.payme_link);
+    const normalizedDefaultStartingBalance = normalizePreservedNumber(
+      default_starting_balance,
+      previousSettingsRow.default_starting_balance,
+      100000
+    );
+    const normalizedDefaultOrderCost = normalizePreservedNumber(
+      parseFlexibleAmount(default_order_cost, Number.NaN),
+      previousSettingsRow.default_order_cost,
+      1000
+    );
 
     const result = await pool.query(`
       UPDATE billing_settings
@@ -10868,14 +10972,26 @@ router.put('/billing/settings', async (req, res) => {
       WHERE id = 1
       RETURNING *
     `, [
-      card_number, card_holder, phone_number, telegram_username,
-      click_link, payme_link, parseFloat(default_starting_balance) || 100000, parseFlexibleAmount(default_order_cost, 1000),
+      normalizedCardNumber,
+      normalizedCardHolder,
+      normalizedPhoneNumber,
+      normalizedTelegramUsername,
+      normalizedClickLink,
+      normalizedPaymeLink,
+      normalizedDefaultStartingBalance,
+      normalizedDefaultOrderCost,
       normalizedToken, normalizedSuperadminTelegramId, normalizedServerGroupChatId, normalizedServerStatsIntervalMs, normalizedServerRailwayProjects, normalizedCatalogAnimationSeason, normalizedAiEnabled,
       normalizedPrintFormSettings.print_form_background_url,
       normalizedPrintFormSettings.print_form_qr_position,
       normalizedPrintFormSettings.print_form_caption_ru,
       normalizedPrintFormSettings.print_form_caption_uz
     ]);
+    await appendBillingSettingsHistory({
+      before: previousSettingsRow,
+      after: result.rows[0] || null,
+      userId: req.user?.id,
+      source: '/billing/settings'
+    });
 
     try {
       await reloadBot();
