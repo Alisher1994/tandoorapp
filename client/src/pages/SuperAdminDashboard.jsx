@@ -14527,7 +14527,19 @@ function SuperAdminDashboard() {
                                   <div className="fw-bold">{c.full_name || c.username}</div>
                                   <div className="text-muted small">@{c.username?.replace(/^@/, '') || 'n/a'}</div>
                                 </td>
-                                <td><small>{c.phone || '-'}</small></td>
+                                <td>
+                                  {(() => {
+                                    const phoneValue = String(c.phone || '').trim();
+                                    const telegramHref = getTelegramPhoneHref(phoneValue);
+                                    if (!phoneValue) return <small>-</small>;
+                                    if (!telegramHref) return <small>{phoneValue}</small>;
+                                    return (
+                                      <a href={telegramHref} target="_blank" rel="noopener noreferrer">
+                                        <small>{phoneValue}</small>
+                                      </a>
+                                    );
+                                  })()}
+                                </td>
                                 <td>{c.telegram_id ? <Badge className="badge-custom bg-info bg-opacity-10 text-info">{c.telegram_id}</Badge> : '-'}</td>
                                 <td>
                                   <Badge className="badge-custom sa-store-badge">
