@@ -111,7 +111,6 @@ const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'operators',
   'customers',
   'ads',
-  'billing_transactions',
   'founders',
   'settings'
 ];
@@ -1462,7 +1461,6 @@ function SuperAdminDashboard() {
     'customers',
     'categories',
     'ads',
-    'billing_transactions',
     'founders',
     'billing',
     'ai_settings',
@@ -1745,6 +1743,8 @@ function SuperAdminDashboard() {
   const [foundersChartsCurrency, setFoundersChartsCurrency] = useState('');
   const [foundersExpandedModulesMap, setFoundersExpandedModulesMap] = useState({});
   const [foundersInnerTab, setFoundersInnerTab] = useState('analytics');
+  const isBillingTransactionsViewActive = activeTab === 'billing_transactions'
+    || (activeTab === 'founders' && foundersInnerTab === 'billing_transactions');
   const [organizationExpenseCategories, setOrganizationExpenseCategories] = useState([]);
   const [organizationExpenseCategoriesLoading, setOrganizationExpenseCategoriesLoading] = useState(false);
   const [organizationExpensesData, setOrganizationExpensesData] = useState({
@@ -2226,7 +2226,7 @@ function SuperAdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (['restaurants', 'operators', 'customers', 'billing_transactions', 'ads'].includes(activeTab)) {
+    if (['restaurants', 'operators', 'customers', 'ads'].includes(activeTab) || isBillingTransactionsViewActive) {
       loadInternalRestaurants({ preferCache: true });
     }
     if (activeTab === 'security') {
@@ -2243,7 +2243,7 @@ function SuperAdminDashboard() {
     if (activeTab === 'founders' && (!foundersAccessGranted || !foundersAccessPassword)) {
       setShowFoundersAccessModal(true);
     }
-  }, [activeTab]);
+  }, [activeTab, foundersAccessGranted, foundersAccessPassword, isBillingTransactionsViewActive]);
 
   useEffect(() => {
     if (activeTab !== 'analytics') return;
@@ -2288,8 +2288,9 @@ function SuperAdminDashboard() {
   }, [securityFilter, activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'billing_transactions') loadBillingTransactions();
-  }, [activeTab, billingOpsFilter]);
+    if (!isBillingTransactionsViewActive) return;
+    loadBillingTransactions();
+  }, [isBillingTransactionsViewActive, billingOpsFilter]);
 
   useEffect(() => {
     if (activeTab !== 'founders') return;
@@ -6449,7 +6450,7 @@ function SuperAdminDashboard() {
         loadRestaurants(),
         loadTopupTransactions(topupRestaurant.id)
       ]);
-      if (activeTab === 'billing_transactions') {
+      if (isBillingTransactionsViewActive) {
         await loadBillingTransactions();
       }
     } catch (err) {
@@ -10332,7 +10333,8 @@ function SuperAdminDashboard() {
     navigate('/login');
   };
 
-  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs', 'billing_transactions', 'security'].includes(activeTab);
+  const hasMobileFilterSheet = ['restaurants', 'operators', 'customers', 'ads', 'logs', 'security'].includes(activeTab)
+    || isBillingTransactionsViewActive;
   const headerLanguageOptions = useMemo(() => ([
     {
       code: 'ru',
@@ -10440,7 +10442,7 @@ function SuperAdminDashboard() {
       setLogsFilter({ action_type: '', entity_type: '', restaurant_id: '', user_id: '', user_role: '', start_date: '', end_date: '', page: 1, limit: 15 });
       return;
     }
-    if (activeTab === 'billing_transactions') {
+    if (isBillingTransactionsViewActive) {
       setBillingOpsFilter({
         restaurant_id: '',
         type: '',
@@ -10684,7 +10686,9 @@ function SuperAdminDashboard() {
     () => SUPERADMIN_SIDEBAR_NAV_ORDER.filter((key) => Boolean(superAdminSidebarTabsMeta[key])),
     [superAdminSidebarTabsMeta]
   );
-  const sidebarActiveKey = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab) ? 'settings' : activeTab;
+  const sidebarActiveKey = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab)
+    ? 'settings'
+    : (activeTab === 'billing_transactions' ? 'founders' : activeTab);
   const isSettingsSectionActive = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab);
   const renderSuperAdminSidebarTabTitle = (key) => {
     const meta = superAdminSidebarTabsMeta[key] || { label: key, icon: FileText };
@@ -11132,7 +11136,7 @@ function SuperAdminDashboard() {
       );
     }
 
-    if (activeTab === 'billing_transactions') {
+    if (isBillingTransactionsViewActive) {
       return (
         <div className="d-flex flex-column gap-3">
           <Form.Control
@@ -11246,6 +11250,173 @@ function SuperAdminDashboard() {
 
     return null;
   };
+
+  const renderBillingTransactionsPanel = () => (
+    <>
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+          {language === 'uz' ? "Do'konlardan to'lovlar jurnali" : 'Журнал оплат магазинов'}
+        </h5>
+        <div className="d-none d-lg-flex align-items-center gap-2 ms-auto">
+          <Button
+            type="button"
+            variant="outline-secondary"
+            className={`admin-filter-icon-btn${showBillingOpsFilterPanel ? ' is-active' : ''}`}
+            onClick={() => setShowBillingOpsFilterPanel((prev) => !prev)}
+            title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+            aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
+            aria-expanded={showBillingOpsFilterPanel}
+          >
+            <FilterIcon />
+          </Button>
+          <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
+            <i className="bi bi-file-earmark-spreadsheet me-2" />
+            XLS
+          </Button>
+          <Button className="btn-primary-custom" onClick={() => openTopupModal()}>
+            {language === 'uz' ? "To'lovni kiritish" : 'Зафиксировать оплату'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
+        <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
+          <i className="bi bi-funnel" /> {language === 'uz' ? 'Filtrlar' : 'Фильтры'}
+        </Button>
+        <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
+          XLS
+        </Button>
+        <Button className="btn-primary-custom ms-auto" onClick={() => openTopupModal()}>
+          {language === 'uz' ? "Kiritish" : 'Оплата'}
+        </Button>
+      </div>
+
+      {showBillingOpsFilterPanel && (
+        <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap mb-3">
+          <Form.Control
+            className="form-control-custom"
+            type="search"
+            style={{ width: '280px' }}
+            placeholder={language === 'uz' ? "Do'kon, izoh yoki operator bo'yicha qidirish" : 'Поиск по магазину, описанию или оператору'}
+            value={billingOpsFilter.search}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+          />
+          <SearchableRestaurantFilter
+            t={t}
+            width="230px"
+            value={billingOpsFilter.restaurant_id}
+            restaurants={billingOpsRestaurantOptions}
+            searchValue={billingOpsRestaurantSearch}
+            onSearchChange={setBillingOpsRestaurantSearch}
+            onChange={(nextValue) => {
+              setBillingOpsFilter((prev) => ({ ...prev, restaurant_id: nextValue, page: 1 }));
+              setBillingOpsRestaurantSearch('');
+            }}
+          />
+          <Form.Select
+            className="form-control-custom"
+            style={{ width: '170px' }}
+            value={billingOpsFilter.type}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, type: e.target.value, page: 1 }))}
+          >
+            <option value="">{language === 'uz' ? 'Barcha operatsiyalar' : 'Все операции'}</option>
+            <option value="deposit">{language === 'uz' ? "To'ldirish" : 'Пополнение'}</option>
+            <option value="refund">{language === 'uz' ? 'Qaytarish' : 'Возврат'}</option>
+          </Form.Select>
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            style={{ width: '150px' }}
+            value={billingOpsFilter.start_date}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, start_date: e.target.value, page: 1 }))}
+          />
+          <Form.Control
+            type="date"
+            className="form-control-custom"
+            style={{ width: '150px' }}
+            value={billingOpsFilter.end_date}
+            onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
+          />
+          <Button
+            variant="light"
+            className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
+            style={{ height: '38px', padding: '0 15px' }}
+            title={language === 'uz' ? 'Filtrlarni tozalash' : 'Сбросить фильтры'}
+            onClick={() => {
+              setBillingOpsFilter({
+                restaurant_id: '',
+                type: '',
+                search: '',
+                start_date: '',
+                end_date: '',
+                page: 1,
+                limit: billingOpsFilter.limit
+              });
+              setBillingOpsRestaurantSearch('');
+            }}
+            disabled={!billingOpsFilter.restaurant_id && !billingOpsFilter.type && !billingOpsFilter.search && !billingOpsFilter.start_date && !billingOpsFilter.end_date}
+          >
+            {language === 'uz' ? 'Tozalash' : 'Сброс'}
+          </Button>
+        </div>
+      )}
+
+      {billingOpsLoading ? (
+        <TableSkeleton rows={8} columns={6} label={language === 'uz' ? "To'lovlar yuklanmoqda" : 'Загрузка журнала оплат'} />
+      ) : (
+        <>
+          <div className="admin-table-container">
+            <Table responsive hover className="admin-table">
+              <thead>
+                <tr>
+                  <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
+                  <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                  <th>{language === 'uz' ? 'Turi' : 'Тип операции'}</th>
+                  <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                  <th>{language === 'uz' ? 'Operator' : 'Оператор'}</th>
+                  <th>{language === 'uz' ? 'Izoh' : 'Описание'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billingOpsData.transactions.map((row) => {
+                  const operationMeta = getBillingOperationMeta(row.type);
+                  return (
+                    <tr key={row.id}>
+                      <td><small className="text-muted">{formatBalanceOperationDate(row.created_at)}</small></td>
+                      <td><strong>{row.restaurant_name || '—'}</strong></td>
+                      <td>
+                        <Badge className="badge-custom" style={operationMeta.badgeStyle}>
+                          {operationMeta.label}
+                        </Badge>
+                      </td>
+                      <td className="text-end">
+                        <span className={`fw-bold ${operationMeta.className}`}>
+                          {operationMeta.sign}{formatBalanceAmount(row.amount || 0)} {getCurrencyLabelByCode(row.restaurant_currency_code || countryCurrency?.code)}
+                        </span>
+                      </td>
+                      <td>{row.actor_name || row.actor_username || 'Система'}</td>
+                      <td><small>{row.description || '—'}</small></td>
+                    </tr>
+                  );
+                })}
+                {billingOpsData.transactions.length === 0 && (
+                  <tr><td colSpan="6" className="text-center py-5 text-muted">{language === 'uz' ? "Yozuvlar yo'q" : 'Записей пока нет'}</td></tr>
+                )}
+              </tbody>
+            </Table>
+          </div>
+          <DataPagination
+            current={billingOpsFilter.page}
+            total={billingOpsData.total}
+            limit={billingOpsFilter.limit}
+            onPageChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, page: val }))}
+            onLimitChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, limit: val, page: 1 }))}
+            limitOptions={[15, 20, 30, 50]}
+          />
+        </>
+      )}
+    </>
+  );
 
   const renderAiSettingsPanel = () => (
     <>
@@ -14591,168 +14762,7 @@ function SuperAdminDashboard() {
 
               {/* Billing Transactions Tab */}
               <Tab eventKey="billing_transactions" title={renderSuperAdminSidebarTabTitle('billing_transactions')}>
-                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
-                    {language === 'uz' ? "Do'konlardan to'lovlar jurnali" : 'Журнал оплат магазинов'}
-                  </h5>
-                  <div className="d-none d-lg-flex align-items-center gap-2 ms-auto">
-                    <Button
-                      type="button"
-                      variant="outline-secondary"
-                      className={`admin-filter-icon-btn${showBillingOpsFilterPanel ? ' is-active' : ''}`}
-                      onClick={() => setShowBillingOpsFilterPanel((prev) => !prev)}
-                      title={language === 'uz' ? 'Filtrlar' : 'Фильтры'}
-                      aria-label={language === 'uz' ? 'Filtrlarni ochish' : 'Открыть фильтры'}
-                      aria-expanded={showBillingOpsFilterPanel}
-                    >
-                      <FilterIcon />
-                    </Button>
-                    <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
-                      <i className="bi bi-file-earmark-spreadsheet me-2" />
-                      XLS
-                    </Button>
-                    <Button className="btn-primary-custom" onClick={() => openTopupModal()}>
-                      {language === 'uz' ? "To'lovni kiritish" : 'Зафиксировать оплату'}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="d-flex d-lg-none gap-2 align-items-center mb-3">
-                  <Button variant="outline-secondary" className="btn-mobile-filter" onClick={() => setShowMobileFiltersSheet(true)}>
-                    <i className="bi bi-funnel" /> {language === 'uz' ? 'Filtrlar' : 'Фильтры'}
-                  </Button>
-                  <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
-                    XLS
-                  </Button>
-                  <Button className="btn-primary-custom ms-auto" onClick={() => openTopupModal()}>
-                    {language === 'uz' ? "Kiritish" : 'Оплата'}
-                  </Button>
-                </div>
-
-                {showBillingOpsFilterPanel && (
-                  <div className="d-none d-lg-flex gap-2 align-items-center flex-wrap mb-3">
-                    <Form.Control
-                      className="form-control-custom"
-                      type="search"
-                      style={{ width: '280px' }}
-                      placeholder={language === 'uz' ? "Do'kon, izoh yoki operator bo'yicha qidirish" : 'Поиск по магазину, описанию или оператору'}
-                      value={billingOpsFilter.search}
-                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
-                    />
-                    <SearchableRestaurantFilter
-                      t={t}
-                      width="230px"
-                      value={billingOpsFilter.restaurant_id}
-                      restaurants={billingOpsRestaurantOptions}
-                      searchValue={billingOpsRestaurantSearch}
-                      onSearchChange={setBillingOpsRestaurantSearch}
-                      onChange={(nextValue) => {
-                        setBillingOpsFilter((prev) => ({ ...prev, restaurant_id: nextValue, page: 1 }));
-                        setBillingOpsRestaurantSearch('');
-                      }}
-                    />
-                    <Form.Select
-                      className="form-control-custom"
-                      style={{ width: '170px' }}
-                      value={billingOpsFilter.type}
-                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, type: e.target.value, page: 1 }))}
-                    >
-                      <option value="">{language === 'uz' ? 'Barcha operatsiyalar' : 'Все операции'}</option>
-                      <option value="deposit">{language === 'uz' ? "To'ldirish" : 'Пополнение'}</option>
-                      <option value="refund">{language === 'uz' ? 'Qaytarish' : 'Возврат'}</option>
-                    </Form.Select>
-                    <Form.Control
-                      type="date"
-                      className="form-control-custom"
-                      style={{ width: '150px' }}
-                      value={billingOpsFilter.start_date}
-                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, start_date: e.target.value, page: 1 }))}
-                    />
-                    <Form.Control
-                      type="date"
-                      className="form-control-custom"
-                      style={{ width: '150px' }}
-                      value={billingOpsFilter.end_date}
-                      onChange={(e) => setBillingOpsFilter((prev) => ({ ...prev, end_date: e.target.value, page: 1 }))}
-                    />
-                    <Button
-                      variant="light"
-                      className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
-                      style={{ height: '38px', padding: '0 15px' }}
-                      title={language === 'uz' ? 'Filtrlarni tozalash' : 'Сбросить фильтры'}
-                      onClick={() => {
-                        setBillingOpsFilter({
-                          restaurant_id: '',
-                          type: '',
-                          search: '',
-                          start_date: '',
-                          end_date: '',
-                          page: 1,
-                          limit: billingOpsFilter.limit
-                        });
-                        setBillingOpsRestaurantSearch('');
-                      }}
-                      disabled={!billingOpsFilter.restaurant_id && !billingOpsFilter.type && !billingOpsFilter.search && !billingOpsFilter.start_date && !billingOpsFilter.end_date}
-                    >
-                      {language === 'uz' ? 'Tozalash' : 'Сброс'}
-                    </Button>
-                  </div>
-                )}
-
-                {billingOpsLoading ? (
-                  <TableSkeleton rows={8} columns={6} label={language === 'uz' ? "To'lovlar yuklanmoqda" : 'Загрузка журнала оплат'} />
-                ) : (
-                  <>
-                    <div className="admin-table-container">
-                      <Table responsive hover className="admin-table">
-                        <thead>
-                          <tr>
-                            <th>{language === 'uz' ? 'Sana' : 'Дата'}</th>
-                            <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
-                            <th>{language === 'uz' ? 'Turi' : 'Тип операции'}</th>
-                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
-                            <th>{language === 'uz' ? 'Operator' : 'Оператор'}</th>
-                            <th>{language === 'uz' ? 'Izoh' : 'Описание'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {billingOpsData.transactions.map((row) => {
-                            const operationMeta = getBillingOperationMeta(row.type);
-                            return (
-                              <tr key={row.id}>
-                                <td><small className="text-muted">{formatBalanceOperationDate(row.created_at)}</small></td>
-                                <td><strong>{row.restaurant_name || '—'}</strong></td>
-                                <td>
-                                  <Badge className="badge-custom" style={operationMeta.badgeStyle}>
-                                    {operationMeta.label}
-                                  </Badge>
-                                </td>
-                                <td className="text-end">
-                                  <span className={`fw-bold ${operationMeta.className}`}>
-                                    {operationMeta.sign}{formatBalanceAmount(row.amount || 0)} {getCurrencyLabelByCode(row.restaurant_currency_code || countryCurrency?.code)}
-                                  </span>
-                                </td>
-                                <td>{row.actor_name || row.actor_username || 'Система'}</td>
-                                <td><small>{row.description || '—'}</small></td>
-                              </tr>
-                            );
-                          })}
-                          {billingOpsData.transactions.length === 0 && (
-                            <tr><td colSpan="6" className="text-center py-5 text-muted">{language === 'uz' ? "Yozuvlar yo'q" : 'Записей пока нет'}</td></tr>
-                          )}
-                        </tbody>
-                      </Table>
-                    </div>
-                    <DataPagination
-                      current={billingOpsFilter.page}
-                      total={billingOpsData.total}
-                      limit={billingOpsFilter.limit}
-                      onPageChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, page: val }))}
-                      onLimitChange={(val) => setBillingOpsFilter((prev) => ({ ...prev, limit: val, page: 1 }))}
-                      limitOptions={[15, 20, 30, 50]}
-                    />
-                  </>
-                )}
+                {renderBillingTransactionsPanel()}
               </Tab>
 
               {/* Founders Tab */}
@@ -14826,6 +14836,11 @@ function SuperAdminDashboard() {
                       <Nav.Item>
                         <Nav.Link eventKey="categories">
                           {language === 'uz' ? 'Xarajat maqolalari' : 'Статья расходов'}
+                        </Nav.Link>
+                      </Nav.Item>
+                      <Nav.Item>
+                        <Nav.Link eventKey="billing_transactions">
+                          {language === 'uz' ? "Tushumlar" : 'Поступления'}
                         </Nav.Link>
                       </Nav.Item>
                     </Nav>
@@ -15591,6 +15606,11 @@ function SuperAdminDashboard() {
                             )}
                           </Card.Body>
                         </Card>
+                      </>
+                    )}
+                    {foundersInnerTab === 'billing_transactions' && (
+                      <>
+                        {renderBillingTransactionsPanel()}
                       </>
                     )}
                     </div>
