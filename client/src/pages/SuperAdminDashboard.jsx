@@ -7925,11 +7925,25 @@ function SuperAdminDashboard() {
     if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
     if (restaurantOperatorSwitchingId === restaurantId) return;
 
+    const operatorTab = window.open('about:blank', '_blank');
+    if (operatorTab) {
+      operatorTab.opener = null;
+    }
+
     setRestaurantOperatorSwitchingId(restaurantId);
     const result = await switchRestaurant(restaurantId);
     if (result?.success) {
-      navigate('/admin');
+      if (operatorTab) {
+        operatorTab.location.href = '/admin';
+      } else {
+        setError(language === 'uz'
+          ? "Yangi oynani ochib bo'lmadi. Popup ruxsatini tekshiring."
+          : 'Не удалось открыть новую вкладку. Проверьте разрешение на всплывающие окна.');
+      }
     } else {
+      if (operatorTab) {
+        operatorTab.close();
+      }
       setError(result?.error || (language === 'uz'
         ? "Do'konni almashtirib bo'lmadi"
         : 'Не удалось переключить магазин'));
