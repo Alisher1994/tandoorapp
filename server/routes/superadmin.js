@@ -5727,6 +5727,91 @@ router.post('/restaurants/:id/toggle-free', async (req, res) => {
   }
 });
 
+router.patch('/restaurants/:id/quick-settings', async (req, res) => {
+  try {
+    await ensureReservationSchema();
+    const restaurantId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID магазина' });
+    }
+
+    const hasReservationEnabled = Object.prototype.hasOwnProperty.call(req.body || {}, 'reservation_enabled');
+    const hasSizeVariantsEnabled = Object.prototype.hasOwnProperty.call(req.body || {}, 'size_variants_enabled');
+    if (!hasReservationEnabled && !hasSizeVariantsEnabled) {
+      return res.status(400).json({ error: 'Нет данных для обновления' });
+    }
+
+    const currentResult = await pool.query(
+      `SELECT id, size_variants_enabled
+       FROM restaurants
+       WHERE id = $1
+       LIMIT 1`,
+      [restaurantId]
+    );
+    if (!currentResult.rows.length) {
+      return res.status(404).json({ error: 'Магазин не найден' });
+    }
+
+    const current = currentResult.rows[0];
+    const nextSizeVariantsEnabled = hasSizeVariantsEnabled
+      ? normalizeBooleanFlag(req.body?.size_variants_enabled, current.size_variants_enabled === true)
+      : (current.size_variants_enabled === true);
+
+    if (hasSizeVariantsEnabled) {
+      await pool.query(
+        `UPDATE restaurants
+         SET size_variants_enabled = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [nextSizeVariantsEnabled, restaurantId]
+      );
+    }
+
+    if (hasReservationEnabled) {
+      const nextReservationEnabled = normalizeBooleanFlag(req.body?.reservation_enabled, false);
+      await ensureRestaurantReservationSettingsRow(pool, restaurantId);
+      await pool.query(
+        `UPDATE restaurant_reservation_settings
+         SET enabled = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE restaurant_id = $2`,
+        [nextReservationEnabled, restaurantId]
+      );
+    }
+
+    const updatedResult = await pool.query(
+      `SELECT r.id,
+              r.size_variants_enabled,
+              COALESCE(rs.enabled, false) AS reservation_enabled
+       FROM restaurants r
+       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
+       WHERE r.id = $1
+       LIMIT 1`,
+      [restaurantId]
+    );
+
+    if (!updatedResult.rows.length) {
+      return res.status(404).json({ error: 'Магазин не найден' });
+    }
+
+    const updated = updatedResult.rows[0];
+    try {
+      await reloadMultiBots();
+    } catch (reloadErr) {
+      console.error('Multi-bot reload warning after quick restaurant settings update:', reloadErr.message);
+    }
+
+    res.json({
+      id: updated.id,
+      reservation_enabled: updated.reservation_enabled === true || updated.reservation_enabled === 'true',
+      size_variants_enabled: updated.size_variants_enabled === true
+    });
+  } catch (error) {
+    console.error('Quick restaurant settings update error:', error);
+    res.status(500).json({ error: 'Ошибка обновления быстрых настроек магазина' });
+  }
+});
+
 
 // Получить один ресторан
 router.get('/restaurants/:id', async (req, res) => {

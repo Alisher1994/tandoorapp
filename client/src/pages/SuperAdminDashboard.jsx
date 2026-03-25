@@ -1804,6 +1804,7 @@ function SuperAdminDashboard() {
   const [restaurantIssueCountMap, setRestaurantIssueCountMap] = useState({});
   const [restaurantWorkflowUpdatingId, setRestaurantWorkflowUpdatingId] = useState(null);
   const [expandedRestaurantRows, setExpandedRestaurantRows] = useState({});
+  const [restaurantInlineToggleLoading, setRestaurantInlineToggleLoading] = useState({});
   const [activeSettingsNavKey, setActiveSettingsNavKey] = useState('categories');
 
   // Billing settings
@@ -6478,6 +6479,62 @@ function SuperAdminDashboard() {
     }
   };
 
+  const updateRestaurantInlineFlagsInState = (restaurantId, patch) => {
+    const normalizedId = Number.parseInt(restaurantId, 10);
+    if (!Number.isFinite(normalizedId) || normalizedId <= 0 || !patch || typeof patch !== 'object') return;
+    const applyPatch = (item) => (
+      String(item?.id) === String(normalizedId)
+        ? { ...item, ...patch }
+        : item
+    );
+
+    setRestaurants((prev) => ({
+      ...(prev || {}),
+      restaurants: Array.isArray(prev?.restaurants) ? prev.restaurants.map(applyPatch) : prev?.restaurants
+    }));
+    setAllRestaurants((prev) => (Array.isArray(prev) ? prev.map(applyPatch) : prev));
+  };
+
+  const handleRestaurantInlineFeatureToggle = async (restaurant, field) => {
+    const restaurantId = Number.parseInt(restaurant?.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
+    const normalizedField = String(field || '').trim();
+    if (!['reservation_enabled', 'size_variants_enabled'].includes(normalizedField)) return;
+    const loadingKey = `${restaurantId}:${normalizedField}`;
+    if (restaurantInlineToggleLoading[loadingKey]) return;
+
+    const nextValue = !(restaurant?.[normalizedField] === true);
+    setRestaurantInlineToggleLoading((prev) => ({ ...prev, [loadingKey]: true }));
+    try {
+      const response = await axios.patch(`${API_URL}/superadmin/restaurants/${restaurantId}/quick-settings`, {
+        [normalizedField]: nextValue
+      });
+      const payload = response?.data || {};
+      updateRestaurantInlineFlagsInState(restaurantId, {
+        reservation_enabled: payload.reservation_enabled === true,
+        size_variants_enabled: payload.size_variants_enabled === true
+      });
+      const successText = normalizedField === 'reservation_enabled'
+        ? (nextValue
+          ? (language === 'uz' ? 'Bronlash yoqildi' : 'Бронирование включено')
+          : (language === 'uz' ? 'Bronlash o‘chirildi' : 'Бронирование отключено'))
+        : (nextValue
+          ? (language === 'uz' ? "Variantlar yoqildi" : 'Варианты товаров включены')
+          : (language === 'uz' ? "Variantlar o‘chirildi" : 'Варианты товаров отключены'));
+      setSuccess(successText);
+    } catch (err) {
+      setError(err.response?.data?.error || (language === 'uz'
+        ? "Tezkor sozlamani yangilab bo'lmadi"
+        : 'Не удалось обновить быстрый переключатель'));
+    } finally {
+      setRestaurantInlineToggleLoading((prev) => {
+        const next = { ...prev };
+        delete next[loadingKey];
+        return next;
+      });
+    }
+  };
+
   // Container functions
   const closeCategoryModal = () => {
     categoryAiRequestIdRef.current += 1;
@@ -7841,6 +7898,25 @@ function SuperAdminDashboard() {
     }));
   };
 
+  const isRestaurantRowInteractiveTarget = (eventTarget) => {
+    if (!(eventTarget instanceof Element)) return false;
+    return Boolean(eventTarget.closest(
+      'a, button, input, select, textarea, label, [role="button"], .dropdown-menu, .dropdown-item, .sa-restaurant-copy-btn'
+    ));
+  };
+
+  const handleRestaurantRowPrimaryClick = (event, restaurantId) => {
+    if (isRestaurantRowInteractiveTarget(event.target)) return;
+    toggleRestaurantRowExpansion(restaurantId);
+  };
+
+  const handleRestaurantRowPrimaryKeyDown = (event, restaurantId) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (isRestaurantRowInteractiveTarget(event.target)) return;
+    event.preventDefault();
+    toggleRestaurantRowExpansion(restaurantId);
+  };
+
   const handleRestaurantWorkflowStatusChange = async (restaurant, nextStatus) => {
     const restaurantId = Number.parseInt(restaurant?.id, 10);
     const normalizedStatus = String(nextStatus || '').trim().toLowerCase();
@@ -8124,6 +8200,21 @@ function SuperAdminDashboard() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const normalizeWorkTimeLabel = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '';
+    const match = normalized.match(/^(\d{1,2}:\d{2})/);
+    if (match?.[1]) return match[1];
+    return normalized.slice(0, 5);
+  };
+
+  const formatRestaurantWorkingHours = (startTime, endTime) => {
+    const start = normalizeWorkTimeLabel(startTime);
+    const end = normalizeWorkTimeLabel(endTime);
+    if (!start && !end) return '24/7';
+    return `${start || '--:--'} - ${end || '--:--'}`;
   };
 
   const appendHiddenOpsConsoleLine = (line) => {
@@ -12496,7 +12587,7 @@ function SuperAdminDashboard() {
                 )}
 
                 {loading ? (
-                  <TableSkeleton rows={8} columns={8} label="Загрузка списка магазинов" />
+                  <TableSkeleton rows={8} columns={7} label="Загрузка списка магазинов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -12510,7 +12601,6 @@ function SuperAdminDashboard() {
                             <th>{language === 'uz' ? "Ro'yxatdan o'tgan" : 'Дата регистрации'}</th>
                             <th>{t('saTableBalance') || 'Баланс'}</th>
                             <th>{t('saTableStatus')}</th>
-                            <th className="text-end">{language === 'uz' ? 'Batafsil' : 'Подробнее'}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -12527,11 +12617,21 @@ function SuperAdminDashboard() {
                             const operatorPhoneTelegramLink = operatorPhoneDigits ? `https://t.me/+${operatorPhoneDigits}` : '';
                             const operatorUsernameClean = String(r.primary_operator_username || '').trim().replace(/^@/, '');
                             const operatorUsernameLink = operatorUsernameClean ? `https://t.me/${operatorUsernameClean}` : '';
+                            const currencyLabel = getCurrencyLabelByCode(r.currency_code || countryCurrency?.code);
+                            const checksCount = formatChecksCount(r.balance || 0, r.order_cost || 0, r.is_free_tier);
+                            const reservationToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:reservation_enabled`]);
+                            const variantsToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:size_variants_enabled`]);
                           
                             return (
                               <React.Fragment key={r.id}>
-                                <tr className={`sa-restaurant-row${isExpanded ? ' is-expanded' : ''}`}>
-                                  <td><span className="text-muted">{r.id}</span></td>
+                                <tr
+                                  className={`sa-restaurant-row sa-restaurant-row-clickable${isExpanded ? ' is-expanded' : ''}`}
+                                  onClick={(event) => handleRestaurantRowPrimaryClick(event, r.id)}
+                                  onKeyDown={(event) => handleRestaurantRowPrimaryKeyDown(event, r.id)}
+                                  tabIndex={0}
+                                  aria-expanded={isExpanded}
+                                >
+                                  <td className="sa-restaurant-cell-id"><span className="text-muted">{r.id}</span></td>
                                   <td>
                                     {r.logo_url ? (
                                       <img
@@ -12546,7 +12646,7 @@ function SuperAdminDashboard() {
                                     )}
                                   </td>
                                   <td>
-                                    <strong className="text-dark">{r.name}</strong>
+                                    <strong className="sa-restaurant-name-main">{String(r.name || '').toUpperCase()}</strong>
                                     <div className="sa-restaurant-row-meta">
                                       <span className="sa-restaurant-row-meta-chip">
                                         <i className="bi bi-diagram-3" aria-hidden="true" />
@@ -12556,7 +12656,7 @@ function SuperAdminDashboard() {
                                     </div>
                                     <div className="sa-restaurant-row-meta d-flex align-items-center gap-1">
                                       <span className="sa-restaurant-row-meta-chip">
-                                        <i className="bi bi-telegram" aria-hidden="true" />
+                                        <i className="bi bi-telegram sa-telegram-brand-icon" aria-hidden="true" />
                                         {r.telegram_bot_username || '—'}
                                       </span>
                                       {!!r.telegram_bot_username && (
@@ -12578,64 +12678,86 @@ function SuperAdminDashboard() {
                                   <td>
                                     {(() => {
                                       const productsCount = Number(r.products_count || 0);
-                                      const isEmptyProducts = productsCount <= 0;
-                                      return (
-                                        <div className="d-flex flex-column gap-0">
-                                          <div
-                                            className="fw-bold"
-                                            style={{ color: isEmptyProducts ? '#dc2626' : '#15803d' }}
-                                          >
-                                            {productsCount.toLocaleString('ru-RU')}
-                                          </div>
-                                          <small
-                                            className={isEmptyProducts ? 'fw-medium' : 'text-muted'}
-                                            style={isEmptyProducts ? { color: '#dc2626' } : undefined}
-                                          >
-                                            {isEmptyProducts
-                                              ? (language === 'uz' ? "Mahsulot yo'q" : 'Товаров нет')
-                                              : (language === 'uz' ? "Mahsulotlar qo\'shilgan" : 'Товары добавлены')}
-                                          </small>
-                                        </div>
-                                      );
+                                      if (productsCount <= 0) return <span className="text-muted">-</span>;
+                                      return <span className="fw-semibold">{productsCount.toLocaleString('ru-RU')} {language === 'uz' ? 'ta' : 'шт'}</span>;
                                     })()}
                                   </td>
                                   <td>
-                                    <small className="text-muted">{formatDate(r.created_at)}</small>
+                                    <div className="d-flex flex-column gap-0">
+                                      <small className="text-muted">{formatDate(r.created_at)}</small>
+                                      <small className="sa-restaurant-hours-line">
+                                        <i className="bi bi-clock" aria-hidden="true" />
+                                        <span>{formatRestaurantWorkingHours(r.start_time, r.end_time)}</span>
+                                      </small>
+                                    </div>
                                   </td>
                                   <td>
-                                    {(() => {
-                                      const currencyLabel = getCurrencyLabelByCode(r.currency_code || countryCurrency?.code);
-                                      const checksCount = formatChecksCount(r.balance || 0, r.order_cost || 0, r.is_free_tier);
-                                      return (
-                                        <div className="sa-shop-balance-stack">
-                                          <div className="sa-shop-balance-item is-main">
-                                            <span className="sa-shop-balance-icon" aria-hidden="true">
-                                              <i className="bi bi-wallet2" />
-                                            </span>
-                                            <span className="sa-shop-balance-label">
-                                              {language === 'uz' ? 'Balans' : 'Баланс'}
-                                            </span>
-                                            <span className="sa-shop-balance-value">
-                                              {formatBalanceAmount(r.balance || 0)} {currencyLabel}
-                                            </span>
-                                          </div>
-                                          <div className="sa-shop-balance-item">
-                                            <span className="sa-shop-balance-icon" aria-hidden="true">
-                                              <i className="bi bi-receipt-cutoff" />
-                                            </span>
-                                            <span className="sa-shop-balance-label">
-                                              {language === 'uz' ? 'Cheklar' : 'Чеки'}
-                                            </span>
-                                            <span className="sa-shop-balance-value">
-                                              {checksCount} {language === 'uz' ? 'ta' : 'шт'}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
+                                    <div className="sa-shop-balance-stack">
+                                      <div className="sa-shop-balance-item is-main">
+                                        <span className="sa-shop-balance-icon" aria-hidden="true">
+                                          <i className="bi bi-wallet2" />
+                                        </span>
+                                        <span className="sa-shop-balance-label">
+                                          {language === 'uz' ? 'Balans' : 'Баланс'}
+                                        </span>
+                                        <span className="sa-shop-balance-value">
+                                          {formatBalanceAmount(r.balance || 0)} {currencyLabel}
+                                        </span>
+                                      </div>
+                                      <div className="sa-shop-balance-item">
+                                        <span className="sa-shop-balance-icon" aria-hidden="true">
+                                          <i className="bi bi-receipt-cutoff" />
+                                        </span>
+                                        <span className="sa-shop-balance-label">
+                                          {language === 'uz' ? 'Cheklar' : 'Чеки'}
+                                        </span>
+                                        <span className="sa-shop-balance-value">
+                                          {checksCount} {language === 'uz' ? 'ta' : 'шт'}
+                                        </span>
+                                      </div>
+                                      <div className="sa-shop-balance-item">
+                                        <span className="sa-shop-balance-icon" aria-hidden="true">
+                                          <i className="bi bi-cash-coin" />
+                                        </span>
+                                        <span className="sa-shop-balance-label">
+                                          {language === 'uz' ? 'Valyuta' : 'Валюта'}
+                                        </span>
+                                        <span className="sa-shop-balance-value">{currencyLabel}</span>
+                                      </div>
+                                    </div>
                                   </td>
                                   <td>
                                     <div className="sa-shop-status-stack">
+                                      <div className="sa-shop-quick-toggles">
+                                        <button
+                                          type="button"
+                                          className={`sa-shop-quick-toggle-btn ${r.reservation_enabled ? 'is-enabled' : 'is-disabled'}`}
+                                          title={
+                                            r.reservation_enabled
+                                              ? (language === 'uz' ? 'Bronlash yoqilgan' : 'Бронирование включено')
+                                              : (language === 'uz' ? 'Bronlash o‘chirilgan' : 'Бронирование выключено')
+                                          }
+                                          onClick={() => handleRestaurantInlineFeatureToggle(r, 'reservation_enabled')}
+                                          disabled={reservationToggleBusy}
+                                          aria-label={language === 'uz' ? 'Bronlash holati' : 'Состояние бронирования'}
+                                        >
+                                          <i className="bi bi-calendar2-check" aria-hidden="true" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className={`sa-shop-quick-toggle-btn ${r.size_variants_enabled ? 'is-enabled' : 'is-disabled'}`}
+                                          title={
+                                            r.size_variants_enabled
+                                              ? (language === 'uz' ? "Mahsulot variantlari yoqilgan" : 'Варианты товаров включены')
+                                              : (language === 'uz' ? "Mahsulot variantlari o‘chirilgan" : 'Варианты товаров выключены')
+                                          }
+                                          onClick={() => handleRestaurantInlineFeatureToggle(r, 'size_variants_enabled')}
+                                          disabled={variantsToggleBusy}
+                                          aria-label={language === 'uz' ? "Mahsulot variantlari holati" : 'Состояние вариантов товаров'}
+                                        >
+                                          <i className="bi bi-ui-checks-grid" aria-hidden="true" />
+                                        </button>
+                                      </div>
                                       <CustomSelectDropdown
                                         value={workflowMeta.effective}
                                         onChange={(nextValue) => handleRestaurantWorkflowStatusChange(r, nextValue)}
@@ -12648,41 +12770,47 @@ function SuperAdminDashboard() {
                                       />
                                     </div>
                                   </td>
-                                  <td className="text-end">
-                                    <Button
-                                      variant="light"
-                                      size="sm"
-                                      className="sa-restaurant-expand-btn"
-                                      onClick={() => toggleRestaurantRowExpansion(r.id)}
-                                      aria-expanded={isExpanded}
-                                      title={language === 'uz' ? 'Qo‘shimcha maydonlar' : 'Дополнительные поля'}
-                                    >
-                                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                    </Button>
-                                  </td>
                                 </tr>
                                 {isExpanded && (
                                   <tr className="sa-restaurant-accordion-row is-open">
-                                    <td colSpan="8">
+                                    <td colSpan="7">
                                       <div className="sa-restaurant-accordion-wrap">
                                         <div className="sa-restaurant-accordion-grid">
-                                          <div className="sa-restaurant-accordion-item sa-accordion-service">
-                                            <div className="sa-restaurant-accordion-label">{t('saServiceFee') || 'Сбор за обслуживание'}</div>
-                                            <div className="sa-restaurant-accordion-value">
-                                              {formatBalanceAmount(r.service_fee || 0)} {getCurrencyLabelByCode(r.currency_code || countryCurrency?.code)}
-                                            </div>
-                                          </div>
-                                          <div className="sa-restaurant-accordion-item sa-accordion-tariff">
-                                            <div className="sa-restaurant-accordion-label">{t('saTableTier') || 'Тариф'}</div>
-                                            <div className="sa-restaurant-accordion-value">
-                                              <Badge
-                                                className={`badge-custom ${r.is_free_tier ? 'bg-info bg-opacity-10 text-info' : 'bg-warning bg-opacity-10 text-warning'}`}
-                                                style={{ cursor: 'pointer' }}
-                                                onClick={() => toggleFreeTier(r.id, !r.is_free_tier)}
-                                                title="Нажмите, чтобы изменить тариф"
-                                              >
-                                                {r.is_free_tier ? 'Бесплатный' : 'Платный'}
-                                              </Badge>
+                                          <div className="sa-restaurant-accordion-item sa-accordion-pricing">
+                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Tarif va xizmatlar' : 'Тариф и услуги'}</div>
+                                            <div className="sa-restaurant-pricing-mini">
+                                              <div className="sa-restaurant-pricing-line">
+                                                <span className="sa-restaurant-pricing-line-title">
+                                                  <i className="bi bi-receipt-cutoff" aria-hidden="true" />
+                                                  {t('saServiceFee') || 'Сбор'}
+                                                </span>
+                                                <span className="sa-restaurant-pricing-line-value">
+                                                  {formatBalanceAmount(r.service_fee || 0)} {currencyLabel}
+                                                </span>
+                                              </div>
+                                              <div className="sa-restaurant-pricing-line">
+                                                <span className="sa-restaurant-pricing-line-title">
+                                                  <i className="bi bi-briefcase" aria-hidden="true" />
+                                                  {t('saTableTier') || 'Тариф'}
+                                                </span>
+                                                <Badge
+                                                  className={`badge-custom ${r.is_free_tier ? 'bg-info bg-opacity-10 text-info' : 'bg-warning bg-opacity-10 text-warning'}`}
+                                                  style={{ cursor: 'pointer' }}
+                                                  onClick={() => toggleFreeTier(r.id, !r.is_free_tier)}
+                                                  title="Нажмите, чтобы изменить тариф"
+                                                >
+                                                  {r.is_free_tier ? 'Бесплатный' : 'Платный'}
+                                                </Badge>
+                                              </div>
+                                              <div className="sa-restaurant-pricing-line">
+                                                <span className="sa-restaurant-pricing-line-title">
+                                                  <i className="bi bi-calendar-check" aria-hidden="true" />
+                                                  {language === 'uz' ? 'Bronlash' : 'Бронирование'}
+                                                </span>
+                                                <span className="sa-restaurant-pricing-line-value">
+                                                  {formatBalanceAmount(r.reservation_service_cost || r.reservation_cost || 0)} {currencyLabel}
+                                                </span>
+                                              </div>
                                             </div>
                                           </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-problems">
@@ -12828,7 +12956,7 @@ function SuperAdminDashboard() {
                             );
                           })}
                           {filteredRestaurants?.length === 0 && (
-                            <tr><td colSpan="8" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
+                            <tr><td colSpan="7" className="text-center py-5 text-muted">{t('saEmptyRestaurants')}</td></tr>
                           )}
                         </tbody>
                       </Table>
