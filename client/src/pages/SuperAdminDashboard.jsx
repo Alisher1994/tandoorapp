@@ -1410,7 +1410,7 @@ const MiniLineChart = ({
 };
 
 function SuperAdminDashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRestaurant } = useAuth();
   const {
     language,
     setLanguage,
@@ -1805,6 +1805,7 @@ function SuperAdminDashboard() {
   const [restaurantWorkflowUpdatingId, setRestaurantWorkflowUpdatingId] = useState(null);
   const [expandedRestaurantRows, setExpandedRestaurantRows] = useState({});
   const [restaurantInlineToggleLoading, setRestaurantInlineToggleLoading] = useState({});
+  const [restaurantOperatorSwitchingId, setRestaurantOperatorSwitchingId] = useState(null);
   const [activeSettingsNavKey, setActiveSettingsNavKey] = useState('categories');
 
   // Billing settings
@@ -7917,6 +7918,25 @@ function SuperAdminDashboard() {
     toggleRestaurantRowExpansion(restaurantId);
   };
 
+  const handleRestaurantOperatorSwitch = async (event, restaurant) => {
+    if (event?.preventDefault) event.preventDefault();
+    if (event?.stopPropagation) event.stopPropagation();
+    const restaurantId = Number.parseInt(restaurant?.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
+    if (restaurantOperatorSwitchingId === restaurantId) return;
+
+    setRestaurantOperatorSwitchingId(restaurantId);
+    const result = await switchRestaurant(restaurantId);
+    if (result?.success) {
+      navigate('/admin');
+    } else {
+      setError(result?.error || (language === 'uz'
+        ? "Do'konni almashtirib bo'lmadi"
+        : 'Не удалось переключить магазин'));
+    }
+    setRestaurantOperatorSwitchingId(null);
+  };
+
   const handleRestaurantWorkflowStatusChange = async (restaurant, nextStatus) => {
     const restaurantId = Number.parseInt(restaurant?.id, 10);
     const normalizedStatus = String(nextStatus || '').trim().toLowerCase();
@@ -12649,7 +12669,23 @@ function SuperAdminDashboard() {
                                   tabIndex={0}
                                   aria-expanded={isExpanded}
                                 >
-                                  <td className="sa-restaurant-cell-id"><span className="text-muted">{r.id}</span></td>
+                                  <td className="sa-restaurant-cell-id">
+                                    <button
+                                      type="button"
+                                      className="sa-restaurant-id-link"
+                                      onClick={(event) => handleRestaurantOperatorSwitch(event, r)}
+                                      title={language === 'uz' ? "Operator kabinetiga o'tish" : 'Перейти в кабинет оператора'}
+                                      aria-label={language === 'uz'
+                                        ? `Operator kabinetiga o'tish: ${r.name || `ID ${r.id}`}`
+                                        : `Перейти в кабинет оператора: ${r.name || `ID ${r.id}`}`}
+                                      disabled={restaurantOperatorSwitchingId === r.id}
+                                    >
+                                      <span>{r.id}</span>
+                                      {restaurantOperatorSwitchingId === r.id && (
+                                        <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
+                                      )}
+                                    </button>
+                                  </td>
                                   <td>
                                     {r.logo_url ? (
                                       <img

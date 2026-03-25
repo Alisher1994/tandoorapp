@@ -5680,6 +5680,30 @@ body::-webkit-scrollbar,
     padding-left: 12px !important;
 }
 
+.sa-restaurant-id-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.sa-restaurant-id-link:hover,
+.sa-restaurant-id-link:focus-visible {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.sa-restaurant-id-link:disabled {
+    cursor: wait;
+    opacity: 0.6;
+    text-decoration: none;
+}
+
 .sa-restaurant-name-main {
     color: #4f46e5;
     letter-spacing: 0.02em;
