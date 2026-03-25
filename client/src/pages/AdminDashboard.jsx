@@ -10098,7 +10098,7 @@ function AdminDashboard() {
                                           onClick={() => openOrderModal(order)}
                                           title={t('details')}
                                         >
-                                          <ReceiptIcon />
+                                          <EyeIcon />
                                         </Button>
                                       </div>
                                       <div className="admin-order-actions-slot">
