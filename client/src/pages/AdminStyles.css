@@ -5704,8 +5704,9 @@ body::-webkit-scrollbar,
 
 .sa-restaurant-accordion-grid {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 8px;
+    align-items: stretch;
 }
 
 .sa-restaurant-accordion-item {
@@ -5721,27 +5722,27 @@ body::-webkit-scrollbar,
 }
 
 .sa-accordion-service {
-    grid-column: span 3;
+    grid-column: auto;
 }
 
 .sa-accordion-tariff {
-    grid-column: span 3;
+    grid-column: auto;
 }
 
 .sa-accordion-problems {
-    grid-column: span 3;
+    grid-column: auto;
 }
 
 .sa-accordion-access {
-    grid-column: span 3;
+    grid-column: auto;
 }
 
 .sa-accordion-operator {
-    grid-column: span 8;
+    grid-column: auto;
 }
 
 .sa-accordion-actions {
-    grid-column: span 4;
+    grid-column: auto;
 }
 
 .sa-restaurant-accordion-label {
@@ -5815,13 +5816,9 @@ body::-webkit-scrollbar,
     transform: none;
 }
 
-@media (max-width: 1399.98px) {
-    .sa-accordion-operator {
-        grid-column: span 7;
-    }
-
-    .sa-accordion-actions {
-        grid-column: span 5;
+@media (max-width: 1199.98px) {
+    .sa-restaurant-accordion-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -5838,20 +5835,8 @@ body::-webkit-scrollbar,
     }
 
     .sa-restaurant-accordion-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
-    }
-
-    .sa-accordion-service,
-    .sa-accordion-tariff,
-    .sa-accordion-problems,
-    .sa-accordion-access {
-        grid-column: span 2;
-    }
-
-    .sa-accordion-operator,
-    .sa-accordion-actions {
-        grid-column: 1 / -1;
     }
 
     .sa-restaurant-actions-grid {
@@ -5869,15 +5854,6 @@ body::-webkit-scrollbar,
 @media (max-width: 575.98px) {
     .sa-restaurant-accordion-grid {
         grid-template-columns: 1fr;
-    }
-
-    .sa-accordion-service,
-    .sa-accordion-tariff,
-    .sa-accordion-problems,
-    .sa-accordion-access,
-    .sa-accordion-operator,
-    .sa-accordion-actions {
-        grid-column: auto;
     }
 
     .sa-restaurant-actions-grid {
