@@ -12384,18 +12384,6 @@ function SuperAdminDashboard() {
                                               </Button>
                                             </div>
                                           </div>
-                                          <div className="sa-restaurant-accordion-item sa-accordion-access">
-                                            <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Kirish' : 'Доступ'}</div>
-                                            <div className="sa-restaurant-accordion-value d-flex align-items-center justify-content-between gap-2">
-                                              <small className="text-muted">{language === 'uz' ? 'Yopish/Ochish' : 'Закрыть доступ'}</small>
-                                              <Form.Check
-                                                type="switch"
-                                                checked={r.is_active}
-                                                onChange={() => handleToggleRestaurant(r)}
-                                                className="custom-switch"
-                                              />
-                                            </div>
-                                          </div>
                                           <div className="sa-restaurant-accordion-item sa-accordion-operator">
                                             <div className="sa-restaurant-accordion-label">{language === 'uz' ? 'Operator' : 'Оператор'}</div>
                                             <div className="sa-restaurant-operator-stack">
@@ -12438,7 +12426,7 @@ function SuperAdminDashboard() {
                                             <div className="sa-restaurant-actions-grid">
                                               <Button
                                                 variant="light"
-                                                className="action-btn text-success"
+                                                className="action-btn sa-action-btn-theme"
                                                 onClick={() => openTopupModal(r)}
                                                 title={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
                                               >
@@ -12446,7 +12434,7 @@ function SuperAdminDashboard() {
                                               </Button>
                                               <Button
                                                 variant="light"
-                                                className="action-btn text-primary"
+                                                className="action-btn sa-action-btn-theme"
                                                 onClick={() => openRestaurantModal(r)}
                                                 title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
                                               >
@@ -12454,7 +12442,7 @@ function SuperAdminDashboard() {
                                               </Button>
                                               <Button
                                                 variant="light"
-                                                className="action-btn text-secondary restaurant-comment-action-btn"
+                                                className="action-btn sa-action-btn-theme restaurant-comment-action-btn"
                                                 onClick={() => openRestaurantCommentModal(r)}
                                                 title={getRestaurantCommentTooltip(r.admin_comment, r.admin_comment_checklist)}
                                               >
@@ -12465,11 +12453,35 @@ function SuperAdminDashboard() {
                                               </Button>
                                               <Button
                                                 variant="light"
-                                                className="action-btn text-info"
+                                                className="action-btn sa-action-btn-theme"
                                                 onClick={() => openMessagesModal(r)}
                                                 title={language === 'uz' ? 'Xabar shablonlari' : 'Шаблоны сообщений'}
                                               >
                                                 <MessageSquare className="action-btn-icon" aria-hidden="true" />
+                                              </Button>
+                                              <Button
+                                                variant="light"
+                                                className={`action-btn sa-action-btn-access ${r.is_active ? 'is-open' : 'is-closed'}`}
+                                                onClick={() => handleToggleRestaurant(r)}
+                                                title={r.is_active
+                                                  ? (language === 'uz' ? 'Kirishni yopish' : 'Закрыть доступ')
+                                                  : (language === 'uz' ? 'Kirishni ochish' : 'Открыть доступ')}
+                                              >
+                                                {r.is_active ? (
+                                                  <svg className="action-btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M8 11V8a4 4 0 1 1 8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                                    <rect x="5" y="11" width="14" height="10" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+                                                    <circle cx="12" cy="16" r="1.2" fill="currentColor" />
+                                                  </svg>
+                                                ) : (
+                                                  <svg className="action-btn-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                                    <rect x="5" y="11" width="14" height="10" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+                                                    <circle cx="12" cy="16" r="1.2" fill="currentColor" />
+                                                    <path d="M17 8l3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                                    <path d="M19.8 5.2l1.5 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                                                  </svg>
+                                                )}
                                               </Button>
                                               <Button
                                                 variant="light"
@@ -12481,7 +12493,7 @@ function SuperAdminDashboard() {
                                               </Button>
                                               <Button
                                                 variant="light"
-                                                className="action-btn text-danger"
+                                                className="action-btn sa-action-btn-theme"
                                                 onClick={() => handleDeleteRestaurant(r.id)}
                                                 title={language === 'uz' ? "O'chirish" : 'Удалить'}
                                               >

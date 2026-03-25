@@ -5496,15 +5496,15 @@ body::-webkit-scrollbar,
 }
 
 .sa-shop-status-select {
-    width: 176px;
-    min-width: 176px;
+    width: 164px;
+    min-width: 164px;
     max-width: 100%;
 }
 
 .sa-restaurant-dropdown-toggle {
     border-color: #dbe2ea !important;
     background: #ffffff !important;
-    font-weight: 600 !important;
+    font-weight: 400 !important;
     font-size: 12px !important;
     color: #0f172a !important;
     padding: 0 10px !important;
@@ -5512,7 +5512,8 @@ body::-webkit-scrollbar,
 
 .sa-restaurant-dropdown-menu {
     min-width: max(100%, 220px) !important;
-    max-width: 290px;
+    max-width: 260px;
+    max-height: 240px !important;
     border-radius: 12px;
     border: 1px solid #dbe2ea;
     background: #ffffff;
@@ -5525,8 +5526,10 @@ body::-webkit-scrollbar,
 
 .sa-restaurant-dropdown-menu .dropdown-item {
     border-radius: 8px;
-    padding: 8px 10px;
-    font-weight: 600;
+    padding: 6px 10px;
+    font-weight: 400;
+    font-size: 12px;
+    line-height: 1.25;
     color: #334155;
     white-space: normal;
 }
@@ -5576,8 +5579,9 @@ body::-webkit-scrollbar,
 
 .sa-searchable-restaurant-item {
     border-radius: 8px;
-    padding: 8px 10px;
-    font-weight: 600;
+    padding: 6px 10px;
+    font-weight: 400;
+    font-size: 12px;
     color: #334155;
     white-space: normal;
 }
@@ -5704,7 +5708,7 @@ body::-webkit-scrollbar,
 
 .sa-restaurant-accordion-grid {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(16, minmax(0, 1fr));
     gap: 8px;
     align-items: stretch;
 }
@@ -5722,27 +5726,23 @@ body::-webkit-scrollbar,
 }
 
 .sa-accordion-service {
-    grid-column: auto;
+    grid-column: span 2;
 }
 
 .sa-accordion-tariff {
-    grid-column: auto;
+    grid-column: span 2;
 }
 
 .sa-accordion-problems {
-    grid-column: auto;
-}
-
-.sa-accordion-access {
-    grid-column: auto;
+    grid-column: span 2;
 }
 
 .sa-accordion-operator {
-    grid-column: auto;
+    grid-column: span 7;
 }
 
 .sa-accordion-actions {
-    grid-column: auto;
+    grid-column: span 3;
 }
 
 .sa-restaurant-accordion-label {
@@ -5797,7 +5797,7 @@ body::-webkit-scrollbar,
 
 .sa-restaurant-actions-grid {
     display: grid;
-    grid-template-columns: repeat(6, 32px);
+    grid-template-columns: repeat(4, 32px);
     grid-auto-rows: 32px;
     gap: 6px;
     justify-content: start;
@@ -5810,6 +5810,33 @@ body::-webkit-scrollbar,
     box-shadow: none;
 }
 
+.sa-action-btn-theme {
+    color: #4f46e5 !important;
+}
+
+.sa-action-btn-theme:hover,
+.sa-action-btn-theme:focus-visible {
+    color: #4338ca !important;
+}
+
+.sa-action-btn-access.is-open {
+    color: #16a34a !important;
+}
+
+.sa-action-btn-access.is-open:hover,
+.sa-action-btn-access.is-open:focus-visible {
+    color: #15803d !important;
+}
+
+.sa-action-btn-access.is-closed {
+    color: #dc2626 !important;
+}
+
+.sa-action-btn-access.is-closed:hover,
+.sa-action-btn-access.is-closed:focus-visible {
+    color: #b91c1c !important;
+}
+
 .sa-accordion-actions .action-btn:hover,
 .sa-accordion-actions .action-btn:focus-visible {
     border-color: #cbd5e1 !important;
@@ -5818,7 +5845,27 @@ body::-webkit-scrollbar,
 
 @media (max-width: 1199.98px) {
     .sa-restaurant-accordion-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+    .sa-accordion-service {
+        grid-column: span 2;
+    }
+
+    .sa-accordion-tariff {
+        grid-column: span 2;
+    }
+
+    .sa-accordion-problems {
+        grid-column: span 2;
+    }
+
+    .sa-accordion-operator {
+        grid-column: span 4;
+    }
+
+    .sa-accordion-actions {
+        grid-column: span 2;
     }
 }
 
@@ -5830,13 +5877,24 @@ body::-webkit-scrollbar,
     }
 
     .sa-shop-status-select {
-        width: 164px;
-        min-width: 164px;
+        width: 154px;
+        min-width: 154px;
     }
 
     .sa-restaurant-accordion-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
+    }
+
+    .sa-accordion-service,
+    .sa-accordion-tariff,
+    .sa-accordion-problems {
+        grid-column: auto;
+    }
+
+    .sa-accordion-operator,
+    .sa-accordion-actions {
+        grid-column: 1 / -1;
     }
 
     .sa-restaurant-actions-grid {
