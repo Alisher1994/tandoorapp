@@ -30,6 +30,7 @@ async function migrate() {
         superadmin_bot_token VARCHAR(255),
         superadmin_telegram_id VARCHAR(64),
         server_group_chat_id VARCHAR(64),
+        server_stats_interval_ms INTEGER DEFAULT 1800000,
         catalog_animation_season VARCHAR(16) DEFAULT 'off',
         card_number VARCHAR(50),
         card_holder VARCHAR(255),
@@ -61,6 +62,14 @@ async function migrate() {
       ALTER TABLE billing_settings
       ADD COLUMN IF NOT EXISTS server_group_chat_id VARCHAR(64);
     `);
+        await pool.query(`
+      ALTER TABLE billing_settings
+      ADD COLUMN IF NOT EXISTS server_stats_interval_ms INTEGER DEFAULT 1800000;
+    `);
+        await pool.query(`
+      ALTER TABLE billing_settings
+      ALTER COLUMN server_stats_interval_ms SET DEFAULT 1800000;
+    `).catch(() => { });
         await pool.query(`
       ALTER TABLE billing_settings
       ADD COLUMN IF NOT EXISTS catalog_animation_season VARCHAR(16) DEFAULT 'off';
@@ -104,6 +113,12 @@ async function migrate() {
       UPDATE billing_settings
       SET print_form_caption_uz = 'Skanerlang va buyurtma bering'
       WHERE print_form_caption_uz IS NULL OR BTRIM(print_form_caption_uz) = '';
+    `).catch(() => { });
+        await pool.query(`
+      UPDATE billing_settings
+      SET server_stats_interval_ms = 1800000
+      WHERE server_stats_interval_ms IS NULL
+         OR server_stats_interval_ms NOT IN (1800000, 3600000, 7200000, 10800000, 21600000, 86400000);
     `).catch(() => { });
         await pool.query(`
       ALTER TABLE billing_settings

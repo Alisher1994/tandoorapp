@@ -5,6 +5,14 @@ const pool = require('../database/connection');
 const DEFAULT_STATS_INTERVAL_MS = 30 * 60 * 1000;
 const MIN_STATS_INTERVAL_MS = 60 * 1000;
 const MAX_STATS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const SERVER_STATS_ALLOWED_INTERVALS_MS = new Set([
+  30 * 60 * 1000,
+  60 * 60 * 1000,
+  2 * 60 * 60 * 1000,
+  3 * 60 * 60 * 1000,
+  6 * 60 * 60 * 1000,
+  24 * 60 * 60 * 1000
+]);
 const ALERT_THROTTLE_MS = 5 * 60 * 1000;
 const BOT_TIME_ZONE = process.env.BOT_TIMEZONE || process.env.TELEGRAM_TIMEZONE || process.env.TZ || 'Asia/Tashkent';
 const DISK_STATS_PATH = String(process.env.SUPERADMIN_SERVER_DISK_PATH || '/').trim() || '/';
@@ -18,6 +26,7 @@ const SUPERADMIN_EXTRA_TELEGRAM_IDS = new Set(
 let statsTimer = null;
 let activeMonitoringBot = null;
 let activeMonitoringLang = 'ru';
+let activeMonitoringIntervalMs = DEFAULT_STATS_INTERVAL_MS;
 let hooksRegistered = false;
 const alertTimestamps = new Map();
 
@@ -272,6 +281,31 @@ const fetchServerStatsGroupChatId = async () => {
   }
 };
 
+const normalizeStatsInterval = (value, fallback = DEFAULT_STATS_INTERVAL_MS) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  const ranged = Math.min(MAX_STATS_INTERVAL_MS, Math.max(MIN_STATS_INTERVAL_MS, parsed));
+  if (SERVER_STATS_ALLOWED_INTERVALS_MS.has(ranged)) return ranged;
+  return fallback;
+};
+
+const fetchConfiguredStatsIntervalMs = async () => {
+  try {
+    const result = await pool.query(`
+      SELECT server_stats_interval_ms
+      FROM billing_settings
+      WHERE id = 1
+      LIMIT 1
+    `);
+    const configured = normalizeStatsInterval(result.rows?.[0]?.server_stats_interval_ms, null);
+    if (configured) return configured;
+  } catch (error) {
+    console.warn('Fetch server stats interval warning:', error?.message || error);
+  }
+  const fallbackValue = process.env.SUPERADMIN_SERVER_STATS_INTERVAL_FALLBACK_MS || process.env.SUPERADMIN_SERVER_STATS_INTERVAL_MS;
+  return normalizeStatsInterval(fallbackValue, DEFAULT_STATS_INTERVAL_MS);
+};
+
 const fetchSuperadminTelegramIds = async () => {
   const envIds = Array.from(SUPERADMIN_EXTRA_TELEGRAM_IDS);
   const groupChatId = await fetchServerStatsGroupChatId();
@@ -457,10 +491,37 @@ const sendLifecycleAlertToSuperadmins = async (bot, { type = 'signal', details =
   }
 };
 
-const normalizeStatsInterval = (value) => {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return DEFAULT_STATS_INTERVAL_MS;
-  return Math.min(MAX_STATS_INTERVAL_MS, Math.max(MIN_STATS_INTERVAL_MS, parsed));
+const clearMonitoringTimer = () => {
+  if (statsTimer) {
+    clearInterval(statsTimer);
+    statsTimer = null;
+  }
+};
+
+const restartMonitoringTimer = async ({ sendStartupReport = false } = {}) => {
+  if (!activeMonitoringBot) return false;
+  const intervalMs = await fetchConfiguredStatsIntervalMs();
+  activeMonitoringIntervalMs = normalizeStatsInterval(intervalMs, DEFAULT_STATS_INTERVAL_MS);
+
+  clearMonitoringTimer();
+
+  const runner = () => {
+    if (!activeMonitoringBot) return;
+    sendServerStatsToSuperadmins(activeMonitoringBot, { reason: 'scheduled', lang: activeMonitoringLang }).catch((error) => {
+      console.error('Scheduled server stats notify warning:', error?.message || error);
+    });
+  };
+
+  statsTimer = setInterval(runner, activeMonitoringIntervalMs);
+  console.log(`⏱ Superadmin server monitoring started (interval: ${activeMonitoringIntervalMs} ms)`);
+
+  if (sendStartupReport) {
+    sendServerStatsToSuperadmins(activeMonitoringBot, { reason: 'startup', lang: activeMonitoringLang }).catch((error) => {
+      console.error('Startup server stats notify warning:', error?.message || error);
+    });
+  }
+
+  return true;
 };
 
 const initSuperadminServerMonitoring = ({ bot, lang = 'ru' } = {}) => {
@@ -474,27 +535,12 @@ const initSuperadminServerMonitoring = ({ bot, lang = 'ru' } = {}) => {
 
   if (statsTimer) {
     console.log('ℹ️ Superadmin server monitoring bot instance updated');
-    return;
-  }
-
-  const intervalMs = normalizeStatsInterval(process.env.SUPERADMIN_SERVER_STATS_INTERVAL_MS);
-  const sendStartupReport = String(process.env.SUPERADMIN_SERVER_STATS_SEND_STARTUP || '1').trim() !== '0';
-
-  if (sendStartupReport) {
-    sendServerStatsToSuperadmins(activeMonitoringBot, { reason: 'startup', lang: activeMonitoringLang }).catch((error) => {
-      console.error('Startup server stats notify warning:', error?.message || error);
+  } else {
+    const sendStartupReport = String(process.env.SUPERADMIN_SERVER_STATS_SEND_STARTUP || '1').trim() !== '0';
+    restartMonitoringTimer({ sendStartupReport }).catch((error) => {
+      console.error('Server monitoring start warning:', error?.message || error);
     });
   }
-
-  const runner = () => {
-    if (!activeMonitoringBot) return;
-    sendServerStatsToSuperadmins(activeMonitoringBot, { reason: 'scheduled', lang: activeMonitoringLang }).catch((error) => {
-      console.error('Scheduled server stats notify warning:', error?.message || error);
-    });
-  };
-
-  statsTimer = setInterval(runner, intervalMs);
-  console.log(`⏱ Superadmin server monitoring started (interval: ${intervalMs} ms)`);
 
   if (!hooksRegistered) {
     hooksRegistered = true;
@@ -537,10 +583,18 @@ const initSuperadminServerMonitoring = ({ bot, lang = 'ru' } = {}) => {
   }
 };
 
+const refreshSuperadminServerMonitoringSchedule = async () => {
+  if (!activeMonitoringBot) return false;
+  return restartMonitoringTimer({ sendStartupReport: false });
+};
+
 module.exports = {
   buildServerStatsMessage,
   sendServerStatsToChat,
   sendServerStatsToSuperadmins,
   fetchServerStatsGroupChatId,
+  fetchConfiguredStatsIntervalMs,
+  normalizeStatsInterval,
+  refreshSuperadminServerMonitoringSchedule,
   initSuperadminServerMonitoring
 };

@@ -80,6 +80,15 @@ const loadXlsxModule = async () => {
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const SUPERADMIN_REQUEST_TIMEOUT_MS = 8000;
 const SUPERADMIN_DIRECTORY_CACHE_TTL_MS = 120000;
+const SERVER_STATS_INTERVAL_OPTIONS = [
+  { value: 30 * 60 * 1000, label: '30 минут' },
+  { value: 60 * 60 * 1000, label: '1 час' },
+  { value: 2 * 60 * 60 * 1000, label: '2 часа' },
+  { value: 3 * 60 * 60 * 1000, label: '3 часа' },
+  { value: 6 * 60 * 60 * 1000, label: '6 часов' },
+  { value: 24 * 60 * 60 * 1000, label: '1 день' }
+];
+const SERVER_STATS_INTERVAL_SET = new Set(SERVER_STATS_INTERVAL_OPTIONS.map((item) => item.value));
 const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
@@ -302,6 +311,11 @@ const createEmptyAiProviderDraft = () => ({
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return ['off', 'spring', 'summer', 'autumn', 'winter'].includes(normalized) ? normalized : fallback;
+};
+const normalizeServerStatsIntervalMs = (value, fallback = 30 * 60 * 1000) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return SERVER_STATS_INTERVAL_SET.has(parsed) ? parsed : fallback;
 };
 const createEmptyHelpInstructionForm = () => ({
   id: null,
@@ -1769,6 +1783,7 @@ function SuperAdminDashboard() {
     superadmin_bot_username: '',
     superadmin_telegram_id: '',
     server_group_chat_id: '',
+    server_stats_interval_ms: 30 * 60 * 1000,
     card_number: '',
     card_holder: '',
     phone_number: '',
@@ -1815,6 +1830,7 @@ function SuperAdminDashboard() {
   const centralTokenHideTimeoutRef = useRef(null);
   const [uploadingPrintFormBackground, setUploadingPrintFormBackground] = useState(false);
   const [isTestingCentralBot, setIsTestingCentralBot] = useState(false);
+  const [isSendingServerReport, setIsSendingServerReport] = useState(false);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
   const [topupRestaurantSearch, setTopupRestaurantSearch] = useState('');
@@ -4404,6 +4420,7 @@ function SuperAdminDashboard() {
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
+          server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
           ai_enabled: response.data.ai_enabled !== false,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4423,6 +4440,7 @@ function SuperAdminDashboard() {
         ...billingSettings,
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
+        server_stats_interval_ms: normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000),
         ai_enabled: billingSettings.ai_enabled !== false,
         print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
         print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4437,6 +4455,7 @@ function SuperAdminDashboard() {
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
+          server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
           ai_enabled: response.data.ai_enabled !== false,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4461,6 +4480,7 @@ function SuperAdminDashboard() {
         ...billingSettings,
         card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
         catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
+        server_stats_interval_ms: normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000),
         ai_enabled: !!nextEnabled,
         print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
         print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4475,6 +4495,7 @@ function SuperAdminDashboard() {
           ...response.data,
           card_number: String(response.data.card_number || '').replace(/\D/g, ''),
           catalog_animation_season: normalizeCatalogAnimationSeason(response.data.catalog_animation_season, 'off'),
+          server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
           ai_enabled: response.data.ai_enabled !== false,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
@@ -4787,6 +4808,29 @@ function SuperAdminDashboard() {
       setError(err?.response?.data?.error || 'Ошибка проверки бота');
     } finally {
       setIsTestingCentralBot(false);
+    }
+  };
+
+  const sendServerReportFromSettings = async () => {
+    if (!billingSettings.superadmin_bot_token) {
+      setError('Введите токен центрального Telegram-бота');
+      return;
+    }
+    if (!billingSettings.server_group_chat_id) {
+      setError('Заполните Server Group Chat ID');
+      return;
+    }
+
+    try {
+      setIsSendingServerReport(true);
+      const response = await axios.post(`${API_URL}/superadmin/billing/settings/send-server-report`, {
+        lang: language
+      });
+      setSuccess(response.data?.message || 'Отчёт сервера отправлен');
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Не удалось отправить отчёт сервера');
+    } finally {
+      setIsSendingServerReport(false);
     }
   };
 
@@ -16172,6 +16216,66 @@ function SuperAdminDashboard() {
                               Если заполнено, периодическая статистика и server alerts будут отправляться в этот Telegram group chat.
                             </Form.Text>
                           </Form.Group>
+
+                          <Row className="g-3 mb-4">
+                            <Col md={7}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  {language === 'uz' ? "Server hisoboti intervali" : 'Интервал отправки отчёта'}
+                                </Form.Label>
+                                <Form.Select
+                                  className="form-control-custom"
+                                  value={normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000)}
+                                  onChange={(e) => setBillingSettings({
+                                    ...billingSettings,
+                                    server_stats_interval_ms: normalizeServerStatsIntervalMs(e.target.value, 30 * 60 * 1000)
+                                  })}
+                                >
+                                  {SERVER_STATS_INTERVAL_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </Form.Select>
+                                <Form.Text className="text-muted small">
+                                  {language === 'uz'
+                                    ? "Yuborish oralig'ini tanlang va sozlamalarni saqlang."
+                                    : 'Выберите период и сохраните настройки, чтобы запустить автоотправку.'}
+                                </Form.Text>
+                              </Form.Group>
+                            </Col>
+                            <Col md={5}>
+                              <Form.Group className="mb-0">
+                                <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                                  {language === 'uz' ? "Qo'lda yuborish" : 'Ручная отправка'}
+                                </Form.Label>
+                                <Button
+                                  type="button"
+                                  variant="primary"
+                                  className="w-100 d-inline-flex align-items-center justify-content-center gap-2"
+                                  onClick={sendServerReportFromSettings}
+                                  disabled={isSendingServerReport || !billingSettings.superadmin_bot_token || !billingSettings.server_group_chat_id}
+                                >
+                                  {isSendingServerReport ? (
+                                    <>
+                                      <Spinner animation="border" size="sm" />
+                                      <span>{language === 'uz' ? 'Yuborilmoqda...' : 'Отправка...'}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send size={14} />
+                                      <span>{language === 'uz' ? 'Hisobot yuborish' : 'Отправить отчёт'}</span>
+                                    </>
+                                  )}
+                                </Button>
+                                <Form.Text className="text-muted small">
+                                  {language === 'uz'
+                                    ? "Darhol guruhga server holati hisobotini yuboradi."
+                                    : 'Сразу отправляет в группу текущую статистику сервера.'}
+                                </Form.Text>
+                              </Form.Group>
+                            </Col>
+                          </Row>
 
                           <hr className="my-4" />
 

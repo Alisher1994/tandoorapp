@@ -20,7 +20,7 @@ const {
   ACTION_TYPES,
   ENTITY_TYPES
 } = require('../services/activityLogger');
-const { reloadBot, getBot } = require('../bot/bot');
+const { reloadBot, getBot, getActiveSuperadminBotToken } = require('../bot/bot');
 const { reloadMultiBots } = require('../bot/multiBotManager');
 const {
   ensureHelpInstructionsSchema,
@@ -45,6 +45,11 @@ const {
   ensurePrintFormSettingsSchema,
   normalizePrintFormSettingsPayload
 } = require('../services/printFormSettings');
+const {
+  sendServerStatsToChat,
+  refreshSuperadminServerMonitoringSchedule,
+  normalizeStatsInterval
+} = require('../services/superadminServerMonitoring');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -275,6 +280,45 @@ const normalizeTokenValue = (value) => {
 const normalizeTelegramIdValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim();
   return normalized || null;
+};
+const resolveServerReportLanguage = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'uz' ? 'uz' : 'ru';
+};
+const sendServerReportUsingBillingSettings = async ({ lang = 'ru' } = {}) => {
+  await ensureBillingSettingsSchema();
+  const settingsResult = await pool.query(`
+    SELECT superadmin_bot_token, superadmin_telegram_id, server_group_chat_id
+    FROM billing_settings
+    WHERE id = 1
+    LIMIT 1
+  `);
+  const row = settingsResult.rows[0] || {};
+  const token = normalizeTokenValue(row.superadmin_bot_token);
+  const targetChatId = normalizeTelegramIdValue(row.server_group_chat_id) || normalizeTelegramIdValue(row.superadmin_telegram_id);
+
+  if (!token) {
+    const error = new Error('CENTRAL_BOT_TOKEN_REQUIRED');
+    error.code = 'CENTRAL_BOT_TOKEN_REQUIRED';
+    throw error;
+  }
+  if (!targetChatId) {
+    const error = new Error('SERVER_GROUP_CHAT_ID_REQUIRED');
+    error.code = 'SERVER_GROUP_CHAT_ID_REQUIRED';
+    throw error;
+  }
+
+  const activeBot = getBot();
+  const activeToken = normalizeTokenValue(getActiveSuperadminBotToken());
+  const reusableBot = activeBot && activeToken === token ? activeBot : null;
+  const reportBot = reusableBot || new TelegramBot(token);
+
+  await sendServerStatsToChat(reportBot, targetChatId, {
+    reason: 'manual',
+    lang: resolveServerReportLanguage(lang)
+  });
+
+  return { targetChatId };
 };
 const SEASON_ANIMATION_MODES = new Set(['off', 'spring', 'summer', 'autumn', 'winter']);
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
@@ -555,6 +599,8 @@ const ensureBillingSettingsSchema = async () => {
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN ai_enabled SET DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_group_chat_id VARCHAR(64)`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_stats_interval_ms INTEGER DEFAULT 1800000`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ALTER COLUMN server_stats_interval_ms SET DEFAULT 1800000`).catch(() => {});
     await pool.query(`
       UPDATE billing_settings
       SET catalog_animation_season = 'off'
@@ -566,6 +612,12 @@ const ensureBillingSettingsSchema = async () => {
       UPDATE billing_settings
       SET ai_enabled = true
       WHERE ai_enabled IS NULL
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE billing_settings
+      SET server_stats_interval_ms = 1800000
+      WHERE server_stats_interval_ms IS NULL
+         OR server_stats_interval_ms NOT IN (1800000, 3600000, 7200000, 10800000, 21600000, 86400000)
     `).catch(() => {});
     await pool.query(`
       ALTER TABLE billing_settings
@@ -4096,6 +4148,7 @@ router.put('/billing-settings', async (req, res) => {
       superadmin_bot_token,
       superadmin_telegram_id,
       server_group_chat_id,
+      server_stats_interval_ms,
       catalog_animation_season,
       ai_enabled,
       print_form_background_url,
@@ -4107,6 +4160,7 @@ router.put('/billing-settings', async (req, res) => {
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedServerGroupChatId = normalizeTelegramIdValue(server_group_chat_id);
+    const normalizedServerStatsIntervalMs = normalizeStatsInterval(server_stats_interval_ms, null);
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
     const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
@@ -4128,12 +4182,13 @@ router.put('/billing-settings', async (req, res) => {
           superadmin_bot_token = $9,
           superadmin_telegram_id = $10,
           server_group_chat_id = $11,
-          catalog_animation_season = $12,
-          ai_enabled = $13,
-          print_form_background_url = $14,
-          print_form_qr_position = $15,
-          print_form_caption_ru = $16,
-          print_form_caption_uz = $17,
+          server_stats_interval_ms = COALESCE($12, server_stats_interval_ms, 1800000),
+          catalog_animation_season = $13,
+          ai_enabled = $14,
+          print_form_background_url = $15,
+          print_form_qr_position = $16,
+          print_form_caption_ru = $17,
+          print_form_caption_uz = $18,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -4145,6 +4200,7 @@ router.put('/billing-settings', async (req, res) => {
       normalizedToken,
       normalizedSuperadminTelegramId,
       normalizedServerGroupChatId,
+      normalizedServerStatsIntervalMs,
       normalizedCatalogAnimationSeason,
       normalizedAiEnabled,
       normalizedPrintFormSettings.print_form_background_url,
@@ -4158,6 +4214,9 @@ router.put('/billing-settings', async (req, res) => {
     } catch (reloadErr) {
       console.error('Bot reload warning after settings update:', reloadErr.message);
     }
+    await refreshSuperadminServerMonitoringSchedule().catch((scheduleErr) => {
+      console.error('Server monitoring schedule refresh warning:', scheduleErr?.message || scheduleErr);
+    });
 
     if (normalizedToken && normalizedToken !== previousToken) {
       try {
@@ -4173,6 +4232,28 @@ router.put('/billing-settings', async (req, res) => {
   } catch (error) {
     console.error('Update billing settings error:', error);
     res.status(500).json({ error: 'Ошибка обновления настроек биллинга' });
+  }
+});
+
+router.post('/billing-settings/send-server-report', async (req, res) => {
+  try {
+    const { targetChatId } = await sendServerReportUsingBillingSettings({
+      lang: req.body?.lang
+    });
+    res.json({
+      success: true,
+      target_chat_id: targetChatId,
+      message: 'Отчёт сервера отправлен'
+    });
+  } catch (error) {
+    if (error?.code === 'CENTRAL_BOT_TOKEN_REQUIRED') {
+      return res.status(400).json({ error: 'Сначала укажите токен центрального Telegram-бота' });
+    }
+    if (error?.code === 'SERVER_GROUP_CHAT_ID_REQUIRED') {
+      return res.status(400).json({ error: 'Сначала заполните server group chat id' });
+    }
+    console.error('Send server report error:', error);
+    return res.status(500).json({ error: 'Не удалось отправить отчёт сервера' });
   }
 });
 
@@ -10724,6 +10805,7 @@ router.put('/billing/settings', async (req, res) => {
       superadmin_bot_token,
       superadmin_telegram_id,
       server_group_chat_id,
+      server_stats_interval_ms,
       catalog_animation_season,
       ai_enabled,
       print_form_background_url,
@@ -10735,6 +10817,7 @@ router.put('/billing/settings', async (req, res) => {
     const normalizedToken = normalizeTokenValue(superadmin_bot_token);
     const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
     const normalizedServerGroupChatId = normalizeTelegramIdValue(server_group_chat_id);
+    const normalizedServerStatsIntervalMs = normalizeStatsInterval(server_stats_interval_ms, null);
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
     const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
@@ -10756,19 +10839,20 @@ router.put('/billing/settings', async (req, res) => {
           superadmin_bot_token = $9,
           superadmin_telegram_id = $10,
           server_group_chat_id = $11,
-          catalog_animation_season = $12,
-          ai_enabled = $13,
-          print_form_background_url = $14,
-          print_form_qr_position = $15,
-          print_form_caption_ru = $16,
-          print_form_caption_uz = $17,
+          server_stats_interval_ms = COALESCE($12, server_stats_interval_ms, 1800000),
+          catalog_animation_season = $13,
+          ai_enabled = $14,
+          print_form_background_url = $15,
+          print_form_qr_position = $16,
+          print_form_caption_ru = $17,
+          print_form_caption_uz = $18,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
     `, [
       card_number, card_holder, phone_number, telegram_username,
       click_link, payme_link, parseFloat(default_starting_balance) || 100000, parseFlexibleAmount(default_order_cost, 1000),
-      normalizedToken, normalizedSuperadminTelegramId, normalizedServerGroupChatId, normalizedCatalogAnimationSeason, normalizedAiEnabled,
+      normalizedToken, normalizedSuperadminTelegramId, normalizedServerGroupChatId, normalizedServerStatsIntervalMs, normalizedCatalogAnimationSeason, normalizedAiEnabled,
       normalizedPrintFormSettings.print_form_background_url,
       normalizedPrintFormSettings.print_form_qr_position,
       normalizedPrintFormSettings.print_form_caption_ru,
@@ -10780,6 +10864,9 @@ router.put('/billing/settings', async (req, res) => {
     } catch (reloadErr) {
       console.error('Bot reload warning after settings update:', reloadErr.message);
     }
+    await refreshSuperadminServerMonitoringSchedule().catch((scheduleErr) => {
+      console.error('Server monitoring schedule refresh warning:', scheduleErr?.message || scheduleErr);
+    });
 
     if (normalizedToken && normalizedToken !== previousToken) {
       try {
@@ -10837,6 +10924,28 @@ router.post('/billing/settings/test-bot', async (req, res) => {
       error: 'Не удалось проверить бота или отправить тестовое сообщение',
       details: error.message
     });
+  }
+});
+
+router.post('/billing/settings/send-server-report', async (req, res) => {
+  try {
+    const { targetChatId } = await sendServerReportUsingBillingSettings({
+      lang: req.body?.lang
+    });
+    res.json({
+      success: true,
+      target_chat_id: targetChatId,
+      message: 'Отчёт сервера отправлен'
+    });
+  } catch (error) {
+    if (error?.code === 'CENTRAL_BOT_TOKEN_REQUIRED') {
+      return res.status(400).json({ error: 'Сначала укажите токен центрального Telegram-бота' });
+    }
+    if (error?.code === 'SERVER_GROUP_CHAT_ID_REQUIRED') {
+      return res.status(400).json({ error: 'Сначала заполните server group chat id' });
+    }
+    console.error('Send server report error:', error);
+    return res.status(500).json({ error: 'Не удалось отправить отчёт сервера' });
   }
 });
 
