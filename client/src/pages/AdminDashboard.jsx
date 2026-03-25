@@ -6597,6 +6597,12 @@ function AdminDashboard() {
     const g5 = normalized12.slice(10, 12);
     return `+${g1} ${g2} ${g3}-${g4}-${g5}`;
   };
+  const getTelegramPhoneHref = (rawPhone) => {
+    const digits = String(rawPhone || '').replace(/\D/g, '');
+    if (!digits) return '';
+    const normalizedDigits = digits.length === 9 ? `998${digits}` : digits;
+    return `https://t.me/+${normalizedDigits}`;
+  };
 
   const getPaymentMethodLabel = (paymentMethod) => {
     if (paymentMethod === 'cash') return 'Наличные';
@@ -12576,9 +12582,26 @@ function AdminDashboard() {
                           <span className="text-muted">Нажмите «Принять», чтобы увидеть номер</span>
                         ) : (
                           <>
-                            <a href={`tel:${selectedOrder.customer_phone}`} className="order-meta-phone-link">
-                              {selectedOrder.customer_phone}
-                            </a>
+                            {(() => {
+                              const telegramHref = getTelegramPhoneHref(selectedOrder.customer_phone);
+                              if (!telegramHref) {
+                                return (
+                                  <span className="order-meta-phone-link">
+                                    {selectedOrder.customer_phone}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <a
+                                  href={telegramHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="order-meta-phone-link"
+                                >
+                                  {selectedOrder.customer_phone}
+                                </a>
+                              );
+                            })()}
                             <a
                               href={`tel:${selectedOrder.customer_phone}`}
                               className="btn btn-success btn-sm order-call-btn"

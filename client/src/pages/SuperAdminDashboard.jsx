@@ -6294,6 +6294,13 @@ function SuperAdminDashboard() {
     }
     return `tel:${cleaned}`;
   };
+  const getTelegramPhoneHref = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return '';
+    return `https://t.me/+${digits}`;
+  };
   const buildTelegramProfileLink = (value) => {
     const raw = String(value || '').trim();
     if (!raw) return null;
@@ -20187,7 +20194,20 @@ function SuperAdminDashboard() {
                   <Row>
                     <Col md={6}>
                       <p className="mb-2"><strong>Имя:</strong> {selectedOrder.customer_name}</p>
-                      <p className="mb-2"><strong>Телефон:</strong> {selectedOrder.customer_phone}</p>
+                      <p className="mb-2">
+                        <strong>Телефон:</strong>{' '}
+                        {(() => {
+                          const phoneValue = String(selectedOrder.customer_phone || '').trim();
+                          const telegramHref = getTelegramPhoneHref(phoneValue);
+                          if (!phoneValue) return '-';
+                          if (!telegramHref) return phoneValue;
+                          return (
+                            <a href={telegramHref} target="_blank" rel="noopener noreferrer">
+                              {phoneValue}
+                            </a>
+                          );
+                        })()}
+                      </p>
                     </Col>
                     <Col md={6}>
                       <p className="mb-2"><strong>Адрес:</strong> {selectedOrder.delivery_address}</p>
