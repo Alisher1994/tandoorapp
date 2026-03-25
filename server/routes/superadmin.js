@@ -4159,9 +4159,9 @@ router.put('/billing-settings', async (req, res) => {
       print_form_caption_uz
     } = req.body;
 
-    const normalizedToken = normalizeTokenValue(superadmin_bot_token);
-    const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
-    const normalizedServerGroupChatId = normalizeTelegramIdValue(server_group_chat_id);
+    const normalizedTokenInput = normalizeTokenValue(superadmin_bot_token);
+    const normalizedSuperadminTelegramIdInput = normalizeTelegramIdValue(superadmin_telegram_id);
+    const normalizedServerGroupChatIdInput = normalizeTelegramIdValue(server_group_chat_id);
     const normalizedServerStatsIntervalMs = normalizeStatsInterval(server_stats_interval_ms, null);
     const normalizedServerRailwayProjects = String(server_railway_projects || '').trim();
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
@@ -4173,9 +4173,14 @@ router.put('/billing-settings', async (req, res) => {
       print_form_caption_uz
     });
     const previousSettings = await pool.query(
-      'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
+      'SELECT superadmin_bot_token, superadmin_telegram_id, server_group_chat_id FROM billing_settings WHERE id = 1'
     );
     const previousToken = normalizeTokenValue(previousSettings.rows[0]?.superadmin_bot_token);
+    const previousSuperadminTelegramId = normalizeTelegramIdValue(previousSettings.rows[0]?.superadmin_telegram_id);
+    const previousServerGroupChatId = normalizeTelegramIdValue(previousSettings.rows[0]?.server_group_chat_id);
+    const normalizedToken = normalizedTokenInput ?? previousToken;
+    const normalizedSuperadminTelegramId = normalizedSuperadminTelegramIdInput ?? previousSuperadminTelegramId;
+    const normalizedServerGroupChatId = normalizedServerGroupChatIdInput ?? previousServerGroupChatId;
 
     const result = await pool.query(`
       UPDATE billing_settings 
@@ -10820,9 +10825,9 @@ router.put('/billing/settings', async (req, res) => {
       print_form_caption_uz
     } = req.body;
 
-    const normalizedToken = normalizeTokenValue(superadmin_bot_token);
-    const normalizedSuperadminTelegramId = normalizeTelegramIdValue(superadmin_telegram_id);
-    const normalizedServerGroupChatId = normalizeTelegramIdValue(server_group_chat_id);
+    const normalizedTokenInput = normalizeTokenValue(superadmin_bot_token);
+    const normalizedSuperadminTelegramIdInput = normalizeTelegramIdValue(superadmin_telegram_id);
+    const normalizedServerGroupChatIdInput = normalizeTelegramIdValue(server_group_chat_id);
     const normalizedServerStatsIntervalMs = normalizeStatsInterval(server_stats_interval_ms, null);
     const normalizedServerRailwayProjects = String(server_railway_projects || '').trim();
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
@@ -10834,9 +10839,14 @@ router.put('/billing/settings', async (req, res) => {
       print_form_caption_uz
     });
     const previousSettings = await pool.query(
-      'SELECT superadmin_bot_token FROM billing_settings WHERE id = 1'
+      'SELECT superadmin_bot_token, superadmin_telegram_id, server_group_chat_id FROM billing_settings WHERE id = 1'
     );
     const previousToken = normalizeTokenValue(previousSettings.rows[0]?.superadmin_bot_token);
+    const previousSuperadminTelegramId = normalizeTelegramIdValue(previousSettings.rows[0]?.superadmin_telegram_id);
+    const previousServerGroupChatId = normalizeTelegramIdValue(previousSettings.rows[0]?.server_group_chat_id);
+    const normalizedToken = normalizedTokenInput ?? previousToken;
+    const normalizedSuperadminTelegramId = normalizedSuperadminTelegramIdInput ?? previousSuperadminTelegramId;
+    const normalizedServerGroupChatId = normalizedServerGroupChatIdInput ?? previousServerGroupChatId;
 
     const result = await pool.query(`
       UPDATE billing_settings
