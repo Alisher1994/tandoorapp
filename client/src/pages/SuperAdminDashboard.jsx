@@ -14288,7 +14288,19 @@ function SuperAdminDashboard() {
                               <td><span className="text-muted small">#{op.id}</span></td>
                               <td><strong>{op.username}</strong></td>
                               <td>{op.full_name || '-'}</td>
-                              <td><small>{op.phone || '-'}</small></td>
+                              <td>
+                                {(() => {
+                                  const phoneValue = String(op.phone || '').trim();
+                                  const telegramHref = getTelegramPhoneHref(phoneValue);
+                                  if (!phoneValue) return <small>-</small>;
+                                  if (!telegramHref) return <small>{phoneValue}</small>;
+                                  return (
+                                    <a href={telegramHref} target="_blank" rel="noopener noreferrer">
+                                      <small>{phoneValue}</small>
+                                    </a>
+                                  );
+                                })()}
+                              </td>
                               <td>
                                 <Badge className={`badge-custom sa-role-badge ${op.role === 'superadmin' ? 'sa-role-badge-superadmin' : 'sa-role-badge-operator'}`}>
                                   {op.role === 'superadmin' ? 'Супер-админ' : 'Оператор'}
