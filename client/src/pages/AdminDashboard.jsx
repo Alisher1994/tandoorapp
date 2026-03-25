@@ -6605,12 +6605,13 @@ function AdminDashboard() {
   };
   const renderCustomerPhoneLink = (rawPhone) => {
     const phoneValue = String(rawPhone || '').trim();
+    const formattedPhone = formatCustomerPhone(phoneValue);
     const telegramHref = getTelegramPhoneHref(phoneValue);
-    if (!phoneValue) return '-';
-    if (!telegramHref) return phoneValue;
+    if (!phoneValue || formattedPhone === '-') return '-';
+    if (!telegramHref) return formattedPhone;
     return (
       <a href={telegramHref} target="_blank" rel="noopener noreferrer">
-        {phoneValue}
+        {formattedPhone}
       </a>
     );
   };
@@ -10008,7 +10009,7 @@ function AdminDashboard() {
                                     <div className="admin-order-kanban-card-overview-main">
                                       <div className="fw-semibold">{hideSensitive ? 'Скрыто до принятия' : order.customer_name}</div>
                                       <small className={needsBillingPayment ? "text-muted opacity-50" : "text-muted"}>
-                                        {hideSensitive ? 'Нажмите «Принять»' : formatCustomerPhone(order.customer_phone)}
+                                        {hideSensitive ? 'Нажмите «Принять»' : renderCustomerPhoneLink(order.customer_phone)}
                                         {needsBillingPayment && (
                                           <span className="ms-1" title="Требуется оплата">🔒</span>
                                         )}
