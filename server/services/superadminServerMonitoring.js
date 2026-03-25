@@ -256,8 +256,29 @@ const fetchDatabaseHealth = async () => {
   }
 };
 
+const fetchServerStatsGroupChatId = async () => {
+  try {
+    const result = await pool.query(`
+      SELECT BTRIM(COALESCE(server_group_chat_id, '')) AS server_group_chat_id
+      FROM billing_settings
+      WHERE id = 1
+      LIMIT 1
+    `);
+    const chatId = String(result.rows?.[0]?.server_group_chat_id || '').trim();
+    return chatId || null;
+  } catch (error) {
+    console.warn('Fetch server stats group chat id warning:', error?.message || error);
+    return null;
+  }
+};
+
 const fetchSuperadminTelegramIds = async () => {
   const envIds = Array.from(SUPERADMIN_EXTRA_TELEGRAM_IDS);
+  const groupChatId = await fetchServerStatsGroupChatId();
+
+  if (groupChatId) {
+    return [groupChatId];
+  }
 
   try {
     const result = await pool.query(`
@@ -520,5 +541,6 @@ module.exports = {
   buildServerStatsMessage,
   sendServerStatsToChat,
   sendServerStatsToSuperadmins,
+  fetchServerStatsGroupChatId,
   initSuperadminServerMonitoring
 };

@@ -15,6 +15,7 @@ const {
 } = require('../services/helpInstructions');
 const {
   sendServerStatsToChat,
+  fetchServerStatsGroupChatId,
   initSuperadminServerMonitoring
 } = require('../services/superadminServerMonitoring');
 
@@ -126,6 +127,7 @@ const BOT_TEXTS = {
     serverStatsPreparing: '⏳ Собираю статистику сервера...',
     serverStatsOnlyForSuperadmins: '⛔ Эта функция доступна только супер-админам.',
     serverStatsFailed: '❌ Не удалось получить статистику сервера. Попробуйте позже.',
+    serverStatsSentToGroup: '✅ Отправил статистику в server group chat: <code>{chatId}</code>',
     helpMenuButton: '🆘 Помощь',
     languageMenuButton: '🌐 Язык',
     newOrderButton: '🛒 Новый заказ',
@@ -195,6 +197,7 @@ const BOT_TEXTS = {
     serverStatsPreparing: '⏳ Server statistikasi yig‘ilmoqda...',
     serverStatsOnlyForSuperadmins: '⛔ Bu funksiya faqat superadminlar uchun.',
     serverStatsFailed: '❌ Server statistikasini olib bo‘lmadi. Keyinroq urinib ko‘ring.',
+    serverStatsSentToGroup: '✅ Statistika server group chat ga yuborildi: <code>{chatId}</code>',
     helpMenuButton: '🆘 Yordam',
     languageMenuButton: '🌐 Til',
     newOrderButton: '🛒 Yangi buyurtma',
@@ -1219,7 +1222,18 @@ async function initBot() {
 
     await bot.sendMessage(chatId, t(language, 'serverStatsPreparing'));
     try {
-      await sendServerStatsToChat(bot, chatId, { reason: 'manual', lang: language });
+      const configuredGroupChatId = await fetchServerStatsGroupChatId();
+      const targetChatId = String(configuredGroupChatId || chatId || '').trim();
+      if (!targetChatId) {
+        throw new Error('server_stats_target_chat_missing');
+      }
+
+      await sendServerStatsToChat(bot, targetChatId, { reason: 'manual', lang: language });
+      if (configuredGroupChatId && String(chatId) !== String(targetChatId)) {
+        await bot.sendMessage(chatId, t(language, 'serverStatsSentToGroup', { chatId: targetChatId }), {
+          parse_mode: 'HTML'
+        });
+      }
     } catch (error) {
       console.error('Manual server stats error:', error?.message || error);
       await bot.sendMessage(chatId, t(language, 'serverStatsFailed'));

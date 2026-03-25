@@ -1768,6 +1768,7 @@ function SuperAdminDashboard() {
     superadmin_bot_name: '',
     superadmin_bot_username: '',
     superadmin_telegram_id: '',
+    server_group_chat_id: '',
     card_number: '',
     card_holder: '',
     phone_number: '',
@@ -16142,6 +16143,22 @@ function SuperAdminDashboard() {
                             <div className="text-muted small mt-2">
                               Отправит тестовый текст "Бот работает" на указанный Telegram ID.
                             </div>
+                          </Form.Group>
+
+                          <Form.Group className="mb-4">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">
+                              server group chat id
+                            </Form.Label>
+                            <Form.Control
+                              type="text"
+                              className="form-control-custom"
+                              placeholder="например: -1001234567890"
+                              value={billingSettings.server_group_chat_id || ''}
+                              onChange={e => setBillingSettings({ ...billingSettings, server_group_chat_id: e.target.value })}
+                            />
+                            <Form.Text className="text-muted small">
+                              Если заполнено, периодическая статистика и server alerts будут отправляться в этот Telegram group chat.
+                            </Form.Text>
                           </Form.Group>
 
                           <hr className="my-4" />
