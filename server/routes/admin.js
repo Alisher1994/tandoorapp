@@ -1553,7 +1553,8 @@ router.put('/restaurant', async (req, res) => {
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
-      is_scheduled_date_delivery_enabled, scheduled_delivery_max_days
+      is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
+      is_asap_delivery_enabled, is_scheduled_time_delivery_enabled
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1601,6 +1602,8 @@ router.put('/restaurant', async (req, res) => {
       1,
       Math.min(90, Math.trunc(Number(scheduled_delivery_max_days) || 7))
     );
+    const normalizedAsapDelivery = normalizeOptionalBoolean(is_asap_delivery_enabled);
+    const normalizedScheduledTimeDelivery = normalizeOptionalBoolean(is_scheduled_time_delivery_enabled);
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -1680,8 +1683,10 @@ router.put('/restaurant', async (req, res) => {
           delivery_fixed_price = $48,
           is_scheduled_date_delivery_enabled = COALESCE($49, is_scheduled_date_delivery_enabled),
           scheduled_delivery_max_days = $50,
+          is_asap_delivery_enabled = COALESCE($51, is_asap_delivery_enabled),
+          is_scheduled_time_delivery_enabled = COALESCE($52, is_scheduled_time_delivery_enabled),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $51
+      WHERE id = $53
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1715,6 +1720,8 @@ router.put('/restaurant', async (req, res) => {
       normalizedDeliveryFixedPrice,
       normalizedScheduledDateDelivery,
       normalizedScheduledDeliveryMaxDays,
+      normalizedAsapDelivery,
+      normalizedScheduledTimeDelivery,
       restaurantId
     ]);
 

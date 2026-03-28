@@ -385,8 +385,23 @@ function Cart() {
     return times;
   }, []);
 
+  const isAsapEnabled = restaurant?.is_asap_delivery_enabled !== false;
+  const isScheduledTimeEnabled = restaurant?.is_scheduled_time_delivery_enabled !== false;
   const isScheduledDateEnabled = restaurant?.is_scheduled_date_delivery_enabled === true;
   const scheduledMaxDays = Math.max(1, Math.trunc(Number(restaurant?.scheduled_delivery_max_days) || 7));
+
+  useEffect(() => {
+    if (deliveryTimeMode === 'asap' && !isAsapEnabled) {
+      if (isScheduledTimeEnabled) setDeliveryTimeMode('scheduled');
+      else if (isScheduledDateEnabled) setDeliveryTimeMode('scheduled_date');
+    } else if (deliveryTimeMode === 'scheduled' && !isScheduledTimeEnabled) {
+      if (isAsapEnabled) setDeliveryTimeMode('asap');
+      else if (isScheduledDateEnabled) setDeliveryTimeMode('scheduled_date');
+    } else if (deliveryTimeMode === 'scheduled_date' && !isScheduledDateEnabled) {
+      if (isAsapEnabled) setDeliveryTimeMode('asap');
+      else if (isScheduledTimeEnabled) setDeliveryTimeMode('scheduled');
+    }
+  }, [isAsapEnabled, isScheduledTimeEnabled, isScheduledDateEnabled, deliveryTimeMode]);
 
   const scheduledDateOptions = useMemo(() => {
     if (!isScheduledDateEnabled) return [];
@@ -1403,24 +1418,28 @@ function Cart() {
                 <Form.Group className="mb-3">
                   <Form.Label className="small text-muted mb-1">{t('deliveryTime')}</Form.Label>
                   <div className="cart-segmented-switch">
-                    <Button
-                      type="button"
-                      variant="light"
-                      size="sm"
-                      className={`cart-segmented-option ${deliveryTimeMode === 'asap' ? 'is-active' : ''}`}
-                      onClick={() => setDeliveryTimeMode('asap')}
-                    >
-                      🚀 {t('asap')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="light"
-                      size="sm"
-                      className={`cart-segmented-option ${deliveryTimeMode === 'scheduled' ? 'is-active' : ''}`}
-                      onClick={() => setDeliveryTimeMode('scheduled')}
-                    >
-                      🕐 {t('scheduled')}
-                    </Button>
+                    {isAsapEnabled && (
+                      <Button
+                        type="button"
+                        variant="light"
+                        size="sm"
+                        className={`cart-segmented-option ${deliveryTimeMode === 'asap' ? 'is-active' : ''}`}
+                        onClick={() => setDeliveryTimeMode('asap')}
+                      >
+                        🚀 {t('asap')}
+                      </Button>
+                    )}
+                    {isScheduledTimeEnabled && (
+                      <Button
+                        type="button"
+                        variant="light"
+                        size="sm"
+                        className={`cart-segmented-option ${deliveryTimeMode === 'scheduled' ? 'is-active' : ''}`}
+                        onClick={() => setDeliveryTimeMode('scheduled')}
+                      >
+                        🕐 {t('scheduled')}
+                      </Button>
+                    )}
                     {isScheduledDateEnabled && (
                       <Button
                         type="button"

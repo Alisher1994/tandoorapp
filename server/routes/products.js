@@ -780,7 +780,9 @@ router.get('/restaurant/:id', async (req, res) => {
       owner_username: ownerUsername || String(r.support_username || '').trim().replace(/^@+/, ''),
       owner_phone: ownerPhone || '',
       is_scheduled_date_delivery_enabled: isEnabledFlag(r.is_scheduled_date_delivery_enabled),
-      scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(r.scheduled_delivery_max_days) || 7))
+      scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(r.scheduled_delivery_max_days) || 7)),
+      is_asap_delivery_enabled: r.is_asap_delivery_enabled === false ? false : true,
+      is_scheduled_time_delivery_enabled: r.is_scheduled_time_delivery_enabled === false ? false : true
     });
   } catch (error) {
     console.error('Restaurant error:', error);

@@ -95,7 +95,9 @@ async function migrate() {
       'is_free_tier BOOLEAN DEFAULT false',
       'order_cost DECIMAL(12, 2) DEFAULT 1000.00',
       'is_scheduled_date_delivery_enabled BOOLEAN DEFAULT false',
-      'scheduled_delivery_max_days INTEGER DEFAULT 7'
+      'scheduled_delivery_max_days INTEGER DEFAULT 7',
+      'is_asap_delivery_enabled BOOLEAN DEFAULT true',
+      'is_scheduled_time_delivery_enabled BOOLEAN DEFAULT true'
     ];
 
     for (const col of restaurantColumns) {

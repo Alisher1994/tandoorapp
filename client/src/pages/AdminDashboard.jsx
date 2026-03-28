@@ -606,6 +606,8 @@ const buildRestaurantSettingsSignature = (settings) => {
     minimum_order_amount: normalizeSettingsNumber(settings.minimum_order_amount, 0),
     is_scheduled_date_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_date_delivery_enabled, false),
     scheduled_delivery_max_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.scheduled_delivery_max_days, 7))),
+    is_asap_delivery_enabled: normalizeSettingsBoolean(settings.is_asap_delivery_enabled, true),
+    is_scheduled_time_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_time_delivery_enabled, true),
     send_balance_after_confirm: normalizeSettingsBoolean(settings.send_balance_after_confirm, false),
     send_daily_close_report: normalizeSettingsBoolean(settings.send_daily_close_report, false),
     msg_new: normalizeSettingsText(settings.msg_new),
@@ -4500,6 +4502,8 @@ function AdminDashboard() {
         is_delivery_enabled: savedSettings?.is_delivery_enabled === false ? false : (restaurantSettings?.is_delivery_enabled !== false),
         is_scheduled_date_delivery_enabled: savedSettings?.is_scheduled_date_delivery_enabled === true || savedSettings?.is_scheduled_date_delivery_enabled === 'true' || false,
         scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(savedSettings?.scheduled_delivery_max_days || restaurantSettings?.scheduled_delivery_max_days || 7))),
+        is_asap_delivery_enabled: savedSettings?.is_asap_delivery_enabled !== false,
+        is_scheduled_time_delivery_enabled: savedSettings?.is_scheduled_time_delivery_enabled !== false,
         currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
@@ -12119,10 +12123,25 @@ function AdminDashboard() {
 
                               <Col md={12}>
                                 <hr className="my-2" />
+                                <label className="small fw-bold text-muted text-uppercase mb-2 d-block">Режимы времени доставки</label>
+                                <Form.Check
+                                  type="switch"
+                                  label="Как можно быстрее"
+                                  className="mb-2"
+                                  checked={restaurantSettings.is_asap_delivery_enabled}
+                                  onChange={e => setRestaurantSettings({ ...restaurantSettings, is_asap_delivery_enabled: e.target.checked })}
+                                />
+                                <Form.Check
+                                  type="switch"
+                                  label="Ко времени (выбор часа)"
+                                  className="mb-2"
+                                  checked={restaurantSettings.is_scheduled_time_delivery_enabled}
+                                  onChange={e => setRestaurantSettings({ ...restaurantSettings, is_scheduled_time_delivery_enabled: e.target.checked })}
+                                />
                                 <Form.Check
                                   type="switch"
                                   label="Доставка в выбранную дату"
-                                  className="fw-bold mb-2"
+                                  className="mb-2"
                                   checked={restaurantSettings.is_scheduled_date_delivery_enabled}
                                   onChange={e => setRestaurantSettings({ ...restaurantSettings, is_scheduled_date_delivery_enabled: e.target.checked })}
                                 />
