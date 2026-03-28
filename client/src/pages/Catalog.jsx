@@ -397,6 +397,30 @@ function Catalog() {
       behavior: behavior === 'smooth' ? 'smooth' : 'auto'
     });
   };
+  const tabDragStateRef = useRef({ active: false, dragged: false, startX: 0, scrollStart: 0 });
+  const handleTabPointerDown = (e) => {
+    const scroller = level3TabsScrollerRef.current;
+    if (!scroller) return;
+    tabDragStateRef.current = { active: true, dragged: false, startX: e.clientX, scrollStart: scroller.scrollLeft };
+    scroller.setPointerCapture(e.pointerId);
+  };
+  const handleTabPointerMove = (e) => {
+    if (!tabDragStateRef.current.active) return;
+    const scroller = level3TabsScrollerRef.current;
+    if (!scroller) return;
+    const dx = e.clientX - tabDragStateRef.current.startX;
+    if (Math.abs(dx) > 4) tabDragStateRef.current.dragged = true;
+    scroller.scrollLeft = tabDragStateRef.current.scrollStart - dx;
+  };
+  const handleTabPointerUp = (e) => {
+    if (!tabDragStateRef.current.active) return;
+    tabDragStateRef.current.active = false;
+    const scroller = level3TabsScrollerRef.current;
+    if (scroller) {
+      try { scroller.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  };
+
   const handleTabsWheelScroll = (event) => {
     const tabsScroller = level3TabsScrollerRef.current;
     if (!tabsScroller) return;
@@ -408,6 +432,7 @@ function Catalog() {
     event.preventDefault();
   };
   const handleCatalogTabClick = (sectionId) => {
+    if (tabDragStateRef.current.dragged) return;
     tabActivationSourceRef.current = 'click';
     scrollToProductGroup(sectionId);
   };
@@ -1887,38 +1912,16 @@ function Catalog() {
 
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
-      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 700;
-      const probeTop = stickyOffset + 8;
-      const probeBottom = viewportHeight - 20;
+      const sectionProbeLine = stickyOffset + 40;
 
       let currentId = null;
-      let bestTop = -Infinity;
-      activeCatalogTabs.forEach((section) => {
-        const sectionElement = productGroupRefs.current[catalogSectionTabKey(section.id)];
-        if (!sectionElement) return;
-        const rect = sectionElement.getBoundingClientRect();
-        const intersects = rect.bottom > probeTop && rect.top < probeBottom;
-        if (intersects && rect.top > bestTop) {
-          bestTop = rect.top;
+      for (const section of activeCatalogTabs) {
+        const el = productGroupRefs.current[catalogSectionTabKey(section.id)];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= sectionProbeLine) {
           currentId = section.id;
         }
-      });
-
-      let firstId = null;
-      const sectionProbeLine = Math.max(
-        stickyOffset + 16,
-        Math.min(stickyOffset + 120, viewportHeight * 0.45)
-      );
-      if (currentId == null) {
-        activeCatalogTabs.forEach((section) => {
-          const sectionElement = productGroupRefs.current[catalogSectionTabKey(section.id)];
-          if (!sectionElement) return;
-          if (firstId === null) firstId = section.id;
-          const rect = sectionElement.getBoundingClientRect();
-          if (rect.top <= sectionProbeLine + 2) {
-            currentId = section.id;
-          }
-        });
       }
 
       const scrollPos = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
@@ -1930,12 +1933,13 @@ function Catalog() {
         currentId = activeCatalogTabs[activeCatalogTabs.length - 1].id;
       }
 
-      const nextActiveId = currentId ?? firstId;
-      if (nextActiveId === null || nextActiveId === undefined) return;
+      if (currentId === null && activeCatalogTabs.length > 0) {
+        currentId = activeCatalogTabs[0].id;
+      }
 
-      if (catalogSectionTabKey(nextActiveId) !== catalogSectionTabKey(activeSubcategoryTab)) {
+      if (currentId !== null && catalogSectionTabKey(currentId) !== catalogSectionTabKey(activeSubcategoryTab)) {
         tabActivationSourceRef.current = 'scroll';
-        setActiveSubcategoryTab(nextActiveId);
+        setActiveSubcategoryTab(currentId);
       }
     };
 
@@ -3473,6 +3477,10 @@ function Catalog() {
               ref={level3TabsScrollerRef}
               className="catalog-level3-tabs-scroll"
               onWheel={handleTabsWheelScroll}
+              onPointerDown={handleTabPointerDown}
+              onPointerMove={handleTabPointerMove}
+              onPointerUp={handleTabPointerUp}
+              onPointerCancel={handleTabPointerUp}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -3491,7 +3499,8 @@ function Catalog() {
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                zIndex: 2
+                zIndex: 2,
+                cursor: 'grab'
               }}
             >
               {activeCatalogTabs.map((section) => (
@@ -3525,7 +3534,7 @@ function Catalog() {
                     background: 'transparent',
                     transition: 'color 0.2s ease, font-weight 0.2s ease',
                     pointerEvents: 'auto',
-                    touchAction: 'manipulation',
+                    touchAction: 'pan-x',
                     WebkitTapHighlightColor: 'transparent'
                   }}
                   onClick={() => handleCatalogTabClick(section.id)}
