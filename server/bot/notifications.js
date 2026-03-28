@@ -617,9 +617,19 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     }
   }
 
-  const deliveryTime = order.delivery_time && order.delivery_time !== 'asap'
-    ? order.delivery_time
-    : 'Как можно быстрее';
+  const deliveryTime = (() => {
+    const hasScheduledTime = order.delivery_time && order.delivery_time !== 'asap';
+    if (hasScheduledTime) return order.delivery_time;
+    const dateRaw = String(order.delivery_date || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateRaw)) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (dateRaw.slice(0, 10) > todayStr) {
+        const [y, m, d] = dateRaw.slice(0, 10).split('-');
+        return `К дате ${d}.${m}.${y}`;
+      }
+    }
+    return 'Как можно быстрее';
+  })();
 
   const itemsBaseTotal = (items || []).reduce((sum, item) => {
     const qty = parseNumericValue(item.quantity) || 0;

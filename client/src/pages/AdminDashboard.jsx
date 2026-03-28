@@ -6660,6 +6660,16 @@ function AdminDashboard() {
   const formatDeliveryDateTime = (deliveryDate, deliveryTime) => {
     const normalizedTime = String(deliveryTime || '').trim().toLowerCase();
     const isAsap = !normalizedTime || normalizedTime === 'asap';
+
+    if (isAsap && isFutureDeliveryDate(deliveryDate)) {
+      const raw = String(deliveryDate).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        const [year, month, day] = raw.slice(0, 10).split('-');
+        return `${day}.${month}.${year}`;
+      }
+      return raw;
+    }
+
     if (isAsap) return 'Как можно быстрее';
 
     const parts = [];
