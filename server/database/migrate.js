@@ -93,7 +93,9 @@ async function migrate() {
       `currency_code VARCHAR(8) DEFAULT 'uz'`,
       'balance DECIMAL(12, 2) DEFAULT 100000.00',
       'is_free_tier BOOLEAN DEFAULT false',
-      'order_cost DECIMAL(12, 2) DEFAULT 1000.00'
+      'order_cost DECIMAL(12, 2) DEFAULT 1000.00',
+      'is_scheduled_date_delivery_enabled BOOLEAN DEFAULT false',
+      'scheduled_delivery_max_days INTEGER DEFAULT 7'
     ];
 
     for (const col of restaurantColumns) {

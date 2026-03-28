@@ -604,6 +604,8 @@ const buildRestaurantSettingsSignature = (settings) => {
     is_delivery_enabled: normalizeSettingsBoolean(settings.is_delivery_enabled, true),
     delivery_zone: sortObjectKeysDeep(settings.delivery_zone || null),
     minimum_order_amount: normalizeSettingsNumber(settings.minimum_order_amount, 0),
+    is_scheduled_date_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_date_delivery_enabled, false),
+    scheduled_delivery_max_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.scheduled_delivery_max_days, 7))),
     send_balance_after_confirm: normalizeSettingsBoolean(settings.send_balance_after_confirm, false),
     send_daily_close_report: normalizeSettingsBoolean(settings.send_daily_close_report, false),
     msg_new: normalizeSettingsText(settings.msg_new),
@@ -4496,6 +4498,8 @@ function AdminDashboard() {
         ...savedSettings,
         cash_enabled: savedSettings?.cash_enabled === false ? false : (restaurantSettings?.cash_enabled !== false),
         is_delivery_enabled: savedSettings?.is_delivery_enabled === false ? false : (restaurantSettings?.is_delivery_enabled !== false),
+        is_scheduled_date_delivery_enabled: savedSettings?.is_scheduled_date_delivery_enabled === true || savedSettings?.is_scheduled_date_delivery_enabled === 'true' || false,
+        scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(savedSettings?.scheduled_delivery_max_days || restaurantSettings?.scheduled_delivery_max_days || 7))),
         currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
@@ -6692,10 +6696,21 @@ function AdminDashboard() {
     return parts.join(', ') || 'Как можно быстрее';
   };
 
+  const isFutureDeliveryDate = (deliveryDate) => {
+    if (!deliveryDate) return false;
+    const raw = String(deliveryDate).trim();
+    if (!/^\d{4}-\d{2}-\d{2}/.test(raw)) return false;
+    const dateOnly = raw.slice(0, 10);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return dateOnly > todayStr;
+  };
+
   const getDeliveryTimingLabel = (deliveryDate, deliveryTime) => {
+    if (isFutureDeliveryDate(deliveryDate)) return 'На дату';
     const normalizedTime = String(deliveryTime || '').trim().toLowerCase();
     const hasScheduledTime = Boolean(normalizedTime && normalizedTime !== 'asap');
-    if (hasScheduledTime || deliveryDate) return 'Ко времени';
+    if (hasScheduledTime) return 'Ко времени';
     return 'Как можно быстрее';
   };
 
@@ -9991,17 +10006,30 @@ function AdminDashboard() {
                               const expandCardLabel = isKanbanCardExpanded
                                 ? (isUzbek ? 'Yashirish' : 'Скрыть')
                                 : (isUzbek ? 'Yana' : 'Ещё');
+                              const isScheduledDateOrder = isFutureDeliveryDate(order.delivery_date);
 
                               return (
                                 <article
                                   key={`kanban-order-${order.id}`}
-                                  className={`admin-order-kanban-card${isKanbanCardExpanded ? ' is-expanded' : ''}`}
+                                  className={`admin-order-kanban-card${isKanbanCardExpanded ? ' is-expanded' : ''}${isScheduledDateOrder ? ' scheduled-date-order' : ''}`}
                                   onDoubleClick={() => openOrderModal(order)}
                                   onTouchEnd={(e) => handleRowTouchOpen(e, `kanban-order-${order.id}`, () => openOrderModal(order))}
                                   title="Двойной клик / двойной тап: открыть заказ"
                                 >
                                   <div className="admin-order-kanban-card-head">
                                     <strong>#{order.order_number}</strong>
+                                    {isScheduledDateOrder && (
+                                      <span className="badge bg-info text-dark ms-1" style={{ fontSize: '0.7rem' }}>
+                                        📅 {(() => {
+                                          const raw = String(order.delivery_date || '').trim();
+                                          if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+                                            const [y, m, d] = raw.slice(0, 10).split('-');
+                                            return `${d}.${m}.${y}`;
+                                          }
+                                          return raw;
+                                        })()}
+                                      </span>
+                                    )}
                                     {getStatusBadge(orderStatus)}
                                   </div>
 
@@ -12087,6 +12115,39 @@ function AdminDashboard() {
                                     Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
                                   </Form.Text>
                                 </Form.Group>
+                              </Col>
+
+                              <Col md={12}>
+                                <hr className="my-2" />
+                                <Form.Check
+                                  type="switch"
+                                  label="Доставка в выбранную дату"
+                                  className="fw-bold mb-2"
+                                  checked={restaurantSettings.is_scheduled_date_delivery_enabled}
+                                  onChange={e => setRestaurantSettings({ ...restaurantSettings, is_scheduled_date_delivery_enabled: e.target.checked })}
+                                />
+                                <Form.Text className="text-muted d-block mb-3">
+                                  Клиенты смогут выбрать дату доставки из календаря. Заказ будет отображаться у оператора до завершения.
+                                </Form.Text>
+                                {restaurantSettings.is_scheduled_date_delivery_enabled && (
+                                  <Form.Group className="mb-0" style={{ maxWidth: 260 }}>
+                                    <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Максимум дней вперёд</Form.Label>
+                                    <Form.Control
+                                      type="number"
+                                      min={1}
+                                      max={90}
+                                      className="form-control-custom"
+                                      value={restaurantSettings.scheduled_delivery_max_days}
+                                      onChange={e => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        scheduled_delivery_max_days: Math.max(1, Math.min(90, Math.trunc(Number(e.target.value) || 7)))
+                                      })}
+                                    />
+                                    <Form.Text className="text-muted">
+                                      На сколько дней вперёд клиент может выбрать дату (по умолчанию 7).
+                                    </Form.Text>
+                                  </Form.Group>
+                                )}
                               </Col>
                             </Row>
 

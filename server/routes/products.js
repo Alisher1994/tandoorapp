@@ -778,7 +778,9 @@ router.get('/restaurant/:id', async (req, res) => {
       card_receipt_target: cardReceiptTarget,
       support_username: r.support_username || '',
       owner_username: ownerUsername || String(r.support_username || '').trim().replace(/^@+/, ''),
-      owner_phone: ownerPhone || ''
+      owner_phone: ownerPhone || '',
+      is_scheduled_date_delivery_enabled: isEnabledFlag(r.is_scheduled_date_delivery_enabled),
+      scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(r.scheduled_delivery_max_days) || 7))
     });
   } catch (error) {
     console.error('Restaurant error:', error);

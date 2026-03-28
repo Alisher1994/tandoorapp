@@ -22,6 +22,7 @@ const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 const { initBroadcastWorker } = require('./services/broadcastWorker');
 const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorker');
+const { initScheduledDeliveryReminderWorker } = require('./services/scheduledDeliveryReminderWorker');
 const { initSuperadminServerMonitoring } = require('./services/superadminServerMonitoring');
 const { logSecurityEvent } = require('./services/securityEvents');
 
@@ -501,6 +502,9 @@ async function startServer() {
 
     // Initialize store close report worker
     initStoreCloseReportWorker();
+
+    // Initialize scheduled delivery reminder worker
+    initScheduledDeliveryReminderWorker();
   });
 }
 

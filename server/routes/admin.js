@@ -1552,7 +1552,8 @@ router.put('/restaurant', async (req, res) => {
       delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
-      send_balance_after_confirm, send_daily_close_report, minimum_order_amount
+      send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
+      is_scheduled_date_delivery_enabled, scheduled_delivery_max_days
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1594,6 +1595,11 @@ router.put('/restaurant', async (req, res) => {
       Number.isFinite(Number.parseFloat(minimum_order_amount))
         ? Number.parseFloat(minimum_order_amount)
         : 0
+    );
+    const normalizedScheduledDateDelivery = normalizeOptionalBoolean(is_scheduled_date_delivery_enabled);
+    const normalizedScheduledDeliveryMaxDays = Math.max(
+      1,
+      Math.min(90, Math.trunc(Number(scheduled_delivery_max_days) || 7))
     );
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
@@ -1672,8 +1678,10 @@ router.put('/restaurant', async (req, res) => {
           minimum_order_amount = $46,
           delivery_pricing_mode = $47,
           delivery_fixed_price = $48,
+          is_scheduled_date_delivery_enabled = COALESCE($49, is_scheduled_date_delivery_enabled),
+          scheduled_delivery_max_days = $50,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $49
+      WHERE id = $51
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1705,6 +1713,8 @@ router.put('/restaurant', async (req, res) => {
       normalizedMinimumOrderAmount,
       normalizedDeliveryPricingMode,
       normalizedDeliveryFixedPrice,
+      normalizedScheduledDateDelivery,
+      normalizedScheduledDeliveryMaxDays,
       restaurantId
     ]);
 

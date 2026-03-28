@@ -385,13 +385,36 @@ function Cart() {
     return times;
   }, []);
 
+  const isScheduledDateEnabled = restaurant?.is_scheduled_date_delivery_enabled === true;
+  const scheduledMaxDays = Math.max(1, Math.trunc(Number(restaurant?.scheduled_delivery_max_days) || 7));
+
+  const scheduledDateOptions = useMemo(() => {
+    if (!isScheduledDateEnabled) return [];
+    const dates = [];
+    const today = new Date();
+    for (let i = 1; i <= scheduledMaxDays; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const value = `${yyyy}-${mm}-${dd}`;
+      const dayName = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+      dates.push({ value, label: dayName });
+    }
+    return dates;
+  }, [isScheduledDateEnabled, scheduledMaxDays]);
+
   useEffect(() => {
     if (deliveryTimeMode === 'scheduled') {
       setFormData(prev => ({ ...prev, delivery_time: availableTimes[0] || '' }));
+    } else if (deliveryTimeMode === 'scheduled_date') {
+      const firstDate = scheduledDateOptions[0]?.value || '';
+      setFormData(prev => ({ ...prev, delivery_date: firstDate, delivery_time: 'asap' }));
     } else {
-      setFormData(prev => ({ ...prev, delivery_time: 'asap' }));
+      setFormData(prev => ({ ...prev, delivery_time: 'asap', delivery_date: new Date().toISOString().split('T')[0] }));
     }
-  }, [deliveryTimeMode, availableTimes]);
+  }, [deliveryTimeMode, availableTimes, scheduledDateOptions]);
 
   const mapCoordinates = useMemo(() => {
     if (formData.delivery_coordinates) {
@@ -777,7 +800,7 @@ function Cart() {
         delivery_address: deliveryAddress,
         delivery_coordinates: isDeliverySelected ? formData.delivery_coordinates : '',
         customer_name: formData.customer_name || user?.full_name || 'Клиент',
-        delivery_date: new Date().toISOString().split('T')[0]
+        delivery_date: formData.delivery_date || new Date().toISOString().split('T')[0]
       };
 
       console.log('📦 Sending order:', JSON.stringify(orderData, null, 2));
@@ -1398,6 +1421,17 @@ function Cart() {
                     >
                       🕐 {t('scheduled')}
                     </Button>
+                    {isScheduledDateEnabled && (
+                      <Button
+                        type="button"
+                        variant="light"
+                        size="sm"
+                        className={`cart-segmented-option ${deliveryTimeMode === 'scheduled_date' ? 'is-active' : ''}`}
+                        onClick={() => setDeliveryTimeMode('scheduled_date')}
+                      >
+                        📅 {language === 'uz' ? 'Sanani tanlash' : 'Выбрать дату'}
+                      </Button>
+                    )}
                   </div>
                   {deliveryTimeMode === 'scheduled' && (
                     <Form.Select
@@ -1413,6 +1447,28 @@ function Cart() {
                         ))
                       )}
                     </Form.Select>
+                  )}
+                  {deliveryTimeMode === 'scheduled_date' && (
+                    <div className="mt-2">
+                      <Form.Select
+                        className="cart-select-custom"
+                        value={formData.delivery_date}
+                        onChange={(e) => setFormData({ ...formData, delivery_date: e.target.value })}
+                      >
+                        {scheduledDateOptions.length === 0 ? (
+                          <option value="">{language === 'uz' ? 'Sana mavjud emas' : 'Нет доступных дат'}</option>
+                        ) : (
+                          scheduledDateOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))
+                        )}
+                      </Form.Select>
+                      <small className="text-muted d-block mt-1">
+                        {language === 'uz'
+                          ? 'Buyurtma tanlangan kunigacha operatorda ko\'rinadi'
+                          : 'Заказ будет у оператора до выбранной даты'}
+                      </small>
+                    </div>
                   )}
                 </Form.Group>
 

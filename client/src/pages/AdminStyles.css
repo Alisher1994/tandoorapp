@@ -7060,6 +7060,9 @@ body::-webkit-scrollbar,
     flex-direction: column;
     gap: 8px;
 }
+.admin-order-kanban-card.scheduled-date-order {
+    border-left: 3px solid #0dcaf0;
+}
 
 .admin-order-kanban-card-details {
     display: flex;

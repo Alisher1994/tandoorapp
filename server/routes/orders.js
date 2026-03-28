@@ -478,7 +478,8 @@ router.post('/', authenticate, async (req, res) => {
                 delivery_base_radius, delivery_base_price, delivery_price_per_km,
                 delivery_pricing_mode, delivery_fixed_price,
                 payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
-                card_receipt_target, cash_enabled, minimum_order_amount
+                card_receipt_target, cash_enabled, minimum_order_amount,
+                is_scheduled_date_delivery_enabled, scheduled_delivery_max_days
          FROM restaurants
          WHERE id = $1`,
         [finalRestaurantId]
@@ -487,8 +488,32 @@ router.post('/', authenticate, async (req, res) => {
       isDeliveryEnabled = isEnabledFlag(restaurantSettings?.is_delivery_enabled);
       restaurantDeliveryZone = restaurantSettings?.delivery_zone || null;
       console.log('📦 Restaurant hours:', restaurantSettings);
-      
-      if (restaurantSettings?.start_time && restaurantSettings?.end_time) {
+
+      const isFutureDate = (() => {
+        if (!delivery_date) return false;
+        const now = getNowInRestaurantTimezone();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return String(delivery_date).trim() > todayStr;
+      })();
+
+      if (isFutureDate) {
+        const scheduledEnabled = isEnabledFlag(restaurantSettings?.is_scheduled_date_delivery_enabled);
+        if (!scheduledEnabled) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Доставка на выбранную дату не доступна для этого магазина' });
+        }
+        const maxDays = Math.max(1, Math.trunc(Number(restaurantSettings?.scheduled_delivery_max_days) || 7));
+        const now = getNowInRestaurantTimezone();
+        const maxDate = new Date(now);
+        maxDate.setDate(maxDate.getDate() + maxDays);
+        const maxDateStr = `${maxDate.getFullYear()}-${String(maxDate.getMonth() + 1).padStart(2, '0')}-${String(maxDate.getDate()).padStart(2, '0')}`;
+        if (String(delivery_date).trim() > maxDateStr) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Максимальная дата доставки: ${maxDateStr}` });
+        }
+      }
+
+      if (!isFutureDate && restaurantSettings?.start_time && restaurantSettings?.end_time) {
         const now = getNowInRestaurantTimezone();
         const startTime = restaurantSettings.start_time.substring(0, 5);
         const endTime = restaurantSettings.end_time.substring(0, 5);
