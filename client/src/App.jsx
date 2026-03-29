@@ -47,7 +47,7 @@ const OperatorQuickProducts = lazyWithRetry(() => import('./pages/OperatorQuickP
 const ShowcaseBuilder = lazyWithRetry(() => import('./pages/ShowcaseBuilder'), 'showcase-builder');
 const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
 const TelegramStoreRegistration = lazyWithRetry(() => import('./pages/TelegramStoreRegistration'), 'tg-store-registration');
-const Menu2 = lazyWithRetry(() => import('./pages/Menu2'), 'menu2');
+
 
 function RoutePrefetcher() {
   const { user, loading } = useAuth();
@@ -144,7 +144,7 @@ function App() {
                     }
                   />
                   <Route path="/catalog" element={<CatalogGate />} />
-                  <Route path="/menu2" element={<Menu2 />} />
+
                   <Route path="/showcase/catalog" element={<CatalogGate />} />
                   <Route
                     path="/cart"
