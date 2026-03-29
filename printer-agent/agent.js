@@ -135,7 +135,7 @@ socket.on("print_order", async (payload) => {
   // Print to each printer
   for (const printerConfig of printers) {
     const printerItems = itemsByPrinter[printerConfig.alias] || [];
-    const isCashier = printerConfig.alias === 'cashier' || printerConfig.alias === 'admin';
+    const isCashier = printerConfig.alias === 'cashier' || printerConfig.alias === 'admin' || printers.length === 1;
 
     // If no items for this printer and it's not a master (cashier always prints full receipt), skip
     if (printerItems.length === 0 && !isCashier) continue;
