@@ -9,6 +9,17 @@ const fs = require('fs');
 const readline = require('readline/promises');
 const os = require('os');
 
+// --- GLOBALS ---
+const appData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+const installDir = path.join(appData, 'TalablarAgent');
+
+// Ensure installDir exists early
+if (!fs.existsSync(installDir)) {
+  try {
+    fs.mkdirSync(installDir, { recursive: true });
+  } catch (e) {}
+}
+
 async function runSetupWizard() {
   console.log("\n╔══════════════════════════════════════════════╗");
   console.log("║   TALABLAR AGENT AGENT - УСТАНОВКА v1.0     ║");
@@ -30,9 +41,6 @@ async function runSetupWizard() {
   
   rl.close();
 
-  const appData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-  const installDir = path.join(appData, 'TalablarAgent');
-  
   console.log("\n⏳ Установка...");
   
   if (!fs.existsSync(installDir)) {
@@ -88,6 +96,7 @@ async function main() {
   console.log("\n=============================================");
   console.log("🚀 Talablar Agent Agent Started...");
   console.log(`🔗 Connecting to ${SERVER_URL}...`);
+  console.log(`📂 Working Directory: ${installDir}`);
   console.log("=============================================\n");
 
   const socket = io(SERVER_URL, {
@@ -152,7 +161,8 @@ socket.on("print_order", async (payload) => {
       console.error(`❌ Failed to print to ${printerConfig.alias}:`, err.message);
     }
   }
-});
+  });
+}
 
 /**
  * Low-level ESC/POS Printing
@@ -312,8 +322,6 @@ async function executePrintSequence(printer, device, data, config) {
   printer.feed(2).align('ct');
   if (data.shopInfo?.footer) printer.text(data.shopInfo.footer);
   printer.text("СПАСИБО ЗА ЗАКАЗ!").feed(3).cut().close();
-}
-
 }
 
 main().catch(console.error);

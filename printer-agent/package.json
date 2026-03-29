@@ -1,11 +1,11 @@
 {
-  "name": "tandoor-printer-agent",
+  "name": "talablar-agent",
   "version": "1.0.0",
-  "description": "Local printer agent for Tandoor Restaurant Management",
+  "description": "Local printer agent for Talablar Restaurant Management",
   "main": "agent.js",
   "scripts": {
     "start": "node agent.js",
-    "build:exe": "pkg . --targets node18-win-x64 --output dist/TandoorPrinterAgent.exe"
+    "build:exe": "pkg . --targets node18-win-x64 --output dist/TalablarAgent.exe"
   },
   "dependencies": {
     "socket.io-client": "^4.7.2",

@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ======================================================
-echo    Tandoor Printer Agent - Fast Configuration
+echo    Talablar Agent Agent - Fast Configuration
 echo ======================================================
 
 :: 1. Create .env if not exists
@@ -20,6 +20,6 @@ if not exist .env (
 
 echo ======================================================
 echo [SUCCESS] configuration complete!
-echo You can now run TandoorPrinterAgent.exe
+echo You can now run TalablarAgent.exe
 echo ======================================================
 pause

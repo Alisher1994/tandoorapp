@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ======================================================
-echo    Tandoor Printer Agent - Fast Setup (Installer)
+echo    Talablar Agent Agent - Fast Setup (Installer)
 echo ======================================================
 
 :: 1. Check for Node.js
