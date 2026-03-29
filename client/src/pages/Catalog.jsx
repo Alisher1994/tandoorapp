@@ -1870,17 +1870,24 @@ function Catalog() {
     const behavior = activationSource === 'click' ? 'smooth' : 'auto';
     const tabKey = catalogSectionTabKey(activeSubcategoryTab);
     let cancelled = false;
-    let innerRaf = 0;
-    const outerRaf = requestAnimationFrame(() => {
-      innerRaf = requestAnimationFrame(() => {
-        if (!cancelled) scrollActiveTabIntoView(tabKey, behavior);
-      });
+    let retryTimer = 0;
+    const attempt = () => {
+      if (cancelled) return;
+      const btn = level3TabButtonRefs.current[tabKey];
+      if (!btn) {
+        retryTimer = setTimeout(attempt, 80);
+        return;
+      }
+      scrollActiveTabIntoView(tabKey, behavior);
+    };
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(attempt);
     });
     tabActivationSourceRef.current = 'scroll';
     return () => {
       cancelled = true;
-      cancelAnimationFrame(outerRaf);
-      cancelAnimationFrame(innerRaf);
+      cancelAnimationFrame(raf);
+      clearTimeout(retryTimer);
     };
   }, [activeSubcategoryTab, activeCatalogTabs]);
 
@@ -1913,7 +1920,7 @@ function Catalog() {
 
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
-      const sectionProbeLine = stickyOffset + 40;
+      const sectionProbeLine = stickyOffset + 16;
 
       let currentId = null;
       for (const section of activeCatalogTabs) {
@@ -3512,7 +3519,7 @@ function Catalog() {
                   }}
                   key={section.id}
                   type="button"
-                  className="btn mb-0 btn-sm"
+                  className="btn mb-0 btn-sm catalog-level3-tab-btn"
                   style={{
                     flex: '0 0 auto',
                     display: 'inline-flex',

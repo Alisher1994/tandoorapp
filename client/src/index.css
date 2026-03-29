@@ -217,9 +217,13 @@ body {
 
 /* Horizontal category tabs in catalog — explicit pan-x so touches aren’t treated as page vertical scroll only */
 .catalog-level3-tabs-scroll {
-  touch-action: pan-x;
+  touch-action: pan-x !important;
   -webkit-user-select: none;
   user-select: none;
+}
+.catalog-level3-tabs-scroll .catalog-level3-tab-btn,
+.catalog-level3-tabs-scroll .catalog-level3-tab-btn > * {
+  touch-action: pan-x !important;
 }
 
 @supports (-webkit-touch-callout: none) {
