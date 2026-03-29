@@ -342,6 +342,17 @@ function Menu2() {
     const sc = getScrollContainer();
     sc.scrollTo({ top: target, behavior: 'auto' });
   };
+  // Lock body scroll when Menu2 is active to prevent nested scrolling issues
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (!root) return undefined;
+    const originalOverflow = root.style.overflow;
+    root.style.overflow = 'hidden';
+    return () => {
+      root.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const scrollActiveTabIntoView = (tabId, behavior = 'smooth') => {
     if (tabId === null || tabId === undefined || tabId === '') return;
     const scroller = level3TabsScrollerRef.current;
@@ -436,12 +447,12 @@ function Menu2() {
   // Mouse-based drag for desktop (no setPointerCapture, no conflict)
   const tabMouseRef = useRef({ active: false, dragged: false, startX: 0, scrollStart: 0 });
   const handleTabMouseDown = (e) => {
-    // Only handle left mouse click, ignore touch events converted to mouse
+    // Only handle left mouse click
     if (e.button !== 0) return;
     const scroller = level3TabsScrollerRef.current;
     if (!scroller) return;
     tabMouseRef.current = { active: true, dragged: false, startX: e.clientX, scrollStart: scroller.scrollLeft };
-    e.preventDefault(); // prevent text selection
+    // DO NOT preventDefault here, as it blocks click events on buttons
   };
   useEffect(() => {
     const onMouseMove = (e) => {
@@ -463,16 +474,21 @@ function Menu2() {
     };
   }, []);
 
-  const handleTabsWheelScroll = (event) => {
-    const tabsScroller = level3TabsScrollerRef.current;
-    if (!tabsScroller) return;
+  useEffect(() => {
+    const scroller = level3TabsScrollerRef.current;
+    if (!scroller) return;
 
-    const primaryDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    if (Math.abs(primaryDelta) < 1) return;
+    const onWheel = (event) => {
+      const primaryDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      if (Math.abs(primaryDelta) < 1) return;
+      scroller.scrollLeft += primaryDelta;
+      event.preventDefault();
+    };
 
-    tabsScroller.scrollLeft += primaryDelta;
-    event.preventDefault();
-  };
+    scroller.addEventListener('wheel', onWheel, { passive: false });
+    return () => scroller.removeEventListener('wheel', onWheel);
+  }, []);
+
   const handleCatalogTabClick = (sectionId) => {
     if (tabTouchRef.current.dragged || tabMouseRef.current.dragged) return;
     tabActivationSourceRef.current = 'click';
@@ -1953,23 +1969,26 @@ function Menu2() {
     const scrollContainer = menu2ContentScrollRef.current;
     if (!scrollContainer) return undefined;
 
-    // Header is outside the scroll container, so probe at ~16px from top of content area
-    const sectionProbeLine = 16;
+    // Header is outside the scroll container
+    // We want to detect the section that is at the very top of the scrollable area
+    const sectionProbeLine = 24; 
 
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
-
       const containerRect = scrollContainer.getBoundingClientRect();
 
       let currentId = null;
+      // Find the last section whose top is above the probe line
       for (const section of activeCatalogTabs) {
         const el = productGroupRefs.current[catalogSectionTabKey(section.id)];
         if (!el) continue;
         const rect = el.getBoundingClientRect();
-        // rect.top is relative to viewport; containerRect.top is where content starts
         const relativeTop = rect.top - containerRect.top;
         if (relativeTop <= sectionProbeLine) {
           currentId = section.id;
+        } else {
+          // If this section is below probe line, stop checking further if sections are ordered
+          break;
         }
       }
 
@@ -3329,14 +3348,17 @@ function Menu2() {
     <div className="menu2-shell" style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100%',
+      height: '100vh',
+      height: '100dvh',
       width: '100%',
       overflow: 'hidden',
-      position: 'absolute',
+      position: 'fixed',
       top: 0,
       left: 0,
       right: 0,
-      bottom: 0
+      bottom: 0,
+      zIndex: 1050,
+      backgroundColor: 'var(--background-color)'
     }}>
       {/* ═══ FIXED TOP: Header + Tabs ═══ */}
       <div style={{ flex: '0 0 auto', zIndex: 1010 }}>
@@ -3512,7 +3534,6 @@ function Menu2() {
             <div
               ref={level3TabsScrollerRef}
               className="menu2-tabs-scroll"
-              onWheel={handleTabsWheelScroll}
               onMouseDown={handleTabMouseDown}
               style={{
                 display: 'flex',
