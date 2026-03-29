@@ -1,13 +1,13 @@
-require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const dotenv = require('dotenv');
 const { io } = require("socket.io-client");
 const escpos = require('escpos');
 escpos.Network = require('escpos-network');
-const { exec, spawn } = require('child_process');
+const { exec, spawn, execFile } = require('child_process');
 const axios = require('axios');
-const path = require('path');
-const fs = require('fs');
 const readline = require('readline/promises');
-const os = require('os');
 const Jimp = require('jimp');
 const webp = require('webp-converter');
 
@@ -26,6 +26,17 @@ if (!fs.existsSync(installDir)) {
   try {
     fs.mkdirSync(installDir, { recursive: true });
   } catch (e) {}
+}
+
+// Prefer local .env (dev), otherwise use installDir (pkg/exe run from any folder)
+const cwdEnvPath = path.join(process.cwd(), '.env');
+const installEnvPath = path.join(installDir, '.env');
+if (fs.existsSync(cwdEnvPath)) {
+  dotenv.config({ path: cwdEnvPath });
+} else if (fs.existsSync(installEnvPath)) {
+  dotenv.config({ path: installEnvPath });
+} else {
+  dotenv.config();
 }
 
 async function runSetupWizard() {
@@ -169,6 +180,56 @@ function ensureWebpTools() {
   } catch (_) {}
 }
 
+let cachedWebpBinDir = null;
+function extractWebpBinariesIfNeeded() {
+  const srcDir = path.join(__dirname, 'node_modules', 'webp-converter', 'bin', 'libwebp_win64', 'bin');
+  if (!process.pkg || process.platform !== 'win32' || process.arch !== 'x64') {
+    return { dwebpPath: path.join(srcDir, 'dwebp.exe') };
+  }
+  if (cachedWebpBinDir) {
+    return { dwebpPath: path.join(cachedWebpBinDir, 'dwebp.exe') };
+  }
+  const dstDir = path.join(installDir, 'webp-bin');
+  try { fs.mkdirSync(dstDir, { recursive: true }); } catch (_) {}
+  let files = ['dwebp.exe', 'freeglut.dll'];
+  try {
+    files = fs.readdirSync(srcDir);
+  } catch (_) {}
+  for (const file of files) {
+    const src = path.join(srcDir, file);
+    const dst = path.join(dstDir, file);
+    try {
+      if (!fs.existsSync(dst) || fs.statSync(dst).size === 0) {
+        fs.writeFileSync(dst, fs.readFileSync(src));
+      }
+    } catch (e) {
+      console.warn(`⚠️ WebP binary copy failed (${file}):`, e.message);
+    }
+  }
+  cachedWebpBinDir = dstDir;
+  return { dwebpPath: path.join(dstDir, 'dwebp.exe') };
+}
+
+function execFilePromise(file, args) {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { windowsHide: true }, (err, stdout, stderr) => {
+      if (err) return reject(err);
+      resolve(stdout || stderr);
+    });
+  });
+}
+
+async function convertWebpToPng(inputPath, outputPath) {
+  if (process.pkg && process.platform === 'win32' && process.arch === 'x64') {
+    const { dwebpPath } = extractWebpBinariesIfNeeded();
+    if (dwebpPath && fs.existsSync(dwebpPath)) {
+      await execFilePromise(dwebpPath, [inputPath, '-png', '-o', outputPath, '-quiet']);
+      return;
+    }
+  }
+  await webp.dwebp(inputPath, outputPath, '-png', '-quiet');
+}
+
 /** WebP + слишком широкие логотипы: в PNG для escpos, ширина ≤ TALABLAR_LOGO_MAX_WIDTH (576 для 80мм) */
 async function prepareReceiptLogoFile(logoHref) {
   ensureWebpTools();
@@ -188,7 +249,7 @@ async function prepareReceiptLogoFile(logoHref) {
   let workPath = dlPath;
   if (isWebp) {
     const pngPath = `${base}_conv.png`;
-    await webp.dwebp(dlPath, pngPath, '-png', '-quiet');
+    await convertWebpToPng(dlPath, pngPath);
     try { fs.unlinkSync(dlPath); } catch (_) {}
     if (!fs.existsSync(pngPath) || fs.statSync(pngPath).size < 40) {
       throw new Error('dwebp produced empty file');
@@ -364,9 +425,11 @@ async function executePrintSequence(printer, device, data, config) {
   // Сброс + кириллица: таблица 17 ≈ CP866 на большинстве Xprinter/Epson-совместимых;
   // при кракозябрах попробуйте TALABLAR_CODEPAGE=46 и TALABLAR_ICONV_ENCODING=windows-1251
   printer.hardware('init');
-  const codePage = parseInt(process.env.TALABLAR_CODEPAGE || '46', 10);
+  const rawCodePage = parseInt(process.env.TALABLAR_CODEPAGE || '17', 10);
+  const codePage = Number.isFinite(rawCodePage) ? rawCodePage : 17;
   printer.setCharacterCodeTable(codePage);
-  printer.encode((process.env.TALABLAR_ICONV_ENCODING || 'windows-1251').trim());
+  const defaultEncoding = codePage === 17 ? 'cp866' : 'windows-1251';
+  printer.encode((process.env.TALABLAR_ICONV_ENCODING || defaultEncoding).trim());
 
   printer.font('a').align('ct').style('bu').size(1, 1);
 

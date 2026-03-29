@@ -80,6 +80,7 @@ echo  [3/4] Создание конфигурации...
 (
     echo SERVER_URL=%SERVER_URL%
     echo AGENT_TOKEN=%AGENT_TOKEN%
+    echo # По умолчанию: TALABLAR_CODEPAGE=17 и TALABLAR_ICONV_ENCODING=cp866
     echo # Если русские буквы всё равно кракозябры, раскомментируйте или поменяйте:
     echo # TALABLAR_CODEPAGE=46
     echo # TALABLAR_ICONV_ENCODING=windows-1251
@@ -148,4 +149,3 @@ echo.
 echo  Готово! Можете закрыть это окно.
 echo.
 pause
-
