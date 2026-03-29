@@ -399,6 +399,7 @@ function Catalog() {
   };
   const tabDragStateRef = useRef({ active: false, dragged: false, startX: 0, scrollStart: 0 });
   const handleTabPointerDown = (e) => {
+    if (e.pointerType !== 'mouse') return;
     const scroller = level3TabsScrollerRef.current;
     if (!scroller) return;
     tabDragStateRef.current = { active: true, dragged: false, startX: e.clientX, scrollStart: scroller.scrollLeft };
@@ -3487,7 +3488,6 @@ function Catalog() {
                 gap: `${catalogTabGap}px`,
                 overflowY: 'hidden',
                 overflowX: 'auto',
-                touchAction: 'pan-x',
                 overscrollBehaviorX: 'contain',
                 overscrollBehaviorY: 'none',
                 minHeight: 42,
@@ -3533,8 +3533,6 @@ function Catalog() {
                     color: catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(section.id) ? '#0f172a' : '#64748b',
                     background: 'transparent',
                     transition: 'color 0.2s ease, font-weight 0.2s ease',
-                    pointerEvents: 'auto',
-                    touchAction: 'pan-x',
                     WebkitTapHighlightColor: 'transparent'
                   }}
                   onClick={() => handleCatalogTabClick(section.id)}
