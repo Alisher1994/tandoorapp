@@ -5045,6 +5045,42 @@ router.get('/printers', async (req, res) => {
   }
 });
 
+// Test print for selected printer
+router.post('/printers/:id/test', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const printerId = Number.parseInt(String(req.params.id || ''), 10);
+    if (!Number.isFinite(printerId) || printerId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID принтера' });
+    }
+
+    const result = await printerManager.printTestReceipt(restaurantId, {
+      printerId,
+      trigger: 'manual'
+    });
+
+    if (!result?.ok) {
+      if (result.code === 'AGENT_OFFLINE') {
+        return res.status(503).json({ error: 'Printer Agent офлайн. Запустите агент на компьютере оператора.' });
+      }
+      if (result.code === 'PRINTER_NOT_FOUND') {
+        return res.status(404).json({ error: 'Активный принтер не найден для теста.' });
+      }
+      return res.status(500).json({ error: 'Не удалось отправить тестовую печать.' });
+    }
+
+    return res.json({
+      ok: true,
+      message: 'Тестовая печать отправлена на принтер.'
+    });
+  } catch (error) {
+    console.error('Printer test route error:', error);
+    return res.status(500).json({ error: 'Ошибка тестовой печати принтера' });
+  }
+});
+
 // Create printer
 router.post('/printers', async (req, res) => {
   try {
@@ -5159,6 +5195,25 @@ router.post('/printer-agents', async (req, res) => {
   } catch (error) {
     console.error('Create printer agent error:', error);
     res.status(500).json({ error: 'Ошибка создания агента' });
+  }
+});
+
+// Delete printer agent
+router.delete('/printer-agents/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const result = await pool.query(
+      'DELETE FROM printer_agents WHERE id = $1 AND restaurant_id = $2 RETURNING id',
+      [req.params.id, restaurantId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Агент не найден' });
+
+    return res.json({ message: 'Агент удален' });
+  } catch (error) {
+    console.error('Delete printer agent error:', error);
+    return res.status(500).json({ error: 'Ошибка удаления агента' });
   }
 });
 

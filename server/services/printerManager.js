@@ -42,10 +42,25 @@ function resolveShopLogoAbsoluteUrl(raw) {
   return `${base}${pathPart}`;
 }
 
+function parseBooleanFromEnv(value, fallback = true) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+}
+
+function normalizePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
 class PrinterManager {
   constructor() {
     this.io = null;
     this.activeAgents = new Map(); // restaurant_id -> socket_id
+    this.lastAutoTestAtByRestaurant = new Map();
   }
 
   init(server) {
@@ -82,9 +97,36 @@ class PrinterManager {
     this.io.on('connection', (socket) => {
       console.log(`🖨️ Printer Agent connected: Restaurant #${socket.restaurant_id}`);
       this.activeAgents.set(socket.restaurant_id, socket.id);
-      
+
       pool.query('UPDATE printer_agents SET last_connected_at = CURRENT_TIMESTAMP WHERE id = $1', [socket.agent_id])
         .catch(err => console.error('Failed to update agent last_connected_at', err));
+
+      const autoTestEnabled = parseBooleanFromEnv(process.env.PRINTER_AUTO_TEST_ON_CONNECT, true);
+      const autoTestMinIntervalMs = normalizePositiveInt(
+        process.env.PRINTER_AUTO_TEST_MIN_INTERVAL_MS,
+        5 * 60 * 1000
+      );
+
+      if (autoTestEnabled) {
+        const now = Date.now();
+        const lastAutoTestAt = this.lastAutoTestAtByRestaurant.get(socket.restaurant_id) || 0;
+        if (now - lastAutoTestAt >= autoTestMinIntervalMs) {
+          this.lastAutoTestAtByRestaurant.set(socket.restaurant_id, now);
+          setTimeout(() => {
+            this.printTestReceipt(socket.restaurant_id, { trigger: 'auto-connect' })
+              .then((result) => {
+                if (!result.ok) {
+                  console.warn(`⚠️ Auto test print skipped/failed for Restaurant #${socket.restaurant_id}: ${result.code || 'unknown'}`);
+                }
+              })
+              .catch((error) => {
+                console.error(`❌ Auto test print error for Restaurant #${socket.restaurant_id}:`, error.message);
+              });
+          }, 1200);
+        } else {
+          console.log(`⏭️ Skip auto test print for Restaurant #${socket.restaurant_id} (throttled)`);
+        }
+      }
 
       socket.on('disconnect', () => {
         console.log(`🖨️ Printer Agent disconnected: Restaurant #${socket.restaurant_id}`);
@@ -93,6 +135,71 @@ class PrinterManager {
         }
       });
     });
+  }
+
+  mapPrintersForAgent(rows) {
+    return rows.map((p, _index, all) => ({
+      alias: all.length === 1 ? 'cashier' : p.printer_alias,
+      ip: p.ip_address,
+      type: p.connection_type,
+      usb: agentWindowsShareName(p),
+      name: p.name
+    }));
+  }
+
+  async getRestaurantShopInfo(restaurantId) {
+    const shopResult = await pool.query("SELECT * FROM restaurants WHERE id = $1", [restaurantId]);
+    return shopResult.rows[0] || null;
+  }
+
+  async getActivePrinters(restaurantId, printerId = null) {
+    const params = [restaurantId];
+    let sql = "SELECT * FROM printers WHERE restaurant_id = $1 AND is_active = TRUE";
+    if (Number.isInteger(printerId) && printerId > 0) {
+      params.push(printerId);
+      sql += " AND id = $2";
+    }
+    sql += " ORDER BY name";
+    const printersResult = await pool.query(sql, params);
+    return printersResult.rows;
+  }
+
+  /**
+   * Trigger test printing (manual button or auto on agent connect)
+   */
+  async printTestReceipt(restaurantId, { printerId = null, trigger = 'manual' } = {}) {
+    const socketId = this.activeAgents.get(restaurantId);
+    if (!socketId) {
+      console.warn(`⚠️ No active Printer Agent for Restaurant #${restaurantId} (test print)`);
+      return { ok: false, code: 'AGENT_OFFLINE' };
+    }
+
+    try {
+      const shop = await this.getRestaurantShopInfo(restaurantId);
+      if (!shop) return { ok: false, code: 'SHOP_NOT_FOUND' };
+
+      const printers = await this.getActivePrinters(restaurantId, printerId);
+      if (!printers || printers.length === 0) return { ok: false, code: 'PRINTER_NOT_FOUND' };
+
+      const payload = {
+        printAt: new Date().toISOString(),
+        trigger,
+        shopInfo: {
+          name: shop.name,
+          address: shop.address,
+          phone: shop.phone,
+          logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),
+          footer: shop.receipt_footer_text
+        },
+        printers: this.mapPrintersForAgent(printers)
+      };
+
+      this.io.to(socketId).emit('print_test', payload);
+      return { ok: true, code: 'SENT', printersCount: printers.length };
+    } catch (error) {
+      console.error("Test Print Service Error:", error);
+      return { ok: false, code: 'INTERNAL_ERROR' };
+    }
   }
 
   /**
@@ -112,8 +219,8 @@ class PrinterManager {
       const order = orderResult.rows[0];
 
       // 2. Fetch Shop Info & Logo
-      const shopResult = await pool.query("SELECT * FROM restaurants WHERE id = $1", [restaurantId]);
-      const shop = shopResult.rows[0];
+      const shop = await this.getRestaurantShopInfo(restaurantId);
+      if (!shop) return false;
 
       // 3. Fetch Order Items + Category Printer Info
       const itemsResult = await pool.query(`
@@ -124,7 +231,7 @@ class PrinterManager {
         LEFT JOIN printers pr ON pr.id = COALESCE(p.printer_id, c.printer_id)
         WHERE oi.order_id = $1
       `, [orderId]);
-      
+
       const items = itemsResult.rows;
 
       // 4. Calculate Fasovka (Packaging) total
@@ -140,8 +247,11 @@ class PrinterManager {
       });
 
       // 5. Fetch All Active Printers for this shop
-      const printersResult = await pool.query("SELECT * FROM printers WHERE restaurant_id = $1 AND is_active = TRUE", [restaurantId]);
-      const printers = printersResult.rows;
+      const printers = await this.getActivePrinters(restaurantId);
+      if (!printers || printers.length === 0) {
+        console.warn(`⚠️ No active printers configured for Restaurant #${restaurantId}`);
+        return false;
+      }
 
       // 6. Package the data for the Agent
       const payload = {
@@ -154,7 +264,7 @@ class PrinterManager {
         deliveryAddress: order.delivery_address,
         comment: order.comment,
         paymentMethod: order.payment_method,
-        isOnline: true, 
+        isOnline: true,
         financials: {
           itemsSubtotal: items.reduce((sum, i) => sum + parseFloat(i.total || 0), 0),
           serviceFee: parseFloat(order.service_fee || 0),
@@ -168,7 +278,7 @@ class PrinterManager {
           unit: i.unit || 'шт',
           price: parseFloat(i.price),
           total: parseFloat(i.total),
-          printer_alias: i.printer_alias || 'cashier' 
+          printer_alias: i.printer_alias || 'cashier'
         })),
         shopInfo: {
           name: shop.name,
@@ -178,19 +288,12 @@ class PrinterManager {
           header: shop.receipt_header_text,
           footer: shop.receipt_footer_text
         },
-        printers: printers.map(p => ({
-          alias: printers.length === 1 ? 'cashier' : p.printer_alias,
-          ip: p.ip_address,
-          type: p.connection_type,
-          usb: agentWindowsShareName(p),
-          name: p.name
-        }))
+        printers: this.mapPrintersForAgent(printers)
       };
 
       // 7. Send to Agent
       this.io.to(socketId).emit('print_order', payload);
       return true;
-
     } catch (error) {
       console.error("Print Service Error:", error);
       return false;

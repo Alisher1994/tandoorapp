@@ -11767,3 +11767,107 @@ body::-webkit-scrollbar,
         min-width: 64px;
     }
 }
+
+/* Printer settings redesign */
+.admin-printer-panel {
+    border: 1px solid rgba(148, 163, 184, 0.28) !important;
+    border-radius: 16px !important;
+    box-shadow: none !important;
+    background: #ffffff;
+}
+
+.admin-printer-panel .card-body {
+    background: transparent;
+}
+
+.admin-printer-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.admin-printer-note {
+    border: 1px solid #dbe7ff !important;
+    background: #f4f8ff !important;
+    color: #334155 !important;
+    border-radius: 10px !important;
+    font-size: 0.9rem;
+}
+
+.admin-printer-token-code {
+    background: #f1f5f9;
+    border: 1px solid #dbe2ea;
+    border-radius: 6px;
+    padding: 3px 8px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.admin-printer-icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    padding: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none !important;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.admin-printer-icon-btn:hover,
+.admin-printer-icon-btn:focus-visible {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+.admin-printer-icon-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.admin-printer-icon-btn-primary {
+    border-color: #818cf8 !important;
+    color: #4f46e5 !important;
+}
+
+.admin-printer-icon-btn-primary:hover,
+.admin-printer-icon-btn-primary:focus-visible {
+    background: #eef2ff !important;
+    border-color: #6366f1 !important;
+    color: #4338ca !important;
+}
+
+.admin-printer-icon-btn-danger {
+    border-color: #fca5a5 !important;
+    color: #dc2626 !important;
+}
+
+.admin-printer-icon-btn-danger:hover,
+.admin-printer-icon-btn-danger:focus-visible {
+    background: #fef2f2 !important;
+    border-color: #ef4444 !important;
+    color: #b91c1c !important;
+}
+
+.admin-printer-icon-btn-success {
+    border-color: #86efac !important;
+    color: #15803d !important;
+}
+
+.admin-printer-icon-btn-success:hover,
+.admin-printer-icon-btn-success:focus-visible {
+    background: #f0fdf4 !important;
+    border-color: #22c55e !important;
+    color: #166534 !important;
+}

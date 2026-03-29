@@ -305,54 +305,79 @@ socket.on("disconnect", (reason) => {
   console.warn("⚠️ Disconnected:", reason);
 });
 
-/**
- * Main Print Routing logic
- */
-socket.on("print_order", async (payload) => {
-  console.log(`📦 Received Print Job for Order #${payload.orderNumber}`);
+  /**
+   * Main Print Routing logic
+   */
+  socket.on("print_order", async (payload) => {
+    console.log(`📦 Received Print Job for Order #${payload.orderNumber}`);
 
-  const { printers, items, shopInfo, financials, orderNumber, createdAt, printAt, customerName, customerPhone, deliveryAddress, comment } = payload;
+    const { printers, items } = payload;
 
-  if (!printers || printers.length === 0) {
-    console.warn("⚠️ No printers configured for this restaurant.");
-    return;
-  }
-
-  // Group items by printer_alias
-  const itemsByPrinter = items.reduce((acc, item) => {
-    const alias = item.printer_alias || 'cashier';
-    if (!acc[alias]) acc[alias] = [];
-    acc[alias].push(item);
-    return acc;
-  }, {});
-
-  // Print to each printer
-  for (const printerConfig of printers) {
-    const printerItems = itemsByPrinter[printerConfig.alias] || [];
-    const isCashier = printerConfig.alias === 'cashier' || printerConfig.alias === 'admin' || printers.length === 1;
-
-    // If no items for this printer and it's not a master (cashier always prints full receipt), skip
-    if (printerItems.length === 0 && !isCashier) continue;
-
-    console.log(`🖨️ Printing to: ${printerConfig.name} (${printerConfig.alias}) over ${printerConfig.type}`);
-    
-    try {
-      await printToPrinter(printerConfig, {
-        ...payload,
-        items: isCashier ? items : printerItems, // Cashier gets full list, kitchen only its part
-        isFullReceipt: isCashier
-      });
-    } catch (err) {
-      console.error(`❌ Failed to print to ${printerConfig.alias}:`, err.message);
+    if (!printers || printers.length === 0) {
+      console.warn("⚠️ No printers configured for this restaurant.");
+      return;
     }
-  }
+
+    // Group items by printer_alias
+    const itemsByPrinter = items.reduce((acc, item) => {
+      const alias = item.printer_alias || 'cashier';
+      if (!acc[alias]) acc[alias] = [];
+      acc[alias].push(item);
+      return acc;
+    }, {});
+
+    // Print to each printer
+    for (const printerConfig of printers) {
+      const printerItems = itemsByPrinter[printerConfig.alias] || [];
+      const isCashier = printerConfig.alias === 'cashier' || printerConfig.alias === 'admin' || printers.length === 1;
+
+      // If no items for this printer and it's not a master (cashier always prints full receipt), skip
+      if (printerItems.length === 0 && !isCashier) continue;
+
+      console.log(`🖨️ Printing to: ${printerConfig.name} (${printerConfig.alias}) over ${printerConfig.type}`);
+
+      try {
+        await printToPrinter(printerConfig, {
+          ...payload,
+          items: isCashier ? items : printerItems, // Cashier gets full list, kitchen only its part
+          isFullReceipt: isCashier
+        }, 'order');
+      } catch (err) {
+        console.error(`❌ Failed to print to ${printerConfig.alias}:`, err.message);
+      }
+    }
+  });
+
+  /**
+   * Test print routing logic
+   */
+  socket.on("print_test", async (payload) => {
+    const { printers } = payload || {};
+    console.log(`🧪 Received Test Print Job (${payload?.trigger || 'manual'})`);
+
+    if (!printers || printers.length === 0) {
+      console.warn("⚠️ No printers configured for test print.");
+      return;
+    }
+
+    for (const printerConfig of printers) {
+      console.log(`🖨️ Test print to: ${printerConfig.name} (${printerConfig.alias}) over ${printerConfig.type}`);
+      try {
+        await printToPrinter(printerConfig, {
+          ...payload,
+          isFullReceipt: true
+        }, 'test');
+      } catch (err) {
+        console.error(`❌ Failed test print to ${printerConfig.alias}:`, err.message);
+      }
+    }
   });
 }
 
 /**
  * Low-level ESC/POS Printing
  */
-async function printToPrinter(config, data) {
+async function printToPrinter(config, data, mode = 'order') {
   let device;
 
   if (config.type === 'network') {
@@ -363,7 +388,11 @@ async function printToPrinter(config, data) {
       device.open(async (error) => {
         if (error) return reject(error);
         try {
-          await executePrintSequence(printer, device, data, config);
+          if (mode === 'test') {
+            await executeTestPrintSequence(printer, device, data, config);
+          } else {
+            await executePrintSequence(printer, device, data, config);
+          }
           resolve();
         } catch (err) {
           reject(err);
@@ -393,7 +422,11 @@ async function printToPrinter(config, data) {
     // Ensure file is cleared/started
     fileDevice.open();
     
-    await executePrintSequence(printer, fileDevice, data, config);
+    if (mode === 'test') {
+      await executeTestPrintSequence(printer, fileDevice, data, config);
+    } else {
+      await executePrintSequence(printer, fileDevice, data, config);
+    }
     
     // Wait for last bytes and copy
     return new Promise((resolve, reject) => {
@@ -421,44 +454,51 @@ async function printToPrinter(config, data) {
 /**
  * Shared print commands sequence
  */
-async function executePrintSequence(printer, device, data, config) {
-  // Сброс + кириллица: таблица 17 ≈ CP866 на большинстве Xprinter/Epson-совместимых;
-  // при кракозябрах попробуйте TALABLAR_CODEPAGE=46 и TALABLAR_ICONV_ENCODING=windows-1251
+function applyPrinterTextEncoding(printer) {
   printer.hardware('init');
   const rawCodePage = parseInt(process.env.TALABLAR_CODEPAGE || '17', 10);
   const codePage = Number.isFinite(rawCodePage) ? rawCodePage : 17;
   printer.setCharacterCodeTable(codePage);
   const defaultEncoding = codePage === 17 ? 'cp866' : 'windows-1251';
   printer.encode((process.env.TALABLAR_ICONV_ENCODING || defaultEncoding).trim());
+}
+
+async function printLogoIfPresent(printer, shopInfo, allowLogo) {
+  if (!allowLogo || !shopInfo?.logoUrl) return;
+  let logoPrintPath = null;
+  try {
+    const logoHref = resolveAbsoluteLogoUrl(shopInfo.logoUrl);
+    if (!logoHref) {
+      console.error("Logo printing error: invalid or relative URL could not be resolved:", shopInfo.logoUrl);
+      return;
+    }
+    logoPrintPath = await prepareReceiptLogoFile(logoHref);
+    const image = await new Promise((res, rej) => {
+      escpos.Image.load(logoPrintPath, (arg) => {
+        if (arg && typeof arg.toRaster === 'function') res(arg);
+        else rej(arg instanceof Error ? arg : new Error('Failed to load raster image'));
+      });
+    });
+    printer.align('ct').raster(image, 'dw');
+    printer.feed(1);
+  } catch (e) {
+    console.error("Logo printing error:", e.message);
+  } finally {
+    if (logoPrintPath) {
+      try { fs.unlinkSync(logoPrintPath); } catch (_) {}
+    }
+  }
+}
+
+async function executePrintSequence(printer, device, data, config) {
+  // Сброс + кириллица: таблица 17 ≈ CP866 на большинстве Xprinter/Epson-совместимых;
+  // при кракозябрах попробуйте TALABLAR_CODEPAGE=46 и TALABLAR_ICONV_ENCODING=windows-1251
+  applyPrinterTextEncoding(printer);
 
   printer.font('a').align('ct').style('bu').size(1, 1);
 
   // 1. Logo (if Full Receipt): WebP→PNG, масштаб под 80 мм
-  if (data.isFullReceipt && data.shopInfo?.logoUrl) {
-    let logoPrintPath = null;
-    try {
-      const logoHref = resolveAbsoluteLogoUrl(data.shopInfo.logoUrl);
-      if (!logoHref) {
-        console.error("Logo printing error: invalid or relative URL could not be resolved:", data.shopInfo.logoUrl);
-      } else {
-        logoPrintPath = await prepareReceiptLogoFile(logoHref);
-        const image = await new Promise((res, rej) => {
-          escpos.Image.load(logoPrintPath, (arg) => {
-            if (arg && typeof arg.toRaster === 'function') res(arg);
-            else rej(arg instanceof Error ? arg : new Error('Failed to load raster image'));
-          });
-        });
-        printer.align('ct').raster(image, 'dw');
-        printer.feed(1);
-      }
-    } catch (e) {
-      console.error("Logo printing error:", e.message);
-    } finally {
-      if (logoPrintPath) {
-        try { fs.unlinkSync(logoPrintPath); } catch (_) {}
-      }
-    }
-  }
+  await printLogoIfPresent(printer, data.shopInfo, data.isFullReceipt);
 
   // 2. Shop Header
   printer.align('ct').style('b').size(1, 1);
@@ -523,6 +563,39 @@ async function executePrintSequence(printer, device, data, config) {
   printer.feed(2).align('ct');
   if (data.shopInfo?.footer) printer.text(tx(data.shopInfo.footer));
   printer.text(tx('СПАСИБО ЗА ЗАКАЗ!')).feed(3).cut().close();
+}
+
+async function executeTestPrintSequence(printer, device, data, config) {
+  applyPrinterTextEncoding(printer);
+  printer.font('a').align('ct').style('bu').size(1, 1);
+  await printLogoIfPresent(printer, data.shopInfo, true);
+
+  const now = data?.printAt ? new Date(data.printAt) : new Date();
+  const triggerLabel = data?.trigger === 'auto-connect'
+    ? 'АВТОТЕСТ ПРИ ПОДКЛЮЧЕНИИ'
+    : 'РУЧНАЯ ПРОВЕРКА ПРИНТЕРА';
+
+  printer.align('ct').style('b').size(1, 1);
+  printer.text(tx((data.shopInfo?.name || 'SHOP').toUpperCase())).feed(1);
+  printer.style('n').size(0, 0);
+  if (data.shopInfo?.address) printer.text(tx(data.shopInfo.address));
+  if (data.shopInfo?.phone) printer.text(tx(`Тел: ${data.shopInfo.phone}`));
+  printer.text('-------------------------------').feed(1);
+
+  printer.align('ct').style('b').text(tx('ТЕСТ ПОДКЛЮЧЕНИЯ ПРИНТЕРА'));
+  printer.style('n').text(tx(triggerLabel));
+  printer.text(tx(`Принтер: ${config?.name || config?.alias || '-'}`));
+  printer.text(tx(`Дата: ${now.toLocaleString('ru-RU')}`));
+  printer.text('-------------------------------').feed(1);
+
+  printer.align('ct').style('b').size(1, 1).text(tx('ПОДКЛЮЧЕНИЕ УСПЕШНО'));
+  printer.style('n').size(0, 0).feed(1);
+  printer.text(tx('Принтер подключен к магазину.'));
+  printer.text(tx('Тестовая печать выполнена корректно.'));
+
+  printer.feed(2).align('ct');
+  if (data.shopInfo?.footer) printer.text(tx(data.shopInfo.footer));
+  printer.text(tx('СПАСИБО!')).feed(3).cut().close();
 }
 
 main().catch(console.error);
