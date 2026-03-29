@@ -9,8 +9,14 @@ const fs = require('fs');
 const readline = require('readline/promises');
 const os = require('os');
 
+const AGENT_BUILD_ID = '8.7.1+bundle-check'; // видно в логе даже если package.json в exe не подтянулся
+let AGENT_PKG_VERSION = AGENT_BUILD_ID;
+try {
+  AGENT_PKG_VERSION = require('./package.json').version;
+} catch (_) {}
+
 // --- GLOBALS ---
-const appData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+const appData = process.env.APPDATA || process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
 const installDir = path.join(appData, 'TalablarAgent');
 
 // Ensure installDir exists early
@@ -87,6 +93,63 @@ const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
 const AGENT_TOKEN = process.env.AGENT_TOKEN || "YOUR_AGENT_TOKEN_HERE";
 const isTokenValid = AGENT_TOKEN && AGENT_TOKEN !== "YOUR_AGENT_TOKEN_HERE";
 
+/** DB field usb_vid_pid is often empty or VID:PID; Windows needs the printer SHARE name for \\localhost\Share */
+function looksLikeUsbVidPid(s) {
+  const t = String(s).trim();
+  return /^[0-9a-fA-F]{4}[:-][0-9a-fA-F]{4}$/.test(t);
+}
+
+function sanitizePrinterShareName(name) {
+  return String(name)
+    .trim()
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .trim()
+    .slice(0, 80);
+}
+
+function resolveWindowsPrinterShare(config) {
+  const fromUsb = config.usb != null ? String(config.usb).trim() : '';
+  if (fromUsb && !looksLikeUsbVidPid(fromUsb)) {
+    const s = sanitizePrinterShareName(fromUsb);
+    if (s) return s;
+  }
+  const rawLabel =
+    config.name ??
+    config.printerName ??
+    config.title ??
+    (typeof config.label === 'string' ? config.label : '');
+  const fromName = sanitizePrinterShareName(rawLabel != null ? rawLabel : '');
+  if (fromName) return fromName;
+  const envShare = process.env.TALABLAR_PRINTER_SHARE;
+  if (envShare && String(envShare).trim()) {
+    return sanitizePrinterShareName(envShare) || 'XP-80';
+  }
+  return 'XP-80';
+}
+
+function resolveAbsoluteLogoUrl(logoUrl) {
+  if (logoUrl == null) return null;
+  let s = logoUrl;
+  if (typeof s !== 'string') {
+    if (typeof s === 'object' && s !== null) {
+      s = s.url || s.href || s.src || '';
+    } else {
+      s = String(s);
+    }
+  }
+  const t = s.trim();
+  if (!t) return null;
+  try {
+    if (/^https?:\/\//i.test(t)) return new URL(t).href;
+    if (/^\/\//.test(t)) return new URL(`https:${t}`).href;
+    const base = SERVER_URL.endsWith('/') ? SERVER_URL : `${SERVER_URL}/`;
+    return new URL(t.startsWith('/') ? t : `/${t}`, base).href;
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   if (!isTokenValid) {
     await runSetupWizard();
@@ -94,7 +157,9 @@ async function main() {
   }
 
   console.log("\n=============================================");
-  console.log("🚀 Talablar Agent Agent Started...");
+  console.log("🚀 Talablar Agent Started...");
+  console.log(`📌 Agent v${AGENT_PKG_VERSION} · build ${AGENT_BUILD_ID}`);
+  console.log(`🧩 Executable: ${process.execPath}`);
   console.log(`🔗 Connecting to ${SERVER_URL}...`);
   console.log(`📂 Working Directory: ${installDir}`);
   console.log("=============================================\n");
@@ -187,8 +252,14 @@ async function printToPrinter(config, data) {
     });
   } else if (config.type === 'usb' || config.type === 'win-raw' || config.type === 'windows') {
     // FOR WINDOWS USB: We use "copy /b" to a shared printer.
-    const printerName = config.usb || "XP-80"; 
-    const tempFile = path.join(installDir, `print_${Date.now()}.bin`);
+    // Must use os.tmpdir() (not installDir next to pkg snapshot / project): pkg treats writes under snapshot as missing assets.
+    const printerName = resolveWindowsPrinterShare(config);
+    console.log(`📎 Windows share for copy: "${printerName}" (from server name: "${config.name ?? ''}")`);
+    const printScratch = path.join(os.tmpdir(), 'TalablarAgent');
+    try {
+      if (!fs.existsSync(printScratch)) fs.mkdirSync(printScratch, { recursive: true });
+    } catch (e) {}
+    const tempFile = path.join(printScratch, `print_${Date.now()}.bin`);
     
     const fileDevice = {
       open: function(cb) { fs.writeFileSync(tempFile, Buffer.alloc(0)); cb && cb(null); },
@@ -213,7 +284,9 @@ async function printToPrinter(config, data) {
           if (err) {
             console.error("Print Command Error:", err.message);
             try { fs.unlinkSync(tempFile); } catch(e) {}
-            return reject(new Error(`Ensure printer is shared as "${printerName}"`));
+            return reject(new Error(
+              `Печать на \\\\localhost\\${printerName} не удалась. В Windows: свойства принтера → Доступ → общий доступ; имя ресурса должно совпадать с "${printerName}" (сейчас в админке: "${config.name || ''}").`
+            ));
           }
           try { fs.unlinkSync(tempFile); } catch(e) {}
           resolve();
@@ -234,26 +307,31 @@ async function executePrintSequence(printer, device, data, config) {
   // 1. Logo (if Full Receipt)
   if (data.isFullReceipt && data.shopInfo?.logoUrl) {
     try {
-      const logoFilename = path.join(installDir, 'temp_logo.png');
-      const response = await axios({
-        url: data.shopInfo.logoUrl,
-        responseType: 'stream',
-      });
-      await new Promise((res, rej) => {
-        response.data.pipe(fs.createWriteStream(logoFilename))
-          .on('finish', res)
-          .on('error', rej);
-      });
-
-      const image = await new Promise((res, rej) => {
-        escpos.Image.load(logoFilename, (img) => {
-          if (img) res(img);
-          else rej(new Error("Failed to load image"));
+      const logoHref = resolveAbsoluteLogoUrl(data.shopInfo.logoUrl);
+      if (!logoHref) {
+        console.error("Logo printing error: invalid or relative URL could not be resolved:", data.shopInfo.logoUrl);
+      } else {
+        const logoFilename = path.join(installDir, 'temp_logo.png');
+        const response = await axios({
+          url: logoHref,
+          responseType: 'stream',
         });
-      });
+        await new Promise((res, rej) => {
+          response.data.pipe(fs.createWriteStream(logoFilename))
+            .on('finish', res)
+            .on('error', rej);
+        });
 
-      printer.align('ct').raster(image, 'dw');
-      printer.feed(1);
+        const image = await new Promise((res, rej) => {
+          escpos.Image.load(logoFilename, (img) => {
+            if (img) res(img);
+            else rej(new Error("Failed to load image"));
+          });
+        });
+
+        printer.align('ct').raster(image, 'dw');
+        printer.feed(1);
+      }
     } catch (e) {
       console.error("Logo printing error:", e.message);
     }

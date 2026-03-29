@@ -1,6 +1,47 @@
 const { Server } = require('socket.io');
 const pool = require('../database/connection');
 
+/** USB VID:PID pattern — не использовать как UNC \\localhost\… */
+function looksLikeUsbVidPid(s) {
+  const t = String(s).trim();
+  return /^[0-9a-fA-F]{4}[:-][0-9a-fA-F]{4}$/.test(t);
+}
+
+/**
+ * Поле printers.usb_vid_pid в БД по смыслу «доп. идентификатор», но агент для Windows USB
+ * подставляет его в copy \\localhost\ИМЯ. Если пусто — старый агент берёт только дефолт XP-80.
+ * Поэтому пробрасываем сюда явное имя шары или извлекаем из display name (без « (cashier)»).
+ */
+function agentWindowsShareName(row) {
+  const raw = (row.usb_vid_pid && String(row.usb_vid_pid).trim()) || '';
+  if (raw && !looksLikeUsbVidPid(raw)) return raw;
+  const fromName = String(row.name || '')
+    .trim()
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim();
+  if (fromName) return fromName;
+  return null;
+}
+
+/** Из поля настроек: чистый путь или целиком <img src="…"> — в абсолютный URL для axios на агенте */
+function resolveShopLogoAbsoluteUrl(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return null;
+  if (/<img\b/i.test(s)) {
+    const m = s.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
+    s = m ? m[1].trim() : '';
+    if (!s) return null;
+  }
+  s = s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^\/\//.test(s)) return `https:${s}`;
+  const base = String(process.env.BACKEND_URL || process.env.FRONTEND_URL || '').replace(/\/+$/, '');
+  if (!base) return null;
+  const pathPart = s.startsWith('/') ? s : `/${s}`;
+  return `${base}${pathPart}`;
+}
+
 class PrinterManager {
   constructor() {
     this.io = null;
@@ -133,7 +174,7 @@ class PrinterManager {
           name: shop.name,
           address: shop.address,
           phone: shop.phone,
-          logoUrl: shop.receipt_logo_url || shop.logo_url,
+          logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),
           header: shop.receipt_header_text,
           footer: shop.receipt_footer_text
         },
@@ -141,7 +182,7 @@ class PrinterManager {
           alias: printers.length === 1 ? 'cashier' : p.printer_alias,
           ip: p.ip_address,
           type: p.connection_type,
-          usb: p.usb_vid_pid,
+          usb: agentWindowsShareName(p),
           name: p.name
         }))
       };

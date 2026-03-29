@@ -10,6 +10,7 @@ client/node_modules/
 # Build outputs
 client/build/
 client/dist/
+printer-agent/dist/
 *.log
 tmp/
 

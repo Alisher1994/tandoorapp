@@ -1,6 +1,6 @@
 {
   "name": "talablar-agent",
-  "version": "1.0.0",
+  "version": "8.7.1",
   "description": "Local printer agent for Talablar Restaurant Management",
   "main": "agent.js",
   "scripts": {
@@ -21,6 +21,7 @@
   "bin": "agent.js",
   "pkg": {
     "assets": [
+      "package.json",
       ".env.example",
       "README.md"
     ],

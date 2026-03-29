@@ -11428,20 +11428,18 @@ function AdminDashboard() {
                         />
                       </Form.Group>
                       <Form.Group className="mb-3">
-                        <Form.Label>
-                          {language === 'uz' ? "Windows printer nomi (Share Name)" : 'Имя принтера в Windows (Share Name)'} *
-                        </Form.Label>
+                        <Form.Label>Alias (роль) *</Form.Label>
                         <Form.Control
                           type="text"
-                          placeholder="ThermalPrinter"
+                          placeholder="cashier / kitchen / bar"
                           value={printerForm.printer_alias}
                           onChange={(e) => setPrinterForm({ ...printerForm, printer_alias: e.target.value })}
                           required
                         />
                         <Form.Text className="text-muted">
                           {language === 'uz'
-                            ? "Windows ulashish sozlamalaridan printer nomini kiriting."
-                            : 'Введите имя общего принтера из настроек «Общий доступ» Windows.'}
+                            ? 'Kategoriya/chёklar qaysi printerga ketishi uchun (masalan: cashier).'
+                            : 'Для маршрутизации позиций на принтер: обычно cashier, kitchen и т.д. Это не имя шары Windows.'}
                         </Form.Text>
                       </Form.Group>
                       <Form.Group className="mb-3">
@@ -11463,6 +11461,26 @@ function AdminDashboard() {
                             value={printerForm.ip_address}
                             onChange={(e) => setPrinterForm({ ...printerForm, ip_address: e.target.value })}
                           />
+                        </Form.Group>
+                      )}
+                      {printerForm.connection_type === 'usb' && (
+                        <Form.Group className="mb-3">
+                          <Form.Label>
+                            {language === 'uz'
+                              ? 'Windows Share nomi (ixtiyoriy)'
+                              : 'Имя сетевого ресурса Windows (необязательно)'}
+                          </Form.Label>
+                          <Form.Control
+                            type="text"
+                            placeholder="XP-80C"
+                            value={printerForm.usb_vid_pid}
+                            onChange={(e) => setPrinterForm({ ...printerForm, usb_vid_pid: e.target.value })}
+                          />
+                          <Form.Text className="text-muted">
+                            {language === 'uz'
+                              ? "Bo‘sh qoldirsangiz, server printer nomidan (qavssiz) oladi. \\localhost\\ nomi bilan mos kelishi kerak."
+                              : 'Если пусто — сервер возьмёт из названия принтера (без скобок). Должно совпадать с «Имя ресурса» в Windows → Общий доступ.'}
+                          </Form.Text>
                         </Form.Group>
                       )}
                     </Modal.Body>
