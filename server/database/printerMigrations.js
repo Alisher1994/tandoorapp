@@ -21,18 +21,24 @@ async function runPrinterMigrations() {
       )
     `);
 
-    // 2. Create printer_tokens table (for Agent auth)
+    // 2. Create printer_agents table (for Agent auth)
     await client.query(`
       CREATE TABLE IF NOT EXISTS printer_agents (
         id SERIAL PRIMARY KEY,
         restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        name VARCHAR(100) DEFAULT 'Agent',
         agent_token VARCHAR(128) NOT NULL UNIQUE,
         description TEXT,
-        last_seen_at TIMESTAMP,
         is_active BOOLEAN DEFAULT TRUE,
+        last_connected_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // 2b. Ensure columns exist (idempotent)
+    await client.query(`ALTER TABLE printer_agents ADD COLUMN IF NOT EXISTS name VARCHAR(100) DEFAULT 'Agent'`);
+    await client.query(`ALTER TABLE printer_agents ADD COLUMN IF NOT EXISTS last_connected_at TIMESTAMP`);
+    await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
 
     // 3. Add printer_id to categories if not exists
     await client.query(`

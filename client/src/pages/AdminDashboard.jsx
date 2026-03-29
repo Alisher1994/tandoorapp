@@ -53,6 +53,8 @@ import {
   LayoutGrid,
   MessageCircle,
   Package,
+  Printer,
+  RefreshCw,
   Settings,
   ShoppingCart,
   Users
@@ -1638,7 +1640,8 @@ function AdminDashboard() {
     variant_options: [],
     size_options: [],
     container_id: '',
-    container_norm: 1
+    container_norm: 1,
+    printer_id: ''
   });
   const [isProductImagesMobileLayout, setIsProductImagesMobileLayout] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 992 : false
@@ -1691,6 +1694,20 @@ function AdminDashboard() {
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [showRestaurantPickerModal, setShowRestaurantPickerModal] = useState(false);
   const [restaurantSwitchSearch, setRestaurantSwitchSearch] = useState('');
+  const [printers, setPrinters] = useState([]);
+  const [printerAgents, setPrinterAgents] = useState([]);
+  const [loadingPrinters, setLoadingPrinters] = useState(false);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [selectedPrinter, setSelectedPrinter] = useState(null);
+  const [printerForm, setPrinterForm] = useState({
+    name: '',
+    printer_alias: '',
+    connection_type: 'network',
+    ip_address: '',
+    usb_vid_pid: ''
+  });
+  const [showPrinterAgentModal, setShowPrinterAgentModal] = useState(false);
+  const [printerAgentName, setPrinterAgentName] = useState('');
 
   // Product filters and search
   const [productSearch, setProductSearch] = useState('');
@@ -2085,6 +2102,83 @@ function AdminDashboard() {
     && currentRestaurantSettingsSignature !== restaurantSettingsBaselineSignature;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
   const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty;
+  
+  const fetchPrinters = useCallback(async () => {
+    setLoadingPrinters(true);
+    try {
+      const { data } = await axios.get(`${API_URL}/admin/printers`);
+      setPrinters(data);
+    } catch (err) {
+      console.error('Fetch printers error:', err);
+    } finally {
+      setLoadingPrinters(false);
+    }
+  }, []);
+
+  const fetchPrinterAgents = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${API_URL}/admin/printer-agents`);
+      setPrinterAgents(data);
+    } catch (err) {
+      console.error('Fetch agents error:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mainTab === 'printers') {
+      fetchPrinters();
+      fetchPrinterAgents();
+    }
+  }, [mainTab, fetchPrinters, fetchPrinterAgents]);
+
+  const handleCreatePrinterAgent = async (e) => {
+    e.preventDefault();
+    if (!printerAgentName.trim()) return;
+    try {
+      await axios.post(`${API_URL}/admin/printer-agents`, { name: printerAgentName });
+      setPrinterAgentName('');
+      setShowPrinterAgentModal(false);
+      fetchPrinterAgents();
+    } catch (err) {
+      alert('Ошибка при создании агента');
+    }
+  };
+
+  const handleDeletePrinterAgent = async (id) => {
+    if (!window.confirm('Удалить этого агента?')) return;
+    try {
+      await axios.delete(`${API_URL}/admin/printer-agents/${id}`);
+      fetchPrinterAgents();
+    } catch (err) {
+      alert('Ошибка при удалении');
+    }
+  };
+
+  const handleSavePrinter = async (e) => {
+    e.preventDefault();
+    try {
+      if (selectedPrinter) {
+        await axios.put(`${API_URL}/admin/printers/${selectedPrinter.id}`, printerForm);
+      } else {
+        await axios.post(`${API_URL}/admin/printers`, printerForm);
+      }
+      setShowPrinterModal(false);
+      fetchPrinters();
+    } catch (err) {
+      alert('Ошибка при сохранении принтера');
+    }
+  };
+
+  const handleDeletePrinter = async (id) => {
+    if (!window.confirm('Удалить принтер?')) return;
+    try {
+      await axios.delete(`${API_URL}/admin/printers/${id}`);
+      fetchPrinters();
+    } catch (err) {
+      alert('Ошибка при удалении');
+    }
+  };
+
   const hasMobileFilterSheet = ['orders', 'products', 'feedback', 'clients'].includes(mainTab);
   const operatorHotkeyTabOrder = useMemo(() => {
     const tabs = ['dashboard', 'orders'];
@@ -2140,12 +2234,21 @@ function AdminDashboard() {
     tabs.clients = { label: t('clients'), icon: Users };
     tabs.settings = { label: t('settings'), icon: Settings };
     tabs.help = { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen };
+    tabs.printers = { label: language === 'uz' ? "Printerlar" : 'Принтеры', icon: LayoutGrid };
 
     return tabs;
   }, [isReservationModuleEnabled, language, t]);
   const renderAdminSidebarTabTitle = (key) => {
     const meta = adminSidebarTabsMeta[key] || { label: key, icon: Home };
     const Icon = meta.icon;
+    if (key === 'printers') {
+      return (
+        <span className="admin-side-tab-title">
+          <Printer size={16} className="admin-side-tab-icon" />
+          <span className="admin-side-tab-label">{meta.label}</span>
+        </span>
+      );
+    }
     return (
       <span className="admin-side-tab-title">
         <Icon size={16} className="admin-side-tab-icon" />
@@ -11075,6 +11178,299 @@ function AdminDashboard() {
                   </>
                 )}
               </Tab>
+
+              <Tab eventKey="printers" title={renderAdminSidebarTabTitle('printers')}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="mb-0">{language === 'uz' ? 'Printerlar boshqaruvi' : '🖨️ Управление принтерами'}</h5>
+                </div>
+
+                {/* Printer Agents Section */}
+                <Card className="border-0 shadow-sm mb-4">
+                  <Card.Body>
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <h6 className="mb-0">
+                        {language === 'uz' ? 'Printer agentlari (kompyuterlar)' : '💻 Агенты (компьютеры операторов)'}
+                      </h6>
+                      <Button
+                        size="sm"
+                        className="btn-primary-custom"
+                        onClick={() => { setPrinterAgentName(''); setShowPrinterAgentModal(true); }}
+                      >
+                        + {language === 'uz' ? "Agent qo'shish" : 'Добавить агента'}
+                      </Button>
+                    </div>
+                    <Alert variant="info" className="border-0 small py-2 mb-3" style={{ background: '#eef6ff' }}>
+                      {language === 'uz'
+                        ? "Agent — bu printerga ulangan kompyuter. Token orqali printer-agent dasturini ishga tushiradi."
+                        : 'Агент — это компьютер оператора, к которому подключен принтер. Скопируйте токен и вставьте в настройки printer-agent на компьютере оператора.'}
+                    </Alert>
+                    {printerAgents.length === 0 ? (
+                      <div className="text-muted text-center py-3">
+                        {language === 'uz' ? 'Agentlar mavjud emas' : 'Нет зарегистрированных агентов'}
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <Table hover size="sm" className="mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Nomi' : 'Имя'}</th>
+                              <th>Token</th>
+                              <th>{language === 'uz' ? 'Holati' : 'Статус'}</th>
+                              <th>{language === 'uz' ? "Oxirgi ulanish" : 'Последнее соединение'}</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {printerAgents.map((agent) => (
+                              <tr key={`agent-${agent.id}`}>
+                                <td className="fw-semibold">{agent.name}</td>
+                                <td>
+                                  <div className="d-flex align-items-center gap-1">
+                                    <code className="small" style={{
+                                      background: '#f3f4f6', padding: '2px 6px', borderRadius: 4,
+                                      maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block'
+                                    }}>
+                                      {agent.agent_token}
+                                    </code>
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="p-0 text-primary"
+                                      title={language === 'uz' ? 'Nusxa olish' : 'Скопировать токен'}
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(agent.agent_token);
+                                        setAlertMessage({ type: 'success', text: language === 'uz' ? 'Token nusxalandi!' : 'Токен скопирован!' });
+                                      }}
+                                    >
+                                      📋
+                                    </Button>
+                                  </div>
+                                </td>
+                                <td>
+                                  {agent.is_active
+                                    ? <Badge bg="success">Online</Badge>
+                                    : <Badge bg="secondary">Offline</Badge>}
+                                </td>
+                                <td className="small text-muted">
+                                  {agent.last_connected_at
+                                    ? new Date(agent.last_connected_at).toLocaleString('ru-RU')
+                                    : '—'}
+                                </td>
+                                <td>
+                                  <Button
+                                    variant="outline-danger"
+                                    size="sm"
+                                    onClick={() => handleDeletePrinterAgent(agent.id)}
+                                  >
+                                    ✕
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
+                    )}
+                  </Card.Body>
+                </Card>
+
+                {/* Printers Section */}
+                <Card className="border-0 shadow-sm mb-4">
+                  <Card.Body>
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <h6 className="mb-0">
+                        {language === 'uz' ? 'Printerlar' : '🖨️ Принтеры'}
+                      </h6>
+                      <Button
+                        size="sm"
+                        className="btn-primary-custom"
+                        onClick={() => {
+                          setSelectedPrinter(null);
+                          setPrinterForm({ name: '', printer_alias: '', connection_type: 'network', ip_address: '', usb_vid_pid: '' });
+                          setShowPrinterModal(true);
+                        }}
+                      >
+                        + {language === 'uz' ? "Printer qo'shish" : 'Добавить принтер'}
+                      </Button>
+                    </div>
+                    {loadingPrinters ? (
+                      <div className="text-center py-4"><Spinner animation="border" size="sm" /></div>
+                    ) : printers.length === 0 ? (
+                      <div className="text-muted text-center py-3">
+                        {language === 'uz' ? 'Printerlar mavjud emas' : 'Нет добавленных принтеров'}
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <Table hover size="sm" className="mb-0">
+                          <thead>
+                            <tr>
+                              <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
+                              <th>Alias</th>
+                              <th>{language === 'uz' ? "Ulanish turi" : 'Тип'}</th>
+                              <th>IP / USB</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {printers.map((printer) => (
+                              <tr key={`printer-${printer.id}`}>
+                                <td className="fw-semibold">{printer.name}</td>
+                                <td><code className="small">{printer.printer_alias}</code></td>
+                                <td>
+                                  <Badge bg={printer.connection_type === 'network' ? 'primary' : 'warning'} className="text-uppercase" style={{ fontSize: '0.7rem' }}>
+                                    {printer.connection_type === 'network' ? '🌐 Network' : '🔌 USB'}
+                                  </Badge>
+                                </td>
+                                <td className="small text-muted">{printer.ip_address || printer.usb_vid_pid || '—'}</td>
+                                <td>
+                                  <div className="d-flex gap-1">
+                                    <Button
+                                      variant="outline-secondary"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedPrinter(printer);
+                                        setPrinterForm({
+                                          name: printer.name || '',
+                                          printer_alias: printer.printer_alias || '',
+                                          connection_type: printer.connection_type || 'network',
+                                          ip_address: printer.ip_address || '',
+                                          usb_vid_pid: printer.usb_vid_pid || ''
+                                        });
+                                        setShowPrinterModal(true);
+                                      }}
+                                    >
+                                      ✏️
+                                    </Button>
+                                    <Button
+                                      variant="outline-danger"
+                                      size="sm"
+                                      onClick={() => handleDeletePrinter(printer.id)}
+                                    >
+                                      ✕
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </Table>
+                      </div>
+                    )}
+                  </Card.Body>
+                </Card>
+
+                {/* How it works */}
+                <Card className="border-0 shadow-sm">
+                  <Card.Body>
+                    <h6 className="mb-3">{language === 'uz' ? "Qanday ishlaydi?" : '📖 Как это работает?'}</h6>
+                    <ol className="small text-muted mb-0">
+                      <li className="mb-2">{language === 'uz' ? "Yuqorida «Agent qo'shish» tugmasini bosing. Tizim Token yaratadi." : 'Нажмите «Добавить агента» выше. Система создаст уникальный Token.'}</li>
+                      <li className="mb-2">{language === 'uz' ? "Tokenni nusxalang va operator kompyuteriga o'rnating (printer-agent dasturi)." : 'Скопируйте Token и вставьте в файл .env на компьютере оператора (в папке printer-agent).'}</li>
+                      <li className="mb-2">{language === 'uz' ? "Printer qo'shing (nomi va Windows Share nomi)." : 'Добавьте принтер: укажите название и имя общего принтера Windows (Alias).'}</li>
+                      <li>{language === 'uz' ? "Buyurtma qabul qilinganda, chek avtomatik chop etiladi." : 'При принятии заказа чек автоматически печатается на указанном принтере.'}</li>
+                    </ol>
+                  </Card.Body>
+                </Card>
+              </Tab>
+
+              {/* Printer Agent Modal */}
+              <Modal show={showPrinterAgentModal} onHide={() => setShowPrinterAgentModal(false)} centered>
+                <Form onSubmit={handleCreatePrinterAgent}>
+                  <Modal.Header closeButton>
+                    <Modal.Title className="h6">{language === 'uz' ? "Yangi agent qo'shish" : 'Новый агент'}</Modal.Title>
+                  </Modal.Header>
+                  <Modal.Body>
+                    <Form.Group>
+                      <Form.Label>{language === 'uz' ? 'Agent nomi' : 'Название агента'}</Form.Label>
+                      <Form.Control
+                        type="text"
+                        placeholder={language === 'uz' ? "masalan: Kassa 1" : 'например: Касса 1'}
+                        value={printerAgentName}
+                        onChange={(e) => setPrinterAgentName(e.target.value)}
+                        required
+                      />
+                      <Form.Text className="text-muted">
+                        {language === 'uz' ? "Bu nom faqat sizning qulay farqlashingiz uchun." : 'Это имя для вашего удобства, чтобы различать компьютеры.'}
+                      </Form.Text>
+                    </Form.Group>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowPrinterAgentModal(false)}>{t('cancel')}</Button>
+                    <Button type="submit" className="btn-primary-custom" disabled={!printerAgentName.trim()}>
+                      {language === 'uz' ? "Yaratish" : 'Создать'}
+                    </Button>
+                  </Modal.Footer>
+                </Form>
+              </Modal>
+
+              {/* Printer Add/Edit Modal */}
+              <Modal show={showPrinterModal} onHide={() => setShowPrinterModal(false)} centered>
+                <Form onSubmit={handleSavePrinter}>
+                  <Modal.Header closeButton>
+                    <Modal.Title className="h6">
+                      {selectedPrinter
+                        ? (language === 'uz' ? 'Printerni tahrirlash' : 'Редактировать принтер')
+                        : (language === 'uz' ? "Yangi printer qo'shish" : 'Добавить принтер')}
+                    </Modal.Title>
+                  </Modal.Header>
+                  <Modal.Body>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{language === 'uz' ? 'Nomi' : 'Название'} *</Form.Label>
+                      <Form.Control
+                        type="text"
+                        placeholder={language === 'uz' ? "masalan: Oshxona printeri" : 'например: Кухонный принтер'}
+                        value={printerForm.name}
+                        onChange={(e) => setPrinterForm({ ...printerForm, name: e.target.value })}
+                        required
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label>
+                        {language === 'uz' ? "Windows printer nomi (Share Name)" : 'Имя принтера в Windows (Share Name)'} *
+                      </Form.Label>
+                      <Form.Control
+                        type="text"
+                        placeholder="ThermalPrinter"
+                        value={printerForm.printer_alias}
+                        onChange={(e) => setPrinterForm({ ...printerForm, printer_alias: e.target.value })}
+                        required
+                      />
+                      <Form.Text className="text-muted">
+                        {language === 'uz'
+                          ? "Windows ulashish sozlamalaridan printer nomini kiriting."
+                          : 'Введите имя общего принтера из настроек «Общий доступ» Windows.'}
+                      </Form.Text>
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{language === 'uz' ? "Ulanish turi" : 'Тип подключения'}</Form.Label>
+                      <Form.Select
+                        value={printerForm.connection_type}
+                        onChange={(e) => setPrinterForm({ ...printerForm, connection_type: e.target.value })}
+                      >
+                        <option value="network">{language === 'uz' ? 'Tarmoq (Network share)' : 'Сетевой (Network share)'}</option>
+                        <option value="usb">{language === 'uz' ? 'USB' : 'USB'}</option>
+                      </Form.Select>
+                    </Form.Group>
+                    {printerForm.connection_type === 'network' && (
+                      <Form.Group className="mb-3">
+                        <Form.Label>IP {language === 'uz' ? '(ixtiyoriy)' : '(необязательно)'}</Form.Label>
+                        <Form.Control
+                          type="text"
+                          placeholder="192.168.1.100"
+                          value={printerForm.ip_address}
+                          onChange={(e) => setPrinterForm({ ...printerForm, ip_address: e.target.value })}
+                        />
+                      </Form.Group>
+                    )}
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowPrinterModal(false)}>{t('cancel')}</Button>
+                    <Button type="submit" className="btn-primary-custom" disabled={!printerForm.name || !printerForm.printer_alias}>
+                      {selectedPrinter ? t('save') : (language === 'uz' ? "Qo'shish" : 'Добавить')}
+                    </Button>
+                  </Modal.Footer>
+                </Form>
+              </Modal>
 
               <Tab eventKey="settings" title={renderAdminSidebarTabTitle('settings')}>
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
