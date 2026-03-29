@@ -180,13 +180,17 @@ async function printToPrinter(config, data) {
     const printerName = config.usb || "XP-80"; 
     const tempFile = path.join(__dirname, `print_${Date.now()}.bin`);
     
-    const fileDevice = new (require('escpos').Console)((chunk) => {
-      fs.appendFileSync(tempFile, chunk);
-    });
+    const fileDevice = {
+      open: function(cb) { fs.writeFileSync(tempFile, Buffer.alloc(0)); cb && cb(null); },
+      write: function(data, cb) { fs.appendFileSync(tempFile, data); cb && cb(null); },
+      close: function(cb) { cb && cb(null); },
+      read: function() {}
+    };
+
     const printer = new escpos.Printer(fileDevice);
 
-    // Clear/Create file
-    fs.writeFileSync(tempFile, Buffer.alloc(0));
+    // Ensure file is cleared/started
+    fileDevice.open();
     
     await executePrintSequence(printer, fileDevice, data, config);
     
