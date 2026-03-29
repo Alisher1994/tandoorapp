@@ -198,7 +198,7 @@ async function prepareReceiptLogoFile(logoHref) {
 
   const outPath = `${base}_print.png`;
   const image = await Jimp.read(workPath);
-  const maxW = parseInt(process.env.TALABLAR_LOGO_MAX_WIDTH || '576', 10);
+  const maxW = parseInt(process.env.TALABLAR_LOGO_MAX_WIDTH || '384', 10);
   if (image.bitmap.width > maxW) {
     image.resize(maxW, Jimp.AUTO);
   }
@@ -364,9 +364,9 @@ async function executePrintSequence(printer, device, data, config) {
   // Сброс + кириллица: таблица 17 ≈ CP866 на большинстве Xprinter/Epson-совместимых;
   // при кракозябрах попробуйте TALABLAR_CODEPAGE=46 и TALABLAR_ICONV_ENCODING=windows-1251
   printer.hardware('init');
-  const codePage = parseInt(process.env.TALABLAR_CODEPAGE || '17', 10);
+  const codePage = parseInt(process.env.TALABLAR_CODEPAGE || '46', 10);
   printer.setCharacterCodeTable(codePage);
-  printer.encode((process.env.TALABLAR_ICONV_ENCODING || 'cp866').trim());
+  printer.encode((process.env.TALABLAR_ICONV_ENCODING || 'windows-1251').trim());
 
   printer.font('a').align('ct').style('bu').size(1, 1);
 
