@@ -2,27 +2,104 @@ require('dotenv').config();
 const { io } = require("socket.io-client");
 const escpos = require('escpos');
 escpos.Network = require('escpos-network');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const readline = require('readline/promises');
+const os = require('os');
+
+async function runSetupWizard() {
+  console.log("\n╔══════════════════════════════════════════════╗");
+  console.log("║   TANDOOR PRINTER AGENT - УСТАНОВКА v1.0     ║");
+  console.log("╚══════════════════════════════════════════════╝\n");
+  
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const defaultUrl = "https://talablar.up.railway.app";
+  let inputUrl = await rl.question(`Адрес сервера [Enter для ${defaultUrl}]: `);
+  const finalServerUrl = inputUrl.trim() || defaultUrl;
+
+  let finalAgentToken = "";
+  while (!finalAgentToken) {
+    finalAgentToken = (await rl.question("Вставьте ТОКЕН агента (из админки): ")).trim();
+  }
+  
+  rl.close();
+
+  const appData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const installDir = path.join(appData, 'TandoorPrinter');
+  
+  console.log("\n⏳ Установка...");
+  
+  if (!fs.existsSync(installDir)) {
+    fs.mkdirSync(installDir, { recursive: true });
+  }
+
+  // Write .env
+  fs.writeFileSync(path.join(installDir, '.env'), `SERVER_URL=${finalServerUrl}\nAGENT_TOKEN=${finalAgentToken}\n`);
+  
+  // Copy exe if running from pkg
+  const targetExe = path.join(installDir, 'TandoorPrinterAgent.exe');
+  if (process.pkg) {
+    try {
+      fs.copyFileSync(process.execPath, targetExe);
+    } catch (e) {
+      console.warn("⚠️ Не удалось скопировать .exe:", e.message);
+    }
+  }
+  
+  // Create shortcut on desktop using powershell
+  const desktop = path.join(os.homedir(), 'Desktop');
+  const shortcutTarget = process.pkg ? targetExe : process.execPath;
+  const shortcutScript = `$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('${path.join(desktop, 'Tandoor Printer.lnk')}'); $s.TargetPath = '${shortcutTarget}'; $s.WorkingDirectory = '${installDir}'; $s.IconLocation = 'shell32.dll,16'; $s.Description = 'Tandoor Printer Agent'; $s.Save();`;
+  
+  const psCommand = `powershell -NoProfile -Command "${shortcutScript}"`;
+  
+  await new Promise(resolve => exec(psCommand, resolve));
+
+  console.log("✅ Установка успешно завершена!");
+  console.log(`📂 Установлено в: ${installDir}`);
+  console.log("🖥️ Ярлык 'Tandoor Printer' создан на рабочем столе.\n");
+  
+  console.log("🚀 Запускаем агент...");
+  if (process.pkg) {
+    spawn(targetExe, [], { detached: true, stdio: 'ignore', cwd: installDir }).unref();
+  } else {
+    // If running from node script, just spawn node
+    spawn('node', [shortcutTarget], { detached: true, stdio: 'ignore', cwd: installDir }).unref();
+  }
+  process.exit(0);
+}
 
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
 const AGENT_TOKEN = process.env.AGENT_TOKEN || "YOUR_AGENT_TOKEN_HERE";
+const isTokenValid = AGENT_TOKEN && AGENT_TOKEN !== "YOUR_AGENT_TOKEN_HERE";
 
-console.log("🚀 Starting Printer Agent...");
-console.log(`🔗 Connecting to ${SERVER_URL}...`);
+async function main() {
+  if (!isTokenValid) {
+    await runSetupWizard();
+    return; // Execution stops here since runSetupWizard calls process.exit(0)
+  }
 
-const socket = io(SERVER_URL, {
-  auth: {
-    token: AGENT_TOKEN
-  },
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-});
+  console.log("\n=============================================");
+  console.log("🚀 Tandoor Printer Agent Started...");
+  console.log(`🔗 Connecting to ${SERVER_URL}...`);
+  console.log("=============================================\n");
 
-socket.on("connect", () => {
+  const socket = io(SERVER_URL, {
+    auth: {
+      token: AGENT_TOKEN
+    },
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+  });
+
+  socket.on("connect", () => {
   console.log("✅ Linked to Server!");
 });
 
@@ -233,3 +310,6 @@ async function executePrintSequence(printer, device, data, config) {
   printer.text("СПАСИБО ЗА ЗАКАЗ!").feed(3).cut().close();
 }
 
+}
+
+main().catch(console.error);
