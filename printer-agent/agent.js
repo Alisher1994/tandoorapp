@@ -8,8 +8,10 @@ const path = require('path');
 const fs = require('fs');
 const readline = require('readline/promises');
 const os = require('os');
+const Jimp = require('jimp');
+const webp = require('webp-converter');
 
-const AGENT_BUILD_ID = '8.7.1+bundle-check'; // видно в логе даже если package.json в exe не подтянулся
+const AGENT_BUILD_ID = '8.10.0+cyrillic-logo'; // видно в логе даже если package.json в exe не подтянулся
 let AGENT_PKG_VERSION = AGENT_BUILD_ID;
 try {
   AGENT_PKG_VERSION = require('./package.json').version;
@@ -148,6 +150,63 @@ function resolveAbsoluteLogoUrl(logoUrl) {
   } catch {
     return null;
   }
+}
+
+/** Убираем узкие/неразрывные пробелы из toLocaleString — в cp866 принтере это мусор */
+function tx(s) {
+  return String(s ?? '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\u202F/g, ' ')
+    .replace(/\u2009/g, ' ');
+}
+
+let webpPermissionOnce = false;
+function ensureWebpTools() {
+  if (webpPermissionOnce) return;
+  webpPermissionOnce = true;
+  try {
+    if (process.platform !== 'win32') webp.grant_permission();
+  } catch (_) {}
+}
+
+/** WebP + слишком широкие логотипы: в PNG для escpos, ширина ≤ TALABLAR_LOGO_MAX_WIDTH (576 для 80мм) */
+async function prepareReceiptLogoFile(logoHref) {
+  ensureWebpTools();
+  const stamp = Date.now();
+  const base = path.join(installDir, `receipt_logo_${stamp}`);
+  const response = await axios({ url: logoHref, responseType: 'arraybuffer', timeout: 45000, validateStatus: (s) => s === 200 });
+  const buf = Buffer.from(response.data);
+  const ctype = String(response.headers['content-type'] || '').toLowerCase();
+  let ext = path.extname(new URL(logoHref).pathname.replace(/\?.*$/, '') || '').toLowerCase();
+  if (!ext || ext.length > 8) ext = '.dat';
+  let dlPath = `${base}_dl${ext}`;
+  fs.writeFileSync(dlPath, buf);
+
+  const isWebp = ext === '.webp' || ctype.includes('webp') ||
+    (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP');
+
+  let workPath = dlPath;
+  if (isWebp) {
+    const pngPath = `${base}_conv.png`;
+    await webp.dwebp(dlPath, pngPath, '-png', '-quiet');
+    try { fs.unlinkSync(dlPath); } catch (_) {}
+    if (!fs.existsSync(pngPath) || fs.statSync(pngPath).size < 40) {
+      throw new Error('dwebp produced empty file');
+    }
+    workPath = pngPath;
+  }
+
+  const outPath = `${base}_print.png`;
+  const image = await Jimp.read(workPath);
+  const maxW = parseInt(process.env.TALABLAR_LOGO_MAX_WIDTH || '576', 10);
+  if (image.bitmap.width > maxW) {
+    image.resize(maxW, Jimp.AUTO);
+  }
+  await new Promise((res, rej) => image.write(outPath, (err) => (err ? rej(err) : res())));
+  if (workPath !== outPath) {
+    try { fs.unlinkSync(workPath); } catch (_) {}
+  }
+  return outPath;
 }
 
 async function main() {
@@ -302,104 +361,105 @@ async function printToPrinter(config, data) {
  * Shared print commands sequence
  */
 async function executePrintSequence(printer, device, data, config) {
+  // Сброс + кириллица: таблица 17 ≈ CP866 на большинстве Xprinter/Epson-совместимых;
+  // при кракозябрах попробуйте TALABLAR_CODEPAGE=46 и TALABLAR_ICONV_ENCODING=windows-1251
+  printer.hardware('init');
+  const codePage = parseInt(process.env.TALABLAR_CODEPAGE || '17', 10);
+  printer.setCharacterCodeTable(codePage);
+  printer.encode((process.env.TALABLAR_ICONV_ENCODING || 'cp866').trim());
+
   printer.font('a').align('ct').style('bu').size(1, 1);
 
-  // 1. Logo (if Full Receipt)
+  // 1. Logo (if Full Receipt): WebP→PNG, масштаб под 80 мм
   if (data.isFullReceipt && data.shopInfo?.logoUrl) {
+    let logoPrintPath = null;
     try {
       const logoHref = resolveAbsoluteLogoUrl(data.shopInfo.logoUrl);
       if (!logoHref) {
         console.error("Logo printing error: invalid or relative URL could not be resolved:", data.shopInfo.logoUrl);
       } else {
-        const logoFilename = path.join(installDir, 'temp_logo.png');
-        const response = await axios({
-          url: logoHref,
-          responseType: 'stream',
-        });
-        await new Promise((res, rej) => {
-          response.data.pipe(fs.createWriteStream(logoFilename))
-            .on('finish', res)
-            .on('error', rej);
-        });
-
+        logoPrintPath = await prepareReceiptLogoFile(logoHref);
         const image = await new Promise((res, rej) => {
-          escpos.Image.load(logoFilename, (img) => {
-            if (img) res(img);
-            else rej(new Error("Failed to load image"));
+          escpos.Image.load(logoPrintPath, (arg) => {
+            if (arg && typeof arg.toRaster === 'function') res(arg);
+            else rej(arg instanceof Error ? arg : new Error('Failed to load raster image'));
           });
         });
-
         printer.align('ct').raster(image, 'dw');
         printer.feed(1);
       }
     } catch (e) {
       console.error("Logo printing error:", e.message);
+    } finally {
+      if (logoPrintPath) {
+        try { fs.unlinkSync(logoPrintPath); } catch (_) {}
+      }
     }
   }
 
   // 2. Shop Header
   printer.align('ct').style('b').size(1, 1);
-  printer.text((data.shopInfo?.name || "SHOP").toUpperCase()).feed(1);
+  printer.text(tx((data.shopInfo?.name || 'SHOP').toUpperCase())).feed(1);
   printer.style('n').size(0, 0);
-  if (data.shopInfo?.address) printer.text(data.shopInfo.address);
-  if (data.shopInfo?.phone) printer.text(`Тел: ${data.shopInfo.phone}`);
-  printer.text("-------------------------------").feed(1);
+  if (data.shopInfo?.address) printer.text(tx(data.shopInfo.address));
+  if (data.shopInfo?.phone) printer.text(tx(`Тел: ${data.shopInfo.phone}`));
+  printer.text('-------------------------------').feed(1);
 
   // 3. Order Metadata
-  printer.align('lt').style('b').size(1, 1).text(`ЗАКАЗ: #${data.orderNumber}`);
-  printer.style('n').size(0, 0).text(`Дата: ${new Date(data.createdAt).toLocaleString('ru-RU')}`);
-  printer.text(`Печать: ${new Date(data.printAt).toLocaleString('ru-RU')}`);
-  printer.text(`Тип: ОНЛАЙН (Telegram)`);
-  printer.text("-------------------------------").feed(1);
+  printer.align('lt').style('b').size(1, 1).text(tx(`ЗАКАЗ: #${data.orderNumber}`));
+  printer.style('n').size(0, 0).text(tx(`Дата: ${new Date(data.createdAt).toLocaleString('ru-RU')}`));
+  printer.text(tx(`Печать: ${new Date(data.printAt).toLocaleString('ru-RU')}`));
+  printer.text(tx('Тип: ОНЛАЙН (Telegram)'));
+  printer.text('-------------------------------').feed(1);
 
   // 4. Customer Info
-  printer.style('b').text(`КЛИЕНТ: ${data.customerName || 'Гость'}`);
-  printer.text(`ТЕЛ: ${data.customerPhone || '-'}`);
+  printer.style('b').text(tx(`КЛИЕНТ: ${data.customerName || 'Гость'}`));
+  printer.text(tx(`ТЕЛ: ${data.customerPhone || '-'}`));
   printer.style('n');
   if (data.deliveryAddress) {
-    printer.text(`АДРЕС: ${data.deliveryAddress}`);
+    printer.text(tx(`АДРЕС: ${data.deliveryAddress}`));
   }
   if (data.comment) {
-    printer.feed(1).style('b').text(`КОММЕНТАРИЙ:`).style('n').text(data.comment);
+    printer.feed(1).style('b').text(tx('КОММЕНТАРИЙ:')).style('n').text(tx(data.comment));
   }
-  printer.feed(1).align('ct').text("========== ТОВАРЫ ==========").feed(1);
+  printer.feed(1).align('ct').text(tx('========== ТОВАРЫ ==========')).feed(1);
 
   // 5. Items Table
-  data.items.forEach(item => {
+  data.items.forEach((item) => {
     const name = item.name;
     const qty = item.quantity + (item.unit || 'шт');
-    const price = (item.price || 0).toLocaleString('ru-RU');
-    const total = (item.total || 0).toLocaleString('ru-RU');
-    
-    printer.align('lt').text(name);
-    printer.align('rt').text(`${qty} x ${price} = ${total} сум`);
+    const price = tx((item.price || 0).toLocaleString('ru-RU'));
+    const total = tx((item.total || 0).toLocaleString('ru-RU'));
+
+    printer.align('lt').text(tx(name));
+    printer.align('rt').text(tx(`${qty} x ${price} = ${total} сум`));
   });
 
-  printer.feed(1).text("-------------------------------");
+  printer.feed(1).text('-------------------------------');
 
   // 6. Financials (Only if Full Receipt)
   if (data.isFullReceipt && data.financials) {
     printer.align('rt');
-    printer.text(`Сумма товаров: ${data.financials.itemsSubtotal?.toLocaleString('ru-RU')} сум`);
+    printer.text(tx(`Сумма товаров: ${data.financials.itemsSubtotal?.toLocaleString('ru-RU')} сум`));
     if (data.financials.fasovkaTotal > 0) {
-      printer.text(`Фасовка: ${data.financials.fasovkaTotal.toLocaleString('ru-RU')} сум`);
+      printer.text(tx(`Фасовка: ${data.financials.fasovkaTotal.toLocaleString('ru-RU')} сум`));
     }
     if (data.financials.serviceFee > 0) {
-      printer.text(`Сервис: ${data.financials.serviceFee.toLocaleString('ru-RU')} сум`);
+      printer.text(tx(`Сервис: ${data.financials.serviceFee.toLocaleString('ru-RU')} сум`));
     }
     if (data.financials.deliveryCost > 0) {
-      printer.text(`Доставка: ${data.financials.deliveryCost.toLocaleString('ru-RU')} сум`);
+      printer.text(tx(`Доставка: ${data.financials.deliveryCost.toLocaleString('ru-RU')} сум`));
     }
-    printer.feed(1).style('b').size(1, 1).text(`ИТОГО: ${data.financials.totalAmount?.toLocaleString('ru-RU')} сум`);
-    printer.style('n').size(0, 0).text(`Способ оплаты: ${data.paymentMethod || 'Наличные'}`);
+    printer.feed(1).style('b').size(1, 1).text(tx(`ИТОГО: ${data.financials.totalAmount?.toLocaleString('ru-RU')} сум`));
+    printer.style('n').size(0, 0).text(tx(`Способ оплаты: ${data.paymentMethod || 'Наличные'}`));
   } else {
-    printer.align('ct').text(`ЧЕК ДЛЯ: ${config.alias?.toUpperCase() || 'КУХНЯ'}`);
+    printer.align('ct').text(tx(`ЧЕК ДЛЯ: ${config.alias?.toUpperCase() || 'КУХНЯ'}`));
   }
 
   // 7. Footer
   printer.feed(2).align('ct');
-  if (data.shopInfo?.footer) printer.text(data.shopInfo.footer);
-  printer.text("СПАСИБО ЗА ЗАКАЗ!").feed(3).cut().close();
+  if (data.shopInfo?.footer) printer.text(tx(data.shopInfo.footer));
+  printer.text(tx('СПАСИБО ЗА ЗАКАЗ!')).feed(3).cut().close();
 }
 
 main().catch(console.error);

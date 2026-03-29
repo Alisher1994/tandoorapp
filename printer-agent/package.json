@@ -1,6 +1,6 @@
 {
   "name": "talablar-agent",
-  "version": "8.7.1",
+  "version": "8.10.0",
   "description": "Local printer agent for Talablar Restaurant Management",
   "main": "agent.js",
   "scripts": {
@@ -8,12 +8,14 @@
     "build:exe": "pkg . --targets node18-win-x64 --output dist/TalablarAgent.exe"
   },
   "dependencies": {
-    "socket.io-client": "^4.7.2",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
     "escpos": "^3.0.0-alpha.6",
     "escpos-network": "^3.0.0-alpha.4",
-    "dotenv": "^16.3.1",
-    "axios": "^1.6.0",
-    "get-pixels": "^3.3.3"
+    "get-pixels": "^3.3.3",
+    "jimp": "^0.22.12",
+    "socket.io-client": "^4.7.2",
+    "webp-converter": "^2.3.3"
   },
   "devDependencies": {
     "pkg": "^5.8.1"
@@ -23,7 +25,8 @@
     "assets": [
       "package.json",
       ".env.example",
-      "README.md"
+      "README.md",
+      "node_modules/webp-converter/bin/**/*"
     ],
     "targets": [
       "node18-win-x64"
