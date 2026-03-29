@@ -178,8 +178,7 @@ async function printToPrinter(config, data) {
   } else if (config.type === 'usb' || config.type === 'win-raw' || config.type === 'windows') {
     // FOR WINDOWS USB: We use "copy /b" to a shared printer.
     const printerName = config.usb || "XP-80"; 
-    const os = require('os');
-    const tempFile = path.join(os.tmpdir(), `print_${Date.now()}.bin`);
+    const tempFile = path.join(process.cwd(), `print_${Date.now()}.bin`);
     
     const fileDevice = {
       open: function(cb) { fs.writeFileSync(tempFile, Buffer.alloc(0)); cb && cb(null); },
@@ -225,8 +224,7 @@ async function executePrintSequence(printer, device, data, config) {
   // 1. Logo (if Full Receipt)
   if (data.isFullReceipt && data.shopInfo?.logoUrl) {
     try {
-      const os = require('os');
-      const logoFilename = path.join(os.tmpdir(), 'temp_logo.png');
+      const logoFilename = path.join(process.cwd(), 'temp_logo.png');
       const response = await axios({
         url: data.shopInfo.logoUrl,
         responseType: 'stream',
