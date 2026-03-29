@@ -1871,14 +1871,16 @@ function Catalog() {
     const tabKey = catalogSectionTabKey(activeSubcategoryTab);
     let cancelled = false;
     let retryTimer = 0;
+    let retries = 0;
     const attempt = () => {
       if (cancelled) return;
       const btn = level3TabButtonRefs.current[tabKey];
-      if (!btn) {
+      if (!btn && retries < 6) {
+        retries++;
         retryTimer = setTimeout(attempt, 80);
         return;
       }
-      scrollActiveTabIntoView(tabKey, behavior);
+      if (btn) scrollActiveTabIntoView(tabKey, behavior);
     };
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(attempt);
