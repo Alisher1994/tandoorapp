@@ -39,6 +39,11 @@ async function runPrinterMigrations() {
     await client.query(`ALTER TABLE printer_agents ADD COLUMN IF NOT EXISTS name VARCHAR(100) DEFAULT 'Agent'`);
     await client.query(`ALTER TABLE printer_agents ADD COLUMN IF NOT EXISTS last_connected_at TIMESTAMP`);
     await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    
+    // Ensure new printer fields exist in case table existed previously
+    await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS connection_type VARCHAR(20) DEFAULT 'network'`);
+    await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)`);
+    await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS usb_vid_pid VARCHAR(50)`);
 
     // 3. Add printer_id to categories if not exists
     await client.query(`
