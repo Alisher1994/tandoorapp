@@ -94,7 +94,7 @@ const UserLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
-function Catalog() {
+function Menu2() {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [prevRestaurant, setPrevRestaurant] = useState(null);
@@ -190,6 +190,7 @@ function Catalog() {
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
   const activeSubcategoryTabRef = useRef(null);
+  const menu2ContentScrollRef = useRef(null);
   const catalogHeaderBackground = '#f8fafc';
   const catalogTabGap = 8;
   const isTelegramWebView = useMemo(() => (
@@ -321,49 +322,25 @@ function Catalog() {
   }, [user?.id, user?.role, selectedRestaurant]);
 
   const getScrollContainer = () => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-      return window;
-    }
-
-    const rootNode = document.getElementById('root');
-    if (!rootNode) return window;
-
-    const style = window.getComputedStyle(rootNode);
-    const overflowRule = `${style.overflow || ''} ${style.overflowY || ''}`.toLowerCase();
-    const canScrollVertically = /(auto|scroll|overlay)/.test(overflowRule);
-
-    if (canScrollVertically && rootNode.scrollHeight > rootNode.clientHeight + 2) {
-      return rootNode;
-    }
-
-    return window;
+    // Menu2 uses a dedicated scroll container instead of #root/window
+    return menu2ContentScrollRef.current || window;
   };
   const getCurrentScrollOffset = () => {
-    const scrollContainer = getScrollContainer();
-    if (scrollContainer === window) {
-      return window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || 0;
-    }
-    return scrollContainer.scrollTop || 0;
+    const sc = getScrollContainer();
+    if (sc === window) return window.scrollY || 0;
+    return sc.scrollTop || 0;
   };
 
   const scrollToOffset = (offsetTop) => {
-    const scrollContainer = getScrollContainer();
-    if (scrollContainer === window) {
-      window.scrollTo({ top: offsetTop, behavior: 'smooth' });
-    } else {
-      scrollContainer.scrollTo({ top: offsetTop, behavior: 'smooth' });
-    }
+    const sc = getScrollContainer();
+    sc.scrollTo({ top: offsetTop, behavior: 'smooth' });
   };
 
   const scrollToTop = () => scrollToOffset(0);
   const restoreScrollOffset = (offsetTop) => {
     const target = Math.max(0, Number(offsetTop) || 0);
-    const scrollContainer = getScrollContainer();
-    if (scrollContainer === window) {
-      window.scrollTo({ top: target, behavior: 'auto' });
-      return;
-    }
-    scrollContainer.scrollTo({ top: target, behavior: 'auto' });
+    const sc = getScrollContainer();
+    sc.scrollTo({ top: target, behavior: 'auto' });
   };
   const scrollActiveTabIntoView = (tabId, behavior = 'smooth') => {
     if (tabId === null || tabId === undefined || tabId === '') return;
@@ -1973,35 +1950,30 @@ function Catalog() {
       return undefined;
     }
 
-    const scrollContainer = getScrollContainer();
-    const scrollTarget = scrollContainer === window ? window : scrollContainer;
-    const rootScrollNode = typeof document !== 'undefined' ? document.getElementById('root') : null;
-    const scrollTargets = [
-      scrollTarget,
-      rootScrollNode,
-      window
-    ].filter(Boolean);
-    const uniqueScrollTargets = [...new Set(scrollTargets)];
-    const stickyOffset = Math.max(56, catalogHeaderHeight);
+    const scrollContainer = menu2ContentScrollRef.current;
+    if (!scrollContainer) return undefined;
+
+    // Header is outside the scroll container, so probe at ~16px from top of content area
+    const sectionProbeLine = 16;
 
     const detectVisibleSection = () => {
       if (isTabAutoScrollRef.current) return;
-      const sectionProbeLine = stickyOffset + 16;
+
+      const containerRect = scrollContainer.getBoundingClientRect();
 
       let currentId = null;
       for (const section of activeCatalogTabs) {
         const el = productGroupRefs.current[catalogSectionTabKey(section.id)];
         if (!el) continue;
         const rect = el.getBoundingClientRect();
-        if (rect.top <= sectionProbeLine) {
+        // rect.top is relative to viewport; containerRect.top is where content starts
+        const relativeTop = rect.top - containerRect.top;
+        if (relativeTop <= sectionProbeLine) {
           currentId = section.id;
         }
       }
 
-      const scrollPos = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
-      const containerHeight = scrollContainer === window ? window.innerHeight : scrollContainer.clientHeight;
-      const totalHeight = scrollContainer === window ? document.documentElement.scrollHeight : scrollContainer.scrollHeight;
-      const isAtBottom = scrollPos + containerHeight >= totalHeight - 48;
+      const isAtBottom = scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 48;
 
       if (isAtBottom && activeCatalogTabs.length > 0) {
         currentId = activeCatalogTabs[activeCatalogTabs.length - 1].id;
@@ -2034,22 +2006,18 @@ function Catalog() {
     };
 
     detectVisibleSection();
-    uniqueScrollTargets.forEach((target) => {
-      target.addEventListener('scroll', onScroll, { passive: true });
-    });
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
 
     return () => {
-      uniqueScrollTargets.forEach((target) => {
-        target.removeEventListener('scroll', onScroll);
-      });
+      scrollContainer.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
       if (tabScrollSpyRafRef.current) {
         cancelAnimationFrame(tabScrollSpyRafRef.current);
         tabScrollSpyRafRef.current = null;
       }
     };
-  }, [selectedCategory, activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading, catalogHeaderHeight, isSingleListMode]);
+  }, [selectedCategory, activeCatalogTabs, activeSubcategoryTab, normalizedCatalogSearch, loading, isSingleListMode]);
 
   useEffect(() => {
     if (!selectedRestaurant || loading) {
@@ -2057,23 +2025,12 @@ function Catalog() {
       return undefined;
     }
 
-    const scrollContainer = getScrollContainer();
-    const scrollTarget = scrollContainer === window ? window : scrollContainer;
-    const rootScrollNode = typeof document !== 'undefined' ? document.getElementById('root') : null;
-    const scrollTargets = [
-      scrollTarget,
-      rootScrollNode,
-      window
-    ].filter(Boolean);
-    const uniqueScrollTargets = [...new Set(scrollTargets)];
+    const scrollContainer = menu2ContentScrollRef.current;
+    if (!scrollContainer) return undefined;
 
     const updateProgress = () => {
-      const scrollTop = scrollContainer === window
-        ? (window.scrollY || window.pageYOffset || document.documentElement?.scrollTop || 0)
-        : scrollContainer.scrollTop;
-      const maxScroll = scrollContainer === window
-        ? Math.max(1, (document.documentElement?.scrollHeight || 1) - window.innerHeight)
-        : Math.max(1, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+      const scrollTop = scrollContainer.scrollTop;
+      const maxScroll = Math.max(1, scrollContainer.scrollHeight - scrollContainer.clientHeight);
       const nextProgress = Math.min(1, Math.max(0, scrollTop / maxScroll));
       setCatalogScrollProgress((prev) => (
         Math.abs(prev - nextProgress) < 0.004 ? prev : nextProgress
@@ -2089,15 +2046,11 @@ function Catalog() {
     };
 
     updateProgress();
-    uniqueScrollTargets.forEach((target) => {
-      target.addEventListener('scroll', onScroll, { passive: true });
-    });
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
 
     return () => {
-      uniqueScrollTargets.forEach((target) => {
-        target.removeEventListener('scroll', onScroll);
-      });
+      scrollContainer.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
       if (scrollProgressRafRef.current) {
         cancelAnimationFrame(scrollProgressRafRef.current);
@@ -2140,21 +2093,25 @@ function Catalog() {
 
   const scrollToProductGroup = (sectionId) => {
     const sectionElement = productGroupRefs.current[catalogSectionTabKey(sectionId)];
-    if (!sectionElement) return;
+    const scrollContainer = menu2ContentScrollRef.current;
+    if (!sectionElement || !scrollContainer) return;
 
     isTabAutoScrollRef.current = true;
     if (tabScrollLockTimeoutRef.current) {
       clearTimeout(tabScrollLockTimeoutRef.current);
     }
 
-    const scrollContainer = getScrollContainer();
-    const currentScroll = scrollContainer === window ? window.scrollY : scrollContainer.scrollTop;
-    const rect = sectionElement.getBoundingClientRect();
-    const stickyOffset = Math.max(56, catalogHeaderHeight) + 12;
-    const topOffset = rect.top + currentScroll - stickyOffset;
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const sectionRect = sectionElement.getBoundingClientRect();
+    
+    // Calculate position relative to the scroll container's top
+    const relativeTop = sectionRect.top - containerRect.top;
+    const topOffset = scrollContainer.scrollTop + relativeTop - 8;
+
     tabActivationSourceRef.current = 'click';
     setActiveSubcategoryTab(sectionId);
     scrollToOffset(topOffset);
+
     tabScrollLockTimeoutRef.current = setTimeout(() => {
       isTabAutoScrollRef.current = false;
     }, 450);
@@ -3369,21 +3326,26 @@ function Catalog() {
   const activeProductSizeOptions = getProductSizeOptions(activeProduct);
 
   return (
-    <>
+    <div className="menu2-shell" style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      width: '100%',
+      overflow: 'hidden',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0
+    }}>
+      {/* ═══ FIXED TOP: Header + Tabs ═══ */}
+      <div style={{ flex: '0 0 auto', zIndex: 1010 }}>
       <Navbar
         ref={catalogHeaderRef}
         expand="lg"
         className="mb-0"
         style={{
-          position: 'sticky',
-          top: 'env(safe-area-inset-top, 0px)',
-          left: 0,
-          right: 0,
-          zIndex: 1010,
-          transform: 'translateZ(0)',
-          willChange: 'transform',
-          backfaceVisibility: 'hidden',
-          WebkitBackfaceVisibility: 'hidden',
+          position: 'relative',
           backgroundColor: catalogHeaderBackground,
           borderBottom: shouldShowCatalogTabs
             ? 'none'
@@ -3653,7 +3615,21 @@ function Catalog() {
           />
         </div>
       </Navbar>
+      </div>
 
+      {/* ═══ SCROLLABLE BOTTOM: Content ═══ */}
+      <div
+        ref={menu2ContentScrollRef}
+        className="menu2-content-scroll"
+        style={{
+          flex: '1 1 auto',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          position: 'relative'
+        }}
+      >
       {renderCatalogSeasonOverlay()}
 
       <Container>
@@ -4506,8 +4482,9 @@ function Catalog() {
 
       {/* Spacer for bottom nav */}
       {!isOperator() && <div style={{ height: '70px' }} />}
-    </>
+      </div>
+    </div>
   );
 }
 
-export default Catalog;
+export default Menu2;
