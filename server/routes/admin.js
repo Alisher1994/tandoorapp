@@ -4966,7 +4966,14 @@ router.post('/printers', async (req, res) => {
       INSERT INTO printers (restaurant_id, name, printer_alias, connection_type, ip_address, usb_vid_pid)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [restaurantId, name, printer_alias, connection_type || 'network', ip_address, usb_vid_pid]);
+    `, [
+      restaurantId, 
+      name, 
+      printer_alias, 
+      connection_type || 'network', 
+      ip_address || null, 
+      usb_vid_pid || null
+    ]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -4992,7 +4999,16 @@ router.put('/printers/:id', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $7 AND restaurant_id = $8
       RETURNING *
-    `, [name, printer_alias, connection_type, ip_address, usb_vid_pid, is_active, req.params.id, restaurantId]);
+    `, [
+      name || null, 
+      printer_alias || null, 
+      connection_type || null, 
+      ip_address || null, 
+      usb_vid_pid || null, 
+      is_active !== undefined ? is_active : null, 
+      req.params.id, 
+      restaurantId
+    ]);
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Принтер не найден' });
     res.json(result.rows[0]);
