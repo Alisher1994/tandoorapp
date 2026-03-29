@@ -26,6 +26,7 @@ const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureBroadcastSchema } = require('../services/broadcastSchema');
 const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
 const { generateStorePrintForm } = require('../services/printFormGenerator');
+const printerManager = require('../services/printerManager');
 const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
@@ -1320,6 +1321,13 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 
     await client.query('COMMIT');
 
+    // Trigger Printing
+    try {
+      await printerManager.printOrder(order.restaurant_id, orderId);
+    } catch (printErr) {
+      console.error('Auto Print Error (accept-and-pay):', printErr);
+    }
+
     // Notify customer and sync group inline buttons/message
     try {
       let fullOrderResult;
@@ -1554,7 +1562,8 @@ router.put('/restaurant', async (req, res) => {
       logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
-      is_asap_delivery_enabled, is_scheduled_time_delivery_enabled
+      is_asap_delivery_enabled, is_scheduled_time_delivery_enabled,
+      receipt_logo_url, receipt_header_text, receipt_footer_text
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
@@ -1685,8 +1694,11 @@ router.put('/restaurant', async (req, res) => {
           scheduled_delivery_max_days = $50,
           is_asap_delivery_enabled = COALESCE($51, is_asap_delivery_enabled),
           is_scheduled_time_delivery_enabled = COALESCE($52, is_scheduled_time_delivery_enabled),
+          receipt_logo_url = $53,
+          receipt_header_text = $54,
+          receipt_footer_text = $55,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $53
+      WHERE id = $56
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1722,6 +1734,9 @@ router.put('/restaurant', async (req, res) => {
       normalizedScheduledDeliveryMaxDays,
       normalizedAsapDelivery,
       normalizedScheduledTimeDelivery,
+      receipt_logo_url || null,
+      receipt_header_text || null,
+      receipt_footer_text || null,
       restaurantId
     ]);
 
@@ -2162,6 +2177,15 @@ router.patch('/orders/:id/status', async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    // Trigger Printing if moving to PREPARING or ACCEPTED
+    if (normalizedStatus === 'preparing' || normalizedStatus === 'accepted') {
+      try {
+        await printerManager.printOrder(order.restaurant_id, order.id);
+      } catch (printErr) {
+        console.error('Auto Print Error (status-patch):', printErr);
+      }
+    }
 
     // Log activity
     await logActivity({
@@ -2848,7 +2872,7 @@ router.post('/products', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog, size_enabled, size_options
+      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -2909,14 +2933,14 @@ router.post('/products', async (req, res) => {
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22)
+    size_enabled, size_options, ikpu, printer_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, printer_id || null
     ]);
 
     const product = result.rows[0];
@@ -2948,7 +2972,7 @@ router.post('/products/upsert', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog, size_enabled, size_options
+      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -3117,21 +3141,19 @@ router.post('/products/upsert', async (req, res) => {
         WHERE id = $${paramIndex}
 RETURNING *
   `, updateValues);
-    } else {
-      // Создаем новый товар
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22)
+    size_enabled, size_options, ikpu, printer_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
         normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
-        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu
+        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, printer_id || null
       ]);
     }
 
@@ -3164,7 +3186,7 @@ router.put('/products/:id', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog, size_enabled, size_options
+      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id
     } = req.body;
 
     // Get old values and check access
@@ -3265,14 +3287,16 @@ router.put('/products/:id', async (req, res) => {
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
-  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $22
+  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21, 
+  printer_id = $22, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $23
 RETURNING *
   `, [
       category_id, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, req.params.id
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, 
+      printer_id || null, req.params.id
     ]);
 
     const product = result.rows[0];
@@ -3505,10 +3529,10 @@ router.post('/categories', async (req, res) => {
     }
 
     const result = await pool.query(`
-      INSERT INTO categories(restaurant_id, name_ru, name_uz, image_url, sort_order)
-VALUES($1, $2, $3, $4, $5)
+      INSERT INTO categories(restaurant_id, name_ru, name_uz, image_url, sort_order, printer_id)
+VALUES($1, $2, $3, $4, $5, $6)
 RETURNING *
-  `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0]);
+  `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, printer_id || null]);
 
     const category = result.rows[0];
 
@@ -3571,10 +3595,10 @@ router.put('/categories/:id', async (req, res) => {
 
     const result = await pool.query(`
       UPDATE categories SET
-name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
+name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, printer_id = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
 RETURNING *
-  `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, req.params.id]);
+  `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, printer_id || null, req.params.id]);
 
     const category = result.rows[0];
 
@@ -4903,6 +4927,128 @@ pl.id,
   } catch (error) {
     console.error('Get profile logs error:', error);
     res.status(500).json({ error: 'Ошибка получения логов' });
+  }
+});
+
+// =====================================================
+// PRINTERS MANAGEMENT
+// =====================================================
+
+// Get all printers for current restaurant
+router.get('/printers', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const result = await pool.query(
+      'SELECT * FROM printers WHERE restaurant_id = $1 ORDER BY name',
+      [restaurantId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get printers error:', error);
+    res.status(500).json({ error: 'Ошибка получения принтеров' });
+  }
+});
+
+// Create printer
+router.post('/printers', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const { name, printer_alias, connection_type, ip_address, usb_vid_pid } = req.body;
+    if (!name || !printer_alias) {
+      return res.status(400).json({ error: 'Название и Alias обязательны' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO printers (restaurant_id, name, printer_alias, connection_type, ip_address, usb_vid_pid)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [restaurantId, name, printer_alias, connection_type || 'network', ip_address, usb_vid_pid]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create printer error:', error);
+    res.status(500).json({ error: 'Ошибка создания принтера' });
+  }
+});
+
+// Update printer
+router.put('/printers/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    const { name, printer_alias, connection_type, ip_address, usb_vid_pid, is_active } = req.body;
+
+    const result = await pool.query(`
+      UPDATE printers SET
+        name = COALESCE($1, name),
+        printer_alias = COALESCE($2, printer_alias),
+        connection_type = COALESCE($3, connection_type),
+        ip_address = $4,
+        usb_vid_pid = $5,
+        is_active = COALESCE($6, is_active),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7 AND restaurant_id = $8
+      RETURNING *
+    `, [name, printer_alias, connection_type, ip_address, usb_vid_pid, is_active, req.params.id, restaurantId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Принтер не найден' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update printer error:', error);
+    res.status(500).json({ error: 'Ошибка обновления принтера' });
+  }
+});
+
+// Delete printer
+router.delete('/printers/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    await pool.query('DELETE FROM printers WHERE id = $1 AND restaurant_id = $2', [req.params.id, restaurantId]);
+    res.json({ message: 'Принтер удален' });
+  } catch (error) {
+    console.error('Delete printer error:', error);
+    res.status(500).json({ error: 'Ошибка удаления принтера' });
+  }
+});
+
+// Get printer agents
+router.get('/printer-agents', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const result = await pool.query(
+      'SELECT id, name, agent_token, is_active, last_connected_at, created_at FROM printer_agents WHERE restaurant_id = $1',
+      [restaurantId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get printer agents error:', error);
+    res.status(500).json({ error: 'Ошибка получения агентов' });
+  }
+});
+
+// Create printer agent
+router.post('/printer-agents', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    const { name } = req.body;
+    const crypto = require('crypto');
+    const token = crypto.randomUUID();
+
+    const result = await pool.query(`
+      INSERT INTO printer_agents (restaurant_id, name, agent_token)
+      VALUES ($1, $2, $3)
+      RETURNING id, name, agent_token, is_active, created_at
+    `, [restaurantId, name || 'Primary Agent', token]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create printer agent error:', error);
+    res.status(500).json({ error: 'Ошибка создания агента' });
   }
 });
 

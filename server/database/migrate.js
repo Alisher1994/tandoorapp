@@ -3,6 +3,7 @@ const path = require('path');
 const pool = require('./connection');
 const bcrypt = require('bcryptjs');
 const { ensureReservationSchema } = require('../services/reservationSchema');
+const runPrinterMigrations = require('./printerMigrations');
 
 async function migrate() {
   const client = await pool.connect();
@@ -1017,13 +1018,17 @@ async function migrate() {
     console.log('✅ Reservations tables ready');
 
     // await client.query('COMMIT');
+    // =====================================================
+    // Step 11: Printer System
+    // =====================================================
+    await runPrinterMigrations();
+
     console.log('✅ Migration completed successfully!');
     return true;
 
   } catch (error) {
     // await client.query('ROLLBACK');
-    console.error('❌ Migration error:', error.message);
-    console.error(error);
+    console.error('❌ Migration failed:', error.message);
     return false;
   } finally {
     client.release();

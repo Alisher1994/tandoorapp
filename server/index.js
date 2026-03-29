@@ -26,7 +26,15 @@ const { initScheduledDeliveryReminderWorker } = require('./services/scheduledDel
 const { initSuperadminServerMonitoring } = require('./services/superadminServerMonitoring');
 const { logSecurityEvent } = require('./services/securityEvents');
 
+const http = require('http');
+const printerManager = require('./services/printerManager');
+
 const app = express();
+const httpServer = http.createServer(app);
+
+// Initialize PrinterManager with httpServer
+printerManager.init(httpServer);
+
 app.set('trust proxy', 1);
 // Railway автоматически устанавливает PORT, используем его
 const PORT = process.env.PORT || 3000;
@@ -470,7 +478,7 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize database and start server
 async function startServer() {
   // Start server first - listen on 0.0.0.0 for Railway
-  app.listen(PORT, '0.0.0.0', async () => {
+  httpServer.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🌐 Listening on 0.0.0.0:${PORT}`);

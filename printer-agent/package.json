@@ -1,0 +1,19 @@
+{
+  "name": "tandoor-printer-agent",
+  "version": "1.0.0",
+  "description": "Local printer agent for Tandoor Restaurant Management",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
+    "escpos-network": "^3.0.0-alpha.4",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.0",
+    "get-pixels": "^3.3.3",
+    "canvas": "^2.11.2"
+  }
+}
