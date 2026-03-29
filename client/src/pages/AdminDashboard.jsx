@@ -1712,6 +1712,7 @@ function AdminDashboard() {
   });
   const [showPrinterAgentModal, setShowPrinterAgentModal] = useState(false);
   const [printerAgentName, setPrinterAgentName] = useState('');
+  const [downloadingPrinterAgent, setDownloadingPrinterAgent] = useState(false);
 
   // Product filters and search
   const [productSearch, setProductSearch] = useState('');
@@ -2134,6 +2135,76 @@ function AdminDashboard() {
       fetchPrinterAgents();
     }
   }, [mainTab, fetchPrinters, fetchPrinterAgents]);
+
+  const handleDownloadPrinterAgent = async () => {
+    if (downloadingPrinterAgent) return;
+
+    setDownloadingPrinterAgent(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/printer-agent/download`, {
+        responseType: 'blob',
+        timeout: 120000
+      });
+
+      const fileBlob = response?.data;
+      if (!fileBlob || Number(fileBlob.size || 0) <= 0) {
+        throw new Error('Пустой файл');
+      }
+
+      let filename = 'TalablarAgent.exe';
+      const contentDisposition = String(response.headers?.['content-disposition'] || '');
+      const utf8NameMatch = contentDisposition.match(/filename\\*=UTF-8''([^;]+)/i);
+      const plainNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const rawFilename = utf8NameMatch?.[1] || plainNameMatch?.[1] || '';
+      if (rawFilename) {
+        try {
+          filename = decodeURIComponent(rawFilename.trim());
+        } catch (_) {
+          filename = rawFilename.trim();
+        }
+      }
+
+      const objectUrl = window.URL.createObjectURL(fileBlob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename || 'TalablarAgent.exe';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+
+      setAlertMessage({
+        type: 'success',
+        text: language === 'uz'
+          ? "Printer agent yuklab olindi."
+          : 'Файл printer-agent скачан.'
+      });
+    } catch (error) {
+      console.error('Download printer-agent error:', error);
+      let errorText = '';
+      const errorPayload = error?.response?.data;
+      if (errorPayload instanceof Blob) {
+        try {
+          const payloadText = await errorPayload.text();
+          const parsedPayload = JSON.parse(payloadText);
+          errorText = String(parsedPayload?.error || '').trim();
+        } catch (_) {
+          errorText = '';
+        }
+      } else if (errorPayload && typeof errorPayload === 'object') {
+        errorText = String(errorPayload.error || '').trim();
+      }
+
+      setAlertMessage({
+        type: 'danger',
+        text: errorText || (language === 'uz'
+          ? "Printer agent faylini yuklab bo'lmadi."
+          : 'Не удалось скачать printer-agent.')
+      });
+    } finally {
+      setDownloadingPrinterAgent(false);
+    }
+  };
 
   const handleCreatePrinterAgent = async (e) => {
     e.preventDefault();
@@ -11195,13 +11266,25 @@ function AdminDashboard() {
                       <h6 className="mb-0">
                         {language === 'uz' ? 'Printer agentlari (kompyuterlar)' : '💻 Агенты (компьютеры операторов)'}
                       </h6>
-                      <Button
-                        size="sm"
-                        className="btn-primary-custom"
-                        onClick={() => { setPrinterAgentName(''); setShowPrinterAgentModal(true); }}
-                      >
-                        + {language === 'uz' ? "Agent qo'shish" : 'Добавить агента'}
-                      </Button>
+                      <div className="d-flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          onClick={handleDownloadPrinterAgent}
+                          disabled={downloadingPrinterAgent}
+                        >
+                          {downloadingPrinterAgent
+                            ? (language === 'uz' ? 'Yuklanmoqda...' : 'Скачивание...')
+                            : (language === 'uz' ? "⬇ Printer agentni yuklab olish" : '⬇ Скачать printer-agent')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="btn-primary-custom"
+                          onClick={() => { setPrinterAgentName(''); setShowPrinterAgentModal(true); }}
+                        >
+                          + {language === 'uz' ? "Agent qo'shish" : 'Добавить агента'}
+                        </Button>
+                      </div>
                     </div>
                     <Alert variant="info" className="border-0 small py-2 mb-3" style={{ background: '#eef6ff' }}>
                       {language === 'uz'
@@ -11369,7 +11452,7 @@ function AdminDashboard() {
                     <h6 className="mb-3">{language === 'uz' ? "Qanday ishlaydi?" : '📖 Как это работает?'}</h6>
                     <ol className="small text-muted mb-0">
                       <li className="mb-2">{language === 'uz' ? "Yuqorida «Agent qo'shish» tugmasini bosing. Tizim Token yaratadi." : 'Нажмите «Добавить агента» выше. Система создаст уникальный Token.'}</li>
-                      <li className="mb-2">{language === 'uz' ? "Tokenni nusxalang va operator kompyuteriga o'rnating (printer-agent dasturi)." : 'Скопируйте Token и вставьте в файл .env на компьютере оператора (в папке printer-agent).'}</li>
+                      <li className="mb-2">{language === 'uz' ? "Avval yuqoridagi tugma bilan printer-agent faylini yuklab oling, so'ng Tokenni operator kompyuteriga kiriting." : 'Сначала скачайте printer-agent кнопкой выше, затем вставьте Token в файл .env на компьютере оператора.'}</li>
                       <li className="mb-2">{language === 'uz' ? "Printer qo'shing (nomi va Windows Share nomi)." : 'Добавьте принтер: укажите название и имя общего принтера Windows (Alias).'}</li>
                       <li>{language === 'uz' ? "Buyurtma qabul qilinganda, chek avtomatik chop etiladi." : 'При принятии заказа чек автоматически печатается на указанном принтере.'}</li>
                     </ol>

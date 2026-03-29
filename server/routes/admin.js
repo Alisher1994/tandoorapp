@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const { authenticate, requireOperator, requireRestaurantAccess } = require('../middleware/auth');
@@ -69,6 +71,29 @@ const toAbsoluteFileUrl = (req, rawUrl) => {
     ? backendBaseRaw.replace(/\/api\/?$/i, '').replace(/\/$/, '')
     : `${req.protocol}://${req.get('host')}`;
   return `${backendBase}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+};
+const PRINTER_AGENT_FILENAME = 'TalablarAgent.exe';
+const resolvePrinterAgentExePath = () => {
+  const customPathRaw = String(process.env.PRINTER_AGENT_EXE_PATH || '').trim();
+  const candidates = [];
+  if (customPathRaw) {
+    candidates.push(
+      path.isAbsolute(customPathRaw)
+        ? customPathRaw
+        : path.resolve(process.cwd(), customPathRaw)
+    );
+  }
+  candidates.push(path.resolve(process.cwd(), 'printer-agent', 'dist', PRINTER_AGENT_FILENAME));
+  candidates.push(path.resolve(process.cwd(), 'printer-agent', PRINTER_AGENT_FILENAME));
+  candidates.push(path.resolve(process.cwd(), 'server', 'assets', PRINTER_AGENT_FILENAME));
+
+  for (const candidatePath of candidates) {
+    try {
+      const stats = fs.statSync(candidatePath);
+      if (stats.isFile() && stats.size > 0) return candidatePath;
+    } catch (_) {}
+  }
+  return null;
 };
 const normalizeProductOrderStep = (value, unit, fallback = null) => {
   if (String(unit || '').trim() !== 'кг') return null;
@@ -4976,6 +5001,32 @@ pl.id,
 // =====================================================
 // PRINTERS MANAGEMENT
 // =====================================================
+
+// Download printer agent executable
+router.get('/printer-agent/download', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const exePath = resolvePrinterAgentExePath();
+    if (!exePath) {
+      return res.status(404).json({
+        error: 'Файл TalablarAgent.exe не найден на сервере. Поместите его в printer-agent/dist или задайте PRINTER_AGENT_EXE_PATH.'
+      });
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    return res.download(exePath, PRINTER_AGENT_FILENAME, (error) => {
+      if (!error) return;
+      if (res.headersSent) return;
+      console.error('Printer agent download error:', error);
+      return res.status(500).json({ error: 'Ошибка скачивания printer-agent' });
+    });
+  } catch (error) {
+    console.error('Prepare printer-agent download error:', error);
+    return res.status(500).json({ error: 'Ошибка подготовки файла printer-agent' });
+  }
+});
 
 // Get all printers for current restaurant
 router.get('/printers', async (req, res) => {
