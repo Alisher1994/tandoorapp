@@ -11371,106 +11371,106 @@ function AdminDashboard() {
                     </ol>
                   </Card.Body>
                 </Card>
-              </Tab>
 
-              {/* Printer Agent Modal */}
-              <Modal show={showPrinterAgentModal} onHide={() => setShowPrinterAgentModal(false)} centered>
-                <Form onSubmit={handleCreatePrinterAgent}>
-                  <Modal.Header closeButton>
-                    <Modal.Title className="h6">{language === 'uz' ? "Yangi agent qo'shish" : 'Новый агент'}</Modal.Title>
-                  </Modal.Header>
-                  <Modal.Body>
-                    <Form.Group>
-                      <Form.Label>{language === 'uz' ? 'Agent nomi' : 'Название агента'}</Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder={language === 'uz' ? "masalan: Kassa 1" : 'например: Касса 1'}
-                        value={printerAgentName}
-                        onChange={(e) => setPrinterAgentName(e.target.value)}
-                        required
-                      />
-                      <Form.Text className="text-muted">
-                        {language === 'uz' ? "Bu nom faqat sizning qulay farqlashingiz uchun." : 'Это имя для вашего удобства, чтобы различать компьютеры.'}
-                      </Form.Text>
-                    </Form.Group>
-                  </Modal.Body>
-                  <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowPrinterAgentModal(false)}>{t('cancel')}</Button>
-                    <Button type="submit" className="btn-primary-custom" disabled={!printerAgentName.trim()}>
-                      {language === 'uz' ? "Yaratish" : 'Создать'}
-                    </Button>
-                  </Modal.Footer>
-                </Form>
-              </Modal>
-
-              {/* Printer Add/Edit Modal */}
-              <Modal show={showPrinterModal} onHide={() => setShowPrinterModal(false)} centered>
-                <Form onSubmit={handleSavePrinter}>
-                  <Modal.Header closeButton>
-                    <Modal.Title className="h6">
-                      {selectedPrinter
-                        ? (language === 'uz' ? 'Printerni tahrirlash' : 'Редактировать принтер')
-                        : (language === 'uz' ? "Yangi printer qo'shish" : 'Добавить принтер')}
-                    </Modal.Title>
-                  </Modal.Header>
-                  <Modal.Body>
-                    <Form.Group className="mb-3">
-                      <Form.Label>{language === 'uz' ? 'Nomi' : 'Название'} *</Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder={language === 'uz' ? "masalan: Oshxona printeri" : 'например: Кухонный принтер'}
-                        value={printerForm.name}
-                        onChange={(e) => setPrinterForm({ ...printerForm, name: e.target.value })}
-                        required
-                      />
-                    </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Label>
-                        {language === 'uz' ? "Windows printer nomi (Share Name)" : 'Имя принтера в Windows (Share Name)'} *
-                      </Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder="ThermalPrinter"
-                        value={printerForm.printer_alias}
-                        onChange={(e) => setPrinterForm({ ...printerForm, printer_alias: e.target.value })}
-                        required
-                      />
-                      <Form.Text className="text-muted">
-                        {language === 'uz'
-                          ? "Windows ulashish sozlamalaridan printer nomini kiriting."
-                          : 'Введите имя общего принтера из настроек «Общий доступ» Windows.'}
-                      </Form.Text>
-                    </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Label>{language === 'uz' ? "Ulanish turi" : 'Тип подключения'}</Form.Label>
-                      <Form.Select
-                        value={printerForm.connection_type}
-                        onChange={(e) => setPrinterForm({ ...printerForm, connection_type: e.target.value })}
-                      >
-                        <option value="network">{language === 'uz' ? 'Tarmoq (Network share)' : 'Сетевой (Network share)'}</option>
-                        <option value="usb">{language === 'uz' ? 'USB' : 'USB'}</option>
-                      </Form.Select>
-                    </Form.Group>
-                    {printerForm.connection_type === 'network' && (
-                      <Form.Group className="mb-3">
-                        <Form.Label>IP {language === 'uz' ? '(ixtiyoriy)' : '(необязательно)'}</Form.Label>
+                {/* Printer Agent Modal */}
+                <Modal show={showPrinterAgentModal} onHide={() => setShowPrinterAgentModal(false)} centered>
+                  <Form onSubmit={handleCreatePrinterAgent}>
+                    <Modal.Header closeButton>
+                      <Modal.Title className="h6">{language === 'uz' ? "Yangi agent qo'shish" : 'Новый агент'}</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                      <Form.Group>
+                        <Form.Label>{language === 'uz' ? 'Agent nomi' : 'Название агента'}</Form.Label>
                         <Form.Control
                           type="text"
-                          placeholder="192.168.1.100"
-                          value={printerForm.ip_address}
-                          onChange={(e) => setPrinterForm({ ...printerForm, ip_address: e.target.value })}
+                          placeholder={language === 'uz' ? "masalan: Kassa 1" : 'например: Касса 1'}
+                          value={printerAgentName}
+                          onChange={(e) => setPrinterAgentName(e.target.value)}
+                          required
+                        />
+                        <Form.Text className="text-muted">
+                          {language === 'uz' ? "Bu nom faqat sizning qulay farqlashingiz uchun." : 'Это имя для вашего удобства, чтобы различать компьютеры.'}
+                        </Form.Text>
+                      </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="secondary" onClick={() => setShowPrinterAgentModal(false)}>{t('cancel')}</Button>
+                      <Button type="submit" className="btn-primary-custom" disabled={!printerAgentName.trim()}>
+                        {language === 'uz' ? "Yaratish" : 'Создать'}
+                      </Button>
+                    </Modal.Footer>
+                  </Form>
+                </Modal>
+
+                {/* Printer Add/Edit Modal */}
+                <Modal show={showPrinterModal} onHide={() => setShowPrinterModal(false)} centered>
+                  <Form onSubmit={handleSavePrinter}>
+                    <Modal.Header closeButton>
+                      <Modal.Title className="h6">
+                        {selectedPrinter
+                          ? (language === 'uz' ? 'Printerni tahrirlash' : 'Редактировать принтер')
+                          : (language === 'uz' ? "Yangi printer qo'shish" : 'Добавить принтер')}
+                      </Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                      <Form.Group className="mb-3">
+                        <Form.Label>{language === 'uz' ? 'Nomi' : 'Название'} *</Form.Label>
+                        <Form.Control
+                          type="text"
+                          placeholder={language === 'uz' ? "masalan: Oshxona printeri" : 'например: Кухонный принтер'}
+                          value={printerForm.name}
+                          onChange={(e) => setPrinterForm({ ...printerForm, name: e.target.value })}
+                          required
                         />
                       </Form.Group>
-                    )}
-                  </Modal.Body>
-                  <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowPrinterModal(false)}>{t('cancel')}</Button>
-                    <Button type="submit" className="btn-primary-custom" disabled={!printerForm.name || !printerForm.printer_alias}>
-                      {selectedPrinter ? t('save') : (language === 'uz' ? "Qo'shish" : 'Добавить')}
-                    </Button>
-                  </Modal.Footer>
-                </Form>
-              </Modal>
+                      <Form.Group className="mb-3">
+                        <Form.Label>
+                          {language === 'uz' ? "Windows printer nomi (Share Name)" : 'Имя принтера в Windows (Share Name)'} *
+                        </Form.Label>
+                        <Form.Control
+                          type="text"
+                          placeholder="ThermalPrinter"
+                          value={printerForm.printer_alias}
+                          onChange={(e) => setPrinterForm({ ...printerForm, printer_alias: e.target.value })}
+                          required
+                        />
+                        <Form.Text className="text-muted">
+                          {language === 'uz'
+                            ? "Windows ulashish sozlamalaridan printer nomini kiriting."
+                            : 'Введите имя общего принтера из настроек «Общий доступ» Windows.'}
+                        </Form.Text>
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>{language === 'uz' ? "Ulanish turi" : 'Тип подключения'}</Form.Label>
+                        <Form.Select
+                          value={printerForm.connection_type}
+                          onChange={(e) => setPrinterForm({ ...printerForm, connection_type: e.target.value })}
+                        >
+                          <option value="network">{language === 'uz' ? 'Tarmoq (Network share)' : 'Сетевой (Network share)'}</option>
+                          <option value="usb">{language === 'uz' ? 'USB' : 'USB'}</option>
+                        </Form.Select>
+                      </Form.Group>
+                      {printerForm.connection_type === 'network' && (
+                        <Form.Group className="mb-3">
+                          <Form.Label>IP {language === 'uz' ? '(ixtiyoriy)' : '(необязательно)'}</Form.Label>
+                          <Form.Control
+                            type="text"
+                            placeholder="192.168.1.100"
+                            value={printerForm.ip_address}
+                            onChange={(e) => setPrinterForm({ ...printerForm, ip_address: e.target.value })}
+                          />
+                        </Form.Group>
+                      )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="secondary" onClick={() => setShowPrinterModal(false)}>{t('cancel')}</Button>
+                      <Button type="submit" className="btn-primary-custom" disabled={!printerForm.name || !printerForm.printer_alias}>
+                        {selectedPrinter ? t('save') : (language === 'uz' ? "Qo'shish" : 'Добавить')}
+                      </Button>
+                    </Modal.Footer>
+                  </Form>
+                </Modal>
+              </Tab>
 
               <Tab eventKey="settings" title={renderAdminSidebarTabTitle('settings')}>
                 <div className="px-4 pt-3 pb-0 border-bottom bg-white rounded-top-4">
