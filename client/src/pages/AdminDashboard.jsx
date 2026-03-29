@@ -963,7 +963,10 @@ const AnalyticsMapAutoBounds = ({ points }) => {
 
     if (wasFittedRef.current) return;
 
-    const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lng]));
+    const validPoints = points.filter(p => p && typeof p.lat === 'number' && !isNaN(p.lat) && typeof p.lng === 'number' && !isNaN(p.lng));
+    if (validPoints.length === 0) return;
+
+    const bounds = L.latLngBounds(validPoints.map((point) => [point.lat, point.lng]));
     map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
     wasFittedRef.current = true;
   }, [map, points]);
@@ -976,6 +979,7 @@ const AnalyticsMapFocus = ({ selectedPoint }) => {
 
   useEffect(() => {
     if (!map || !selectedPoint) return;
+    if (typeof selectedPoint.lat !== 'number' || isNaN(selectedPoint.lat) || typeof selectedPoint.lng !== 'number' || isNaN(selectedPoint.lng)) return;
     map.flyTo([selectedPoint.lat, selectedPoint.lng], Math.max(map.getZoom(), 14), { duration: 0.45 });
   }, [map, selectedPoint]);
 
