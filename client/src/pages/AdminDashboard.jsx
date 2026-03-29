@@ -13058,9 +13058,9 @@ function AdminDashboard() {
                   onClick={async () => {
                     try {
                       await axios.post(`${API_URL}/admin/orders/${selectedOrder.id}/print`);
-                      toast.success('Отправлено на печать!');
+                      alert('Отправлено на печать!');
                     } catch (error) {
-                      toast.error('Ошибка печати');
+                      alert('Ошибка печати');
                     }
                   }}
                 >
