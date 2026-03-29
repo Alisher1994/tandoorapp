@@ -11,7 +11,7 @@ const os = require('os');
 
 async function runSetupWizard() {
   console.log("\n╔══════════════════════════════════════════════╗");
-  console.log("║   TANDOOR PRINTER AGENT - УСТАНОВКА v1.0     ║");
+  console.log("║   TALABLAR AGENT AGENT - УСТАНОВКА v1.0     ║");
   console.log("╚══════════════════════════════════════════════╝\n");
   
   const rl = readline.createInterface({
@@ -31,7 +31,7 @@ async function runSetupWizard() {
   rl.close();
 
   const appData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-  const installDir = path.join(appData, 'TandoorPrinter');
+  const installDir = path.join(appData, 'TalablarAgent');
   
   console.log("\n⏳ Установка...");
   
@@ -43,7 +43,7 @@ async function runSetupWizard() {
   fs.writeFileSync(path.join(installDir, '.env'), `SERVER_URL=${finalServerUrl}\nAGENT_TOKEN=${finalAgentToken}\n`);
   
   // Copy exe if running from pkg
-  const targetExe = path.join(installDir, 'TandoorPrinterAgent.exe');
+  const targetExe = path.join(installDir, 'TalablarAgent.exe');
   if (process.pkg) {
     try {
       fs.copyFileSync(process.execPath, targetExe);
@@ -55,7 +55,7 @@ async function runSetupWizard() {
   // Create shortcut on desktop using powershell
   const desktop = path.join(os.homedir(), 'Desktop');
   const shortcutTarget = process.pkg ? targetExe : process.execPath;
-  const shortcutScript = `$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('${path.join(desktop, 'Tandoor Printer.lnk')}'); $s.TargetPath = '${shortcutTarget}'; $s.WorkingDirectory = '${installDir}'; $s.IconLocation = 'shell32.dll,16'; $s.Description = 'Tandoor Printer Agent'; $s.Save();`;
+  const shortcutScript = `$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('${path.join(desktop, 'Talablar Agent.lnk')}'); $s.TargetPath = '${shortcutTarget}'; $s.WorkingDirectory = '${installDir}'; $s.IconLocation = 'shell32.dll,16'; $s.Description = 'Talablar Agent Agent'; $s.Save();`;
   
   const psCommand = `powershell -NoProfile -Command "${shortcutScript}"`;
   
@@ -63,7 +63,7 @@ async function runSetupWizard() {
 
   console.log("✅ Установка успешно завершена!");
   console.log(`📂 Установлено в: ${installDir}`);
-  console.log("🖥️ Ярлык 'Tandoor Printer' создан на рабочем столе.\n");
+  console.log("🖥️ Ярлык 'Talablar Agent' создан на рабочем столе.\n");
   
   console.log("🚀 Запускаем агент...");
   if (process.pkg) {
@@ -86,7 +86,7 @@ async function main() {
   }
 
   console.log("\n=============================================");
-  console.log("🚀 Tandoor Printer Agent Started...");
+  console.log("🚀 Talablar Agent Agent Started...");
   console.log(`🔗 Connecting to ${SERVER_URL}...`);
   console.log("=============================================\n");
 
@@ -178,7 +178,8 @@ async function printToPrinter(config, data) {
   } else if (config.type === 'usb' || config.type === 'win-raw' || config.type === 'windows') {
     // FOR WINDOWS USB: We use "copy /b" to a shared printer.
     const printerName = config.usb || "XP-80"; 
-    const tempFile = path.join(__dirname, `print_${Date.now()}.bin`);
+    const os = require('os');
+    const tempFile = path.join(os.tmpdir(), `print_${Date.now()}.bin`);
     
     const fileDevice = {
       open: function(cb) { fs.writeFileSync(tempFile, Buffer.alloc(0)); cb && cb(null); },
@@ -224,7 +225,8 @@ async function executePrintSequence(printer, device, data, config) {
   // 1. Logo (if Full Receipt)
   if (data.isFullReceipt && data.shopInfo?.logoUrl) {
     try {
-      const logoFilename = path.join(__dirname, 'temp_logo.png');
+      const os = require('os');
+      const logoFilename = path.join(os.tmpdir(), 'temp_logo.png');
       const response = await axios({
         url: data.shopInfo.logoUrl,
         responseType: 'stream',
