@@ -41,6 +41,9 @@ class PrinterManager {
     this.io.on('connection', (socket) => {
       console.log(`🖨️ Printer Agent connected: Restaurant #${socket.restaurant_id}`);
       this.activeAgents.set(socket.restaurant_id, socket.id);
+      
+      pool.query('UPDATE printer_agents SET last_connected_at = CURRENT_TIMESTAMP WHERE id = $1', [socket.agent_id])
+        .catch(err => console.error('Failed to update agent last_connected_at', err));
 
       socket.on('disconnect', () => {
         console.log(`🖨️ Printer Agent disconnected: Restaurant #${socket.restaurant_id}`);

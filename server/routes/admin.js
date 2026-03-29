@@ -2274,6 +2274,49 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
+// Manual Print Order Route
+router.post('/orders/:id/print', async (req, res) => {
+  try {
+    const orderId = Number.parseInt(req.params.id, 10);
+    const restaurantId = req.user.active_restaurant_id;
+
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID заказа' });
+    }
+
+    const orderResult = await pool.query(
+      'SELECT id FROM orders WHERE id = $1 AND restaurant_id = $2',
+      [orderId, restaurantId]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+
+    await printerManager.printOrder(restaurantId, orderId);
+    
+    // Log activity
+    await logActivity({
+      userId: req.user.id,
+      restaurantId,
+      actionType: ACTION_TYPES.UPDATE_ORDER_STATUS, // Reusing loosely or we should export PRINT_ORDER
+      entityType: ENTITY_TYPES.ORDER,
+      entityId: orderId,
+      entityName: `Заказ #${orderId} (Печать)`,
+      oldValues: null,
+      newValues: { printed: true },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    res.json({ message: 'Сигнал печати отправлен агенту' });
+  } catch (error) {
+    console.error('Manual print error:', error);
+    res.status(500).json({ error: 'Ошибка отправки на принтер: ' + error.message });
+  }
+});
+
+
 // Update order items (add, remove, change quantity)
 router.put('/orders/:id/items', async (req, res) => {
   const client = await pool.connect();

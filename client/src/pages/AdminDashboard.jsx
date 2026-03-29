@@ -13047,9 +13047,26 @@ function AdminDashboard() {
           contentClassName="order-details-modal-content"
         >
           <Modal.Header closeButton>
-            <Modal.Title className="d-flex align-items-center gap-2">
+            <Modal.Title className="d-flex align-items-center gap-2 flex-wrap">
               <span>Заказ #{selectedOrder?.order_number}</span>
               {selectedOrder && getStatusBadge(getOrderDisplayWorkflowStatus(selectedOrder))}
+              {selectedOrder && (
+                <Button 
+                  variant="outline-secondary" 
+                  size="sm" 
+                  className="ms-auto d-flex align-items-center gap-1"
+                  onClick={async () => {
+                    try {
+                      await axios.post(`${API_URL}/admin/orders/${selectedOrder.id}/print`);
+                      toast.success('Отправлено на печать!');
+                    } catch (error) {
+                      toast.error('Ошибка печати');
+                    }
+                  }}
+                >
+                  <i className="bi bi-printer"></i> Распечатать чек
+                </Button>
+              )}
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="order-details-modal-body">
