@@ -138,7 +138,7 @@ class PrinterManager {
           footer: shop.receipt_footer_text
         },
         printers: printers.map(p => ({
-          alias: p.printer_alias,
+          alias: printers.length === 1 ? 'cashier' : p.printer_alias,
           ip: p.ip_address,
           type: p.connection_type,
           usb: p.usb_vid_pid,
