@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS restaurants (
   payme_test_mode BOOLEAN DEFAULT false,
   payme_callback_timeout_ms INTEGER DEFAULT 2000,
   cash_enabled BOOLEAN DEFAULT true,
+  inventory_tracking_enabled BOOLEAN DEFAULT false,
+  inventory_min_threshold DECIMAL(10, 3) DEFAULT 0,
   card_payment_title VARCHAR(120),
   card_payment_number VARCHAR(40),
   card_payment_holder VARCHAR(120),
@@ -122,6 +124,7 @@ CREATE TABLE IF NOT EXISTS products (
   price DECIMAL(10, 2) NOT NULL,
   discount_enabled BOOLEAN DEFAULT false,
   discount_price DECIMAL(10, 2),
+  stock_quantity DECIMAL(12, 3) DEFAULT 0,
   unit VARCHAR(20) DEFAULT 'шт',
   order_step DECIMAL(10, 2),
   barcode VARCHAR(100),
@@ -170,6 +173,7 @@ CREATE TABLE IF NOT EXISTS orders (
   admin_chat_id TEXT,
   source_type VARCHAR(20) DEFAULT 'order' CHECK (source_type IN ('order', 'reservation')),
   reservation_id INTEGER,
+  inventory_reserved BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

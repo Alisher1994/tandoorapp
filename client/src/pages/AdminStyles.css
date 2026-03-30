@@ -9458,6 +9458,26 @@ body::-webkit-scrollbar,
     color: #64748b;
 }
 
+.admin-product-stock-hint {
+    min-height: 72px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.7rem 0.85rem;
+    background: #f8fafc;
+}
+
+.admin-product-stock-hint.is-ok {
+    border-color: rgba(22, 163, 74, 0.35);
+    background: rgba(22, 163, 74, 0.08);
+    color: #166534;
+}
+
+.admin-product-stock-hint.is-low {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+    color: #991b1b;
+}
+
 .admin-product-variant-support-line {
     display: flex;
     align-items: center;

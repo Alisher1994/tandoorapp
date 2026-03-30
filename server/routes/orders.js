@@ -10,6 +10,12 @@ const {
   getRestaurantBot
 } = require('../bot/notifications');
 const { isPaymeConfigured } = require('../services/payme');
+const {
+  ensureInventorySchema,
+  isInventoryTrackingEnabled,
+  reserveInventoryForOrder,
+  releaseInventoryForOrder
+} = require('../services/inventoryManager');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -419,6 +425,7 @@ router.post('/', authenticate, async (req, res) => {
     await client.query(
       `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS minimum_order_amount DECIMAL(12, 2) DEFAULT 0`
     ).catch(() => {});
+    await ensureInventorySchema(client);
     await client.query('BEGIN');
     
     const {
@@ -723,6 +730,7 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     const initialPaymentStatus = normalizedPaymentMethod === 'payme' ? 'pending' : 'unpaid';
+    let inventoryReserved = false;
     
     // Generate short order number (5 digits)
     const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
@@ -746,11 +754,21 @@ router.post('/', authenticate, async (req, res) => {
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_fee DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cost DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS inventory_reserved BOOLEAN DEFAULT false');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_name VARCHAR(255)');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1');
     } catch (e) {
       console.log('ℹ️ Orders columns check:', e.message);
+    }
+
+    if (finalRestaurantId) {
+      const reservationResult = await reserveInventoryForOrder({
+        client,
+        restaurantId: finalRestaurantId,
+        items: normalizedItems
+      });
+      inventoryReserved = reservationResult?.reserved === true;
     }
     
     // Create order
@@ -759,14 +777,14 @@ router.post('/', authenticate, async (req, res) => {
         restaurant_id, user_id, order_number, total_amount, delivery_address, 
         delivery_coordinates, customer_name, customer_phone, 
         payment_method, payment_status, comment, delivery_date, delivery_time, status, service_fee,
-        delivery_cost, delivery_distance_km
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        delivery_cost, delivery_distance_km, inventory_reserved
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *`,
       [
         finalRestaurantId, req.user.id, orderNumber, totalAmount, normalizedDeliveryAddress,
         normalizedDeliveryCoordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
         normalizedPaymentMethod, initialPaymentStatus, comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
-        deliveryCost, deliveryDistanceKm
+        deliveryCost, deliveryDistanceKm, inventoryReserved
       ]
     );
     
@@ -870,6 +888,13 @@ router.post('/', authenticate, async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
+    if (error?.code === 'INVENTORY_SHORTAGE') {
+      return res.status(error.status || 409).json({
+        error: error.message || 'Недостаточно остатка товара на складе',
+        code: error.code,
+        details: Array.isArray(error.details) ? error.details : []
+      });
+    }
     console.error('❌ ========== CREATE ORDER ERROR ==========');
     console.error('❌ Error message:', error.message);
     console.error('❌ Error code:', error.code);
@@ -886,11 +911,12 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
   const client = await pool.connect();
   
   try {
+    await ensureInventorySchema(client);
     await client.query('BEGIN');
     
     // Check if order exists and belongs to user
     const orderResult = await client.query(
-      'SELECT * FROM orders WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM orders WHERE id = $1 AND user_id = $2 FOR UPDATE',
       [req.params.id, req.user.id]
     );
     
@@ -906,10 +932,24 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Заказ уже обрабатывается, отмена невозможна' });
     }
+
+    if (order.restaurant_id && isInventoryTrackingEnabled(order.inventory_reserved)) {
+      const orderItemsResult = await client.query(
+        `SELECT product_id, quantity
+         FROM order_items
+         WHERE order_id = $1`,
+        [req.params.id]
+      );
+      await releaseInventoryForOrder({
+        client,
+        restaurantId: order.restaurant_id,
+        items: orderItemsResult.rows
+      });
+    }
     
     // Update status to cancelled
     await client.query(
-      'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      'UPDATE orders SET status = $1, inventory_reserved = false, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       ['cancelled', req.params.id]
     );
     
@@ -935,12 +975,14 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
       }
     }
     
+    const cancelledOrderForResponse = { ...order, status: 'cancelled', inventory_reserved: false };
+
     // Notify user using restaurant's bot
     if (req.user.telegram_id) {
       const { sendOrderUpdateToUser } = require('../bot/notifications');
       await sendOrderUpdateToUser(
         req.user.telegram_id, 
-        { ...order, status: 'cancelled' }, 
+        cancelledOrderForResponse, 
         'cancelled',
         restaurantBotToken
       );
@@ -949,7 +991,7 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
     // Update group notification (remove buttons)
     try {
       await updateOrderNotificationForCustomerCancel(
-        { ...order, status: 'cancelled' },
+        cancelledOrderForResponse,
         restaurantBotToken,
         restaurantGroupId
       );
@@ -957,7 +999,7 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
       console.error('Update group cancel message error:', error);
     }
     
-    res.json({ message: 'Заказ отменен', order: { ...order, status: 'cancelled' } });
+    res.json({ message: 'Заказ отменен', order: cancelledOrderForResponse });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Cancel order error:', error);

@@ -3,6 +3,11 @@ const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
 const { sendOrderNotification } = require('../bot/notifications');
 const {
+  ensureInventorySchema,
+  isInventoryTrackingEnabled,
+  releaseInventoryForOrder
+} = require('../services/inventoryManager');
+const {
   PAYME_TRANSACTION_TIMEOUT_MS,
   PAYME_DEFAULT_CALLBACK_TIMEOUT_MS,
   amountToTiyin,
@@ -117,6 +122,48 @@ const notifyPaidOrder = async (orderId) => {
   await sendOrderNotification(order, items);
 };
 
+const releaseOrderInventoryIfReserved = async (client, orderId) => {
+  if (!client || !orderId) return false;
+  await ensureInventorySchema(client);
+
+  const orderResult = await client.query(
+    `SELECT id, restaurant_id, status, inventory_reserved
+     FROM orders
+     WHERE id = $1
+     LIMIT 1
+     FOR UPDATE`,
+    [orderId]
+  );
+
+  const order = orderResult.rows[0];
+  if (!order) return false;
+  if (String(order.status || '').trim().toLowerCase() !== 'new') return false;
+  if (!isInventoryTrackingEnabled(order.inventory_reserved)) return false;
+
+  const itemsResult = await client.query(
+    `SELECT product_id, quantity
+     FROM order_items
+     WHERE order_id = $1`,
+    [orderId]
+  );
+
+  await releaseInventoryForOrder({
+    client,
+    restaurantId: order.restaurant_id,
+    items: itemsResult.rows
+  });
+
+  await client.query(
+    `UPDATE orders
+     SET inventory_reserved = false,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [orderId]
+  );
+
+  return true;
+};
+
 const cancelExpiredPendingTransaction = async (client, transaction) => {
   if (!transaction || !isPendingTransaction(transaction)) return transaction;
   if (Date.now() - Number(transaction.create_time || 0) < PAYME_TRANSACTION_TIMEOUT_MS) return transaction;
@@ -145,6 +192,8 @@ const cancelExpiredPendingTransaction = async (client, transaction) => {
        AND payment_status <> $4`,
     [cancelled.order_id, ORDER_PAYMENT_CANCELLED, cancelled.payme_transaction_id, ORDER_PAYMENT_PAID]
   );
+
+  await releaseOrderInventoryIfReserved(client, cancelled.order_id);
 
   await client.query(
     `UPDATE orders
@@ -606,6 +655,8 @@ router.post('/merchant', async (req, res) => {
         );
 
         if (nextState === -1) {
+          await releaseOrderInventoryIfReserved(client, transaction.order_id);
+
           await client.query(
             `UPDATE orders
              SET status = CASE WHEN status = 'new' THEN 'cancelled' ELSE status END,

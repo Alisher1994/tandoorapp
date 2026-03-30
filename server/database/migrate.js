@@ -64,6 +64,8 @@ async function migrate() {
       `payme_callback_timeout_ms INTEGER DEFAULT 2000`,
       'send_balance_after_confirm BOOLEAN DEFAULT false',
       'send_daily_close_report BOOLEAN DEFAULT false',
+      'inventory_tracking_enabled BOOLEAN DEFAULT false',
+      'inventory_min_threshold DECIMAL(10, 3) DEFAULT 0',
       'close_report_last_sent_at TIMESTAMP',
       `payment_placeholders JSONB DEFAULT '{}'::jsonb`,
       'uzum_url TEXT',
@@ -147,6 +149,16 @@ async function migrate() {
       UPDATE restaurants
       SET send_daily_close_report = false
       WHERE send_daily_close_report IS NULL
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET inventory_tracking_enabled = false
+      WHERE inventory_tracking_enabled IS NULL
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET inventory_min_threshold = 0
+      WHERE inventory_min_threshold IS NULL OR inventory_min_threshold < 0
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
@@ -280,6 +292,7 @@ async function migrate() {
       { name: 'product_images', type: `JSONB DEFAULT '[]'::jsonb` },
       { name: 'discount_enabled', type: 'BOOLEAN DEFAULT false' },
       { name: 'discount_price', type: 'DECIMAL(10, 2)' },
+      { name: 'stock_quantity', type: 'DECIMAL(12, 3) DEFAULT 0' },
       { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
       { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' },
       { name: 'order_step', type: 'DECIMAL(10, 2)' },
@@ -301,6 +314,7 @@ async function migrate() {
     await client.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price <= 0`).catch(() => {});
     await client.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price >= price`).catch(() => {});
     await client.query(`UPDATE products SET discount_enabled = false, discount_price = NULL WHERE discount_enabled = true AND discount_price IS NULL`).catch(() => {});
+    await client.query(`UPDATE products SET stock_quantity = 0 WHERE stock_quantity IS NULL OR stock_quantity < 0`).catch(() => {});
     await client.query(`UPDATE products SET order_step = NULL WHERE order_step IS NOT NULL AND (order_step <= 0 OR unit IS DISTINCT FROM 'кг')`).catch(() => {});
     await client.query(`UPDATE products SET size_enabled = false WHERE size_enabled IS NULL`).catch(() => {});
     await client.query(`UPDATE products SET size_options = '[]'::jsonb WHERE size_options IS NULL`).catch(() => {});
@@ -366,7 +380,8 @@ async function migrate() {
       { name: 'payment_receipt_chat_id', type: 'TEXT' },
       { name: 'payment_receipt_message_id', type: 'BIGINT' },
       { name: 'payment_receipt_file_id', type: 'TEXT' },
-      { name: 'payment_receipt_submitted_at', type: 'TIMESTAMP' }
+      { name: 'payment_receipt_submitted_at', type: 'TIMESTAMP' },
+      { name: 'inventory_reserved', type: 'BOOLEAN DEFAULT false' }
     ];
 
     for (const col of orderColumns) {
@@ -376,6 +391,8 @@ async function migrate() {
         if (e.code !== '42701') console.log(`ℹ️  Column orders.${col.name}: ${e.message}`);
       }
     }
+
+    await client.query(`UPDATE orders SET inventory_reserved = false WHERE inventory_reserved IS NULL`).catch(() => {});
 
     // Fix column sizes - order_number and customer_phone were too small
     try {

@@ -27,6 +27,16 @@ const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureBroadcastSchema } = require('../services/broadcastSchema');
 const { ensureActivityTypesSchema } = require('../services/storeRegistration');
+const {
+  ensureInventorySchema,
+  normalizeInventoryQuantity,
+  normalizeInventoryThreshold,
+  isInventoryTrackingEnabled,
+  getRestaurantInventorySettings,
+  reserveInventoryForOrder,
+  releaseInventoryForOrder,
+  syncRestaurantInventoryAvailability
+} = require('../services/inventoryManager');
 const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
 const { generateStorePrintForm } = require('../services/printFormGenerator');
 const printerManager = require('../services/printerManager');
@@ -341,6 +351,7 @@ const ensureRestaurantCurrencySchema = async () => {
   }
 
   restaurantCurrencySchemaPromise = (async () => {
+    await ensureInventorySchema(pool);
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
@@ -370,6 +381,12 @@ const ensureRestaurantCurrencySchema = async () => {
     `).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET delivery_fixed_price = 0 WHERE delivery_fixed_price IS NULL OR delivery_fixed_price < 0`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants SET inventory_tracking_enabled = false WHERE inventory_tracking_enabled IS NULL`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants SET inventory_min_threshold = 0 WHERE inventory_min_threshold IS NULL OR inventory_min_threshold < 0`
     ).catch(() => {});
     await pool.query(`
       ALTER TABLE restaurants
@@ -461,11 +478,14 @@ const ensureProductsIkpuSchema = async () => {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ikpu VARCHAR(64)`).catch(() => {});
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_price DECIMAL(10, 2)`).catch(() => {});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_quantity DECIMAL(12, 3) DEFAULT 0`).catch(() => {});
     await pool.query(`UPDATE products SET discount_enabled = false WHERE discount_enabled IS NULL`).catch(() => {});
     await pool.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price <= 0`).catch(() => {});
     await pool.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price >= price`).catch(() => {});
     await pool.query(`UPDATE products SET discount_enabled = false, discount_price = NULL WHERE discount_enabled = true AND discount_price IS NULL`).catch(() => {});
+    await pool.query(`UPDATE products SET stock_quantity = 0 WHERE stock_quantity IS NULL OR stock_quantity < 0`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_ikpu ON products(ikpu)`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_stock_quantity ON products(stock_quantity)`).catch(() => {});
     productsIkpuSchemaReady = true;
   })();
 
@@ -1575,7 +1595,9 @@ router.put('/restaurant', async (req, res) => {
          menu_view_mode,
          currency_code,
          delivery_pricing_mode,
-         delivery_fixed_price
+         delivery_fixed_price,
+         inventory_tracking_enabled,
+         inventory_min_threshold
        FROM restaurants
        WHERE id = $1`,
       [restaurantId]
@@ -1596,6 +1618,7 @@ router.put('/restaurant', async (req, res) => {
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
+      inventory_tracking_enabled, inventory_min_threshold,
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
       is_asap_delivery_enabled, is_scheduled_time_delivery_enabled,
       receipt_logo_url, receipt_header_text, receipt_footer_text
@@ -1640,6 +1663,13 @@ router.put('/restaurant', async (req, res) => {
       Number.isFinite(Number.parseFloat(minimum_order_amount))
         ? Number.parseFloat(minimum_order_amount)
         : 0
+    );
+    const normalizedInventoryTrackingEnabled = normalizeOptionalBoolean(inventory_tracking_enabled);
+    const normalizedInventoryMinThreshold = Math.max(
+      0,
+      Number.isFinite(Number.parseFloat(inventory_min_threshold))
+        ? Number.parseFloat(inventory_min_threshold)
+        : Number.parseFloat(previousRestaurant.inventory_min_threshold) || 0
     );
     const normalizedScheduledDateDelivery = normalizeOptionalBoolean(is_scheduled_date_delivery_enabled);
     const normalizedScheduledDeliveryMaxDays = Math.max(
@@ -1732,8 +1762,10 @@ router.put('/restaurant', async (req, res) => {
           receipt_logo_url = $53,
           receipt_header_text = $54,
           receipt_footer_text = $55,
+          inventory_tracking_enabled = COALESCE($56, inventory_tracking_enabled),
+          inventory_min_threshold = $57,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $56
+      WHERE id = $58
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1772,8 +1804,18 @@ router.put('/restaurant', async (req, res) => {
       receipt_logo_url || null,
       receipt_header_text || null,
       receipt_footer_text || null,
+      normalizedInventoryTrackingEnabled,
+      normalizedInventoryMinThreshold,
       restaurantId
     ]);
+
+    try {
+      if (isInventoryTrackingEnabled(result.rows[0]?.inventory_tracking_enabled)) {
+        await syncRestaurantInventoryAvailability({ client: pool, restaurantId: result.rows[0].id });
+      }
+    } catch (inventorySyncError) {
+      console.error('Inventory availability sync warning:', inventorySyncError.message);
+    }
 
     try {
       await reloadMultiBots();
@@ -2127,6 +2169,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'Статус обязателен' });
     }
 
+    await ensureInventorySchema(client);
     await client.query('BEGIN');
 
     // Get order and check access
@@ -2155,6 +2198,32 @@ router.patch('/orders/:id/status', async (req, res) => {
     }
 
     const oldOrderStatus = normalizeOrderStatus(oldOrder.status);
+    const shouldReleaseInventory = (
+      oldOrderStatus !== 'cancelled'
+      && normalizedStatus === 'cancelled'
+      && isInventoryTrackingEnabled(oldOrder.inventory_reserved)
+    );
+
+    if (shouldReleaseInventory) {
+      const orderItemsResult = await client.query(
+        `SELECT product_id, quantity
+         FROM order_items
+         WHERE order_id = $1`,
+        [req.params.id]
+      );
+      await releaseInventoryForOrder({
+        client,
+        restaurantId: oldOrder.restaurant_id,
+        items: orderItemsResult.rows
+      });
+      await client.query(
+        `UPDATE orders
+         SET inventory_reserved = false,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [req.params.id]
+      );
+    }
 
     // Update order with cancel_reason and cancelled_at_status if cancelling
     let updateQuery;
@@ -2373,6 +2442,7 @@ router.put('/orders/:id/items', async (req, res) => {
       return Number.isFinite(parsed) ? parsed : fallback;
     };
 
+    await ensureInventorySchema(client);
     await client.query('BEGIN');
 
     const hasContainerColsResult = await client.query(
@@ -2396,6 +2466,15 @@ router.put('/orders/:id/items', async (req, res) => {
     }
 
     const order = orderCheck.rows[0];
+    const hasInventoryReservation = isInventoryTrackingEnabled(order.inventory_reserved);
+    const previousOrderItemsForInventory = hasInventoryReservation
+      ? (await client.query(
+        `SELECT product_id, quantity
+         FROM order_items
+         WHERE order_id = $1`,
+        [orderId]
+      )).rows
+      : [];
 
     // Check restaurant access
     if (req.user.role !== 'superadmin' && order.restaurant_id !== req.user.active_restaurant_id) {
@@ -2508,6 +2587,19 @@ router.put('/orders/:id/items', async (req, res) => {
       'UPDATE orders SET total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [newTotal, orderId]
     );
+
+    if (hasInventoryReservation) {
+      await releaseInventoryForOrder({
+        client,
+        restaurantId: order.restaurant_id,
+        items: previousOrderItemsForInventory
+      });
+      await reserveInventoryForOrder({
+        client,
+        restaurantId: order.restaurant_id,
+        items: normalizedItems
+      });
+    }
 
     await client.query('COMMIT');
 
@@ -2630,6 +2722,13 @@ router.put('/orders/:id/items', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Update order items error:', error);
+    if (error?.code === 'INVENTORY_SHORTAGE') {
+      return res.status(error.status || 409).json({
+        error: error.message || 'Недостаточно остатка товара на складе',
+        code: error.code,
+        details: Array.isArray(error.details) ? error.details : []
+      });
+    }
     res.status(500).json({ error: 'Ошибка обновления товаров' });
   } finally {
     client.release();
@@ -2951,7 +3050,7 @@ router.post('/products', async (req, res) => {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
-      discount_enabled, discount_price
+      discount_enabled, discount_price, stock_quantity
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -2960,6 +3059,7 @@ router.post('/products', async (req, res) => {
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
+    const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
 
     const categoryValidation = await validateProductCategorySelection({
       categoryId: normalizedCategoryId,
@@ -3003,6 +3103,11 @@ router.post('/products', async (req, res) => {
       ? normalizedDiscountPriceCandidate
       : null;
     const normalizedDiscountEnabled = normalizedDiscountPrice !== null;
+    const normalizedStockQuantity = normalizeInventoryQuantity(stock_quantity, 0);
+    const shouldAutoManageInventory = inventorySettings.trackingEnabled && !normalizedSizeEnabled;
+    const normalizedInStock = shouldAutoManageInventory
+      ? normalizedStockQuantity > inventorySettings.threshold
+      : (in_stock !== false);
     const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
     if (!normalizedNames.valid || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
@@ -3020,15 +3125,15 @@ router.post('/products', async (req, res) => {
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu, discount_enabled, discount_price, printer_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25)
+    size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
+      normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, normalizedInStock, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
-      normalizedIkpu, normalizedDiscountEnabled, normalizedDiscountPrice, printer_id || null
+      normalizedIkpu, normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null
     ]);
 
     const product = result.rows[0];
@@ -3061,7 +3166,7 @@ router.post('/products/upsert', async (req, res) => {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
-      discount_enabled, discount_price
+      discount_enabled, discount_price, stock_quantity
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -3070,6 +3175,7 @@ router.post('/products/upsert', async (req, res) => {
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
+    const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
 
     const categoryValidation = await validateProductCategorySelection({
       categoryId: normalizedCategoryId,
@@ -3117,6 +3223,13 @@ router.post('/products/upsert', async (req, res) => {
       ? normalizedDiscountPriceFromBodyRaw
       : null;
     const normalizedDiscountEnabledFromBody = normalizedDiscountPriceFromBody !== null;
+    const hasInStockField = Object.prototype.hasOwnProperty.call(req.body || {}, 'in_stock');
+    const hasStockQuantityField = Object.prototype.hasOwnProperty.call(req.body || {}, 'stock_quantity');
+    const normalizedStockQuantityFromBody = normalizeInventoryQuantity(stock_quantity, 0);
+    const shouldAutoManageInventory = inventorySettings.trackingEnabled && !normalizedSizeEnabled;
+    const normalizedInStockFromBody = shouldAutoManageInventory
+      ? normalizedStockQuantityFromBody > inventorySettings.threshold
+      : (in_stock !== false);
     const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
     if (!normalizedNames.valid || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
@@ -3207,9 +3320,17 @@ router.post('/products/upsert', async (req, res) => {
         paramIndex++;
       }
 
-      updateFields.push(`in_stock = $${paramIndex} `);
-      updateValues.push(in_stock !== false);
-      paramIndex++;
+      if (!shouldAutoManageInventory || hasStockQuantityField || hasInStockField) {
+        updateFields.push(`in_stock = $${paramIndex} `);
+        updateValues.push(normalizedInStockFromBody);
+        paramIndex++;
+      }
+
+      if (hasStockQuantityField) {
+        updateFields.push(`stock_quantity = $${paramIndex} `);
+        updateValues.push(normalizedStockQuantityFromBody);
+        paramIndex++;
+      }
 
       if (season_scope !== undefined) {
         updateFields.push(`season_scope = $${paramIndex} `);
@@ -3248,20 +3369,21 @@ router.post('/products/upsert', async (req, res) => {
         WHERE id = $${paramIndex}
 RETURNING *
   `, updateValues);
+    } else {
       result = await pool.query(`
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu, discount_enabled, discount_price, printer_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25)
+    size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-        normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
+        normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, normalizedInStockFromBody, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
         normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
-        normalizedIkpu, normalizedDiscountEnabledFromBody, normalizedDiscountPriceFromBody, printer_id || null
+        normalizedIkpu, normalizedDiscountEnabledFromBody, normalizedDiscountPriceFromBody, normalizedStockQuantityFromBody, printer_id || null
       ]);
     }
 
@@ -3295,7 +3417,7 @@ router.put('/products/:id', async (req, res) => {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
-      discount_enabled, discount_price
+      discount_enabled, discount_price, stock_quantity
     } = req.body;
 
     // Get old values and check access
@@ -3309,6 +3431,7 @@ router.put('/products/:id', async (req, res) => {
     if (req.user.role !== 'superadmin' && oldProduct.restaurant_id !== req.user.active_restaurant_id) {
       return res.status(403).json({ error: 'Нет доступа к этому товару' });
     }
+    const inventorySettings = await getRestaurantInventorySettings(pool, oldProduct.restaurant_id);
 
     const categoryValidation = await validateProductCategorySelection({
       categoryId: category_id,
@@ -3384,6 +3507,15 @@ router.put('/products/:id', async (req, res) => {
       ? normalizedDiscountPriceCandidate
       : null;
     const normalizedDiscountEnabled = normalizedDiscountPrice !== null;
+    const hasStockQuantityField = Object.prototype.hasOwnProperty.call(req.body || {}, 'stock_quantity');
+    const fallbackStockQuantity = normalizeInventoryQuantity(oldProduct.stock_quantity, 0);
+    const normalizedStockQuantity = hasStockQuantityField
+      ? normalizeInventoryQuantity(stock_quantity, fallbackStockQuantity)
+      : fallbackStockQuantity;
+    const shouldAutoManageInventory = inventorySettings.trackingEnabled && !normalizedSizeEnabled;
+    const normalizedInStock = shouldAutoManageInventory
+      ? normalizedStockQuantity > inventorySettings.threshold
+      : (in_stock !== false);
     const resolvedNameRuSource = name_ru === undefined ? oldProduct.name_ru : name_ru;
     const resolvedNameUzSource = name_uz === undefined ? oldProduct.name_uz : name_uz;
     const normalizedNames = normalizeProductLocalizedNames(resolvedNameRuSource, resolvedNameUzSource);
@@ -3411,15 +3543,15 @@ router.put('/products/:id', async (req, res) => {
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
   container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21, 
-  discount_enabled = $22, discount_price = $23, printer_id = $24, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $25
+  discount_enabled = $22, discount_price = $23, stock_quantity = $24, printer_id = $25, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $26
 RETURNING *
   `, [
       category_id, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
-      normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
+      normalizedPrice, nextUnit, normalizedOrderStep, barcode, normalizedInStock, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu,
-      normalizedDiscountEnabled, normalizedDiscountPrice, printer_id || null, req.params.id
+      normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null, req.params.id
     ]);
 
     const product = result.rows[0];

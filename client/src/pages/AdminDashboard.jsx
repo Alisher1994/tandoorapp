@@ -612,6 +612,8 @@ const buildRestaurantSettingsSignature = (settings) => {
     is_delivery_enabled: normalizeSettingsBoolean(settings.is_delivery_enabled, true),
     delivery_zone: sortObjectKeysDeep(settings.delivery_zone || null),
     minimum_order_amount: normalizeSettingsNumber(settings.minimum_order_amount, 0),
+    inventory_tracking_enabled: normalizeSettingsBoolean(settings.inventory_tracking_enabled, false),
+    inventory_min_threshold: normalizeSettingsNumber(settings.inventory_min_threshold, 0),
     is_scheduled_date_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_date_delivery_enabled, false),
     scheduled_delivery_max_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.scheduled_delivery_max_days, 7))),
     is_asap_delivery_enabled: normalizeSettingsBoolean(settings.is_asap_delivery_enabled, true),
@@ -1643,6 +1645,7 @@ function AdminDashboard() {
     order_step: '',
     discount_enabled: false,
     discount_price: '',
+    stock_quantity: '',
     barcode: '',
     ikpu: '',
     in_stock: true,
@@ -4685,6 +4688,10 @@ function AdminDashboard() {
         delivery_fixed_price: Number.isFinite(Number(response.data?.delivery_fixed_price))
           ? Number(response.data?.delivery_fixed_price)
           : 0,
+        inventory_tracking_enabled: response.data?.inventory_tracking_enabled === true,
+        inventory_min_threshold: Number.isFinite(Number(response.data?.inventory_min_threshold))
+          ? Number(response.data?.inventory_min_threshold)
+          : 0,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
@@ -4730,6 +4737,14 @@ function AdminDashboard() {
           ? Number(savedSettings?.delivery_fixed_price)
           : Number.isFinite(Number(restaurantSettings?.delivery_fixed_price))
             ? Number(restaurantSettings?.delivery_fixed_price)
+            : 0,
+        inventory_tracking_enabled: savedSettings?.inventory_tracking_enabled === true
+          ? true
+          : Boolean(restaurantSettings?.inventory_tracking_enabled),
+        inventory_min_threshold: Number.isFinite(Number(savedSettings?.inventory_min_threshold))
+          ? Number(savedSettings?.inventory_min_threshold)
+          : Number.isFinite(Number(restaurantSettings?.inventory_min_threshold))
+            ? Number(restaurantSettings?.inventory_min_threshold)
             : 0,
         payment_placeholders: normalizePaymentPlaceholders(
           savedSettings?.payment_placeholders ?? restaurantSettings?.payment_placeholders
@@ -5402,6 +5417,9 @@ function AdminDashboard() {
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
         discount_enabled: normalizedDiscountEnabled,
         discount_price: normalizedDiscountEnabled ? normalizedDiscountPrice : '',
+        stock_quantity: Number.isFinite(Number(product.stock_quantity))
+          ? Number(product.stock_quantity)
+          : '',
         barcode: product.barcode || '',
         ikpu: product.ikpu || '',
         in_stock: product.in_stock !== false,
@@ -5438,6 +5456,7 @@ function AdminDashboard() {
         order_step: '',
         discount_enabled: false,
         discount_price: '',
+        stock_quantity: '',
         barcode: '',
         ikpu: '',
         in_stock: true,
@@ -5638,6 +5657,7 @@ function AdminDashboard() {
         size_enabled: isEnabled,
         discount_enabled: isEnabled ? false : prev.discount_enabled,
         discount_price: isEnabled ? '' : prev.discount_price,
+        stock_quantity: isEnabled ? '' : prev.stock_quantity,
         variant_options: nextVariants,
         size_options: normalizeProductVariantOptions(nextVariants, {
           fallbackPrice: fallbackBasePrice,
@@ -6060,6 +6080,25 @@ function AdminDashboard() {
         && normalizedDiscountPrice < effectivePrice
         ? normalizedDiscountPrice
         : null;
+      const inventoryTrackingEnabled = Boolean(restaurantSettings?.inventory_tracking_enabled) && !isVariantsMode;
+      const inventoryMinThreshold = Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0);
+      const parsedStockQuantity = Number.parseFloat(
+        String(productForm.stock_quantity ?? '')
+          .replace(/\s+/g, '')
+          .replace(',', '.')
+      );
+      const normalizedStockQuantity = inventoryTrackingEnabled
+        ? (Number.isFinite(parsedStockQuantity) && parsedStockQuantity >= 0 ? parsedStockQuantity : Number.NaN)
+        : null;
+      if (inventoryTrackingEnabled && !Number.isFinite(normalizedStockQuantity)) {
+        alert(language === 'uz'
+          ? "Iltimos, ombordagi qoldiq sonini kiriting"
+          : 'Укажите корректный остаток товара на складе');
+        return;
+      }
+      const normalizedInStock = inventoryTrackingEnabled
+        ? normalizedStockQuantity > inventoryMinThreshold
+        : (productForm.in_stock !== false);
       const normalizedImages = serializeProductImageSlots(productForm.product_images);
       const mainImage = normalizedImages[0] || { url: '', thumb_url: '' };
       const effectiveNameRu = normalizedNameRu || normalizedNameUz;
@@ -6074,6 +6113,8 @@ function AdminDashboard() {
         thumb_url: mainImage.thumb_url || '',
         product_images: normalizedImages,
         price: effectivePrice,
+        in_stock: normalizedInStock,
+        stock_quantity: inventoryTrackingEnabled ? normalizedStockQuantity : null,
         order_step: productForm.unit === 'кг'
           ? (() => {
             const parsed = Number.parseFloat(String(productForm.order_step || '').replace(',', '.'));
@@ -6387,6 +6428,7 @@ function AdminDashboard() {
       order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
       discount_enabled: false,
       discount_price: '',
+      stock_quantity: '',
       barcode: '',
       ikpu: product.ikpu || '',
       in_stock: true,
@@ -6431,6 +6473,9 @@ function AdminDashboard() {
         discount_price: Number.isFinite(normalizeProductPriceValue(product.discount_price, NaN))
           ? normalizeProductPriceValue(product.discount_price, NaN)
           : null,
+        stock_quantity: Number.isFinite(Number(product.stock_quantity))
+          ? Number(product.stock_quantity)
+          : 0,
         barcode: product.barcode || '',
         ikpu: product.ikpu || '',
         in_stock: nextInStock,
@@ -10783,7 +10828,10 @@ function AdminDashboard() {
                                 id={`mobile-product-stock-${product.id}`}
                                 label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                 checked={!product.in_stock}
-                                disabled={productStockUpdatingIds.includes(product.id)}
+                                disabled={
+                                  productStockUpdatingIds.includes(product.id)
+                                  || (Boolean(restaurantSettings?.inventory_tracking_enabled) && product.size_enabled !== true)
+                                }
                                 className="small mb-2 admin-product-mobile-stock-switch"
                                 onChange={(e) => handleProductStockToggle(product, e.target.checked)}
                               />
@@ -10959,12 +11007,20 @@ function AdminDashboard() {
                                     }[product.season_scope] || product.season_scope}
                                   </Badge>
                                 )}
+                                {Boolean(restaurantSettings?.inventory_tracking_enabled) && product.size_enabled !== true && (
+                                  <Badge bg={product.in_stock ? 'success' : 'secondary'}>
+                                    Остаток: {formatQuantity(Number(product.stock_quantity || 0))}
+                                  </Badge>
+                                )}
                                 <Form.Check
                                   type="switch"
                                   id={`product-stock-${product.id}`}
                                   label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                   checked={!product.in_stock}
-                                  disabled={productStockUpdatingIds.includes(product.id)}
+                                  disabled={
+                                    productStockUpdatingIds.includes(product.id)
+                                    || (Boolean(restaurantSettings?.inventory_tracking_enabled) && product.size_enabled !== true)
+                                  }
                                   className="small mb-0"
                                   onClick={(e) => e.stopPropagation()}
                                   onTouchEnd={(e) => e.stopPropagation()}
@@ -12820,9 +12876,63 @@ function AdminDashboard() {
                       {settingsTab === 'product_settings' && (
                         <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
                           <Card.Body className="p-4">
-                            <Row className="gy-4">
-                              <Col md={12}>
-                                <Form.Group>
+                            <div className="admin-settings-single-column">
+                              <div className="admin-settings-surface-block">
+                                <div className="fw-bold mb-1">
+                                  {language === 'uz' ? "Ombor qoldig'ini nazorat qilish" : 'Контроль складских остатков'}
+                                </div>
+                                <div className="small text-muted mb-3">
+                                  {language === 'uz'
+                                    ? "Yoqilganda, mahsulot mavjudligi ombordagi qoldiq va xavfsizlik chegarasi bo'yicha avtomatik boshqariladi."
+                                    : 'При включении система автоматически управляет статусом товара по остатку и порогу безопасности.'}
+                                </div>
+                                <Form.Check
+                                  type="switch"
+                                  id="inventory-tracking-enabled-switch"
+                                  className="fw-semibold mb-3"
+                                  label={language === 'uz' ? "Qoldiq hisobini yoqish" : 'Учет остатков'}
+                                  checked={Boolean(restaurantSettings.inventory_tracking_enabled)}
+                                  onChange={(e) => setRestaurantSettings({
+                                    ...restaurantSettings,
+                                    inventory_tracking_enabled: e.target.checked
+                                  })}
+                                />
+                                <Row className="g-3 align-items-start">
+                                  <Col md={6}>
+                                    <Form.Group>
+                                      <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                        {language === 'uz' ? 'Minimal xavfsizlik chegarasi (dona)' : 'Минимальный порог (шт.)'}
+                                      </Form.Label>
+                                      <Form.Control
+                                        type="number"
+                                        min={0}
+                                        step="0.001"
+                                        className="form-control-custom"
+                                        value={restaurantSettings.inventory_min_threshold ?? 0}
+                                        onChange={(e) => setRestaurantSettings({
+                                          ...restaurantSettings,
+                                          inventory_min_threshold: e.target.value
+                                        })}
+                                      />
+                                    </Form.Group>
+                                  </Col>
+                                  <Col md={6}>
+                                    <div className={`admin-product-stock-hint ${Boolean(restaurantSettings.inventory_tracking_enabled) ? 'is-ok' : 'is-low'}`}>
+                                      <div className="fw-semibold mb-1">
+                                        {language === 'uz' ? 'Qoidaning ishlashi' : 'Как работает порог'}
+                                      </div>
+                                      <div className="small">
+                                        {language === 'uz'
+                                          ? `Masalan, chegara 2 bo'lsa, qoldiq 2 ga tushganda mahsulot "Mavjud emas" holatiga o'tadi.`
+                                          : 'Например, при пороге 2 товар автоматически станет «Нет в наличии», когда остаток дойдет до 2.'}
+                                      </div>
+                                    </div>
+                                  </Col>
+                                </Row>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
                                     Сумма минимального заказа ({t('sum')})
                                   </Form.Label>
@@ -12841,8 +12951,8 @@ function AdminDashboard() {
                                     Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
                                   </Form.Text>
                                 </Form.Group>
-                              </Col>
-                            </Row>
+                              </div>
+                            </div>
 
                             <div className="mt-4 pt-3 border-top text-end">
                               <Button
@@ -14852,8 +14962,11 @@ function AdminDashboard() {
                       <Form.Check
                         className="admin-product-switch"
                         type="switch"
-                        label="Нет в наличии"
+                        label={Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled
+                          ? 'Нет в наличии (авто)'
+                          : 'Нет в наличии'}
                         checked={!productForm.in_stock}
+                        disabled={Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled}
                         onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
                       />
                       <Form.Check
@@ -14877,6 +14990,49 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
               </Row>
+
+              {Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled && (
+                <Row className="g-3">
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>{language === 'uz' ? 'Ombordagi qoldiq' : 'Остаток на складе'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min={0}
+                        step="0.001"
+                        className="admin-product-compact-field"
+                        value={productForm.stock_quantity ?? ''}
+                        onChange={(e) => setProductForm((prev) => ({ ...prev, stock_quantity: e.target.value }))}
+                        placeholder={language === 'uz' ? 'Masalan: 25' : 'Например: 25'}
+                      />
+                      <Form.Text className="text-muted">
+                        {language === 'uz'
+                          ? `Avto status chegarasi: ${Number(restaurantSettings?.inventory_min_threshold || 0)}`
+                          : `Авто-порог недоступности: ${Number(restaurantSettings?.inventory_min_threshold || 0)}`}
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    {(() => {
+                      const threshold = Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0);
+                      const qty = Number.parseFloat(String(productForm.stock_quantity ?? '').replace(',', '.'));
+                      const inStockByQty = Number.isFinite(qty) ? qty > threshold : false;
+                      return (
+                        <div className={`admin-product-stock-hint ${inStockByQty ? 'is-ok' : 'is-low'}`}>
+                          <div className="fw-semibold">
+                            {inStockByQty ? 'В наличии (авто)' : 'Нет в наличии (авто)'}
+                          </div>
+                          <div className="small">
+                            {Number.isFinite(qty)
+                              ? `Остаток: ${formatQuantity(qty)} / порог: ${formatQuantity(threshold)}`
+                              : 'Укажите остаток для авто-статуса'}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </Col>
+                </Row>
+              )}
 
               {Boolean(restaurantSettings?.size_variants_enabled) && productForm.size_enabled && (
                 <Row className="g-3 mt-1">
