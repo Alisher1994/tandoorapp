@@ -218,7 +218,7 @@ function showSettingsWindow() {
 
   settingsWindow = new BrowserWindow({
     width: 440,
-    height: 360,
+    height: 430,
     show: false,
     resizable: false,
     minimizable: false,

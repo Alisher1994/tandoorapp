@@ -268,6 +268,34 @@ async function convertWebpToPng(inputPath, outputPath) {
   await webp.dwebp(inputPath, outputPath, '-o');
 }
 
+function prepareImageForThermal(image) {
+  const thresholdRaw = Number.parseInt(process.env.TALABLAR_LOGO_THRESHOLD || '212', 10);
+  const threshold = Number.isFinite(thresholdRaw)
+    ? Math.max(160, Math.min(245, thresholdRaw))
+    : 212;
+
+  // Light brand colors are often lost on thermal printers.
+  // We darken and binarize to keep logos readable in monochrome.
+  image.greyscale().contrast(0.72).brightness(-0.18);
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (_x, _y, idx) {
+    const alpha = this.bitmap.data[idx + 3];
+    if (alpha < 24) {
+      this.bitmap.data[idx] = 255;
+      this.bitmap.data[idx + 1] = 255;
+      this.bitmap.data[idx + 2] = 255;
+      this.bitmap.data[idx + 3] = 255;
+      return;
+    }
+
+    const value = this.bitmap.data[idx];
+    const mono = value < threshold ? 0 : 255;
+    this.bitmap.data[idx] = mono;
+    this.bitmap.data[idx + 1] = mono;
+    this.bitmap.data[idx + 2] = mono;
+    this.bitmap.data[idx + 3] = 255;
+  });
+}
+
 /** WebP + слишком широкие логотипы: в PNG для escpos, ширина ≤ TALABLAR_LOGO_MAX_WIDTH (576 для 80мм) */
 async function prepareReceiptLogoFile(logoHref) {
   ensureWebpTools();
@@ -301,7 +329,7 @@ async function prepareReceiptLogoFile(logoHref) {
   if (image.bitmap.width > maxW) {
     image.resize(maxW, Jimp.AUTO);
   }
-  image.greyscale().contrast(0.45);
+  prepareImageForThermal(image);
   await new Promise((res, rej) => image.write(outPath, (err) => (err ? rej(err) : res())));
   if (workPath !== outPath) {
     try { fs.unlinkSync(workPath); } catch (_) {}
