@@ -1,14 +1,14 @@
 {
   "name": "talablar-agent",
-  "version": "8.12.0",
-  "description": "Local printer agent for Talablar Restaurant Management",
-  "main": "agent.js",
+  "version": "8.13.0",
+  "description": "Talablar Printer Agent (core + single EXE desktop shell)",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "node agent.js",
-    "build:exe": "pkg . --targets node18-win-x64 --output dist/TalablarAgent.exe",
-    "bundle:dist": "node scripts/bundle-dist.js",
-    "zip:release": "node scripts/create-release-zip.js",
-    "build:release": "npm run build:exe && npm run bundle:dist && npm run zip:release"
+    "desktop:dev": "electron .",
+    "build:core": "pkg . --targets node18-win-x64 --output build/core/TalablarAgent.exe",
+    "build:desktop": "electron-builder --win portable",
+    "build:release": "npm run build:core && npm run build:desktop && node scripts/finalize-single-exe.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
@@ -21,6 +21,8 @@
     "webp-converter": "^2.3.3"
   },
   "devDependencies": {
+    "electron": "^41.1.0",
+    "electron-builder": "^26.8.1",
     "pkg": "^5.8.1"
   },
   "bin": "agent.js",
@@ -34,6 +36,41 @@
     "targets": [
       "node18-win-x64"
     ],
-    "outputPath": "dist"
+    "outputPath": "build/core"
+  },
+  "build": {
+    "appId": "com.talablar.printer",
+    "productName": "TalablarPrinter",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/core/TalablarAgent.exe",
+        "to": "agent-core/TalablarAgent.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "TalablarPrinter.exe"
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    },
+    "npmRebuild": false,
+    "extraMetadata": {
+      "main": "desktop/main.js"
+    }
   }
 }

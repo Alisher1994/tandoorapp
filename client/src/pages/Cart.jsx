@@ -40,6 +40,7 @@ function Cart() {
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
   const savedCoordinates = hasSavedLocation ? `${user.last_latitude},${user.last_longitude}` : '';
   const activeRestaurantId = cart[0]?.restaurant_id || user?.active_restaurant_id || null;
+  const [restaurant, setRestaurant] = useState(null);
   const fallbackRestaurantName = language === 'uz' ? "Do'kon" : 'Магазин';
   const resolvedRestaurantName = restaurant?.name || user?.active_restaurant_name || fallbackRestaurantName;
 
@@ -67,7 +68,6 @@ function Cart() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
-  const [restaurant, setRestaurant] = useState(null);
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
   const [deliveryLoading, setDeliveryLoading] = useState(false);

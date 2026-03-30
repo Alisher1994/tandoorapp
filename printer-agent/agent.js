@@ -11,7 +11,7 @@ const readline = require('readline/promises');
 const Jimp = require('jimp');
 const webp = require('webp-converter');
 
-const AGENT_BUILD_ID = '8.12.0+single-launcher'; // видно в логе даже если package.json в exe не подтянулся
+const AGENT_BUILD_ID = '8.13.0+desktop-shell';
 let AGENT_PKG_VERSION = AGENT_BUILD_ID;
 try {
   AGENT_PKG_VERSION = require('./package.json').version;

@@ -1,14 +1,15 @@
 # Talablar Printer Agent (Windows)
 
-Локальный агент для автоматической печати чеков.  
-Для оператора теперь один понятный путь: `install.bat` + запуск через ярлык `Talablar Printer`.
+Локальный агент для автоматической печати чеков.
+Теперь для оператора используется один файл: `TalablarPrinter.exe`.
 
 ## Быстрый запуск (для оператора)
 
 1. Откройте папку `dist`.
-2. Запустите `install.bat`.
-3. Введите `SERVER_URL` и `AGENT_TOKEN`.
-4. После установки запускайте агент через ярлык `Talablar Printer` (он работает в системном трее).
+2. Запустите `TalablarPrinter.exe`.
+3. В окне настроек введите `SERVER_URL` и `AGENT_TOKEN`.
+4. Нажмите `Сохранить`.
+5. Агент продолжит работать в системном трее.
 
 ## Смена магазина/токена на этом же ПК
 
@@ -19,12 +20,8 @@
 
 ## Что в релизе
 
-- `TalablarAgent.exe`
-- `install.bat`
-- `TalablarPrinter.bat`
-- `run-agent-tray.ps1`
-- `README.md`
-- `READ_ME_FIRST.txt`
+- `TalablarPrinter.exe`
+- `VERSION.txt`
 
 ## Для разработчика
 
@@ -33,4 +30,4 @@ npm install
 npm run build:release
 ```
 
-`build:release` создаёт чистую папку `dist` и один архив `TalablarAgent-release.zip`.
+`build:release` собирает core-агент, desktop-оболочку и формирует чистую папку `dist` с единым `TalablarPrinter.exe`.

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talablar Printer - Настройки</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --primary: #2563eb;
+      --danger: #dc2626;
+      --border: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 12px 36px rgba(15, 23, 42, 0.1);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    label {
+      display: block;
+      margin: 10px 0 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .error {
+      min-height: 18px;
+      margin-top: 8px;
+      color: var(--danger);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .actions {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+    .primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .ghost {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    .wide {
+      margin-top: 8px;
+      width: 100%;
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Talablar Printer</h1>
+    <p>Введите сервер и токен агента. После сохранения агент перезапустится автоматически.</p>
+
+    <label for="serverUrl">SERVER_URL</label>
+    <input id="serverUrl" type="text" placeholder="https://example.com" />
+
+    <label for="agentToken">AGENT_TOKEN</label>
+    <input id="agentToken" type="text" placeholder="Токен из админки" />
+
+    <div id="errorBox" class="error"></div>
+
+    <div class="actions">
+      <button id="saveBtn" class="primary">Сохранить</button>
+      <button id="closeBtn" class="ghost">Закрыть</button>
+    </div>
+    <button id="openDirBtn" class="wide">Открыть папку данных</button>
+  </div>
+
+  <script src="./settings.js"></script>
+</body>
+</html>
