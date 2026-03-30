@@ -513,6 +513,20 @@ socket.on("disconnect", (reason) => {
         }, 'order');
       } catch (err) {
         console.error(`❌ Failed to print to ${printerConfig.alias}:`, err.message);
+        if (isCashier) {
+          console.warn(`↩️ Retry printing without QR/extra block for ${printerConfig.alias}...`);
+          try {
+            await printToPrinter(printerConfig, {
+              ...payload,
+              items,
+              isFullReceipt: true,
+              disableQrSection: true
+            }, 'order');
+            console.log(`✅ Fallback print succeeded for ${printerConfig.alias}`);
+          } catch (fallbackErr) {
+            console.error(`❌ Fallback print failed for ${printerConfig.alias}:`, fallbackErr.message);
+          }
+        }
       }
     }
   });
@@ -725,7 +739,9 @@ async function executePrintSequence(printer, device, data, config) {
 
     // QR блок: слева - заказы магазина, справа - локация клиента
     printer.feed(1).align('ct').text('-------------------------------').feed(1);
-    await printReceiptQrSection(printer, data);
+    if (!data.disableQrSection) {
+      await printReceiptQrSection(printer, data);
+    }
   } else {
     printer.align('ct').text(tx(`ЧЕК ДЛЯ: ${config.alias?.toUpperCase() || 'КУХНЯ'}`));
   }

@@ -1379,7 +1379,10 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
 
     // Trigger Printing
     try {
-      await printerManager.printOrder(order.restaurant_id, orderId);
+      const printQueued = await printerManager.printOrder(order.restaurant_id, orderId);
+      if (!printQueued) {
+        console.warn(`Auto Print skipped/failed (accept-and-pay): restaurant=${order.restaurant_id}, order=${orderId}`);
+      }
     } catch (printErr) {
       console.error('Auto Print Error (accept-and-pay):', printErr);
     }
@@ -2289,7 +2292,10 @@ router.patch('/orders/:id/status', async (req, res) => {
     // Trigger Printing if moving to PREPARING or ACCEPTED
     if (normalizedStatus === 'preparing' || normalizedStatus === 'accepted') {
       try {
-        await printerManager.printOrder(order.restaurant_id, order.id);
+        const printQueued = await printerManager.printOrder(order.restaurant_id, order.id);
+        if (!printQueued) {
+          console.warn(`Auto Print skipped/failed (status-patch): restaurant=${order.restaurant_id}, order=${order.id}`);
+        }
       } catch (printErr) {
         console.error('Auto Print Error (status-patch):', printErr);
       }
@@ -2401,7 +2407,12 @@ router.post('/orders/:id/print', async (req, res) => {
       return res.status(404).json({ error: 'Заказ не найден' });
     }
 
-    await printerManager.printOrder(restaurantId, orderId);
+    const printQueued = await printerManager.printOrder(restaurantId, orderId);
+    if (!printQueued) {
+      return res.status(503).json({
+        error: 'Не удалось отправить заказ на печать. Проверьте, что агент онлайн и принтер активен.'
+      });
+    }
     
     // Log activity
     await logActivity({

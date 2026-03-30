@@ -290,13 +290,13 @@ class PrinterManager {
       const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
       if (orderResult.rows.length === 0) return false;
       const order = orderResult.rows[0];
-      const orderQrUrl = await resolveBotPublicOrderUrl(shop, restaurantId);
       const clientLocationUrl = resolveClientLocationUrl(order);
       const fulfillmentType = normalizeFulfillmentTypeForPrint(order);
 
       // 2. Fetch Shop Info & Logo
       const shop = await this.getRestaurantShopInfo(restaurantId);
       if (!shop) return false;
+      const orderQrUrl = await resolveBotPublicOrderUrl(shop, restaurantId);
 
       // 3. Fetch Order Items + Category Printer Info
       const itemsResult = await pool.query(`
