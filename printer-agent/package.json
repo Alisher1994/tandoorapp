@@ -1,11 +1,14 @@
 {
   "name": "talablar-agent",
-  "version": "8.10.0",
+  "version": "8.12.0",
   "description": "Local printer agent for Talablar Restaurant Management",
   "main": "agent.js",
   "scripts": {
     "start": "node agent.js",
-    "build:exe": "pkg . --targets node18-win-x64 --output dist/TalablarAgent.exe"
+    "build:exe": "pkg . --targets node18-win-x64 --output dist/TalablarAgent.exe",
+    "bundle:dist": "node scripts/bundle-dist.js",
+    "zip:release": "node scripts/create-release-zip.js",
+    "build:release": "npm run build:exe && npm run bundle:dist && npm run zip:release"
   },
   "dependencies": {
     "axios": "^1.6.0",
