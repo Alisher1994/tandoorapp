@@ -459,6 +459,12 @@ const ensureProductsIkpuSchema = async () => {
 
   productsIkpuSchemaPromise = (async () => {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ikpu VARCHAR(64)`).catch(() => {});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_price DECIMAL(10, 2)`).catch(() => {});
+    await pool.query(`UPDATE products SET discount_enabled = false WHERE discount_enabled IS NULL`).catch(() => {});
+    await pool.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price <= 0`).catch(() => {});
+    await pool.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price >= price`).catch(() => {});
+    await pool.query(`UPDATE products SET discount_enabled = false, discount_price = NULL WHERE discount_enabled = true AND discount_price IS NULL`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_ikpu ON products(ikpu)`).catch(() => {});
     productsIkpuSchemaReady = true;
   })();
@@ -2944,7 +2950,8 @@ router.post('/products', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id
+      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
+      discount_enabled, discount_price
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -2988,6 +2995,14 @@ router.post('/products', async (req, res) => {
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
       : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
+    const shouldEnableDiscount = normalizeOptionalBoolean(discount_enabled) === true && !normalizedSizeEnabled;
+    const normalizedDiscountPriceCandidate = normalizeProductPrice(discount_price, null);
+    const normalizedDiscountPrice = shouldEnableDiscount
+      && normalizedDiscountPriceCandidate !== null
+      && normalizedDiscountPriceCandidate < normalizedPrice
+      ? normalizedDiscountPriceCandidate
+      : null;
+    const normalizedDiscountEnabled = normalizedDiscountPrice !== null;
     const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
     if (!normalizedNames.valid || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
@@ -3005,14 +3020,15 @@ router.post('/products', async (req, res) => {
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu, printer_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23)
+    size_enabled, size_options, ikpu, discount_enabled, discount_price, printer_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, printer_id || null
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
+      normalizedIkpu, normalizedDiscountEnabled, normalizedDiscountPrice, printer_id || null
     ]);
 
     const product = result.rows[0];
@@ -3044,7 +3060,8 @@ router.post('/products/upsert', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id
+      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
+      discount_enabled, discount_price
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -3090,6 +3107,16 @@ router.post('/products/upsert', async (req, res) => {
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
       : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
+    const hasDiscountEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_enabled');
+    const hasDiscountPriceField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_price');
+    const shouldEnableDiscountFromBody = normalizeOptionalBoolean(discount_enabled) === true && !normalizedSizeEnabled;
+    const normalizedDiscountPriceFromBodyRaw = normalizeProductPrice(discount_price, null);
+    const normalizedDiscountPriceFromBody = shouldEnableDiscountFromBody
+      && normalizedDiscountPriceFromBodyRaw !== null
+      && normalizedDiscountPriceFromBodyRaw < normalizedPrice
+      ? normalizedDiscountPriceFromBodyRaw
+      : null;
+    const normalizedDiscountEnabledFromBody = normalizedDiscountPriceFromBody !== null;
     const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
     if (!normalizedNames.valid || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
@@ -3205,6 +3232,14 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(JSON.stringify(normalizedSizeOptions));
         paramIndex++;
       }
+      if (hasDiscountEnabledField || hasDiscountPriceField) {
+        updateFields.push(`discount_enabled = $${paramIndex} `);
+        updateValues.push(normalizedDiscountEnabledFromBody);
+        paramIndex++;
+        updateFields.push(`discount_price = $${paramIndex} `);
+        updateValues.push(normalizedDiscountPriceFromBody);
+        paramIndex++;
+      }
 
       updateValues.push(existingProduct.rows[0].id);
 
@@ -3217,15 +3252,16 @@ RETURNING *
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu, printer_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23)
+    size_enabled, size_options, ikpu, discount_enabled, discount_price, printer_id
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
         mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
         normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
-        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, printer_id || null
+        normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
+        normalizedIkpu, normalizedDiscountEnabledFromBody, normalizedDiscountPriceFromBody, printer_id || null
       ]);
     }
 
@@ -3258,7 +3294,8 @@ router.put('/products/:id', async (req, res) => {
     const {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
-      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id
+      season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
+      discount_enabled, discount_price
     } = req.body;
 
     // Get old values and check access
@@ -3333,6 +3370,20 @@ router.put('/products/:id', async (req, res) => {
     if (normalizedPrice === null) {
       return res.status(400).json({ error: 'Цена должна быть больше 0' });
     }
+    const hasDiscountEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_enabled');
+    const hasDiscountPriceField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_price');
+    const fallbackDiscountEnabled = hasDiscountEnabledField
+      ? normalizeOptionalBoolean(discount_enabled)
+      : normalizeOptionalBoolean(oldProduct.discount_enabled);
+    const shouldEnableDiscount = fallbackDiscountEnabled === true && !normalizedSizeEnabled;
+    const discountPriceSource = hasDiscountPriceField ? discount_price : oldProduct.discount_price;
+    const normalizedDiscountPriceCandidate = normalizeProductPrice(discountPriceSource, null);
+    const normalizedDiscountPrice = shouldEnableDiscount
+      && normalizedDiscountPriceCandidate !== null
+      && normalizedDiscountPriceCandidate < normalizedPrice
+      ? normalizedDiscountPriceCandidate
+      : null;
+    const normalizedDiscountEnabled = normalizedDiscountPrice !== null;
     const resolvedNameRuSource = name_ru === undefined ? oldProduct.name_ru : name_ru;
     const resolvedNameUzSource = name_uz === undefined ? oldProduct.name_uz : name_uz;
     const normalizedNames = normalizeProductLocalizedNames(resolvedNameRuSource, resolvedNameUzSource);
@@ -3360,15 +3411,15 @@ router.put('/products/:id', async (req, res) => {
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
   container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21, 
-  printer_id = $22, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $23
+  discount_enabled = $22, discount_price = $23, printer_id = $24, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $25
 RETURNING *
   `, [
       category_id, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, in_stock !== false, sort_order || 0, container_id || null, normalizedContainerNorm,
-      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu, 
-      printer_id || null, req.params.id
+      normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu,
+      normalizedDiscountEnabled, normalizedDiscountPrice, printer_id || null, req.params.id
     ]);
 
     const product = result.rows[0];

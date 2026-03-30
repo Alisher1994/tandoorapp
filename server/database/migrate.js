@@ -278,6 +278,8 @@ async function migrate() {
       { name: 'container_norm', type: 'DECIMAL(10, 2) DEFAULT 1' },
       { name: 'thumb_url', type: 'TEXT' },
       { name: 'product_images', type: `JSONB DEFAULT '[]'::jsonb` },
+      { name: 'discount_enabled', type: 'BOOLEAN DEFAULT false' },
+      { name: 'discount_price', type: 'DECIMAL(10, 2)' },
       { name: 'season_scope', type: `VARCHAR(16) DEFAULT 'all'` },
       { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' },
       { name: 'order_step', type: 'DECIMAL(10, 2)' },
@@ -295,6 +297,10 @@ async function migrate() {
     console.log('✅ Products table updated');
     await client.query(`UPDATE products SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
     await client.query(`UPDATE products SET season_scope = 'all' WHERE season_scope IS NULL OR season_scope = ''`).catch(() => {});
+    await client.query(`UPDATE products SET discount_enabled = false WHERE discount_enabled IS NULL`).catch(() => {});
+    await client.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price <= 0`).catch(() => {});
+    await client.query(`UPDATE products SET discount_price = NULL WHERE discount_price IS NOT NULL AND discount_price >= price`).catch(() => {});
+    await client.query(`UPDATE products SET discount_enabled = false, discount_price = NULL WHERE discount_enabled = true AND discount_price IS NULL`).catch(() => {});
     await client.query(`UPDATE products SET order_step = NULL WHERE order_step IS NOT NULL AND (order_step <= 0 OR unit IS DISTINCT FROM 'кг')`).catch(() => {});
     await client.query(`UPDATE products SET size_enabled = false WHERE size_enabled IS NULL`).catch(() => {});
     await client.query(`UPDATE products SET size_options = '[]'::jsonb WHERE size_options IS NULL`).catch(() => {});

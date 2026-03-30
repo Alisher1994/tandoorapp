@@ -9436,6 +9436,28 @@ body::-webkit-scrollbar,
     font-size: 0.87rem !important;
 }
 
+.admin-product-discount-fields {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.admin-product-discount-note {
+    font-size: 0.74rem;
+    line-height: 1.2;
+}
+
+.admin-product-discount-note.is-valid {
+    color: #166534;
+}
+
+.admin-product-discount-note.is-invalid {
+    color: #b91c1c;
+}
+
+.admin-product-discount-note.is-muted {
+    color: #64748b;
+}
+
 .admin-product-variant-support-line {
     display: flex;
     align-items: center;

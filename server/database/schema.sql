@@ -120,6 +120,8 @@ CREATE TABLE IF NOT EXISTS products (
   thumb_url TEXT,
   product_images JSONB DEFAULT '[]'::jsonb,
   price DECIMAL(10, 2) NOT NULL,
+  discount_enabled BOOLEAN DEFAULT false,
+  discount_price DECIMAL(10, 2),
   unit VARCHAR(20) DEFAULT 'шт',
   order_step DECIMAL(10, 2),
   barcode VARCHAR(100),

@@ -1641,6 +1641,8 @@ function AdminDashboard() {
     unit: 'шт',
     sort_order: 0,
     order_step: '',
+    discount_enabled: false,
+    discount_price: '',
     barcode: '',
     ikpu: '',
     in_stock: true,
@@ -5353,6 +5355,14 @@ function AdminDashboard() {
       const imageSlots = createProductImageSlots(product.product_images, product.image_url, product.thumb_url);
       const mainImage = imageSlots[0] || { url: '', thumb_url: '' };
       const fallbackBasePrice = normalizeProductPriceValue(product.price, NaN);
+      const normalizedDiscountPrice = normalizeProductPriceValue(product.discount_price, NaN);
+      const normalizedDiscountEnabled = (
+        product.size_enabled !== true
+        && product.discount_enabled === true
+        && Number.isFinite(normalizedDiscountPrice)
+        && Number.isFinite(fallbackBasePrice)
+        && normalizedDiscountPrice < fallbackBasePrice
+      );
       const variantFallbackUnit = String(product.unit || 'шт').trim() || 'шт';
       const fallbackContainerNorm = normalizeProductVariantContainerNormValue(product.container_norm, 1);
       const fallbackOrderStep = Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '';
@@ -5390,6 +5400,8 @@ function AdminDashboard() {
         unit: product.unit || 'шт',
         sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
+        discount_enabled: normalizedDiscountEnabled,
+        discount_price: normalizedDiscountEnabled ? normalizedDiscountPrice : '',
         barcode: product.barcode || '',
         ikpu: product.ikpu || '',
         in_stock: product.in_stock !== false,
@@ -5424,6 +5436,8 @@ function AdminDashboard() {
         unit: 'шт',
         sort_order: 0,
         order_step: '',
+        discount_enabled: false,
+        discount_price: '',
         barcode: '',
         ikpu: '',
         in_stock: true,
@@ -5622,6 +5636,8 @@ function AdminDashboard() {
       return {
         ...prev,
         size_enabled: isEnabled,
+        discount_enabled: isEnabled ? false : prev.discount_enabled,
+        discount_price: isEnabled ? '' : prev.discount_price,
         variant_options: nextVariants,
         size_options: normalizeProductVariantOptions(nextVariants, {
           fallbackPrice: fallbackBasePrice,
@@ -6020,6 +6036,30 @@ function AdminDashboard() {
         alert('Укажите корректную цену больше 0');
         return;
       }
+      const discountToggleEnabled = Boolean(productForm.discount_enabled) && !isVariantsMode;
+      const normalizedDiscountPrice = discountToggleEnabled
+        ? normalizeProductPriceValue(productForm.discount_price, NaN)
+        : Number.NaN;
+      if (discountToggleEnabled) {
+        if (!Number.isFinite(normalizedDiscountPrice) || normalizedDiscountPrice <= 0) {
+          alert(language === 'uz'
+            ? "Chegirma narxini to'g'ri kiriting"
+            : 'Укажите корректную цену со скидкой');
+          return;
+        }
+        if (normalizedDiscountPrice >= effectivePrice) {
+          alert(language === 'uz'
+            ? "Chegirma narxi asosiy narxdan kichik bo'lishi kerak"
+            : 'Цена со скидкой должна быть меньше основной цены');
+          return;
+        }
+      }
+      const effectiveDiscountPrice = discountToggleEnabled
+        && Number.isFinite(normalizedDiscountPrice)
+        && normalizedDiscountPrice > 0
+        && normalizedDiscountPrice < effectivePrice
+        ? normalizedDiscountPrice
+        : null;
       const normalizedImages = serializeProductImageSlots(productForm.product_images);
       const mainImage = normalizedImages[0] || { url: '', thumb_url: '' };
       const effectiveNameRu = normalizedNameRu || normalizedNameUz;
@@ -6043,6 +6083,8 @@ function AdminDashboard() {
         ikpu: String(productForm.ikpu || '').trim().slice(0, 64),
         container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1),
         size_enabled: Boolean(productForm.size_enabled),
+        discount_enabled: Boolean(effectiveDiscountPrice),
+        discount_price: effectiveDiscountPrice,
         variant_options: normalizedVariantOptions,
         size_options: normalizedVariantOptions
       };
@@ -6343,6 +6385,8 @@ function AdminDashboard() {
       unit: product.unit || 'шт',
       sort_order: Number.isFinite(Number(product.sort_order)) ? Number(product.sort_order) : 0,
       order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : '',
+      discount_enabled: false,
+      discount_price: '',
       barcode: '',
       ikpu: product.ikpu || '',
       in_stock: true,
@@ -6383,6 +6427,10 @@ function AdminDashboard() {
         price: Number(product.price || 0),
         unit: product.unit || 'шт',
         order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : null,
+        discount_enabled: product.discount_enabled === true,
+        discount_price: Number.isFinite(normalizeProductPriceValue(product.discount_price, NaN))
+          ? normalizeProductPriceValue(product.discount_price, NaN)
+          : null,
         barcode: product.barcode || '',
         ikpu: product.ikpu || '',
         in_stock: nextInStock,
@@ -11644,14 +11692,14 @@ function AdminDashboard() {
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
                       { key: 'general', icon: '⚙️', label: language === 'uz' ? 'Umumiy' : 'Общие' },
-                    { key: 'appearance', icon: '🎨', label: language === 'uz' ? "Dizayn va uslub" : 'Оформление и стиль' },
-                    { key: 'telegram', icon: '✈️', label: 'Telegram' },
-                    { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
-                    { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
-                    { key: 'product_settings', icon: '📦', label: language === 'uz' ? 'Mahsulot sozlamalari' : 'Настройки товаров' },
-                    { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
-                    { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
-                  ].map((tab) => {
+                      { key: 'product_settings', icon: '📦', label: language === 'uz' ? 'Mahsulot sozlamalari' : 'Настройки товаров' },
+                      { key: 'appearance', icon: '🎨', label: language === 'uz' ? "Dizayn va uslub" : 'Оформление и стиль' },
+                      { key: 'telegram', icon: '✈️', label: 'Telegram' },
+                      { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
+                      { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
+                      { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
+                      { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
+                    ].map((tab) => {
                       const isActive = settingsTab === tab.key;
                       return (
                         <button
@@ -15247,17 +15295,95 @@ function AdminDashboard() {
                 </Form.Group>
 
                 {!productForm.size_enabled && (
-                  <Form.Group className="mb-0">
-                    <Form.Label>{t('priceSum')}</Form.Label>
-                    <Form.Control
-                      className="admin-product-compact-field"
-                      required
-                      type="text"
-                      inputMode="decimal"
-                      value={formatProductPriceInputValue(productForm.price)}
-                      onChange={(e) => setProductForm({ ...productForm, price: sanitizeProductPriceInputValue(e.target.value) })}
-                    />
-                  </Form.Group>
+                  <>
+                    <Form.Group className="mb-0">
+                      <Form.Label>{t('priceSum')}</Form.Label>
+                      <Form.Control
+                        className="admin-product-compact-field"
+                        required
+                        type="text"
+                        inputMode="decimal"
+                        value={formatProductPriceInputValue(productForm.price)}
+                        onChange={(e) => {
+                          const nextPrice = sanitizeProductPriceInputValue(e.target.value);
+                          setProductForm((prev) => {
+                            const parsedBasePrice = normalizeProductPriceValue(nextPrice, NaN);
+                            const parsedDiscountPrice = normalizeProductPriceValue(prev.discount_price, NaN);
+                            const shouldResetDiscountPrice = (
+                              prev.discount_enabled
+                              && Number.isFinite(parsedBasePrice)
+                              && Number.isFinite(parsedDiscountPrice)
+                              && parsedDiscountPrice >= parsedBasePrice
+                            );
+                            return {
+                              ...prev,
+                              price: nextPrice,
+                              discount_price: shouldResetDiscountPrice ? '' : prev.discount_price
+                            };
+                          });
+                        }}
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-0">
+                      <Form.Label className="d-flex align-items-center justify-content-between gap-2">
+                        <span>{language === 'uz' ? 'Chegirma' : 'Скидка'}</span>
+                        <Form.Check
+                          type="switch"
+                          id="admin-product-discount-switch"
+                          checked={Boolean(productForm.discount_enabled)}
+                          onChange={(e) => {
+                            const enabled = e.target.checked;
+                            setProductForm((prev) => ({
+                              ...prev,
+                              discount_enabled: enabled,
+                              discount_price: enabled ? prev.discount_price : ''
+                            }));
+                          }}
+                        />
+                      </Form.Label>
+                      {Boolean(productForm.discount_enabled) ? (
+                        (() => {
+                          const basePrice = normalizeProductPriceValue(productForm.price, NaN);
+                          const discountPrice = normalizeProductPriceValue(productForm.discount_price, NaN);
+                          const hasValidDiscount = Number.isFinite(basePrice)
+                            && Number.isFinite(discountPrice)
+                            && discountPrice > 0
+                            && discountPrice < basePrice;
+                          const discountAmount = hasValidDiscount ? Math.max(0, basePrice - discountPrice) : 0;
+                          return (
+                            <div className="admin-product-discount-fields">
+                              <Form.Control
+                                className="admin-product-compact-field"
+                                type="text"
+                                inputMode="decimal"
+                                value={formatProductPriceInputValue(productForm.discount_price)}
+                                onChange={(e) => setProductForm((prev) => ({
+                                  ...prev,
+                                  discount_price: sanitizeProductPriceInputValue(e.target.value)
+                                }))}
+                                placeholder={language === 'uz' ? 'Chegirma narxi' : 'Цена со скидкой'}
+                              />
+                              <div className={`admin-product-discount-note ${hasValidDiscount ? 'is-valid' : 'is-invalid'}`}>
+                                {hasValidDiscount
+                                  ? (language === 'uz'
+                                    ? `Yakuniy narx: ${formatPrice(discountPrice)} ${t('sum')} (-${formatPrice(discountAmount)} ${t('sum')})`
+                                    : `Итоговая цена: ${formatPrice(discountPrice)} ${t('sum')} (-${formatPrice(discountAmount)} ${t('sum')})`)
+                                  : (language === 'uz'
+                                    ? "Chegirma narxi asosiy narxdan kichik bo'lishi kerak"
+                                    : 'Цена со скидкой должна быть меньше основной цены')}
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="admin-product-discount-note is-muted">
+                          {language === 'uz'
+                            ? "Chegirma o'chirilgan. Mijozga oddiy narx ko'rsatiladi."
+                            : 'Скидка отключена. Клиент увидит обычную цену.'}
+                        </div>
+                      )}
+                    </Form.Group>
+                  </>
                 )}
 
                 <Form.Group className="mb-0">

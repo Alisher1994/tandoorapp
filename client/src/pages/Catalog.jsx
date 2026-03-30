@@ -832,13 +832,43 @@ function Catalog() {
     if (!selectedName) return variants[0];
     return variants.find((variant) => String(variant.name || '').trim().toLowerCase() === selectedName) || variants[0];
   };
-  const getSelectedVariantPrice = (product, selectedVariant = null) => {
+  const getSelectedVariantPriceMeta = (product, selectedVariant = null) => {
     const variant = getSelectedVariantDetails(product, selectedVariant);
     if (variant && Number.isFinite(Number(variant.price)) && Number(variant.price) > 0) {
-      return Number(variant.price);
+      return {
+        currentPrice: Number(variant.price),
+        originalPrice: null,
+        isDiscount: false
+      };
     }
-    const fallbackPrice = Number(product?.price);
-    return Number.isFinite(fallbackPrice) ? fallbackPrice : 0;
+
+    const basePrice = Number(product?.price);
+    const normalizedBasePrice = Number.isFinite(basePrice) && basePrice > 0 ? basePrice : 0;
+    const discountEnabled = (
+      product?.discount_enabled === true
+      || product?.discount_enabled === 'true'
+      || product?.discount_active === true
+    );
+    const discountCandidate = Number(
+      product?.discount_effective_price
+      ?? product?.discount_final_price
+      ?? product?.discount_price
+    );
+    const hasValidDiscount = (
+      discountEnabled
+      && Number.isFinite(discountCandidate)
+      && discountCandidate > 0
+      && discountCandidate < normalizedBasePrice
+    );
+
+    return {
+      currentPrice: hasValidDiscount ? discountCandidate : normalizedBasePrice,
+      originalPrice: hasValidDiscount ? normalizedBasePrice : null,
+      isDiscount: hasValidDiscount
+    };
+  };
+  const getSelectedVariantPrice = (product, selectedVariant = null) => {
+    return getSelectedVariantPriceMeta(product, selectedVariant).currentPrice;
   };
   const getSelectedVariantDescription = (product, selectedVariant = null) => {
     const variant = getSelectedVariantDetails(product, selectedVariant);
@@ -2251,7 +2281,8 @@ function Catalog() {
     const productName = getProductName(product);
     const primaryImageUrl = getProductCardImage(product, selectedVariant);
     const productSizeOptions = getProductSizeOptions(product);
-    const productDisplayPrice = getSelectedVariantPrice(product, selectedVariant);
+    const productPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
+    const productDisplayPrice = productPriceMeta.currentPrice;
 
     return (
       <Card
@@ -2508,8 +2539,22 @@ function Catalog() {
               )}
             </div>
           )}
-          <div className="fw-bold mt-auto" style={{ fontSize: '0.9rem', color: 'var(--primary-color)' }}>
-            {formatPrice(productDisplayPrice)} {t('sum')}
+          <div className="mt-auto d-flex flex-column" style={{ lineHeight: 1.2 }}>
+            {productPriceMeta.isDiscount && Number.isFinite(productPriceMeta.originalPrice) && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: '#94a3b8',
+                  textDecoration: 'line-through',
+                  fontWeight: 500
+                }}
+              >
+                {formatPrice(productPriceMeta.originalPrice)} {t('sum')}
+              </span>
+            )}
+            <span className="fw-bold" style={{ fontSize: '0.9rem', color: productPriceMeta.isDiscount ? '#dc2626' : 'var(--primary-color)' }}>
+              {formatPrice(productDisplayPrice)} {t('sum')}
+            </span>
           </div>
         </Card.Body>
       </Card>
@@ -3105,7 +3150,8 @@ function Catalog() {
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
               const isAvailable = product.in_stock !== false;
-              const displayPrice = getSelectedVariantPrice(product, selectedVariant);
+              const displayPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
+              const displayPrice = displayPriceMeta.currentPrice;
               return (
                 <div
                   key={`search-result-${product.id}`}
@@ -3249,11 +3295,30 @@ function Catalog() {
                         {language === 'uz' ? 'Mavjud emas' : 'Нет'}
                       </span>
                     )}
-                    <div
-                      className="text-end mt-1"
-                      style={{ color: 'var(--primary-color)', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.83rem' }}
-                    >
-                      {formatPrice(displayPrice)} {t('sum')}
+                    <div className="text-end mt-1 d-flex flex-column align-items-end" style={{ lineHeight: 1.2 }}>
+                      {displayPriceMeta.isDiscount && Number.isFinite(displayPriceMeta.originalPrice) && (
+                        <span
+                          style={{
+                            color: '#94a3b8',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.72rem',
+                            textDecoration: 'line-through',
+                            fontWeight: 500
+                          }}
+                        >
+                          {formatPrice(displayPriceMeta.originalPrice)} {t('sum')}
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          color: displayPriceMeta.isDiscount ? '#dc2626' : 'var(--primary-color)',
+                          fontWeight: 700,
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.83rem'
+                        }}
+                      >
+                        {formatPrice(displayPrice)} {t('sum')}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -3297,7 +3362,8 @@ function Catalog() {
     : 0;
   const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductCardImage;
   const activeProductDescription = getSelectedVariantDescription(activeProduct, activeProductSelectedVariant);
-  const activeProductDisplayPrice = getSelectedVariantPrice(activeProduct, activeProductSelectedVariant);
+  const activeProductPriceMeta = getSelectedVariantPriceMeta(activeProduct, activeProductSelectedVariant);
+  const activeProductDisplayPrice = activeProductPriceMeta.currentPrice;
   const activeProductCartItem = activeProduct?.id ? getCartItem(activeProduct.id, activeProductSelectedVariant) : null;
   const activeProductQty = activeProductCartItem?.quantity || 0;
   const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
@@ -4125,8 +4191,28 @@ function Catalog() {
                     </span>
                   </div>
 
-                  <div className="fw-bold mb-3" style={{ color: 'var(--primary-color)', fontSize: '2rem', lineHeight: 1.05 }}>
-                    {formatPrice(activeProductDisplayPrice)} {t('sum')}
+                  <div className="mb-3 d-flex flex-column" style={{ lineHeight: 1.05 }}>
+                    {activeProductPriceMeta.isDiscount && Number.isFinite(activeProductPriceMeta.originalPrice) && (
+                      <span
+                        style={{
+                          color: '#94a3b8',
+                          fontSize: '1rem',
+                          textDecoration: 'line-through',
+                          fontWeight: 500
+                        }}
+                      >
+                        {formatPrice(activeProductPriceMeta.originalPrice)} {t('sum')}
+                      </span>
+                    )}
+                    <span
+                      className="fw-bold"
+                      style={{
+                        color: activeProductPriceMeta.isDiscount ? '#dc2626' : 'var(--primary-color)',
+                        fontSize: '2rem'
+                      }}
+                    >
+                      {formatPrice(activeProductDisplayPrice)} {t('sum')}
+                    </span>
                   </div>
 
                   {(productWeeklyBuyers > 0 || productWeeklyOrders > 0 || productWeeklySoldCount > 0) && (

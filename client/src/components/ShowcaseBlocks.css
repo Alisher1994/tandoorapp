@@ -437,9 +437,26 @@
 }
 
 .slider-item-price {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.slider-item-price-old {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.slider-item-price-main {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--primary-color, #4f46e5);
+}
+
+.slider-item-price-main.is-discount {
+  color: #dc2626;
 }
 
 .slider-empty {

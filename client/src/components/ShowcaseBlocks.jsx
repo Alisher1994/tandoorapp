@@ -29,6 +29,32 @@ const getProductImage = (product) => (
   || product?.image
   || '/placeholder.png'
 );
+const getProductPriceMeta = (product) => {
+  const basePrice = Number(product?.price);
+  const normalizedBasePrice = Number.isFinite(basePrice) && basePrice > 0 ? basePrice : 0;
+  const discountEnabled = (
+    product?.discount_enabled === true
+    || product?.discount_enabled === 'true'
+    || product?.discount_active === true
+  );
+  const discountCandidate = Number(
+    product?.discount_effective_price
+    ?? product?.discount_final_price
+    ?? product?.discount_price
+  );
+  const hasValidDiscount = (
+    discountEnabled
+    && Number.isFinite(discountCandidate)
+    && discountCandidate > 0
+    && discountCandidate < normalizedBasePrice
+  );
+
+  return {
+    currentPrice: hasValidDiscount ? discountCandidate : normalizedBasePrice,
+    originalPrice: hasValidDiscount ? normalizedBasePrice : null,
+    isDiscount: hasValidDiscount
+  };
+};
 
 const normalizeId = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -373,6 +399,7 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
           {categoryProducts.map(product => {
             const itemInCart = cartItems.find(item => item.product_id === product.id);
             const quantity = itemInCart?.quantity || 0;
+            const priceMeta = getProductPriceMeta(product);
 
             return (
               <div
@@ -392,8 +419,15 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
                 </div>
                 <div className="slider-item-content">
                   <h4 className="slider-item-name">{getProductName(product)}</h4>
-                  {product.price && (
-                    <div className="slider-item-price">{formatPrice(product.price)} сум</div>
+                  {priceMeta.currentPrice > 0 && (
+                    <div className="slider-item-price">
+                      {priceMeta.isDiscount && Number.isFinite(priceMeta.originalPrice) && (
+                        <span className="slider-item-price-old">{formatPrice(priceMeta.originalPrice)} сум</span>
+                      )}
+                      <span className={`slider-item-price-main ${priceMeta.isDiscount ? 'is-discount' : ''}`}>
+                        {formatPrice(priceMeta.currentPrice)} сум
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
