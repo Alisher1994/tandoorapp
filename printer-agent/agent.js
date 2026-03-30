@@ -269,31 +269,83 @@ async function convertWebpToPng(inputPath, outputPath) {
 }
 
 function prepareImageForThermal(image) {
-  const thresholdRaw = Number.parseInt(process.env.TALABLAR_LOGO_THRESHOLD || '212', 10);
+  const thresholdRaw = Number.parseInt(
+    process.env.TALABLAR_LOGO_DITHER_THRESHOLD || process.env.TALABLAR_LOGO_THRESHOLD || '190',
+    10
+  );
   const threshold = Number.isFinite(thresholdRaw)
-    ? Math.max(160, Math.min(245, thresholdRaw))
-    : 212;
+    ? Math.max(150, Math.min(230, thresholdRaw))
+    : 190;
 
-  // Light brand colors are often lost on thermal printers.
-  // We darken and binarize to keep logos readable in monochrome.
-  image.greyscale().contrast(0.72).brightness(-0.18);
-  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (_x, _y, idx) {
-    const alpha = this.bitmap.data[idx + 3];
-    if (alpha < 24) {
-      this.bitmap.data[idx] = 255;
-      this.bitmap.data[idx + 1] = 255;
-      this.bitmap.data[idx + 2] = 255;
-      this.bitmap.data[idx + 3] = 255;
-      return;
+  // Thermal printers are monochrome. To avoid "black silhouette" artifacts
+  // while still preserving light brand colors, use grayscale + gentle normalize
+  // + Floyd-Steinberg dithering.
+  const width = image.bitmap.width;
+  const height = image.bitmap.height;
+  const data = image.bitmap.data;
+  const luma = new Float32Array(width * height);
+
+  let minLuma = 255;
+  let maxLuma = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pos = y * width + x;
+      const idx = pos * 4;
+      const alpha = data[idx + 3];
+      let value = 255;
+      if (alpha >= 24) {
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        value = (0.299 * r) + (0.587 * g) + (0.114 * b);
+      }
+      luma[pos] = value;
+      if (value < minLuma) minLuma = value;
+      if (value > maxLuma) maxLuma = value;
     }
+  }
 
-    const value = this.bitmap.data[idx];
-    const mono = value < threshold ? 0 : 255;
-    this.bitmap.data[idx] = mono;
-    this.bitmap.data[idx + 1] = mono;
-    this.bitmap.data[idx + 2] = mono;
-    this.bitmap.data[idx + 3] = 255;
-  });
+  const range = maxLuma - minLuma;
+  const normalize = range >= 24;
+  for (let i = 0; i < luma.length; i += 1) {
+    let value = luma[i];
+    if (normalize) {
+      value = ((value - minLuma) * 255) / range;
+    }
+    // Slight darkening to keep light blue/orange letters visible.
+    value = (value * 0.95) - 8;
+    luma[i] = Math.max(0, Math.min(255, value));
+  }
+
+  // Floyd-Steinberg dithering.
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pos = y * width + x;
+      const oldValue = luma[pos];
+      const newValue = oldValue < threshold ? 0 : 255;
+      const err = oldValue - newValue;
+      luma[pos] = newValue;
+
+      if (x + 1 < width) luma[pos + 1] += err * (7 / 16);
+      if (y + 1 < height) {
+        if (x > 0) luma[pos + width - 1] += err * (3 / 16);
+        luma[pos + width] += err * (5 / 16);
+        if (x + 1 < width) luma[pos + width + 1] += err * (1 / 16);
+      }
+    }
+  }
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pos = y * width + x;
+      const idx = pos * 4;
+      const mono = luma[pos] < 128 ? 0 : 255;
+      data[idx] = mono;
+      data[idx + 1] = mono;
+      data[idx + 2] = mono;
+      data[idx + 3] = 255;
+    }
+  }
 }
 
 /** WebP + слишком широкие логотипы: в PNG для escpos, ширина ≤ TALABLAR_LOGO_MAX_WIDTH (576 для 80мм) */
