@@ -7491,6 +7491,18 @@ body::-webkit-scrollbar,
     box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.12);
 }
 
+.form-control-custom.admin-readonly-field {
+    background-color: #f1f5f9;
+    border-color: #d8e2ee;
+    color: #475569;
+    cursor: not-allowed;
+}
+
+.form-control-custom.admin-readonly-field:focus {
+    border-color: #d8e2ee;
+    box-shadow: none;
+}
+
 .sa-inline-action-field {
     position: relative;
 }

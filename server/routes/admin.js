@@ -26,6 +26,7 @@ const {
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureBroadcastSchema } = require('../services/broadcastSchema');
+const { ensureActivityTypesSchema } = require('../services/storeRegistration');
 const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
 const { generateStorePrintForm } = require('../services/printFormGenerator');
 const printerManager = require('../services/printerManager');
@@ -1451,14 +1452,17 @@ router.get('/restaurant', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
     await ensureReservationSchema();
+    await ensureActivityTypesSchema();
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
     const result = await pool.query(
       `SELECT
          r.*,
+         bat.name AS activity_type_name,
          COALESCE(rs.enabled, false) AS reservation_enabled_setting
        FROM restaurants r
+       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
        LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
        WHERE r.id = $1
        LIMIT 1`,

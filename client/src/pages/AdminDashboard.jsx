@@ -11644,13 +11644,14 @@ function AdminDashboard() {
                   <div className="admin-settings-pill-tabs" role="tablist" aria-label="Настройки магазина">
                     {[
                       { key: 'general', icon: '⚙️', label: language === 'uz' ? 'Umumiy' : 'Общие' },
-                      { key: 'appearance', icon: '🎨', label: language === 'uz' ? "Dizayn va uslub" : 'Оформление и стиль' },
-                      { key: 'telegram', icon: '✈️', label: 'Telegram' },
-                      { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
-                      { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
-                      { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
-                      { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
-                    ].map((tab) => {
+                    { key: 'appearance', icon: '🎨', label: language === 'uz' ? "Dizayn va uslub" : 'Оформление и стиль' },
+                    { key: 'telegram', icon: '✈️', label: 'Telegram' },
+                    { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
+                    { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
+                    { key: 'product_settings', icon: '📦', label: language === 'uz' ? 'Mahsulot sozlamalari' : 'Настройки товаров' },
+                    { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
+                    { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
+                  ].map((tab) => {
                       const isActive = settingsTab === tab.key;
                       return (
                         <button
@@ -11834,6 +11835,22 @@ function AdminDashboard() {
                                                 className="form-control-custom"
                                                 value={restaurantSettings.address}
                                                 onChange={e => setRestaurantSettings({ ...restaurantSettings, address: e.target.value })}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={12}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                                {language === 'uz' ? "Do'kon faoliyat turi" : 'Вид деятельности магазина'}
+                                              </Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                readOnly
+                                                className="form-control-custom admin-readonly-field"
+                                                value={String(
+                                                  restaurantSettings.activity_type_name
+                                                  || (language === 'uz' ? 'Tanlanmagan' : 'Не выбран')
+                                                )}
                                               />
                                             </Form.Group>
                                           </Col>
@@ -12673,28 +12690,6 @@ function AdminDashboard() {
                               )}
 
                               <Col md={12}>
-                                <Form.Group>
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
-                                    Сумма минимального заказа ({t('sum')})
-                                  </Form.Label>
-                                  <Form.Control
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
-                                    className="form-control-custom"
-                                    value={restaurantSettings.minimum_order_amount ?? 0}
-                                    onChange={(e) => setRestaurantSettings({
-                                      ...restaurantSettings,
-                                      minimum_order_amount: e.target.value
-                                    })}
-                                  />
-                                  <Form.Text className="text-muted">
-                                    Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
-                                  </Form.Text>
-                                </Form.Group>
-                              </Col>
-
-                              <Col md={12}>
                                 <hr className="my-2" />
                                 <label className="small fw-bold text-muted text-uppercase mb-2 d-block">Режимы времени доставки</label>
                                 <Form.Check
@@ -12753,6 +12748,53 @@ function AdminDashboard() {
                                 🗺️ {restaurantSettings.delivery_zone ? 'Редактировать зону доставки' : 'Настроить зону доставки'}
                               </Button>
                             </Col>
+
+                            <div className="mt-4 pt-3 border-top text-end">
+                              <Button
+                                variant="primary"
+                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom shadow-none"
+                                onClick={saveRestaurantSettings}
+                                disabled={isRestaurantSettingsSaveDisabled}
+                              >
+                                {savingSettings
+                                  ? 'Сохранение...'
+                                  : isTokenSaveLocked
+                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    : isRestaurantSettingsDirty
+                                      ? 'Сохранить изменения'
+                                      : 'Нет изменений'}
+                              </Button>
+                            </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'product_settings' && (
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <Row className="gy-4">
+                              <Col md={12}>
+                                <Form.Group>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                    Сумма минимального заказа ({t('sum')})
+                                  </Form.Label>
+                                  <Form.Control
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    className="form-control-custom"
+                                    value={restaurantSettings.minimum_order_amount ?? 0}
+                                    onChange={(e) => setRestaurantSettings({
+                                      ...restaurantSettings,
+                                      minimum_order_amount: e.target.value
+                                    })}
+                                  />
+                                  <Form.Text className="text-muted">
+                                    Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
+                                  </Form.Text>
+                                </Form.Group>
+                              </Col>
+                            </Row>
 
                             <div className="mt-4 pt-3 border-top text-end">
                               <Button
