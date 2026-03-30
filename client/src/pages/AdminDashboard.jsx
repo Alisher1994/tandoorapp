@@ -724,6 +724,18 @@ const sanitizeProductPriceInputValue = (value) => {
   }
   return integerPart;
 };
+const sanitizeProductStockInputValue = (value) => {
+  const raw = String(value ?? '').replace(/\s+/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  if (!raw) return '';
+  const endsWithDot = raw.endsWith('.');
+  const [rawInteger = '', ...rawFractionParts] = raw.split('.');
+  const integerPart = (rawInteger.replace(/^0+(?=\d)/, '') || '0').slice(0, 14);
+  const fractionPart = rawFractionParts.join('').replace(/\./g, '').slice(0, 3);
+  if (rawFractionParts.length > 0 || endsWithDot) {
+    return fractionPart.length > 0 ? `${integerPart}.${fractionPart}` : `${integerPart}.`;
+  }
+  return integerPart;
+};
 const formatProductPriceInputValue = (value) => {
   const normalized = sanitizeProductPriceInputValue(value);
   if (!normalized) return '';
@@ -1277,7 +1289,7 @@ const normalizeProductVariantOptions = (
       price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
       discount_enabled: hasValidVariantDiscount,
       discount_price: hasValidVariantDiscount ? normalizedDiscountPrice : '',
-      stock_quantity: Number.isFinite(Number(normalizedStockQuantity)) ? Number(normalizedStockQuantity) : '',
+      stock_quantity: normalizedStockQuantity === '' ? '' : Number(normalizedStockQuantity),
       in_stock: normalizedInStock,
       barcode: barcode.slice(0, 120),
       ikpu: (ikpu || String(fallbackIkpu || '').trim()).slice(0, 64),
@@ -1314,7 +1326,7 @@ const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false, d
     price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
     discount_enabled: normalizedDiscountEnabled,
     discount_price: normalizedDiscountEnabled ? normalizedDiscountPrice : '',
-    stock_quantity: Number.isFinite(Number(normalizedStockQuantity)) ? Number(normalizedStockQuantity) : '',
+    stock_quantity: normalizedStockQuantity === '' ? '' : Number(normalizedStockQuantity),
     in_stock: normalizeVariantBooleanValue(defaults.in_stock, true) !== false,
     barcode: '',
     ikpu: String(defaults.ikpu || '').trim().slice(0, 64),
@@ -1422,7 +1434,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
       discount_enabled: hasValidDiscount,
       discount_price: hasValidDiscount ? normalizedDiscountPrice : '',
-      stock_quantity: Number.isFinite(Number(normalizedStockQuantity)) ? Number(normalizedStockQuantity) : '',
+      stock_quantity: normalizedStockQuantity === '' ? '' : Number(normalizedStockQuantity),
       in_stock: normalizedInStock,
       barcode,
       ikpu,
@@ -5886,7 +5898,7 @@ function AdminDashboard() {
         if (field === 'stock_quantity') {
           return {
             ...variant,
-            stock_quantity: sanitizeProductPriceInputValue(value)
+            stock_quantity: sanitizeProductStockInputValue(value)
           };
         }
         if (field === 'in_stock') {
@@ -15367,9 +15379,8 @@ function AdminDashboard() {
                                                   <div className="d-flex flex-column w-100">
                                                     <Form.Control
                                                       className="form-control-custom"
-                                                      type="number"
-                                                      min="0"
-                                                      step="0.001"
+                                                      type="text"
+                                                      inputMode="decimal"
                                                       value={variant.stock_quantity ?? ''}
                                                       onChange={(event) => updateProductVariantOption(index, 'stock_quantity', event.target.value)}
                                                       placeholder={language === 'uz' ? 'Qoldiq' : 'Остаток'}
