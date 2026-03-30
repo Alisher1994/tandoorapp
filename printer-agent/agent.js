@@ -12,7 +12,7 @@ const Jimp = require('jimp');
 const QRCode = require('qrcode');
 const webp = require('webp-converter');
 
-const AGENT_BUILD_ID = '8.14.0+receipt-qr';
+const AGENT_BUILD_ID = '8.14.1+receipt-fixes';
 let AGENT_PKG_VERSION = AGENT_BUILD_ID;
 try {
   AGENT_PKG_VERSION = require('./package.json').version;
@@ -259,14 +259,13 @@ function execFilePromise(file, args) {
 }
 
 async function convertWebpToPng(inputPath, outputPath) {
-  if (process.pkg && process.platform === 'win32' && process.arch === 'x64') {
-    const { dwebpPath } = extractWebpBinariesIfNeeded();
-    if (dwebpPath && fs.existsSync(dwebpPath)) {
-      await execFilePromise(dwebpPath, [inputPath, '-png', '-o', outputPath, '-quiet']);
-      return;
-    }
+  const { dwebpPath } = extractWebpBinariesIfNeeded();
+  if (dwebpPath && fs.existsSync(dwebpPath)) {
+    // dwebp writes PNG by default, explicit "-png" is not supported in bundled builds.
+    await execFilePromise(dwebpPath, [inputPath, '-o', outputPath, '-quiet']);
+    return;
   }
-  await webp.dwebp(inputPath, outputPath, '-png', '-quiet');
+  await webp.dwebp(inputPath, outputPath, '-o');
 }
 
 /** WebP + слишком широкие логотипы: в PNG для escpos, ширина ≤ TALABLAR_LOGO_MAX_WIDTH (576 для 80мм) */
@@ -302,6 +301,7 @@ async function prepareReceiptLogoFile(logoHref) {
   if (image.bitmap.width > maxW) {
     image.resize(maxW, Jimp.AUTO);
   }
+  image.greyscale().contrast(0.45);
   await new Promise((res, rej) => image.write(outPath, (err) => (err ? rej(err) : res())));
   if (workPath !== outPath) {
     try { fs.unlinkSync(workPath); } catch (_) {}
@@ -329,19 +329,76 @@ function resolveFulfillmentTypeLabel(rawType, deliveryAddress) {
   return 'Доставка';
 }
 
-function resolveDeliveryScheduleLabel(deliveryDate, deliveryTime) {
-  const timeRaw = String(deliveryTime || '').trim();
-  const dateRaw = String(deliveryDate || '').trim();
-  if (timeRaw) {
-    return `На время: ${timeRaw}`;
+function toDateYmd(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
   }
-  if (dateRaw) {
-    return `На дату: ${dateRaw}`;
-  }
-  return 'Как можно скорее';
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return '';
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function formatTwoColumns(leftText, rightText, totalWidth = 32) {
+function formatDateRu(rawValue) {
+  const ymd = toDateYmd(rawValue);
+  if (!ymd) return '';
+  const [year, month, day] = ymd.split('-');
+  return `${day}.${month}.${year}`;
+}
+
+function formatTimeRu(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  const hhmm = raw.match(/(\d{1,2}):(\d{2})/);
+  if (hhmm) {
+    return `${hhmm[1].padStart(2, '0')}:${hhmm[2]}`;
+  }
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return raw;
+  return parsed.toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+
+function resolveDeliveryScheduleLabel(deliveryDate, deliveryTime, deliveryScheduleMode, createdAt) {
+  const mode = String(deliveryScheduleMode || '').trim().toLowerCase();
+  const timeRaw = String(deliveryTime || '').trim().toLowerCase();
+
+  if (timeRaw && timeRaw !== 'asap') {
+    return `На время: ${formatTimeRu(deliveryTime)}`;
+  }
+
+  if (mode === 'asap') {
+    return 'Как можно быстрее';
+  }
+
+  const dateLabel = formatDateRu(deliveryDate);
+  if (!dateLabel) {
+    return 'Как можно быстрее';
+  }
+
+  if (mode === 'date') {
+    return `На дату: ${dateLabel}`;
+  }
+
+  // Фолбэк для старого payload: дата == дата создания заказа => срочная доставка.
+  const deliveryYmd = toDateYmd(deliveryDate);
+  const createdYmd = toDateYmd(createdAt);
+  if (deliveryYmd && createdYmd && deliveryYmd === createdYmd) {
+    return 'Как можно быстрее';
+  }
+
+  return `На дату: ${dateLabel}`;
+}
+
+function formatTwoColumns(leftText, rightText, totalWidth = 42) {
   const left = String(leftText || '').trim();
   const right = String(rightText || '').trim();
   if (!left && !right) return '';
@@ -367,8 +424,8 @@ async function generateQrCodeImageBuffer(content, size = 150) {
   return QRCode.toBuffer(String(content || '').trim(), {
     type: 'png',
     width: size,
-    margin: 1,
-    errorCorrectionLevel: 'M'
+    margin: 2,
+    errorCorrectionLevel: 'L'
   });
 }
 
@@ -381,13 +438,6 @@ async function printReceiptQrSection(printer, data) {
   const sectionPath = path.join(installDir, `receipt_qr_${sectionStamp}.png`);
 
   try {
-    const paperWidth = parseInt(process.env.TALABLAR_LOGO_MAX_WIDTH || '384', 10) || 384;
-    const qrSize = 150;
-    const gap = 14;
-    const topBottomPadding = 8;
-    const canvasHeight = (qrSize + topBottomPadding * 2);
-
-    const canvas = new Jimp(paperWidth, canvasHeight, 0xffffffff);
     const qrEntries = [];
 
     if (orderQrValue) {
@@ -405,8 +455,22 @@ async function printReceiptQrSection(printer, data) {
       });
     }
 
+    const rawPaperWidth = parseInt(process.env.TALABLAR_LOGO_MAX_WIDTH || '384', 10);
+    const paperWidth = Number.isFinite(rawPaperWidth) ? Math.min(576, Math.max(320, rawPaperWidth)) : 384;
+    const gap = 12;
+    const sidePadding = 8;
+    const qrSizeMax = 148;
+    const qrSizeTwo = Math.floor((paperWidth - sidePadding * 2 - gap) / 2);
+    const qrSizeSingle = Math.floor(paperWidth - sidePadding * 2);
+    const qrSize = qrEntries.length === 2
+      ? Math.max(120, Math.min(qrSizeMax, qrSizeTwo))
+      : Math.max(120, Math.min(qrSizeMax, qrSizeSingle));
+    const topBottomPadding = 6;
+    const canvasHeight = (qrSize + topBottomPadding * 2);
+    const canvas = new Jimp(paperWidth, canvasHeight, 0xffffffff);
+
     const totalQrWidth = qrEntries.length === 2 ? (qrSize * 2 + gap) : qrSize;
-    const startX = Math.max(0, Math.floor((paperWidth - totalQrWidth) / 2));
+    const startX = Math.max(sidePadding, Math.floor((paperWidth - totalQrWidth) / 2));
 
     for (let index = 0; index < qrEntries.length; index += 1) {
       const entry = qrEntries[index];
@@ -420,7 +484,7 @@ async function printReceiptQrSection(printer, data) {
 
     await canvas.writeAsync(sectionPath);
     const image = await loadEscposImageFromPath(sectionPath);
-    printer.align('ct').raster(image, 'dw').feed(1);
+    printer.align('ct').raster(image).feed(1);
 
     if (qrEntries.length === 2) {
       printer.align('lt').text(tx(formatTwoColumns(qrEntries[0].label, qrEntries[1].label)));
@@ -657,7 +721,7 @@ async function printLogoIfPresent(printer, shopInfo, allowLogo) {
     }
     logoPrintPath = await prepareReceiptLogoFile(logoHref);
     const image = await loadEscposImageFromPath(logoPrintPath);
-    printer.align('ct').raster(image, 'dw');
+    printer.align('ct').raster(image);
     printer.feed(1);
   } catch (e) {
     console.error("Logo printing error:", e.message);
@@ -692,7 +756,13 @@ async function executePrintSequence(printer, device, data, config) {
   printer.text(tx(`Печать: ${new Date(data.printAt).toLocaleString('ru-RU')}`));
   printer.text(tx(`Тип: ${resolveFulfillmentTypeLabel(data.fulfillmentType, data.deliveryAddress)}`));
   printer.text(tx(`Оплата: ${resolvePaymentMethodLabel(data.paymentMethod)}`));
-  printer.text(tx(`Ко времени: ${resolveDeliveryScheduleLabel(data.deliveryDate, data.deliveryTime)}`));
+  printer.text(tx('Ко времени:'));
+  printer.text(tx(`  ${resolveDeliveryScheduleLabel(
+    data.deliveryDate,
+    data.deliveryTime,
+    data.deliveryScheduleMode,
+    data.createdAt
+  )}`));
   printer.text('-------------------------------').feed(1);
 
   // 4. Customer Info

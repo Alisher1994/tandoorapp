@@ -89,6 +89,39 @@ function resolveClientLocationUrl(order) {
   return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
 }
 
+function extractDateYmd(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
+  }
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return '';
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function resolveDeliveryScheduleMode(order) {
+  const timeRaw = String(order?.delivery_time || '').trim().toLowerCase();
+  if (timeRaw && timeRaw !== 'asap') return 'time';
+  if (timeRaw === 'asap') return 'asap';
+
+  const deliveryYmd = extractDateYmd(order?.delivery_date);
+  if (!deliveryYmd) return 'asap';
+
+  const createdYmd = extractDateYmd(order?.created_at);
+  if (createdYmd && deliveryYmd === createdYmd) {
+    return 'asap';
+  }
+
+  const now = new Date();
+  const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return deliveryYmd > todayYmd ? 'date' : 'asap';
+}
+
 function resolveCatalogPublicUrl(restaurantId) {
   const baseRaw = String(
     process.env.FRONTEND_URL
@@ -341,6 +374,7 @@ class PrinterManager {
         comment: order.comment,
         paymentMethod: order.payment_method,
         fulfillmentType,
+        deliveryScheduleMode: resolveDeliveryScheduleMode(order),
         deliveryDate: order.delivery_date,
         deliveryTime: order.delivery_time,
         deliveryCoordinates: order.delivery_coordinates,
