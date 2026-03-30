@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
   product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
   product_name VARCHAR(255) NOT NULL,
+  selected_variant VARCHAR(120),
   quantity DECIMAL(10, 2) NOT NULL,
   unit VARCHAR(20),
   price DECIMAL(10, 2) NOT NULL,

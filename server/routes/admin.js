@@ -137,6 +137,18 @@ const normalizeProductLocalizedNames = (nameRuValue, nameUzValue) => {
     nameUz: effectiveNameUz
   };
 };
+const normalizeSelectedVariant = (value) => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim().slice(0, 120);
+  return normalized || null;
+};
+const extractSelectedVariantFromProductName = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  const match = normalized.match(/\(([^()]{1,120})\)\s*$/);
+  if (!match) return null;
+  return normalizeSelectedVariant(match[1]);
+};
 const normalizeProductVariantOptions = (
   value,
   {
@@ -145,9 +157,19 @@ const normalizeProductVariantOptions = (
     fallbackContainerId = '',
     fallbackContainerNorm = 1,
     fallbackOrderStep = null,
-    unit = 'шт'
+    unit = 'шт',
+    inventoryTrackingEnabled = false,
+    inventoryThreshold = 0
   } = {}
 ) => {
+  const toBooleanOrNull = (input) => {
+    if (input === undefined || input === null) return null;
+    if (typeof input === 'boolean') return input;
+    const normalized = String(input).trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    return null;
+  };
   let source = value;
   if (typeof source === 'string') {
     try {
@@ -176,6 +198,10 @@ const normalizeProductVariantOptions = (
     let containerId = '';
     let containerNormRaw = fallbackContainerNorm;
     let orderStepRaw = fallbackOrderStep;
+    let discountEnabledRaw = false;
+    let discountPriceRaw = null;
+    let stockQuantityRaw = 0;
+    let inStockRaw = true;
 
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       name = toOptionalTrimmedText(item.name || item.value || item.label);
@@ -187,6 +213,10 @@ const normalizeProductVariantOptions = (
       containerId = toOptionalTrimmedText(item.container_id || item.containerId).slice(0, 64);
       containerNormRaw = item.container_norm ?? item.containerNorm ?? fallbackContainerNorm;
       orderStepRaw = item.order_step ?? item.orderStep ?? fallbackOrderStep;
+      discountEnabledRaw = item.discount_enabled ?? item.discountEnabled ?? false;
+      discountPriceRaw = item.discount_price ?? item.discountPrice ?? null;
+      stockQuantityRaw = item.stock_quantity ?? item.stockQuantity ?? 0;
+      inStockRaw = item.in_stock ?? item.inStock ?? true;
 
       const normalizedVariantImages = normalizeProductImages(item.product_images).slice(0, MAX_PRODUCT_VARIANT_IMAGES);
       const fallbackVariantImageUrl = toOptionalTrimmedText(item.image_url || item.imageUrl);
@@ -227,16 +257,37 @@ const normalizeProductVariantOptions = (
       unit,
       null
     );
+    const normalizedVariantPrice = normalizeProductPrice(priceRaw, fallbackPrice);
+    const normalizedVariantDiscountEnabledCandidate = toBooleanOrNull(discountEnabledRaw) === true;
+    const normalizedVariantDiscountPriceCandidate = normalizeProductPrice(discountPriceRaw, null);
+    const normalizedVariantDiscountPrice = (
+      normalizedVariantDiscountEnabledCandidate
+      && normalizedVariantPrice !== null
+      && normalizedVariantDiscountPriceCandidate !== null
+      && normalizedVariantDiscountPriceCandidate < normalizedVariantPrice
+    )
+      ? normalizedVariantDiscountPriceCandidate
+      : null;
+    const normalizedVariantDiscountEnabled = normalizedVariantDiscountPrice !== null;
+    const normalizedVariantStockQuantity = normalizeInventoryQuantity(stockQuantityRaw, 0);
+    const normalizedVariantInStockManual = toBooleanOrNull(inStockRaw);
+    const normalizedVariantInStock = inventoryTrackingEnabled
+      ? normalizedVariantStockQuantity > inventoryThreshold
+      : (normalizedVariantInStockManual === null ? true : normalizedVariantInStockManual);
     normalized.push({
       name,
       description_ru: descriptionRu.slice(0, 1500),
       description_uz: descriptionUz.slice(0, 1500),
-      price: normalizeProductPrice(priceRaw, fallbackPrice),
+      price: normalizedVariantPrice,
       barcode,
       ikpu: (ikpu || toOptionalTrimmedText(fallbackIkpu)).slice(0, 64),
       container_id: normalizedContainerId,
       container_norm: normalizedVariantContainerNorm,
       order_step: normalizedVariantOrderStep,
+      discount_enabled: normalizedVariantDiscountEnabled,
+      discount_price: normalizedVariantDiscountPrice,
+      stock_quantity: normalizedVariantStockQuantity,
+      in_stock: normalizedVariantInStock,
       image_url: imageUrl,
       thumb_url: thumbUrl,
       product_images: variantImages
@@ -2213,7 +2264,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     if (shouldReleaseInventory) {
       const orderItemsResult = await client.query(
-        `SELECT product_id, quantity
+        `SELECT product_id, quantity, product_name, selected_variant
          FROM order_items
          WHERE order_id = $1`,
         [req.params.id]
@@ -2459,6 +2510,7 @@ router.put('/orders/:id/items', async (req, res) => {
 
     await ensureInventorySchema(client);
     await client.query('BEGIN');
+    await client.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_variant VARCHAR(120)`).catch(() => {});
 
     const hasContainerColsResult = await client.query(
       `SELECT COUNT(*)::int AS cnt
@@ -2484,7 +2536,7 @@ router.put('/orders/:id/items', async (req, res) => {
     const hasInventoryReservation = isInventoryTrackingEnabled(order.inventory_reserved);
     const previousOrderItemsForInventory = hasInventoryReservation
       ? (await client.query(
-        `SELECT product_id, quantity
+        `SELECT product_id, quantity, product_name, selected_variant
          FROM order_items
          WHERE order_id = $1`,
         [orderId]
@@ -2537,6 +2589,10 @@ router.put('/orders/:id/items', async (req, res) => {
       const productName = String(rawItem?.product_name || '').trim();
       const productId = Number.parseInt(rawItem?.product_id, 10);
       const resolvedProductId = Number.isFinite(productId) && productId > 0 ? productId : null;
+      const selectedVariant = (
+        normalizeSelectedVariant(rawItem?.selected_variant ?? rawItem?.selectedVariant)
+        || extractSelectedVariantFromProductName(productName)
+      );
 
       if (!productName) {
         await client.query('ROLLBACK');
@@ -2569,21 +2625,22 @@ router.put('/orders/:id/items', async (req, res) => {
 
       if (hasOrderItemContainerColumns) {
         await client.query(
-          `INSERT INTO order_items(order_id, product_id, product_name, quantity, unit, price, total, container_price, container_norm)
-           VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [orderId, resolvedProductId, productName, quantity, rawItem?.unit || 'шт', price, itemTotal, containerPrice, containerNorm]
+          `INSERT INTO order_items(order_id, product_id, product_name, selected_variant, quantity, unit, price, total, container_price, container_norm)
+           VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [orderId, resolvedProductId, productName, selectedVariant, quantity, rawItem?.unit || 'шт', price, itemTotal, containerPrice, containerNorm]
         );
       } else {
         await client.query(
-          `INSERT INTO order_items(order_id, product_id, product_name, quantity, unit, price, total)
-           VALUES($1, $2, $3, $4, $5, $6, $7)`,
-          [orderId, resolvedProductId, productName, quantity, rawItem?.unit || 'шт', price, itemTotal]
+          `INSERT INTO order_items(order_id, product_id, product_name, selected_variant, quantity, unit, price, total)
+           VALUES($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [orderId, resolvedProductId, productName, selectedVariant, quantity, rawItem?.unit || 'шт', price, itemTotal]
         );
       }
 
       normalizedItems.push({
         product_id: resolvedProductId,
         product_name: productName,
+        selected_variant: selectedVariant,
         quantity,
         unit: rawItem?.unit || 'шт',
         price,
@@ -3096,7 +3153,9 @@ router.post('/products', async (req, res) => {
       fallbackContainerId: container_id,
       fallbackContainerNorm: normalizedContainerNorm,
       fallbackOrderStep: normalizedOrderStep,
-      unit: normalizedUnit
+      unit: normalizedUnit,
+      inventoryTrackingEnabled: inventorySettings.trackingEnabled,
+      inventoryThreshold: inventorySettings.threshold
     });
     if (normalizedSizeEnabled) {
       if (normalizedSizeOptions.length === 0) {
@@ -3110,6 +3169,15 @@ router.post('/products', async (req, res) => {
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
       : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
+    const normalizedVariantStockQuantity = normalizedSizeEnabled
+      ? normalizedSizeOptions.reduce(
+        (sum, variant) => Math.round((sum + normalizeInventoryQuantity(variant?.stock_quantity, 0) + Number.EPSILON) * 1000) / 1000,
+        0
+      )
+      : 0;
+    const normalizedVariantInStock = normalizedSizeEnabled
+      ? normalizedSizeOptions.some((variant) => variant?.in_stock !== false)
+      : false;
     const shouldEnableDiscount = normalizeOptionalBoolean(discount_enabled) === true && !normalizedSizeEnabled;
     const normalizedDiscountPriceCandidate = normalizeProductPrice(discount_price, null);
     const normalizedDiscountPrice = shouldEnableDiscount
@@ -3117,12 +3185,16 @@ router.post('/products', async (req, res) => {
       && normalizedDiscountPriceCandidate < normalizedPrice
       ? normalizedDiscountPriceCandidate
       : null;
-    const normalizedDiscountEnabled = normalizedDiscountPrice !== null;
-    const normalizedStockQuantity = normalizeInventoryQuantity(stock_quantity, 0);
+    const normalizedDiscountEnabled = normalizedSizeEnabled ? false : (normalizedDiscountPrice !== null);
+    const normalizedStockQuantity = normalizedSizeEnabled
+      ? normalizedVariantStockQuantity
+      : normalizeInventoryQuantity(stock_quantity, 0);
     const shouldAutoManageInventory = inventorySettings.trackingEnabled && !normalizedSizeEnabled;
-    const normalizedInStock = shouldAutoManageInventory
-      ? normalizedStockQuantity > inventorySettings.threshold
-      : (in_stock !== false);
+    const normalizedInStock = normalizedSizeEnabled
+      ? normalizedVariantInStock
+      : (shouldAutoManageInventory
+        ? normalizedStockQuantity > inventorySettings.threshold
+        : (in_stock !== false));
     const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
     if (!normalizedNames.valid || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
@@ -3214,7 +3286,9 @@ router.post('/products/upsert', async (req, res) => {
       fallbackContainerId: container_id,
       fallbackContainerNorm: normalizedContainerNorm,
       fallbackOrderStep: normalizedOrderStep,
-      unit: normalizedUnit
+      unit: normalizedUnit,
+      inventoryTrackingEnabled: inventorySettings.trackingEnabled,
+      inventoryThreshold: inventorySettings.threshold
     });
     if (normalizedSizeEnabled) {
       if (normalizedSizeOptions.length === 0) {
@@ -3228,6 +3302,15 @@ router.post('/products/upsert', async (req, res) => {
     const normalizedPrice = normalizedBasePrice !== null
       ? normalizedBasePrice
       : normalizeProductPrice(normalizedSizeOptions[0]?.price, null);
+    const normalizedVariantStockQuantity = normalizedSizeEnabled
+      ? normalizedSizeOptions.reduce(
+        (sum, variant) => Math.round((sum + normalizeInventoryQuantity(variant?.stock_quantity, 0) + Number.EPSILON) * 1000) / 1000,
+        0
+      )
+      : 0;
+    const normalizedVariantInStock = normalizedSizeEnabled
+      ? normalizedSizeOptions.some((variant) => variant?.in_stock !== false)
+      : false;
     const hasDiscountEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_enabled');
     const hasDiscountPriceField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_price');
     const shouldEnableDiscountFromBody = normalizeOptionalBoolean(discount_enabled) === true && !normalizedSizeEnabled;
@@ -3237,14 +3320,18 @@ router.post('/products/upsert', async (req, res) => {
       && normalizedDiscountPriceFromBodyRaw < normalizedPrice
       ? normalizedDiscountPriceFromBodyRaw
       : null;
-    const normalizedDiscountEnabledFromBody = normalizedDiscountPriceFromBody !== null;
+    const normalizedDiscountEnabledFromBody = normalizedSizeEnabled ? false : (normalizedDiscountPriceFromBody !== null);
     const hasInStockField = Object.prototype.hasOwnProperty.call(req.body || {}, 'in_stock');
     const hasStockQuantityField = Object.prototype.hasOwnProperty.call(req.body || {}, 'stock_quantity');
-    const normalizedStockQuantityFromBody = normalizeInventoryQuantity(stock_quantity, 0);
+    const normalizedStockQuantityFromBody = normalizedSizeEnabled
+      ? normalizedVariantStockQuantity
+      : normalizeInventoryQuantity(stock_quantity, 0);
     const shouldAutoManageInventory = inventorySettings.trackingEnabled && !normalizedSizeEnabled;
-    const normalizedInStockFromBody = shouldAutoManageInventory
-      ? normalizedStockQuantityFromBody > inventorySettings.threshold
-      : (in_stock !== false);
+    const normalizedInStockFromBody = normalizedSizeEnabled
+      ? normalizedVariantInStock
+      : (shouldAutoManageInventory
+        ? normalizedStockQuantityFromBody > inventorySettings.threshold
+        : (in_stock !== false));
     const normalizedNames = normalizeProductLocalizedNames(name_ru, name_uz);
     if (!normalizedNames.valid || normalizedPrice === null) {
       return res.status(400).json({ error: 'Название (RU или UZ) и цена обязательны' });
@@ -3335,13 +3422,13 @@ router.post('/products/upsert', async (req, res) => {
         paramIndex++;
       }
 
-      if (!shouldAutoManageInventory || hasStockQuantityField || hasInStockField) {
+      if (normalizedSizeEnabled || !shouldAutoManageInventory || hasStockQuantityField || hasInStockField) {
         updateFields.push(`in_stock = $${paramIndex} `);
         updateValues.push(normalizedInStockFromBody);
         paramIndex++;
       }
 
-      if (hasStockQuantityField) {
+      if (normalizedSizeEnabled || hasStockQuantityField) {
         updateFields.push(`stock_quantity = $${paramIndex} `);
         updateValues.push(normalizedStockQuantityFromBody);
         paramIndex++;
@@ -3368,7 +3455,7 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(JSON.stringify(normalizedSizeOptions));
         paramIndex++;
       }
-      if (hasDiscountEnabledField || hasDiscountPriceField) {
+      if (normalizedSizeEnabled || hasDiscountEnabledField || hasDiscountPriceField) {
         updateFields.push(`discount_enabled = $${paramIndex} `);
         updateValues.push(normalizedDiscountEnabledFromBody);
         paramIndex++;
@@ -3483,7 +3570,9 @@ router.put('/products/:id', async (req, res) => {
         fallbackContainerId: fallbackVariantContainerId,
         fallbackContainerNorm: fallbackVariantContainerNorm,
         fallbackOrderStep: normalizedOrderStep,
-        unit: nextUnit
+        unit: nextUnit,
+        inventoryTrackingEnabled: inventorySettings.trackingEnabled,
+        inventoryThreshold: inventorySettings.threshold
       })
       : normalizeProductVariantOptions(oldProduct.size_options, {
         fallbackPrice: basePriceFallback,
@@ -3491,7 +3580,9 @@ router.put('/products/:id', async (req, res) => {
         fallbackContainerId: fallbackVariantContainerId,
         fallbackContainerNorm: fallbackVariantContainerNorm,
         fallbackOrderStep: normalizedOrderStep,
-        unit: nextUnit
+        unit: nextUnit,
+        inventoryTrackingEnabled: inventorySettings.trackingEnabled,
+        inventoryThreshold: inventorySettings.threshold
       });
     if (normalizedSizeEnabled) {
       if (normalizedSizeOptions.length === 0) {
@@ -3508,6 +3599,15 @@ router.put('/products/:id', async (req, res) => {
     if (normalizedPrice === null) {
       return res.status(400).json({ error: 'Цена должна быть больше 0' });
     }
+    const normalizedVariantStockQuantity = normalizedSizeEnabled
+      ? normalizedSizeOptions.reduce(
+        (sum, variant) => Math.round((sum + normalizeInventoryQuantity(variant?.stock_quantity, 0) + Number.EPSILON) * 1000) / 1000,
+        0
+      )
+      : 0;
+    const normalizedVariantInStock = normalizedSizeEnabled
+      ? normalizedSizeOptions.some((variant) => variant?.in_stock !== false)
+      : false;
     const hasDiscountEnabledField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_enabled');
     const hasDiscountPriceField = Object.prototype.hasOwnProperty.call(req.body || {}, 'discount_price');
     const fallbackDiscountEnabled = hasDiscountEnabledField
@@ -3521,16 +3621,20 @@ router.put('/products/:id', async (req, res) => {
       && normalizedDiscountPriceCandidate < normalizedPrice
       ? normalizedDiscountPriceCandidate
       : null;
-    const normalizedDiscountEnabled = normalizedDiscountPrice !== null;
+    const normalizedDiscountEnabled = normalizedSizeEnabled ? false : (normalizedDiscountPrice !== null);
     const hasStockQuantityField = Object.prototype.hasOwnProperty.call(req.body || {}, 'stock_quantity');
     const fallbackStockQuantity = normalizeInventoryQuantity(oldProduct.stock_quantity, 0);
-    const normalizedStockQuantity = hasStockQuantityField
-      ? normalizeInventoryQuantity(stock_quantity, fallbackStockQuantity)
-      : fallbackStockQuantity;
+    const normalizedStockQuantity = normalizedSizeEnabled
+      ? normalizedVariantStockQuantity
+      : (hasStockQuantityField
+        ? normalizeInventoryQuantity(stock_quantity, fallbackStockQuantity)
+        : fallbackStockQuantity);
     const shouldAutoManageInventory = inventorySettings.trackingEnabled && !normalizedSizeEnabled;
-    const normalizedInStock = shouldAutoManageInventory
-      ? normalizedStockQuantity > inventorySettings.threshold
-      : (in_stock !== false);
+    const normalizedInStock = normalizedSizeEnabled
+      ? normalizedVariantInStock
+      : (shouldAutoManageInventory
+        ? normalizedStockQuantity > inventorySettings.threshold
+        : (in_stock !== false));
     const resolvedNameRuSource = name_ru === undefined ? oldProduct.name_ru : name_ru;
     const resolvedNameUzSource = name_uz === undefined ? oldProduct.name_uz : name_uz;
     const normalizedNames = normalizeProductLocalizedNames(resolvedNameRuSource, resolvedNameUzSource);

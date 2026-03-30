@@ -41,6 +41,11 @@ const normalizeFulfillmentType = (value, fallback = 'delivery') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'pickup' ? 'pickup' : fallback;
 };
+const normalizeSelectedVariant = (value) => {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim().slice(0, 120);
+  return normalized || null;
+};
 const resolveContainerUnits = (quantityValue, normValue) => {
   const quantity = Number.parseFloat(quantityValue);
   if (!Number.isFinite(quantity) || quantity <= 0) return 0;
@@ -263,6 +268,7 @@ router.get('/operator-preview', async (req, res) => {
 router.get('/my-orders', authenticate, async (req, res) => {
   try {
     await pool.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1').catch(() => {});
+    await pool.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_variant VARCHAR(120)').catch(() => {});
 
     // Filter by active restaurant if user has one
     const activeRestaurantId = req.user.active_restaurant_id;
@@ -273,6 +279,7 @@ router.get('/my-orders', authenticate, async (req, res) => {
                   json_build_object(
                     'id', oi.id,
                     'product_name', oi.product_name,
+                    'selected_variant', oi.selected_variant,
                     'quantity', oi.quantity,
                     'unit', oi.unit,
                     'price', oi.price,
@@ -610,11 +617,13 @@ router.post('/', authenticate, async (req, res) => {
         || productConfig?.product_name
         || 'Товар';
       const resolvedUnit = String(rawItem?.unit || '').trim() || 'шт';
+      const selectedVariant = normalizeSelectedVariant(rawItem?.selected_variant ?? rawItem?.selectedVariant);
 
       return {
         ...rawItem,
         product_id: resolvedProductId,
         product_name: resolvedProductName,
+        selected_variant: selectedVariant,
         quantity,
         price,
         unit: resolvedUnit,
@@ -759,6 +768,7 @@ router.post('/', authenticate, async (req, res) => {
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_name VARCHAR(255)');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1');
+      await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_variant VARCHAR(120)');
     } catch (e) {
       console.log('ℹ️ Orders columns check:', e.message);
     }
@@ -795,12 +805,13 @@ router.post('/', authenticate, async (req, res) => {
     for (const item of normalizedItems) {
       await client.query(
         `INSERT INTO order_items (
-          order_id, product_id, product_name, quantity, unit, price, total, container_name, container_price, container_norm
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          order_id, product_id, product_name, selected_variant, quantity, unit, price, total, container_name, container_price, container_norm
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           order.id,
           item.product_id || null,
           item.product_name,
+          item.selected_variant || null,
           item.quantity,
           item.unit,
           item.price,
@@ -948,7 +959,7 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
 
     if (order.restaurant_id && isInventoryTrackingEnabled(order.inventory_reserved)) {
       const orderItemsResult = await client.query(
-        `SELECT product_id, quantity
+        `SELECT product_id, quantity, product_name, selected_variant
          FROM order_items
          WHERE order_id = $1`,
         [req.params.id]

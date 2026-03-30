@@ -141,7 +141,7 @@ const releaseOrderInventoryIfReserved = async (client, orderId) => {
   if (!isInventoryTrackingEnabled(order.inventory_reserved)) return false;
 
   const itemsResult = await client.query(
-    `SELECT product_id, quantity
+    `SELECT product_id, quantity, product_name, selected_variant
      FROM order_items
      WHERE order_id = $1`,
     [orderId]

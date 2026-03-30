@@ -9751,12 +9751,14 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     background: transparent;
     overflow: hidden;
-    --variants-min-width: 1880px;
+    --variants-min-width: 2060px;
     --variants-number-col: 52px;
     --variants-name-col: 12%;
     --variants-ru-col: 11%;
     --variants-uz-col: 11%;
     --variants-price-col: 8%;
+    --variants-discount-col: 7%;
+    --variants-stock-col: 7%;
     --variants-barcode-col: 11%;
     --variants-ikpu-col: 8%;
     --variants-container-col: 10%;
@@ -10255,6 +10257,8 @@ body::-webkit-scrollbar,
         var(--variants-ru-col)
         var(--variants-uz-col)
         var(--variants-price-col)
+        var(--variants-discount-col)
+        var(--variants-stock-col)
         var(--variants-barcode-col)
         var(--variants-ikpu-col)
         var(--variants-container-col)
@@ -10271,6 +10275,8 @@ body::-webkit-scrollbar,
         var(--variants-ru-col)
         var(--variants-uz-col)
         var(--variants-price-col)
+        var(--variants-discount-col)
+        var(--variants-stock-col)
         var(--variants-barcode-col)
         var(--variants-ikpu-col)
         var(--variants-container-col)
@@ -10320,6 +10326,8 @@ body::-webkit-scrollbar,
         var(--variants-ru-col)
         var(--variants-uz-col)
         var(--variants-price-col)
+        var(--variants-discount-col)
+        var(--variants-stock-col)
         var(--variants-barcode-col)
         var(--variants-ikpu-col)
         var(--variants-container-col)
@@ -10336,6 +10344,8 @@ body::-webkit-scrollbar,
         var(--variants-ru-col)
         var(--variants-uz-col)
         var(--variants-price-col)
+        var(--variants-discount-col)
+        var(--variants-stock-col)
         var(--variants-barcode-col)
         var(--variants-ikpu-col)
         var(--variants-container-col)
@@ -10392,30 +10402,42 @@ body::-webkit-scrollbar,
 }
 
 .admin-variant-table-col:nth-child(6) {
+    flex: 0 0 var(--variants-discount-col);
+    max-width: var(--variants-discount-col);
+    min-width: 130px;
+}
+
+.admin-variant-table-col:nth-child(7) {
+    flex: 0 0 var(--variants-stock-col);
+    max-width: var(--variants-stock-col);
+    min-width: 140px;
+}
+
+.admin-variant-table-col:nth-child(8) {
     flex: 0 0 var(--variants-barcode-col);
     max-width: var(--variants-barcode-col);
     min-width: 165px;
 }
 
-.admin-variant-table-col:nth-child(7) {
+.admin-variant-table-col:nth-child(9) {
     flex: 0 0 var(--variants-ikpu-col);
     max-width: var(--variants-ikpu-col);
     min-width: 140px;
 }
 
-.admin-variant-table-col:nth-child(8) {
+.admin-variant-table-col:nth-child(10) {
     flex: 0 0 var(--variants-container-col);
     max-width: var(--variants-container-col);
     min-width: 160px;
 }
 
-.admin-variant-table-col:nth-child(9) {
+.admin-variant-table-col:nth-child(11) {
     flex: 0 0 var(--variants-container-norm-col);
     max-width: var(--variants-container-norm-col);
     min-width: 115px;
 }
 
-.admin-variant-table-input-row.is-kg .admin-variant-table-col:nth-child(10) {
+.admin-variant-table-input-row.is-kg .admin-variant-table-col:nth-child(12) {
     flex: 0 0 var(--variants-step-col);
     max-width: var(--variants-step-col);
     min-width: 115px;
@@ -10446,6 +10468,29 @@ body::-webkit-scrollbar,
 
 .admin-variant-table-col:last-child {
     border-right: none;
+}
+
+.admin-variant-inline-switch {
+    margin: 0 !important;
+    width: 100%;
+}
+
+.admin-variant-inline-switch .form-check-input {
+    float: none !important;
+    margin: 0 0.35rem 0 0 !important;
+}
+
+.admin-variant-inline-switch .form-check-label {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    line-height: 1.1;
+}
+
+.admin-variant-stock-inline-note {
+    margin-top: 0.12rem;
+    font-size: 0.62rem;
+    line-height: 1.1;
+    color: var(--text-muted);
 }
 
 .admin-variant-table-col-actions {
@@ -10676,14 +10721,14 @@ body::-webkit-scrollbar,
 
 @media (max-width: 1399.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1780px;
+        --variants-min-width: 1960px;
         --variants-actions-col: 56px;
     }
 }
 
 @media (max-width: 1199.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1660px;
+        --variants-min-width: 1860px;
         --variants-actions-col: 54px;
     }
 
@@ -10699,7 +10744,7 @@ body::-webkit-scrollbar,
 
 @media (max-width: 991.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1540px;
+        --variants-min-width: 1760px;
         --variants-actions-col: 52px;
     }
 
@@ -10711,7 +10756,7 @@ body::-webkit-scrollbar,
 
 @media (max-width: 767.98px) {
     .admin-variants-simple-wrap {
-        --variants-min-width: 1440px;
+        --variants-min-width: 1680px;
         --variants-actions-col: 50px;
     }
 

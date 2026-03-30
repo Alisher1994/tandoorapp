@@ -714,6 +714,10 @@ function Catalog() {
       let imageUrl = '';
       let thumbUrl = '';
       let variantImages = [];
+      let discountEnabledRaw = false;
+      let discountPriceRaw = null;
+      let stockQuantityRaw = null;
+      let inStockRaw = true;
       let hasContainerName = false;
       let hasContainerPrice = false;
       let hasContainerNorm = false;
@@ -729,6 +733,10 @@ function Catalog() {
         descriptionUz = String(item.description_uz || item.descriptionUz || '').trim();
         priceRaw = item.price ?? fallbackPrice;
         barcode = String(item.barcode || '').trim();
+        discountEnabledRaw = item.discount_enabled ?? item.discountEnabled ?? false;
+        discountPriceRaw = item.discount_price ?? item.discountPrice ?? null;
+        stockQuantityRaw = item.stock_quantity ?? item.stockQuantity ?? null;
+        inStockRaw = item.in_stock ?? item.inStock ?? true;
         variantImages = getProductImageItems(item).slice(0, 4);
         const mainVariantImage = variantImages[0] || null;
         imageUrl = String(mainVariantImage?.url || item.image_url || item.imageUrl || '').trim();
@@ -759,6 +767,18 @@ function Catalog() {
       unique.add(key);
 
       const normalizedPrice = parseFloat(String(priceRaw ?? '').replace(',', '.'));
+      const normalizedDiscountPrice = parseFloat(String(discountPriceRaw ?? '').replace(',', '.'));
+      const normalizedStockQuantity = stockQuantityRaw === null || stockQuantityRaw === undefined || stockQuantityRaw === ''
+        ? null
+        : parseFloat(String(stockQuantityRaw).replace(',', '.'));
+      const normalizedDiscountEnabled = (
+        (discountEnabledRaw === true || discountEnabledRaw === 'true' || discountEnabledRaw === 1 || discountEnabledRaw === '1')
+        && Number.isFinite(normalizedPrice)
+        && normalizedPrice > 0
+        && Number.isFinite(normalizedDiscountPrice)
+        && normalizedDiscountPrice > 0
+        && normalizedDiscountPrice < normalizedPrice
+      );
       const normalizedContainerPrice = containerPriceRaw === null || containerPriceRaw === undefined
         ? null
         : parseFloat(String(containerPriceRaw).replace(',', '.'));
@@ -780,6 +800,10 @@ function Catalog() {
         description_ru: descriptionRu.slice(0, 1500),
         description_uz: descriptionUz.slice(0, 1500),
         price: Number.isFinite(normalizedPrice) && normalizedPrice > 0 ? normalizedPrice : null,
+        discount_enabled: normalizedDiscountEnabled,
+        discount_price: normalizedDiscountEnabled ? normalizedDiscountPrice : null,
+        stock_quantity: Number.isFinite(normalizedStockQuantity) && normalizedStockQuantity >= 0 ? normalizedStockQuantity : null,
+        in_stock: !(inStockRaw === false || inStockRaw === 'false' || inStockRaw === 0 || inStockRaw === '0'),
         barcode: barcode.slice(0, 120),
         image_url: imageUrl,
         thumb_url: thumbUrl,
@@ -823,22 +847,46 @@ function Catalog() {
     if (selected && options.some((item) => item.toLowerCase() === selected.toLowerCase())) {
       return options.find((item) => item.toLowerCase() === selected.toLowerCase()) || selected;
     }
-    return options[0];
+    const firstInStockVariant = variants.find((variant) => variant?.in_stock !== false);
+    return firstInStockVariant?.name || options[0];
   };
   const getSelectedVariantDetails = (product, selectedVariant = null) => {
     const variants = getProductVariantOptions(product);
     if (!variants.length) return null;
     const selectedName = String(selectedVariant || getSelectedVariantForProduct(product) || '').trim().toLowerCase();
-    if (!selectedName) return variants[0];
-    return variants.find((variant) => String(variant.name || '').trim().toLowerCase() === selectedName) || variants[0];
+    const fallbackVariant = variants.find((variant) => variant?.in_stock !== false) || variants[0];
+    if (!selectedName) return fallbackVariant;
+    return variants.find((variant) => String(variant.name || '').trim().toLowerCase() === selectedName) || fallbackVariant;
+  };
+  const getSelectedVariantAvailability = (product, selectedVariant = null) => {
+    const variant = getSelectedVariantDetails(product, selectedVariant);
+    if (variant) return variant.in_stock !== false;
+    return product?.in_stock !== false;
   };
   const getSelectedVariantPriceMeta = (product, selectedVariant = null) => {
     const variant = getSelectedVariantDetails(product, selectedVariant);
     if (variant && Number.isFinite(Number(variant.price)) && Number(variant.price) > 0) {
+      const variantBasePrice = Number(variant.price);
+      const variantDiscountEnabled = (
+        variant?.discount_enabled === true
+        || variant?.discount_enabled === 'true'
+        || variant?.discount_active === true
+      );
+      const variantDiscountCandidate = Number(
+        variant?.discount_effective_price
+        ?? variant?.discount_final_price
+        ?? variant?.discount_price
+      );
+      const hasVariantDiscount = (
+        variantDiscountEnabled
+        && Number.isFinite(variantDiscountCandidate)
+        && variantDiscountCandidate > 0
+        && variantDiscountCandidate < variantBasePrice
+      );
       return {
-        currentPrice: Number(variant.price),
-        originalPrice: null,
-        isDiscount: false
+        currentPrice: hasVariantDiscount ? variantDiscountCandidate : variantBasePrice,
+        originalPrice: hasVariantDiscount ? variantBasePrice : null,
+        isDiscount: hasVariantDiscount
       };
     }
 
@@ -1050,6 +1098,8 @@ function Catalog() {
     };
     const selectedVariant = getSelectedVariantForProduct(product);
     const selectedVariantDetails = getSelectedVariantDetails(product, selectedVariant);
+    const selectedVariantAvailable = getSelectedVariantAvailability(product, selectedVariant);
+    if (!selectedVariantAvailable) return;
     const variantPrice = getSelectedVariantPrice(product, selectedVariant);
     const selectedVariantDescription = getSelectedVariantDescription(product, selectedVariant);
     const variantImageItems = getProductImageItems(selectedVariantDetails).slice(0, 4);
@@ -1083,6 +1133,7 @@ function Catalog() {
       description_ru: language === 'uz' ? (product?.description_ru || selectedVariantDescription) : selectedVariantDescription,
       description_uz: language === 'uz' ? selectedVariantDescription : (product?.description_uz || selectedVariantDescription),
       selected_variant: selectedVariant || null,
+      in_stock: selectedVariantAvailable,
       container_name: resolvedContainerName,
       container_price: Number.isFinite(resolvedContainerPrice) && resolvedContainerPrice > 0 ? resolvedContainerPrice : 0,
       container_norm: Number.isFinite(resolvedContainerNorm) && resolvedContainerNorm > 0 ? resolvedContainerNorm : 1,
@@ -2283,6 +2334,7 @@ function Catalog() {
     const productSizeOptions = getProductSizeOptions(product);
     const productPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
     const productDisplayPrice = productPriceMeta.currentPrice;
+    const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
 
     return (
       <Card
@@ -2329,7 +2381,7 @@ function Catalog() {
               <span style={{ fontSize: '3rem', opacity: 0.3 }}>🏪</span>
             </div>
           )}
-          {!product.in_stock && (
+          {!isAvailable && (
             <div
               style={{
                 position: 'absolute',
@@ -2383,7 +2435,7 @@ function Catalog() {
           </button>
 
           {/* Quantity controls on image */}
-          {product.in_stock && productSizeOptions.length === 0 && (
+          {isAvailable && productSizeOptions.length === 0 && (
             <>
               {/* Plus button or Quantity circle */}
               {!isOpen && (
@@ -3149,7 +3201,7 @@ function Catalog() {
               const cartItem = getCartItem(product.id, selectedVariant);
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
-              const isAvailable = product.in_stock !== false;
+              const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
               const displayPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
               const displayPrice = displayPriceMeta.currentPrice;
               return (
@@ -3369,6 +3421,9 @@ function Catalog() {
   const activeProductQuantityStep = resolveQuantityStep(activeProductCartItem || activeProduct || {});
   const activeProductFavorite = activeProduct?.id ? isFavorite(activeProduct.id) : false;
   const activeProductSizeOptions = getProductSizeOptions(activeProduct);
+  const activeProductIsAvailable = activeProduct
+    ? getSelectedVariantAvailability(activeProduct, activeProductSelectedVariant)
+    : false;
 
   return (
     <>
@@ -4180,12 +4235,12 @@ function Catalog() {
                     <span
                       className="badge"
                       style={{
-                        background: activeProduct?.in_stock !== false ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
-                        color: activeProduct?.in_stock !== false ? '#166534' : '#475569',
+                        background: activeProductIsAvailable ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
+                        color: activeProductIsAvailable ? '#166534' : '#475569',
                         border: '1px solid rgba(15,23,42,0.08)'
                       }}
                     >
-                      {activeProduct?.in_stock !== false
+                      {activeProductIsAvailable
                         ? (language === 'uz' ? 'Mavjud' : 'В наличии')
                         : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
                     </span>
@@ -4412,7 +4467,7 @@ function Catalog() {
 
               <div className="product-details-bottom-bar">
                 <div className="product-details-bottom-inner">
-                  {activeProduct?.in_stock !== false ? (
+                  {activeProductIsAvailable ? (
                     activeProductQty > 0 ? (
                       <>
                         <div className="product-details-bottom-stepper">

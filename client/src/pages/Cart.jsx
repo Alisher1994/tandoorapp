@@ -800,6 +800,7 @@ function Cart() {
         items: cart.map(item => ({
           product_id: item.id,
           product_name: item.selected_variant ? `${item.name_ru} (${item.selected_variant})` : item.name_ru,
+          selected_variant: item.selected_variant || null,
           quantity: item.quantity,
           unit: item.unit,
           price: item.price,

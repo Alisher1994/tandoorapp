@@ -1147,6 +1147,21 @@ const normalizeProductVariantOrderStepValue = (value, unit = 'шт', fallback = 
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.round((parsed + Number.EPSILON) * 100) / 100;
 };
+const normalizeVariantBooleanValue = (value, fallback = null) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+};
+const normalizeProductVariantStockQuantityValue = (value, fallback = '') => {
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = String(value).trim().replace(/\s+/g, '').replace(',', '.');
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.round((parsed + Number.EPSILON) * 1000) / 1000;
+};
 const normalizeProductVariantOptions = (
   value,
   {
@@ -1155,7 +1170,9 @@ const normalizeProductVariantOptions = (
     fallbackContainerId = '',
     fallbackContainerNorm = 1,
     fallbackOrderStep = '',
-    unit = 'шт'
+    unit = 'шт',
+    inventoryTrackingEnabled = false,
+    inventoryThreshold = 0
   } = {}
 ) => {
   let source = value;
@@ -1186,6 +1203,10 @@ const normalizeProductVariantOptions = (
     let containerId = '';
     let containerNormRaw = '';
     let orderStepRaw = '';
+    let discountEnabledRaw = false;
+    let discountPriceRaw = '';
+    let stockQuantityRaw = '';
+    let inStockRaw = true;
 
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       name = String(item.name || item.value || item.label || '').trim();
@@ -1197,6 +1218,10 @@ const normalizeProductVariantOptions = (
       containerId = String(item.container_id ?? item.containerId ?? '').trim();
       containerNormRaw = item.container_norm ?? item.containerNorm;
       orderStepRaw = item.order_step ?? item.orderStep;
+      discountEnabledRaw = item.discount_enabled ?? item.discountEnabled ?? false;
+      discountPriceRaw = item.discount_price ?? item.discountPrice ?? '';
+      stockQuantityRaw = item.stock_quantity ?? item.stockQuantity ?? '';
+      inStockRaw = item.in_stock ?? item.inStock ?? true;
       variantImages = serializeVariantImageSlots(
         createVariantImageSlots(item.product_images, item.image_url, item.thumb_url)
       );
@@ -1230,11 +1255,30 @@ const normalizeProductVariantOptions = (
       unit,
       ''
     );
+    const normalizedDiscountEnabledCandidate = normalizeVariantBooleanValue(discountEnabledRaw, false) === true;
+    const normalizedDiscountPrice = normalizeProductPriceValue(discountPriceRaw, NaN);
+    const hasValidVariantDiscount = normalizedDiscountEnabledCandidate
+      && Number.isFinite(normalizedPrice)
+      && normalizedPrice > 0
+      && Number.isFinite(normalizedDiscountPrice)
+      && normalizedDiscountPrice > 0
+      && normalizedDiscountPrice < normalizedPrice;
+    const normalizedStockQuantity = normalizeProductVariantStockQuantityValue(stockQuantityRaw, '');
+    const normalizedManualInStock = normalizeVariantBooleanValue(inStockRaw, true);
+    const normalizedInStock = inventoryTrackingEnabled
+      ? (Number.isFinite(Number(normalizedStockQuantity))
+        ? Number(normalizedStockQuantity) > Number(inventoryThreshold || 0)
+        : false)
+      : (normalizedManualInStock !== false);
     normalized.push({
       name,
       description_ru: descriptionRu.slice(0, 1500),
       description_uz: descriptionUz.slice(0, 1500),
       price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
+      discount_enabled: hasValidVariantDiscount,
+      discount_price: hasValidVariantDiscount ? normalizedDiscountPrice : '',
+      stock_quantity: Number.isFinite(Number(normalizedStockQuantity)) ? Number(normalizedStockQuantity) : '',
+      in_stock: normalizedInStock,
       barcode: barcode.slice(0, 120),
       ikpu: (ikpu || String(fallbackIkpu || '').trim()).slice(0, 64),
       container_id: normalizedContainerId,
@@ -1255,12 +1299,23 @@ const createProductVariantDraft = (name, fallbackPrice = NaN, isDraft = false, d
   const normalizedContainerNorm = normalizedContainerId
     ? normalizeProductVariantContainerNormValue(defaults.container_norm, 1)
     : 1;
+  const normalizedDiscountPrice = normalizeProductPriceValue(defaults.discount_price, NaN);
+  const normalizedDiscountEnabled = normalizeVariantBooleanValue(defaults.discount_enabled, false) === true
+    && Number.isFinite(normalizedPrice)
+    && Number.isFinite(normalizedDiscountPrice)
+    && normalizedDiscountPrice > 0
+    && normalizedDiscountPrice < normalizedPrice;
+  const normalizedStockQuantity = normalizeProductVariantStockQuantityValue(defaults.stock_quantity, '');
   return {
     __key: `variant-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: normalizedName,
     description_ru: '',
     description_uz: '',
     price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
+    discount_enabled: normalizedDiscountEnabled,
+    discount_price: normalizedDiscountEnabled ? normalizedDiscountPrice : '',
+    stock_quantity: Number.isFinite(Number(normalizedStockQuantity)) ? Number(normalizedStockQuantity) : '',
+    in_stock: normalizeVariantBooleanValue(defaults.in_stock, true) !== false,
     barcode: '',
     ikpu: String(defaults.ikpu || '').trim().slice(0, 64),
     container_id: normalizedContainerId,
@@ -1301,6 +1356,10 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       ? normalizeProductVariantContainerNormValue(item.container_norm ?? item.containerNorm, 1)
       : 1;
     const orderStep = normalizeProductVariantOrderStepValue(item.order_step ?? item.orderStep, unit, '');
+    const discountEnabledRaw = item.discount_enabled ?? item.discountEnabled ?? false;
+    const discountPriceRaw = item.discount_price ?? item.discountPrice ?? '';
+    const stockQuantityRaw = item.stock_quantity ?? item.stockQuantity ?? '';
+    const inStockRaw = item.in_stock ?? item.inStock ?? true;
     const variantImages = serializeVariantImageSlots(
       createVariantImageSlots(item.product_images, item.image_url, item.thumb_url)
     );
@@ -1314,9 +1373,21 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       thumb_url: thumbUrl
     });
     const normalizedPrice = normalizeProductPriceValue(priceRaw, NaN);
+    const normalizedDiscountEnabledCandidate = normalizeVariantBooleanValue(discountEnabledRaw, false) === true;
+    const normalizedDiscountPrice = normalizeProductPriceValue(discountPriceRaw, NaN);
+    const hasValidDiscount = normalizedDiscountEnabledCandidate
+      && Number.isFinite(normalizedPrice)
+      && Number.isFinite(normalizedDiscountPrice)
+      && normalizedDiscountPrice > 0
+      && normalizedDiscountPrice < normalizedPrice;
+    const normalizedStockQuantity = normalizeProductVariantStockQuantityValue(stockQuantityRaw, '');
+    const normalizedInStock = normalizeVariantBooleanValue(inStockRaw, true) !== false;
     const isDraft = Boolean(item.__draft) || !name;
     const explicitPriceRaw = item.price;
     const hasExplicitPrice = ![undefined, null, ''].includes(explicitPriceRaw) && Number.isFinite(normalizedPrice);
+    const hasExplicitDiscount = hasValidDiscount;
+    const hasExplicitStock = Number.isFinite(Number(normalizedStockQuantity)) && Number(normalizedStockQuantity) > 0;
+    const hasManualOutOfStock = normalizedInStock === false;
 
     const hasAnyContent = Boolean(
       name
@@ -1331,6 +1402,9 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       || visibleSlotsCount > 1
       || variantImages.some((variantImage) => String(variantImage?.url || '').trim())
       || hasExplicitPrice
+      || hasExplicitDiscount
+      || hasExplicitStock
+      || hasManualOutOfStock
     );
     if (!hasAnyContent && !isDraft) continue;
 
@@ -1346,6 +1420,10 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       description_ru: descriptionRu,
       description_uz: descriptionUz,
       price: Number.isFinite(normalizedPrice) ? normalizedPrice : '',
+      discount_enabled: hasValidDiscount,
+      discount_price: hasValidDiscount ? normalizedDiscountPrice : '',
+      stock_quantity: Number.isFinite(Number(normalizedStockQuantity)) ? Number(normalizedStockQuantity) : '',
+      in_stock: normalizedInStock,
       barcode,
       ikpu,
       container_id: containerId,
@@ -5681,6 +5759,9 @@ function AdminDashboard() {
         || String(variant.barcode || '').trim()
         || String(variant.ikpu || '').trim()
         || Number.isFinite(normalizeProductPriceValue(variant.price, NaN))
+        || (Boolean(variant.discount_enabled) && Number.isFinite(normalizeProductPriceValue(variant.discount_price, NaN)))
+        || Number.isFinite(Number.parseFloat(String(variant.stock_quantity ?? '').replace(',', '.')))
+        || variant.in_stock === false
         || (String(variant.container_id || '').trim() && Number.parseFloat(variant.container_norm) > 0)
         || (prev.unit === 'кг' && Number.parseFloat(variant.order_step) > 0)
         || (Array.isArray(variant.product_images) && variant.product_images.some((img) => String(img?.url || '').trim()))
@@ -5708,9 +5789,21 @@ function AdminDashboard() {
       const nextVariants = variants.map((variant, variantIndex) => {
         if (variantIndex !== index) return variant;
         if (field === 'price') {
+          const nextPrice = sanitizeProductPriceInputValue(value);
+          const parsedNextPrice = normalizeProductPriceValue(nextPrice, NaN);
+          const parsedDiscountPrice = normalizeProductPriceValue(variant.discount_price, NaN);
+          const keepDiscount = (
+            Boolean(variant.discount_enabled)
+            && Number.isFinite(parsedNextPrice)
+            && Number.isFinite(parsedDiscountPrice)
+            && parsedDiscountPrice > 0
+            && parsedDiscountPrice < parsedNextPrice
+          );
           return {
             ...variant,
-            price: sanitizeProductPriceInputValue(value)
+            price: nextPrice,
+            discount_enabled: keepDiscount,
+            discount_price: keepDiscount ? variant.discount_price : ''
           };
         }
         if (field === 'name') {
@@ -5759,6 +5852,47 @@ function AdminDashboard() {
           return {
             ...variant,
             [field]: String(value || '').slice(0, 1500)
+          };
+        }
+        if (field === 'discount_enabled') {
+          const enabled = value === true;
+          const parsedPrice = normalizeProductPriceValue(variant.price, NaN);
+          const parsedDiscountPrice = normalizeProductPriceValue(variant.discount_price, NaN);
+          const keepDiscountPrice = enabled
+            && Number.isFinite(parsedPrice)
+            && Number.isFinite(parsedDiscountPrice)
+            && parsedDiscountPrice > 0
+            && parsedDiscountPrice < parsedPrice;
+          return {
+            ...variant,
+            discount_enabled: enabled && keepDiscountPrice,
+            discount_price: enabled ? variant.discount_price : ''
+          };
+        }
+        if (field === 'discount_price') {
+          const parsedPrice = normalizeProductPriceValue(variant.price, NaN);
+          const nextDiscountPrice = sanitizeProductPriceInputValue(value);
+          const parsedDiscountPrice = normalizeProductPriceValue(nextDiscountPrice, NaN);
+          const hasValidDiscount = Number.isFinite(parsedPrice)
+            && Number.isFinite(parsedDiscountPrice)
+            && parsedDiscountPrice > 0
+            && parsedDiscountPrice < parsedPrice;
+          return {
+            ...variant,
+            discount_enabled: hasValidDiscount,
+            discount_price: nextDiscountPrice
+          };
+        }
+        if (field === 'stock_quantity') {
+          return {
+            ...variant,
+            stock_quantity: sanitizeProductPriceInputValue(value)
+          };
+        }
+        if (field === 'in_stock') {
+          return {
+            ...variant,
+            in_stock: value !== false
           };
         }
         return variant;
@@ -6027,7 +6161,9 @@ function AdminDashboard() {
         fallbackContainerId: productForm.container_id || '',
         fallbackContainerNorm: productForm.container_norm,
         fallbackOrderStep: productForm.order_step,
-        unit: productForm.unit || 'шт'
+        unit: productForm.unit || 'шт',
+        inventoryTrackingEnabled: Boolean(restaurantSettings?.inventory_tracking_enabled),
+        inventoryThreshold: Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0)
       });
       const isVariantsMode = Boolean(productForm.size_enabled);
       if (isVariantsMode) {
@@ -6056,6 +6192,74 @@ function AdminDashboard() {
         alert('Укажите корректную цену больше 0');
         return;
       }
+      const inventoryTrackingEnabled = Boolean(restaurantSettings?.inventory_tracking_enabled);
+      const inventoryMinThreshold = Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0);
+      const effectiveVariantOptions = isVariantsMode
+        ? normalizedVariantOptions.map((variant) => {
+          const variantBasePrice = normalizeProductPriceValue(variant.price, NaN);
+          const variantDiscountPrice = normalizeProductPriceValue(variant.discount_price, NaN);
+          const hasVariantDiscount = Number.isFinite(variantBasePrice)
+            && Number.isFinite(variantDiscountPrice)
+            && variantDiscountPrice > 0
+            && variantDiscountPrice < variantBasePrice;
+          const parsedVariantStock = Number.parseFloat(
+            String(variant.stock_quantity ?? '')
+              .replace(/\s+/g, '')
+              .replace(',', '.')
+          );
+          const normalizedVariantStock = inventoryTrackingEnabled
+            ? (Number.isFinite(parsedVariantStock) && parsedVariantStock >= 0 ? parsedVariantStock : Number.NaN)
+            : null;
+          const normalizedVariantInStock = inventoryTrackingEnabled
+            ? (Number.isFinite(normalizedVariantStock) && normalizedVariantStock > inventoryMinThreshold)
+            : (variant.in_stock !== false);
+          return {
+            ...variant,
+            discount_enabled: hasVariantDiscount,
+            discount_price: hasVariantDiscount ? variantDiscountPrice : null,
+            stock_quantity: inventoryTrackingEnabled
+              ? (Number.isFinite(normalizedVariantStock)
+                ? Math.round((normalizedVariantStock + Number.EPSILON) * 1000) / 1000
+                : Number.NaN)
+              : null,
+            in_stock: normalizedVariantInStock
+          };
+        })
+        : normalizedVariantOptions;
+
+      if (isVariantsMode) {
+        const invalidVariantDiscount = effectiveVariantOptions.find((variant) => {
+          const basePrice = normalizeProductPriceValue(variant.price, NaN);
+          const discountPriceRaw = normalizeProductPriceValue(
+            variant.discount_price ?? variant.discountPrice ?? '',
+            Number.NaN
+          );
+          const hasDiscountField = String(variant.discount_price ?? variant.discountPrice ?? '').trim() !== '';
+          if (!hasDiscountField) return false;
+          return !Number.isFinite(discountPriceRaw) || !Number.isFinite(basePrice) || discountPriceRaw <= 0 || discountPriceRaw >= basePrice;
+        });
+        if (invalidVariantDiscount) {
+          alert(`Проверьте скидку у варианта "${invalidVariantDiscount.name || 'без названия'}"`);
+          return;
+        }
+        if (inventoryTrackingEnabled) {
+          const invalidVariantStock = effectiveVariantOptions.find((variant) => !Number.isFinite(Number(variant.stock_quantity)));
+          if (invalidVariantStock) {
+            alert(`Укажите корректный остаток у варианта "${invalidVariantStock.name || 'без названия'}"`);
+            return;
+          }
+        }
+      }
+
+      const totalVariantsStock = isVariantsMode && inventoryTrackingEnabled
+        ? effectiveVariantOptions.reduce(
+          (sum, variant) => Math.round((sum + (Number.isFinite(Number(variant.stock_quantity)) ? Number(variant.stock_quantity) : 0) + Number.EPSILON) * 1000) / 1000,
+          0
+        )
+        : null;
+      const variantsInStock = isVariantsMode
+        ? effectiveVariantOptions.some((variant) => variant.in_stock !== false)
+        : false;
       const discountToggleEnabled = Boolean(productForm.discount_enabled) && !isVariantsMode;
       const normalizedDiscountPrice = discountToggleEnabled
         ? normalizeProductPriceValue(productForm.discount_price, NaN)
@@ -6080,25 +6284,25 @@ function AdminDashboard() {
         && normalizedDiscountPrice < effectivePrice
         ? normalizedDiscountPrice
         : null;
-      const inventoryTrackingEnabled = Boolean(restaurantSettings?.inventory_tracking_enabled) && !isVariantsMode;
-      const inventoryMinThreshold = Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0);
       const parsedStockQuantity = Number.parseFloat(
         String(productForm.stock_quantity ?? '')
           .replace(/\s+/g, '')
           .replace(',', '.')
       );
-      const normalizedStockQuantity = inventoryTrackingEnabled
+      const normalizedStockQuantity = inventoryTrackingEnabled && !isVariantsMode
         ? (Number.isFinite(parsedStockQuantity) && parsedStockQuantity >= 0 ? parsedStockQuantity : Number.NaN)
         : null;
-      if (inventoryTrackingEnabled && !Number.isFinite(normalizedStockQuantity)) {
+      if (inventoryTrackingEnabled && !isVariantsMode && !Number.isFinite(normalizedStockQuantity)) {
         alert(language === 'uz'
           ? "Iltimos, ombordagi qoldiq sonini kiriting"
           : 'Укажите корректный остаток товара на складе');
         return;
       }
-      const normalizedInStock = inventoryTrackingEnabled
-        ? normalizedStockQuantity > inventoryMinThreshold
-        : (productForm.in_stock !== false);
+      const normalizedInStock = isVariantsMode
+        ? variantsInStock
+        : (inventoryTrackingEnabled
+          ? normalizedStockQuantity > inventoryMinThreshold
+          : (productForm.in_stock !== false));
       const normalizedImages = serializeProductImageSlots(productForm.product_images);
       const mainImage = normalizedImages[0] || { url: '', thumb_url: '' };
       const effectiveNameRu = normalizedNameRu || normalizedNameUz;
@@ -6114,7 +6318,9 @@ function AdminDashboard() {
         product_images: normalizedImages,
         price: effectivePrice,
         in_stock: normalizedInStock,
-        stock_quantity: inventoryTrackingEnabled ? normalizedStockQuantity : null,
+        stock_quantity: isVariantsMode
+          ? (inventoryTrackingEnabled ? totalVariantsStock : null)
+          : (inventoryTrackingEnabled ? normalizedStockQuantity : null),
         order_step: productForm.unit === 'кг'
           ? (() => {
             const parsed = Number.parseFloat(String(productForm.order_step || '').replace(',', '.'));
@@ -6124,10 +6330,10 @@ function AdminDashboard() {
         ikpu: String(productForm.ikpu || '').trim().slice(0, 64),
         container_norm: Math.max(1, Number.parseFloat(productForm.container_norm) || 1),
         size_enabled: Boolean(productForm.size_enabled),
-        discount_enabled: Boolean(effectiveDiscountPrice),
-        discount_price: effectiveDiscountPrice,
-        variant_options: normalizedVariantOptions,
-        size_options: normalizedVariantOptions
+        discount_enabled: isVariantsMode ? false : Boolean(effectiveDiscountPrice),
+        discount_price: isVariantsMode ? null : effectiveDiscountPrice,
+        variant_options: effectiveVariantOptions,
+        size_options: effectiveVariantOptions
       };
 
       if (selectedProduct) {
@@ -15066,6 +15272,11 @@ function AdminDashboard() {
                           <span>Описание RU</span>
                           <span>Описание UZ</span>
                           <span>{language === 'uz' ? 'Narxi' : 'Цена'}</span>
+                          <span>{language === 'uz' ? 'Chegirma' : 'Скидка'}</span>
+                          <span>{Boolean(restaurantSettings?.inventory_tracking_enabled)
+                            ? (language === 'uz' ? 'Qoldiq' : 'Остаток')
+                            : (language === 'uz' ? 'Mavjud' : 'В наличии')}
+                          </span>
                           <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
                           <span>ИКПУ</span>
                           <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
@@ -15082,6 +15293,8 @@ function AdminDashboard() {
                             fallbackPrice,
                             unit: productForm.unit || 'шт'
                           });
+                          const isInventoryTrackingEnabledForVariants = Boolean(restaurantSettings?.inventory_tracking_enabled);
+                          const inventoryThresholdForVariants = Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0);
                           return (
                             <div className="admin-variants-simple-body">
                               {currentVariants.map((variant, index) => {
@@ -15092,6 +15305,10 @@ function AdminDashboard() {
                                           variant.thumb_url
                                         ).slice(0, visibleSlotsCount);
                                         const canAddImageSlot = visibleSlotsCount < VARIANT_IMAGE_SLOTS_COUNT;
+                                        const parsedVariantStock = Number.parseFloat(String(variant.stock_quantity ?? '').replace(',', '.'));
+                                        const variantInStockByQty = Number.isFinite(parsedVariantStock)
+                                          ? parsedVariantStock > inventoryThresholdForVariants
+                                          : false;
                                         return (
                                           <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row admin-variants-simple-row">
                                             <Row className={`g-0 align-items-stretch admin-variant-table-input-row ${isKgUnit ? 'is-kg' : 'is-not-kg'}`}>
@@ -15134,6 +15351,49 @@ function AdminDashboard() {
                                                   onChange={(event) => updateProductVariantOption(index, 'price', event.target.value)}
                                                   placeholder={language === 'uz' ? 'Narxi' : 'Цена'}
                                                 />
+                                              </Col>
+                                              <Col xl={2} md={4} className="admin-variant-table-col">
+                                                <Form.Control
+                                                  className="form-control-custom"
+                                                  type="text"
+                                                  inputMode="decimal"
+                                                  value={formatProductPriceInputValue(variant.discount_price)}
+                                                  onChange={(event) => updateProductVariantOption(index, 'discount_price', event.target.value)}
+                                                  placeholder={language === 'uz' ? 'Chegirma narxi' : 'Цена со скидкой'}
+                                                />
+                                              </Col>
+                                              <Col xl={2} md={4} className="admin-variant-table-col">
+                                                {isInventoryTrackingEnabledForVariants ? (
+                                                  <div className="d-flex flex-column w-100">
+                                                    <Form.Control
+                                                      className="form-control-custom"
+                                                      type="number"
+                                                      min="0"
+                                                      step="0.001"
+                                                      value={variant.stock_quantity ?? ''}
+                                                      onChange={(event) => updateProductVariantOption(index, 'stock_quantity', event.target.value)}
+                                                      placeholder={language === 'uz' ? 'Qoldiq' : 'Остаток'}
+                                                      title={language === 'uz'
+                                                        ? `Avto-chegara: ${formatQuantity(inventoryThresholdForVariants)}`
+                                                        : `Авто-порог: ${formatQuantity(inventoryThresholdForVariants)}`}
+                                                    />
+                                                    <div className="admin-variant-stock-inline-note">
+                                                      {variantInStockByQty
+                                                        ? (language === 'uz' ? 'Avto: mavjud' : 'Авто: в наличии')
+                                                        : (language === 'uz' ? 'Avto: yo‘q' : 'Авто: нет')}
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <Form.Check
+                                                    type="switch"
+                                                    className="admin-variant-inline-switch"
+                                                    label={variant.in_stock !== false
+                                                      ? (language === 'uz' ? 'Mavjud' : 'В наличии')
+                                                      : (language === 'uz' ? 'Yo‘q' : 'Нет')}
+                                                    checked={variant.in_stock !== false}
+                                                    onChange={(event) => updateProductVariantOption(index, 'in_stock', event.target.checked)}
+                                                  />
+                                                )}
                                               </Col>
                                               <Col xl={3} md={6} className="admin-variant-table-col">
                                                 <Form.Control
