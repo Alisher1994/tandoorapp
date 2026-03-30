@@ -624,7 +624,8 @@ socket.on("disconnect", (reason) => {
   socket.on("print_order", async (payload) => {
     console.log(`📦 Received Print Job for Order #${payload.orderNumber}`);
 
-    const { printers, items } = payload;
+    const { printers } = payload;
+    const items = Array.isArray(payload?.items) ? payload.items : [];
 
     if (!printers || printers.length === 0) {
       console.warn("⚠️ No printers configured for this restaurant.");
@@ -643,6 +644,10 @@ socket.on("disconnect", (reason) => {
     for (const printerConfig of printers) {
       const printerItems = itemsByPrinter[printerConfig.alias] || [];
       const isCashier = printerConfig.alias === 'cashier' || printerConfig.alias === 'admin' || printers.length === 1;
+
+      if (payload?.noticeOnly && !isCashier) {
+        continue;
+      }
 
       // If no items for this printer and it's not a master (cashier always prints full receipt), skip
       if (printerItems.length === 0 && !isCashier) continue;
@@ -812,12 +817,50 @@ async function printLogoIfPresent(printer, shopInfo, allowLogo) {
   }
 }
 
+async function executeIncomingNoticeSequence(printer, data) {
+  await printLogoIfPresent(printer, data.shopInfo, true);
+
+  printer.align('ct').style('b').size(1, 1);
+  printer.text(tx((data.shopInfo?.name || 'SHOP').toUpperCase())).feed(1);
+  printer.style('n').size(0, 0);
+  if (data.shopInfo?.address) printer.text(tx(data.shopInfo.address));
+  if (data.shopInfo?.phone) printer.text(tx(`Тел: ${data.shopInfo.phone}`));
+  printer.text('-------------------------------').feed(1);
+
+  const createdAt = data?.createdAt ? new Date(data.createdAt) : new Date();
+  const printAt = data?.printAt ? new Date(data.printAt) : new Date();
+  const totalAmount = Number.parseFloat(data?.financials?.totalAmount || 0);
+
+  printer.align('ct').style('b').size(1, 1).text(tx('НОВЫЙ ЗАКАЗ'));
+  printer.style('n').size(0, 0).feed(1);
+  printer.align('lt');
+  printer.text(tx(`Заказ: #${data?.orderNumber || '-'}`));
+  printer.text(tx(`Создан: ${createdAt.toLocaleString('ru-RU')}`));
+  printer.text(tx(`Печать: ${printAt.toLocaleString('ru-RU')}`));
+  printer.text(tx(`Тип: ${resolveFulfillmentTypeLabel(data?.fulfillmentType, null)}`));
+  printer.text(tx(`Оплата: ${resolvePaymentMethodLabel(data?.paymentMethod)}`));
+  if (Number.isFinite(totalAmount) && totalAmount > 0) {
+    printer.style('b').text(tx(`Сумма: ${totalAmount.toLocaleString('ru-RU')} сум`)).style('n');
+  }
+  printer.feed(1).text('-------------------------------').feed(1);
+  printer.align('ct').text(tx('Подробности доступны после принятия заказа'));
+
+  printer.feed(2).align('ct');
+  if (data.shopInfo?.footer) printer.text(tx(data.shopInfo.footer));
+  printer.text(tx('ОЖИДАЕТ ПОДТВЕРЖДЕНИЯ')).feed(3).cut().close();
+}
+
 async function executePrintSequence(printer, device, data, config) {
   // Сброс + кириллица: таблица 17 ≈ CP866 на большинстве Xprinter/Epson-совместимых;
   // при кракозябрах попробуйте TALABLAR_CODEPAGE=46 и TALABLAR_ICONV_ENCODING=windows-1251
   applyPrinterTextEncoding(printer);
 
   printer.font('a').align('ct').style('bu').size(1, 1);
+
+  if (data.noticeOnly) {
+    await executeIncomingNoticeSequence(printer, data);
+    return;
+  }
 
   // 1. Logo (if Full Receipt): WebP→PNG, масштаб под 80 мм
   await printLogoIfPresent(printer, data.shopInfo, data.isFullReceipt);

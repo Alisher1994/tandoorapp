@@ -309,6 +309,70 @@ class PrinterManager {
   }
 
   /**
+   * Print lightweight "new order arrived" notice without sensitive customer data.
+   */
+  async printOrderNotice(restaurantId, orderId) {
+    const socketId = this.activeAgents.get(restaurantId);
+    if (!socketId) {
+      console.warn(`⚠️ No active Printer Agent for Restaurant #${restaurantId} (new-order notice)`);
+      return false;
+    }
+
+    try {
+      const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
+      if (orderResult.rows.length === 0) return false;
+      const order = orderResult.rows[0];
+
+      const shop = await this.getRestaurantShopInfo(restaurantId);
+      if (!shop) return false;
+
+      const printers = await this.getActivePrinters(restaurantId);
+      if (!printers || printers.length === 0) {
+        console.warn(`⚠️ No active printers configured for Restaurant #${restaurantId} (new-order notice)`);
+        return false;
+      }
+
+      const mappedPrinters = this.mapPrintersForAgent(printers);
+      const noticePrinters = mappedPrinters.filter((printer) => {
+        const alias = String(printer?.alias || '').trim().toLowerCase();
+        return alias === 'cashier' || alias === 'admin';
+      });
+      const targetPrinters = noticePrinters.length > 0
+        ? noticePrinters
+        : mappedPrinters.slice(0, 1);
+
+      const payload = {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        createdAt: order.created_at,
+        printAt: new Date().toISOString(),
+        paymentMethod: order.payment_method,
+        fulfillmentType: normalizeFulfillmentTypeForPrint(order),
+        noticeOnly: true,
+        isOnline: true,
+        financials: {
+          totalAmount: parseFloat(order.total_amount || 0)
+        },
+        items: [],
+        shopInfo: {
+          name: shop.name,
+          address: shop.address,
+          phone: shop.phone,
+          logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),
+          footer: shop.receipt_footer_text
+        },
+        printers: targetPrinters
+      };
+
+      this.io.to(socketId).emit('print_order', payload);
+      return true;
+    } catch (error) {
+      console.error("Print Notice Service Error:", error);
+      return false;
+    }
+  }
+
+  /**
    * Main method to trigger printing
    */
   async printOrder(restaurantId, orderId) {

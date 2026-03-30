@@ -11,6 +11,7 @@ const {
   replaceCardReceiptPlaceholderInGroup
 } = require('./notifications');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
+const printerManager = require('../services/printerManager');
 const { ensureBotFunnelSchema, trackBotFunnelEvent } = require('../services/botFunnel');
 const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
 
@@ -22,6 +23,11 @@ const registrationStates = new Map();
 const passwordResetCooldown = new Map();
 const languageSelectionStates = new Map();
 const languagePreferences = new Map();
+const manualOrderPrintCooldownByKey = new Map();
+const MANUAL_ORDER_PRINT_COOLDOWN_MS = Math.max(
+  3000,
+  Number.parseInt(process.env.TELEGRAM_ORDER_PRINT_COOLDOWN_MS, 10) || 12000
+);
 const WEB_APP_CACHE_VERSION = String(
   process.env.WEB_APP_FORCE_VERSION
   || process.env.WEB_APP_CACHE_VERSION
@@ -80,6 +86,24 @@ function appendWebAppCacheVersion(rawUrl) {
   } catch {
     return rawUrl;
   }
+}
+
+function tryReserveManualPrintSlot(orderId, chatId) {
+  const normalizedOrderId = Number.parseInt(orderId, 10);
+  const normalizedChatId = String(chatId || '').trim() || 'private';
+  if (!Number.isFinite(normalizedOrderId) || normalizedOrderId <= 0) {
+    return { ok: false, waitMs: MANUAL_ORDER_PRINT_COOLDOWN_MS };
+  }
+
+  const key = `${normalizedChatId}:${normalizedOrderId}`;
+  const now = Date.now();
+  const lastAt = manualOrderPrintCooldownByKey.get(key) || 0;
+  if (now - lastAt < MANUAL_ORDER_PRINT_COOLDOWN_MS) {
+    return { ok: false, waitMs: MANUAL_ORDER_PRINT_COOLDOWN_MS - (now - lastAt) };
+  }
+
+  manualOrderPrintCooldownByKey.set(key, now);
+  return { ok: true, waitMs: 0 };
 }
 
 const BOT_LANGUAGES = ['ru', 'uz'];
@@ -3044,6 +3068,60 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         );
       };
 
+      // Handle manual receipt print from inline button
+      if (data.startsWith('print_order_')) {
+        const orderId = Number(data.split('_')[2]);
+        const operatorContext = await getOperatorContext();
+        if (!operatorContext.id) {
+          await safeAnswerCallback({ text: '⛔ Только оператор может печатать чек', show_alert: true });
+          return;
+        }
+
+        const current = await getOrderWithItems(orderId);
+        if (!current) {
+          await safeAnswerCallback({ text: '❌ Заказ не найден', show_alert: true });
+          return;
+        }
+
+        const normalizedStatus = String(current.order.status || '').trim().toLowerCase();
+        if (normalizedStatus === 'cancelled') {
+          await safeAnswerCallback({ text: '⚠️ Отмененный заказ печатать нельзя', show_alert: false });
+          return;
+        }
+
+        const isAcceptedInAnyForm = (
+          Boolean(current.order.is_paid) ||
+          Boolean(current.order.processed_at) ||
+          ['accepted', 'preparing', 'in_progress', 'delivering', 'delivered'].includes(normalizedStatus)
+        );
+        if (!isAcceptedInAnyForm) {
+          await safeAnswerCallback({ text: '⚠️ Сначала примите заказ', show_alert: false });
+          return;
+        }
+
+        const printSlot = tryReserveManualPrintSlot(orderId, chatId);
+        if (!printSlot.ok) {
+          const waitSeconds = Math.max(1, Math.ceil(printSlot.waitMs / 1000));
+          await safeAnswerCallback({ text: `⏳ Подождите ${waitSeconds} сек перед повторной печатью`, show_alert: false });
+          return;
+        }
+
+        let printQueued = false;
+        try {
+          printQueued = await printerManager.printOrder(current.order.restaurant_id, orderId);
+        } catch (printErr) {
+          console.error('Telegram manual print error:', printErr);
+        }
+
+        if (!printQueued) {
+          await safeAnswerCallback({ text: '⚠️ Не удалось отправить на печать (агент оффлайн?)', show_alert: true });
+          return;
+        }
+
+        await safeAnswerCallback({ text: '🖨 Чек отправлен на печать', show_alert: false });
+        return;
+      }
+
       // Handle order confirmation
       if (data.startsWith('confirm_order_')) {
         const orderId = Number(data.split('_')[2]);
@@ -3101,6 +3179,16 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         } catch (e) { }
 
         const refreshed = await getOrderWithItems(orderId);
+        if (refreshed?.order) {
+          try {
+            const printQueued = await printerManager.printOrder(refreshed.order.restaurant_id, orderId);
+            if (!printQueued) {
+              console.warn(`[telegram-auto-print] skipped/failed on confirm: restaurant=${refreshed.order.restaurant_id}, order=${orderId}`);
+            }
+          } catch (printErr) {
+            console.error('Telegram auto print error (confirm):', printErr);
+          }
+        }
 
         if (refreshed?.order?.telegram_id) {
           try {

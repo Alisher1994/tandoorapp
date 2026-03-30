@@ -9,6 +9,7 @@ const {
   sendCardReceiptPlaceholderToGroup,
   getRestaurantBot
 } = require('../bot/notifications');
+const printerManager = require('../services/printerManager');
 const { isPaymeConfigured } = require('../services/payme');
 const {
   ensureInventorySchema,
@@ -876,6 +877,18 @@ router.post('/', authenticate, async (req, res) => {
       // Send notification to user
       if (req.user.telegram_id) {
         await sendOrderUpdateToUser(req.user.telegram_id, order, 'new');
+      }
+    }
+
+    // Lightweight notice print for incoming orders (without sensitive customer data).
+    if (shouldNotifyImmediately && finalRestaurantId) {
+      try {
+        const noticeQueued = await printerManager.printOrderNotice(finalRestaurantId, order.id);
+        if (!noticeQueued) {
+          console.warn(`Auto notice print skipped/failed: restaurant=${finalRestaurantId}, order=${order.id}`);
+        }
+      } catch (printErr) {
+        console.error('Auto notice print error:', printErr);
       }
     }
     

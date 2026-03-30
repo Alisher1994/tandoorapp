@@ -709,6 +709,7 @@ function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '', option
   const previewButton = showPreview && previewUrl
     ? { text: '🔎 Детали', url: previewUrl }
     : null;
+  const printButton = { text: '🖨 Печать чека', callback_data: `print_order_${orderId}` };
 
   const withPreview = (row) => {
     if (!previewButton) return row;
@@ -725,19 +726,39 @@ function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '', option
   }
 
   if (stage === 'accepted') {
-    return { inline_keyboard: [withPreview([{ text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` }])] };
+    return {
+      inline_keyboard: [withPreview([
+        { text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` },
+        printButton
+      ])]
+    };
   }
 
   if (stage === 'preparing') {
-    return { inline_keyboard: [withPreview([{ text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` }])] };
+    return {
+      inline_keyboard: [withPreview([
+        { text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` },
+        printButton
+      ])]
+    };
   }
 
   if (stage === 'delivering') {
-    return { inline_keyboard: [withPreview([{ text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` }])] };
+    return {
+      inline_keyboard: [withPreview([
+        { text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` },
+        printButton
+      ])]
+    };
   }
 
   if (stage === 'done') {
-    return { inline_keyboard: [withPreview([{ text: `✅ Завершено${operatorName ? ': ' + operatorName : ''}`, callback_data: 'done' }])] };
+    return {
+      inline_keyboard: [withPreview([
+        { text: `✅ Завершено${operatorName ? ': ' + operatorName : ''}`, callback_data: 'done' },
+        printButton
+      ])]
+    };
   }
 
   return { inline_keyboard: previewButton ? [[previewButton]] : [] };
