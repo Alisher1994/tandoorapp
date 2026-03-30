@@ -9,9 +9,10 @@ const { exec, spawn, execFile } = require('child_process');
 const axios = require('axios');
 const readline = require('readline/promises');
 const Jimp = require('jimp');
+const QRCode = require('qrcode');
 const webp = require('webp-converter');
 
-const AGENT_BUILD_ID = '8.13.0+desktop-shell';
+const AGENT_BUILD_ID = '8.14.0+receipt-qr';
 let AGENT_PKG_VERSION = AGENT_BUILD_ID;
 try {
   AGENT_PKG_VERSION = require('./package.json').version;
@@ -308,6 +309,131 @@ async function prepareReceiptLogoFile(logoHref) {
   return outPath;
 }
 
+function resolvePaymentMethodLabel(rawMethod) {
+  const method = String(rawMethod || '').trim().toLowerCase();
+  if (method === 'cash') return 'Наличные';
+  if (method === 'payme') return 'Payme';
+  if (method === 'click') return 'Click';
+  if (method === 'uzum') return 'Uzum';
+  if (method === 'xazna') return 'Xazna';
+  if (method === 'card') return 'Карта';
+  return method ? method : 'Наличные';
+}
+
+function resolveFulfillmentTypeLabel(rawType, deliveryAddress) {
+  const normalized = String(rawType || '').trim().toLowerCase();
+  if (normalized === 'pickup') return 'Самовывоз';
+  if (normalized === 'delivery') return 'Доставка';
+  const fallbackAddress = String(deliveryAddress || '').trim().toLowerCase();
+  if (fallbackAddress === 'самовывоз') return 'Самовывоз';
+  return 'Доставка';
+}
+
+function resolveDeliveryScheduleLabel(deliveryDate, deliveryTime) {
+  const timeRaw = String(deliveryTime || '').trim();
+  const dateRaw = String(deliveryDate || '').trim();
+  if (timeRaw) {
+    return `На время: ${timeRaw}`;
+  }
+  if (dateRaw) {
+    return `На дату: ${dateRaw}`;
+  }
+  return 'Как можно скорее';
+}
+
+function formatTwoColumns(leftText, rightText, totalWidth = 32) {
+  const left = String(leftText || '').trim();
+  const right = String(rightText || '').trim();
+  if (!left && !right) return '';
+  if (!left) return right;
+  if (!right) return left;
+  if ((left.length + right.length + 1) >= totalWidth) {
+    return `${left} | ${right}`;
+  }
+  const spaces = ' '.repeat(Math.max(1, totalWidth - left.length - right.length));
+  return `${left}${spaces}${right}`;
+}
+
+async function loadEscposImageFromPath(filePath) {
+  return new Promise((resolve, reject) => {
+    escpos.Image.load(filePath, (arg) => {
+      if (arg && typeof arg.toRaster === 'function') return resolve(arg);
+      reject(arg instanceof Error ? arg : new Error('Failed to load raster image'));
+    });
+  });
+}
+
+async function generateQrCodeImageBuffer(content, size = 150) {
+  return QRCode.toBuffer(String(content || '').trim(), {
+    type: 'png',
+    width: size,
+    margin: 1,
+    errorCorrectionLevel: 'M'
+  });
+}
+
+async function printReceiptQrSection(printer, data) {
+  const orderQrValue = String(data?.shopInfo?.orderQrUrl || '').trim();
+  const locationQrValue = String(data?.clientLocationUrl || '').trim();
+  if (!orderQrValue && !locationQrValue) return;
+
+  const sectionStamp = Date.now();
+  const sectionPath = path.join(installDir, `receipt_qr_${sectionStamp}.png`);
+
+  try {
+    const paperWidth = parseInt(process.env.TALABLAR_LOGO_MAX_WIDTH || '384', 10) || 384;
+    const qrSize = 150;
+    const gap = 14;
+    const topBottomPadding = 8;
+    const canvasHeight = (qrSize + topBottomPadding * 2);
+
+    const canvas = new Jimp(paperWidth, canvasHeight, 0xffffffff);
+    const qrEntries = [];
+
+    if (orderQrValue) {
+      qrEntries.push({
+        key: 'order',
+        label: 'Отсканируйте для заказов',
+        value: orderQrValue
+      });
+    }
+    if (locationQrValue) {
+      qrEntries.push({
+        key: 'location',
+        label: 'Локация клиента',
+        value: locationQrValue
+      });
+    }
+
+    const totalQrWidth = qrEntries.length === 2 ? (qrSize * 2 + gap) : qrSize;
+    const startX = Math.max(0, Math.floor((paperWidth - totalQrWidth) / 2));
+
+    for (let index = 0; index < qrEntries.length; index += 1) {
+      const entry = qrEntries[index];
+      const qrBuffer = await generateQrCodeImageBuffer(entry.value, qrSize);
+      const qrImage = await Jimp.read(qrBuffer);
+      qrImage.greyscale().contrast(0.6);
+      const x = startX + (index * (qrSize + gap));
+      const y = topBottomPadding;
+      canvas.composite(qrImage, x, y);
+    }
+
+    await canvas.writeAsync(sectionPath);
+    const image = await loadEscposImageFromPath(sectionPath);
+    printer.align('ct').raster(image, 'dw').feed(1);
+
+    if (qrEntries.length === 2) {
+      printer.align('lt').text(tx(formatTwoColumns(qrEntries[0].label, qrEntries[1].label)));
+    } else if (qrEntries.length === 1) {
+      printer.align('ct').text(tx(qrEntries[0].label));
+    }
+  } catch (error) {
+    console.error('QR section print error:', error.message);
+  } finally {
+    try { fs.unlinkSync(sectionPath); } catch (_) {}
+  }
+}
+
 async function main() {
   if (forceSetupMode) {
     await runSetupWizard();
@@ -516,12 +642,7 @@ async function printLogoIfPresent(printer, shopInfo, allowLogo) {
       return;
     }
     logoPrintPath = await prepareReceiptLogoFile(logoHref);
-    const image = await new Promise((res, rej) => {
-      escpos.Image.load(logoPrintPath, (arg) => {
-        if (arg && typeof arg.toRaster === 'function') res(arg);
-        else rej(arg instanceof Error ? arg : new Error('Failed to load raster image'));
-      });
-    });
+    const image = await loadEscposImageFromPath(logoPrintPath);
     printer.align('ct').raster(image, 'dw');
     printer.feed(1);
   } catch (e) {
@@ -555,7 +676,9 @@ async function executePrintSequence(printer, device, data, config) {
   printer.align('lt').style('b').size(1, 1).text(tx(`ЗАКАЗ: #${data.orderNumber}`));
   printer.style('n').size(0, 0).text(tx(`Дата: ${new Date(data.createdAt).toLocaleString('ru-RU')}`));
   printer.text(tx(`Печать: ${new Date(data.printAt).toLocaleString('ru-RU')}`));
-  printer.text(tx('Тип: ОНЛАЙН (Telegram)'));
+  printer.text(tx(`Тип: ${resolveFulfillmentTypeLabel(data.fulfillmentType, data.deliveryAddress)}`));
+  printer.text(tx(`Оплата: ${resolvePaymentMethodLabel(data.paymentMethod)}`));
+  printer.text(tx(`Ко времени: ${resolveDeliveryScheduleLabel(data.deliveryDate, data.deliveryTime)}`));
   printer.text('-------------------------------').feed(1);
 
   // 4. Customer Info
@@ -571,8 +694,9 @@ async function executePrintSequence(printer, device, data, config) {
   printer.feed(1).align('ct').text(tx('========== ТОВАРЫ ==========')).feed(1);
 
   // 5. Items Table
-  data.items.forEach((item) => {
-    const name = item.name;
+  data.items.forEach((item, index) => {
+    const number = index + 1;
+    const name = `${number}. ${item.name}`;
     const qty = item.quantity + (item.unit || 'шт');
     const price = tx((item.price || 0).toLocaleString('ru-RU'));
     const total = tx((item.total || 0).toLocaleString('ru-RU'));
@@ -597,7 +721,11 @@ async function executePrintSequence(printer, device, data, config) {
       printer.text(tx(`Доставка: ${data.financials.deliveryCost.toLocaleString('ru-RU')} сум`));
     }
     printer.feed(1).style('b').size(1, 1).text(tx(`ИТОГО: ${data.financials.totalAmount?.toLocaleString('ru-RU')} сум`));
-    printer.style('n').size(0, 0).text(tx(`Способ оплаты: ${data.paymentMethod || 'Наличные'}`));
+    printer.style('n').size(0, 0).text(tx(`Способ оплаты: ${resolvePaymentMethodLabel(data.paymentMethod)}`));
+
+    // QR блок: слева - заказы магазина, справа - локация клиента
+    printer.feed(1).align('ct').text('-------------------------------').feed(1);
+    await printReceiptQrSection(printer, data);
   } else {
     printer.align('ct').text(tx(`ЧЕК ДЛЯ: ${config.alias?.toUpperCase() || 'КУХНЯ'}`));
   }

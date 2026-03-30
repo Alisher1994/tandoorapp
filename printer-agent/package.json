@@ -1,14 +1,15 @@
 {
   "name": "talablar-agent",
-  "version": "8.13.0",
+  "version": "8.14.0",
   "description": "Talablar Printer Agent (core + single EXE desktop shell)",
   "main": "desktop/main.js",
   "scripts": {
     "start": "node agent.js",
     "desktop:dev": "electron .",
+    "build:assets": "node scripts/generate-icons.js",
     "build:core": "pkg . --targets node18-win-x64 --output build/core/TalablarAgent.exe",
     "build:desktop": "electron-builder --win portable",
-    "build:release": "npm run build:core && npm run build:desktop && node scripts/finalize-single-exe.js"
+    "build:release": "npm run build:assets && npm run build:core && npm run build:desktop && node scripts/finalize-single-exe.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
@@ -17,13 +18,16 @@
     "escpos-network": "^3.0.0-alpha.4",
     "get-pixels": "^3.3.3",
     "jimp": "^0.22.12",
+    "qrcode": "^1.5.4",
     "socket.io-client": "^4.7.2",
     "webp-converter": "^2.3.3"
   },
   "devDependencies": {
     "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
-    "pkg": "^5.8.1"
+    "png-to-ico": "^2.1.8",
+    "pkg": "^5.8.1",
+    "sharp": "^0.34.4"
   },
   "bin": "agent.js",
   "pkg": {
@@ -52,9 +56,14 @@
       {
         "from": "build/core/TalablarAgent.exe",
         "to": "agent-core/TalablarAgent.exe"
+      },
+      {
+        "from": "desktop/icon.png",
+        "to": "icon.png"
       }
     ],
     "win": {
+      "icon": "desktop/icon.ico",
       "target": [
         {
           "target": "portable",

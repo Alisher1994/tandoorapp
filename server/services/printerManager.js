@@ -1,5 +1,9 @@
 const { Server } = require('socket.io');
+const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
+
+const BOT_USERNAME_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const botUsernameCache = new Map();
 
 /** USB VID:PID pattern — не использовать как UNC \\localhost\… */
 function looksLikeUsbVidPid(s) {
@@ -54,6 +58,75 @@ function normalizePositiveInt(value, fallback) {
   const parsed = Number.parseInt(String(value || ''), 10);
   if (!Number.isFinite(parsed) || parsed < 0) return fallback;
   return parsed;
+}
+
+function normalizeFulfillmentTypeForPrint(order) {
+  const raw = String(order?.fulfillment_type || '').trim().toLowerCase();
+  if (raw === 'pickup') return 'pickup';
+  if (raw === 'delivery') return 'delivery';
+  const fallbackAddress = String(order?.delivery_address || '').trim().toLowerCase();
+  if (fallbackAddress === 'самовывоз') return 'pickup';
+  return 'delivery';
+}
+
+function parseCoordinates(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return null;
+  const parts = raw.split(',').map((part) => Number.parseFloat(part.trim()));
+  if (parts.length !== 2) return null;
+  const [lat, lng] = parts;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function resolveClientLocationUrl(order) {
+  const coordinates = parseCoordinates(order?.delivery_coordinates);
+  if (coordinates) {
+    return `https://maps.google.com/?q=${encodeURIComponent(`${coordinates.lat},${coordinates.lng}`)}`;
+  }
+  const address = String(order?.delivery_address || '').trim();
+  if (!address || address.toLowerCase() === 'самовывоз') return null;
+  return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+}
+
+function resolveCatalogPublicUrl(restaurantId) {
+  const baseRaw = String(
+    process.env.FRONTEND_URL
+      || process.env.WEB_APP_BASE_URL
+      || process.env.WEBAPP_URL
+      || process.env.BACKEND_URL
+      || ''
+  ).trim();
+  if (!baseRaw) return null;
+  const base = baseRaw.replace(/\/api\/?$/i, '').replace(/\/+$/, '');
+  if (!base) return null;
+  return `${base}/catalog?restaurant_id=${encodeURIComponent(String(restaurantId))}`;
+}
+
+async function resolveBotPublicOrderUrl(shop, restaurantId) {
+  const token = String(shop?.telegram_bot_token || '').trim();
+  if (!token) return resolveCatalogPublicUrl(restaurantId);
+
+  const cached = botUsernameCache.get(token);
+  if (cached && (Date.now() - cached.updatedAt) < BOT_USERNAME_CACHE_TTL_MS) {
+    if (cached.username) return `https://t.me/${cached.username}`;
+    return resolveCatalogPublicUrl(restaurantId);
+  }
+
+  try {
+    const bot = new TelegramBot(token);
+    const me = await Promise.race([
+      bot.getMe(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getMe timeout')), 1800))
+    ]);
+    const username = String(me?.username || '').trim();
+    botUsernameCache.set(token, { username, updatedAt: Date.now() });
+    if (username) return `https://t.me/${username}`;
+  } catch (error) {
+    botUsernameCache.set(token, { username: '', updatedAt: Date.now() });
+  }
+
+  return resolveCatalogPublicUrl(restaurantId);
 }
 
 class PrinterManager {
@@ -217,6 +290,9 @@ class PrinterManager {
       const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
       if (orderResult.rows.length === 0) return false;
       const order = orderResult.rows[0];
+      const orderQrUrl = await resolveBotPublicOrderUrl(shop, restaurantId);
+      const clientLocationUrl = resolveClientLocationUrl(order);
+      const fulfillmentType = normalizeFulfillmentTypeForPrint(order);
 
       // 2. Fetch Shop Info & Logo
       const shop = await this.getRestaurantShopInfo(restaurantId);
@@ -264,6 +340,11 @@ class PrinterManager {
         deliveryAddress: order.delivery_address,
         comment: order.comment,
         paymentMethod: order.payment_method,
+        fulfillmentType,
+        deliveryDate: order.delivery_date,
+        deliveryTime: order.delivery_time,
+        deliveryCoordinates: order.delivery_coordinates,
+        clientLocationUrl,
         isOnline: true,
         financials: {
           itemsSubtotal: items.reduce((sum, i) => sum + parseFloat(i.total || 0), 0),
@@ -286,7 +367,8 @@ class PrinterManager {
           phone: shop.phone,
           logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),
           header: shop.receipt_header_text,
-          footer: shop.receipt_footer_text
+          footer: shop.receipt_footer_text,
+          orderQrUrl
         },
         printers: this.mapPrintersForAgent(printers)
       };

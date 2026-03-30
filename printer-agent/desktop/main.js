@@ -187,7 +187,9 @@ function restartCoreProcess() {
 
 function getTrayIcon() {
   const iconCandidates = [
+    path.join(process.resourcesPath, 'icon.png'),
     path.join(process.resourcesPath, 'icon.ico'),
+    path.join(__dirname, 'icon.png'),
     path.join(__dirname, 'icon.ico'),
     process.execPath
   ];

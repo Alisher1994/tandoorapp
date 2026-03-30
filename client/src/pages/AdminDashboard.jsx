@@ -2163,7 +2163,7 @@ function AdminDashboard() {
         throw new Error('Пустой файл');
       }
 
-      let filename = 'TalablarAgent.exe';
+      let filename = 'TalablarPrinter.exe';
       const contentDisposition = String(response.headers?.['content-disposition'] || '');
       const utf8NameMatch = contentDisposition.match(/filename\\*=UTF-8''([^;]+)/i);
       const plainNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
@@ -2179,7 +2179,7 @@ function AdminDashboard() {
       const objectUrl = window.URL.createObjectURL(fileBlob);
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = filename || 'TalablarAgent.exe';
+      link.download = filename || 'TalablarPrinter.exe';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2188,8 +2188,8 @@ function AdminDashboard() {
       setAlertMessage({
         type: 'success',
         text: language === 'uz'
-          ? "Printer agent yuklab olindi."
-          : 'Файл printer-agent скачан.'
+          ? "Talablar Printer yuklab olindi."
+          : 'Файл TalablarPrinter.exe скачан.'
       });
     } catch (error) {
       console.error('Download printer-agent error:', error);
@@ -2210,8 +2210,8 @@ function AdminDashboard() {
       setAlertMessage({
         type: 'danger',
         text: errorText || (language === 'uz'
-          ? "Printer agent faylini yuklab bo'lmadi."
-          : 'Не удалось скачать printer-agent.')
+          ? "Talablar Printer faylini yuklab bo'lmadi."
+          : 'Не удалось скачать Talablar Printer.')
       });
     } finally {
       setDownloadingPrinterAgent(false);
@@ -11409,8 +11409,8 @@ function AdminDashboard() {
                             <Button
                               type="button"
                               className="admin-printer-icon-btn"
-                              title={language === 'uz' ? "Printer agentni yuklab olish" : 'Скачать printer-agent'}
-                              aria-label={language === 'uz' ? "Printer agentni yuklab olish" : 'Скачать printer-agent'}
+                              title={language === 'uz' ? "Talablar Printerni yuklab olish" : 'Скачать Talablar Printer'}
+                              aria-label={language === 'uz' ? "Talablar Printerni yuklab olish" : 'Скачать Talablar Printer'}
                               onClick={handleDownloadPrinterAgent}
                               disabled={downloadingPrinterAgent}
                             >
@@ -11430,8 +11430,8 @@ function AdminDashboard() {
 
                         <Alert className="admin-printer-note mb-3">
                           {language === 'uz'
-                            ? "Agent — bu printerga ulangan kompyuter. Token orqali printer-agent dasturini ishga tushiradi."
-                            : 'Агент — это компьютер оператора, к которому подключен принтер. Скопируйте токен и вставьте в настройки printer-agent на компьютере оператора.'}
+                            ? "Agent — bu printerga ulangan kompyuter. Token orqali Talablar Printer dasturini ishga tushiradi."
+                            : 'Агент — это компьютер оператора, к которому подключен принтер. Скопируйте токен и вставьте его в Talablar Printer на компьютере оператора.'}
                         </Alert>
 
                         {printerAgents.length === 0 ? (
@@ -11618,7 +11618,7 @@ function AdminDashboard() {
                     <h6 className="mb-3">{language === 'uz' ? "Qanday ishlaydi?" : '📖 Как это работает?'}</h6>
                     <ol className="small text-muted mb-0">
                       <li className="mb-2">{language === 'uz' ? "«+» orqali agent qo‘shing. Tizim token yaratadi." : 'Через кнопку «+» добавьте агента. Система создаст уникальный Token.'}</li>
-                      <li className="mb-2">{language === 'uz' ? "Agent dasturini yuklab oling va tokenni operator kompyuteriga kiriting." : 'Скачайте printer-agent и вставьте Token на компьютере оператора.'}</li>
+                      <li className="mb-2">{language === 'uz' ? "Talablar Printer dasturini yuklab oling va tokenni operator kompyuteriga kiriting." : 'Скачайте Talablar Printer и вставьте Token на компьютере оператора.'}</li>
                       <li className="mb-2">{language === 'uz' ? "Printerni qo‘shing va «Проверка принтера» tugmasi bilan test chekni chiqaring." : 'Добавьте принтер и нажмите «Проверка принтера» для тестового чека.'}</li>
                       <li>{language === 'uz' ? "Agent ulanganda auto-test chek (logo + muvaffaqiyat matni) chiqadi." : 'При подключении агента автоматически печатается тест-чек (лого + текст успешного подключения).'}</li>
                     </ol>

@@ -83,7 +83,7 @@ const toAbsoluteFileUrl = (req, rawUrl) => {
     : `${req.protocol}://${req.get('host')}`;
   return `${backendBase}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
 };
-const PRINTER_AGENT_FILENAME = 'TalablarAgent.exe';
+const PRINTER_AGENT_FILENAME = 'TalablarPrinter.exe';
 const resolvePrinterAgentExePath = () => {
   const customPathRaw = String(process.env.PRINTER_AGENT_EXE_PATH || '').trim();
   const candidates = [];
@@ -95,8 +95,12 @@ const resolvePrinterAgentExePath = () => {
     );
   }
   candidates.push(path.resolve(process.cwd(), 'printer-agent', 'dist', PRINTER_AGENT_FILENAME));
+  candidates.push(path.resolve(process.cwd(), 'printer-agent', 'release', PRINTER_AGENT_FILENAME));
   candidates.push(path.resolve(process.cwd(), 'printer-agent', PRINTER_AGENT_FILENAME));
   candidates.push(path.resolve(process.cwd(), 'server', 'assets', PRINTER_AGENT_FILENAME));
+  candidates.push(path.resolve(process.cwd(), 'printer-agent', 'dist', 'TalablarAgent.exe'));
+  candidates.push(path.resolve(process.cwd(), 'printer-agent', 'TalablarAgent.exe'));
+  candidates.push(path.resolve(process.cwd(), 'server', 'assets', 'TalablarAgent.exe'));
 
   for (const candidatePath of candidates) {
     try {
@@ -5198,7 +5202,7 @@ router.get('/printer-agent/download', async (req, res) => {
     const exePath = resolvePrinterAgentExePath();
     if (!exePath) {
       return res.status(404).json({
-        error: 'Файл TalablarAgent.exe не найден на сервере. Поместите его в printer-agent/dist или задайте PRINTER_AGENT_EXE_PATH.'
+        error: 'Файл TalablarPrinter.exe не найден на сервере. Поместите его в printer-agent/dist или задайте PRINTER_AGENT_EXE_PATH.'
       });
     }
 
