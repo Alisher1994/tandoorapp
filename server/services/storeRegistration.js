@@ -5,7 +5,9 @@ const { reloadMultiBots } = require('../bot/multiBotManager');
 
 const BOT_LANGUAGES = new Set(['ru', 'uz']);
 const WEB_APP_CACHE_VERSION = String(
-  process.env.RAILWAY_DEPLOYMENT_ID
+  process.env.WEB_APP_FORCE_VERSION
+  || process.env.WEB_APP_CACHE_VERSION
+  || process.env.RAILWAY_DEPLOYMENT_ID
   || process.env.RAILWAY_GIT_COMMIT_SHA
   || process.env.SOURCE_VERSION
   || process.env.npm_package_version

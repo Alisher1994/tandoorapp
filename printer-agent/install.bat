@@ -74,6 +74,9 @@ if exist "%~dp0dist\TalablarAgent.exe" (
     pause
     exit /b 1
 )
+if exist "%~dp0run-agent-tray.ps1" (
+    copy /Y "%~dp0run-agent-tray.ps1" "%INSTALL_DIR%\run-agent-tray.ps1" >nul
+)
 
 echo  [3/4] Создание конфигурации...
 :: Create .env file
@@ -106,10 +109,30 @@ echo  [3/4] Создание конфигурации...
     echo ^)
 ) > "%INSTALL_DIR%\Запустить Принтер.bat"
 
+:: Create tray start script (recommended)
+(
+    echo @echo off
+    echo chcp 65001 ^>nul 2^>^&1
+    echo cd /d "%%~dp0"
+    echo powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%%~dp0run-agent-tray.ps1" -WorkDir "%%~dp0"
+) > "%INSTALL_DIR%\Запустить Принтер (Трей).bat"
+
+:: Create reconfigure script
+(
+    echo @echo off
+    echo chcp 65001 ^>nul 2^>^&1
+    echo title Talablar Agent - Смена токена
+    echo cd /d "%%~dp0"
+    echo TalablarAgent.exe --setup
+    echo echo.
+    echo echo Конфигурация обновлена. Перезапустите агент.
+    echo pause
+) > "%INSTALL_DIR%\Сменить токен агента.bat"
+
 echo  [4/4] Создание ярлыков...
 
 :: Create desktop shortcut via PowerShell
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Talablar Printer.lnk')); $s.TargetPath = '%INSTALL_DIR%\Запустить Принтер.bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = 'shell32.dll,16'; $s.Description = 'Talablar Printer Agent'; $s.Save()" >nul 2>&1
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Talablar Printer.lnk')); $s.TargetPath = '%INSTALL_DIR%\Запустить Принтер (Трей).bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.IconLocation = 'shell32.dll,16'; $s.Description = 'Talablar Printer Agent'; $s.Save()" >nul 2>&1
 
 if %errorlevel% equ 0 (
     echo  [OK] Ярлык создан на рабочем столе
@@ -122,7 +145,7 @@ echo.
 set /p AUTOSTART="  Запускать автоматически при включении ПК? (Y/N): "
 if /i "%AUTOSTART%"=="Y" (
     :: Add to Startup folder
-    powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $startup = $ws.SpecialFolders('Startup'); $s = $ws.CreateShortcut([IO.Path]::Combine($startup, 'Talablar Printer.lnk')); $s.TargetPath = '%INSTALL_DIR%\Запустить Принтер.bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.WindowStyle = 7; $s.Description = 'Talablar Printer Agent'; $s.Save()" >nul 2>&1
+    powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $startup = $ws.SpecialFolders('Startup'); $s = $ws.CreateShortcut([IO.Path]::Combine($startup, 'Talablar Printer.lnk')); $s.TargetPath = '%INSTALL_DIR%\Запустить Принтер (Трей).bat'; $s.WorkingDirectory = '%INSTALL_DIR%'; $s.WindowStyle = 7; $s.Description = 'Talablar Printer Agent'; $s.Save()" >nul 2>&1
     echo  [OK] Автозапуск настроен
 )
 
@@ -142,7 +165,7 @@ echo.
 
 set /p RUNNOW="  Запустить агент сейчас? (Y/N): "
 if /i "%RUNNOW%"=="Y" (
-    start "" "%INSTALL_DIR%\Запустить Принтер.bat"
+    start "" "%INSTALL_DIR%\Запустить Принтер (Трей).bat"
 )
 
 echo.

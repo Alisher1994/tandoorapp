@@ -18,6 +18,8 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 function Feedback() {
   const { user } = useAuth();
   const { language, toggleLanguage } = useLanguage();
+  const fallbackRestaurantName = language === 'uz' ? "Do'kon" : 'Магазин';
+  const resolvedRestaurantName = user?.active_restaurant_name || fallbackRestaurantName;
   
   const [feedbackForm, setFeedbackForm] = useState({ type: 'complaint', message: '' });
   const [loading, setLoading] = useState(false);
@@ -103,7 +105,7 @@ function Feedback() {
       <ClientTopBar
         logoUrl={user?.active_restaurant_logo}
         logoDisplayMode={user?.active_restaurant_logo_display_mode}
-        restaurantName={user?.active_restaurant_name || 'Tandoor'}
+        restaurantName={resolvedRestaurantName}
         language={language}
         onToggleLanguage={toggleLanguage}
         showLanguageToggle

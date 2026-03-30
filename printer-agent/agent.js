@@ -16,6 +16,16 @@ let AGENT_PKG_VERSION = AGENT_BUILD_ID;
 try {
   AGENT_PKG_VERSION = require('./package.json').version;
 } catch (_) {}
+const cliArgs = new Set(
+  process.argv
+    .slice(2)
+    .map((arg) => String(arg || '').trim().toLowerCase())
+    .filter(Boolean)
+);
+const forceSetupMode = cliArgs.has('--setup')
+  || cliArgs.has('/setup')
+  || cliArgs.has('--reconfigure')
+  || cliArgs.has('--change-token');
 
 // --- GLOBALS ---
 const appData = process.env.APPDATA || process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
@@ -50,12 +60,35 @@ async function runSetupWizard() {
   });
 
   const defaultUrl = "https://talablar.up.railway.app";
-  let inputUrl = await rl.question(`Адрес сервера [Enter для ${defaultUrl}]: `);
-  const finalServerUrl = inputUrl.trim() || defaultUrl;
+  const currentServerUrl = String(process.env.SERVER_URL || '').trim();
+  const currentToken = String(process.env.AGENT_TOKEN || '').trim();
+  const hasCurrentToken = currentToken && currentToken !== "YOUR_AGENT_TOKEN_HERE";
+  const currentTokenMasked = hasCurrentToken
+    ? `${currentToken.slice(0, 8)}...`
+    : 'не задан';
+
+  if (currentServerUrl) {
+    console.log(`Текущий сервер: ${currentServerUrl}`);
+  }
+  console.log(`Текущий токен: ${currentTokenMasked}\n`);
+
+  const defaultPromptUrl = currentServerUrl || defaultUrl;
+  let inputUrl = await rl.question(`Адрес сервера [Enter для ${defaultPromptUrl}]: `);
+  const finalServerUrl = inputUrl.trim() || defaultPromptUrl;
 
   let finalAgentToken = "";
   while (!finalAgentToken) {
-    finalAgentToken = (await rl.question("Вставьте ТОКЕН агента (из админки): ")).trim();
+    const tokenPrompt = hasCurrentToken
+      ? `Вставьте ТОКЕН агента [Enter оставить текущий ${currentTokenMasked}]: `
+      : "Вставьте ТОКЕН агента (из админки): ";
+    const tokenInput = (await rl.question(tokenPrompt)).trim();
+    if (tokenInput) {
+      finalAgentToken = tokenInput;
+      break;
+    }
+    if (hasCurrentToken) {
+      finalAgentToken = currentToken;
+    }
   }
   
   rl.close();
@@ -71,6 +104,7 @@ async function runSetupWizard() {
   
   // Copy exe if running from pkg
   const targetExe = path.join(installDir, 'TalablarAgent.exe');
+  const sourceScript = process.argv[1] ? path.resolve(process.argv[1]) : path.join(__dirname, 'agent.js');
   if (process.pkg) {
     try {
       fs.copyFileSync(process.execPath, targetExe);
@@ -82,9 +116,13 @@ async function runSetupWizard() {
   // Create shortcut on desktop using powershell
   const desktop = path.join(os.homedir(), 'Desktop');
   const shortcutTarget = process.pkg ? targetExe : process.execPath;
+  const shortcutArgs = process.pkg ? '' : `"${sourceScript}"`;
   const shortcutScript = `$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('${path.join(desktop, 'Talablar Agent.lnk')}'); $s.TargetPath = '${shortcutTarget}'; $s.WorkingDirectory = '${installDir}'; $s.IconLocation = 'shell32.dll,16'; $s.Description = 'Talablar Agent Agent'; $s.Save();`;
+  const shortcutScriptWithArgs = shortcutArgs
+    ? shortcutScript.replace("$s.WorkingDirectory", `$s.Arguments = '${shortcutArgs}'; $s.WorkingDirectory`)
+    : shortcutScript;
   
-  const psCommand = `powershell -NoProfile -Command "${shortcutScript}"`;
+  const psCommand = `powershell -NoProfile -Command "${shortcutScriptWithArgs}"`;
   
   await new Promise(resolve => exec(psCommand, resolve));
 
@@ -96,8 +134,8 @@ async function runSetupWizard() {
   if (process.pkg) {
     spawn(targetExe, [], { detached: true, stdio: 'ignore', cwd: installDir }).unref();
   } else {
-    // If running from node script, just spawn node
-    spawn('node', [shortcutTarget], { detached: true, stdio: 'ignore', cwd: installDir }).unref();
+    // If running from node script, restart the same script with node.
+    spawn(process.execPath, [sourceScript], { detached: true, stdio: 'ignore', cwd: installDir }).unref();
   }
   process.exit(0);
 }
@@ -271,6 +309,11 @@ async function prepareReceiptLogoFile(logoHref) {
 }
 
 async function main() {
+  if (forceSetupMode) {
+    await runSetupWizard();
+    return;
+  }
+
   if (!isTokenValid) {
     await runSetupWizard();
     return; // Execution stops here since runSetupWizard calls process.exit(0)

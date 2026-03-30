@@ -38,6 +38,8 @@ function Orders() {
   const { user } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const location = useLocation();
+  const fallbackRestaurantName = language === 'uz' ? "Do'kon" : 'Магазин';
+  const resolvedRestaurantName = restaurant?.name || user?.active_restaurant_name || fallbackRestaurantName;
   const paymeOrderId = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return Number.parseInt(params.get('payme_order_id'), 10);
@@ -159,7 +161,7 @@ function Orders() {
       <ClientTopBar
         logoUrl={restaurant?.logo_url}
         logoDisplayMode={restaurant?.logo_display_mode}
-        restaurantName={restaurant?.name || 'Tandoor'}
+        restaurantName={resolvedRestaurantName}
         language={language}
         onToggleLanguage={toggleLanguage}
         fallback="🍽️"

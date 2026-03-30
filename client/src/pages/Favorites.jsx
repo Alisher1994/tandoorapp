@@ -17,6 +17,8 @@ function Favorites() {
   const { t, language, toggleLanguage } = useLanguage();
   const { addToCart } = useCart();
   const { favorites, removeFavorite, updateFavoriteQuantity } = useFavorites();
+  const fallbackRestaurantName = language === 'uz' ? "Do'kon" : 'Магазин';
+  const resolvedRestaurantName = user?.active_restaurant_name || fallbackRestaurantName;
 
   const getProductName = (product) => (
     language === 'uz' && product?.name_uz ? product.name_uz : product?.name_ru
@@ -51,7 +53,7 @@ function Favorites() {
       <ClientTopBar
         logoUrl={user?.active_restaurant_logo}
         logoDisplayMode={user?.active_restaurant_logo_display_mode}
-        restaurantName="Tandoor"
+        restaurantName={resolvedRestaurantName}
         language={language}
         onToggleLanguage={toggleLanguage}
         fallback={<HeartIcon size={20} filled color="var(--primary-color)" />}

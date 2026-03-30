@@ -40,6 +40,8 @@ function Cart() {
   const hasSavedLocation = user?.last_latitude && user?.last_longitude;
   const savedCoordinates = hasSavedLocation ? `${user.last_latitude},${user.last_longitude}` : '';
   const activeRestaurantId = cart[0]?.restaurant_id || user?.active_restaurant_id || null;
+  const fallbackRestaurantName = language === 'uz' ? "Do'kon" : 'Магазин';
+  const resolvedRestaurantName = restaurant?.name || user?.active_restaurant_name || fallbackRestaurantName;
 
   const [formData, setFormData] = useState({
     delivery_address: user?.last_address || '',
@@ -990,7 +992,7 @@ function Cart() {
         <ClientTopBar
           logoUrl={restaurant?.logo_url || user?.active_restaurant_logo}
           logoDisplayMode={restaurant?.logo_display_mode || user?.active_restaurant_logo_display_mode}
-          restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
+          restaurantName={resolvedRestaurantName}
           language={language}
           showBackButton
           onBack={handleTopBarBack}
@@ -1123,7 +1125,7 @@ function Cart() {
       <ClientTopBar
         logoUrl={restaurant?.logo_url || user?.active_restaurant_logo}
         logoDisplayMode={restaurant?.logo_display_mode || user?.active_restaurant_logo_display_mode}
-        restaurantName={restaurant?.name || user?.active_restaurant_name || 'Tandoor'}
+        restaurantName={resolvedRestaurantName}
         language={language}
         showBackButton
         onBack={handleTopBarBack}

@@ -22,7 +22,9 @@ const {
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const WEB_APP_CACHE_VERSION = String(
-  process.env.RAILWAY_DEPLOYMENT_ID
+  process.env.WEB_APP_FORCE_VERSION
+  || process.env.WEB_APP_CACHE_VERSION
+  || process.env.RAILWAY_DEPLOYMENT_ID
   || process.env.RAILWAY_GIT_COMMIT_SHA
   || process.env.SOURCE_VERSION
   || process.env.npm_package_version
