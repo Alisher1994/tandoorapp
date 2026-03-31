@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   reservation_cost DECIMAL(12, 2) DEFAULT 0,
   activity_type_id INTEGER,
   operator_registration_code VARCHAR(64),
+  is_operator_delivery_later_enabled BOOLEAN DEFAULT false,
   admin_comment TEXT,
   workflow_status VARCHAR(32) DEFAULT 'new' CHECK (workflow_status IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive')),
   is_active BOOLEAN DEFAULT true,

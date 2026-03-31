@@ -100,7 +100,8 @@ async function migrate() {
       'is_scheduled_date_delivery_enabled BOOLEAN DEFAULT false',
       'scheduled_delivery_max_days INTEGER DEFAULT 7',
       'is_asap_delivery_enabled BOOLEAN DEFAULT true',
-      'is_scheduled_time_delivery_enabled BOOLEAN DEFAULT true'
+      'is_scheduled_time_delivery_enabled BOOLEAN DEFAULT true',
+      'is_operator_delivery_later_enabled BOOLEAN DEFAULT false'
     ];
 
     for (const col of restaurantColumns) {
@@ -183,6 +184,11 @@ async function migrate() {
       UPDATE restaurants
       SET delivery_fixed_price = 0
       WHERE delivery_fixed_price IS NULL OR delivery_fixed_price < 0
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET is_operator_delivery_later_enabled = false
+      WHERE is_operator_delivery_later_enabled IS NULL
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

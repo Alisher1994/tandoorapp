@@ -1156,6 +1156,70 @@ async function resolveOrderPromptLanguage({ telegramId = null, userId = null, fa
   return normalizedFallback;
 }
 
+function formatDateKeyForCustomerNotice(dateKey, language = 'ru') {
+  const raw = String(dateKey || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw || '—';
+
+  const [year, month, day] = raw.split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return raw;
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return date.toLocaleDateString(language === 'uz' ? 'uz-UZ' : 'ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+}
+
+async function sendOrderDeliveryLaterNoticeToUser(
+  telegramId,
+  order,
+  deliveryDate,
+  botToken = null,
+  restaurantId = null
+) {
+  if (!telegramId || !deliveryDate) return false;
+
+  const resolvedRestaurantIdRaw = Number(order?.restaurant_id || restaurantId || 0);
+  const resolvedRestaurantId = Number.isFinite(resolvedRestaurantIdRaw) && resolvedRestaurantIdRaw > 0
+    ? resolvedRestaurantIdRaw
+    : null;
+  const bot = getRestaurantBot(botToken, resolvedRestaurantId);
+  if (!bot) return false;
+
+  try {
+    const lang = await resolveOrderPromptLanguage({
+      telegramId,
+      userId: order?.user_id || null,
+      fallback: 'ru'
+    });
+    const dateLabel = formatDateKeyForCustomerNotice(deliveryDate, lang);
+    const orderNumber = escapeHtml(order?.order_number || order?.id || '');
+
+    const message = lang === 'uz'
+      ? `📅 <b>Buyurtma #${orderNumber}</b>\n\nYetkazib berish sanasi: <b>${escapeHtml(dateLabel)}</b>.`
+      : `📅 <b>Заказ #${orderNumber}</b>\n\nДоставка запланирована на <b>${escapeHtml(dateLabel)}</b>.`;
+
+    await bot.sendMessage(telegramId, message, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [[{
+          text: lang === 'uz' ? '📋 Buyurtmalarim' : '📋 Мои заказы',
+          callback_data: 'my_orders'
+        }]]
+      }
+    });
+    return true;
+  } catch (error) {
+    console.error('Send delivery-later notice error:', error.message);
+    return false;
+  }
+}
+
 /**
  * Send order status update to user
  * @param {Object} customMessages - Custom messages from restaurant settings { msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled }
@@ -1499,6 +1563,7 @@ async function notifyRestaurantAdminsLowBalance(restaurantId, currentBalance, op
 module.exports = {
   sendOrderNotification,
   sendOrderUpdateToUser,
+  sendOrderDeliveryLaterNoticeToUser,
   updateOrderNotificationForCustomerCancel,
   sendCardReceiptPlaceholderToGroup,
   replaceCardReceiptPlaceholderInGroup,

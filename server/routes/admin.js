@@ -6,6 +6,7 @@ const pool = require('../database/connection');
 const { authenticate, requireOperator, requireRestaurantAccess } = require('../middleware/auth');
 const {
   sendOrderUpdateToUser,
+  sendOrderDeliveryLaterNoticeToUser,
   getRestaurantBot,
   updateOrderGroupNotification,
   sendRestaurantGroupBalanceLeft
@@ -427,6 +428,9 @@ const ensureRestaurantCurrencySchema = async () => {
     await pool.query(
       `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS delivery_fixed_price DECIMAL(10, 2) DEFAULT 0`
     ).catch(() => {});
+    await pool.query(
+      `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_operator_delivery_later_enabled BOOLEAN DEFAULT false`
+    ).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET delivery_pricing_mode = 'dynamic'
@@ -436,6 +440,11 @@ const ensureRestaurantCurrencySchema = async () => {
     `).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET delivery_fixed_price = 0 WHERE delivery_fixed_price IS NULL OR delivery_fixed_price < 0`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants
+       SET is_operator_delivery_later_enabled = false
+       WHERE is_operator_delivery_later_enabled IS NULL`
     ).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET inventory_tracking_enabled = false WHERE inventory_tracking_enabled IS NULL`
@@ -1679,6 +1688,7 @@ router.put('/restaurant', async (req, res) => {
       inventory_tracking_enabled, inventory_min_threshold,
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
       is_asap_delivery_enabled, is_scheduled_time_delivery_enabled,
+      is_operator_delivery_later_enabled,
       receipt_logo_url, receipt_header_text, receipt_footer_text
     } = req.body;
     const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
@@ -1736,6 +1746,7 @@ router.put('/restaurant', async (req, res) => {
     );
     const normalizedAsapDelivery = normalizeOptionalBoolean(is_asap_delivery_enabled);
     const normalizedScheduledTimeDelivery = normalizeOptionalBoolean(is_scheduled_time_delivery_enabled);
+    const normalizedOperatorDeliveryLaterEnabled = normalizeOptionalBoolean(is_operator_delivery_later_enabled);
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -1866,6 +1877,18 @@ router.put('/restaurant', async (req, res) => {
       normalizedInventoryMinThreshold,
       restaurantId
     ]);
+
+    if (normalizedOperatorDeliveryLaterEnabled !== null) {
+      const deliveryLaterResult = await pool.query(
+        `UPDATE restaurants
+         SET is_operator_delivery_later_enabled = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING is_operator_delivery_later_enabled`,
+        [normalizedOperatorDeliveryLaterEnabled, restaurantId]
+      );
+      result.rows[0].is_operator_delivery_later_enabled = deliveryLaterResult.rows[0]?.is_operator_delivery_later_enabled === true;
+    }
 
     try {
       if (isInventoryTrackingEnabled(result.rows[0]?.inventory_tracking_enabled)) {
@@ -2434,6 +2457,175 @@ router.patch('/orders/:id/status', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Update status error:', error);
     res.status(500).json({ error: 'Ошибка обновления статуса' });
+  } finally {
+    client.release();
+  }
+});
+
+// Перенести доставку заказа на другую дату (без обязательной смены статуса)
+router.patch('/orders/:id/delivery-later', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await ensureRestaurantCurrencySchema();
+
+    const orderId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID заказа' });
+    }
+
+    const deliveryDate = parseAnalyticsDateKey(req.body?.delivery_date);
+    if (!deliveryDate) {
+      return res.status(400).json({ error: 'Укажите корректную дату доставки (YYYY-MM-DD)' });
+    }
+
+    const todayKey = getDateKeyInTimeZone(new Date(), ANALYTICS_TIMEZONE);
+    if (deliveryDate <= todayKey) {
+      return res.status(400).json({ error: 'Нужно выбрать дату позже сегодняшней' });
+    }
+
+    await client.query('BEGIN');
+
+    const orderCheck = await client.query(
+      `SELECT o.*,
+              u.telegram_id,
+              r.telegram_bot_token,
+              r.scheduled_delivery_max_days,
+              r.is_operator_delivery_later_enabled
+       FROM orders o
+       JOIN restaurants r ON r.id = o.restaurant_id
+       LEFT JOIN users u ON u.id = o.user_id
+       WHERE o.id = $1
+       LIMIT 1`,
+      [orderId]
+    );
+
+    if (!orderCheck.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+
+    const oldOrder = orderCheck.rows[0];
+
+    if (req.user.role !== 'superadmin' && oldOrder.restaurant_id !== req.user.active_restaurant_id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Нет доступа к этому заказу' });
+    }
+
+    const deliveryLaterEnabled = normalizeOptionalBoolean(oldOrder.is_operator_delivery_later_enabled) === true;
+    if (!deliveryLaterEnabled) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Режим "Доставить позже" выключен в настройках магазина' });
+    }
+
+    const currentStatus = normalizeOrderStatus(oldOrder.status) || 'new';
+    if (currentStatus === 'delivered' || currentStatus === 'cancelled') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Для завершённого заказа дату менять нельзя' });
+    }
+
+    const maxDays = Math.max(
+      1,
+      Math.min(90, Math.trunc(Number(oldOrder.scheduled_delivery_max_days) || 7))
+    );
+    const [todayYear, todayMonth, todayDay] = todayKey.split('-').map((part) => Number.parseInt(part, 10));
+    const maxDateObj = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
+    maxDateObj.setUTCDate(maxDateObj.getUTCDate() + maxDays);
+    const maxDateKey = formatAnalyticsDateKey(
+      maxDateObj.getUTCFullYear(),
+      maxDateObj.getUTCMonth() + 1,
+      maxDateObj.getUTCDate()
+    );
+
+    if (deliveryDate > maxDateKey) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Максимальная дата доставки: ${maxDateKey}` });
+    }
+
+    const updateResult = await client.query(
+      `UPDATE orders
+       SET delivery_date = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [deliveryDate, orderId]
+    );
+    const order = updateResult.rows[0];
+
+    const actorName = req.user.full_name || req.user.username || `user_${req.user.id}`;
+    const dateLabel = deliveryDate.split('-').reverse().join('.');
+    const providedComment = String(req.body?.comment || '').trim().slice(0, 500);
+    const historyComment = providedComment || `Перенос доставки на ${dateLabel} (оператор: ${actorName})`;
+
+    await client.query(
+      `INSERT INTO order_status_history (order_id, status, changed_by, comment)
+       VALUES ($1, $2, $3, $4)`,
+      [order.id, currentStatus, req.user.id, historyComment]
+    );
+
+    await client.query('COMMIT');
+
+    await logActivity({
+      userId: req.user.id,
+      restaurantId: order.restaurant_id,
+      actionType: ACTION_TYPES.UPDATE_ORDER_STATUS,
+      entityType: ENTITY_TYPES.ORDER,
+      entityId: order.id,
+      entityName: `Заказ #${order.order_number}`,
+      oldValues: {
+        status: currentStatus,
+        delivery_date: oldOrder.delivery_date
+      },
+      newValues: {
+        status: currentStatus,
+        delivery_date: deliveryDate
+      },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    if (oldOrder.telegram_id) {
+      await sendOrderDeliveryLaterNoticeToUser(
+        oldOrder.telegram_id,
+        order,
+        deliveryDate,
+        oldOrder.telegram_bot_token,
+        order.restaurant_id
+      );
+    }
+
+    try {
+      const itemsResult = await pool.query(
+        `SELECT oi.*
+         FROM order_items oi
+         WHERE oi.order_id = $1
+         ORDER BY oi.id`,
+        [order.id]
+      );
+
+      await updateOrderGroupNotification(
+        {
+          ...order,
+          telegram_bot_token: oldOrder.telegram_bot_token || null
+        },
+        itemsResult.rows,
+        {
+          status: currentStatus,
+          operatorName: req.user.full_name || req.user.username || ''
+        }
+      );
+    } catch (groupNotifyError) {
+      console.error('Group notification sync error after delivery-later update:', groupNotifyError.message);
+    }
+
+    res.json({
+      message: 'Дата доставки обновлена',
+      order
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Delivery-later update error:', error);
+    res.status(500).json({ error: 'Ошибка обновления даты доставки' });
   } finally {
     client.release();
   }

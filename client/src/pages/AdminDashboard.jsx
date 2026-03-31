@@ -280,6 +280,15 @@ const toLocalDateKey = (rawDate) => {
   return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
 };
 const getTodayDateKey = () => toLocalDateKey(new Date());
+const shiftDateKeyByDays = (dateKey, offsetDays = 0) => {
+  const [year, month, day] = String(dateKey || '').split('-').map((part) => Number.parseInt(part, 10));
+  if (!year || !month || !day) return '';
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return '';
+  const normalizedOffset = Number.isFinite(Number(offsetDays)) ? Number(offsetDays) : 0;
+  date.setDate(date.getDate() + normalizedOffset);
+  return toLocalDateKey(date);
+};
 const isOrderInDateKey = (value, dateKey) => {
   if (!dateKey) return false;
   return toLocalDateKey(value) === dateKey;
@@ -618,6 +627,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     scheduled_delivery_max_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.scheduled_delivery_max_days, 7))),
     is_asap_delivery_enabled: normalizeSettingsBoolean(settings.is_asap_delivery_enabled, true),
     is_scheduled_time_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_time_delivery_enabled, true),
+    is_operator_delivery_later_enabled: normalizeSettingsBoolean(settings.is_operator_delivery_later_enabled, false),
     send_balance_after_confirm: normalizeSettingsBoolean(settings.send_balance_after_confirm, false),
     send_daily_close_report: normalizeSettingsBoolean(settings.send_daily_close_report, false),
     msg_new: normalizeSettingsText(settings.msg_new),
@@ -1704,6 +1714,9 @@ function AdminDashboard() {
   const [isEditingItems, setIsEditingItems] = useState(false);
   const [savingItems, setSavingItems] = useState(false);
   const [showAddOrderItemModal, setShowAddOrderItemModal] = useState(false);
+  const [showDeliveryLaterModal, setShowDeliveryLaterModal] = useState(false);
+  const [deliveryLaterDate, setDeliveryLaterDate] = useState('');
+  const [savingDeliveryLater, setSavingDeliveryLater] = useState(false);
   const [orderItemSearch, setOrderItemSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('delivered');
   const [ordersViewMode, setOrdersViewMode] = useState('kanban');
@@ -4782,6 +4795,7 @@ function AdminDashboard() {
         inventory_min_threshold: Number.isFinite(Number(response.data?.inventory_min_threshold))
           ? Number(response.data?.inventory_min_threshold)
           : 0,
+        is_operator_delivery_later_enabled: response.data?.is_operator_delivery_later_enabled === true,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
@@ -4815,6 +4829,9 @@ function AdminDashboard() {
         scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(savedSettings?.scheduled_delivery_max_days || restaurantSettings?.scheduled_delivery_max_days || 7))),
         is_asap_delivery_enabled: savedSettings?.is_asap_delivery_enabled !== false,
         is_scheduled_time_delivery_enabled: savedSettings?.is_scheduled_time_delivery_enabled !== false,
+        is_operator_delivery_later_enabled: savedSettings?.is_operator_delivery_later_enabled === true
+          ? true
+          : Boolean(restaurantSettings?.is_operator_delivery_later_enabled),
         currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
@@ -5118,6 +5135,56 @@ function AdminDashboard() {
     } catch (error) {
       const errorText = error.response?.data?.error || 'Ошибка обновления статуса';
       setAlertMessage({ type: 'danger', text: errorText });
+    }
+  };
+
+  const openDeliveryLaterModal = (order) => {
+    if (!order?.id) return;
+    const todayDateKey = getTodayDateKey();
+    const minDate = shiftDateKeyByDays(todayDateKey, 1) || todayDateKey;
+    const orderDeliveryDate = String(order?.delivery_date || '').trim();
+    const initialDate = /^\d{4}-\d{2}-\d{2}$/.test(orderDeliveryDate) && orderDeliveryDate > todayDateKey
+      ? orderDeliveryDate
+      : minDate;
+
+    setDeliveryLaterDate(initialDate);
+    setShowDeliveryLaterModal(true);
+  };
+
+  const saveDeliveryLaterDate = async () => {
+    if (!selectedOrder?.id) return;
+
+    const normalizedDate = String(deliveryLaterDate || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+      setAlertMessage({ type: 'danger', text: 'Укажите корректную дату доставки' });
+      return;
+    }
+
+    setSavingDeliveryLater(true);
+    try {
+      const response = await axios.patch(`${API_URL}/admin/orders/${selectedOrder.id}/delivery-later`, {
+        delivery_date: normalizedDate
+      });
+      const nextOrderRaw = response.data?.order || {};
+      setSelectedOrder((prev) => {
+        if (!prev) return prev;
+        return normalizeAdminOrderForUI({
+          ...prev,
+          ...nextOrderRaw,
+          status_actions: prev.status_actions || []
+        });
+      });
+      setShowDeliveryLaterModal(false);
+      setDeliveryLaterDate('');
+      await fetchData();
+      setAlertMessage({ type: 'success', text: 'Дата доставки обновлена, клиент уведомлен в боте' });
+    } catch (error) {
+      setAlertMessage({
+        type: 'danger',
+        text: error.response?.data?.error || 'Ошибка обновления даты доставки'
+      });
+    } finally {
+      setSavingDeliveryLater(false);
     }
   };
 
@@ -13035,6 +13102,13 @@ function AdminDashboard() {
                                   checked={restaurantSettings.is_scheduled_date_delivery_enabled}
                                   onChange={e => setRestaurantSettings({ ...restaurantSettings, is_scheduled_date_delivery_enabled: e.target.checked })}
                                 />
+                                <Form.Check
+                                  type="switch"
+                                  label='Режим "Доставить позже" для оператора'
+                                  className="mb-2"
+                                  checked={Boolean(restaurantSettings.is_operator_delivery_later_enabled)}
+                                  onChange={e => setRestaurantSettings({ ...restaurantSettings, is_operator_delivery_later_enabled: e.target.checked })}
+                                />
                                 <Form.Text className="text-muted d-block mb-3">
                                   Клиенты смогут выбрать дату доставки из календаря. Заказ будет отображаться у оператора до завершения.
                                 </Form.Text>
@@ -13624,6 +13698,8 @@ function AdminDashboard() {
           onHide={() => {
             setShowOrderModal(false);
             setShowAddOrderItemModal(false);
+            setShowDeliveryLaterModal(false);
+            setDeliveryLaterDate('');
             setOrderItemSearch('');
           }}
           size="xl"
@@ -13955,6 +14031,18 @@ function AdminDashboard() {
                             {selectedOrder.cancel_reason}
                           </div>
                         )}
+
+                        {Boolean(restaurantSettings?.is_operator_delivery_later_enabled) && !isCancelled && currentStatus !== 'delivered' && (
+                          <div className="mt-3 d-grid">
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => openDeliveryLaterModal(selectedOrder)}
+                            >
+                              📅 Доставить позже
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -14195,6 +14283,8 @@ function AdminDashboard() {
               onClick={() => {
                 setShowOrderModal(false);
                 setShowAddOrderItemModal(false);
+                setShowDeliveryLaterModal(false);
+                setDeliveryLaterDate('');
                 setOrderItemSearch('');
               }}
             >
@@ -14260,6 +14350,54 @@ function AdminDashboard() {
               )}
             </div>
           </Modal.Body>
+        </Modal>
+
+        <Modal
+          show={showDeliveryLaterModal}
+          onHide={() => {
+            if (savingDeliveryLater) return;
+            setShowDeliveryLaterModal(false);
+            setDeliveryLaterDate('');
+          }}
+          centered
+        >
+          <Modal.Header closeButton={!savingDeliveryLater}>
+            <Modal.Title>Доставить позже</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group>
+              <Form.Label>Дата доставки</Form.Label>
+              <Form.Control
+                type="date"
+                value={deliveryLaterDate}
+                min={shiftDateKeyByDays(getTodayDateKey(), 1) || getTodayDateKey()}
+                onChange={(e) => setDeliveryLaterDate(String(e.target.value || '').trim())}
+                disabled={savingDeliveryLater}
+              />
+              <Form.Text className="text-muted">
+                Клиент получит сообщение в Telegram-боте с новой датой доставки.
+              </Form.Text>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowDeliveryLaterModal(false);
+                setDeliveryLaterDate('');
+              }}
+              disabled={savingDeliveryLater}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              onClick={saveDeliveryLaterDate}
+              disabled={savingDeliveryLater}
+            >
+              {savingDeliveryLater ? 'Сохранение...' : 'Сохранить дату'}
+            </Button>
+          </Modal.Footer>
         </Modal>
 
         {/* Balance Modal */}
