@@ -1004,12 +1004,33 @@ function Cart() {
           sticky
         />
 
-        <Container className="client-content client-content--compact">
+        <Container
+          className="client-content client-content--compact d-flex flex-column"
+          style={{ minHeight: 'calc(100vh - 96px)' }}
+        >
           <ClientEmptyState
             emoji="🛒"
             message={t('cartEmpty')}
             subMessage={t('cartEmptyDesc')}
           />
+          <div
+            className="mt-auto"
+            style={{ paddingBottom: 'max(12px, calc(env(safe-area-inset-bottom) + 8px))' }}
+          >
+            <Button
+              type="button"
+              variant="primary"
+              className="w-100 fw-semibold"
+              style={{
+                minHeight: 46,
+                borderRadius: 12,
+                boxShadow: '0 12px 24px rgba(15, 23, 42, 0.12)'
+              }}
+              onClick={handleTopBarBack}
+            >
+              ← {t('back')}
+            </Button>
+          </div>
           <div style={{ height: 12 }} />
         </Container>
       </div>
