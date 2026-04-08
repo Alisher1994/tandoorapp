@@ -94,42 +94,119 @@ const UI_THEME_OPTIONS = [
 ];
 const UI_FONT_FAMILY_VALUES = new Set([
   'sans',
+  'inter',
+  'roboto',
+  'open_sans',
+  'lato',
+  'montserrat',
+  'poppins',
+  'nunito',
   'serif_times',
   'serif_georgia',
+  'serif_merriweather',
+  'serif_playfair',
   'serif_garamond',
   'serif_baskerville'
 ]);
 const UI_FONT_FAMILY_OPTIONS = [
   {
     value: 'sans',
-    label: 'Sans (Manrope)',
+    label: 'Manrope',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'inter',
+    label: 'Inter',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'roboto',
+    label: 'Roboto',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'open_sans',
+    label: 'Open Sans',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'lato',
+    label: 'Lato',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'montserrat',
+    label: 'Montserrat',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'poppins',
+    label: 'Poppins',
+    group: 'Sans',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'nunito',
+    label: 'Nunito',
+    group: 'Sans',
     sample: 'Быстрый заказ и удобный каталог'
   },
   {
     value: 'serif_times',
     label: 'Times New Roman',
+    group: 'Serif',
     sample: 'Быстрый заказ и удобный каталог'
   },
   {
     value: 'serif_georgia',
     label: 'Georgia',
+    group: 'Serif',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'serif_merriweather',
+    label: 'Merriweather',
+    group: 'Serif',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'serif_playfair',
+    label: 'Playfair Display',
+    group: 'Serif',
     sample: 'Быстрый заказ и удобный каталог'
   },
   {
     value: 'serif_garamond',
     label: 'Garamond',
+    group: 'Serif',
     sample: 'Быстрый заказ и удобный каталог'
   },
   {
     value: 'serif_baskerville',
     label: 'Baskerville',
+    group: 'Serif',
     sample: 'Быстрый заказ и удобный каталог'
   }
 ];
 const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
   sans: "'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  inter: "'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  roboto: "'Roboto', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  open_sans: "'Open Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  lato: "'Lato', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  montserrat: "'Montserrat', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  poppins: "'Poppins', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  nunito: "'Nunito', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
   serif_times: "'Times New Roman', Times, 'Nimbus Roman No9 L', serif",
   serif_georgia: "Georgia, 'Times New Roman', Times, serif",
+  serif_merriweather: "'Merriweather', Georgia, 'Times New Roman', serif",
+  serif_playfair: "'Playfair Display', Georgia, 'Times New Roman', serif",
   serif_garamond: "Garamond, 'Palatino Linotype', 'Book Antiqua', Palatino, serif",
   serif_baskerville: "Baskerville, 'Times New Roman', Georgia, serif"
 });
@@ -12471,22 +12548,26 @@ function AdminDashboard() {
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Шрифт системы</Form.Label>
-                                  <div className="d-grid gap-2">
+                                  <div className="admin-font-slots" role="radiogroup" aria-label="Шрифт системы">
                                     {UI_FONT_FAMILY_OPTIONS.map((fontOption) => {
                                       const isActive = normalizeUiFontFamily(restaurantSettings.ui_font_family, 'sans') === fontOption.value;
                                       return (
                                         <button
                                           key={fontOption.value}
                                           type="button"
-                                          className={`btn text-start ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                          role="radio"
+                                          aria-checked={isActive}
+                                          className={`admin-font-slot${isActive ? ' is-active' : ''}`}
                                           onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_font_family: fontOption.value })}
                                           style={{
-                                            borderRadius: 12,
                                             fontFamily: UI_FONT_FAMILY_PREVIEW_STYLES[fontOption.value] || UI_FONT_FAMILY_PREVIEW_STYLES.sans
                                           }}
                                         >
-                                          <div className="fw-bold">{fontOption.label}</div>
-                                          <div className="small opacity-75">{fontOption.sample}</div>
+                                          <span className="admin-font-slot-top">
+                                            <span className="admin-font-slot-name">{fontOption.label}</span>
+                                            <span className="admin-font-slot-group">{fontOption.group}</span>
+                                          </span>
+                                          <span className="admin-font-slot-sample">{fontOption.sample}</span>
                                         </button>
                                       );
                                     })}

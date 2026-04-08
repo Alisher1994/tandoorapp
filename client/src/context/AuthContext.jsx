@@ -24,8 +24,17 @@ const normalizeUiTheme = (value) => {
 };
 const UI_FONT_FAMILY_VALUES = new Set([
   'sans',
+  'inter',
+  'roboto',
+  'open_sans',
+  'lato',
+  'montserrat',
+  'poppins',
+  'nunito',
   'serif_times',
   'serif_georgia',
+  'serif_merriweather',
+  'serif_playfair',
   'serif_garamond',
   'serif_baskerville'
 ]);

@@ -125,7 +125,22 @@ async function migrate() {
       SET ui_font_family = 'sans'
       WHERE ui_font_family IS NULL
          OR TRIM(COALESCE(ui_font_family, '')) = ''
-         OR LOWER(ui_font_family) NOT IN ('sans', 'serif_times', 'serif_georgia', 'serif_garamond', 'serif_baskerville')
+         OR LOWER(ui_font_family) NOT IN (
+           'sans',
+           'inter',
+           'roboto',
+           'open_sans',
+           'lato',
+           'montserrat',
+           'poppins',
+           'nunito',
+           'serif_times',
+           'serif_georgia',
+           'serif_merriweather',
+           'serif_playfair',
+           'serif_garamond',
+           'serif_baskerville'
+         )
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
@@ -215,6 +230,32 @@ async function migrate() {
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_ui_theme_check
       CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow'))
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_ui_font_family_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_ui_font_family_check
+      CHECK (
+        ui_font_family IN (
+          'sans',
+          'inter',
+          'roboto',
+          'open_sans',
+          'lato',
+          'montserrat',
+          'poppins',
+          'nunito',
+          'serif_times',
+          'serif_georgia',
+          'serif_merriweather',
+          'serif_playfair',
+          'serif_garamond',
+          'serif_baskerville'
+        )
+      )
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

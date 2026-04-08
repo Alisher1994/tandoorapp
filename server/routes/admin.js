@@ -377,8 +377,17 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
 };
 const UI_FONT_FAMILY_VALUES = new Set([
   'sans',
+  'inter',
+  'roboto',
+  'open_sans',
+  'lato',
+  'montserrat',
+  'poppins',
+  'nunito',
   'serif_times',
   'serif_georgia',
+  'serif_merriweather',
+  'serif_playfair',
   'serif_garamond',
   'serif_baskerville'
 ]);
@@ -435,7 +444,22 @@ const ensureRestaurantCurrencySchema = async () => {
       SET ui_font_family = 'sans'
       WHERE ui_font_family IS NULL
          OR BTRIM(ui_font_family) = ''
-         OR LOWER(ui_font_family) NOT IN ('sans', 'serif_times', 'serif_georgia', 'serif_garamond', 'serif_baskerville')
+         OR LOWER(ui_font_family) NOT IN (
+           'sans',
+           'inter',
+           'roboto',
+           'open_sans',
+           'lato',
+           'montserrat',
+           'poppins',
+           'nunito',
+           'serif_times',
+           'serif_georgia',
+           'serif_merriweather',
+           'serif_playfair',
+           'serif_garamond',
+           'serif_baskerville'
+         )
     `).catch(() => {});
     await pool.query(
       `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS minimum_order_amount DECIMAL(12, 2) DEFAULT 0`
@@ -481,6 +505,32 @@ const ensureRestaurantCurrencySchema = async () => {
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_delivery_pricing_mode_check
       CHECK (delivery_pricing_mode IN ('dynamic', 'fixed'))
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_ui_font_family_check
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_ui_font_family_check
+      CHECK (
+        ui_font_family IN (
+          'sans',
+          'inter',
+          'roboto',
+          'open_sans',
+          'lato',
+          'montserrat',
+          'poppins',
+          'nunito',
+          'serif_times',
+          'serif_georgia',
+          'serif_merriweather',
+          'serif_playfair',
+          'serif_garamond',
+          'serif_baskerville'
+        )
+      )
     `).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();

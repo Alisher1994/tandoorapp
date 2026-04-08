@@ -184,12 +184,48 @@
   --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+:root[data-ui-font="inter"] {
+  --app-font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="roboto"] {
+  --app-font-family: 'Roboto', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="open_sans"] {
+  --app-font-family: 'Open Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="lato"] {
+  --app-font-family: 'Lato', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="montserrat"] {
+  --app-font-family: 'Montserrat', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="poppins"] {
+  --app-font-family: 'Poppins', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="nunito"] {
+  --app-font-family: 'Nunito', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 :root[data-ui-font="serif_times"] {
   --app-font-family: 'Times New Roman', Times, 'Nimbus Roman No9 L', serif;
 }
 
 :root[data-ui-font="serif_georgia"] {
   --app-font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+:root[data-ui-font="serif_merriweather"] {
+  --app-font-family: 'Merriweather', Georgia, 'Times New Roman', serif;
+}
+
+:root[data-ui-font="serif_playfair"] {
+  --app-font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
 }
 
 :root[data-ui-font="serif_garamond"] {
