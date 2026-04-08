@@ -10,6 +10,10 @@ const {
   updateOrderGroupNotification,
   replaceCardReceiptPlaceholderInGroup
 } = require('./notifications');
+const {
+  getCurrencyLabelByCode,
+  resolveRestaurantCurrencyCode
+} = require('../services/currency');
 const { ensureOrderPaidForProcessing } = require('../services/orderBilling');
 const printerManager = require('../services/printerManager');
 const { ensureBotFunnelSchema, trackBotFunnelEvent } = require('../services/botFunnel');
@@ -1273,6 +1277,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     const statusEmoji = { new: '🆕', preparing: '👨‍🍳', delivering: '🚚', delivered: '✅', cancelled: '❌' };
     let message = '📦 <b>Ваши заказы:</b>\n\n';
+    const currencyCode = await resolveRestaurantCurrencyCode(pool, restaurantId, 'uz');
+    const currencyLabel = getCurrencyLabelByCode(currencyCode, 'ru');
 
     ordersResult.rows.forEach((order) => {
       const createdAt = order.created_at ? new Date(order.created_at) : null;
@@ -1285,7 +1291,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           timeZone: BOT_TIME_ZONE
         }).replace(',', '')
         : '';
-      message += `${statusEmoji[order.status] || '📦'} №${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум${dateLabel ? ` (${dateLabel})` : ''}\n`;
+      message += `${statusEmoji[order.status] || '📦'} №${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} ${currencyLabel}${dateLabel ? ` (${dateLabel})` : ''}\n`;
     });
 
     await bot.sendMessage(chatId, message, {
@@ -3145,8 +3151,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           markProcessedByUserId: processedByUserId
         });
         if (!billingResult.ok) {
+          const currencyCode = await resolveRestaurantCurrencyCode(pool, current.order.restaurant_id, 'uz');
+          const currencyLabel = getCurrencyLabelByCode(currencyCode, operatorContext.language || 'ru');
           const text = billingResult.code === 'INSUFFICIENT_BALANCE'
-            ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} сум\nНужно: ${formatMoney(billingResult.requiredAmount)} сум`
+            ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} ${currencyLabel}\nНужно: ${formatMoney(billingResult.requiredAmount)} ${currencyLabel}`
             : (billingResult.error || '❌ Не удалось принять заказ');
           await safeAnswerCallback({ text, show_alert: true });
           return;
@@ -3262,8 +3270,10 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             markProcessedByUserId: processedByUserId
           });
           if (!billingResult.ok) {
+            const currencyCode = await resolveRestaurantCurrencyCode(pool, current.order.restaurant_id, 'uz');
+            const currencyLabel = getCurrencyLabelByCode(currencyCode, operatorContext.language || 'ru');
             const text = billingResult.code === 'INSUFFICIENT_BALANCE'
-              ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} сум\nНужно: ${formatMoney(billingResult.requiredAmount)} сум`
+              ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} ${currencyLabel}\nНужно: ${formatMoney(billingResult.requiredAmount)} ${currencyLabel}`
               : (billingResult.error || '❌ Не удалось перевести заказ в обработку');
             await safeAnswerCallback({ text, show_alert: true });
             return;

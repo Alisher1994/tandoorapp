@@ -2,6 +2,11 @@ const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
 const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
+const {
+  getCurrencyLabelByCode,
+  getKnownCurrencyCode,
+  resolveRestaurantCurrencyCode
+} = require('../services/currency');
 const TELEGRAM_ITEMS_HARD_LIMIT = 20;
 const TELEGRAM_COMMENT_LIMIT = 360;
 const DEFAULT_BOT_TIME_ZONE = 'Asia/Tashkent';
@@ -175,7 +180,7 @@ function truncateText(value, maxLength) {
   return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
-function buildItemsList(items = []) {
+function buildItemsList(items = [], currencyLabel = 'сум') {
   if (!Array.isArray(items) || items.length === 0) return '—';
 
   if (items.length > TELEGRAM_ITEMS_HARD_LIMIT) {
@@ -187,7 +192,7 @@ function buildItemsList(items = []) {
     const price = parseNumericValue(item.price);
     const total = qty * price;
     const itemName = escapeHtml(item.product_name || 'Товар');
-    return `№${index + 1}. ${itemName}\n${formatPrice(qty)} x ${formatPrice(price)} = ${formatPrice(total)} сум`;
+    return `№${index + 1}. ${itemName}\n${formatPrice(qty)} x ${formatPrice(price)} = ${formatPrice(total)} ${currencyLabel}`;
   }).join('\n\n');
 }
 
@@ -233,13 +238,27 @@ function normalizeNoticeLanguage(value) {
   return normalized === 'uz' ? 'uz' : 'ru';
 }
 
-function buildGroupBalanceLeftMessage(currentBalance, language = 'ru') {
+function buildGroupBalanceLeftMessage(currentBalance, language = 'ru', currencyCode = 'uz') {
   const lang = normalizeNoticeLanguage(language);
   const amount = formatPrice(currentBalance || 0);
-  if (lang === 'uz') {
-    return `💰 Balansingizda <b>${amount} so'm</b> qoldi.`;
+  const currencyLabel = getCurrencyLabelByCode(currencyCode, lang);
+  if (lang === 'uz') return `💰 Balansingizda <b>${amount} ${currencyLabel}</b> qoldi.`;
+  return `💰 На вашем балансе осталось <b>${amount} ${currencyLabel}</b>.`;
+}
+
+async function resolveOrderCurrencyLabel(order, language = 'ru') {
+  const explicitCode = getKnownCurrencyCode(order?.currency_code);
+  if (explicitCode) {
+    return getCurrencyLabelByCode(explicitCode, language);
   }
-  return `💰 На вашем балансе осталось <b>${amount} сум</b>.`;
+
+  const restaurantId = Number.parseInt(order?.restaurant_id, 10);
+  if (Number.isFinite(restaurantId) && restaurantId > 0) {
+    const restaurantCurrencyCode = await resolveRestaurantCurrencyCode(pool, restaurantId, 'uz');
+    return getCurrencyLabelByCode(restaurantCurrencyCode, language);
+  }
+
+  return getCurrencyLabelByCode('uz', language);
 }
 
 function normalizeActionStatus(value) {
@@ -346,7 +365,7 @@ async function fetchOrderStatusActions(orderId) {
   }
 }
 
-function buildCustomerDeliverySummaryMessage(order, actions = []) {
+function buildCustomerDeliverySummaryMessage(order, actions = [], currencyLabel = 'сум') {
   const statusOrder = ['accepted', 'preparing', 'delivering', 'delivered'];
   const statusLabels = {
     accepted: '✅ Принят',
@@ -389,7 +408,7 @@ function buildCustomerDeliverySummaryMessage(order, actions = []) {
     `✅ Заказ доставлен.\n\n` +
     `<b>Этапы заказа</b>\n` +
     `${timelineLines.join('\n')}\n\n` +
-    `Сумма заказа: ${formatPrice(order?.total_amount)} сум` +
+    `Сумма заказа: ${formatPrice(order?.total_amount)} ${currencyLabel}` +
     (ratingsBlock ? `\n\n${ratingsBlock}` : '')
   );
 }
@@ -586,7 +605,8 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     includePreviewLink = false,
     previewUrl = null,
     cancelReason = '',
-    statusActions = []
+    statusActions = [],
+    currencyLabel = 'сум'
   } = options;
   const statusActionsBlock = buildStatusActionsLines(statusActions);
   const paymePaymentStatusLine = buildGroupPaymePaymentStatusLine(order, statusKey);
@@ -603,7 +623,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     );
   }
 
-  const itemsList = buildItemsList(items);
+  const itemsList = buildItemsList(items, currencyLabel);
   const pickupOrder = isPickupOrder(order);
 
   let locationLine = '';
@@ -652,16 +672,16 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
   const shouldShowDeliveryLine = !pickupOrder && (deliveryCost > 0 || deliveryDistanceKm > 0 || hasDeliveryAddress || hasDeliveryCoordinates);
 
   const containerLine = containerTotal > 0
-    ? `🍽 Пакет / Посуда: ${formatPrice(containerTotal)} сум\n`
+    ? `🍽 Пакет / Посуда: ${formatPrice(containerTotal)} ${currencyLabel}\n`
     : '';
   const serviceLine = serviceFee > 0
-    ? `🛎 Сервис: ${formatPrice(serviceFee)} сум\n`
+    ? `🛎 Сервис: ${formatPrice(serviceFee)} ${currencyLabel}\n`
     : '';
   let deliveryLine = '';
   if (pickupOrder) {
     deliveryLine = '🛍 Самовывоз\n';
   } else if (shouldShowDeliveryLine) {
-    deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} сум`;
+    deliveryLine = `🚗 Доставка: ${formatPrice(deliveryCost)} ${currencyLabel}`;
     if (deliveryDistanceKm > 0) {
       deliveryLine += ` (${deliveryDistanceKm} км)`;
     }
@@ -694,7 +714,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     containerLine +
     serviceLine +
     deliveryLine +
-    `<b>Итого: ${formatPrice(orderTotal)} сум</b>` +
+    `<b>Итого: ${formatPrice(orderTotal)} ${currencyLabel}</b>` +
     `\n\n` +
     (safeComment ? `💬 Комментарий: ${escapeHtml(safeComment)}` : '💬 Комментарий: —') +
     (statusActionsBlock ? `\n\n${statusActionsBlock}` : '') +
@@ -807,6 +827,7 @@ async function updateOrderGroupNotification(order, items = [], options = {}) {
   const statusActions = Array.isArray(options.statusActions)
     ? options.statusActions
     : await fetchOrderStatusActions(order.id);
+  const currencyLabel = await resolveOrderCurrencyLabel(order, 'ru');
   const message = buildGroupOrderNotificationPayload(order, items, {
     revealSensitive: statusMeta.revealSensitive,
     statusKey: statusMeta.statusKey,
@@ -814,7 +835,8 @@ async function updateOrderGroupNotification(order, items = [], options = {}) {
     includePreviewLink: false,
     previewUrl,
     cancelReason: options.cancelReason,
-    statusActions
+    statusActions,
+    currencyLabel
   });
 
   const messageId = options.messageId || order.admin_message_id;
@@ -882,9 +904,11 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
   }
 
   try {
+    const currencyLabel = await resolveOrderCurrencyLabel(order, 'ru');
     const message = buildGroupOrderNotificationPayload(order, items, {
       revealSensitive: false,
-      statusKey: 'new'
+      statusKey: 'new',
+      currencyLabel
     });
     const keyboard = buildGroupOrderActionKeyboard(order.id, 'new', '', {
       previewUrl: buildOrderPreviewUrl(order.id)
@@ -939,13 +963,13 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       const fallbackPaymePaymentStatusLine = buildGroupPaymePaymentStatusLine(order, 'new');
       const fallbackMessage =
         `Заказ #${order?.order_number || order?.id || '—'}\n` +
-        `Сумма: ${formatPrice(order?.total_amount)} сум\n` +
+        `Сумма: ${formatPrice(order?.total_amount)} ${currencyLabel}\n` +
         (fallbackPaymePaymentStatusLine ? `${fallbackPaymePaymentStatusLine}\n` : '') +
-        (fallbackServiceFee > 0 ? `Сервис: ${formatPrice(fallbackServiceFee)} сум\n` : '') +
+        (fallbackServiceFee > 0 ? `Сервис: ${formatPrice(fallbackServiceFee)} ${currencyLabel}\n` : '') +
         (fallbackPickupOrder
           ? 'Самовывоз\n'
           : fallbackShouldShowDelivery
-          ? `Доставка: ${formatPrice(fallbackDeliveryCost)} сум${fallbackDistanceKm > 0 ? ` (${fallbackDistanceKm} км)` : ''}\n`
+          ? `Доставка: ${formatPrice(fallbackDeliveryCost)} ${currencyLabel}${fallbackDistanceKm > 0 ? ` (${fallbackDistanceKm} км)` : ''}\n`
           : '') +
         `${fallbackItems || 'Товары: —'}${omittedCount > 0 ? `\n… и ещё ${omittedCount} позиций` : ''}`;
 
@@ -1249,6 +1273,7 @@ async function sendOrderUpdateToUser(
 
   let orderWithRatings = order;
   try {
+    const currencyLabel = await resolveOrderCurrencyLabel(order, 'ru');
     if (status === 'delivered' && order?.id) {
       await ensureOrderRatingsSchema().catch(() => {});
       try {
@@ -1349,7 +1374,7 @@ async function sendOrderUpdateToUser(
     const message =
       `<b>ID: ${order.order_number}</b> ${tag}\n\n` +
       `${statusText}\n\n` +
-      `Сумма заказа: ${formatPrice(order.total_amount)} сум` +
+      `Сумма заказа: ${formatPrice(order.total_amount)} ${currencyLabel}` +
       paymentLine;
 
     const inlineKeyboard = [];
@@ -1374,7 +1399,7 @@ async function sendOrderUpdateToUser(
     let outgoingMessage = message;
     if (status === 'delivered' && order?.id) {
       const actions = await fetchOrderStatusActions(order.id);
-      outgoingMessage = buildCustomerDeliverySummaryMessage(orderWithRatings, actions);
+      outgoingMessage = buildCustomerDeliverySummaryMessage(orderWithRatings, actions, currencyLabel);
     }
 
     const sent = await bot.sendMessage(telegramId, outgoingMessage, options);
@@ -1474,16 +1499,19 @@ async function updateOrderNotificationForCustomerCancel(order, botToken = null, 
   }
 }
 
-async function sendBalanceNotification(telegramId, amount, currentBalance, botToken = null) {
+async function sendBalanceNotification(telegramId, amount, currentBalance, botToken = null, options = {}) {
   if (!telegramId) return;
 
-  const bot = getRestaurantBot(botToken);
+  const bot = getRestaurantBot(botToken, options?.restaurantId || null);
   if (!bot) return;
+  const currencyCode = options?.currencyCode
+    || await resolveRestaurantCurrencyCode(pool, options?.restaurantId, 'uz');
+  const currencyLabel = getCurrencyLabelByCode(currencyCode, 'ru');
 
   const message =
     `💰 <b>Пополнение баланса!</b>\n\n` +
-    `Сумма: +${formatPrice(amount)} сум\n` +
-    `Текущий баланс: <b>${formatPrice(currentBalance)} сум</b>\n\n` +
+    `Сумма: +${formatPrice(amount)} ${currencyLabel}\n` +
+    `Текущий баланс: <b>${formatPrice(currentBalance)} ${currencyLabel}</b>\n\n` +
     `Вы можете продолжать принимать заказы.`;
 
   try {
@@ -1508,7 +1536,8 @@ async function sendRestaurantGroupBalanceLeft({
   if (!bot) return false;
 
   try {
-    const message = buildGroupBalanceLeftMessage(currentBalance, language);
+    const currencyCode = await resolveRestaurantCurrencyCode(pool, restaurantId, 'uz');
+    const message = buildGroupBalanceLeftMessage(currentBalance, language, currencyCode);
     await bot.sendMessage(normalizedGroupId, message, { parse_mode: 'HTML' });
     return true;
   } catch (error) {
@@ -1544,10 +1573,12 @@ async function notifyRestaurantAdminsLowBalance(restaurantId, currentBalance, op
 
     const balanceFormatted = formatPrice(currentBalance || 0);
     const thresholdFormatted = formatPrice(threshold || 0);
+    const currencyCode = await resolveRestaurantCurrencyCode(pool, normalizedRestaurantId, 'uz');
+    const currencyLabel = getCurrencyLabelByCode(currencyCode, 'ru');
     const message =
       `⚠️ <b>Низкий баланс магазина</b>\n\n` +
-      `На вашем балансе осталось меньше ${thresholdFormatted} сум.\n` +
-      `Текущий баланс: <b>${balanceFormatted} сум</b>\n\n` +
+      `На вашем балансе осталось меньше ${thresholdFormatted} ${currencyLabel}.\n` +
+      `Текущий баланс: <b>${balanceFormatted} ${currencyLabel}</b>\n\n` +
       `Пополните баланс, чтобы не остановить прием заказов.`;
 
     for (const telegramId of recipients) {

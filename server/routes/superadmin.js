@@ -4484,7 +4484,16 @@ router.post('/restaurants/:id/topup', async (req, res) => {
       `, [restaurantId]);
 
       for (const op of operators.rows) {
-        await sendBalanceNotification(op.telegram_id, amountValue, updatedRest.rows[0].balance);
+        await sendBalanceNotification(
+          op.telegram_id,
+          amountValue,
+          updatedRest.rows[0].balance,
+          null,
+          {
+            restaurantId,
+            currencyCode: updatedRest.rows[0].currency_code
+          }
+        );
       }
     } catch (notifErr) {
       console.error('Notification error on topup:', notifErr.message);

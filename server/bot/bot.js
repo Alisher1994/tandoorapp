@@ -18,6 +18,10 @@ const {
   fetchServerStatsGroupChatId,
   initSuperadminServerMonitoring
 } = require('../services/superadminServerMonitoring');
+const {
+  getCurrencyLabelByCode,
+  resolveRestaurantCurrencyCode
+} = require('../services/currency');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -167,7 +171,7 @@ const BOT_TEXTS = {
     quickHelpText: '📖 <b>Помощь</b>\n\n📍 <b>Отправить локацию</b> — начать заказ\n📋 <b>Мои заказы</b> — история заказов\n\nКоманды:\n/start — начать\n/menu — открыть меню\n/orders — мои заказы',
     orderNotFound: '❌ Заказ не найден',
     orderAlreadyProcessed: '⚠️ Заказ уже обработан',
-    insufficientBalanceAlert: '❌ Недостаточно средств на балансе магазина\nБаланс: {balance} сум\nНужно: {required} сум',
+    insufficientBalanceAlert: '❌ Недостаточно средств на балансе магазина\nБаланс: {balance} {currency}\nНужно: {required} {currency}',
     orderAcceptFailed: '❌ Не удалось принять заказ',
     orderConfirmed: '✅ Заказ подтвержден!',
     callbackErrorPrefix: '❌ Ошибка: ',
@@ -237,7 +241,7 @@ const BOT_TEXTS = {
     quickHelpText: "📖 <b>Yordam</b>\n\n📍 <b>Lokatsiya yuborish</b> — buyurtmani boshlash\n📋 <b>Buyurtmalarim</b> — buyurtmalar tarixi\n\nBuyruqlar:\n/start — boshlash\n/menu — menyuni ochish\n/orders — buyurtmalarim",
     orderNotFound: '❌ Buyurtma topilmadi',
     orderAlreadyProcessed: '⚠️ Buyurtma allaqachon qayta ishlangan',
-    insufficientBalanceAlert: "❌ Do'kon balansida mablag' yetarli emas\nBalans: {balance} so'm\nKerak: {required} so'm",
+    insufficientBalanceAlert: "❌ Do'kon balansida mablag' yetarli emas\nBalans: {balance} {currency}\nKerak: {required} {currency}",
     orderAcceptFailed: '❌ Buyurtmani qabul qilib bo‘lmadi',
     orderConfirmed: '✅ Buyurtma tasdiqlandi!',
     callbackErrorPrefix: '❌ Xatolik: ',
@@ -1670,6 +1674,7 @@ async function initBot() {
         const locationLine = state.location
           ? `${state.location.latitude.toFixed(6)}, ${state.location.longitude.toFixed(6)}`
           : onboardingT(userLang, 'locationNotSpecified');
+        const restaurantCurrencyLabel = getCurrencyLabelByCode(restaurant.currency_code, 'ru');
         const notificationText =
           `🆕 <b>Новый магазин зарегистрирован</b>\n\n` +
           `🏪 ID: <b>${restaurant.id}</b>\n` +
@@ -1684,8 +1689,8 @@ async function initBot() {
           `🤖 Bot Token: <code>${restaurant.telegram_bot_token || '—'}</code>\n` +
           `👥 Group ID: <code>${restaurant.telegram_group_id || '—'}</code>\n` +
           `🖼️ Логотип: ${restaurant.logo_url || '—'}\n` +
-          `💰 Стартовый баланс: ${Number(restaurant.balance || 0).toLocaleString('ru-RU')} сум\n` +
-          `💸 Стоимость заказа: ${Number(restaurant.order_cost || 0).toLocaleString('ru-RU')} сум\n` +
+          `💰 Стартовый баланс: ${Number(restaurant.balance || 0).toLocaleString('ru-RU')} ${restaurantCurrencyLabel}\n` +
+          `💸 Стоимость заказа: ${Number(restaurant.order_cost || 0).toLocaleString('ru-RU')} ${restaurantCurrencyLabel}\n` +
           `🚚 Доставка включена: ${restaurant.is_delivery_enabled ? 'Да' : 'Нет'}`;
 
         for (const superadminTelegramId of recipients) {
@@ -2264,8 +2269,10 @@ async function initBot() {
       }
       
       const ordersResult = await pool.query(`
-        SELECT o.order_number, o.status, o.total_amount, o.created_at
-        FROM orders o WHERE o.user_id = $1
+        SELECT o.order_number, o.status, o.total_amount, o.created_at, COALESCE(r.currency_code, 'uz') AS currency_code
+        FROM orders o
+        LEFT JOIN restaurants r ON r.id = o.restaurant_id
+        WHERE o.user_id = $1
         ORDER BY o.created_at DESC LIMIT 5
       `, [userResult.rows[0].id]);
       
@@ -2278,7 +2285,8 @@ async function initBot() {
       const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
       
       ordersResult.rows.forEach((order) => {
-        message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум\n`;
+        const currencyLabel = getCurrencyLabelByCode(order.currency_code, userLang);
+        message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} ${currencyLabel}\n`;
       });
       
       bot.sendMessage(chatId, message, {
@@ -2611,6 +2619,7 @@ async function initBot() {
       
       const ordersResult = await pool.query(
         `SELECT o.*, r.name as restaurant_name,
+                COALESCE(r.currency_code, 'uz') AS currency_code,
                 COALESCE(
                   json_agg(
                     json_build_object(
@@ -2649,7 +2658,7 @@ async function initBot() {
         
         message += `${statusEmoji[order.status] || '📦'} <b>${t(userLang, 'orderTitle')} #${order.order_number}</b>\n`;
         if (order.restaurant_name) message += `🏪 ${order.restaurant_name}\n`;
-        message += `💰 ${order.total_amount} сум\n`;
+        message += `💰 ${order.total_amount} ${getCurrencyLabelByCode(order.currency_code, userLang)}\n`;
         message += `📅 ${new Date(order.created_at).toLocaleDateString('ru-RU', { timeZone: BOT_TIME_ZONE })}\n`;
         message += `${t(userLang, 'orderStatusLabel')}: ${getStatusText(order.status, userLang)}\n\n`;
       });
@@ -2882,8 +2891,10 @@ async function initBot() {
       }
       
       const ordersResult = await pool.query(`
-        SELECT o.order_number, o.status, o.total_amount, o.created_at
-        FROM orders o WHERE o.user_id = $1
+        SELECT o.order_number, o.status, o.total_amount, o.created_at, COALESCE(r.currency_code, 'uz') AS currency_code
+        FROM orders o
+        LEFT JOIN restaurants r ON r.id = o.restaurant_id
+        WHERE o.user_id = $1
         ORDER BY o.created_at DESC LIMIT 5
       `, [userResult.rows[0].id]);
       
@@ -2896,7 +2907,8 @@ async function initBot() {
       const statusEmoji = { 'new': '🆕', 'preparing': '👨‍🍳', 'delivering': '🚚', 'delivered': '✅', 'cancelled': '❌' };
       
       ordersResult.rows.forEach((order) => {
-        message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} сум\n`;
+        const currencyLabel = getCurrencyLabelByCode(order.currency_code, userLang);
+        message += `${statusEmoji[order.status] || '📦'} #${order.order_number} — ${parseFloat(order.total_amount).toLocaleString()} ${currencyLabel}\n`;
       });
       
       bot.sendMessage(chatId, message, {
@@ -2916,7 +2928,7 @@ async function initBot() {
         let orderCheck;
         try {
           orderCheck = await pool.query(`
-            SELECT o.status, r.telegram_bot_token, r.telegram_group_id, r.send_balance_after_confirm
+            SELECT o.status, o.restaurant_id, r.telegram_bot_token, r.telegram_group_id, r.send_balance_after_confirm
             FROM orders o 
             LEFT JOIN restaurants r ON o.restaurant_id = r.id 
             WHERE o.id = $1
@@ -2924,7 +2936,7 @@ async function initBot() {
         } catch (error) {
           if (error.code !== '42703') throw error;
           orderCheck = await pool.query(`
-            SELECT o.status, r.telegram_bot_token, r.telegram_group_id, false AS send_balance_after_confirm
+            SELECT o.status, o.restaurant_id, r.telegram_bot_token, r.telegram_group_id, false AS send_balance_after_confirm
             FROM orders o 
             LEFT JOIN restaurants r ON o.restaurant_id = r.id 
             WHERE o.id = $1
@@ -2951,10 +2963,13 @@ async function initBot() {
 
         const billingResult = await ensureOrderPaidForProcessing({ orderId });
         if (!billingResult.ok) {
+          const currencyCode = await resolveRestaurantCurrencyCode(pool, orderData.restaurant_id, 'uz');
+          const currencyLabel = getCurrencyLabelByCode(currencyCode, callbackLang);
           const text = billingResult.code === 'INSUFFICIENT_BALANCE'
             ? t(callbackLang, 'insufficientBalanceAlert', {
               balance: formatMoney(billingResult.balanceBefore),
-              required: formatMoney(billingResult.requiredAmount)
+              required: formatMoney(billingResult.requiredAmount),
+              currency: currencyLabel
             })
             : (billingResult.error || t(callbackLang, 'orderAcceptFailed'));
           bot.answerCallbackQuery(callbackQuery.id, { text, show_alert: true });
