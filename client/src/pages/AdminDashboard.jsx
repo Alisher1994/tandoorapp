@@ -1415,7 +1415,8 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
   for (const item of source) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const rawName = String(item.name || item.value || item.label || '').slice(0, 60);
-    const name = rawName.trim();
+    const name = rawName;
+    const normalizedName = rawName.trim();
     const descriptionRu = String(item.description_ru || item.descriptionRu || '').slice(0, 1500);
     const descriptionUz = String(item.description_uz || item.descriptionUz || '').slice(0, 1500);
     const priceRaw = item.price ?? fallbackPrice;
@@ -1452,7 +1453,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
       && normalizedDiscountPrice < normalizedPrice;
     const normalizedStockQuantity = normalizeProductVariantStockQuantityValue(stockQuantityRaw, '');
     const normalizedInStock = normalizeVariantBooleanValue(inStockRaw, true) !== false;
-    const isDraft = Boolean(item.__draft) || !name;
+    const isDraft = Boolean(item.__draft) || !normalizedName;
     const explicitPriceRaw = item.price;
     const hasExplicitPrice = ![undefined, null, ''].includes(explicitPriceRaw) && Number.isFinite(normalizedPrice);
     const hasExplicitDiscount = hasValidDiscount;
@@ -1460,7 +1461,7 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
     const hasManualOutOfStock = normalizedInStock === false;
 
     const hasAnyContent = Boolean(
-      name
+      normalizedName
       || descriptionRu.trim()
       || descriptionUz.trim()
       || barcode.trim()
@@ -1478,8 +1479,8 @@ const normalizeProductVariantOptionsForEditor = (value, { fallbackPrice = NaN, u
     );
     if (!hasAnyContent && !isDraft) continue;
 
-    if (name) {
-      const key = name.toLowerCase();
+    if (normalizedName) {
+      const key = normalizedName.toLowerCase();
       if (unique.has(key)) continue;
       unique.add(key);
     }
