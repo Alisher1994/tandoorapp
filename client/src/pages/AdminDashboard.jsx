@@ -1590,6 +1590,7 @@ const CustomToggle = React.forwardRef(({ children, onClick, className }, ref) =>
 const CustomMenu = React.forwardRef(
   ({ children, style, className, 'aria-labelledby': labeledBy }, ref) => {
     const [value, setValue] = useState('');
+    const { language } = useLanguage();
 
     return (
       <div
@@ -1602,7 +1603,7 @@ const CustomMenu = React.forwardRef(
           <Form.Control
             autoFocus
             className="w-100"
-            placeholder="Поиск категории..."
+            placeholder={language === 'uz' ? 'Kategoriya qidirish...' : 'Поиск категории...'}
             onChange={(e) => setValue(e.target.value)}
             value={value}
           />
@@ -6232,6 +6233,12 @@ function AdminDashboard() {
   const handleGenerateProductLocalizedText = async () => {
     const sourceNameRu = String(productForm.name_ru || '').trim();
     const sourceNameUz = String(productForm.name_uz || '').trim();
+    const sourceVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+      fallbackPrice: normalizeProductPriceValue(productForm.price, NaN),
+      unit: productForm.unit || 'шт'
+    })
+      .map((variant) => String(variant?.name || '').trim())
+      .filter(Boolean);
 
     if (!sourceNameRu && !sourceNameUz) {
       alert(
@@ -6246,7 +6253,8 @@ function AdminDashboard() {
     try {
       const response = await axios.post(`${API_URL}/admin/products/description-preview`, {
         name_ru: sourceNameRu,
-        name_uz: sourceNameUz
+        name_uz: sourceNameUz,
+        variants: sourceVariants
       });
       const generated = response?.data || {};
       setProductForm((prev) => ({
@@ -6254,7 +6262,36 @@ function AdminDashboard() {
         name_ru: String(generated.name_ru || '').trim() || String(prev.name_ru || '').trim() || String(prev.name_uz || '').trim(),
         name_uz: String(generated.name_uz || '').trim() || String(prev.name_uz || '').trim() || String(prev.name_ru || '').trim(),
         description_ru: String(generated.description_ru || '').trim() || String(prev.description_ru || '').trim(),
-        description_uz: String(generated.description_uz || '').trim() || String(prev.description_uz || '').trim()
+        description_uz: String(generated.description_uz || '').trim() || String(prev.description_uz || '').trim(),
+        variant_options: (() => {
+          const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
+          const currentVariants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
+            fallbackPrice: fallbackBasePrice,
+            unit: prev.unit || 'шт'
+          });
+          const generatedVariantDescriptions = Array.isArray(generated.variant_descriptions)
+            ? generated.variant_descriptions
+            : [];
+          const generatedMap = new Map(
+            generatedVariantDescriptions
+              .map((item) => {
+                const key = String(item?.name || '').trim().toLowerCase();
+                if (!key) return null;
+                return [key, item];
+              })
+              .filter(Boolean)
+          );
+          return currentVariants.map((variant) => {
+            const key = String(variant?.name || '').trim().toLowerCase();
+            if (!key || !generatedMap.has(key)) return variant;
+            const generatedVariant = generatedMap.get(key) || {};
+            return {
+              ...variant,
+              description_ru: String(generatedVariant.description_ru || '').trim() || String(variant.description_ru || '').trim(),
+              description_uz: String(generatedVariant.description_uz || '').trim() || String(variant.description_uz || '').trim()
+            };
+          });
+        })()
       }));
     } catch (error) {
       alert(
@@ -15189,6 +15226,11 @@ function AdminDashboard() {
                   }
                   return path;
                 };
+                const getLocalizedCategoryName = (category) => (
+                  language === 'uz'
+                    ? (category?.name_uz || category?.name_ru || '')
+                    : (category?.name_ru || category?.name_uz || '')
+                );
 
                 const selectedPathIds = getCategoryPathIds(productForm.category_id);
                 const dropdownsToRender = [];
@@ -15210,7 +15252,7 @@ function AdminDashboard() {
 
                   const selectedCat = currentLevelCategories.find(c => c.id.toString() === selectedIdForThisLevel.toString());
                   const defaultLabel = isRootLevel ? t('selectCategory') : t('selectSubcategory');
-                  const dropDownLabel = selectedCat ? selectedCat.name_ru : defaultLabel;
+                  const dropDownLabel = selectedCat ? getLocalizedCategoryName(selectedCat) : defaultLabel;
 
                   dropdownsToRender.push(
                     <Col md={6} key={`category-level-${level}`}>
@@ -15233,7 +15275,7 @@ function AdminDashboard() {
                                   active={selectedIdForThisLevel.toString() === cat.id.toString()}
                                 >
                                   <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
-                                  {cat.name_ru}
+                                  {getLocalizedCategoryName(cat)}
                                 </Dropdown.Item>
                               ))}
                             </Dropdown.Menu>

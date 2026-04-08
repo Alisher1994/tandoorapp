@@ -2150,8 +2150,8 @@ const buildLocalGlobalProductTextFallback = ({ nameRu, nameUz }) => {
     name_uz: normalizedNameUz,
     description_ru: normalizeCatalogText(
       normalizedNameRu
-        ? `${normalizedNameRu} — качественный товар для ежедневного использования и продажи в заведении.`
-        : 'Качественный товар для ежедневного использования и продажи в заведении.',
+        ? `${normalizedNameRu} — качественный товар для ежедневного использования и продажи в магазине.`
+        : 'Качественный товар для ежедневного использования и продажи в магазине.',
       3000
     ),
     description_uz: normalizeCatalogText(
@@ -2160,31 +2160,98 @@ const buildLocalGlobalProductTextFallback = ({ nameRu, nameUz }) => {
         : "Kundalik foydalanish va savdo uchun mos sifatli mahsulot.",
       3000
     ),
+    variant_descriptions: [],
     provider: 'local-template',
     providerRef: null
   };
 };
 
-const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
+const buildVariantDescriptionsFallback = (variantNames = []) => (
+  variantNames.map((variantNameRaw) => {
+    const variantName = normalizeCatalogText(variantNameRaw, 120);
+    if (!variantName) return null;
+    return {
+      name: variantName,
+      description_ru: normalizeCatalogText(
+        `${variantName} — вариант товара с отличающимися характеристиками.`,
+        1500
+      ),
+      description_uz: normalizeCatalogText(
+        `${variantName} — mahsulotning xususiyatlari farqlanuvchi varianti.`,
+        1500
+      )
+    };
+  }).filter(Boolean)
+);
+
+const resolveVariantDescriptions = (rawVariants, variantNames = []) => {
+  const fallback = buildVariantDescriptionsFallback(variantNames);
+  if (!Array.isArray(rawVariants) || rawVariants.length === 0) return fallback;
+
+  const byName = new Map();
+  for (const item of rawVariants) {
+    if (!item || typeof item !== 'object') continue;
+    const rawName = item.name ?? item.variant_name ?? item.title ?? '';
+    const normalizedName = normalizeCatalogText(rawName, 120);
+    if (!normalizedName) continue;
+    byName.set(normalizedName.toLowerCase(), {
+      name: normalizedName,
+      description_ru: normalizeCatalogText(item.description_ru || '', 1500),
+      description_uz: normalizeCatalogText(item.description_uz || '', 1500)
+    });
+  }
+
+  return variantNames.map((variantNameRaw) => {
+    const variantName = normalizeCatalogText(variantNameRaw, 120);
+    if (!variantName) return null;
+    const matched = byName.get(variantName.toLowerCase());
+    const fallbackItem = fallback.find((entry) => entry.name.toLowerCase() === variantName.toLowerCase());
+    return {
+      name: variantName,
+      description_ru: normalizeCatalogText(
+        matched?.description_ru || fallbackItem?.description_ru || '',
+        1500
+      ),
+      description_uz: normalizeCatalogText(
+        matched?.description_uz || fallbackItem?.description_uz || '',
+        1500
+      )
+    };
+  }).filter(Boolean);
+};
+
+const generateGlobalProductLocalizedText = async ({ nameRu, nameUz, variants = [] }) => {
   const normalizedRu = normalizeCatalogText(nameRu, 255);
   const normalizedUz = normalizeCatalogText(nameUz, 255);
+  const normalizedVariantNames = Array.isArray(variants)
+    ? variants
+      .map((variant) => {
+        if (typeof variant === 'string') return normalizeCatalogText(variant, 120);
+        return normalizeCatalogText(variant?.name || variant?.variant_name || variant?.title || '', 120);
+      })
+      .filter(Boolean)
+    : [];
   if (!normalizedRu && !normalizedUz) {
     throw new Error('Укажите хотя бы одно название товара (RU или UZ)');
   }
 
   const prompt = [
-    'Ты ассистент каталога товаров ресторана.',
+    'Ты ассистент каталога товаров.',
+    'Категории могут быть любыми: еда, цветы, зоотовары, одежда, техника, аксессуары и т.д.',
     'Верни только валидный JSON без markdown, без комментариев.',
     'Схема JSON строго:',
-    '{"name_ru":"...","name_uz":"...","description_ru":"...","description_uz":"..."}',
+    '{"name_ru":"...","name_uz":"...","description_ru":"...","description_uz":"...","variant_descriptions":[{"name":"...","description_ru":"...","description_uz":"..."}]}',
     `name_ru_input: "${normalizedRu || ''}"`,
     `name_uz_input: "${normalizedUz || ''}"`,
+    `variant_names_input_json: ${JSON.stringify(normalizedVariantNames)}`,
     'Требования:',
     '1) Если name_ru_input пуст, переведи из name_uz_input на русский и заполни name_ru.',
     '2) Если name_uz_input пуст, переведи из name_ru_input на узбекский (латиница) и заполни name_uz.',
     '3) Если поле уже заполнено, не меняй смысл названия и оставь его близким к исходному.',
     '4) Сформируй description_ru и description_uz: 1-2 коротких предложения, по делу, без эмодзи, без рекламных слоганов, без цен.',
-    '5) Описания должны соответствовать одному и тому же товару.'
+    '5) Тексты должны быть универсальными под любой тип товара, не только под блюда и еду.',
+    '6) Если переданы variant_names_input_json, верни variant_descriptions той же длины и с теми же name.',
+    '7) Для каждого варианта дай отдельные description_ru и description_uz (коротко, по сути, без цен).'
   ].join('\n');
 
   try {
@@ -2216,21 +2283,31 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
       }
     }
     if (!result?.text) {
-      return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+      const fallback = buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+      return {
+        ...fallback,
+        variant_descriptions: buildVariantDescriptionsFallback(normalizedVariantNames)
+      };
     }
     const parsed = extractFirstJsonObject(result.text);
     if (!parsed || typeof parsed !== 'object') {
-      return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+      const fallback = buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+      return {
+        ...fallback,
+        variant_descriptions: buildVariantDescriptionsFallback(normalizedVariantNames)
+      };
     }
     const outputNameRu = normalizeCatalogText(parsed.name_ru || normalizedRu || normalizedUz, 255);
     const outputNameUz = normalizeCatalogText(parsed.name_uz || normalizedUz || normalizedRu, 255);
     const fallback = buildLocalGlobalProductTextFallback({ nameRu: outputNameRu, nameUz: outputNameUz });
+    const variantDescriptions = resolveVariantDescriptions(parsed.variant_descriptions, normalizedVariantNames);
 
     return {
       name_ru: outputNameRu || fallback.name_ru,
       name_uz: outputNameUz || fallback.name_uz,
       description_ru: normalizeCatalogText(parsed.description_ru || fallback.description_ru, 3000),
       description_uz: normalizeCatalogText(parsed.description_uz || fallback.description_uz, 3000),
+      variant_descriptions: variantDescriptions,
       provider: result.provider || 'gemini',
       model: String(result.model || '').trim(),
       providerRef: result.providerRef || null,
@@ -2238,7 +2315,11 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz }) => {
     };
   } catch (error) {
     console.warn('Global product description generation fallback:', error?.message || error);
-    return buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+    const fallback = buildLocalGlobalProductTextFallback({ nameRu: normalizedRu, nameUz: normalizedUz });
+    return {
+      ...fallback,
+      variant_descriptions: buildVariantDescriptionsFallback(normalizedVariantNames)
+    };
   }
 };
 
@@ -6795,6 +6876,14 @@ router.post('/global-products/description-preview', async (req, res) => {
     if (!(await ensureAiFeatureEnabled(res))) return;
     const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
     const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+    const variantNames = Array.isArray(req.body?.variants)
+      ? req.body.variants
+        .map((variant) => {
+          if (typeof variant === 'string') return toOptionalTrimmedText(variant).slice(0, 120);
+          return toOptionalTrimmedText(variant?.name || variant?.variant_name || variant?.title).slice(0, 120);
+        })
+        .filter(Boolean)
+      : [];
 
     if (!nameRu && !nameUz) {
       return res.status(400).json({
@@ -6802,7 +6891,7 @@ router.post('/global-products/description-preview', async (req, res) => {
       });
     }
 
-    const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz });
+    const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz, variants: variantNames });
     const parsedProvider = parseProviderTag(generated.provider || '');
     const providerRef = generated.providerRef || (parsedProvider.type
       ? { id: null, name: parsedProvider.type, provider_type: parsedProvider.type }
@@ -6821,6 +6910,15 @@ router.post('/global-products/description-preview', async (req, res) => {
       name_uz: generated.name_uz || nameUz || nameRu,
       description_ru: generated.description_ru || '',
       description_uz: generated.description_uz || '',
+      variant_descriptions: Array.isArray(generated?.variant_descriptions)
+        ? generated.variant_descriptions
+          .map((variant) => ({
+            name: toOptionalTrimmedText(variant?.name).slice(0, 120),
+            description_ru: toOptionalTrimmedText(variant?.description_ru).slice(0, 1500),
+            description_uz: toOptionalTrimmedText(variant?.description_uz).slice(0, 1500)
+          }))
+          .filter((variant) => variant.name)
+        : [],
       provider: generated.provider || 'local-template'
     });
   } catch (error) {

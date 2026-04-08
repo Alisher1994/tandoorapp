@@ -3270,6 +3270,14 @@ router.post('/products/description-preview', async (req, res) => {
 
     const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
     const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+    const variantNames = Array.isArray(req.body?.variants)
+      ? req.body.variants
+        .map((variant) => {
+          if (typeof variant === 'string') return toOptionalTrimmedText(variant).slice(0, 120);
+          return toOptionalTrimmedText(variant?.name || variant?.variant_name || variant?.title).slice(0, 120);
+        })
+        .filter(Boolean)
+      : [];
 
     if (!nameRu && !nameUz) {
       return res.status(400).json({
@@ -3277,12 +3285,21 @@ router.post('/products/description-preview', async (req, res) => {
       });
     }
 
-    const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz });
+    const generated = await generateGlobalProductLocalizedText({ nameRu, nameUz, variants: variantNames });
     res.json({
       name_ru: toOptionalTrimmedText(generated?.name_ru || nameRu || nameUz).slice(0, 255),
       name_uz: toOptionalTrimmedText(generated?.name_uz || nameUz || nameRu).slice(0, 255),
       description_ru: toOptionalTrimmedText(generated?.description_ru).slice(0, 1500),
       description_uz: toOptionalTrimmedText(generated?.description_uz).slice(0, 1500),
+      variant_descriptions: Array.isArray(generated?.variant_descriptions)
+        ? generated.variant_descriptions
+          .map((variant) => ({
+            name: toOptionalTrimmedText(variant?.name).slice(0, 120),
+            description_ru: toOptionalTrimmedText(variant?.description_ru).slice(0, 1500),
+            description_uz: toOptionalTrimmedText(variant?.description_uz).slice(0, 1500)
+          }))
+          .filter((variant) => variant.name)
+        : [],
       provider: toOptionalTrimmedText(generated?.provider || 'local-template')
     });
   } catch (error) {
