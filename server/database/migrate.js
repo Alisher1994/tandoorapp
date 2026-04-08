@@ -49,6 +49,7 @@ async function migrate() {
       'logo_url TEXT',
       `logo_display_mode VARCHAR(20) DEFAULT 'square'`,
       `ui_theme VARCHAR(20) DEFAULT 'classic'`,
+      `ui_font_family VARCHAR(32) DEFAULT 'sans'`,
       `menu_view_mode VARCHAR(24) DEFAULT 'grid_categories'`,
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
@@ -118,6 +119,13 @@ async function migrate() {
       UPDATE restaurants
       SET ui_theme = 'classic'
       WHERE ui_theme IS NULL OR TRIM(COALESCE(ui_theme, '')) = ''
+    `).catch(() => {});
+    await client.query(`
+      UPDATE restaurants
+      SET ui_font_family = 'sans'
+      WHERE ui_font_family IS NULL
+         OR TRIM(COALESCE(ui_font_family, '')) = ''
+         OR LOWER(ui_font_family) NOT IN ('sans', 'serif_times', 'serif_georgia', 'serif_garamond', 'serif_baskerville')
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
@@ -374,8 +382,8 @@ async function migrate() {
       { name: 'rating_requested_at', type: 'TIMESTAMP' },
       { name: 'cancel_reason', type: 'TEXT' },
       { name: 'cancelled_at_status', type: 'VARCHAR(20)' },
-      { name: 'service_fee', type: 'DECIMAL(10, 2) DEFAULT 0' },
-      { name: 'delivery_cost', type: 'DECIMAL(10, 2) DEFAULT 0' },
+      { name: 'service_fee', type: 'DECIMAL(15, 2) DEFAULT 0' },
+      { name: 'delivery_cost', type: 'DECIMAL(15, 2) DEFAULT 0' },
       { name: 'delivery_distance_km', type: 'DECIMAL(10, 2)' },
       { name: 'is_paid', type: 'BOOLEAN DEFAULT false' },
       { name: 'paid_amount', type: 'DECIMAL(12, 2) DEFAULT 0' },
@@ -414,7 +422,7 @@ async function migrate() {
     // Add container columns to order_items
     const orderItemsColumns = [
       { name: 'container_name', type: 'VARCHAR(255)' },
-      { name: 'container_price', type: 'DECIMAL(10, 2) DEFAULT 0' },
+      { name: 'container_price', type: 'DECIMAL(15, 2) DEFAULT 0' },
       { name: 'container_norm', type: 'DECIMAL(10, 2) DEFAULT 1' }
     ];
 
@@ -426,6 +434,14 @@ async function migrate() {
       }
     }
     await client.query(`UPDATE order_items SET container_norm = 1 WHERE container_norm IS NULL OR container_norm <= 0`).catch(() => {});
+
+    // Expand monetary precision for large totals (up to trillions)
+    await client.query(`ALTER TABLE orders ALTER COLUMN total_amount TYPE DECIMAL(15, 2)`).catch(() => {});
+    await client.query(`ALTER TABLE orders ALTER COLUMN service_fee TYPE DECIMAL(15, 2)`).catch(() => {});
+    await client.query(`ALTER TABLE orders ALTER COLUMN delivery_cost TYPE DECIMAL(15, 2)`).catch(() => {});
+    await client.query(`ALTER TABLE order_items ALTER COLUMN price TYPE DECIMAL(15, 2)`).catch(() => {});
+    await client.query(`ALTER TABLE order_items ALTER COLUMN total TYPE DECIMAL(15, 2)`).catch(() => {});
+    await client.query(`ALTER TABLE order_items ALTER COLUMN container_price TYPE DECIMAL(15, 2)`).catch(() => {});
     console.log('✅ Order_items table updated with container columns');
 
     // =====================================================

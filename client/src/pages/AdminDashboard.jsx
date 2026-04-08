@@ -92,6 +92,47 @@ const UI_THEME_OPTIONS = [
   { value: 'violet_wave', label: 'Violet Wave (фиолетовый)', preview: ['#8b5cf6', '#6d28d9', '#22d3ee'] },
   { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] }
 ];
+const UI_FONT_FAMILY_VALUES = new Set([
+  'sans',
+  'serif_times',
+  'serif_georgia',
+  'serif_garamond',
+  'serif_baskerville'
+]);
+const UI_FONT_FAMILY_OPTIONS = [
+  {
+    value: 'sans',
+    label: 'Sans (Manrope)',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'serif_times',
+    label: 'Times New Roman',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'serif_georgia',
+    label: 'Georgia',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'serif_garamond',
+    label: 'Garamond',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'serif_baskerville',
+    label: 'Baskerville',
+    sample: 'Быстрый заказ и удобный каталог'
+  }
+];
+const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
+  sans: "'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  serif_times: "'Times New Roman', Times, 'Nimbus Roman No9 L', serif",
+  serif_georgia: "Georgia, 'Times New Roman', Times, serif",
+  serif_garamond: "Garamond, 'Palatino Linotype', 'Book Antiqua', Palatino, serif",
+  serif_baskerville: "Baskerville, 'Times New Roman', Georgia, serif"
+});
 const MENU_MODE_PREVIEW_MEDIA = Object.freeze({
   categoryPhoto: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=480&q=80',
   categoryPhotoAlt: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=480&q=80',
@@ -102,6 +143,12 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   if (UI_THEME_VALUES.has(normalized)) return normalized;
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
+};
+const normalizeUiFontFamily = (value, fallback = 'sans') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_FONT_FAMILY_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_FONT_FAMILY_VALUES.has(normalizedFallback) ? normalizedFallback : 'sans';
 };
 const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -585,6 +632,7 @@ const buildRestaurantSettingsSignature = (settings) => {
       ? 'horizontal'
       : 'square',
     ui_theme: normalizeUiTheme(settings.ui_theme, 'classic'),
+    ui_font_family: normalizeUiFontFamily(settings.ui_font_family, 'sans'),
     menu_view_mode: String(settings.menu_view_mode || '').trim().toLowerCase() === 'single_list'
       ? 'single_list'
       : 'grid_categories',
@@ -4786,6 +4834,7 @@ function AdminDashboard() {
         currency_code: response.data?.currency_code || 'uz',
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
+        ui_font_family: normalizeUiFontFamily(response.data?.ui_font_family, 'sans'),
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
         delivery_pricing_mode: normalizeDeliveryPricingMode(response.data?.delivery_pricing_mode, 'dynamic'),
         delivery_fixed_price: Number.isFinite(Number(response.data?.delivery_fixed_price))
@@ -4835,6 +4884,7 @@ function AdminDashboard() {
         currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
+        ui_font_family: normalizeUiFontFamily(savedSettings?.ui_font_family, restaurantSettings?.ui_font_family || 'sans'),
         menu_view_mode: savedSettings?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
         delivery_pricing_mode: normalizeDeliveryPricingMode(
           savedSettings?.delivery_pricing_mode,
@@ -4858,6 +4908,9 @@ function AdminDashboard() {
         )
       };
       setRestaurantSettings(mergedSettings);
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-ui-font', normalizeUiFontFamily(mergedSettings.ui_font_family, 'sans'));
+      }
       setRestaurantSettingsBaselineSignature(buildRestaurantSettingsSignature(mergedSettings));
       if (savedSettings.currency_code) {
         setCountryCurrency(savedSettings.currency_code);
@@ -12373,6 +12426,35 @@ function AdminDashboard() {
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
                                     Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
+                                  </Form.Text>
+                                </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Шрифт системы</Form.Label>
+                                  <div className="d-grid gap-2">
+                                    {UI_FONT_FAMILY_OPTIONS.map((fontOption) => {
+                                      const isActive = normalizeUiFontFamily(restaurantSettings.ui_font_family, 'sans') === fontOption.value;
+                                      return (
+                                        <button
+                                          key={fontOption.value}
+                                          type="button"
+                                          className={`btn text-start ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                          onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_font_family: fontOption.value })}
+                                          style={{
+                                            borderRadius: 12,
+                                            fontFamily: UI_FONT_FAMILY_PREVIEW_STYLES[fontOption.value] || UI_FONT_FAMILY_PREVIEW_STYLES.sans
+                                          }}
+                                        >
+                                          <div className="fw-bold">{fontOption.label}</div>
+                                          <div className="small opacity-75">{fontOption.sample}</div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    Выбранный шрифт применяется к админке и витрине этого магазина.
                                   </Form.Text>
                                 </Form.Group>
                               </div>

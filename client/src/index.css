@@ -1,4 +1,5 @@
 :root {
+  --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   --primary-color: #475569;
   --primary-dark: #334155;
   --primary-light: #64748b;
@@ -179,6 +180,26 @@
   --bs-secondary: #f97316;
 }
 
+:root[data-ui-font="sans"] {
+  --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-ui-font="serif_times"] {
+  --app-font-family: 'Times New Roman', Times, 'Nimbus Roman No9 L', serif;
+}
+
+:root[data-ui-font="serif_georgia"] {
+  --app-font-family: Georgia, 'Times New Roman', Times, serif;
+}
+
+:root[data-ui-font="serif_garamond"] {
+  --app-font-family: Garamond, 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+}
+
+:root[data-ui-font="serif_baskerville"] {
+  --app-font-family: Baskerville, 'Times New Roman', Georgia, serif;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -257,7 +278,7 @@ body {
 }
 
 body {
-  font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--app-font-family);
   background: var(--app-shell-background);
   color: var(--text-color);
   line-height: 1.6;

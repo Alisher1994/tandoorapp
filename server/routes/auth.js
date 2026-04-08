@@ -99,6 +99,19 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
 };
+const UI_FONT_FAMILY_VALUES = new Set([
+  'sans',
+  'serif_times',
+  'serif_georgia',
+  'serif_garamond',
+  'serif_baskerville'
+]);
+const normalizeUiFontFamily = (value, fallback = 'sans') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_FONT_FAMILY_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_FONT_FAMILY_VALUES.has(normalizedFallback) ? normalizedFallback : 'sans';
+};
 
 function normalizePhone(rawPhone) {
   if (!rawPhone) return '';
@@ -656,7 +669,7 @@ async function resolveRestaurantFromTelegramWebAppInitData(initData) {
   const rawInitData = String(initData || '').trim();
   if (!rawInitData) return null;
   const result = await pool.query(
-    `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, telegram_bot_token
+    `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, ui_font_family, telegram_bot_token
      FROM restaurants
      WHERE is_active = true
        AND COALESCE(TRIM(telegram_bot_token), '') <> ''`
@@ -794,6 +807,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
              r.service_fee as active_restaurant_service_fee,
              r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
              r.ui_theme as active_restaurant_ui_theme,
+             r.ui_font_family as active_restaurant_ui_font_family,
              CASE
                WHEN $3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
                WHEN $3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
@@ -969,7 +983,8 @@ router.post('/login', loginRateLimiter, async (req, res) => {
           r.currency_code,
           r.service_fee,
           r.is_delivery_enabled,
-          r.ui_theme
+          r.ui_theme,
+          r.ui_font_family
         FROM restaurants r
         INNER JOIN operator_restaurants opr ON r.id = opr.restaurant_id
         WHERE opr.user_id = $1 AND r.is_active = true
@@ -1006,6 +1021,10 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         user.active_restaurant_ui_theme = normalizeUiTheme(
           effectiveRestaurant.ui_theme,
           user.active_restaurant_ui_theme || 'classic'
+        );
+        user.active_restaurant_ui_font_family = normalizeUiFontFamily(
+          effectiveRestaurant.ui_font_family,
+          user.active_restaurant_ui_font_family || 'sans'
         );
       }
     }
@@ -1049,6 +1068,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         active_restaurant_logo_display_mode: user.active_restaurant_logo_display_mode,
         active_restaurant_currency_code: user.active_restaurant_currency_code || 'uz',
         active_restaurant_ui_theme: normalizeUiTheme(user.active_restaurant_ui_theme, 'classic'),
+        active_restaurant_ui_font_family: normalizeUiFontFamily(user.active_restaurant_ui_font_family, 'sans'),
         active_restaurant_service_fee: user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: user.active_restaurant_is_delivery_enabled,
         restaurants
@@ -1099,7 +1119,7 @@ router.post('/telegram-webapp-login', async (req, res) => {
 
     if (Number.isFinite(restaurantIdFromBody) && restaurantIdFromBody > 0) {
       const restaurantResult = await pool.query(
-        `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, telegram_bot_token
+        `SELECT id, name, logo_url, logo_display_mode, currency_code, service_fee, is_delivery_enabled, ui_theme, ui_font_family, telegram_bot_token
          FROM restaurants
          WHERE id = $1 AND is_active = true
          LIMIT 1`,
@@ -1312,6 +1332,7 @@ router.post('/telegram-webapp-login', async (req, res) => {
         active_restaurant_logo_display_mode: restaurant.logo_display_mode,
         active_restaurant_currency_code: restaurant.currency_code || 'uz',
         active_restaurant_ui_theme: normalizeUiTheme(restaurant.ui_theme, 'classic'),
+        active_restaurant_ui_font_family: normalizeUiFontFamily(restaurant.ui_font_family, 'sans'),
         active_restaurant_service_fee: restaurant.service_fee,
         active_restaurant_is_delivery_enabled: restaurant.is_delivery_enabled,
         restaurants
@@ -1587,6 +1608,7 @@ router.get('/me', authenticate, async (req, res) => {
         active_restaurant_logo_display_mode: req.user.active_restaurant_logo_display_mode,
         active_restaurant_currency_code: req.user.active_restaurant_currency_code || 'uz',
         active_restaurant_ui_theme: normalizeUiTheme(req.user.active_restaurant_ui_theme, 'classic'),
+        active_restaurant_ui_font_family: normalizeUiFontFamily(req.user.active_restaurant_ui_font_family, 'sans'),
         active_restaurant_service_fee: req.user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: req.user.active_restaurant_is_delivery_enabled,
         restaurants: req.user.restaurants || [],

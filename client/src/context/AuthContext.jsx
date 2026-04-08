@@ -22,14 +22,30 @@ const normalizeUiTheme = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalized) ? normalized : 'classic';
 };
+const UI_FONT_FAMILY_VALUES = new Set([
+  'sans',
+  'serif_times',
+  'serif_georgia',
+  'serif_garamond',
+  'serif_baskerville'
+]);
+const normalizeUiFontFamily = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return UI_FONT_FAMILY_VALUES.has(normalized) ? normalized : 'sans';
+};
 const withNormalizedTheme = (nextUser) => (
   nextUser
-    ? { ...nextUser, active_restaurant_ui_theme: normalizeUiTheme(nextUser.active_restaurant_ui_theme) }
+    ? {
+      ...nextUser,
+      active_restaurant_ui_theme: normalizeUiTheme(nextUser.active_restaurant_ui_theme),
+      active_restaurant_ui_font_family: normalizeUiFontFamily(nextUser.active_restaurant_ui_font_family)
+    }
     : nextUser
 );
-const applyUiTheme = (theme) => {
+const applyUiTheme = (theme, fontFamily) => {
   if (typeof document === 'undefined') return;
   document.documentElement.setAttribute('data-ui-theme', normalizeUiTheme(theme));
+  document.documentElement.setAttribute('data-ui-font', normalizeUiFontFamily(fontFamily));
 };
 
 export function AuthProvider({ children }) {
@@ -140,8 +156,9 @@ export function AuthProvider({ children }) {
     const effectiveTheme = user?.role === 'superadmin'
       ? 'talablar_blue'
       : user?.active_restaurant_ui_theme;
-    applyUiTheme(effectiveTheme);
-  }, [user?.role, user?.active_restaurant_ui_theme]);
+    const effectiveFontFamily = user?.active_restaurant_ui_font_family || 'sans';
+    applyUiTheme(effectiveTheme, effectiveFontFamily);
+  }, [user?.role, user?.active_restaurant_ui_theme, user?.active_restaurant_ui_font_family]);
 
   const initializeAuth = async () => {
     const loadingGuardId = window.setTimeout(() => setLoading(false), AUTH_REQUEST_TIMEOUT_MS + 2000);
@@ -366,6 +383,7 @@ export function AuthProvider({ children }) {
         active_restaurant_logo: response.data.active_restaurant_logo,
         active_restaurant_logo_display_mode: response.data.active_restaurant_logo_display_mode,
         active_restaurant_ui_theme: normalizeUiTheme(response.data.active_restaurant_ui_theme),
+        active_restaurant_ui_font_family: normalizeUiFontFamily(response.data.active_restaurant_ui_font_family),
         active_restaurant_currency_code: response.data.active_restaurant_currency_code || prev?.active_restaurant_currency_code || 'uz'
       }));
       localStorage.setItem('active_restaurant_id', String(response.data.active_restaurant_id || ''));

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   payment_placeholders JSONB DEFAULT '{}'::jsonb,
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
   ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow')),
+  ui_font_family VARCHAR(32) DEFAULT 'sans' CHECK (ui_font_family IN ('sans', 'serif_times', 'serif_georgia', 'serif_garamond', 'serif_baskerville')),
   currency_code VARCHAR(8) DEFAULT 'uz',
   reservation_cost DECIMAL(12, 2) DEFAULT 0,
   activity_type_id INTEGER,
@@ -145,7 +146,7 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   order_number VARCHAR(50) UNIQUE NOT NULL,
   status VARCHAR(20) DEFAULT 'new',
-  total_amount DECIMAL(10, 2) NOT NULL,
+  total_amount DECIMAL(15, 2) NOT NULL,
   delivery_address TEXT,
   delivery_coordinates TEXT,
   customer_name VARCHAR(255) NOT NULL,
@@ -188,8 +189,8 @@ CREATE TABLE IF NOT EXISTS order_items (
   selected_variant VARCHAR(120),
   quantity DECIMAL(10, 2) NOT NULL,
   unit VARCHAR(20),
-  price DECIMAL(10, 2) NOT NULL,
-  total DECIMAL(10, 2) NOT NULL,
+  price DECIMAL(15, 2) NOT NULL,
+  total DECIMAL(15, 2) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

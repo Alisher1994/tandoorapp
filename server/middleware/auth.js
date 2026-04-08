@@ -16,6 +16,19 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
 };
+const UI_FONT_FAMILY_VALUES = new Set([
+  'sans',
+  'serif_times',
+  'serif_georgia',
+  'serif_garamond',
+  'serif_baskerville'
+]);
+const normalizeUiFontFamily = (value, fallback = 'sans') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_FONT_FAMILY_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_FONT_FAMILY_VALUES.has(normalizedFallback) ? normalizedFallback : 'sans';
+};
 
 /**
  * Аутентификация пользователя по JWT токену
@@ -115,6 +128,7 @@ const authenticate = async (req, res, next) => {
           r.logo_url,
           r.logo_display_mode,
           r.ui_theme,
+          r.ui_font_family,
           r.currency_code,
           r.service_fee,
           r.is_delivery_enabled,
@@ -156,6 +170,7 @@ const authenticate = async (req, res, next) => {
     user.active_restaurant_logo = null;
     user.active_restaurant_logo_display_mode = null;
     user.active_restaurant_ui_theme = 'classic';
+    user.active_restaurant_ui_font_family = 'sans';
     user.active_restaurant_currency_code = 'uz';
     user.active_restaurant_service_fee = null;
     user.active_restaurant_is_delivery_enabled = null;
@@ -168,6 +183,7 @@ const authenticate = async (req, res, next) => {
       user.active_restaurant_logo = restaurant.logo_url;
       user.active_restaurant_logo_display_mode = restaurant.logo_display_mode;
       user.active_restaurant_ui_theme = normalizeUiTheme(restaurant.ui_theme, 'classic');
+      user.active_restaurant_ui_font_family = normalizeUiFontFamily(restaurant.ui_font_family, 'sans');
       user.active_restaurant_currency_code = restaurant.currency_code || 'uz';
       user.active_restaurant_service_fee = restaurant.service_fee;
       user.active_restaurant_is_delivery_enabled = restaurant.is_delivery_enabled;
@@ -180,6 +196,7 @@ const authenticate = async (req, res, next) => {
           logo_url,
           logo_display_mode,
           ui_theme,
+          ui_font_family,
           currency_code,
           service_fee,
           is_delivery_enabled,
@@ -195,6 +212,7 @@ const authenticate = async (req, res, next) => {
         user.active_restaurant_logo = restaurant.logo_url;
         user.active_restaurant_logo_display_mode = restaurant.logo_display_mode;
         user.active_restaurant_ui_theme = normalizeUiTheme(restaurant.ui_theme, 'classic');
+        user.active_restaurant_ui_font_family = normalizeUiFontFamily(restaurant.ui_font_family, 'sans');
         user.active_restaurant_currency_code = restaurant.currency_code || 'uz';
         user.active_restaurant_service_fee = restaurant.service_fee;
         user.active_restaurant_is_delivery_enabled = restaurant.is_delivery_enabled;

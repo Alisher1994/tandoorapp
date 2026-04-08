@@ -20,6 +20,7 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
 const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
+const HIDE_CATALOG_SECTION_TABS = true;
 const catalogSectionTabKey = (id) => (
   id === null || id === undefined ? '' : String(id)
 );
@@ -3399,7 +3400,8 @@ function Catalog() {
     }
   };
   const shouldShowCatalogTabs = Boolean(
-    selectedRestaurant
+    !HIDE_CATALOG_SECTION_TABS
+    && selectedRestaurant
     && !loading
     && !normalizedCatalogSearch
     && activeCatalogTabs.length > 0

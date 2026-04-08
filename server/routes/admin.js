@@ -375,6 +375,19 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
 };
+const UI_FONT_FAMILY_VALUES = new Set([
+  'sans',
+  'serif_times',
+  'serif_georgia',
+  'serif_garamond',
+  'serif_baskerville'
+]);
+const normalizeUiFontFamily = (value, fallback = 'sans') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (UI_FONT_FAMILY_VALUES.has(normalized)) return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return UI_FONT_FAMILY_VALUES.has(normalizedFallback) ? normalizedFallback : 'sans';
+};
 const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'single_list' || normalized === 'grid_categories') {
@@ -409,12 +422,20 @@ const ensureRestaurantCurrencySchema = async () => {
   restaurantCurrencySchemaPromise = (async () => {
     await ensureInventorySchema(pool);
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_font_family VARCHAR(32) DEFAULT 'sans'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
       WHERE currency_code IS NULL
          OR BTRIM(currency_code) = ''
          OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET ui_font_family = 'sans'
+      WHERE ui_font_family IS NULL
+         OR BTRIM(ui_font_family) = ''
+         OR LOWER(ui_font_family) NOT IN ('sans', 'serif_times', 'serif_georgia', 'serif_garamond', 'serif_baskerville')
     `).catch(() => {});
     await pool.query(
       `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS minimum_order_amount DECIMAL(12, 2) DEFAULT 0`
@@ -1149,7 +1170,7 @@ router.post('/switch-restaurant', async (req, res) => {
 
     // Get restaurant name and logo
     const restaurantResult = await pool.query(
-      'SELECT name, logo_url, logo_display_mode, ui_theme, menu_view_mode, currency_code FROM restaurants WHERE id = $1 AND is_active = true',
+      'SELECT name, logo_url, logo_display_mode, ui_theme, ui_font_family, menu_view_mode, currency_code FROM restaurants WHERE id = $1 AND is_active = true',
       [restaurant_id]
     );
 
@@ -1164,6 +1185,7 @@ router.post('/switch-restaurant', async (req, res) => {
       active_restaurant_logo: restaurantResult.rows[0]?.logo_url,
       active_restaurant_logo_display_mode: restaurantResult.rows[0]?.logo_display_mode || 'square',
       active_restaurant_ui_theme: normalizeUiTheme(restaurantResult.rows[0]?.ui_theme, 'classic'),
+      active_restaurant_ui_font_family: normalizeUiFontFamily(restaurantResult.rows[0]?.ui_font_family, 'sans'),
       active_restaurant_menu_view_mode: normalizeMenuViewMode(restaurantResult.rows[0]?.menu_view_mode, 'grid_categories'),
       active_restaurant_currency_code: normalizeRestaurantCurrencyCode(restaurantResult.rows[0]?.currency_code, 'uz')
     });
@@ -1659,6 +1681,7 @@ router.put('/restaurant', async (req, res) => {
          telegram_bot_token,
          logo_display_mode,
          ui_theme,
+         ui_font_family,
          menu_view_mode,
          currency_code,
          delivery_pricing_mode,
@@ -1683,7 +1706,7 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode, ui_theme, menu_view_mode, payment_placeholders, currency_code,
+      logo_display_mode, ui_theme, ui_font_family, menu_view_mode, payment_placeholders, currency_code,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
       inventory_tracking_enabled, inventory_min_threshold,
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
@@ -1704,6 +1727,10 @@ router.put('/restaurant', async (req, res) => {
     const normalizedUiTheme = normalizeUiTheme(
       ui_theme,
       previousRestaurant.ui_theme || 'classic'
+    );
+    const normalizedUiFontFamily = normalizeUiFontFamily(
+      ui_font_family,
+      previousRestaurant.ui_font_family || 'sans'
     );
     const normalizedMenuViewMode = normalizeMenuViewMode(
       menu_view_mode,
@@ -1889,6 +1916,16 @@ router.put('/restaurant', async (req, res) => {
       );
       result.rows[0].is_operator_delivery_later_enabled = deliveryLaterResult.rows[0]?.is_operator_delivery_later_enabled === true;
     }
+
+    const fontUpdateResult = await pool.query(
+      `UPDATE restaurants
+       SET ui_font_family = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING ui_font_family`,
+      [normalizedUiFontFamily, restaurantId]
+    );
+    result.rows[0].ui_font_family = fontUpdateResult.rows[0]?.ui_font_family || normalizedUiFontFamily;
 
     try {
       if (isInventoryTrackingEnabled(result.rows[0]?.inventory_tracking_enabled)) {

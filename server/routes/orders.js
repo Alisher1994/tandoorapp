@@ -761,12 +761,12 @@ router.post('/', authenticate, async (req, res) => {
     
     // Ensure required columns exist
     try {
-      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_fee DECIMAL(10, 2) DEFAULT 0');
-      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cost DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS service_fee DECIMAL(15, 2) DEFAULT 0');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cost DECIMAL(15, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS inventory_reserved BOOLEAN DEFAULT false');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_name VARCHAR(255)');
-      await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(10, 2) DEFAULT 0');
+      await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(15, 2) DEFAULT 0');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_variant VARCHAR(120)');
     } catch (e) {
