@@ -8971,7 +8971,7 @@ router.get('/stats', async (req, res) => {
   try {
     const stats = await pool.query(`
       SELECT 
-        (SELECT COUNT(*) FROM restaurants WHERE is_active = true) as restaurants_count,
+        (SELECT COUNT(*) FROM restaurants) as restaurants_count,
         (SELECT COUNT(*) FROM users WHERE role = 'operator' AND is_active = true) as operators_count,
         (SELECT COUNT(*) FROM users WHERE role = 'customer') as customers_count,
         (SELECT COUNT(*) FROM orders WHERE status = 'new') as new_orders_count,
