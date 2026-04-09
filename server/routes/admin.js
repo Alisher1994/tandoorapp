@@ -415,6 +415,28 @@ const normalizeBooleanFlag = (value, fallback = false) => {
   if (['false', '0', 'no', 'off'].includes(normalized)) return false;
   return fallback;
 };
+const MENU_GLASS_OPACITY_MIN = 20;
+const MENU_GLASS_OPACITY_MAX = 60;
+const MENU_GLASS_OPACITY_DEFAULT = 34;
+const normalizeMenuGlassOpacity = (value, fallback = MENU_GLASS_OPACITY_DEFAULT) => {
+  const normalizedFallback = Number.isFinite(Number(fallback))
+    ? Math.max(MENU_GLASS_OPACITY_MIN, Math.min(MENU_GLASS_OPACITY_MAX, Math.round(Number(fallback))))
+    : MENU_GLASS_OPACITY_DEFAULT;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return normalizedFallback;
+  return Math.max(MENU_GLASS_OPACITY_MIN, Math.min(MENU_GLASS_OPACITY_MAX, Math.round(parsed)));
+};
+const MENU_GLASS_BLUR_MIN = 8;
+const MENU_GLASS_BLUR_MAX = 24;
+const MENU_GLASS_BLUR_DEFAULT = 16;
+const normalizeMenuGlassBlur = (value, fallback = MENU_GLASS_BLUR_DEFAULT) => {
+  const normalizedFallback = Number.isFinite(Number(fallback))
+    ? Math.max(MENU_GLASS_BLUR_MIN, Math.min(MENU_GLASS_BLUR_MAX, Math.round(Number(fallback))))
+    : MENU_GLASS_BLUR_DEFAULT;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return normalizedFallback;
+  return Math.max(MENU_GLASS_BLUR_MIN, Math.min(MENU_GLASS_BLUR_MAX, Math.round(parsed)));
+};
 const DELIVERY_PRICING_MODES = new Set(['dynamic', 'fixed']);
 const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -444,6 +466,8 @@ const ensureRestaurantCurrencySchema = async () => {
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_font_family VARCHAR(32) DEFAULT 'sans'`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -508,6 +532,20 @@ const ensureRestaurantCurrencySchema = async () => {
     ).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET menu_height_lock_enabled = false WHERE menu_height_lock_enabled IS NULL`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants
+       SET menu_liquid_glass_opacity = 34
+       WHERE menu_liquid_glass_opacity IS NULL
+          OR menu_liquid_glass_opacity < 20
+          OR menu_liquid_glass_opacity > 60`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants
+       SET menu_liquid_glass_blur = 16
+       WHERE menu_liquid_glass_blur IS NULL
+          OR menu_liquid_glass_blur < 8
+          OR menu_liquid_glass_blur > 24`
     ).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET inventory_tracking_enabled = false WHERE inventory_tracking_enabled IS NULL`
@@ -1757,6 +1795,8 @@ router.put('/restaurant', async (req, res) => {
          menu_view_mode,
          menu_liquid_glass_enabled,
          menu_height_lock_enabled,
+         menu_liquid_glass_opacity,
+         menu_liquid_glass_blur,
          currency_code,
          delivery_pricing_mode,
          delivery_fixed_price,
@@ -1781,7 +1821,7 @@ router.put('/restaurant', async (req, res) => {
       delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, ui_font_family, menu_view_mode, payment_placeholders, currency_code,
-      menu_liquid_glass_enabled, menu_height_lock_enabled,
+      menu_liquid_glass_enabled, menu_height_lock_enabled, menu_liquid_glass_opacity, menu_liquid_glass_blur,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
       inventory_tracking_enabled, inventory_min_threshold,
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
@@ -1818,6 +1858,14 @@ router.put('/restaurant', async (req, res) => {
     const normalizedMenuHeightLockEnabled = normalizeBooleanFlag(
       menu_height_lock_enabled,
       previousRestaurant.menu_height_lock_enabled === true
+    );
+    const normalizedMenuLiquidGlassOpacity = normalizeMenuGlassOpacity(
+      menu_liquid_glass_opacity,
+      previousRestaurant.menu_liquid_glass_opacity
+    );
+    const normalizedMenuLiquidGlassBlur = normalizeMenuGlassBlur(
+      menu_liquid_glass_blur,
+      previousRestaurant.menu_liquid_glass_blur
     );
     const normalizedDeliveryPricingMode = normalizeDeliveryPricingMode(
       delivery_pricing_mode,
@@ -1945,8 +1993,10 @@ router.put('/restaurant', async (req, res) => {
           inventory_min_threshold = $57,
           menu_liquid_glass_enabled = COALESCE($58, menu_liquid_glass_enabled),
           menu_height_lock_enabled = COALESCE($59, menu_height_lock_enabled),
+          menu_liquid_glass_opacity = $60,
+          menu_liquid_glass_blur = $61,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $60
+      WHERE id = $62
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1989,6 +2039,8 @@ router.put('/restaurant', async (req, res) => {
       normalizedInventoryMinThreshold,
       normalizedMenuLiquidGlassEnabled,
       normalizedMenuHeightLockEnabled,
+      normalizedMenuLiquidGlassOpacity,
+      normalizedMenuLiquidGlassBlur,
       restaurantId
     ]);
 

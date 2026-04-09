@@ -8,6 +8,16 @@ import { useAuth } from '../context/AuthContext';
 import { useShowcase } from '../context/ShowcaseContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const normalizeMenuGlassOpacity = (value, fallback = 34) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(20, Math.min(60, Math.round(parsed)));
+};
+const normalizeMenuGlassBlur = (value, fallback = 16) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(8, Math.min(24, Math.round(parsed)));
+};
 
 function BottomNav() {
   const navigate = useNavigate();
@@ -22,6 +32,8 @@ function BottomNav() {
   const [isReservationMenuVisible, setIsReservationMenuVisible] = useState(false);
   const [menuLiquidGlassEnabled, setMenuLiquidGlassEnabled] = useState(false);
   const [menuHeightLockEnabled, setMenuHeightLockEnabled] = useState(false);
+  const [menuLiquidGlassOpacity, setMenuLiquidGlassOpacity] = useState(34);
+  const [menuLiquidGlassBlur, setMenuLiquidGlassBlur] = useState(16);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= 992 : false
   ));
@@ -43,6 +55,8 @@ function BottomNav() {
       setIsReservationMenuVisible(false);
       setMenuLiquidGlassEnabled(false);
       setMenuHeightLockEnabled(false);
+      setMenuLiquidGlassOpacity(34);
+      setMenuLiquidGlassBlur(16);
       return () => { ignore = true; };
     }
 
@@ -53,11 +67,15 @@ function BottomNav() {
         setIsReservationMenuVisible(response.data?.reservation_enabled === true);
         setMenuLiquidGlassEnabled(response.data?.menu_liquid_glass_enabled === true);
         setMenuHeightLockEnabled(response.data?.menu_height_lock_enabled === true);
+        setMenuLiquidGlassOpacity(normalizeMenuGlassOpacity(response.data?.menu_liquid_glass_opacity, 34));
+        setMenuLiquidGlassBlur(normalizeMenuGlassBlur(response.data?.menu_liquid_glass_blur, 16));
       } catch (error) {
         if (ignore) return;
         setIsReservationMenuVisible(false);
         setMenuLiquidGlassEnabled(false);
         setMenuHeightLockEnabled(false);
+        setMenuLiquidGlassOpacity(34);
+        setMenuLiquidGlassBlur(16);
       }
     })();
 
@@ -152,10 +170,19 @@ function BottomNav() {
     isIOSDevice ? 'is-ios' : '',
     isDesktopViewport ? 'is-desktop' : ''
   ].filter(Boolean).join(' ');
+  const liquidOpacity = normalizeMenuGlassOpacity(menuLiquidGlassOpacity, 34) / 100;
+  const liquidBlur = normalizeMenuGlassBlur(menuLiquidGlassBlur, 16);
+  const navStyle = menuLiquidGlassEnabled
+    ? {
+      '--client-nav-glass-opacity': String(liquidOpacity),
+      '--client-nav-glass-blur': `${liquidBlur}px`
+    }
+    : undefined;
 
   return (
     <nav
       className={navClassName}
+      style={navStyle}
       onClick={(e) => {
         if (isCompact && e.target === e.currentTarget) {
           setIsCompact(false);

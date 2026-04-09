@@ -35,6 +35,16 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalized = String(value || '').trim().toLowerCase();
   return MENU_VIEW_MODES.includes(normalized) ? normalized : fallback;
 };
+const normalizeMenuGlassOpacity = (value, fallback = 34) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(20, Math.min(60, Math.round(parsed)));
+};
+const normalizeMenuGlassBlur = (value, fallback = 16) => {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(8, Math.min(24, Math.round(parsed)));
+};
 const normalizeId = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) ? parsed : null;
@@ -1173,6 +1183,15 @@ function Catalog() {
     [restaurants, selectedRestaurant]
   );
   const isMenuLiquidGlassEnabled = currentRestaurant?.menu_liquid_glass_enabled === true;
+  const menuLiquidGlassOpacity = normalizeMenuGlassOpacity(
+    currentRestaurant?.menu_liquid_glass_opacity,
+    34
+  );
+  const menuLiquidGlassBlur = normalizeMenuGlassBlur(
+    currentRestaurant?.menu_liquid_glass_blur,
+    16
+  );
+  const menuLiquidGlassOpacityAlpha = menuLiquidGlassOpacity / 100;
   const storeLogoFallbackUrl = resolveImageUrl(
     currentRestaurant?.logo_url || user?.active_restaurant_logo || ''
   );
@@ -2456,10 +2475,14 @@ function Catalog() {
                 ? `1px solid ${favoriteActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(148, 163, 184, 0.38)'}`
                 : '1px solid rgba(255,255,255,0.55)',
               background: isMenuLiquidGlassEnabled
-                ? (favoriteActive ? 'rgba(255, 95, 125, 0.42)' : 'rgba(255,255,255,0.34)')
+                ? (
+                  favoriteActive
+                    ? `rgba(255, 95, 125, ${Math.max(0.36, Math.min(0.72, menuLiquidGlassOpacityAlpha + 0.12))})`
+                    : `rgba(255,255,255,${menuLiquidGlassOpacityAlpha})`
+                )
                 : (favoriteActive ? 'rgba(255, 95, 125, 0.94)' : 'rgba(255,255,255,0.92)'),
-              backdropFilter: isMenuLiquidGlassEnabled ? 'blur(10px)' : 'none',
-              WebkitBackdropFilter: isMenuLiquidGlassEnabled ? 'blur(10px)' : 'none',
+              backdropFilter: isMenuLiquidGlassEnabled ? `blur(${menuLiquidGlassBlur}px)` : 'none',
+              WebkitBackdropFilter: isMenuLiquidGlassEnabled ? `blur(${menuLiquidGlassBlur}px)` : 'none',
               color: favoriteActive ? '#fff' : '#475569',
               display: 'flex',
               alignItems: 'center',

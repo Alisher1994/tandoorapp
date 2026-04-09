@@ -650,6 +650,32 @@ const normalizeSettingsNumber = (value, fallback = 0) => {
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const MENU_GLASS_OPACITY_MIN = 20;
+const MENU_GLASS_OPACITY_MAX = 60;
+const MENU_GLASS_OPACITY_DEFAULT = 34;
+const normalizeMenuGlassOpacity = (value, fallback = MENU_GLASS_OPACITY_DEFAULT) => {
+  const fallbackValue = Number.isFinite(Number(fallback))
+    ? Math.round(Number(fallback))
+    : MENU_GLASS_OPACITY_DEFAULT;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    return Math.max(MENU_GLASS_OPACITY_MIN, Math.min(MENU_GLASS_OPACITY_MAX, fallbackValue));
+  }
+  return Math.max(MENU_GLASS_OPACITY_MIN, Math.min(MENU_GLASS_OPACITY_MAX, Math.round(parsed)));
+};
+const MENU_GLASS_BLUR_MIN = 8;
+const MENU_GLASS_BLUR_MAX = 24;
+const MENU_GLASS_BLUR_DEFAULT = 16;
+const normalizeMenuGlassBlur = (value, fallback = MENU_GLASS_BLUR_DEFAULT) => {
+  const fallbackValue = Number.isFinite(Number(fallback))
+    ? Math.round(Number(fallback))
+    : MENU_GLASS_BLUR_DEFAULT;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    return Math.max(MENU_GLASS_BLUR_MIN, Math.min(MENU_GLASS_BLUR_MAX, fallbackValue));
+  }
+  return Math.max(MENU_GLASS_BLUR_MIN, Math.min(MENU_GLASS_BLUR_MAX, Math.round(parsed)));
+};
 const parseNumberInputWithGrouping = (value) => {
   const raw = String(value ?? '');
   if (!raw.trim()) return '';
@@ -715,6 +741,14 @@ const buildRestaurantSettingsSignature = (settings) => {
       : 'grid_categories',
     menu_liquid_glass_enabled: normalizeSettingsBoolean(settings.menu_liquid_glass_enabled, false),
     menu_height_lock_enabled: normalizeSettingsBoolean(settings.menu_height_lock_enabled, false),
+    menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
+      settings.menu_liquid_glass_opacity,
+      MENU_GLASS_OPACITY_DEFAULT
+    ),
+    menu_liquid_glass_blur: normalizeMenuGlassBlur(
+      settings.menu_liquid_glass_blur,
+      MENU_GLASS_BLUR_DEFAULT
+    ),
     currency_code: String(settings.currency_code || 'uz').trim().toLowerCase() || 'uz',
     telegram_bot_token: normalizeSettingsText(settings.telegram_bot_token),
     telegram_group_id: normalizeSettingsText(settings.telegram_group_id),
@@ -4952,6 +4986,14 @@ function AdminDashboard() {
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
         menu_liquid_glass_enabled: response.data?.menu_liquid_glass_enabled === true,
         menu_height_lock_enabled: response.data?.menu_height_lock_enabled === true,
+        menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
+          response.data?.menu_liquid_glass_opacity,
+          MENU_GLASS_OPACITY_DEFAULT
+        ),
+        menu_liquid_glass_blur: normalizeMenuGlassBlur(
+          response.data?.menu_liquid_glass_blur,
+          MENU_GLASS_BLUR_DEFAULT
+        ),
         delivery_pricing_mode: normalizeDeliveryPricingMode(response.data?.delivery_pricing_mode, 'dynamic'),
         delivery_fixed_price: Number.isFinite(Number(response.data?.delivery_fixed_price))
           ? Number(response.data?.delivery_fixed_price)
@@ -5008,6 +5050,14 @@ function AdminDashboard() {
         menu_height_lock_enabled: savedSettings?.menu_height_lock_enabled === true
           ? true
           : Boolean(restaurantSettings?.menu_height_lock_enabled),
+        menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
+          savedSettings?.menu_liquid_glass_opacity,
+          restaurantSettings?.menu_liquid_glass_opacity ?? MENU_GLASS_OPACITY_DEFAULT
+        ),
+        menu_liquid_glass_blur: normalizeMenuGlassBlur(
+          savedSettings?.menu_liquid_glass_blur,
+          restaurantSettings?.menu_liquid_glass_blur ?? MENU_GLASS_BLUR_DEFAULT
+        ),
         delivery_pricing_mode: normalizeDeliveryPricingMode(
           savedSettings?.delivery_pricing_mode,
           restaurantSettings?.delivery_pricing_mode || 'dynamic'
@@ -12704,9 +12754,67 @@ function AdminDashboard() {
                                         menu_height_lock_enabled: e.target.checked
                                       })}
                                     />
+                                    <Row className="g-2">
+                                      <Col md={6}>
+                                        <Form.Group>
+                                          <Form.Label className="small fw-semibold mb-1">
+                                            {language === 'uz' ? 'Shaffoflik foizi' : 'Прозрачность (%)'}
+                                          </Form.Label>
+                                          <Form.Select
+                                            size="sm"
+                                            value={normalizeMenuGlassOpacity(
+                                              restaurantSettings.menu_liquid_glass_opacity,
+                                              MENU_GLASS_OPACITY_DEFAULT
+                                            )}
+                                            disabled={restaurantSettings.menu_liquid_glass_enabled !== true}
+                                            onChange={(e) => setRestaurantSettings({
+                                              ...restaurantSettings,
+                                              menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
+                                                e.target.value,
+                                                restaurantSettings.menu_liquid_glass_opacity
+                                              )
+                                            })}
+                                          >
+                                            <option value={20}>20%</option>
+                                            <option value={30}>30%</option>
+                                            <option value={40}>40%</option>
+                                            <option value={50}>50%</option>
+                                            <option value={60}>60%</option>
+                                          </Form.Select>
+                                        </Form.Group>
+                                      </Col>
+                                      <Col md={6}>
+                                        <Form.Group>
+                                          <Form.Label className="small fw-semibold mb-1">
+                                            {language === 'uz' ? 'Xiralashtirish (blur)' : 'Сила blur (px)'}
+                                          </Form.Label>
+                                          <Form.Select
+                                            size="sm"
+                                            value={normalizeMenuGlassBlur(
+                                              restaurantSettings.menu_liquid_glass_blur,
+                                              MENU_GLASS_BLUR_DEFAULT
+                                            )}
+                                            disabled={restaurantSettings.menu_liquid_glass_enabled !== true}
+                                            onChange={(e) => setRestaurantSettings({
+                                              ...restaurantSettings,
+                                              menu_liquid_glass_blur: normalizeMenuGlassBlur(
+                                                e.target.value,
+                                                restaurantSettings.menu_liquid_glass_blur
+                                              )
+                                            })}
+                                          >
+                                            <option value={8}>8px</option>
+                                            <option value={12}>12px</option>
+                                            <option value={16}>16px</option>
+                                            <option value={20}>20px</option>
+                                            <option value={24}>24px</option>
+                                          </Form.Select>
+                                        </Form.Group>
+                                      </Col>
+                                    </Row>
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
-                                    При включении Liquid Glass нижнее меню и круг избранного в карточке товара становятся полупрозрачными.
+                                    При включении Liquid Glass нижнее меню и круг избранного становятся полупрозрачными. Отдельно можно выбрать уровень прозрачности и blur.
                                   </Form.Text>
                                 </Form.Group>
                               </div>

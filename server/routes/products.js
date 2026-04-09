@@ -53,6 +53,28 @@ const normalizeBooleanFlag = (value, fallback = false) => {
   if (['false', '0', 'no', 'off'].includes(normalized)) return false;
   return fallback;
 };
+const MENU_GLASS_OPACITY_MIN = 20;
+const MENU_GLASS_OPACITY_MAX = 60;
+const MENU_GLASS_OPACITY_DEFAULT = 34;
+const normalizeMenuGlassOpacity = (value, fallback = MENU_GLASS_OPACITY_DEFAULT) => {
+  const normalizedFallback = Number.isFinite(Number(fallback))
+    ? Math.max(MENU_GLASS_OPACITY_MIN, Math.min(MENU_GLASS_OPACITY_MAX, Math.round(Number(fallback))))
+    : MENU_GLASS_OPACITY_DEFAULT;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return normalizedFallback;
+  return Math.max(MENU_GLASS_OPACITY_MIN, Math.min(MENU_GLASS_OPACITY_MAX, Math.round(parsed)));
+};
+const MENU_GLASS_BLUR_MIN = 8;
+const MENU_GLASS_BLUR_MAX = 24;
+const MENU_GLASS_BLUR_DEFAULT = 16;
+const normalizeMenuGlassBlur = (value, fallback = MENU_GLASS_BLUR_DEFAULT) => {
+  const normalizedFallback = Number.isFinite(Number(fallback))
+    ? Math.max(MENU_GLASS_BLUR_MIN, Math.min(MENU_GLASS_BLUR_MAX, Math.round(Number(fallback))))
+    : MENU_GLASS_BLUR_DEFAULT;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return normalizedFallback;
+  return Math.max(MENU_GLASS_BLUR_MIN, Math.min(MENU_GLASS_BLUR_MAX, Math.round(parsed)));
+};
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
   if ([12, 1, 2].includes(month)) return 'winter';
@@ -211,6 +233,8 @@ const ensureRestaurantCurrencySchema = async () => {
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -220,6 +244,20 @@ const ensureRestaurantCurrencySchema = async () => {
     `).catch(() => {});
     await pool.query(`UPDATE restaurants SET menu_liquid_glass_enabled = false WHERE menu_liquid_glass_enabled IS NULL`).catch(() => {});
     await pool.query(`UPDATE restaurants SET menu_height_lock_enabled = false WHERE menu_height_lock_enabled IS NULL`).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET menu_liquid_glass_opacity = 34
+      WHERE menu_liquid_glass_opacity IS NULL
+         OR menu_liquid_glass_opacity < 20
+         OR menu_liquid_glass_opacity > 60
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET menu_liquid_glass_blur = 16
+      WHERE menu_liquid_glass_blur IS NULL
+         OR menu_liquid_glass_blur < 8
+         OR menu_liquid_glass_blur > 24
+    `).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();
 
@@ -768,6 +806,8 @@ router.get('/restaurant/:id', async (req, res) => {
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
       menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
+      menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),
+      menu_liquid_glass_blur: normalizeMenuGlassBlur(r.menu_liquid_glass_blur, MENU_GLASS_BLUR_DEFAULT),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
@@ -1442,6 +1482,8 @@ router.get('/restaurants/list', async (req, res) => {
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
       menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
+      menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),
+      menu_liquid_glass_blur: normalizeMenuGlassBlur(r.menu_liquid_glass_blur, MENU_GLASS_BLUR_DEFAULT),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
