@@ -180,6 +180,32 @@ function resolveWindowsPrinterShare(config) {
   return 'XP-80';
 }
 
+function resolveWindowsShareTargets(shareName) {
+  const normalizedShare = sanitizePrinterShareName(shareName);
+  const machineName = sanitizePrinterShareName(process.env.COMPUTERNAME || '');
+  const targets = [
+    `\\\\localhost\\${normalizedShare}`
+  ];
+  if (machineName) {
+    targets.push(`\\\\${machineName}\\${normalizedShare}`);
+  }
+  return [...new Set(targets)];
+}
+
+function copyRawToPrinterShare(tempFile, targetShare) {
+  return new Promise((resolve, reject) => {
+    const cmd = `copy /b "${tempFile}" "${targetShare}"`;
+    console.log(`Executing: ${cmd}`);
+    exec(cmd, (err, stdout, stderr) => {
+      if (err) {
+        const details = String(stderr || stdout || err.message || '').trim();
+        return reject(new Error(details || err.message || 'copy failed'));
+      }
+      return resolve();
+    });
+  });
+}
+
 function resolveAbsoluteLogoUrl(logoUrl) {
   if (logoUrl == null) return null;
   let s = logoUrl;
@@ -762,20 +788,30 @@ async function printToPrinter(config, data, mode = 'order') {
     
     // Wait for last bytes and copy
     return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const cmd = `copy /b "${tempFile}" "\\\\localhost\\${printerName}"`;
-        console.log(`Executing: ${cmd}`);
-        exec(cmd, (err) => {
-          if (err) {
-            console.error("Print Command Error:", err.message);
-            try { fs.unlinkSync(tempFile); } catch(e) {}
-            return reject(new Error(
-              `Печать на \\\\localhost\\${printerName} не удалась. В Windows: свойства принтера → Доступ → общий доступ; имя ресурса должно совпадать с "${printerName}" (сейчас в админке: "${config.name || ''}").`
-            ));
+      setTimeout(async () => {
+        const targets = resolveWindowsShareTargets(printerName);
+        const errors = [];
+        try {
+          for (const target of targets) {
+            try {
+              await copyRawToPrinterShare(tempFile, target);
+              try { fs.unlinkSync(tempFile); } catch (e) {}
+              return resolve();
+            } catch (copyError) {
+              const message = String(copyError?.message || copyError || 'copy failed');
+              console.error(`Print Command Error (${target}):`, message);
+              errors.push(`${target}: ${message}`);
+            }
           }
-          try { fs.unlinkSync(tempFile); } catch(e) {}
-          resolve();
-        });
+          try { fs.unlinkSync(tempFile); } catch (e) {}
+          return reject(new Error(
+            `Печать не удалась. Проверили: ${targets.join(', ')}. Ошибки: ${errors.join(' | ')}. ` +
+            `Проверьте общий доступ к принтеру и имя ресурса "${printerName}" (в админке сейчас: "${config.name || ''}").`
+          ));
+        } catch (unknownError) {
+          try { fs.unlinkSync(tempFile); } catch (e) {}
+          return reject(unknownError);
+        }
       }, 300);
     });
   } else {

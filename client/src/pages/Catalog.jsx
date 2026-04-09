@@ -1172,6 +1172,9 @@ function Catalog() {
     () => restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant)) || null,
     [restaurants, selectedRestaurant]
   );
+  const storeLogoFallbackUrl = resolveImageUrl(
+    currentRestaurant?.logo_url || user?.active_restaurant_logo || ''
+  );
   useEffect(() => {
     if (currentRestaurant?.currency_code) {
       setCountryCurrency(currentRestaurant.currency_code);
@@ -2336,6 +2339,30 @@ function Catalog() {
     const productPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
     const productDisplayPrice = productPriceMeta.currentPrice;
     const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
+    const renderImageFallback = () => (
+      <div
+        style={{ width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }}
+        className="d-flex align-items-center justify-content-center"
+      >
+        {storeLogoFallbackUrl ? (
+          <img
+            src={storeLogoFallbackUrl}
+            alt={currentRestaurant?.name || 'Store logo'}
+            loading="lazy"
+            decoding="async"
+            style={{
+              width: '60%',
+              maxHeight: '60%',
+              objectFit: 'contain',
+              opacity: 0.22,
+              filter: 'grayscale(0.1)'
+            }}
+          />
+        ) : (
+          <span style={{ fontSize: '3rem', opacity: 0.22 }}>🏪</span>
+        )}
+      </div>
+    );
 
     return (
       <Card
@@ -2371,16 +2398,20 @@ function Catalog() {
                 openProductDetailsModal(product);
               }}
               onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/150?text=No+Image';
+                if (storeLogoFallbackUrl) {
+                  e.target.onerror = null;
+                  e.target.src = storeLogoFallbackUrl;
+                  e.target.style.objectFit = 'contain';
+                  e.target.style.padding = '14px';
+                  e.target.style.opacity = '0.22';
+                  e.target.style.background = '#f8f9fa';
+                } else {
+                  e.target.src = 'https://via.placeholder.com/150?text=No+Image';
+                }
               }}
             />
           ) : (
-            <div
-              style={{ width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }}
-              className="d-flex align-items-center justify-content-center"
-            >
-              <span style={{ fontSize: '3rem', opacity: 0.3 }}>🏪</span>
-            </div>
+            renderImageFallback()
           )}
           {!isAvailable && (
             <div
