@@ -12075,3 +12075,11 @@ body::-webkit-scrollbar,
     border-color: #22c55e !important;
     color: #166534 !important;
 }
+
+.admin-stock-import-modal {
+    max-width: min(1680px, 97vw) !important;
+}
+
+.admin-stock-import-review-modal {
+    max-width: min(1820px, 98vw) !important;
+}

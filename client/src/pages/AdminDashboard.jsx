@@ -7620,8 +7620,8 @@ function AdminDashboard() {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        setStockExcelPreview(rows.slice(0, 10));
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        setStockExcelPreview(rows);
       } catch (error) {
         console.error('Stock import preview read error:', error);
         setAlertMessage({ type: 'danger', text: 'Ошибка чтения файла остатков' });
@@ -7646,7 +7646,7 @@ function AdminDashboard() {
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
           const preparedRows = buildPreparedStockImportRows(jsonData, 2);
           setPreparedStockImportRows(preparedRows);
           setShowStockExcelModal(false);
@@ -17748,7 +17748,12 @@ function AdminDashboard() {
         </Modal>
 
         {/* Stock Import Modal */}
-        <Modal show={showStockExcelModal} onHide={closeStockExcelImportModal} size="lg">
+        <Modal
+          show={showStockExcelModal}
+          onHide={closeStockExcelImportModal}
+          size="xl"
+          dialogClassName="admin-stock-import-modal"
+        >
           <Modal.Header closeButton>
             <Modal.Title>
               {language === 'uz' ? "Variant qoldiqlarini import" : 'Импорт остатков (варианты)'}
@@ -17771,7 +17776,11 @@ function AdminDashboard() {
 
             {stockExcelPreview.length > 0 && (
               <div className="mt-3">
-                <strong>{language === 'uz' ? "Oldindan ko'rish (10 satr)" : 'Предпросмотр (первые 10 строк)'}</strong>
+                <strong>
+                  {language === 'uz'
+                    ? `Oldindan ko'rish (satrlar: ${Math.max(0, stockExcelPreview.length - 1)})`
+                    : `Предпросмотр (строк: ${Math.max(0, stockExcelPreview.length - 1)})`}
+                </strong>
                 <div className="table-responsive mt-2" style={{ maxHeight: '300px', overflow: 'auto' }}>
                   <table className="table table-sm table-bordered mb-0">
                     <thead className="table-light">
@@ -17784,8 +17793,10 @@ function AdminDashboard() {
                     <tbody>
                       {stockExcelPreview.slice(1).map((row, rowIdx) => (
                         <tr key={`stock-preview-row-${rowIdx}`}>
-                          {row.map((cell, idx) => (
-                            <td key={`stock-preview-cell-${rowIdx}-${idx}`} style={{ fontSize: '0.8rem' }}>{cell}</td>
+                          {(stockExcelPreview[0] || []).map((_, idx) => (
+                            <td key={`stock-preview-cell-${rowIdx}-${idx}`} style={{ fontSize: '0.8rem' }}>
+                              {String(row?.[idx] ?? '')}
+                            </td>
                           ))}
                         </tr>
                       ))}
@@ -17812,7 +17823,12 @@ function AdminDashboard() {
         </Modal>
 
         {/* Stock Import Review Modal */}
-        <Modal show={showStockImportReviewModal} onHide={closeStockImportReviewModal} size="xl">
+        <Modal
+          show={showStockImportReviewModal}
+          onHide={closeStockImportReviewModal}
+          size="xl"
+          dialogClassName="admin-stock-import-review-modal"
+        >
           <Modal.Header closeButton>
             <Modal.Title>
               {language === 'uz' ? 'Qoldiqlarni tekshirish' : 'Проверка импорта остатков'}
