@@ -103,7 +103,12 @@ const resolvePrinterAgentExePath = () => {
   for (const candidatePath of candidates) {
     try {
       const stats = fs.statSync(candidatePath);
-      if (stats.isFile() && stats.size > 0) return candidatePath;
+      if (!stats.isFile() || stats.size <= 0) continue;
+      const filename = path.basename(candidatePath).toLowerCase();
+      // Never return legacy console core executable for operator download.
+      if (filename === 'talablaragent.exe') continue;
+      if (filename !== PRINTER_AGENT_FILENAME.toLowerCase()) continue;
+      return candidatePath;
     } catch (_) {}
   }
   return null;
