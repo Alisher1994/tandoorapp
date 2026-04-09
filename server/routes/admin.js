@@ -3896,6 +3896,181 @@ RETURNING *
   }
 });
 
+// Массовое обновление остатков из импорта (с поддержкой вариантов)
+router.post('/products/stock-import/apply', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await ensureProductsIkpuSchema();
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+
+    const modeRaw = String(req.body?.mode || '').trim().toLowerCase();
+    const mode = modeRaw === 'add' ? 'add' : 'replace';
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!items.length) {
+      return res.status(400).json({ error: 'Список остатков пуст' });
+    }
+
+    const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
+    if (!inventorySettings.trackingEnabled) {
+      return res.status(400).json({ error: 'Учет остатков выключен для этого магазина' });
+    }
+
+    const normalizedItems = [];
+    const validationErrors = [];
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index] || {};
+      const productId = Number.parseInt(item.product_id, 10);
+      const variantName = toOptionalTrimmedText(item.variant_name).slice(0, 120);
+      const incomingRaw = String(item.quantity ?? '').trim().replace(',', '.');
+      const incomingParsed = Number.parseFloat(incomingRaw);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        validationErrors.push(`Строка ${index + 1}: неверный product_id`);
+        continue;
+      }
+      if (!Number.isFinite(incomingParsed) || incomingParsed < 0) {
+        validationErrors.push(`Строка ${index + 1}: неверное количество`);
+        continue;
+      }
+      normalizedItems.push({
+        product_id: productId,
+        variant_name: variantName || null,
+        quantity: normalizeInventoryQuantity(incomingParsed, 0)
+      });
+    }
+
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        error: 'В файле есть невалидные строки',
+        details: validationErrors.slice(0, 30)
+      });
+    }
+
+    const productIds = [...new Set(normalizedItems.map((item) => item.product_id))];
+    const productsResult = await client.query(
+      `SELECT id, name_ru, stock_quantity, in_stock, size_enabled, size_options
+       FROM products
+       WHERE restaurant_id = $1
+         AND id = ANY($2::int[])`,
+      [restaurantId, productIds]
+    );
+    const productsMap = new Map((productsResult.rows || []).map((row) => [Number(row.id), row]));
+    const touchedProductIds = new Set();
+
+    for (let index = 0; index < normalizedItems.length; index += 1) {
+      const item = normalizedItems[index];
+      const product = productsMap.get(item.product_id);
+      if (!product) {
+        validationErrors.push(`Строка ${index + 1}: товар #${item.product_id} не найден`);
+        continue;
+      }
+
+      const isVariantMode = product.size_enabled === true;
+      if (isVariantMode) {
+        const variants = normalizeProductVariantOptions(product.size_options, {});
+        if (!variants.length) {
+          validationErrors.push(`Строка ${index + 1}: у товара #${item.product_id} нет вариантов`);
+          continue;
+        }
+        const targetIndex = variants.findIndex(
+          (variant) => normalizeSelectedVariant(variant?.name) === normalizeSelectedVariant(item.variant_name)
+        );
+        if (targetIndex < 0) {
+          validationErrors.push(`Строка ${index + 1}: вариант "${item.variant_name || ''}" не найден для товара #${item.product_id}`);
+          continue;
+        }
+
+        const currentVariantStock = normalizeInventoryQuantity(variants[targetIndex]?.stock_quantity, 0);
+        const nextVariantStock = mode === 'add'
+          ? Math.round((currentVariantStock + item.quantity + Number.EPSILON) * 1000) / 1000
+          : item.quantity;
+        variants[targetIndex] = {
+          ...variants[targetIndex],
+          stock_quantity: nextVariantStock,
+          in_stock: nextVariantStock > inventorySettings.threshold
+        };
+
+        const totalStock = variants.reduce(
+          (sum, variant) => Math.round((sum + normalizeInventoryQuantity(variant?.stock_quantity, 0) + Number.EPSILON) * 1000) / 1000,
+          0
+        );
+        const anyInStock = variants.some((variant) => variant?.in_stock !== false);
+        product.size_options = variants;
+        product.stock_quantity = totalStock;
+        product.in_stock = anyInStock;
+      } else {
+        const currentStock = normalizeInventoryQuantity(product.stock_quantity, 0);
+        const nextStock = mode === 'add'
+          ? Math.round((currentStock + item.quantity + Number.EPSILON) * 1000) / 1000
+          : item.quantity;
+        product.stock_quantity = nextStock;
+        product.in_stock = nextStock > inventorySettings.threshold;
+      }
+      touchedProductIds.add(product.id);
+    }
+
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        error: 'Не удалось сопоставить часть строк',
+        details: validationErrors.slice(0, 30)
+      });
+    }
+
+    await client.query('BEGIN');
+    for (const productId of touchedProductIds) {
+      const product = productsMap.get(Number(productId));
+      if (!product) continue;
+      if (product.size_enabled === true) {
+        await client.query(
+          `UPDATE products
+           SET stock_quantity = $1,
+               in_stock = $2,
+               size_options = $3::jsonb,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $4
+             AND restaurant_id = $5`,
+          [
+            normalizeInventoryQuantity(product.stock_quantity, 0),
+            product.in_stock !== false,
+            JSON.stringify(normalizeProductVariantOptions(product.size_options, {})),
+            product.id,
+            restaurantId
+          ]
+        );
+      } else {
+        await client.query(
+          `UPDATE products
+           SET stock_quantity = $1,
+               in_stock = $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3
+             AND restaurant_id = $4`,
+          [
+            normalizeInventoryQuantity(product.stock_quantity, 0),
+            product.in_stock !== false,
+            product.id,
+            restaurantId
+          ]
+        );
+      }
+    }
+    await client.query('COMMIT');
+
+    res.json({
+      mode,
+      updated_products: touchedProductIds.size
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Stock import apply error:', error);
+    res.status(500).json({ error: 'Ошибка массового обновления остатков' });
+  } finally {
+    client.release();
+  }
+});
+
 // Обновить товар
 router.put('/products/:id', async (req, res) => {
   try {

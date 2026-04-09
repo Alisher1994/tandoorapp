@@ -247,6 +247,16 @@ const SPREADSHEET_IMPORT_MIME_TYPES = new Set([
   'application/csv',
   'text/plain'
 ]);
+const STOCK_IMPORT_MODE_VALUES = new Set(['replace', 'add']);
+const STOCK_IMPORT_TEMPLATE_HEADERS = [
+  'Product ID',
+  'Название товара',
+  'Вариант',
+  'Штрихкод',
+  'Фото',
+  'Текущий остаток',
+  'Приход (шт)'
+];
 const ANALYTICS_DEFAULT_MAP_CENTER = [41.311081, 69.240562];
 const ANALYTICS_DEFAULT_MAP_ZOOM = 12;
 const ANALYTICS_MAP_IDLE_RESET_MS = 60 * 1000;
@@ -2249,6 +2259,18 @@ function AdminDashboard() {
       preview: resolveAbsoluteUrl(variantImage || variantThumb)
     };
   }, []);
+  const isVariantStockImportEnabled = Boolean(restaurantSettings?.inventory_tracking_enabled)
+    && Boolean(restaurantSettings?.size_variants_enabled);
+  const productsByIdForStockImport = useMemo(() => {
+    const map = new Map();
+    (products || []).forEach((product) => {
+      const id = Number.parseInt(product?.id, 10);
+      if (Number.isInteger(id) && id > 0) {
+        map.set(id, product);
+      }
+    });
+    return map;
+  }, [products]);
   const mapProviderOptions = useMemo(() => ([
     { value: 'osm', label: 'OpenStreetMap' },
     { value: 'yandex', label: 'Yandex' }
@@ -7066,6 +7088,14 @@ function AdminDashboard() {
   const [showImportReviewModal, setShowImportReviewModal] = useState(false);
   const [preparedImportRows, setPreparedImportRows] = useState([]);
   const [savingImportRows, setSavingImportRows] = useState(false);
+  const [showStockExcelModal, setShowStockExcelModal] = useState(false);
+  const [stockExcelFile, setStockExcelFile] = useState(null);
+  const [stockExcelPreview, setStockExcelPreview] = useState([]);
+  const [importingStockExcel, setImportingStockExcel] = useState(false);
+  const [showStockImportReviewModal, setShowStockImportReviewModal] = useState(false);
+  const [preparedStockImportRows, setPreparedStockImportRows] = useState([]);
+  const [savingStockImportRows, setSavingStockImportRows] = useState(false);
+  const [stockImportMode, setStockImportMode] = useState('replace');
   const pasteImportInputRef = useRef(null);
 
   const closeExcelImportModal = () => {
@@ -7085,6 +7115,24 @@ function AdminDashboard() {
     setShowImportReviewModal(false);
     setPreparedImportRows([]);
   };
+  const closeStockExcelImportModal = () => {
+    if (importingStockExcel) return;
+    setShowStockExcelModal(false);
+    setStockExcelFile(null);
+    setStockExcelPreview([]);
+  };
+  const closeStockImportReviewModal = () => {
+    if (savingStockImportRows) return;
+    setShowStockImportReviewModal(false);
+    setPreparedStockImportRows([]);
+    setStockImportMode('replace');
+  };
+
+  const normalizeStockImportMode = (value) => (
+    STOCK_IMPORT_MODE_VALUES.has(String(value || '').trim().toLowerCase())
+      ? String(value || '').trim().toLowerCase()
+      : 'replace'
+  );
 
   const parseYesNoForImport = (value, fallback) => {
     if (value === undefined || value === null || value === '') return fallback;
@@ -7421,6 +7469,274 @@ function AdminDashboard() {
       fetchData();
     } finally {
       setSavingImportRows(false);
+    }
+  };
+
+  const resolveAbsoluteMediaUrl = useCallback((value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '';
+    return normalized.startsWith('http') ? normalized : `${API_URL.replace('/api', '')}${normalized}`;
+  }, []);
+
+  const getVariantStockTemplateRows = useCallback(() => {
+    const rows = [];
+    (products || []).forEach((product) => {
+      const productId = Number.parseInt(product?.id, 10);
+      if (!Number.isInteger(productId) || productId <= 0) return;
+      const productName = String(product?.name_ru || product?.name_uz || '').trim();
+      const baseImage = resolveAbsoluteMediaUrl(product?.thumb_url || product?.image_url || '');
+      const baseBarcode = String(product?.barcode || '').trim();
+      const isVariantMode = product?.size_enabled === true;
+      const variants = normalizeProductVariantOptions(product?.size_options, {
+        fallbackPrice: normalizeProductPriceValue(product?.price, NaN),
+        fallbackIkpu: product?.ikpu || '',
+        fallbackContainerId: product?.container_id || '',
+        fallbackContainerNorm: product?.container_norm,
+        fallbackOrderStep: product?.order_step,
+        unit: product?.unit || 'шт'
+      });
+
+      if (isVariantMode && variants.length > 0) {
+        variants.forEach((variant) => {
+          const variantImage = resolveAbsoluteMediaUrl(variant?.thumb_url || variant?.image_url || '');
+          rows.push({
+            'Product ID': productId,
+            'Название товара': productName,
+            'Вариант': String(variant?.name || '').trim(),
+            'Штрихкод': String(variant?.barcode || baseBarcode || '').trim(),
+            'Фото': variantImage || baseImage || '',
+            'Текущий остаток': Number.isFinite(Number(variant?.stock_quantity)) ? Number(variant.stock_quantity) : 0,
+            'Приход (шт)': ''
+          });
+        });
+        return;
+      }
+
+      rows.push({
+        'Product ID': productId,
+        'Название товара': productName,
+        'Вариант': '',
+        'Штрихкод': baseBarcode,
+        'Фото': baseImage || '',
+        'Текущий остаток': Number.isFinite(Number(product?.stock_quantity)) ? Number(product.stock_quantity) : 0,
+        'Приход (шт)': ''
+      });
+    });
+    return rows;
+  }, [products, resolveAbsoluteMediaUrl]);
+
+  const downloadVariantStockTemplate = useCallback(() => {
+    const rows = getVariantStockTemplateRows();
+    const aoa = [STOCK_IMPORT_TEMPLATE_HEADERS];
+    rows.forEach((row) => {
+      aoa.push(STOCK_IMPORT_TEMPLATE_HEADERS.map((header) => row[header] ?? ''));
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 12 },
+      { wch: 38 },
+      { wch: 24 },
+      { wch: 20 },
+      { wch: 56 },
+      { wch: 14 },
+      { wch: 14 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, language === 'uz' ? 'Qoldiq' : 'Остатки');
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `stocks_variants_template_${stamp}.xlsx`);
+  }, [getVariantStockTemplateRows, language]);
+
+  const buildPreparedStockImportRows = useCallback((jsonData = [], rowNumberOffset = 2) => (
+    (Array.isArray(jsonData) ? jsonData : []).map((row, index) => {
+      const rowNo = index + rowNumberOffset;
+      const productIdRaw = row['Product ID'] ?? row['ID товара'] ?? row.product_id ?? row.id;
+      const variantNameRaw = row['Вариант'] ?? row.variant_name ?? row.variant;
+      const incomingRaw = row['Приход (шт)'] ?? row['Приход'] ?? row['Количество'] ?? row.quantity ?? row.incoming_stock;
+      const parsedProductId = Number.parseInt(String(productIdRaw ?? '').trim(), 10);
+      const incomingValue = Number.parseFloat(String(incomingRaw ?? '').trim().replace(',', '.'));
+      const normalizedVariantName = String(variantNameRaw || '').trim();
+      const product = productsByIdForStockImport.get(parsedProductId) || null;
+      const isVariantMode = product?.size_enabled === true;
+      const variants = normalizeProductVariantOptions(product?.size_options, {
+        fallbackPrice: normalizeProductPriceValue(product?.price, NaN),
+        unit: product?.unit || 'шт'
+      });
+      const matchedVariant = isVariantMode
+        ? variants.find((variant) => normalizeVariantName(variant?.name) === normalizeVariantName(normalizedVariantName))
+        : null;
+      const imageUrl = resolveAbsoluteMediaUrl(
+        matchedVariant?.thumb_url
+        || matchedVariant?.image_url
+        || product?.thumb_url
+        || product?.image_url
+        || ''
+      );
+      const currentStock = isVariantMode
+        ? (Number.isFinite(Number(matchedVariant?.stock_quantity)) ? Number(matchedVariant.stock_quantity) : 0)
+        : (Number.isFinite(Number(product?.stock_quantity)) ? Number(product.stock_quantity) : 0);
+      const error = (() => {
+        if (!Number.isInteger(parsedProductId) || parsedProductId <= 0) {
+          return 'Неверный Product ID';
+        }
+        if (!product) {
+          return 'Товар не найден в текущем магазине';
+        }
+        if (isVariantMode && !matchedVariant) {
+          return 'Вариант не найден для товара';
+        }
+        if (!Number.isFinite(incomingValue) || incomingValue < 0) {
+          return 'Неверное количество прихода';
+        }
+        return '';
+      })();
+      return {
+        rowNo,
+        product_id: Number.isInteger(parsedProductId) ? parsedProductId : 0,
+        product_name: String(product?.name_ru || product?.name_uz || row['Название товара'] || '').trim(),
+        variant_name: isVariantMode ? normalizedVariantName : '',
+        image_url: imageUrl,
+        current_stock: currentStock,
+        incoming_quantity: Number.isFinite(incomingValue) && incomingValue >= 0 ? incomingValue : 0,
+        error,
+        isValid: error === ''
+      };
+    })
+  ), [productsByIdForStockImport, resolveAbsoluteMediaUrl]);
+
+  const handleStockExcelFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const fileValidationError = validateSpreadsheetImportFile(file);
+    if (fileValidationError) {
+      setAlertMessage({ type: 'warning', text: fileValidationError });
+      return;
+    }
+    setStockExcelFile(file);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        setStockExcelPreview(rows.slice(0, 10));
+      } catch (error) {
+        console.error('Stock import preview read error:', error);
+        setAlertMessage({ type: 'danger', text: 'Ошибка чтения файла остатков' });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const prepareVariantStockImport = async () => {
+    if (!stockExcelFile) return;
+    const fileValidationError = validateSpreadsheetImportFile(stockExcelFile);
+    if (fileValidationError) {
+      setAlertMessage({ type: 'warning', text: fileValidationError });
+      return;
+    }
+    setImportingStockExcel(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          const preparedRows = buildPreparedStockImportRows(jsonData, 2);
+          setPreparedStockImportRows(preparedRows);
+          setShowStockExcelModal(false);
+          setShowStockImportReviewModal(true);
+        } catch (error) {
+          console.error('Prepare stock import rows error:', error);
+          setAlertMessage({ type: 'danger', text: 'Ошибка подготовки строк импорта остатков' });
+        } finally {
+          setImportingStockExcel(false);
+        }
+      };
+      reader.readAsArrayBuffer(stockExcelFile);
+    } catch (error) {
+      console.error('Prepare stock import error:', error);
+      setAlertMessage({ type: 'danger', text: 'Ошибка импорта остатков' });
+      setImportingStockExcel(false);
+    }
+  };
+
+  const updatePreparedStockImportQuantity = (rowNo, value) => {
+    setPreparedStockImportRows((prevRows) => prevRows.map((row) => {
+      if (row.rowNo !== rowNo) return row;
+      const normalizedRaw = String(value ?? '').trim().replace(',', '.');
+      const parsed = Number.parseFloat(normalizedRaw);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return {
+          ...row,
+          incoming_quantity: 0,
+          isValid: false,
+          error: 'Неверное количество прихода'
+        };
+      }
+      if (row.error && row.error !== 'Неверное количество прихода') {
+        return row;
+      }
+      return {
+        ...row,
+        incoming_quantity: parsed,
+        isValid: true,
+        error: ''
+      };
+    }));
+  };
+
+  const getStockImportNextQuantity = useCallback((row) => {
+    const incoming = Number.isFinite(Number(row?.incoming_quantity)) ? Number(row.incoming_quantity) : 0;
+    const current = Number.isFinite(Number(row?.current_stock)) ? Number(row.current_stock) : 0;
+    if (normalizeStockImportMode(stockImportMode) === 'add') {
+      return Math.round((current + incoming + Number.EPSILON) * 1000) / 1000;
+    }
+    return incoming;
+  }, [stockImportMode]);
+
+  const applyPreparedStockImportRows = async () => {
+    const validRows = preparedStockImportRows.filter((row) => row.isValid);
+    if (!validRows.length) {
+      setAlertMessage({ type: 'warning', text: 'Нет валидных строк для импорта остатков' });
+      return;
+    }
+    setSavingStockImportRows(true);
+    try {
+      const mode = normalizeStockImportMode(stockImportMode);
+      await axios.post(`${API_URL}/admin/products/stock-import/apply`, {
+        mode,
+        items: validRows.map((row) => ({
+          product_id: row.product_id,
+          variant_name: row.variant_name || null,
+          quantity: Number(row.incoming_quantity || 0)
+        }))
+      });
+      setAlertMessage({
+        type: 'success',
+        text: mode === 'add'
+          ? `Остатки успешно суммированы по ${validRows.length} строкам`
+          : `Остатки успешно обновлены по ${validRows.length} строкам`
+      });
+      closeStockImportReviewModal();
+      setStockExcelFile(null);
+      setStockExcelPreview([]);
+      fetchData();
+    } catch (error) {
+      console.error('Apply stock import rows error:', error);
+      const details = Array.isArray(error.response?.data?.details) ? error.response.data.details : [];
+      const detailsText = details.length ? `: ${details.slice(0, 2).join(' | ')}` : '';
+      setAlertMessage({
+        type: 'danger',
+        text: `${error.response?.data?.error || 'Ошибка применения остатков'}${detailsText}`
+      });
+    } finally {
+      setSavingStockImportRows(false);
     }
   };
 
@@ -11244,6 +11560,42 @@ function AdminDashboard() {
                         <span className="d-none d-md-inline">{t('importExcel')}</span>
                         <span className="d-md-none">Импорт</span>
                       </Button>
+                      {isVariantStockImportEnabled && (
+                        <Button
+                          variant="outline-info"
+                          className="btn-primary-custom"
+                          onClick={downloadVariantStockTemplate}
+                          title={language === 'uz' ? "Variant qoldiqlari shabloni" : 'Скачать шаблон остатков с вариантами'}
+                        >
+                          <span className="d-none d-md-inline">
+                            {language === 'uz' ? "Qoldiq shabloni" : 'Остатки: скачать шаблон'}
+                          </span>
+                          <span className="d-md-none">
+                            {language === 'uz' ? 'Qoldiq шаблон' : 'Остатки шаблон'}
+                          </span>
+                        </Button>
+                      )}
+                      {isVariantStockImportEnabled && (
+                        <Button
+                          variant="outline-warning"
+                          className="btn-primary-custom"
+                          onClick={() => {
+                            setStockExcelFile(null);
+                            setStockExcelPreview([]);
+                            setPreparedStockImportRows([]);
+                            setStockImportMode('replace');
+                            setShowStockExcelModal(true);
+                          }}
+                          title={language === 'uz' ? "Variant qoldiqlarini import qilish" : 'Импорт остатков по вариантам'}
+                        >
+                          <span className="d-none d-md-inline">
+                            {language === 'uz' ? "Qoldiq import" : 'Остатки: импорт'}
+                          </span>
+                          <span className="d-md-none">
+                            {language === 'uz' ? "Qoldiq import" : 'Остатки импорт'}
+                          </span>
+                        </Button>
+                      )}
                     </div>
                   </Col>
                 </Row>
@@ -17391,6 +17743,172 @@ function AdminDashboard() {
               disabled={savingImportRows || !preparedImportRows.some((row) => row.isValid)}
             >
               {savingImportRows ? 'Запись...' : 'Записать'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Stock Import Modal */}
+        <Modal show={showStockExcelModal} onHide={closeStockExcelImportModal} size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {language === 'uz' ? "Variant qoldiqlarini import" : 'Импорт остатков (варианты)'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="info" className="mb-3">
+              {language === 'uz'
+                ? "Avval 'Qoldiq shabloni' ni yuklab oling. Faylga faqat 'Приход (шт)' ustunini to'ldiring va qayta yuklang."
+                : "Сначала скачайте шаблон остатков. В файле заполняйте столбец 'Приход (шт)' и загрузите обратно."}
+            </Alert>
+            <Form.Group className="mb-3">
+              <Form.Label>{language === 'uz' ? 'Excel faylni tanlang (.xlsx, .xls, .csv)' : 'Выберите файл Excel (.xlsx, .xls, .csv)'}</Form.Label>
+              <Form.Control
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleStockExcelFile}
+              />
+            </Form.Group>
+
+            {stockExcelPreview.length > 0 && (
+              <div className="mt-3">
+                <strong>{language === 'uz' ? "Oldindan ko'rish (10 satr)" : 'Предпросмотр (первые 10 строк)'}</strong>
+                <div className="table-responsive mt-2" style={{ maxHeight: '300px', overflow: 'auto' }}>
+                  <table className="table table-sm table-bordered mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        {stockExcelPreview[0]?.map((cell, idx) => (
+                          <th key={`stock-preview-head-${idx}`} style={{ fontSize: '0.8rem' }}>{cell || `Столбец ${idx + 1}`}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockExcelPreview.slice(1).map((row, rowIdx) => (
+                        <tr key={`stock-preview-row-${rowIdx}`}>
+                          {row.map((cell, idx) => (
+                            <td key={`stock-preview-cell-${rowIdx}-${idx}`} style={{ fontSize: '0.8rem' }}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closeStockExcelImportModal}>
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button
+              variant="warning"
+              onClick={prepareVariantStockImport}
+              disabled={importingStockExcel || !stockExcelFile}
+            >
+              {importingStockExcel
+                ? (language === 'uz' ? 'Tayyorlanmoqda...' : 'Подготовка...')
+                : (language === 'uz' ? "Tekshiruvga o'tish" : 'Далее: проверка')}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Stock Import Review Modal */}
+        <Modal show={showStockImportReviewModal} onHide={closeStockImportReviewModal} size="xl">
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {language === 'uz' ? 'Qoldiqlarni tekshirish' : 'Проверка импорта остатков'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Alert variant="secondary">
+              <div className="d-flex flex-wrap gap-3 align-items-center">
+                <span>{language === 'uz' ? 'Jami satr:' : 'Всего строк:'} <strong>{preparedStockImportRows.length}</strong></span>
+                <span>{language === 'uz' ? 'Yaroqli:' : 'Валидных:'} <strong>{preparedStockImportRows.filter((row) => row.isValid).length}</strong></span>
+                <span>{language === 'uz' ? 'Xato:' : 'Невалидных:'} <strong>{preparedStockImportRows.filter((row) => !row.isValid).length}</strong></span>
+                <div className="ms-auto d-flex align-items-center gap-2">
+                  <span className="small text-muted">{language === 'uz' ? "Qo'llash rejimi:" : 'Режим применения:'}</span>
+                  <Form.Select
+                    size="sm"
+                    style={{ minWidth: 220 }}
+                    value={stockImportMode}
+                    onChange={(e) => setStockImportMode(normalizeStockImportMode(e.target.value))}
+                  >
+                    <option value="replace">{language === 'uz' ? "Almashtirish (eski -> yangi)" : 'Заменить (старый -> новый)'}</option>
+                    <option value="add">{language === 'uz' ? "Summalash (eski + yangi)" : 'Суммировать (старый + приход)'}</option>
+                  </Form.Select>
+                </div>
+              </div>
+            </Alert>
+
+            <div className="table-responsive" style={{ maxHeight: '66vh', overflow: 'auto' }}>
+              <Table bordered hover size="sm" className="mb-0">
+                <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                  <tr>
+                    <th style={{ minWidth: 64 }}>#</th>
+                    <th style={{ minWidth: 88 }}>{language === 'uz' ? 'Foto' : 'Фото'}</th>
+                    <th style={{ minWidth: 280 }}>{language === 'uz' ? 'Tovar / Variant' : 'Товар / Вариант'}</th>
+                    <th style={{ minWidth: 110 }}>{language === 'uz' ? 'Joriy' : 'Текущий'}</th>
+                    <th style={{ minWidth: 140 }}>{language === 'uz' ? 'Kirim' : 'Приход'}</th>
+                    <th style={{ minWidth: 130 }}>{language === 'uz' ? 'Natija' : 'Результат'}</th>
+                    <th style={{ minWidth: 170 }}>{language === 'uz' ? 'Holat' : 'Статус'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preparedStockImportRows.map((row) => (
+                    <tr key={`prepared-stock-row-${row.rowNo}`} className={row.isValid ? '' : 'table-danger'}>
+                      <td>{row.rowNo}</td>
+                      <td>
+                        <img
+                          src={row.image_url || PRODUCT_PLACEHOLDER_IMAGE}
+                          alt={row.product_name || 'product'}
+                          style={{ width: 46, height: 46, borderRadius: 8, objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                        />
+                      </td>
+                      <td>
+                        <div className="fw-semibold">{row.product_name || '-'}</div>
+                        <div className="small text-muted">
+                          {row.variant_name ? `Variant: ${row.variant_name}` : (language === 'uz' ? 'Variant yo‘q' : 'Без варианта')}
+                        </div>
+                      </td>
+                      <td>{formatQuantity(Number(row.current_stock || 0))}</td>
+                      <td>
+                        <Form.Control
+                          size="sm"
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={row.incoming_quantity}
+                          onChange={(e) => updatePreparedStockImportQuantity(row.rowNo, e.target.value)}
+                        />
+                      </td>
+                      <td>{formatQuantity(getStockImportNextQuantity(row))}</td>
+                      <td>
+                        {row.isValid ? (
+                          <Badge bg="success">{language === 'uz' ? 'Tayyor' : 'Готово'}</Badge>
+                        ) : (
+                          <>
+                            <Badge bg="danger">{language === 'uz' ? 'Xato' : 'Ошибка'}</Badge>
+                            <div className="small text-danger mt-1">{row.error}</div>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closeStockImportReviewModal}>
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button
+              variant="warning"
+              onClick={applyPreparedStockImportRows}
+              disabled={savingStockImportRows || !preparedStockImportRows.some((row) => row.isValid)}
+            >
+              {savingStockImportRows
+                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+                : (language === 'uz' ? 'Tasdiqlash va saqlash' : 'Подтвердить и сохранить')}
             </Button>
           </Modal.Footer>
         </Modal>
