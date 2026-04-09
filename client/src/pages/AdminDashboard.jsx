@@ -1233,6 +1233,39 @@ const normalizeProductImageItems = (value) => {
 
   return normalized;
 };
+const normalizeProductSizeOptions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      source = [];
+    }
+  }
+  return Array.isArray(source) ? source : [];
+};
+const normalizeVariantName = (value) => {
+  const normalized = String(value || '').trim().slice(0, 120);
+  return normalized || null;
+};
+const resolveOrderItemImageUrl = (item) => {
+  const selectedVariant = normalizeVariantName(item?.selected_variant);
+  const sizeOptions = normalizeProductSizeOptions(item?.size_options);
+  const matchedVariant = sizeOptions.find((option) => normalizeVariantName(option?.name) === selectedVariant);
+  const variantImages = normalizeProductImageItems(matchedVariant?.product_images);
+  const productImages = normalizeProductImageItems(item?.product_images);
+  const bestImage = (
+    variantImages.find((entry) => entry.thumb_url)?.thumb_url
+    || String(matchedVariant?.thumb_url || matchedVariant?.thumbUrl || '').trim()
+    || variantImages[0]?.url
+    || String(matchedVariant?.image_url || matchedVariant?.imageUrl || '').trim()
+    || String(item?.thumb_url || item?.thumbUrl || '').trim()
+    || productImages.find((entry) => entry.thumb_url)?.thumb_url
+    || productImages[0]?.url
+    || String(item?.image_url || item?.imageUrl || '').trim()
+  );
+  return bestImage ? toAbsoluteFileUrl(bestImage) : '';
+};
 const createProductImageSlots = (value, fallbackImageUrl = '', fallbackThumbUrl = '') => {
   const slots = Array.from({ length: PRODUCT_IMAGE_SLOTS_COUNT }, () => ({ url: '', thumb_url: '' }));
   const normalized = normalizeProductImageItems(value);
@@ -14283,11 +14316,7 @@ function AdminDashboard() {
                       <>
                         <div className="order-items-stack mt-2">
                           {selectedOrder.items.map((item, idx) => {
-                            const imageUrl = item.image_url
-                              ? (String(item.image_url).startsWith('http')
-                                ? item.image_url
-                                : `${API_URL.replace('/api', '')}${item.image_url}`)
-                              : null;
+                            const imageUrl = resolveOrderItemImageUrl(item);
                             const lineTotal = parseFloat(item.total || (item.quantity * item.price) || 0);
 
                             return (
@@ -14369,7 +14398,7 @@ function AdminDashboard() {
                           </thead>
                           <tbody>
                             {editingItems.map((item, idx) => {
-                              const editImageUrl = item.image_url ? toAbsoluteFileUrl(item.image_url) : PRODUCT_PLACEHOLDER_IMAGE;
+                              const editImageUrl = resolveOrderItemImageUrl(item) || PRODUCT_PLACEHOLDER_IMAGE;
                               return (
                               <tr key={idx}>
                                 <td className="order-edit-col-product">

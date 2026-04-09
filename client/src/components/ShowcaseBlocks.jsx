@@ -2,6 +2,14 @@ import React from 'react';
 import './ShowcaseBlocks.css';
 import { formatPrice } from '../context/CartContext';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/api$/, '');
+const toAbsoluteImageUrl = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (/^(https?:\/\/|data:image\/|blob:)/i.test(normalized)) return normalized;
+  return `${API_BASE_URL}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
+};
+
 const getCategoryName = (category) => (
   category?.name_ru
   || category?.name_uz
@@ -23,11 +31,72 @@ const getProductName = (product) => (
   || ''
 );
 
+const normalizeProductImages = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = [];
+    }
+  }
+  if (!Array.isArray(source)) return [];
+  return source
+    .map((item) => {
+      if (typeof item === 'string') {
+        const url = item.trim();
+        return url ? { url, thumb_url: '' } : null;
+      }
+      if (!item || typeof item !== 'object') return null;
+      const url = String(item.url || item.image_url || '').trim();
+      const thumbUrl = String(item.thumb_url || item.thumbUrl || '').trim();
+      if (!url && !thumbUrl) return null;
+      return { url, thumb_url: thumbUrl };
+    })
+    .filter(Boolean);
+};
+
+const normalizeSizeOptions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = [];
+    }
+  }
+  return Array.isArray(source) ? source : [];
+};
+
+const resolveVariantImage = (variant) => {
+  if (!variant || typeof variant !== 'object') return '';
+  const variantImages = normalizeProductImages(variant.product_images);
+  const variantThumb = String(variant.thumb_url || variant.thumbUrl || '').trim();
+  const variantImage = String(variant.image_url || variant.imageUrl || '').trim();
+  return toAbsoluteImageUrl(
+    variantImages.find((entry) => entry.thumb_url)?.thumb_url
+    || variantThumb
+    || variantImages[0]?.url
+    || variantImage
+  );
+};
+
 const getProductImage = (product) => (
-  product?.thumb_url
-  || product?.image_url
-  || product?.image
-  || '/placeholder.png'
+  (() => {
+    const productImages = normalizeProductImages(product?.product_images);
+    const topLevelImage = toAbsoluteImageUrl(
+      productImages.find((entry) => entry.thumb_url)?.thumb_url
+      || product?.thumb_url
+      || productImages[0]?.url
+      || product?.image_url
+      || product?.image
+    );
+    if (topLevelImage) return topLevelImage;
+
+    const variantWithImage = normalizeSizeOptions(product?.size_options).find((variant) => Boolean(resolveVariantImage(variant)));
+    const variantImage = resolveVariantImage(variantWithImage);
+    return variantImage || '/placeholder.png';
+  })()
 );
 const getProductPriceMeta = (product) => {
   const basePrice = Number(product?.price);

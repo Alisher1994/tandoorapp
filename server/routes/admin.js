@@ -1268,11 +1268,15 @@ router.get('/orders', async (req, res) => {
                    'id', oi.id,
                    'product_id', oi.product_id,
                     'product_name', oi.product_name,
+                    'selected_variant', oi.selected_variant,
                     'quantity', oi.quantity,
                     'unit', oi.unit,
                     'price', oi.price,
                     'total', oi.total,
-                    'image_url', p.image_url
+                    'image_url', p.image_url,
+                    'thumb_url', p.thumb_url,
+                    'product_images', p.product_images,
+                    'size_options', p.size_options
                   )
                 ) FILTER (WHERE oi.id IS NOT NULL),
                 '[]'

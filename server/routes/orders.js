@@ -46,6 +46,66 @@ const normalizeSelectedVariant = (value) => {
   const normalized = String(value).trim().slice(0, 120);
   return normalized || null;
 };
+const toOptionalTrimmedText = (value) => (
+  value === undefined || value === null ? '' : String(value).trim()
+);
+const normalizeProductImages = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = [];
+    }
+  }
+  if (!Array.isArray(source)) return [];
+
+  return source
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        const url = toOptionalTrimmedText(entry);
+        return url ? { url, thumb_url: '' } : null;
+      }
+      if (!entry || typeof entry !== 'object') return null;
+      const url = toOptionalTrimmedText(entry.url || entry.image_url);
+      const thumbUrl = toOptionalTrimmedText(entry.thumb_url || entry.thumbUrl);
+      if (!url && !thumbUrl) return null;
+      return { url, thumb_url: thumbUrl };
+    })
+    .filter(Boolean);
+};
+const normalizeSizeOptions = (value) => {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = [];
+    }
+  }
+  return Array.isArray(source) ? source : [];
+};
+const resolveItemImageFromProduct = (item = {}) => {
+  const selectedVariant = normalizeSelectedVariant(item.selected_variant);
+  const sizeOptions = normalizeSizeOptions(item.size_options);
+  const matchingVariant = sizeOptions.find((option) => (
+    normalizeSelectedVariant(option?.name) === selectedVariant
+  ));
+  const variantImages = normalizeProductImages(matchingVariant?.product_images);
+  const productImages = normalizeProductImages(item.product_images);
+
+  return (
+    variantImages.find((entry) => entry.thumb_url)?.thumb_url
+    || toOptionalTrimmedText(matchingVariant?.thumb_url || matchingVariant?.thumbUrl)
+    || variantImages[0]?.url
+    || toOptionalTrimmedText(matchingVariant?.image_url || matchingVariant?.imageUrl)
+    || toOptionalTrimmedText(item.thumb_url || item.thumbUrl)
+    || productImages.find((entry) => entry.thumb_url)?.thumb_url
+    || productImages[0]?.url
+    || toOptionalTrimmedText(item.image_url || item.imageUrl)
+    || ''
+  );
+};
 const resolveContainerUnits = (quantityValue, normValue) => {
   const quantity = Number.parseFloat(quantityValue);
   if (!Number.isFinite(quantity) || quantity <= 0) return 0;
@@ -163,7 +223,7 @@ router.get('/operator-preview', async (req, res) => {
     }
 
     const itemsResult = await pool.query(`
-      SELECT oi.*, p.image_url
+      SELECT oi.*, p.image_url, p.thumb_url, p.product_images, p.size_options
       FROM order_items oi
       LEFT JOIN products p ON p.id = oi.product_id
       WHERE oi.order_id = $1
@@ -182,8 +242,9 @@ router.get('/operator-preview', async (req, res) => {
     const fmt = (v) => Number.parseFloat(v || 0).toLocaleString('ru-RU');
 
     const itemsHtml = items.map((item, index) => {
-      const img = item.image_url
-        ? (String(item.image_url).startsWith('http') ? String(item.image_url) : `${baseUrl}${String(item.image_url).startsWith('/') ? '' : '/'}${String(item.image_url)}`)
+      const resolvedImagePath = resolveItemImageFromProduct(item);
+      const img = resolvedImagePath
+        ? (String(resolvedImagePath).startsWith('http') ? String(resolvedImagePath) : `${baseUrl}${String(resolvedImagePath).startsWith('/') ? '' : '/'}${String(resolvedImagePath)}`)
         : '';
       const lineTotal = (Number(item.quantity) || 0) * (Number(item.price) || 0);
       return `
@@ -286,7 +347,11 @@ router.get('/my-orders', authenticate, async (req, res) => {
                     'total', oi.total,
                     'container_name', oi.container_name,
                     'container_price', oi.container_price,
-                    'container_norm', oi.container_norm
+                    'container_norm', oi.container_norm,
+                    'image_url', p.image_url,
+                    'thumb_url', p.thumb_url,
+                    'product_images', p.product_images,
+                    'size_options', p.size_options
                   )
                 ) FILTER (WHERE oi.id IS NOT NULL),
                 '[]'
@@ -294,6 +359,7 @@ router.get('/my-orders', authenticate, async (req, res) => {
        FROM orders o
        LEFT JOIN restaurants r ON o.restaurant_id = r.id
        LEFT JOIN order_items oi ON o.id = oi.order_id
+       LEFT JOIN products p ON p.id = oi.product_id
        WHERE o.user_id = $1`;
     
     const params = [req.user.id];
@@ -310,7 +376,13 @@ router.get('/my-orders', authenticate, async (req, res) => {
     
     res.json(result.rows.map(order => ({
       ...order,
-      status: normalizeOrderStatus(order.status)
+      status: normalizeOrderStatus(order.status),
+      items: Array.isArray(order.items)
+        ? order.items.map((item) => ({
+          ...item,
+          image_url: resolveItemImageFromProduct(item)
+        }))
+        : []
     })));
   } catch (error) {
     console.error('Orders error:', error);
