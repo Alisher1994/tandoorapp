@@ -24,6 +24,22 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 const toEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const normalizeVariantKey = (value) => String(value || '').trim().toLowerCase();
+const resolveCartItemStockLimit = (item) => {
+  if (!item) return null;
+  const variantOptions = Array.isArray(item?.size_options) ? item.size_options : [];
+  const selectedVariantKey = normalizeVariantKey(item?.selected_variant);
+  const selectedVariantDetails = selectedVariantKey
+    ? variantOptions.find((variant) => {
+      const variantName = variant?.name || variant?.size_name || variant?.value;
+      return normalizeVariantKey(variantName) === selectedVariantKey;
+    }) || null
+    : null;
+  const rawStock = selectedVariantDetails?.stock_quantity ?? item?.stock_quantity;
+  const parsedStock = Number(rawStock);
+  if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
+  return parsedStock;
+};
 const deriveAddressTitle = (value) => {
   const text = String(value || '').trim();
   if (!text) return '';
@@ -98,6 +114,10 @@ function Cart() {
       ? true
       : toEnabledFlag(restaurant?.cash_enabled)),
     [restaurant?.cash_enabled]
+  );
+  const isInventoryTrackingEnabled = useMemo(
+    () => toEnabledFlag(restaurant?.inventory_tracking_enabled),
+    [restaurant?.inventory_tracking_enabled]
   );
   const onlinePaymentOptions = useMemo(() => ([
     { key: 'click', url: restaurant?.click_url, logo: '/click.png', alt: 'Click' },
@@ -219,6 +239,19 @@ function Cart() {
       return () => window.visualViewport.removeEventListener('resize', handleResize);
     }
   }, []);
+
+  useEffect(() => {
+    if (!isInventoryTrackingEnabled || cart.length === 0) return;
+    cart.forEach((item) => {
+      const stockLimit = resolveCartItemStockLimit(item);
+      if (!Number.isFinite(stockLimit)) return;
+      const currentQty = Number(item?.quantity || 0);
+      if (!Number.isFinite(currentQty)) return;
+      if (currentQty > stockLimit) {
+        updateQuantity(item.id, stockLimit, item.selected_variant);
+      }
+    });
+  }, [cart, isInventoryTrackingEnabled, updateQuantity]);
 
   // Fetch restaurant info for receipt and delivery availability
   useEffect(() => {
@@ -1183,6 +1216,8 @@ function Cart() {
             <Card.Body className="p-0">
               {cart.map((item, index) => {
                 const quantityStep = resolveQuantityStep(item);
+                const stockLimit = isInventoryTrackingEnabled ? resolveCartItemStockLimit(item) : null;
+                const isAtStockLimit = Number.isFinite(stockLimit) && Number(item?.quantity || 0) >= stockLimit;
 
                 return (
                 <div
@@ -1229,7 +1264,14 @@ function Cart() {
                       <Button
                         variant="link"
                         className="p-1 px-2 text-dark text-decoration-none"
-                        onClick={() => updateQuantity(item.id, item.quantity + quantityStep, item.selected_variant)}
+                        style={{ opacity: isAtStockLimit ? 0.45 : 1 }}
+                        disabled={isAtStockLimit}
+                        onClick={() => {
+                          const requestedQty = Number(item?.quantity || 0) + Number(quantityStep || 0);
+                          const nextQty = Number.isFinite(stockLimit) ? Math.min(requestedQty, stockLimit) : requestedQty;
+                          if (!Number.isFinite(nextQty) || nextQty <= Number(item?.quantity || 0)) return;
+                          updateQuantity(item.id, nextQty, item.selected_variant);
+                        }}
                       >
                         +
                       </Button>

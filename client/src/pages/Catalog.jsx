@@ -1112,6 +1112,14 @@ function Catalog() {
     const selectedVariantDetails = getSelectedVariantDetails(product, selectedVariant);
     const selectedVariantAvailable = getSelectedVariantAvailability(product, selectedVariant);
     if (!selectedVariantAvailable) return;
+    const resolveStockLimit = (targetProduct, targetVariant = null) => {
+      if (!isInventoryTrackingEnabled || !targetProduct) return null;
+      const targetVariantDetails = getSelectedVariantDetails(targetProduct, targetVariant);
+      const rawStock = targetVariantDetails?.stock_quantity ?? targetProduct?.stock_quantity;
+      const parsedStock = Number(rawStock);
+      if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
+      return parsedStock;
+    };
     const variantPrice = getSelectedVariantPrice(product, selectedVariant);
     const selectedVariantDescription = getSelectedVariantDescription(product, selectedVariant);
     const variantImageItems = getProductImageItems(selectedVariantDetails).slice(0, 4);
@@ -1138,6 +1146,14 @@ function Catalog() {
     const variantContainerName = String(selectedVariantDetails?.container_name || '').trim();
     const productContainerName = String(product?.container_name || '').trim();
     const resolvedContainerName = (variantContainerName || productContainerName) || null;
+    const existingCartItem = getCartItem(product?.id, selectedVariant);
+    const currentQtyInCart = Number(existingCartItem?.quantity || 0);
+    const stockLimit = resolveStockLimit(product, selectedVariant);
+    const baseStep = resolveQuantityStep(existingCartItem || product || {});
+    const cappedAddQty = Number.isFinite(stockLimit)
+      ? Math.max(0, Math.min(baseStep, stockLimit - currentQtyInCart))
+      : baseStep;
+    if (cappedAddQty <= 0) return;
     addToCart({
       ...product,
       restaurant_id: selectedRestaurant,
@@ -1152,7 +1168,7 @@ function Catalog() {
       image_url: cartImageUrl,
       thumb_url: cartThumbUrl,
       product_images: cartProductImages
-    });
+    }, cappedAddQty);
   };
 
   const handleToggleFavorite = (product) => {
@@ -1168,6 +1184,23 @@ function Catalog() {
     if (selectedVariant === undefined) return true;
     return normalizeVariantKey(item?.selected_variant) === normalizeVariantKey(selectedVariant);
   });
+  const resolveProductStockLimit = (product, selectedVariant = null) => {
+    if (!isInventoryTrackingEnabled || !product) return null;
+    const variantDetails = getSelectedVariantDetails(product, selectedVariant);
+    const rawStock = variantDetails?.stock_quantity ?? product?.stock_quantity;
+    const parsedStock = Number(rawStock);
+    if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
+    return parsedStock;
+  };
+  const updateProductQuantityWithinStock = (product, currentQty, quantityStep, selectedVariant = null) => {
+    if (!product?.id) return;
+    const nextQtyRaw = Number(currentQty || 0) + Number(quantityStep || 0);
+    if (!Number.isFinite(nextQtyRaw)) return;
+    const stockLimit = resolveProductStockLimit(product, selectedVariant);
+    const nextQty = Number.isFinite(stockLimit) ? Math.min(nextQtyRaw, stockLimit) : nextQtyRaw;
+    if (!Number.isFinite(nextQty) || nextQty <= Number(currentQty || 0)) return;
+    updateQuantity(product.id, nextQty, selectedVariant);
+  };
 
   const categoriesById = useMemo(() => {
     const map = new Map();
@@ -2365,6 +2398,8 @@ function Catalog() {
     const productPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
     const productDisplayPrice = productPriceMeta.currentPrice;
     const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
+    const stockLimit = resolveProductStockLimit(product, selectedVariant);
+    const isAtStockLimit = Number.isFinite(stockLimit) && Number(qty || 0) >= stockLimit;
     const renderImageFallback = () => (
       <div
         style={{ width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }}
@@ -2600,10 +2635,10 @@ function Catalog() {
                     }, 2000);
                   }}
                 >
-                  <button
-                    type="button"
-                    className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                    style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
+                    <button
+                      type="button"
+                      className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
                       onClick={(e) => {
                         e.stopPropagation();
                         updateQuantity(product.id, qty - quantityStep, selectedVariant);
@@ -2615,10 +2650,17 @@ function Catalog() {
                   <button
                     type="button"
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                    style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
+                    style={{
+                      width: 34,
+                      height: 34,
+                      fontSize: '18px',
+                      touchAction: 'manipulation',
+                      opacity: isAtStockLimit ? 0.45 : 1
+                    }}
+                    disabled={isAtStockLimit}
                       onClick={(e) => {
                         e.stopPropagation();
-                        updateQuantity(product.id, qty + quantityStep, selectedVariant);
+                        updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant);
                       }}
                     >
                       +
@@ -3257,6 +3299,8 @@ function Catalog() {
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
               const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
+              const stockLimit = resolveProductStockLimit(product, selectedVariant);
+              const isAtStockLimit = Number.isFinite(stockLimit) && Number(qty || 0) >= stockLimit;
               const displayPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
               const displayPrice = displayPriceMeta.currentPrice;
               return (
@@ -3365,10 +3409,18 @@ function Catalog() {
                           <button
                             type="button"
                             className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                            style={{ width: 32, height: 32, color: 'var(--primary-color)', fontSize: '18px', touchAction: 'manipulation' }}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              color: 'var(--primary-color)',
+                              fontSize: '18px',
+                              touchAction: 'manipulation',
+                              opacity: isAtStockLimit ? 0.45 : 1
+                            }}
+                            disabled={isAtStockLimit}
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateQuantity(product.id, qty + quantityStep, selectedVariant);
+                              updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant);
                             }}
                             aria-label={language === 'uz' ? 'Ko‘paytirish' : 'Увеличить'}
                           >
@@ -3492,6 +3544,13 @@ function Catalog() {
     isInventoryTrackingEnabled
     && Number.isFinite(activeProductStockQuantity)
     && activeProductStockQuantity > 0
+  );
+  const activeProductUnitLabel = language === 'uz' && activeProduct?.unit_uz
+    ? activeProduct.unit_uz
+    : (activeProduct?.unit || (language === 'uz' ? 'dona' : 'шт'));
+  const activeProductIsAtStockLimit = (
+    Number.isFinite(activeProductStockQuantity)
+    && Number(activeProductQty || 0) >= activeProductStockQuantity
   );
 
   return (
@@ -4299,26 +4358,30 @@ function Catalog() {
                   <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-2">
                     <div className="min-w-0">
                       <h4 className="mb-1 text-truncate">{activeProductName}</h4>
-                      <div className="small text-muted">{activeProduct?.unit || (language === 'uz' ? 'dona' : 'шт')}</div>
+                      {!shouldShowActiveProductStockLine && (
+                        <div className="small text-muted">{activeProductUnitLabel}</div>
+                      )}
                     </div>
-                    <span
-                      className="badge"
-                      style={{
-                        background: activeProductIsAvailable ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
-                        color: activeProductIsAvailable ? '#166534' : '#475569',
-                        border: '1px solid rgba(15,23,42,0.08)'
-                      }}
-                    >
-                      {activeProductIsAvailable
-                        ? (language === 'uz' ? 'Mavjud' : 'В наличии')
-                        : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
-                    </span>
+                    {(!shouldShowActiveProductStockLine || !activeProductIsAvailable) && (
+                      <span
+                        className="badge"
+                        style={{
+                          background: activeProductIsAvailable ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.18)',
+                          color: activeProductIsAvailable ? '#166534' : '#475569',
+                          border: '1px solid rgba(15,23,42,0.08)'
+                        }}
+                      >
+                        {activeProductIsAvailable
+                          ? (language === 'uz' ? 'Mavjud' : 'В наличии')
+                          : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
+                      </span>
+                    )}
                   </div>
                   {shouldShowActiveProductStockLine && (
                     <div className="small mb-2" style={{ color: '#166534', fontWeight: 600 }}>
                       {language === 'uz'
-                        ? `Mavjud: (${formatQuantity(activeProductStockQuantity)}) ${activeProduct?.unit || 'шт'}`
-                        : `Есть в наличии (${formatQuantity(activeProductStockQuantity)}) ${activeProduct?.unit || 'шт'}`}
+                        ? `Mavjud: ${formatQuantity(activeProductStockQuantity)} ${activeProductUnitLabel}`
+                        : `В наличии: ${formatQuantity(activeProductStockQuantity)} ${activeProductUnitLabel}`}
                     </div>
                   )}
 
@@ -4559,7 +4622,14 @@ function Catalog() {
                           <button
                             type="button"
                             className="btn btn-sm p-0 border-0 bg-transparent"
-                            onClick={() => updateQuantity(activeProduct.id, activeProductQty + activeProductQuantityStep, activeProductSelectedVariant)}
+                            style={{ opacity: activeProductIsAtStockLimit ? 0.45 : 1 }}
+                            disabled={activeProductIsAtStockLimit}
+                            onClick={() => updateProductQuantityWithinStock(
+                              activeProduct,
+                              activeProductQty,
+                              activeProductQuantityStep,
+                              activeProductSelectedVariant
+                            )}
                             aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
                           >
                             +
