@@ -145,6 +145,13 @@ const normalizeSelectedVariant = (value) => {
   const normalized = String(value).trim().slice(0, 120);
   return normalized || null;
 };
+const normalizeStockVariantKey = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+);
 const extractSelectedVariantFromProductName = (value) => {
   const normalized = String(value || '').trim();
   if (!normalized) return null;
@@ -3924,6 +3931,7 @@ router.post('/products/stock-import/apply', async (req, res) => {
       const item = items[index] || {};
       const productId = Number.parseInt(item.product_id, 10);
       const variantName = toOptionalTrimmedText(item.variant_name).slice(0, 120);
+      const variantBarcode = toOptionalTrimmedText(item.barcode).slice(0, 120);
       const incomingRaw = String(item.quantity ?? '').trim().replace(',', '.');
       const incomingParsed = Number.parseFloat(incomingRaw);
       if (!Number.isInteger(productId) || productId <= 0) {
@@ -3937,6 +3945,7 @@ router.post('/products/stock-import/apply', async (req, res) => {
       normalizedItems.push({
         product_id: productId,
         variant_name: variantName || null,
+        barcode: variantBarcode || null,
         quantity: normalizeInventoryQuantity(incomingParsed, 0)
       });
     }
@@ -3974,9 +3983,12 @@ router.post('/products/stock-import/apply', async (req, res) => {
           validationErrors.push(`Строка ${index + 1}: у товара #${item.product_id} нет вариантов`);
           continue;
         }
-        const targetIndex = variants.findIndex(
-          (variant) => normalizeSelectedVariant(variant?.name) === normalizeSelectedVariant(item.variant_name)
-        );
+        const targetIndex = variants.findIndex((variant) => {
+          const byName = normalizeStockVariantKey(variant?.name) === normalizeStockVariantKey(item.variant_name);
+          if (byName) return true;
+          const variantBarcode = toOptionalTrimmedText(variant?.barcode).slice(0, 120);
+          return Boolean(item.barcode && variantBarcode && variantBarcode === item.barcode);
+        });
         if (targetIndex < 0) {
           validationErrors.push(`Строка ${index + 1}: вариант "${item.variant_name || ''}" не найден для товара #${item.product_id}`);
           continue;

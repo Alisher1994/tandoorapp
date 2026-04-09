@@ -1294,6 +1294,13 @@ const normalizeVariantName = (value) => {
   const normalized = String(value || '').trim().slice(0, 120);
   return normalized || null;
 };
+const normalizeStockVariantKey = (value) => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+);
 const resolveOrderItemImageUrl = (item) => {
   const selectedVariant = normalizeVariantName(item?.selected_variant);
   const sizeOptions = normalizeProductSizeOptions(item?.size_options);
@@ -7558,10 +7565,12 @@ function AdminDashboard() {
       const rowNo = index + rowNumberOffset;
       const productIdRaw = row['Product ID'] ?? row['ID товара'] ?? row.product_id ?? row.id;
       const variantNameRaw = row['Вариант'] ?? row.variant_name ?? row.variant;
+      const barcodeRaw = row['Штрихкод'] ?? row.barcode ?? row['Barcode'];
       const incomingRaw = row['Приход (шт)'] ?? row['Приход'] ?? row['Количество'] ?? row.quantity ?? row.incoming_stock;
       const parsedProductId = Number.parseInt(String(productIdRaw ?? '').trim(), 10);
       const incomingValue = Number.parseFloat(String(incomingRaw ?? '').trim().replace(',', '.'));
       const normalizedVariantName = String(variantNameRaw || '').trim();
+      const normalizedBarcode = String(barcodeRaw || '').trim();
       const product = productsByIdForStockImport.get(parsedProductId) || null;
       const isVariantMode = product?.size_enabled === true;
       const variants = normalizeProductVariantOptions(product?.size_options, {
@@ -7569,7 +7578,10 @@ function AdminDashboard() {
         unit: product?.unit || 'шт'
       });
       const matchedVariant = isVariantMode
-        ? variants.find((variant) => normalizeVariantName(variant?.name) === normalizeVariantName(normalizedVariantName))
+        ? (
+          variants.find((variant) => normalizeStockVariantKey(variant?.name) === normalizeStockVariantKey(normalizedVariantName))
+          || variants.find((variant) => String(variant?.barcode || '').trim() && String(variant?.barcode || '').trim() === normalizedBarcode)
+        )
         : null;
       const imageUrl = resolveAbsoluteMediaUrl(
         matchedVariant?.thumb_url
@@ -7601,6 +7613,7 @@ function AdminDashboard() {
         product_id: Number.isInteger(parsedProductId) ? parsedProductId : 0,
         product_name: String(product?.name_ru || product?.name_uz || row['Название товара'] || '').trim(),
         variant_name: isVariantMode ? normalizedVariantName : '',
+        barcode: normalizedBarcode,
         image_url: imageUrl,
         current_stock: currentStock,
         incoming_quantity: Number.isFinite(incomingValue) && incomingValue >= 0 ? incomingValue : 0,
@@ -7712,6 +7725,7 @@ function AdminDashboard() {
 
   const applyPreparedStockImportRows = async () => {
     const validRows = preparedStockImportRows.filter((row) => row.isValid);
+    const invalidRowsCount = Math.max(0, preparedStockImportRows.length - validRows.length);
     if (!validRows.length) {
       setAlertMessage({ type: 'warning', text: 'Нет валидных строк для импорта остатков' });
       return;
@@ -7724,14 +7738,15 @@ function AdminDashboard() {
         items: validRows.map((row) => ({
           product_id: row.product_id,
           variant_name: row.variant_name || null,
+          barcode: row.barcode || null,
           quantity: Number(row.incoming_quantity || 0)
         }))
       });
       setAlertMessage({
         type: 'success',
         text: mode === 'add'
-          ? `Остатки успешно суммированы по ${validRows.length} строкам`
-          : `Остатки успешно обновлены по ${validRows.length} строкам`
+          ? `Остатки суммированы по ${validRows.length} строкам${invalidRowsCount > 0 ? `, пропущено: ${invalidRowsCount}` : ''}`
+          : `Остатки обновлены по ${validRows.length} строкам${invalidRowsCount > 0 ? `, пропущено: ${invalidRowsCount}` : ''}`
       });
       closeStockImportReviewModal();
       setStockExcelFile(null);
