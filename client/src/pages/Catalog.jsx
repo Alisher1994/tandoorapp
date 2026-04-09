@@ -1172,6 +1172,7 @@ function Catalog() {
     () => restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant)) || null,
     [restaurants, selectedRestaurant]
   );
+  const isMenuLiquidGlassEnabled = currentRestaurant?.menu_liquid_glass_enabled === true;
   const storeLogoFallbackUrl = resolveImageUrl(
     currentRestaurant?.logo_url || user?.active_restaurant_logo || ''
   );
@@ -2451,8 +2452,14 @@ function Catalog() {
               width: 30,
               height: 30,
               borderRadius: '999px',
-              border: '1px solid rgba(255,255,255,0.55)',
-              background: favoriteActive ? 'rgba(255, 95, 125, 0.94)' : 'rgba(255,255,255,0.92)',
+              border: isMenuLiquidGlassEnabled
+                ? `1px solid ${favoriteActive ? 'rgba(255, 255, 255, 0.45)' : 'rgba(148, 163, 184, 0.38)'}`
+                : '1px solid rgba(255,255,255,0.55)',
+              background: isMenuLiquidGlassEnabled
+                ? (favoriteActive ? 'rgba(255, 95, 125, 0.42)' : 'rgba(255,255,255,0.34)')
+                : (favoriteActive ? 'rgba(255, 95, 125, 0.94)' : 'rgba(255,255,255,0.92)'),
+              backdropFilter: isMenuLiquidGlassEnabled ? 'blur(10px)' : 'none',
+              WebkitBackdropFilter: isMenuLiquidGlassEnabled ? 'blur(10px)' : 'none',
               color: favoriteActive ? '#fff' : '#475569',
               display: 'flex',
               alignItems: 'center',

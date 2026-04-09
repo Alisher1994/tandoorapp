@@ -45,6 +45,14 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
+const normalizeBooleanFlag = (value, fallback = false) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+};
 const getCurrentSeasonScope = (date = new Date()) => {
   const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: TASHKENT_TZ }).format(date));
   if ([12, 1, 2].includes(month)) return 'winter';
@@ -201,6 +209,8 @@ const ensureRestaurantCurrencySchema = async () => {
   restaurantCurrencySchemaPromise = (async () => {
     await ensureRestaurantMinimumOrderSchema();
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -208,6 +218,8 @@ const ensureRestaurantCurrencySchema = async () => {
          OR BTRIM(currency_code) = ''
          OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
     `).catch(() => {});
+    await pool.query(`UPDATE restaurants SET menu_liquid_glass_enabled = false WHERE menu_liquid_glass_enabled IS NULL`).catch(() => {});
+    await pool.query(`UPDATE restaurants SET menu_height_lock_enabled = false WHERE menu_height_lock_enabled IS NULL`).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();
 
@@ -754,6 +766,8 @@ router.get('/restaurant/:id', async (req, res) => {
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
+      menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
+      menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
@@ -1426,6 +1440,8 @@ router.get('/restaurants/list', async (req, res) => {
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
+      menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
+      menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,

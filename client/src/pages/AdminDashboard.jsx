@@ -713,6 +713,8 @@ const buildRestaurantSettingsSignature = (settings) => {
     menu_view_mode: String(settings.menu_view_mode || '').trim().toLowerCase() === 'single_list'
       ? 'single_list'
       : 'grid_categories',
+    menu_liquid_glass_enabled: normalizeSettingsBoolean(settings.menu_liquid_glass_enabled, false),
+    menu_height_lock_enabled: normalizeSettingsBoolean(settings.menu_height_lock_enabled, false),
     currency_code: String(settings.currency_code || 'uz').trim().toLowerCase() || 'uz',
     telegram_bot_token: normalizeSettingsText(settings.telegram_bot_token),
     telegram_group_id: normalizeSettingsText(settings.telegram_group_id),
@@ -4948,6 +4950,8 @@ function AdminDashboard() {
         ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
         ui_font_family: normalizeUiFontFamily(response.data?.ui_font_family, 'sans'),
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        menu_liquid_glass_enabled: response.data?.menu_liquid_glass_enabled === true,
+        menu_height_lock_enabled: response.data?.menu_height_lock_enabled === true,
         delivery_pricing_mode: normalizeDeliveryPricingMode(response.data?.delivery_pricing_mode, 'dynamic'),
         delivery_fixed_price: Number.isFinite(Number(response.data?.delivery_fixed_price))
           ? Number(response.data?.delivery_fixed_price)
@@ -4998,6 +5002,12 @@ function AdminDashboard() {
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
         ui_font_family: normalizeUiFontFamily(savedSettings?.ui_font_family, restaurantSettings?.ui_font_family || 'sans'),
         menu_view_mode: savedSettings?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        menu_liquid_glass_enabled: savedSettings?.menu_liquid_glass_enabled === true
+          ? true
+          : Boolean(restaurantSettings?.menu_liquid_glass_enabled),
+        menu_height_lock_enabled: savedSettings?.menu_height_lock_enabled === true
+          ? true
+          : Boolean(restaurantSettings?.menu_height_lock_enabled),
         delivery_pricing_mode: normalizeDeliveryPricingMode(
           savedSettings?.delivery_pricing_mode,
           restaurantSettings?.delivery_pricing_mode || 'dynamic'
@@ -12664,6 +12674,39 @@ function AdminDashboard() {
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
                                     Выберите один режим отображения без выпадающего списка.
+                                  </Form.Text>
+                                </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль меню</Form.Label>
+                                  <div className="d-flex flex-column gap-3">
+                                    <Form.Check
+                                      type="switch"
+                                      id="menu-liquid-glass-switch"
+                                      className="fw-semibold"
+                                      label={language === 'uz' ? 'Liquid Glass menyu shaffofligi' : 'Liquid Glass прозрачность меню'}
+                                      checked={restaurantSettings.menu_liquid_glass_enabled === true}
+                                      onChange={(e) => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        menu_liquid_glass_enabled: e.target.checked
+                                      })}
+                                    />
+                                    <Form.Check
+                                      type="switch"
+                                      id="menu-height-lock-switch"
+                                      className="fw-semibold"
+                                      label={language === 'uz' ? "Menyu balandligini fiksatsiya qilish" : 'Фиксировать высоту меню при прокрутке'}
+                                      checked={restaurantSettings.menu_height_lock_enabled === true}
+                                      onChange={(e) => setRestaurantSettings({
+                                        ...restaurantSettings,
+                                        menu_height_lock_enabled: e.target.checked
+                                      })}
+                                    />
+                                  </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    При включении Liquid Glass нижнее меню и круг избранного в карточке товара становятся полупрозрачными.
                                   </Form.Text>
                                 </Form.Group>
                               </div>

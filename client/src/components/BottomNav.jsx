@@ -20,6 +20,8 @@ function BottomNav() {
   const [isCompact, setIsCompact] = useState(false);
   const [isIOSDevice, setIsIOSDevice] = useState(false);
   const [isReservationMenuVisible, setIsReservationMenuVisible] = useState(false);
+  const [menuLiquidGlassEnabled, setMenuLiquidGlassEnabled] = useState(false);
+  const [menuHeightLockEnabled, setMenuHeightLockEnabled] = useState(false);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= 992 : false
   ));
@@ -39,6 +41,8 @@ function BottomNav() {
     const restaurantId = Number.parseInt(user?.active_restaurant_id, 10);
     if (!restaurantId) {
       setIsReservationMenuVisible(false);
+      setMenuLiquidGlassEnabled(false);
+      setMenuHeightLockEnabled(false);
       return () => { ignore = true; };
     }
 
@@ -47,9 +51,13 @@ function BottomNav() {
         const response = await axios.get(`${API_URL}/products/restaurant/${restaurantId}`);
         if (ignore) return;
         setIsReservationMenuVisible(response.data?.reservation_enabled === true);
+        setMenuLiquidGlassEnabled(response.data?.menu_liquid_glass_enabled === true);
+        setMenuHeightLockEnabled(response.data?.menu_height_lock_enabled === true);
       } catch (error) {
         if (ignore) return;
         setIsReservationMenuVisible(false);
+        setMenuLiquidGlassEnabled(false);
+        setMenuHeightLockEnabled(false);
       }
     })();
 
@@ -96,6 +104,10 @@ function BottomNav() {
   }, [showcaseVisible, location.pathname, navigate]);
 
   useEffect(() => {
+    if (menuHeightLockEnabled) {
+      setIsCompact(false);
+      return undefined;
+    }
     const rootEl = document.getElementById('root');
     const docEl = document.documentElement;
 
@@ -123,7 +135,7 @@ function BottomNav() {
       window.removeEventListener('scroll', handleScroll);
       rootEl?.removeEventListener('scroll', handleScroll);
     };
-  }, []);
+  }, [menuHeightLockEnabled]);
 
   const handleNavItemClick = (path) => {
     if (isCompact) {
@@ -135,6 +147,8 @@ function BottomNav() {
   const navClassName = [
     'client-bottom-nav',
     isCompact ? 'is-compact' : '',
+    menuLiquidGlassEnabled ? 'is-liquid-glass' : '',
+    menuHeightLockEnabled ? 'is-height-locked' : '',
     isIOSDevice ? 'is-ios' : '',
     isDesktopViewport ? 'is-desktop' : ''
   ].filter(Boolean).join(' ');

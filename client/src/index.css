@@ -3105,9 +3105,46 @@ h6 {
   padding: 6px;
 }
 
+.client-bottom-nav.is-liquid-glass {
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(148, 163, 184, 0.36);
+  box-shadow: 0 18px 32px rgba(51, 65, 85, 0.18);
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+}
+
+.client-bottom-nav.is-liquid-glass .client-bottom-nav-item.is-active {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(148, 163, 184, 0.34);
+}
+
+.client-bottom-nav.is-height-locked {
+  padding: 8px 6px 10px;
+  border-radius: 20px;
+}
+
+.client-bottom-nav.is-height-locked.is-ios {
+  padding: 10px 8px 12px;
+  border-radius: 28px;
+}
+
+.client-bottom-nav.is-height-locked .client-bottom-nav-item {
+  min-height: 52px;
+}
+
 .client-bottom-nav.is-ios.is-compact {
   border-radius: 20px;
   padding: 7px 8px;
+}
+
+.client-bottom-nav.is-height-locked.is-compact {
+  border-radius: 20px;
+  padding: 8px 6px 10px;
+}
+
+.client-bottom-nav.is-height-locked.is-ios.is-compact {
+  border-radius: 28px;
+  padding: 10px 8px 12px;
 }
 
 .client-bottom-nav-item {

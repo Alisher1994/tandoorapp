@@ -407,6 +407,14 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
+const normalizeBooleanFlag = (value, fallback = false) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+};
 const DELIVERY_PRICING_MODES = new Set(['dynamic', 'fixed']);
 const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -434,6 +442,8 @@ const ensureRestaurantCurrencySchema = async () => {
     await ensureInventorySchema(pool);
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_font_family VARCHAR(32) DEFAULT 'sans'`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -492,6 +502,12 @@ const ensureRestaurantCurrencySchema = async () => {
       `UPDATE restaurants
        SET is_operator_delivery_later_enabled = false
        WHERE is_operator_delivery_later_enabled IS NULL`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants SET menu_liquid_glass_enabled = false WHERE menu_liquid_glass_enabled IS NULL`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants SET menu_height_lock_enabled = false WHERE menu_height_lock_enabled IS NULL`
     ).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET inventory_tracking_enabled = false WHERE inventory_tracking_enabled IS NULL`
@@ -1739,6 +1755,8 @@ router.put('/restaurant', async (req, res) => {
          ui_theme,
          ui_font_family,
          menu_view_mode,
+         menu_liquid_glass_enabled,
+         menu_height_lock_enabled,
          currency_code,
          delivery_pricing_mode,
          delivery_fixed_price,
@@ -1763,6 +1781,7 @@ router.put('/restaurant', async (req, res) => {
       delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, ui_font_family, menu_view_mode, payment_placeholders, currency_code,
+      menu_liquid_glass_enabled, menu_height_lock_enabled,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
       inventory_tracking_enabled, inventory_min_threshold,
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
@@ -1791,6 +1810,14 @@ router.put('/restaurant', async (req, res) => {
     const normalizedMenuViewMode = normalizeMenuViewMode(
       menu_view_mode,
       previousRestaurant.menu_view_mode || 'grid_categories'
+    );
+    const normalizedMenuLiquidGlassEnabled = normalizeBooleanFlag(
+      menu_liquid_glass_enabled,
+      previousRestaurant.menu_liquid_glass_enabled === true
+    );
+    const normalizedMenuHeightLockEnabled = normalizeBooleanFlag(
+      menu_height_lock_enabled,
+      previousRestaurant.menu_height_lock_enabled === true
     );
     const normalizedDeliveryPricingMode = normalizeDeliveryPricingMode(
       delivery_pricing_mode,
@@ -1916,8 +1943,10 @@ router.put('/restaurant', async (req, res) => {
           receipt_footer_text = $55,
           inventory_tracking_enabled = COALESCE($56, inventory_tracking_enabled),
           inventory_min_threshold = $57,
+          menu_liquid_glass_enabled = COALESCE($58, menu_liquid_glass_enabled),
+          menu_height_lock_enabled = COALESCE($59, menu_height_lock_enabled),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $58
+      WHERE id = $60
       RETURNING *
     `, [
       name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -1958,6 +1987,8 @@ router.put('/restaurant', async (req, res) => {
       receipt_footer_text || null,
       normalizedInventoryTrackingEnabled,
       normalizedInventoryMinThreshold,
+      normalizedMenuLiquidGlassEnabled,
+      normalizedMenuHeightLockEnabled,
       restaurantId
     ]);
 
